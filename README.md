@@ -159,6 +159,21 @@ instance. The app only needs a database it can create its schema in.
 
 ---
 
+## Updating a deployment
+
+`docker compose up -d` does **not** pull a newer image — Compose only pulls
+when the tag is missing locally, and tags are mutable pointers it does not
+re-check. Updating is always:
+
+```sh
+docker compose pull && docker compose up -d
+```
+
+On Unraid, the Compose Manager **Update Stack** action does both; plain
+**Compose Up** does not. See [docs/UNRAID.md](docs/UNRAID.md#updating).
+
+---
+
 ## Backup and restore
 
 ```sh
