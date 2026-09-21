@@ -240,6 +240,8 @@ export const expressions = pgTable(
   (t) => [
     index("expressions_brand_idx").on(t.brandId),
     index("expressions_category_idx").on(t.categoryId),
+    // Barcode lookup. Not unique: relabels and regional variants share codes.
+    index("expressions_upc_idx").on(t.upc).where(sql`${t.upc} IS NOT NULL`),
     unique().on(t.brandId, t.name, t.batch),
   ],
 );

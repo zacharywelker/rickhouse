@@ -29,6 +29,15 @@ export type FieldSpec =
     }
   | { kind: "textarea"; name: string; label: string; placeholder?: string; help?: string; span?: FieldSpan }
   | {
+      kind: "date";
+      name: string;
+      label: string;
+      required?: boolean;
+      help?: string;
+      defaultValue?: string;
+      span?: FieldSpan;
+    }
+  | {
       kind: "number";
       name: string;
       label: string;
@@ -38,6 +47,8 @@ export type FieldSpec =
       step?: number;
       placeholder?: string;
       help?: string;
+      /** Prefilled when creating. Mirror the column default where there is one. */
+      defaultValue?: string;
       span?: FieldSpan;
     }
   | { kind: "checkbox"; name: string; label: string; help?: string; span?: FieldSpan }
@@ -59,7 +70,8 @@ export type FieldSpec =
       kind: "reference";
       name: string;
       label: string;
-      resource: ReferenceResource;
+      /** Null disables inline create for this picker. */
+      resource: ReferenceResource | null;
       required?: boolean;
       help?: string;
       /** Rows that would create a cycle, e.g. a category's own descendants. */

@@ -8,9 +8,10 @@ Every bottle gets its own page. Brands, distilleries, mashbills, finishes and
 stores are real linked records rather than free text, so "show me everything
 Bardstown distilled" works even when the bottle is a three-way blend.
 
-> **Status: Milestone 2 (Configuration CRUD).** Database, login, health check
-> and the full configuration section are done and verified. Expressions, bottle pages, the
-> fill gauge and the grid are next — see [SPEC.md](SPEC.md).
+> **Status: Milestone 3 (Expressions and bottles).** Database, login, the
+> configuration section, expressions, bottle pages and image upload are done
+> and verified. The fill gauge and the sortable grid
+> are next — see [SPEC.md](SPEC.md).
 
 ---
 
@@ -253,6 +254,45 @@ error.
 
 ---
 
+## Expressions and bottles
+
+The split the whole data model turns on:
+
+- An **expression** is the product — mashbill, proof, distillery, MSRP. Two
+  batches of the same name are two expressions.
+- A **bottle** is the physical unit on your shelf — price paid, store, date
+  acquired, fill level. Buying a second one adds a bottle, not a product.
+
+The expression form shows sections by the chosen category's field group: a
+Bourbon gets the process fields, a Rum gets still type, marque and esters.
+Ticking single barrel or private selection reveals the pick fields — who
+picked it, the warehouse, the fill and bottling dates.
+
+**Hiding never clears.** Recategorise a rum as a bourbon and the rum columns
+are simply left out of the update rather than nulled, so the ester count is
+still there if you switch back.
+
+Distilleries, mashbills and finishes attach as ordered lists with a share
+percentage each, because a blend of three has three of them and the order is
+meaningful.
+
+### Photos
+
+Uploads are re-encoded to WebP on the way in, which normalises HEIC from an
+iPhone, applies the orientation tag, and strips EXIF — including GPS. Files are
+named with UUIDs and written to the uploads volume, so nothing derived from the
+upload's own filename ever reaches the disk. A thumbnail is generated
+alongside. They are served through `/api/images/…`, behind the session, and
+every path is resolved against the uploads root before being read.
+
+### Barcodes
+
+`expressions.upc` takes a scanned code — a handheld reader presents as a
+keyboard, so it types straight into the field with no integration to write.
+The column is indexed for lookup; scan-to-jump arrives with the grid.
+
+---
+
 ## The published image
 
 `.github/workflows/publish.yml` builds `ghcr.io/zacharywelker/rickhouse` on
@@ -307,6 +347,7 @@ however you normally do and set `DATABASE_URL` to match.
 | `npm run db:generate` | Generate a migration after editing `src/db/schema.ts`. |
 | `npm run db:migrate` | Apply migrations. |
 | `npm run db:seed` | Seed the category tree (and the example, if empty). |
+| `npm run db:reset` | Empty every table and re-seed. Refuses to run against a remote host. |
 | `npm run db:studio` | Drizzle Studio against the configured database. |
 
 ### Changing the data model

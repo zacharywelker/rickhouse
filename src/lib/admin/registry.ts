@@ -917,8 +917,62 @@ export const RESOURCES: Record<ResourceKey, ResourceConfig> = {
   tags: tagsConfig,
 };
 
+async function brandOptions(): Promise<Option[]> {
+  const rows = await db
+    .select({ value: brands.id, label: brands.name, hint: companies.name })
+    .from(brands)
+    .leftJoin(companies, eq(brands.companyId, companies.id))
+    .orderBy(asc(brands.name));
+  return rows.map((r) => ({ value: r.value, label: r.label, ...(r.hint ? { hint: r.hint } : {}) }));
+}
+
+async function finishOptions(): Promise<Option[]> {
+  const rows = await db
+    .select({ value: finishes.id, label: finishes.name, hint: finishes.finishType })
+    .from(finishes)
+    .orderBy(asc(finishes.name));
+  return rows.map((r) => ({ value: r.value, label: r.label, hint: r.hint }));
+}
+
+async function storeOptions(): Promise<Option[]> {
+  const rows = await db
+    .select({ value: stores.id, label: stores.name, hint: stores.location })
+    .from(stores)
+    .orderBy(asc(stores.name));
+  return rows.map((r) => ({ value: r.value, label: r.label, ...(r.hint ? { hint: r.hint } : {}) }));
+}
+
+/** Mashbills often have no name, so the recipe itself is the label. */
+async function mashbillOptions(): Promise<Option[]> {
+  const rows = await db
+    .select({
+      value: mashbills.id,
+      name: mashbills.name,
+      corn: mashbills.corn,
+      rye: mashbills.rye,
+      wheat: mashbills.wheat,
+      maltedBarley: mashbills.maltedBarley,
+      maltedRye: mashbills.maltedRye,
+      otherGrain: mashbills.otherGrain,
+      otherGrainName: mashbills.otherGrainName,
+      distillery: distilleries.name,
+    })
+    .from(mashbills)
+    .leftJoin(distilleries, eq(mashbills.distilleryId, distilleries.id))
+    .orderBy(asc(mashbills.name), asc(mashbills.id));
+  return rows.map((r) => ({
+    value: r.value,
+    label: r.name ?? describeMashbill(r),
+    ...(r.name ? { hint: describeMashbill(r) } : r.distillery ? { hint: r.distillery } : {}),
+  }));
+}
+
 export const REFERENCE_OPTION_LOADERS = {
   categories: categoryOptions,
   companies: companyOptions,
+  brands: brandOptions,
   distilleries: distilleryOptions,
+  mashbills: mashbillOptions,
+  finishes: finishOptions,
+  stores: storeOptions,
 } as const;

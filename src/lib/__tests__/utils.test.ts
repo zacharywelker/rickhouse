@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, formatNumeric, slugify } from "../utils";
+import { formatMoney, formatNumeric, humanise, slugify } from "../utils";
 
 describe("formatMoney", () => {
   it("formats Postgres numeric strings without touching floats", () => {
@@ -47,5 +47,18 @@ describe("slugify", () => {
     expect(slugify("P.Club by Pursuit Spirits")).toBe("p-club-by-pursuit-spirits");
     expect(slugify("Tennessee Distilling Ltd.")).toBe("tennessee-distilling-ltd");
     expect(slugify("  E.H. Taylor, Jr.  ")).toBe("e-h-taylor-jr");
+  });
+});
+
+describe("humanise", () => {
+  it("capitalises the stored enum text", () => {
+    expect(humanise("purchase")).toBe("Purchase");
+    expect(humanise("owned")).toBe("Owned");
+    expect(humanise("cane juice")).toBe("Cane juice");
+  });
+
+  it("returns a dash for nothing", () => {
+    expect(humanise(null)).toBe("—");
+    expect(humanise("")).toBe("—");
   });
 });

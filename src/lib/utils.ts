@@ -33,3 +33,12 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
 }
+
+/**
+ * Enum-ish text columns are stored lowercase ("purchase", "owned", "pot").
+ * Presenting them raw makes the UI look like a database dump.
+ */
+export function humanise(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}

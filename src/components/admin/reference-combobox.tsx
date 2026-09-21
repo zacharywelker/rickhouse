@@ -14,8 +14,14 @@ type Props = {
   /** Id of the field's <label>; combined with the trigger's own text so the
    * accessible name reads "Distillery, Bardstown Bourbon Company". */
   labelledBy: string;
-  resource: ReferenceResource;
+  /**
+   * Null disables inline create. Mashbills are the case: their grains must
+   * total 100, so there is nothing sensible to make from a name alone.
+   */
+  resource: ReferenceResource | null;
   options: Option[];
+  /** Shown in place of the create row when `resource` is null. */
+  emptyHint?: string;
   value: number | null;
   onChange: (value: number | null) => void;
   onOptionCreated: (option: Option) => void;
@@ -43,8 +49,10 @@ export function ReferenceCombobox({
   onOptionCreated,
   excludeIds,
   invalid,
-  placeholder = "Search or create…",
+  emptyHint,
+  placeholder,
 }: Props) {
+  const searchPlaceholder = placeholder ?? (resource === null ? "Search…" : "Search or create…");
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [creating, setCreating] = React.useState(false);
@@ -64,11 +72,11 @@ export function ReferenceCombobox({
   );
 
   const exactExists = selectable.some((o) => o.label.toLowerCase() === needle);
-  const canCreate = needle.length > 0 && !exactExists;
+  const canCreate = resource !== null && needle.length > 0 && !exactExists;
 
   async function create() {
     const name = query.trim();
-    if (name === "" || creating) return;
+    if (resource === null || name === "" || creating) return;
     setCreating(true);
     setError(null);
     const result = await quickCreateAction(resource, name);
@@ -101,16 +109,23 @@ export function ReferenceCombobox({
                 invalid && "border-destructive",
               )}
             >
-              <span className="truncate">{selected ? selected.label : placeholder}</span>
+              <span className="truncate">{selected ? selected.label : searchPlaceholder}</span>
               <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="p-0">
             <Command shouldFilter={false}>
-              <CommandInput value={query} onValueChange={setQuery} placeholder={placeholder} />
+              <CommandInput value={query} onValueChange={setQuery} placeholder={searchPlaceholder} />
               <CommandList>
                 {matches.length === 0 && !canCreate ? (
-                  <CommandEmpty>{options.length === 0 ? "Nothing here yet — type a name to create one." : "No match."}</CommandEmpty>
+                  <CommandEmpty>
+                    {emptyHint ??
+                      (options.length === 0
+                        ? resource === null
+                          ? "Nothing here yet."
+                          : "Nothing here yet — type a name to create one."
+                        : "No match.")}
+                  </CommandEmpty>
                 ) : null}
                 {matches.length > 0 ? (
                   <CommandGroup>
