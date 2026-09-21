@@ -18,7 +18,7 @@ Locked. Do not substitute without asking.
 | Framework | Next.js 15, App Router, TypeScript, React Server Components |
 | ORM | Drizzle ORM (schema generated from `schema.sql`, migrations via drizzle-kit) |
 | Database | PostgreSQL 16 (separate container) |
-| Styling | Tailwind CSS v4 + shadcn/ui |
+| Styling | Tailwind CSS v4 + shadcn/ui (tooling locked; the visual direction is not — see Design direction) |
 | Images | Local disk on a mounted volume, `sharp` for thumbnails. No S3, no MinIO. |
 | Auth | Single shared password from env var, signed httpOnly cookie session. No NextAuth, no OAuth, no user table. |
 | Tables | TanStack Table for the grid view |
@@ -125,12 +125,29 @@ at the end of every milestone.
 
 ### M6 — Polish
 - Mobile-responsive throughout; the grid collapses to cards under 768px.
-- Dark mode, default on.
+  Desktop functionality comes first, but the iPhone is a primary target, not an
+  afterthought — it is where bottles actually get logged.
+- Light and dark both first-class, following the system by default with a
+  manual override. Neither is the "real" theme.
 - Keyboard shortcuts: `n` new bottle, `/` focus search, `esc` close dialogs.
 - Full-text search across brand, expression name, distillery and notes.
-- Barcode/UPC field with a camera scan on mobile (progressive enhancement —
-  degrade to manual entry where unsupported).
 - Backup script that dumps Postgres and tars the uploads volume.
+
+### Barcodes
+
+`expressions.upc` already exists in the schema. Two separate jobs:
+
+- **Entry.** A UPC field on the expression form. Nothing special needed — a
+  USB/Bluetooth barcode reader presents as a keyboard, types the digits and
+  sends Enter, so a focused text input is the whole integration.
+- **Lookup.** Scanning anywhere in the app jumps to that expression: found,
+  offer to add another bottle of it; not found, start a new expression with the
+  code prefilled. This is the workflow that makes a scanner worth owning, and
+  it wants an index on `upc` (non-unique — relabels and regional variants do
+  share codes).
+
+A camera scan on mobile is a later progressive enhancement, degrading to manual
+entry where unsupported. It is not a prerequisite for either of the above.
 
 ---
 
@@ -149,6 +166,39 @@ Unraid conventions to follow:
   under 300MB.
 - `README.md` with setup, env vars, backup/restore, and an Unraid-specific
   section.
+
+---
+
+## Design direction
+
+Recorded so the eventual redesign has a brief. **Not yet scheduled** — the
+theme is a decision for later, deliberately deferred.
+
+The current look (dark, wood, fireplace) is a placeholder and is not the
+direction. What is wanted instead:
+
+- **Modern and at home next to Apple software.** Depth, translucency and
+  material rather than flat panels on a flat background.
+- **Personality.** It should be fun to open. A collection app for a hobby
+  should not read like an admin console.
+- **Light and dark as equals**, following the system by default.
+- **Data-dense views done well.** Airtable, Baserow and NocoDB are the
+  reference for how the grid, filters and inline editing should feel — that
+  part is a solved problem worth learning from rather than reinventing.
+- **Accessible, and tested for it.** WCAG 2.2 AA as the floor: contrast,
+  visible focus, keyboard reachability, honouring `prefers-reduced-motion`,
+  and correct roles and names throughout.
+
+Colour and motion references supplied: the Tropical, Suprematism and
+Kinetic Flux styles at ggprompts.com. Capture the specifics before starting —
+palette, type, motion — rather than working from the names.
+
+**One tension to resolve up front.** Translucency and accessible contrast pull
+against each other: text over a blurred backdrop has a contrast ratio that
+changes with whatever is behind it. The usual resolution is to keep glass for
+chrome — bars, sheets, cards — and put text on a solid or near-solid layer
+within it, never directly over the blur. Worth settling before it is
+load-bearing across a hundred components.
 
 ---
 
