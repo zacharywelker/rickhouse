@@ -19,6 +19,9 @@ Bardstown distilled" works even when the bottle is a three-way blend.
 | File | What it is |
 |---|---|
 | `SPEC.md` | The build plan: stack, data model rules, milestones, non-goals. |
+| `docs/UNRAID.md` | Step-by-step Unraid deployment. |
+| `docker-compose.yml` | Runs the published image. `docker-compose.build.yml` overrides it to build from source. |
+| `.github/workflows/publish.yml` | Builds the image and pushes it to GHCR on every push to `main`. |
 | `schema.sql` | Source of truth for the data model, annotated. |
 | `src/db/schema.ts` | Drizzle mirror of `schema.sql`. Keep the two in lockstep. |
 | `drizzle/` | Generated migrations. `0001` adds the `bottle_list` view by hand. |
@@ -33,7 +36,13 @@ cp .env.example .env
 # edit .env: at minimum POSTGRES_PASSWORD, APP_PASSWORD and SESSION_SECRET
 openssl rand -hex 32          # paste into SESSION_SECRET
 
-docker compose up -d --build
+docker compose up -d
+```
+
+That pulls the prebuilt image from GHCR. To build from source instead:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 Then open `http://<host>:1964` and sign in with `APP_PASSWORD`.
@@ -54,6 +63,9 @@ must set:
 | `APP_PASSWORD` | The single shared password for the app. 8 characters minimum. |
 | `SESSION_SECRET` | HMAC key for the session cookie. 32 characters minimum; `openssl rand -hex 32`. |
 
+`RICKHOUSE_TAG` picks which published image to run. It defaults to `latest`,
+which follows `main`; pin a `sha-…` or version tag to update deliberately.
+
 Worth knowing:
 
 - **`COOKIE_SECURE`** defaults to `false` because most Unraid boxes are reached
@@ -66,6 +78,10 @@ Worth knowing:
 ---
 
 ## Unraid
+
+**[docs/UNRAID.md](docs/UNRAID.md) is the step-by-step install** — plugin,
+where to put the source, the stack, first build. What follows here is the
+reference for the pieces it uses.
 
 ### Paths
 
@@ -185,6 +201,31 @@ serving or merely running.
 
 ---
 
+## The published image
+
+`.github/workflows/publish.yml` builds `ghcr.io/zacharywelker/rickhouse` on
+every push to `main` and on `v*` tags, and pushes it to GitHub Container
+Registry. Pull requests build the image but do not push, which catches a broken
+Dockerfile or a type error before it reaches `latest`.
+
+Tags:
+
+| Tag | Points at |
+|---|---|
+| `latest` | the tip of `main` |
+| `sha-1a2b3c4` | one specific commit |
+| `1.2.0`, `1.2` | a `v1.2.0` git tag, once you cut releases |
+
+The image is `linux/amd64` only — Unraid is x86-64, and adding `arm64` roughly
+triples the build for no one's benefit. Add the platform to the workflow if
+that changes.
+
+**New GHCR packages are private by default.** Until you make the package public
+(or log your server into `ghcr.io`), `docker pull` fails with `denied`. See
+[step 0 of the Unraid guide](docs/UNRAID.md#0-make-the-image-pullable).
+
+---
+
 ## Development
 
 Postgres in Docker, the app on your machine:
@@ -197,6 +238,8 @@ npm run db:migrate
 npm run db:seed
 npm run dev
 ```
+
+The dev server listens on 1964, same as the container.
 
 For that to work, publish the database port locally — either add a `ports:`
 entry to the `db` service in a `docker-compose.override.yml`, or run Postgres
