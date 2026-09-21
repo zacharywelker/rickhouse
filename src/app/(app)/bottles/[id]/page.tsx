@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BottleImages } from "@/components/expressions/bottle-images";
+import { FillControl } from "@/components/bottles/fill-control";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { formatMoney, formatNumeric, humanise } from "@/lib/utils";
@@ -123,6 +124,14 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
               No photo yet
             </div>
           )}
+          <FillControl
+            bottleId={bottleId}
+            fillPct={row.bottle.fillPct}
+            isOpen={row.bottle.isOpen}
+            status={row.bottle.status}
+            dateOpened={row.bottle.dateOpened}
+            dateKilled={row.bottle.dateKilled}
+          />
           <BottleImages bottleId={bottleId} images={images} />
         </div>
 
@@ -139,7 +148,6 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
               <Spec label="Acquired" value={row.bottle.dateAcquired} />
               <Spec label="How" value={humanise(row.bottle.acquisition)} />
               <Spec label="Status" value={humanise(row.bottle.status)} />
-              <Spec label="Fill" value={`${row.bottle.fillPct}%`} />
               <Spec label="Where" value={row.bottle.location} />
               <Spec label="UPC" value={e.upc} />
             </CardContent>

@@ -16,6 +16,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
+  // Each spec file resets the database first, which takes a moment.
+  timeout: 45_000,
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:1964",

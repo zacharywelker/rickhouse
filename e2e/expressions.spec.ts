@@ -1,5 +1,6 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { resetDatabase } from "./support/db";
 
 const PASSWORD = process.env.E2E_APP_PASSWORD ?? "smoke-test-password";
 const stamp = () => Math.random().toString(36).slice(2, 8);
@@ -10,6 +11,9 @@ async function signIn(page: Page) {
   await page.getByRole("button", { name: "Unlock" }).click();
   await expect(page).toHaveURL("/");
 }
+
+// Specs create real rows; start each file from the seeded baseline.
+test.beforeAll(resetDatabase);
 
 test.beforeEach(async ({ page }) => {
   await signIn(page);
@@ -139,10 +143,13 @@ test("creates a blended expression with ordered distilleries, then a bottle, the
   await expect(chips.filter({ hasText: "French Oak" })).toBeVisible();
 });
 
-/** Opens whichever bottle is first in the list, so no id is hardcoded. */
+/**
+ * Opens the seeded bottle without hardcoding an id. Since M4 the grid links on
+ * the expression name, with the brand in its own column.
+ */
 async function openFirstBottle(page: Page) {
   await page.goto("/bottles");
-  await page.getByRole("link", { name: /Pursuit Spirits/ }).first().click();
+  await page.getByRole("link", { name: /Double Oak Spirit/ }).first().click();
   await expect(page).toHaveURL(/\/bottles\/\d+$/);
 }
 

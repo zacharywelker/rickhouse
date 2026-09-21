@@ -66,8 +66,8 @@ at the end of every milestone.
 | M1 | Foundation | ✅ Done |
 | M2 | Configuration CRUD | ✅ Done |
 | M3 | Expressions and bottles | ✅ Done — but see [Model revisions](#m7--model-revisions) |
-| M4 | The fill gauge and the grid | ▶ In progress |
-| M5 | Entity pages and stats | Planned |
+| M4 | The fill gauge and the grid | ✅ Done |
+| M5 | Entity pages and stats | ▶ Next |
 | M6 | Polish | Planned |
 | M7 | Model revisions | Planned — from using M3 in anger |
 
@@ -113,25 +113,25 @@ Shipped as **Configuration**; "taxonomy" was a database word.
 - ~~**Done when:** the Pursuit bottle can be created start to finish through the
   UI and renders correctly on its own page.~~
 
-### M4 — The fill gauge and the grid ▶
-- **Bottle fill component.** A custom SVG shaped like a whiskey bottle —
+### ~~M4 — The fill gauge and the grid~~ ✅
+- ~~**Bottle fill component.** A custom SVG shaped like a whiskey bottle —
   shoulder, neck, body — with the liquid level rendered as a clipped fill that
   animates on change. Amber gradient. Draggable to set the level, plus a
   numeric input for precision. Used both as an editable control on the detail
   page and as a small read-only indicator in the grid. Build this as a
-  standalone, well-isolated component; it is the visual centrepiece.
-- Open/closed toggle. Opening a bottle stamps `date_opened`. Setting fill to 0
-  prompts to mark the bottle killed and stamps `date_killed`.
-- Grid view at `/bottles`: server-side sorting, filtering and pagination over
+  standalone, well-isolated component; it is the visual centrepiece.~~
+- ~~Open/closed toggle. Opening a bottle stamps `date_opened`. Setting fill to 0
+  prompts to mark the bottle killed and stamps `date_killed`.~~
+- ~~Grid view at `/bottles`: server-side sorting, filtering and pagination over
   the `bottle_list` view. Column visibility toggles. Filters for category,
   brand, distillery, finish, store, proof range, age range, status, open/closed,
   price range and tags. Filter state serialised to the URL so views are
-  bookmarkable.
-- Gallery view toggle showing bottle images in a grid.
-- **Done when:** filtering by distillery returns every blend that distillery
-  contributed to, not just single-distillery bottles.
+  bookmarkable.~~
+- ~~Gallery view toggle showing bottle images in a grid.~~
+- ~~**Done when:** filtering by distillery returns every blend that distillery
+  contributed to, not just single-distillery bottles.~~
 
-### M5 — Entity pages and stats
+### M5 — Entity pages and stats ▶
 - `/distilleries/[slug]`, `/brands/[slug]`, `/mashbills/[id]`,
   `/finishes/[slug]`, `/stores/[slug]`: each lists every bottle connected to it
   with a summary header (count, total spend, average proof, average rating).
