@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,8 +37,16 @@ const PARTS = [
   { name: "overall", label: "Overall" },
 ] as const;
 
-function NoteForm({ bottleId, onSaved }: { bottleId: number; onSaved: () => void }) {
-  const action = saveTastingNoteAction.bind(null, bottleId, null);
+function NoteForm({
+  bottleId,
+  note,
+  onSaved,
+}: {
+  bottleId: number;
+  note: TastingNote | null;
+  onSaved: () => void;
+}) {
+  const action = saveTastingNoteAction.bind(null, bottleId, note?.id ?? null);
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
 
   const saved = state.ok && state.message !== "";
@@ -52,11 +61,25 @@ function NoteForm({ bottleId, onSaved }: { bottleId: number; onSaved: () => void
       <div className="grid min-h-0 grid-cols-1 gap-4 overflow-y-auto p-6 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="tastedOn">Tasted on</Label>
-          <Input id="tastedOn" name="tastedOn" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+          <Input
+            id="tastedOn"
+            name="tastedOn"
+            type="date"
+            defaultValue={note?.tastedOn ?? new Date().toISOString().slice(0, 10)}
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="rating">Rating</Label>
-          <Input id="rating" name="rating" type="number" min={0} max={10} step={0.1} placeholder="0–10" />
+          <Input
+            id="rating"
+            name="rating"
+            type="number"
+            min={0}
+            max={10}
+            step={0.1}
+            placeholder="0–10"
+            defaultValue={note?.rating ? String(Number(note.rating)) : ""}
+          />
           {fieldErrors.rating ? (
             <p role="alert" className="text-sm text-destructive">
               {fieldErrors.rating}
@@ -66,7 +89,7 @@ function NoteForm({ bottleId, onSaved }: { bottleId: number; onSaved: () => void
         {PARTS.map((part) => (
           <div key={part.name} className="col-span-full flex flex-col gap-1.5">
             <Label htmlFor={part.name}>{part.label}</Label>
-            <Textarea id={part.name} name={part.name} rows={2} />
+            <Textarea id={part.name} name={part.name} rows={2} defaultValue={note?.[part.name] ?? ""} />
           </div>
         ))}
         {!state.ok && state.error ? (
@@ -86,7 +109,7 @@ function NoteForm({ bottleId, onSaved }: { bottleId: number; onSaved: () => void
         </DialogClose>
         <Button type="submit" disabled={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-          Save note
+          {note ? "Save changes" : "Save note"}
         </Button>
       </DialogFooter>
     </form>
@@ -94,14 +117,16 @@ function NoteForm({ bottleId, onSaved }: { bottleId: number; onSaved: () => void
 }
 
 export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: TastingNote[] }) {
-  const [open, setOpen] = React.useState(false);
-  const close = React.useCallback(() => setOpen(false), []);
+  const router = useRouter();
+  // `undefined` means closed; `null` means the add form; a note means editing.
+  const [editing, setEditing] = React.useState<TastingNote | null | undefined>(undefined);
+  const close = React.useCallback(() => setEditing(undefined), []);
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-xl">Tasting notes</h2>
-        <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <Button type="button" variant="outline" size="sm" onClick={() => setEditing(null)}>
           <Plus className="size-4" />
           Add note
         </Button>
@@ -129,7 +154,16 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => void deleteTastingNoteAction(bottleId, note.id)}
+                    onClick={() => setEditing(note)}
+                    aria-label={`Edit note from ${note.tastedOn}`}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void deleteTastingNoteAction(bottleId, note.id).then(() => router.refresh())}
                     aria-label={`Delete note from ${note.tastedOn}`}
                   >
                     <Trash2 className="size-4" />
@@ -151,13 +185,20 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
         </ul>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={editing !== undefined} onOpenChange={(next) => !next && close()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add a tasting note</DialogTitle>
+            <DialogTitle>{editing ? "Edit tasting note" : "Add a tasting note"}</DialogTitle>
             <DialogDescription>Nose, palate, finish and a rating out of 10. All optional.</DialogDescription>
           </DialogHeader>
-          {open ? <NoteForm bottleId={bottleId} onSaved={close} /> : null}
+          {editing !== undefined ? (
+            <NoteForm
+              key={editing ? `edit-${editing.id}` : "create"}
+              bottleId={bottleId}
+              note={editing}
+              onSaved={close}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

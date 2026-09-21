@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
@@ -10,7 +11,7 @@ import { BottleImages } from "@/components/expressions/bottle-images";
 import { FillControl } from "@/components/bottles/fill-control";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
-import { formatMoney, formatNumeric, humanise } from "@/lib/utils";
+import { cn, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -30,23 +31,37 @@ function Spec({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Chips({ label, items }: { label: string; items: Array<{ id: number; name: string; amount: string | null }> }) {
+function Chips({
+  label,
+  items,
+  hrefFor,
+}: {
+  label: string;
+  items: Array<{ id: number; name: string; slug: string | null; amount: string | null }>;
+  hrefFor: (item: { id: number; slug: string | null }) => Route | null;
+}) {
   if (items.length === 0) return null;
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
       <ul className="flex flex-wrap gap-1.5">
-        {items.map((item) => (
-          <li key={item.id}>
-            {/* Entity pages arrive in Milestone 5; these become links then. */}
-            <Badge className="border-border bg-muted text-foreground">
+        {items.map((item) => {
+          const href = hrefFor(item);
+          const chip = (
+            <Badge
+              className={cn(
+                "border-border bg-muted text-foreground",
+                href && "transition-colors hover:border-primary/50 hover:text-primary",
+              )}
+            >
               {item.name}
               {item.amount !== null ? (
                 <span className="ml-1 text-muted-foreground">{Number(item.amount)}%</span>
               ) : null}
             </Badge>
-          </li>
-        ))}
+          );
+          return <li key={item.id}>{href ? <Link href={href}>{chip}</Link> : chip}</li>;
+        })}
       </ul>
     </div>
   );
@@ -89,7 +104,10 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             {row.category.name}
           </p>
           <h1 className="font-display text-3xl">
-            {row.brand.name} <span className="text-rye-gold">{e.name}</span>
+            <Link href={`/brands/${row.brand.slug}` as Route} className="hover:underline">
+              {row.brand.name}
+            </Link>{" "}
+            <span className="text-rye-gold">{e.name}</span>
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {e.batch ? <Badge>{e.batch}</Badge> : null}
@@ -144,7 +162,16 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
               <Spec label="Size" value={`${e.sizeMl} ml`} />
               <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp) : null} />
               <Spec label="Paid" value={row.bottle.pricePaid ? formatMoney(row.bottle.pricePaid) : null} />
-              <Spec label="Store" value={row.store?.name ?? null} />
+              <Spec
+                label="Store"
+                value={
+                  row.store ? (
+                    <Link href={`/stores/${row.store.slug}` as Route} className="text-primary hover:underline">
+                      {row.store.name}
+                    </Link>
+                  ) : null
+                }
+              />
               <Spec label="Acquired" value={row.bottle.dateAcquired} />
               <Spec label="How" value={humanise(row.bottle.acquisition)} />
               <Spec label="Status" value={humanise(row.bottle.status)} />
@@ -155,9 +182,21 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
           <Card>
             <CardContent className="flex flex-col gap-4 p-5">
-              <Chips label="Distilleries" items={links.distilleries} />
-              <Chips label="Mashbills" items={links.mashbills} />
-              <Chips label="Finishes" items={links.finishes} />
+              <Chips
+                label="Distilleries"
+                items={links.distilleries}
+                hrefFor={(item) => (item.slug ? (`/distilleries/${item.slug}` as Route) : null)}
+              />
+              <Chips
+                label="Mashbills"
+                items={links.mashbills}
+                hrefFor={(item) => `/mashbills/${item.id}` as Route}
+              />
+              <Chips
+                label="Finishes"
+                items={links.finishes}
+                hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}
+              />
               {e.pickName || e.pickedBy || e.barrelNumber || e.warehouse ? (
                 <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                   <Spec label="Pick" value={e.pickName} />

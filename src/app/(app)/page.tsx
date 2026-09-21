@@ -43,7 +43,7 @@ export default async function HomePage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="font-display text-3xl text-rye-gold">Collection</h1>
+        <h1 className="font-display text-3xl text-rye-gold">Rickhouse</h1>
         <p className="text-sm text-muted-foreground">Your shelf, catalogued.</p>
       </div>
 

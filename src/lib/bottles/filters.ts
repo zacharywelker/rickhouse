@@ -36,6 +36,7 @@ export type BottleFilters = {
   categoryIds: number[];
   brandIds: number[];
   distilleryIds: number[];
+  mashbillIds: number[];
   finishIds: number[];
   storeIds: number[];
   tagIds: number[];
@@ -59,6 +60,7 @@ export const DEFAULT_FILTERS: BottleFilters = {
   categoryIds: [],
   brandIds: [],
   distilleryIds: [],
+  mashbillIds: [],
   finishIds: [],
   storeIds: [],
   tagIds: [],
@@ -133,6 +135,7 @@ export function parseFilters(params: Params): BottleFilters {
     categoryIds: idList(params, "category"),
     brandIds: idList(params, "brand"),
     distilleryIds: idList(params, "distillery"),
+    mashbillIds: idList(params, "mashbill"),
     finishIds: idList(params, "finish"),
     storeIds: idList(params, "store"),
     tagIds: idList(params, "tag"),
@@ -166,6 +169,7 @@ export function serialiseFilters(filters: BottleFilters): string {
   ids("category", filters.categoryIds);
   ids("brand", filters.brandIds);
   ids("distillery", filters.distilleryIds);
+  ids("mashbill", filters.mashbillIds);
   ids("finish", filters.finishIds);
   ids("store", filters.storeIds);
   ids("tag", filters.tagIds);
@@ -199,6 +203,7 @@ export function activeFilterCount(filters: BottleFilters): number {
   count += filters.categoryIds.length > 0 ? 1 : 0;
   count += filters.brandIds.length > 0 ? 1 : 0;
   count += filters.distilleryIds.length > 0 ? 1 : 0;
+  count += filters.mashbillIds.length > 0 ? 1 : 0;
   count += filters.finishIds.length > 0 ? 1 : 0;
   count += filters.storeIds.length > 0 ? 1 : 0;
   count += filters.tagIds.length > 0 ? 1 : 0;

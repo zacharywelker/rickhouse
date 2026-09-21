@@ -72,6 +72,13 @@ function buildWhere(filters: BottleFilters): SQL | undefined {
          AND ed.distillery_id IN (${sql.join(filters.distilleryIds.map((id) => sql`${id}`), sql`, `)})
     )`);
   }
+  if (filters.mashbillIds.length > 0) {
+    clauses.push(sql`EXISTS (
+      SELECT 1 FROM expression_mashbills em
+       WHERE em.expression_id = ${bottleList.expressionId}
+         AND em.mashbill_id IN (${sql.join(filters.mashbillIds.map((id) => sql`${id}`), sql`, `)})
+    )`);
+  }
   if (filters.finishIds.length > 0) {
     clauses.push(sql`EXISTS (
       SELECT 1 FROM expression_finishes ef
@@ -133,20 +140,30 @@ export async function queryBottles(filters: BottleFilters): Promise<{
   return { rows, total, pageCount, page };
 }
 
-/** Totals for the summary strip, over the filtered set rather than the page. */
-export async function summariseBottles(filters: BottleFilters): Promise<{
+export type BottleSummary = {
+  count: number;
   spend: string;
+  msrp: string;
   open: number;
   avgProof: string | null;
-}> {
+  avgRating: string | null;
+};
+
+/** Totals for the summary strip, over the filtered set rather than the page. */
+export async function summariseBottles(filters: BottleFilters): Promise<BottleSummary> {
   const where = buildWhere(filters);
   const [row] = await db
     .select({
+      count: sql<number>`count(*)::int`,
       spend: sql<string>`coalesce(sum(${bottleList.pricePaid}), 0)::text`,
+      // Only where a price was actually recorded, so the comparison is like
+      // for like rather than counting gifts as a saving.
+      msrp: sql<string>`coalesce(sum(${bottleList.msrp}) filter (where ${bottleList.pricePaid} is not null), 0)::text`,
       open: sql<number>`count(*) filter (where ${bottleList.isOpen})::int`,
       avgProof: sql<string | null>`round(avg(${bottleList.proof}), 1)::text`,
+      avgRating: sql<string | null>`round(avg(${bottleList.avgRating}), 1)::text`,
     })
     .from(bottleList)
     .where(where);
-  return row ?? { spend: "0", open: 0, avgProof: null };
+  return row ?? { count: 0, spend: "0", msrp: "0", open: 0, avgProof: null, avgRating: null };
 }

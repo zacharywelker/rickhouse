@@ -67,8 +67,8 @@ at the end of every milestone.
 | M2 | Configuration CRUD | ✅ Done |
 | M3 | Expressions and bottles | ✅ Done — but see [Model revisions](#m7--model-revisions) |
 | M4 | The fill gauge and the grid | ✅ Done |
-| M5 | Entity pages and stats | ▶ Next |
-| M6 | Polish | Planned |
+| M5 | Entity pages and stats | ✅ Done |
+| M6 | Polish | ▶ Next |
 | M7 | Model revisions | Planned — from using M3 in anger |
 | M8 | Interaction and wording | Planned — from using M4 in anger |
 | M9 | Tastings beyond the shelf | Later add-on |
@@ -133,23 +133,37 @@ Shipped as **Configuration**; "taxonomy" was a database word.
 - ~~**Done when:** filtering by distillery returns every blend that distillery
   contributed to, not just single-distillery bottles.~~
 
-### M5 — Entity pages and stats ▶
-- `/distilleries/[slug]`, `/brands/[slug]`, `/mashbills/[id]`,
+### ~~M5 — Entity pages and stats~~ ✅
+- ~~`/distilleries/[slug]`, `/brands/[slug]`, `/mashbills/[id]`,
   `/finishes/[slug]`, `/stores/[slug]`: each lists every bottle connected to it
-  with a summary header (count, total spend, average proof, average rating).
-- `/dashboard`: collection size, total spend, spend vs. MSRP delta, breakdown by
+  with a summary header (count, total spend, average proof, average rating).~~
+  Each page is the M4 grid with a preset filter, so sorting, pagination and the
+  gallery toggle all come for free. The preset is merged *after* the URL
+  filters, so the entity can never be filtered away from its own page.
+- ~~`/dashboard`: collection size, total spend, spend vs. MSRP delta, breakdown by
   category, proof distribution, acquisitions over time, open vs. unopened,
-  top distilleries. Use Recharts.
-- Dashboard analytics, added after M4: what share of the collection is rye
+  top distilleries. Use Recharts.~~
+- ~~Dashboard analytics, added after M4: what share of the collection is rye
   versus bourbon versus everything else, the most-used mashbill, the most-used
   distillery, the most-used finish. A dedicated analytics page can come later;
-  the dashboard carries these now.
-- Tasting notes CRUD with nose/palate/finish/overall and a 0–10 rating.
-- CSV import and export for bottles.
-- **Done when:** clicking Bardstown Bourbon Company from the Pursuit bottle
-  lands on a page listing that bottle among its contributions.
+  the dashboard carries these now.~~
+- ~~Tasting notes CRUD with nose/palate/finish/overall and a 0–10 rating.~~
+- ~~CSV import and export for bottles.~~ Import creates brands, distilleries,
+  finishes and stores as it meets them, but never categories — guessing where a
+  spirit sits in the tree is how a taxonomy rots. Rows are reported one by one
+  and nothing is rolled back, so a partial import is a usable import.
+- ~~**Done when:** clicking Bardstown Bourbon Company from the Pursuit bottle
+  lands on a page listing that bottle among its contributions.~~
+- Nav renamed along the way, per the M4 feedback: Home, Collection, Expressions,
+  Dashboard, Configuration.
 
-### M6 — Polish
+Two charting decisions worth keeping: every chart has a **Table** toggle that
+shows the same numbers as a real table (the chart is never the only way to read
+the data), and the acquisitions line is **stepped, not smoothed** — a month's
+count is discrete, and a curve between two months draws bottles that were never
+bought.
+
+### M6 — Polish ▶
 - Mobile-responsive throughout; the grid collapses to cards under 768px.
   Desktop functionality comes first, but the iPhone is a primary target, not an
   afterthought — it is where bottles actually get logged.

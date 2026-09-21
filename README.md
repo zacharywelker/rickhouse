@@ -8,10 +8,10 @@ Every bottle gets its own page. Brands, distilleries, mashbills, finishes and
 stores are real linked records rather than free text, so "show me everything
 Bardstown distilled" works even when the bottle is a three-way blend.
 
-> **Status: Milestone 4 (The fill gauge and the grid).** Everything through the
-> filterable grid is done and verified. Entity pages and the dashboard are
-> next — see [SPEC.md](SPEC.md), which also lists the model revisions queued
-> as M7.
+> **Status: Milestone 5 (Entity pages and stats).** Everything through the
+> dashboard, entity pages and CSV transfer is done and verified. Polish —
+> mobile, light mode, search — is next; see [SPEC.md](SPEC.md), which also
+> lists the model revisions queued as M7.
 
 ---
 
@@ -322,6 +322,50 @@ because dragging produces a value on every pointer move.
 Reaching empty offers to mark the bottle killed, which stamps the date. Opening
 one stamps `date_opened` the first time and promotes the status. The same
 component renders read-only at 34px in the grid, so the two can never drift.
+
+## Entity pages
+
+Every linked record has a page: `/distilleries/[slug]`, `/brands/[slug]`,
+`/finishes/[slug]`, `/stores/[slug]` and `/mashbills/[id]`. Each one is the
+grid above with a filter already applied, so sorting, paging, column choices
+and the gallery toggle all behave exactly as they do on `/bottles`.
+
+The preset is merged *after* whatever is in the URL, which means you can filter
+a distillery page down to its open bottles, but you cannot accidentally filter
+the distillery out of its own page.
+
+Chips on a bottle page link here — the brand under the title, the store in the
+spec grid, and every distillery, mashbill and finish.
+
+## The dashboard
+
+`/dashboard` answers the questions a shelf cannot: what share of the collection
+is rye, which mashbill you keep buying, which distillery you actually own the
+most of, how much you are over MSRP, and what you bought when.
+
+Two rules the charts follow:
+
+- **Every chart has a Table toggle.** Colour and length are the fast read, but
+  the same numbers are always one click away as a real table — so the chart is
+  never the only way to get at the data.
+- **The acquisitions line is stepped, not smoothed.** A month's count is a
+  discrete number. A curve between two months would draw bottles that were
+  never bought.
+
+## CSV import and export
+
+`/bottles/import` takes a file or pasted rows; the Export button on the
+collection page emits exactly the same columns, so the fastest way to get a
+template is to export what you have.
+
+Only `brand`, `expression` and `category` are required, and list columns
+(`distilleries`, `finishes`) take semicolons. Brands, distilleries, finishes
+and stores are created as they are encountered. Categories are **not** — a
+category is a position in a tree, and guessing at that is how a taxonomy rots,
+so an unknown one fails its row and says so.
+
+Nothing is rolled back. Every row reports its own outcome, so a partial import
+is a usable import: fix the rows that failed and run them again.
 
 ---
 

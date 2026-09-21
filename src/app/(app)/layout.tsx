@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FlaskConical, GlassWater, Library, SlidersHorizontal } from "lucide-react";
+import { BarChart3, FlaskConical, House, Library, SlidersHorizontal } from "lucide-react";
 import { logout } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { requireSession } from "@/lib/auth";
@@ -23,15 +23,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               href="/"
               className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <GlassWater className="size-4" />
-              Collection
+              <House className="size-4" />
+              Home
             </Link>
             <Link
               href="/bottles"
               className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <Library className="size-4" />
-              Bottles
+              Collection
             </Link>
             <Link
               href="/expressions"
@@ -39,6 +39,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               <FlaskConical className="size-4" />
               Expressions
+            </Link>
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <BarChart3 className="size-4" />
+              Dashboard
             </Link>
             <Link
               href="/admin"
