@@ -189,16 +189,23 @@ direction. What is wanted instead:
   visible focus, keyboard reachability, honouring `prefers-reduced-motion`,
   and correct roles and names throughout.
 
-Colour and motion references supplied: the Tropical, Suprematism and
-Kinetic Flux styles at ggprompts.com. Capture the specifics before starting —
-palette, type, motion — rather than working from the names.
+"Liquid glass" means Apple's design language specifically, not frosted panels
+generically: layered translucent material, depth by layering rather than drop
+shadows, concentric radii, motion as continuity.
+
+The supplied references — the Tropical, Suprematism and Kinetic Flux styles
+from ggprompts.com — are decoded with their real tokens, a recommended
+synthesis and the contrast maths for every colour in
+**[docs/DESIGN.md](docs/DESIGN.md)**. Start there rather than from the names.
 
 **One tension to resolve up front.** Translucency and accessible contrast pull
 against each other: text over a blurred backdrop has a contrast ratio that
-changes with whatever is behind it. The usual resolution is to keep glass for
-chrome — bars, sheets, cards — and put text on a solid or near-solid layer
-within it, never directly over the blur. Worth settling before it is
-load-bearing across a hundred components.
+changes with whatever is behind it. Glass stays on chrome — bars, sheets, card
+edges — and text sits on a solid layer within it, never directly over the blur.
+Apple ships the same aesthetic behind Reduce Transparency and Increase
+Contrast; the web equivalents (`prefers-reduced-transparency`,
+`prefers-contrast`, `prefers-reduced-motion`) are what make it shippable rather
+than a compromise. See docs/DESIGN.md.
 
 ---
 

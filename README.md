@@ -20,6 +20,7 @@ Bardstown distilled" works even when the bottle is a three-way blend.
 |---|---|
 | `SPEC.md` | The build plan: stack, data model rules, milestones, non-goals. |
 | `docs/UNRAID.md` | Step-by-step Unraid deployment. |
+| `docs/DESIGN.md` | Design brief: reference tokens, synthesis, contrast maths. |
 | `docker-compose.yml` | Runs the published image. `docker-compose.build.yml` overrides it to build from source. |
 | `.github/workflows/publish.yml` | Builds the image and pushes it to GHCR on every push to `main`. |
 | `schema.sql` | Source of truth for the data model, annotated. |
