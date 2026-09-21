@@ -36,7 +36,7 @@ openssl rand -hex 32          # paste into SESSION_SECRET
 docker compose up -d --build
 ```
 
-Then open `http://<host>:3000` and sign in with `APP_PASSWORD`.
+Then open `http://<host>:1964` and sign in with `APP_PASSWORD`.
 
 On first start the app creates its schema and seeds the category tree plus one
 example bottle — Pursuit Spirits Double Oak Spirit, the three-distillery blend
@@ -93,7 +93,7 @@ not delete them".
 
 ### Ports and networking
 
-The app publishes `APP_PORT` (default 3000). Postgres deliberately publishes
+The app publishes `APP_PORT` (default 1964). Postgres deliberately publishes
 nothing — only the app container can reach it, over the compose network. If you
 want to poke at the database, exec into it rather than exposing the port:
 
@@ -105,6 +105,40 @@ docker compose exec db psql -U rickhouse -d rickhouse
 
 If you front the app with SWAG/NPM/Caddy, terminate TLS there, forward to the
 app's port, and set `COOKIE_SECURE=true`.
+
+---
+
+## Where your data lives
+
+Postgres runs as its own container (`rickhouse-db`), separate from the app. It
+is a stock `postgres:16-alpine` image with no Rickhouse code in it — the app
+holds no data of its own.
+
+That separation is deliberate, and it means the failure modes are independent:
+
+| If this breaks | Your data |
+|---|---|
+| The app container crashes or won't start | Untouched. Postgres keeps serving. |
+| A bad release ships a bug | Untouched. Roll the app image back. |
+| A migration goes wrong | Restore the dump; the app is unchanged. |
+| You delete the app container entirely | Untouched. It owns nothing. |
+
+Both data directories are **bind mounts to host paths you choose**, not Docker
+named volumes:
+
+```
+POSTGRES_DATA_PATH=/mnt/user/appdata/rickhouse/postgres   # the database files
+UPLOADS_PATH=/mnt/user/appdata/rickhouse/uploads          # bottle photos
+```
+
+So your collection is two folders on your Unraid array that you can browse,
+snapshot and include in your existing backup routine. Nothing is locked inside
+a container. `docker compose down -v` — the command that wipes named volumes —
+does not touch either path.
+
+If you would rather point Rickhouse at a Postgres you already run, delete the
+`db` service from `docker-compose.yml` and set `DATABASE_URL` to your own
+instance. The app only needs a database it can create its schema in.
 
 ---
 

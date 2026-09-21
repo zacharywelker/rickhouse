@@ -44,7 +44,7 @@ if [ "${RUN_SEED:-true}" = "true" ]; then
   run node /app/dist/seed.mjs
 fi
 
-echo "rickhouse: starting on port ${PORT:-3000}"
+echo "rickhouse: starting on port ${PORT:-1964}"
 exec_cmd="$*"
 if [ -z "$exec_cmd" ]; then
   set -- node server.js

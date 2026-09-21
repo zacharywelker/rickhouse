@@ -24,7 +24,7 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
+    PORT=1964 \
     HOSTNAME=0.0.0.0 \
     UPLOAD_DIR=/data/uploads
 
@@ -42,9 +42,9 @@ COPY --from=builder /app/drizzle ./drizzle
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /data/uploads
 
-EXPOSE 3000
+EXPOSE 1964
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget --spider -q http://127.0.0.1:3000/api/health || exit 1
+  CMD wget --spider -q http://127.0.0.1:1964/api/health || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "server.js"]
