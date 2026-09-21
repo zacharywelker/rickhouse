@@ -8,9 +8,9 @@ Every bottle gets its own page. Brands, distilleries, mashbills, finishes and
 stores are real linked records rather than free text, so "show me everything
 Bardstown distilled" works even when the bottle is a three-way blend.
 
-> **Status: Milestone 1 (Foundation).** Database, migrations, seed, login and
-> health check are done and verified. The taxonomy admin, bottle pages, fill
-> gauge and grid are the next milestones — see [SPEC.md](SPEC.md).
+> **Status: Milestone 2 (Taxonomy CRUD).** Database, login, health check and
+> the full taxonomy admin are done and verified. Expressions, bottle pages, the
+> fill gauge and the grid are next — see [SPEC.md](SPEC.md).
 
 ---
 
@@ -24,6 +24,7 @@ Bardstown distilled" works even when the bottle is a three-way blend.
 | `.github/workflows/publish.yml` | Builds the image and pushes it to GHCR on every push to `main`. |
 | `schema.sql` | Source of truth for the data model, annotated. |
 | `src/db/schema.ts` | Drizzle mirror of `schema.sql`. Keep the two in lockstep. |
+| `src/lib/admin/registry.ts` | Every lookup entity described once — fields, columns, queries. |
 | `drizzle/` | Generated migrations. `0001` adds the `bottle_list` view by hand. |
 | `scripts/` | `migrate.ts` and `seed.ts`, both idempotent, both run at container start. |
 
@@ -198,6 +199,41 @@ connection and reports connectivity only, never collection data:
 It returns `503` when the database is unreachable, and it backs the container's
 `HEALTHCHECK`, so `docker compose ps` tells you whether the app is genuinely
 serving or merely running.
+
+---
+
+## The taxonomy admin
+
+`/admin` manages the eight lookup entities that everything else links to:
+categories, companies, brands, distilleries, mashbills, finishes, stores and
+tags.
+
+It is registry-driven. Each entity is described once in
+`src/lib/admin/registry.ts` — its form fields, its table columns, how to list
+it and how to save it — and a single dynamic route renders all eight. Adding a
+ninth is a registry entry, not a new page.
+
+Three things there are worth knowing about:
+
+**Inline create.** Any picker that points at another entity can create one
+without leaving the form. Type a distillery that does not exist yet and the
+dropdown offers to make it. The spec calls this out as the single biggest
+source of friction in this kind of app, and it is the reason adding a bottle
+never turns into a detour.
+
+**The mashbill editor** totals the grains as you type. The bar is amber at
+100%, gold inside the 99–101% tolerance the database allows (published
+mashbills are often rounded), and red outside it. A bad total is rejected
+before it reaches Postgres.
+
+**Loops are prevented in both directions.** Categories and companies are
+self-referencing, so the parent picker hides the row itself and everything
+beneath it, and the server re-checks the parent chain before saving. A
+mis-click cannot strand a subtree.
+
+Deleting is blocked where the database would block it, with a message naming
+what is in the way — "1 expression uses this brand" — rather than a foreign key
+error.
 
 ---
 
