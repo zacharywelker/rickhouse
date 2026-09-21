@@ -1,11 +1,10 @@
 # Deploying Rickhouse on Unraid
 
-Rickhouse is a Compose project that builds its own image — there is no
-published image on Docker Hub to pull. That makes the **Compose Manager Plus**
-plugin the path of least resistance: it understands `build:` sections and can
-run a stack whose files live on the array.
+The app image is built by GitHub Actions and published to GitHub Container
+Registry, so your server pulls a finished image instead of compiling Next.js.
+Setup is two text files and a button — no clone, no build, no `git` on Unraid.
 
-The whole thing is about fifteen minutes, most of it the first build.
+About ten minutes.
 
 ---
 
@@ -14,12 +13,37 @@ The whole thing is about fifteen minutes, most of it the first build.
 | | |
 |---|---|
 | Unraid | 6.12 or newer |
-| Free space in the Docker vDisk | ~4 GB for the build, most of it reclaimable afterwards |
 | Community Applications | installed (it is how you get the plugin) |
+| The GHCR package | readable — see [step 0](#0-make-the-image-pullable) |
 
-The build compiles a Next.js app inside a container. It is the heaviest thing
-that happens, it happens once per update, and on a modest box it takes a few
-minutes.
+---
+
+## 0. Make the image pullable
+
+The first workflow run publishes `ghcr.io/zacharywelker/rickhouse`, and **new
+GHCR packages are private by default**. A private package means `docker pull`
+on Unraid fails with `denied` or `manifest unknown`, which looks like the image
+does not exist.
+
+Pick one:
+
+**Make it public** (simplest for a personal project — the image contains no
+secrets, only application code that is already in a public repo):
+
+> github.com/users/zacharywelker/packages/container/rickhouse/settings →
+> **Danger Zone** → **Change visibility** → **Public**
+
+**Or keep it private** and log Unraid in once. Create a
+[personal access token](https://github.com/settings/tokens) with the
+`read:packages` scope, then from the Unraid terminal:
+
+```sh
+echo '<your-token>' | docker login ghcr.io -u zacharywelker --password-stdin
+```
+
+The credential persists in `/root/.docker/config.json`, which does not survive
+a reboot on Unraid — so if you go this route, add that command to a **User
+Scripts** entry set to run at array start.
 
 ---
 
@@ -35,136 +59,76 @@ A **Compose** section appears at the bottom of the **Docker** tab.
 
 ---
 
-## 2. Put the source on the array
+## 2. Create the stack
 
-The source tree has to live on the array, **not** in the plugin's default
-project folder. That folder is on the USB flash drive, which is small, slow,
-and backed up by flash backups — a `node_modules` tree does not belong there.
+**Docker** tab → **Compose** → **Add New Stack** → name it `rickhouse`.
 
-Open a terminal (**Terminal** button, top right of the Unraid UI):
+Click the stack's cog → **Edit Stack** → **Compose File**, and paste the
+contents of [`docker-compose.yml`](../docker-compose.yml) from this repository.
 
-```sh
-mkdir -p /mnt/user/appdata/rickhouse
-cd /mnt/user/appdata/rickhouse
-git clone https://github.com/zacharywelker/rickhouse.git source
-```
-
-**No `git`?** It is not in Unraid's base install. Either install **NerdTools**
-from Community Applications and add the `git` package, or skip git entirely:
-
-```sh
-cd /mnt/user/appdata/rickhouse
-wget -O main.zip https://github.com/zacharywelker/rickhouse/archive/refs/heads/main.zip
-unzip main.zip && mv rickhouse-main source && rm main.zip
-```
-
-Without git you re-download the zip to update. With git it is `git pull`.
+Nothing in it needs editing — every value you might change comes from `.env`
+in the next step.
 
 ---
 
 ## 3. Write your `.env`
 
-Compose reads `.env` from the directory holding the compose file, so it goes
-next to it in `source/`. It is gitignored, so `git pull` will not clobber it.
-
-```sh
-cd /mnt/user/appdata/rickhouse/source
-cp .env.example .env
-openssl rand -hex 32          # copy this for SESSION_SECRET
-nano .env
-```
-
-Set these five:
+Same cog → **Edit Stack** → **Env File**. Paste
+[`.env.example`](../.env.example), then set these:
 
 ```ini
 POSTGRES_PASSWORD=<something long>
 APP_PASSWORD=<the password you will type to sign in>
-SESSION_SECRET=<the openssl output from above>
+SESSION_SECRET=<64 random hex characters>
 
-# Absolute paths, OUTSIDE the source folder. This matters — see the warning.
+# Absolute paths on your array. See the warning below.
 POSTGRES_DATA_PATH=/mnt/user/appdata/rickhouse/postgres
 UPLOADS_PATH=/mnt/user/appdata/rickhouse/uploads
 ```
 
-> **Set those two paths.** They default to `./data/...`, which is *inside* the
-> source folder. Leave them and your database sits in a git working tree, where
-> a re-clone, a `git clean`, or deleting the folder to start fresh takes your
-> collection with it. Pointing them at siblings of `source/` means you can
-> delete and re-clone the source at will and the data does not care.
+Generate the secret from the Unraid terminal:
+
+```sh
+openssl rand -hex 32
+```
+
+> **Set those two paths.** They default to `./data/...`, relative to the stack
+> folder — which lives on the **USB flash drive**. A Postgres database does not
+> belong on the boot stick: it is slow, it is small, and flash backups would
+> try to copy it. Absolute paths on the array are not optional here.
 
 `PUID=99` and `PGID=100` are already correct for Unraid (`nobody:users`) — the
 app drops to that uid/gid so bottle photos land on the share with ownership you
 can actually use from SMB and the file manager.
 
-Leave `COOKIE_SECURE=false` unless you are reaching the box over HTTPS.
+Leave `COOKIE_SECURE=false` unless you reach the box over HTTPS.
 
 ---
 
-## 4. Register the stack
+## 4. Up
 
-**Docker** tab → **Compose** → **Add New Stack** → name it `rickhouse`.
+From the stack's menu: **Compose Up**. It pulls two images — the app from GHCR
+and stock `postgres:16-alpine` — and starts them.
 
-Then use **indirect stack** support to point at the compose file on the array
-rather than copying it to the flash drive. In the stack's menu choose the
-option to select an existing compose file and give it:
-
-```
-/mnt/user/appdata/rickhouse/source/docker-compose.yml
-```
-
-This keeps one copy of everything: `git pull` updates the compose file the
-plugin is already pointing at.
-
-<details>
-<summary>If your plugin version has no indirect-stack option</summary>
-
-Edit the stack's compose file in the UI and paste a two-line file that defers
-to the real one:
-
-```yaml
-include:
-  - /mnt/user/appdata/rickhouse/source/docker-compose.yml
-```
-
-Relative paths inside the included file resolve against *its* directory, so the
-build context still works. Copy your `.env` next to the stack file as well.
-</details>
-
----
-
-## 5. Build and start
-
-From the stack's menu: **Build & Up** (on first run; afterwards the menu offers
-**Update & Rebuild**).
-
-Or from the terminal, which shows you the build output as it happens:
+First run does three things in order: starts Postgres, waits for it to pass its
+health check, then runs migrations and seeds the category tree plus the example
+bottle. Watch it:
 
 ```sh
-cd /mnt/user/appdata/rickhouse/source
-docker compose up -d --build
+docker logs -f rickhouse-app
 ```
 
-First run does four things in order: builds the app image, starts Postgres,
-waits for it to pass its health check, then runs migrations and seeds the
-category tree plus the example bottle.
-
-Watch it:
-
-```sh
-docker compose logs -f app
-```
-
-You want to see `migrations applied`, `seed complete`, then
+You want `migrations applied`, `seed complete`, then
 `rickhouse: starting on port 1964`.
 
 ---
 
-## 6. Open it
+## 5. Open it
 
 **http://\<your-unraid-ip\>:1964**
 
-Sign in with `APP_PASSWORD`. Both containers also appear in the **Docker** tab,
-and `rickhouse-app` carries a **WebUI** link that goes straight there.
+Sign in with `APP_PASSWORD`. Both containers appear in the **Docker** tab, and
+`rickhouse-app` carries a **WebUI** link that goes straight there.
 
 Confirm it is genuinely healthy, not merely running:
 
@@ -173,51 +137,55 @@ curl http://localhost:1964/api/health
 # {"status":"ok","database":"up"}
 ```
 
-`docker compose ps` should show `rickhouse-app` as `healthy` — that comes from
-the same endpoint, so an unhealthy app means the database connection is broken
-even if the page loads.
+That endpoint also backs the container's health check, so an `unhealthy`
+`rickhouse-app` means the database connection is broken even if the page loads.
 
 ---
 
 ## Updating
 
-```sh
-cd /mnt/user/appdata/rickhouse/source
-git pull
-docker compose up -d --build
-```
-
-Migrations run automatically on start and are idempotent. Your data is in the
-bind-mounted folders, untouched by the rebuild.
-
-Builds leave layers behind. Every few updates:
+**Compose** → stack menu → **Update Stack** (pull + recreate). Or:
 
 ```sh
-docker builder prune -f
+cd /boot/config/plugins/compose.manager/projects/rickhouse
+docker compose pull && docker compose up -d
 ```
 
----
+Migrations run automatically on start and are idempotent. Your data lives in
+the bind-mounted folders and is untouched by the update.
 
-## Reclaiming the port
+Old image layers accumulate. Occasionally:
 
-Unraid's own WebUI is on 80/443, so 1964 collides with nothing by default. If
-something else has claimed it, change `APP_PORT` in `.env` — that is the host
-side of the mapping only, so nothing inside the container needs to move.
+```sh
+docker image prune -f
+```
+
+### Pinning a version
+
+`RICKHOUSE_TAG=latest` follows `main`. To update deliberately instead, pin a
+tag in `.env`:
+
+```ini
+RICKHOUSE_TAG=sha-1a2b3c4     # a specific commit
+RICKHOUSE_TAG=1.2.0           # a release, once tags exist
+```
+
+Rolling back is then editing that line and running Update Stack again — which
+is a good reason to pin once you have data you care about.
 
 ---
 
 ## Troubleshooting
 
-**"no space left on device" during the build.** The Docker vDisk is full.
-`docker builder prune -f`, then `docker image prune -f`. If it is chronically
-tight, raise the vDisk size in **Settings → Docker**.
+**`denied` or `manifest unknown` when pulling.** The GHCR package is still
+private and Unraid is not logged in. See [step 0](#0-make-the-image-pullable).
 
-**App container restarts in a loop.** `docker compose logs app`. Almost always
-a missing or too-short variable — the app refuses to start rather than run
-insecurely. `SESSION_SECRET` needs 32+ characters, `APP_PASSWORD` needs 8+.
+**App container restarts in a loop.** `docker logs rickhouse-app`. Almost
+always a missing or too-short variable — the app refuses to start rather than
+run insecurely. `SESSION_SECRET` needs 32+ characters, `APP_PASSWORD` needs 8+.
 
 **Sign-in does nothing, no error.** `COOKIE_SECURE=true` while reaching the box
-over plain HTTP. The browser is told to only send the cookie over HTTPS, so it
+over plain HTTP. The browser is told to send the cookie only over HTTPS, so it
 never comes back. Set it to `false`.
 
 **Photos upload but you cannot delete them from SMB.** `PUID`/`PGID` do not
@@ -227,23 +195,46 @@ match your share. They should be `99` and `100`.
 only applies when the data directory is first created. See *Changing the
 database password* in the main [README](../README.md).
 
+**Port 1964 is taken.** Change `APP_PORT` in `.env`. That is the host side of
+the mapping only; nothing inside the container moves.
+
 **Starting completely over.** `docker compose down`, delete the `postgres` and
-`uploads` folders, `docker compose up -d`. The seed reappears because the
-collection is empty again.
+`uploads` folders, bring it up again. The seed reappears because the collection
+is empty.
 
 ---
 
-## Optional: an icon in the Docker tab
+## Appendix: building on the server instead
 
-`docker-compose.yml` already sets the WebUI link. To give the container an icon
-too, add a second label under `app.labels`:
+If you would rather not depend on the registry — a private fork, or local
+changes you have not pushed — you can build on the box. It costs a few minutes
+of CPU per update and some Docker vDisk space.
 
-```yaml
-      net.unraid.docker.icon: "https://raw.githubusercontent.com/zacharywelker/rickhouse/main/public/icon.svg"
+```sh
+mkdir -p /mnt/user/appdata/rickhouse
+cd /mnt/user/appdata/rickhouse
+git clone https://github.com/zacharywelker/rickhouse.git source
+cd source
+cp .env.example .env && nano .env        # same values as step 3
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-That URL only resolves while the repository is public. Any reachable image URL
-works — point it at something on your own server if you would rather.
+`git` is not in Unraid's base install — add it via
+[NerdTools](https://github.com/UnRAIDES/unRAID-NerdTools), or download the repo
+zip instead.
+
+Put the clone on the **array**, not in the plugin's project folder on the flash
+drive, and keep the data paths pointed outside the clone so a re-clone or
+`git clean` cannot take your collection with it.
+
+To register this with Compose Manager Plus, use its **indirect stack** support
+to point at `/mnt/user/appdata/rickhouse/source/docker-compose.yml`.
+
+Reclaim build cache periodically:
+
+```sh
+docker builder prune -f
+```
 
 ---
 
