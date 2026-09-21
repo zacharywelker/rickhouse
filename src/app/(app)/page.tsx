@@ -64,7 +64,11 @@ export default async function HomePage() {
         <CardContent>
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nothing on the shelf yet. Once the taxonomy admin lands you will be able to add your first bottle here.
+              Nothing on the shelf yet. Set up your brands and distilleries under{" "}
+              <Link href="/admin" className="text-primary hover:underline">
+                Configuration
+              </Link>
+              , and your first bottle will appear here.
             </p>
           ) : (
             <ul className="flex flex-col divide-y divide-border">

@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { RESOURCES, RESOURCE_KEYS } from "@/lib/admin/registry";
 
-export const metadata: Metadata = { title: "Taxonomy" };
+export const metadata: Metadata = { title: "Configuration" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminIndexPage() {
@@ -16,7 +16,7 @@ export default async function AdminIndexPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
-        <h1 className="font-display text-3xl text-rye-gold">Taxonomy</h1>
+        <h1 className="font-display text-3xl text-rye-gold">Configuration</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           The shared vocabulary behind every bottle. Everything here is a real record rather than free text, which is
           what makes &ldquo;show me everything Bardstown distilled&rdquo; work even when the bottle is a three-way

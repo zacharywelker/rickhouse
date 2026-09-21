@@ -16,8 +16,8 @@ test.beforeEach(async ({ page }) => {
   await signIn(page);
 });
 
-test("every taxonomy section is reachable and lists its rows", async ({ page }) => {
-  await page.getByRole("link", { name: "Taxonomy" }).click();
+test("every configuration section is reachable and lists its rows", async ({ page }) => {
+  await page.getByRole("link", { name: "Configuration" }).click();
   await expect(page).toHaveURL("/admin");
 
   for (const name of ["Categories", "Companies", "Brands", "Distilleries", "Mashbills", "Finishes", "Stores", "Tags"]) {

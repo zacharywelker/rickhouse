@@ -9,7 +9,7 @@ export function AdminNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Taxonomy sections" className="flex flex-wrap gap-1.5">
+    <nav aria-label="Configuration sections" className="flex flex-wrap gap-1.5">
       {ADMIN_NAV.map((item) => {
         const active = pathname === item.href;
         return (

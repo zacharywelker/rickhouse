@@ -8,8 +8,8 @@ Every bottle gets its own page. Brands, distilleries, mashbills, finishes and
 stores are real linked records rather than free text, so "show me everything
 Bardstown distilled" works even when the bottle is a three-way blend.
 
-> **Status: Milestone 2 (Taxonomy CRUD).** Database, login, health check and
-> the full taxonomy admin are done and verified. Expressions, bottle pages, the
+> **Status: Milestone 2 (Configuration CRUD).** Database, login, health check
+> and the full configuration section are done and verified. Expressions, bottle pages, the
 > fill gauge and the grid are next — see [SPEC.md](SPEC.md).
 
 ---
@@ -217,7 +217,7 @@ serving or merely running.
 
 ---
 
-## The taxonomy admin
+## Configuration
 
 `/admin` manages the eight lookup entities that everything else links to:
 categories, companies, brands, distilleries, mashbills, finishes, stores and
@@ -305,7 +305,7 @@ however you normally do and set `DATABASE_URL` to match.
 | `npm run test:e2e` | Playwright against a running app (`E2E_BASE_URL`, `E2E_APP_PASSWORD`). |
 | `npm run db:generate` | Generate a migration after editing `src/db/schema.ts`. |
 | `npm run db:migrate` | Apply migrations. |
-| `npm run db:seed` | Seed the taxonomy (and the example, if empty). |
+| `npm run db:seed` | Seed the category tree (and the example, if empty). |
 | `npm run db:studio` | Drizzle Studio against the configured database. |
 
 ### Changing the data model

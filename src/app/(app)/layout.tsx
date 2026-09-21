@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GlassWater, Tags } from "lucide-react";
+import { GlassWater, SlidersHorizontal } from "lucide-react";
 import { logout } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { requireSession } from "@/lib/auth";
@@ -30,8 +30,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               href="/admin"
               className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <Tags className="size-4" />
-              Taxonomy
+              <SlidersHorizontal className="size-4" />
+              Configuration
             </Link>
           </nav>
           <form action={logout} className="ml-auto">
