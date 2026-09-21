@@ -2,9 +2,6 @@ import Link from "next/link";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList } from "@/db/schema";
-import { requireSession } from "@/lib/auth";
-import { logout } from "@/app/login/actions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney, formatNumeric } from "@/lib/utils";
 
@@ -24,8 +21,6 @@ async function loadSummary(): Promise<Summary> {
 }
 
 export default async function HomePage() {
-  await requireSession();
-
   const [summary, recent] = await Promise.all([
     loadSummary(),
     db
@@ -46,18 +41,11 @@ export default async function HomePage() {
   ]);
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-8 p-6">
-      <header className="flex items-center justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <h1 className="font-display text-3xl text-rye-gold">Rickhouse</h1>
-          <p className="text-sm text-muted-foreground">Your shelf, catalogued.</p>
-        </div>
-        <form action={logout}>
-          <Button type="submit" variant="ghost" size="sm">
-            Sign out
-          </Button>
-        </form>
-      </header>
+    <div className="flex flex-col gap-8">
+      <div>
+        <h1 className="font-display text-3xl text-rye-gold">Collection</h1>
+        <p className="text-sm text-muted-foreground">Your shelf, catalogued.</p>
+      </div>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Bottles" value={String(summary.bottles)} />
