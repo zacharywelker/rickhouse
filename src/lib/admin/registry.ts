@@ -967,6 +967,11 @@ async function mashbillOptions(): Promise<Option[]> {
   }));
 }
 
+async function tagOptions(): Promise<Option[]> {
+  const rows = await db.select({ value: tags.id, label: tags.name }).from(tags).orderBy(asc(tags.name));
+  return rows;
+}
+
 export const REFERENCE_OPTION_LOADERS = {
   categories: categoryOptions,
   companies: companyOptions,
@@ -975,4 +980,5 @@ export const REFERENCE_OPTION_LOADERS = {
   mashbills: mashbillOptions,
   finishes: finishOptions,
   stores: storeOptions,
+  tags: tagOptions,
 } as const;

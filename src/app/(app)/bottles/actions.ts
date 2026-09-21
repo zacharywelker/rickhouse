@@ -8,6 +8,7 @@ import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { ImageError, deleteBottleImage, storeBottleImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
+import { z } from "zod";
 import { bottleSchema, tastingNoteSchema } from "@/lib/expressions/schema";
 
 function invalid(issues: { path: PropertyKey[]; message: string }[]): ActionResult {
@@ -214,5 +215,85 @@ export async function deleteTastingNoteAction(bottleId: number, noteId: number):
     return { ok: true, message: "Note deleted." };
   } catch (error: unknown) {
     return mapDbError(error, { singular: "Tasting note" });
+  }
+}
+
+// ------------------------------------------------------------
+// Fill level and open/closed
+// ------------------------------------------------------------
+
+const fillSchema = z.coerce.number().int().min(0).max(100);
+
+/**
+ * Sets the level. Deliberately does not decide anything else: dropping to
+ * empty prompts in the UI, and killing the bottle is a separate, explicit act
+ * (SPEC M4).
+ */
+export async function setBottleFillAction(bottleId: number, fillPct: number): Promise<ActionResult> {
+  await requireSession();
+  const parsed = fillSchema.safeParse(fillPct);
+  if (!parsed.success) return { ok: false, error: "A fill level is 0 to 100." };
+
+  try {
+    await db.update(bottles).set({ fillPct: parsed.data }).where(eq(bottles.id, bottleId));
+    revalidatePath(`/bottles/${bottleId}`);
+    revalidatePath("/bottles");
+    return { ok: true, message: `Set to ${parsed.data}%.` };
+  } catch (error: unknown) {
+    return mapDbError(error, { singular: "Bottle" });
+  }
+}
+
+/**
+ * Opening stamps `date_opened` the first time and promotes the status from
+ * owned to open. Closing it again leaves both alone — the bottle was still
+ * opened on that date, and the status is not a lie once it is true.
+ */
+export async function setBottleOpenAction(bottleId: number, isOpen: boolean): Promise<ActionResult> {
+  await requireSession();
+  try {
+    const [current] = await db
+      .select({ dateOpened: bottles.dateOpened, status: bottles.status })
+      .from(bottles)
+      .where(eq(bottles.id, bottleId))
+      .limit(1);
+    if (!current) return { ok: false, error: "That bottle is gone." };
+
+    const today = new Date().toISOString().slice(0, 10);
+    await db
+      .update(bottles)
+      .set({
+        isOpen,
+        ...(isOpen && current.dateOpened === null ? { dateOpened: today } : {}),
+        ...(isOpen && current.status === "owned" ? { status: "open" as const } : {}),
+      })
+      .where(eq(bottles.id, bottleId));
+
+    revalidatePath(`/bottles/${bottleId}`);
+    revalidatePath("/bottles");
+    return { ok: true, message: isOpen ? "Opened." : "Closed." };
+  } catch (error: unknown) {
+    return mapDbError(error, { singular: "Bottle" });
+  }
+}
+
+/** Empty and done: status killed, level zero, dated today. */
+export async function killBottleAction(bottleId: number): Promise<ActionResult> {
+  await requireSession();
+  try {
+    await db
+      .update(bottles)
+      .set({
+        fillPct: 0,
+        status: "killed",
+        isOpen: true,
+        dateKilled: new Date().toISOString().slice(0, 10),
+      })
+      .where(eq(bottles.id, bottleId));
+    revalidatePath(`/bottles/${bottleId}`);
+    revalidatePath("/bottles");
+    return { ok: true, message: "Marked as killed." };
+  } catch (error: unknown) {
+    return mapDbError(error, { singular: "Bottle" });
   }
 }

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { resetDatabase } from "./support/db";
 
 const PASSWORD = process.env.E2E_APP_PASSWORD ?? "smoke-test-password";
 
@@ -11,6 +12,9 @@ async function signIn(page: Page) {
   await page.getByRole("button", { name: "Unlock" }).click();
   await expect(page).toHaveURL("/");
 }
+
+// Specs create real rows; start each file from the seeded baseline.
+test.beforeAll(resetDatabase);
 
 test.beforeEach(async ({ page }) => {
   await signIn(page);

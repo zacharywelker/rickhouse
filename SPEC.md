@@ -39,6 +39,11 @@ is the physical unit on the shelf — it owns price paid, store, date acquired,
 fill level, open/closed. Buying a second one creates a second `bottle` row
 pointing at the same `expression`. Never merge these into one table.
 
+M7 moves the release identity (batch, single barrel, private selection) down
+to the bottle. That sharpens this split rather than softening it: the
+expression stays the product, and everything that varies barrel to barrel
+lives on the bottle.
+
 **2. Blends require many-to-many.** The reference bottle has three distilleries
 and three mashbills. `expression_distilleries`, `expression_mashbills` and
 `expression_finishes` are join tables with a `position` column. Never render or
@@ -56,62 +61,77 @@ not use EAV, do not use JSONB.
 Build these in order. Finish and verify each before starting the next. Commit
 at the end of every milestone.
 
-### M1 — Foundation
-- `docker-compose.yml` with `app` and `db` services, named volumes for Postgres
-  data and uploads, `.env.example` with every variable documented.
-- Drizzle schema mirroring `schema.sql` exactly, plus the initial migration.
-- Password login, session cookie, middleware protecting every route.
-- Health check at `/api/health` that verifies the DB connection.
-- **Done when:** `docker compose up` gives a running app, seeded with the
-  Pursuit example from `schema.sql`, behind a login.
+| | Milestone | Status |
+|---|---|---|
+| M1 | Foundation | ✅ Done |
+| M2 | Configuration CRUD | ✅ Done |
+| M3 | Expressions and bottles | ✅ Done — but see [Model revisions](#m7--model-revisions) |
+| M4 | The fill gauge and the grid | ✅ Done |
+| M5 | Entity pages and stats | ▶ Next |
+| M6 | Polish | Planned |
+| M7 | Model revisions | Planned — from using M3 in anger |
 
-### M2 — CRUD for the taxonomy
-- Admin pages for categories, companies, brands, distilleries, mashbills,
-  finishes, stores, tags.
-- Category editor must handle the self-referencing tree; companies must handle
-  parent ownership chains.
-- Mashbill editor: percentage inputs with a live sum indicator that flags
-  anything not totalling 100.
-- Inline "create new" from combobox pickers, so adding a bottle never requires
+Finished milestones are struck through below. They stay in the document
+because the revisions in M7 only make sense against what was actually built.
+
+### ~~M1 — Foundation~~ ✅
+- ~~`docker-compose.yml` with `app` and `db` services, named volumes for Postgres
+  data and uploads, `.env.example` with every variable documented.~~
+- ~~Drizzle schema mirroring `schema.sql` exactly, plus the initial migration.~~
+- ~~Password login, session cookie, middleware protecting every route.~~
+- ~~Health check at `/api/health` that verifies the DB connection.~~
+- ~~**Done when:** `docker compose up` gives a running app, seeded with the
+  Pursuit example from `schema.sql`, behind a login.~~
+
+### ~~M2 — CRUD for the taxonomy~~ ✅
+
+Shipped as **Configuration**; "taxonomy" was a database word.
+- ~~Admin pages for categories, companies, brands, distilleries, mashbills,
+  finishes, stores, tags.~~
+- ~~Category editor must handle the self-referencing tree; companies must handle
+  parent ownership chains.~~
+- ~~Mashbill editor: percentage inputs with a live sum indicator that flags
+  anything not totalling 100.~~
+- ~~Inline "create new" from combobox pickers, so adding a bottle never requires
   leaving the form to go create a distillery first. This is important — it is
-  the single biggest source of friction in this kind of app.
-- **Done when:** every lookup entity is manageable in the UI.
+  the single biggest source of friction in this kind of app.~~
+- ~~**Done when:** every lookup entity is manageable in the UI.~~
 
-### M3 — Expressions and bottles
-- Expression form with multi-select for distilleries, mashbills and finishes,
-  each ordered and each supporting an optional share percentage.
-- Conditional field sections driven by `categories.field_group`: choosing a
+### ~~M3 — Expressions and bottles~~ ✅
+- ~~Expression form with multi-select for distilleries, mashbills and finishes,
+  each ordered and each supporting an optional share percentage.~~
+- ~~Conditional field sections driven by `categories.field_group`: choosing a
   Bourbon category shows whiskey fields, Rum shows rum fields. Hidden fields
-  must not be submitted or cleared silently.
-- Bottle form: expression picker, price, store, date acquired, acquisition type,
-  location, status.
-- Bottle detail page at `/bottles/[id]`: hero image, all expression specs,
-  linked entities as clickable chips, tasting notes, edit affordance.
-- Multi-image upload with drag-and-drop reorder, one designated primary,
+  must not be submitted or cleared silently.~~
+- ~~Bottle form: expression picker, price, store, date acquired, acquisition type,
+  location, status.~~
+- ~~Bottle detail page at `/bottles/[id]`: hero image, all expression specs,
+  linked entities as clickable chips, tasting notes, edit affordance.~~
+- ~~Multi-image upload with drag-and-drop reorder, one designated primary,
   thumbnails generated on upload, files written to the uploads volume with
-  UUID filenames.
-- **Done when:** the Pursuit bottle can be created start to finish through the
-  UI and renders correctly on its own page.
+  UUID filenames.~~
+- ~~**Done when:** the Pursuit bottle can be created start to finish through the
+  UI and renders correctly on its own page.~~
 
-### M4 — The fill gauge and the grid
-- **Bottle fill component.** A custom SVG shaped like a whiskey bottle —
+### ~~M4 — The fill gauge and the grid~~ ✅
+- ~~**Bottle fill component.** A custom SVG shaped like a whiskey bottle —
   shoulder, neck, body — with the liquid level rendered as a clipped fill that
   animates on change. Amber gradient. Draggable to set the level, plus a
   numeric input for precision. Used both as an editable control on the detail
   page and as a small read-only indicator in the grid. Build this as a
-  standalone, well-isolated component; it is the visual centrepiece.
-- Open/closed toggle. Opening a bottle stamps `date_opened`. Setting fill to 0
-  prompts to mark the bottle killed and stamps `date_killed`.
-- Grid view at `/bottles`: server-side sorting, filtering and pagination over
+  standalone, well-isolated component; it is the visual centrepiece.~~
+- ~~Open/closed toggle. Opening a bottle stamps `date_opened`. Setting fill to 0
+  prompts to mark the bottle killed and stamps `date_killed`.~~
+- ~~Grid view at `/bottles`: server-side sorting, filtering and pagination over
   the `bottle_list` view. Column visibility toggles. Filters for category,
   brand, distillery, finish, store, proof range, age range, status, open/closed,
   price range and tags. Filter state serialised to the URL so views are
-  bookmarkable.
-- Gallery view toggle showing bottle images in a grid.
-- **Done when:** filtering by distillery returns every blend that distillery
-  contributed to, not just single-distillery bottles.
+  bookmarkable.~~
+- ~~Gallery view toggle showing bottle images in a grid.~~
+- ~~**Done when:** filtering by distillery returns every blend that distillery
+  contributed to, not just single-distillery bottles.~~
 
-### M5 — Entity pages and stats
+### M5 — Entity pages and stats ▶
 - `/distilleries/[slug]`, `/brands/[slug]`, `/mashbills/[id]`,
   `/finishes/[slug]`, `/stores/[slug]`: each lists every bottle connected to it
   with a summary header (count, total spend, average proof, average rating).
@@ -148,6 +168,60 @@ at the end of every milestone.
 
 A camera scan on mobile is a later progressive enhancement, degrading to manual
 entry where unsupported. It is not a prerequisite for either of the above.
+
+
+### M7 — Model revisions
+
+Feedback from actually using M3. Deliberately scheduled **after** M4 so the
+fill gauge and the grid land first. Each of these is a migration plus form
+work, not a rethink.
+
+**Drop `bottles.estimated_value`.** Not tracking secondary pricing. The column
+and its form field go.
+
+**Move release identity from the expression to the bottle.** `batch`,
+`release_year`, `is_single_barrel` and `is_single_barrel_pick` belong on the
+bottle, not the product.
+
+The reason is concrete: six private selections of the same Weller 12 are six
+bottles of one expression, not six expressions. Under the current model each
+pick forces a duplicate product, which is exactly the duplication the
+expression/bottle split exists to prevent. This is not a retreat from that
+split — it is putting the line in the right place. The expression stays the
+product; everything that varies barrel to barrel moves down.
+
+Consequences to handle in the migration:
+- `expressions` currently has `UNIQUE (brand_id, name, batch)`. Without batch
+  that becomes `UNIQUE (brand_id, name)`, and existing rows that differ only by
+  batch have to be merged rather than dropped.
+- The single-barrel detail block (`pick_name`, `picked_by`, `warehouse`,
+  `rick_floor`, `barrel_filled_on`, `bottled_on`, `barrel_number`) moves with
+  them.
+- `bottle_list` and the grid's filters both reference these columns.
+
+**Per-bottle proof and age, inherited when blank.** A single barrel or private
+selection almost always differs from the standard release on exactly these two,
+so ticking either reveals proof and age fields on the bottle. Left empty, they
+fall back to the expression's values on save — displayed as inherited rather
+than copied, so a later correction to the expression still flows through.
+
+**Mashbill entry and display, reworked.**
+- Grain order follows the spirit rather than the column order: a bourbon reads
+  corn, rye, wheat, malted barley; a rye reads rye, corn, wheat, malted barley.
+  Display and form both.
+- An **add unusual grain** button, for oats, quinoa, triticale, spelt. Today
+  there is a single `other_grain` plus `other_grain_name`, which handles one
+  and only one. This needs either a `mashbill_grains` child table or a small
+  fixed set of extra slots — the child table is the honest answer.
+- When an expression lists two or more distilleries, each mashbill row should
+  say which distillery it came from. `mashbills.distillery_id` already exists;
+  this is surfacing it in context rather than new schema.
+
+**Rename "expression".** The word is accurate in the whiskey world and wrong
+in this app's voice — it reads like industry jargon where everything else
+reads plainly. Undecided; candidates include Product, Release, Label, Bottling
+and Spirit. Whatever it becomes is a rename of the user-facing strings and
+optionally the `/expressions` route; the table name can stay.
 
 ---
 
@@ -231,6 +305,8 @@ Do not build these, and do not restructure the schema to accommodate them:
 
 - Multi-user accounts, roles, sharing, or social features.
 - Price scraping, market valuation, or any third-party API integration.
+  M7 drops `bottles.estimated_value` for the same reason: this is a collection,
+  not a portfolio.
 - Mobile native apps.
 - Merging `expressions` and `bottles` "for simplicity".
 - Replacing the join tables with text columns.

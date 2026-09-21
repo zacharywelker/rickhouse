@@ -324,14 +324,22 @@ SELECT
     b.fill_pct,
     b.price_paid,
     b.date_acquired,
+    b.date_opened,
+    b.is_favorite,
+    b.store_id,
     e.id   AS expression_id,
     e.name AS expression_name,
     e.batch,
     e.proof,
     e.abv,
+    e.age_years,
     e.age_statement,
     e.msrp,
+    e.is_single_barrel,
+    e.is_single_barrel_pick,
+    br.id   AS brand_id,
     br.name AS brand,
+    c.id    AS category_id,
     c.name  AS category,
     s.name  AS store,
     (SELECT string_agg(d.name, ', ' ORDER BY ed.position)
@@ -343,7 +351,11 @@ SELECT
        JOIN finishes f ON f.id = ef.finish_id
       WHERE ef.expression_id = e.id) AS finishes,
     (SELECT round(avg(tn.rating), 1)
-       FROM tasting_notes tn WHERE tn.bottle_id = b.id) AS avg_rating
+       FROM tasting_notes tn WHERE tn.bottle_id = b.id) AS avg_rating,
+    (SELECT bi.thumb_path FROM bottle_images bi
+      WHERE bi.bottle_id = b.id
+      ORDER BY bi.is_primary DESC, bi.sort_order, bi.id
+      LIMIT 1) AS thumb_path
 FROM bottles b
 JOIN expressions  e  ON e.id  = b.expression_id
 JOIN brands       br ON br.id = e.brand_id

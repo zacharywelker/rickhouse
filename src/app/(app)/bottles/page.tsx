@@ -1,31 +1,49 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { desc } from "drizzle-orm";
 import { Plus } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { db } from "@/db";
-import { bottleList } from "@/db/schema";
-import { formatMoney, formatNumeric, humanise } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import { BottleGallery } from "@/components/bottles/bottle-gallery";
+import { BottleTable, COLUMN_LABELS } from "@/components/bottles/bottle-table";
+import { FilterBar } from "@/components/bottles/filter-bar";
+import { GridPagination } from "@/components/bottles/grid-pagination";
+import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
+import { activeFilterCount, parseFilters } from "@/lib/bottles/filters";
+import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
+import { formatMoney, formatNumeric } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Bottles" };
 export const dynamic = "force-dynamic";
 
-/**
- * A plain list for now. Milestone 4 replaces this with the sortable,
- * filterable grid over the same `bottle_list` view.
- */
-export default async function BottlesPage() {
-  const rows = await db.select().from(bottleList).orderBy(desc(bottleList.dateAcquired), desc(bottleList.id));
+export default async function BottlesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const filters = parseFilters(await searchParams);
+
+  const [{ rows, total, pageCount, page }, summary, categories, brands, distilleries, finishes, stores, tags] =
+    await Promise.all([
+      queryBottles(filters),
+      summariseBottles(filters),
+      REFERENCE_OPTION_LOADERS.categories(),
+      REFERENCE_OPTION_LOADERS.brands(),
+      REFERENCE_OPTION_LOADERS.distilleries(),
+      REFERENCE_OPTION_LOADERS.finishes(),
+      REFERENCE_OPTION_LOADERS.stores(),
+      REFERENCE_OPTION_LOADERS.tags(),
+    ]);
+
+  const filtered = activeFilterCount(filters) > 0;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="max-w-2xl">
+        <div>
           <h1 className="font-display text-3xl text-rye-gold">Bottles</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every physical bottle you own. Sorting, filtering and the fill gauge arrive in the next milestone.
+            Every physical bottle you own. Filtering by a distillery finds the blends it contributed to, not just the
+            bottles it made alone.
           </p>
         </div>
         <Button asChild>
@@ -36,62 +54,52 @@ export default async function BottlesPage() {
         </Button>
       </div>
 
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label={filtered ? "Matching" : "Bottles"} value={String(total)} />
+        <Stat label="Open" value={String(summary.open)} />
+        <Stat label={filtered ? "Spend, filtered" : "Total spend"} value={formatMoney(summary.spend)} />
+        <Stat label="Average proof" value={formatNumeric(summary.avgProof)} />
+      </section>
+
+      <FilterBar filters={filters} options={{ categories, brands, distilleries, finishes, stores, tags }} columns={COLUMN_LABELS} total={total} />
+
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
-          <p className="font-display text-lg">Nothing on the shelf</p>
+          <p className="font-display text-lg">{filtered ? "Nothing matches those filters" : "Nothing on the shelf"}</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Add the expression first, then the bottle you actually own.
+            {filtered
+              ? "Loosen a filter, or clear them all and start again."
+              : "Add the expression first, then the bottle you actually own."}
           </p>
-          <Button className="mt-4" asChild>
-            <Link href="/bottles/new">
-              <Plus className="size-4" />
-              Add bottle
-            </Link>
-          </Button>
+          {!filtered ? (
+            <Button className="mt-4" asChild>
+              <Link href="/bottles/new">
+                <Plus className="size-4" />
+                Add bottle
+              </Link>
+            </Button>
+          ) : null}
         </div>
+      ) : filters.view === "gallery" ? (
+        <BottleGallery rows={rows} />
       ) : (
-        <div className="rounded-lg border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Bottle</TableHead>
-                <TableHead className="hidden md:table-cell">Distilleries</TableHead>
-                <TableHead className="text-right">Proof</TableHead>
-                <TableHead className="hidden text-right sm:table-cell">Paid</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <Link href={`/bottles/${row.id}`} className="font-medium hover:text-rye-gold">
-                      {row.brand} <span className="text-rye-gold">{row.expressionName}</span>
-                    </Link>
-                    <p className="text-xs text-muted-foreground">
-                      {row.category}
-                      {row.batch ? ` · ${row.batch}` : ""}
-                      {row.store ? ` · ${row.store}` : ""}
-                    </p>
-                  </TableCell>
-                  <TableCell className="hidden max-w-xs truncate md:table-cell text-sm text-muted-foreground">
-                    {row.distilleries ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumeric(row.proof)}</TableCell>
-                  <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                    {formatMoney(row.pricePaid)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={row.isOpen ? "border-primary/40 text-primary" : ""}>
-                      {row.isOpen ? `Open · ${row.fillPct}%` : humanise(row.status)}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <BottleTable rows={rows} filters={filters} />
       )}
+
+      {rows.length > 0 ? (
+        <GridPagination filters={filters} page={page} pageCount={pageCount} total={total} />
+      ) : null}
     </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="font-display text-2xl tabular-nums">{value}</p>
+      </CardContent>
+    </Card>
   );
 }

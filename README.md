@@ -8,10 +8,10 @@ Every bottle gets its own page. Brands, distilleries, mashbills, finishes and
 stores are real linked records rather than free text, so "show me everything
 Bardstown distilled" works even when the bottle is a three-way blend.
 
-> **Status: Milestone 3 (Expressions and bottles).** Database, login, the
-> configuration section, expressions, bottle pages and image upload are done
-> and verified. The fill gauge and the sortable grid
-> are next — see [SPEC.md](SPEC.md).
+> **Status: Milestone 4 (The fill gauge and the grid).** Everything through the
+> filterable grid is done and verified. Entity pages and the dashboard are
+> next — see [SPEC.md](SPEC.md), which also lists the model revisions queued
+> as M7.
 
 ---
 
@@ -290,6 +290,38 @@ every path is resolved against the uploads root before being read.
 `expressions.upc` takes a scanned code — a handheld reader presents as a
 keyboard, so it types straight into the field with no integration to write.
 The column is indexed for lookup; scan-to-jump arrives with the grid.
+
+---
+
+## The grid
+
+`/bottles` filters, sorts and pages **in Postgres**, not in the browser, and
+every bit of that state lives in the URL — so a view you like is a bookmark,
+and the back button does what you expect.
+
+Entity filters match through the join tables rather than against the view's
+flattened name strings. That is the difference between filtering by Bardstown
+and getting only the bottles it made alone, and getting every blend it
+contributed to. Category filters walk down the tree, so filtering by Whiskey
+finds your bourbons.
+
+Columns can be hidden, the gallery shows the same filtered set as photos, and
+the summary strip totals whatever is currently matched rather than the whole
+collection.
+
+## The fill gauge
+
+A bottle you can pour: one SVG path for the lip, neck, shoulder and body, with
+the liquid clipped to that outline so the level narrows through the shoulder
+the way it does in real glass.
+
+Drag it, or use the keyboard — it is a real `slider`, so arrows nudge by one,
+shift-arrows by ten, and Home and End empty and fill it. Writes are debounced,
+because dragging produces a value on every pointer move.
+
+Reaching empty offers to mark the bottle killed, which stamps the date. Opening
+one stamps `date_opened` the first time and promotes the status. The same
+component renders read-only at 34px in the grid, so the two can never drift.
 
 ---
 

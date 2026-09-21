@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { resetDatabase } from "./support/db";
 
 const PASSWORD = process.env.E2E_APP_PASSWORD ?? "smoke-test-password";
+
+// Specs create real rows; start each file from the seeded baseline.
+test.beforeAll(resetDatabase);
 
 test("an unauthenticated visitor is sent to the login page", async ({ page }) => {
   await page.goto("/");
