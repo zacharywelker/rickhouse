@@ -136,7 +136,7 @@ at the end of every milestone.
 
 ## Deployment
 
-Two containers. The app listens on 3000, mapped to a host port. Postgres is not
+Two containers. The app listens on 1964, mapped to a host port. Postgres is not
 exposed to the host network.
 
 Unraid conventions to follow:
