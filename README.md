@@ -19,6 +19,7 @@ Bardstown distilled" works even when the bottle is a three-way blend.
 | File | What it is |
 |---|---|
 | `SPEC.md` | The build plan: stack, data model rules, milestones, non-goals. |
+| `docs/UNRAID.md` | Step-by-step Unraid deployment. |
 | `schema.sql` | Source of truth for the data model, annotated. |
 | `src/db/schema.ts` | Drizzle mirror of `schema.sql`. Keep the two in lockstep. |
 | `drizzle/` | Generated migrations. `0001` adds the `bottle_list` view by hand. |
@@ -66,6 +67,10 @@ Worth knowing:
 ---
 
 ## Unraid
+
+**[docs/UNRAID.md](docs/UNRAID.md) is the step-by-step install** — plugin,
+where to put the source, the stack, first build. What follows here is the
+reference for the pieces it uses.
 
 ### Paths
 

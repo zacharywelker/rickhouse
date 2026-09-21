@@ -44,3 +44,8 @@ services:
       - "${APP_PORT:-1964}:1964"
     volumes:
       - ${UPLOADS_PATH:-./data/uploads}:/data/uploads
+    labels:
+      # Unraid substitutes [IP] and [PORT:nnnn], turning the container's entry
+      # in the Docker tab into a working WebUI link. Harmless elsewhere.
+      net.unraid.docker.webui: "http://[IP]:[PORT:1964]"
+      net.unraid.docker.shell: "sh"
