@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/*
+ * Warm rickhouse palette: charred oak, amber spirit, rye gold.
+ * Dark is the default (SPEC M6); the light values are here so the toggle
+ * added later has somewhere to land.
+ */
+@theme {
+  --color-oak-50: #faf6f0;
+  --color-oak-100: #f0e6d8;
+  --color-oak-200: #ddc9ac;
+  --color-oak-300: #c4a678;
+  --color-oak-400: #a8834f;
+  --color-oak-500: #8a6839;
+  --color-oak-600: #6b4f2b;
+  --color-oak-700: #4e3920;
+  --color-oak-800: #332616;
+  --color-oak-900: #1f170e;
+  --color-oak-950: #120d08;
+
+  --color-amber-spirit: #d98b2b;
+  --color-rye-gold: #e8b55c;
+
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+}
+
+:root {
+  --background: var(--color-oak-950);
+  --foreground: var(--color-oak-100);
+  --card: #191208;
+  --card-foreground: var(--color-oak-100);
+  --muted: #241a0f;
+  --muted-foreground: #a8977f;
+  --border: #2e2214;
+  --input: #2e2214;
+  --primary: var(--color-amber-spirit);
+  --primary-foreground: #1a1206;
+  --ring: var(--color-rye-gold);
+  --destructive: #c4483a;
+}
+
+:root.light {
+  --background: var(--color-oak-50);
+  --foreground: var(--color-oak-900);
+  --card: #ffffff;
+  --card-foreground: var(--color-oak-900);
+  --muted: var(--color-oak-100);
+  --muted-foreground: var(--color-oak-600);
+  --border: var(--color-oak-200);
+  --input: var(--color-oak-200);
+  --primary: var(--color-oak-600);
+  --primary-foreground: #ffffff;
+  --ring: var(--color-oak-500);
+  --destructive: #b3261e;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* A faint char-barrel grain so large empty pages do not read as broken. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(217, 139, 43, 0.10), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 90% 110%, rgba(217, 139, 43, 0.05), transparent 70%);
+  }
+}

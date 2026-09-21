@@ -141,9 +141,21 @@ CREATE TABLE expressions (
     is_single_barrel_pick boolean NOT NULL DEFAULT false,
     pick_name       text,                      -- store pick / society pick label
 
+    -- ---- Single barrel / private selection detail.
+    -- Nullable; the UI reveals this block when is_single_barrel or
+    -- is_single_barrel_pick is set.
+    picked_by       text,      -- the group that picked it: club, bar, society
+    barrel_filled_on date,     -- fill/dump dates give you the exact age
+    bottled_on      date,
+    warehouse       text,      -- rickhouse identifier, e.g. "Warehouse H"
+    rick_floor      text,      -- floor / rick position, e.g. "5th floor, rick 12"
+
     -- Age. NULL age_years = NAS; age_statement carries the human text.
+    -- years/months/days let a single barrel carry its exact age when the
+    -- fill and bottling dates are not both known.
     age_years       numeric(4,1),
     age_months      integer,
+    age_days        integer,
     age_statement   text,                      -- "NAS (Straight, so >= 2 years)"
 
     -- Process
