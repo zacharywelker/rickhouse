@@ -1,0 +1,1 @@
+CREATE INDEX "expressions_upc_idx" ON "expressions" USING btree ("upc") WHERE "expressions"."upc" IS NOT NULL;

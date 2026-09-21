@@ -15,6 +15,13 @@
       "when": 1789994154257,
       "tag": "0001_bottle_list_view",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790013050382,
+      "tag": "0002_expression_upc_index",
+      "breakpoints": true
     }
   ]
 }

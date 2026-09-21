@@ -195,6 +195,9 @@ CREATE TABLE expressions (
 );
 CREATE INDEX expressions_brand_idx    ON expressions(brand_id);
 CREATE INDEX expressions_category_idx ON expressions(category_id);
+-- Barcode lookup: scan a bottle and jump straight to its expression.
+-- Deliberately NOT unique; relabels and regional variants share codes.
+CREATE INDEX expressions_upc_idx      ON expressions(upc) WHERE upc IS NOT NULL;
 
 -- Many-to-many joins. `position` preserves the order you'd list them in.
 CREATE TABLE expression_distilleries (

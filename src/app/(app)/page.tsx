@@ -57,23 +57,27 @@ export default async function HomePage() {
         <CardHeader>
           <CardTitle>Recently acquired</CardTitle>
           <CardDescription>
-            Milestone 1 is the foundation: database, login and health check. The sortable grid, bottle pages and fill
-            gauge arrive in later milestones.
+            Each bottle has its own page. The sortable, filterable grid and the fill gauge arrive in the next
+            milestone.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nothing on the shelf yet. Once the taxonomy admin lands you will be able to add your first bottle here.
+              Nothing on the shelf yet.{" "}
+              <Link href="/expressions/new" className="text-primary hover:underline">
+                Create an expression
+              </Link>{" "}
+              for the product, then add the bottle you actually own.
             </p>
           ) : (
             <ul className="flex flex-col divide-y divide-border">
               {recent.map((bottle) => (
                 <li key={bottle.id} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-medium">
+                    <Link href={`/bottles/${bottle.id}`} className="font-medium hover:underline">
                       {bottle.brand} <span className="text-rye-gold">{bottle.name}</span>
-                    </span>
+                    </Link>
                     <span className="text-sm text-muted-foreground">
                       {formatNumeric(bottle.proof)} proof · {formatMoney(bottle.pricePaid)}
                     </span>

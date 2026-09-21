@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GlassWater, Tags } from "lucide-react";
+import { FlaskConical, GlassWater, Library, SlidersHorizontal } from "lucide-react";
 import { logout } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { requireSession } from "@/lib/auth";
@@ -27,11 +27,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Collection
             </Link>
             <Link
+              href="/bottles"
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Library className="size-4" />
+              Bottles
+            </Link>
+            <Link
+              href="/expressions"
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <FlaskConical className="size-4" />
+              Expressions
+            </Link>
+            <Link
               href="/admin"
               className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <Tags className="size-4" />
-              Taxonomy
+              <SlidersHorizontal className="size-4" />
+              Configuration
             </Link>
           </nav>
           <form action={logout} className="ml-auto">

@@ -144,15 +144,38 @@ That endpoint also backs the container's health check, so an `unhealthy`
 
 ## Updating
 
-**Compose** → stack menu → **Update Stack** (pull + recreate). Or:
+> **`docker compose up -d` on its own will not update anything.** Compose only
+> pulls when the tag is missing locally. You already have an image tagged
+> `latest`, so it is reused without the registry ever being asked whether
+> `latest` now points somewhere else. Tags are mutable pointers and Docker does
+> not re-check them on `up`. You have to pull.
+
+**Compose** → stack menu → **Update Stack**, which pulls and recreates. The
+plain **Compose Up** entry is the one that appears to do nothing.
+
+From the terminal, the same thing:
 
 ```sh
 cd /boot/config/plugins/compose.manager/projects/rickhouse
 docker compose pull && docker compose up -d
 ```
 
+Confirm you are on the build you expected:
+
+```sh
+docker image inspect ghcr.io/zacharywelker/rickhouse:latest --format '{{index .RepoDigests 0}}'
+```
+
+Compare that digest against the one the GitHub Actions run published — the
+workflow summary prints the tags it pushed, and `sha-<commit>` always points at
+exactly one build.
+
 Migrations run automatically on start and are idempotent. Your data lives in
 the bind-mounted folders and is untouched by the update.
+
+The compose file and `.env` on your server are copies, not links to the
+repository. Most releases change neither, but when one does, the release notes
+say so and you re-paste the changed file before updating.
 
 Old image layers accumulate. Occasionally:
 
@@ -197,6 +220,20 @@ database password* in the main [README](../README.md).
 
 **Port 1964 is taken.** Change `APP_PORT` in `.env`. That is the host side of
 the mapping only; nothing inside the container moves.
+
+**An update changed nothing.** You ran `docker compose up -d` without pulling
+first. See [Updating](#updating) — `up` reuses whatever `latest` already points
+at on disk. If you pulled and it still looks unchanged, check the digest you
+are actually running:
+
+```sh
+docker inspect rickhouse-app --format '{{.Image}}'
+docker image inspect ghcr.io/zacharywelker/rickhouse:latest --format '{{.Id}}'
+```
+
+Those two matching means the container is running the image you have; if the
+image is still the old one, the pull did not happen. A stale browser cache can
+also hide a change that did land — hard-reload before concluding anything.
 
 **Starting completely over.** `docker compose down`, delete the `postgres` and
 `uploads` folders, bring it up again. The seed reappears because the collection

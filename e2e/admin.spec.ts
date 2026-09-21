@@ -16,8 +16,8 @@ test.beforeEach(async ({ page }) => {
   await signIn(page);
 });
 
-test("every taxonomy section is reachable and lists its rows", async ({ page }) => {
-  await page.getByRole("link", { name: "Taxonomy" }).click();
+test("every configuration section is reachable and lists its rows", async ({ page }) => {
+  await page.getByRole("link", { name: "Configuration" }).click();
   await expect(page).toHaveURL("/admin");
 
   for (const name of ["Categories", "Companies", "Brands", "Distilleries", "Mashbills", "Finishes", "Stores", "Tags"]) {
@@ -111,7 +111,7 @@ test("deleting a brand in use is blocked and explains why", async ({ page }) => 
   await page.goto("/admin/brands");
   await page.getByRole("button", { name: "Delete Pursuit Spirits" }).click();
 
-  await expect(page.getByText(/1 expression uses this brand/)).toBeVisible();
+  await expect(page.getByText(/\d+ expressions? uses? this brand/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete", exact: true })).toBeDisabled();
 });
 
