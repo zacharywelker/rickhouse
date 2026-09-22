@@ -155,7 +155,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             {" · "}
             {row.category.name}
           </p>
-          <h1 className="font-display text-3xl">
+          <h1 className="text-3xl">
             <Link href={`/brands/${row.brand.slug}` as Route} className="hover:underline">
               {row.brand.name}
             </Link>{" "}

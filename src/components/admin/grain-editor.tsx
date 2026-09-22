@@ -129,7 +129,7 @@ export function GrainEditor({
             <span className="text-sm text-muted-foreground">Grain total</span>
             <span
               className={cn(
-                "font-display text-lg tabular-nums",
+                "text-lg tabular-nums",
                 exact ? "text-primary" : acceptable ? "text-accent" : "text-destructive",
               )}
             >

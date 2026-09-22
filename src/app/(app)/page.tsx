@@ -43,7 +43,7 @@ export default async function HomePage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="font-display text-3xl text-accent">Rickhouse</h1>
+        <h1 className="text-3xl text-accent">Rickhouse</h1>
         <p className="text-sm text-muted-foreground">Your shelf, catalogued.</p>
       </div>
 
@@ -108,7 +108,7 @@ function Stat({ label, value }: { label: string; value: string }) {
     <Card>
       <CardContent className="p-5">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="font-display text-3xl text-foreground">{value}</p>
+        <p className="text-3xl text-foreground">{value}</p>
       </CardContent>
     </Card>
   );
