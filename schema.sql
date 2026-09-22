@@ -366,6 +366,23 @@ CREATE TABLE bottle_tags (
 );
 
 -- ------------------------------------------------------------
+-- Backups
+-- ------------------------------------------------------------
+
+-- Single row (id is always 1): the schedule lives in the database it
+-- protects, so the admin UI can read and change it without touching a
+-- config file. The app runs the backup itself (src/lib/backup).
+CREATE TABLE backup_settings (
+    id             integer PRIMARY KEY DEFAULT 1,
+    enabled        boolean NOT NULL DEFAULT false,
+    interval_hours integer NOT NULL DEFAULT 24,
+    keep           integer NOT NULL DEFAULT 14,
+    last_run_at    timestamptz,
+    last_run_ok    boolean,
+    last_run_error text
+);
+
+-- ------------------------------------------------------------
 -- Convenience view: the flat list for the grid page
 -- ------------------------------------------------------------
 

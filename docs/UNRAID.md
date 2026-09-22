@@ -154,7 +154,7 @@ Rickhouse has two things you really don't want to lose:
 * PostgreSQL data
 * Uploaded photos/files
 
-The backup script handles both, and writes each backup as:
+Every backup, however it's triggered, writes the same layout:
 
 ```
 rickhouse-<timestamp>/
@@ -164,27 +164,48 @@ rickhouse-<timestamp>/
 └── manifest.txt        what this backup is, and how to use it
 ```
 
-For example:
+`uploads/` is a full, independent snapshot every time, but a photo that
+hasn't changed since the previous backup is hardlinked to that backup's copy
+rather than copied again. As a photo collection grows into the hundreds of
+bottles, this keeps many backups from costing many copies of the photo
+library on disk — only new or changed photos use new space. Deleting an old
+backup is still safe, since a hardlink is only actually freed once nothing
+references it anymore.
+
+## Automatic backups (recommended)
+
+**Admin → Backups** in the app itself schedules and runs backups — no host
+script, no cron. Turn it on, set how often (in hours) and how many to keep,
+and Rickhouse dumps the database and snapshots `UPLOAD_DIR` on its own from
+inside the container. The same page also has a **Run backup now** button and
+lists existing backups with their size.
+
+This needs the `BACKUP_PATH` volume from `docker-compose.yml` (defaults to
+`./data/backups`) to be mounted somewhere durable — point it at a share that
+is actually part of your parity/backup plan, the same as you would for
+`UPLOADS_PATH`:
+
+```bash
+BACKUP_PATH=/mnt/user/backups/rickhouse docker compose up -d
+```
+
+And occasionally make sure you can actually restore one — a backup you have
+never tested is less of a backup and more of a very reassuring bedtime story.
+
+## `scripts/backup.sh` (manual / host-side alternative)
+
+The host-side script still works, and writes the identical layout above via
+`docker compose exec`. Use it if you'd rather trigger backups from outside
+the app (e.g. Unraid's **User Scripts** plugin) or don't want to grant the
+app container a backups volume:
 
 ```bash id="4k3z4p"
 BACKUP_DIR=/mnt/user/backups/rickhouse ./scripts/backup.sh
 ```
 
-By default, the script keeps 14 backups.
-
-`uploads/` is a full, independent snapshot every time, but a photo that
-hasn't changed since the previous backup is hardlinked to that backup's copy
-rather than copied again. As a photo collection grows into the hundreds of
-bottles, this keeps 14 backups from costing 14x the photo library on disk —
-only new or changed photos use new space. This needs `rsync` on the host
-(already present on Unraid); deleting an old backup is still safe, since a
-hardlink is only actually freed once nothing references it anymore.
-
-For a real server, schedule this nightly using Unraid's **User Scripts** plugin.
-
-And occasionally make sure you can actually restore one.
-
-A backup you have never tested is less of a backup and more of a very reassuring bedtime story.
+By default, the script keeps 14 backups. It's independent of the in-app
+scheduler — running both against different directories is fine, but there's
+usually no reason to.
 
 ## Restoring Rickhouse
 

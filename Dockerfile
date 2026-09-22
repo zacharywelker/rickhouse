@@ -26,11 +26,14 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=1964 \
     HOSTNAME=0.0.0.0 \
-    UPLOAD_DIR=/data/uploads
+    UPLOAD_DIR=/data/uploads \
+    BACKUP_DIR=/data/backups
 
 # su-exec drops privileges after the entrypoint fixes up ownership; wget backs
-# the container health check.
-RUN apk add --no-cache su-exec wget
+# the container health check. postgresql16-client (pg_dump/psql) and rsync
+# back the in-app backup job (src/lib/backup) — matched to the postgres:16
+# server image in docker-compose.yml.
+RUN apk add --no-cache su-exec wget postgresql16-client rsync tar gzip
 
 # Next.js standalone output: server + only the traced node_modules.
 COPY --from=builder /app/.next/standalone ./
@@ -40,7 +43,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle ./drizzle
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /data/uploads
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /data/uploads /data/backups
 
 EXPOSE 1964
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

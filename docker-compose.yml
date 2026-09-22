@@ -35,6 +35,7 @@ services:
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       UPLOAD_DIR: /data/uploads
+      BACKUP_DIR: /data/backups
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       RUN_SEED: ${RUN_SEED:-true}
       PUID: ${PUID:-99}
@@ -44,6 +45,10 @@ services:
       - "${APP_PORT:-1964}:1964"
     volumes:
       - ${UPLOADS_PATH:-./data/uploads}:/data/uploads
+      # Automated in-app backups (Admin -> Backups) write here. Point this at
+      # a share that is actually part of your parity/backup plan, the same
+      # way scripts/backup.sh's BACKUP_DIR should be.
+      - ${BACKUP_PATH:-./data/backups}:/data/backups
     labels:
       # Unraid substitutes [IP] and [PORT:nnnn], turning the container's entry
       # in the Docker tab into a working WebUI link. Harmless elsewhere.

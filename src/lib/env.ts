@@ -18,6 +18,8 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   /** Absolute path to the uploads volume inside the container. */
   UPLOAD_DIR: z.string().min(1).default("/data/uploads"),
+  /** Absolute path to the backups volume inside the container. */
+  BACKUP_DIR: z.string().min(1).default("/data/backups"),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });
 
