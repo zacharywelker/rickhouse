@@ -167,6 +167,8 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             {b.isSingleBarrelPick ? <Badge className="border-primary/40 text-primary">Private selection</Badge> : null}
             {e.isCaskStrength ? <Badge>Cask strength</Badge> : null}
             {e.isBottledInBond ? <Badge>Bottled in bond</Badge> : null}
+            {e.isStraight ? <Badge>Straight</Badge> : null}
+            {e.isNas ? <Badge>NAS</Badge> : null}
             {row.bottle.isFavorite ? <Badge className="border-accent/40 text-accent">Favourite</Badge> : null}
           </div>
         </div>
