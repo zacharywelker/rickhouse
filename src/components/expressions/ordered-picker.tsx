@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
 
-export type LinkedRow = { id: number; label: string; amount: string };
+export type LinkedRow = { id: number; label: string; amount: string; hint?: string };
 
 /**
  * An ordered many-to-many list — the Pursuit reference bottle has three
@@ -64,7 +64,10 @@ export function OrderedPicker({
           {value.map((row, index) => (
             <li key={row.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 p-2">
               <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-sm">{row.label}</span>
+              <span className="min-w-0 flex-1 truncate text-sm">
+                {row.label}
+                {row.hint ? <span className="ml-1.5 text-xs text-muted-foreground">{row.hint}</span> : null}
+              </span>
 
               <div className="flex items-center gap-1">
                 <Label htmlFor={`${name}-amount-${row.id}`} className="text-xs">
@@ -132,11 +135,11 @@ export function OrderedPicker({
           if (next === null) return;
           const option = available.find((o) => o.value === next);
           if (!option) return;
-          onChange([...value, { id: option.value, label: option.label, amount: "" }]);
+          onChange([...value, { id: option.value, label: option.label, hint: option.hint, amount: "" }]);
         }}
         onOptionCreated={(option) => {
           setAvailable((prev) => [...prev, option]);
-          onChange([...value, { id: option.value, label: option.label, amount: "" }]);
+          onChange([...value, { id: option.value, label: option.label, hint: option.hint, amount: "" }]);
         }}
         placeholder={`Add ${label.toLowerCase()}…`}
         {...(emptyHint ? { emptyHint } : {})}

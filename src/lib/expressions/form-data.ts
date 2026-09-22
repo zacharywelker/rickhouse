@@ -38,15 +38,18 @@ export async function expressionFormData(expressionId: number | null) {
 
 async function loadLinks(expressionId: number) {
   const linked = await expressionLinks(expressionId);
-  const toRows = (rows: Array<{ id: number; name: string; amount: string | null }>): LinkedRow[] =>
+  const toRows = (rows: Array<{ id: number; name: string; amount: string | null; hint?: string }>): LinkedRow[] =>
     rows.map((row) => ({
       id: row.id,
       label: row.name,
       amount: row.amount === null ? "" : String(Number(row.amount)),
+      ...(row.hint ? { hint: row.hint } : {}),
     }));
   return {
     distilleries: toRows(linked.distilleries),
-    mashbills: toRows(linked.mashbills),
+    // Which distillery's recipe this is — the point of issue #13's mashbill
+    // correlation, surfaced wherever the mashbill link itself shows up.
+    mashbills: toRows(linked.mashbills.map((row) => ({ ...row, hint: row.attribution }))),
     finishes: toRows(linked.finishes),
   };
 }

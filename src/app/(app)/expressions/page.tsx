@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Route } from "next";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Pencil, Plus } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { LabelTableBody } from "@/components/expressions/label-table-body";
 import { listExpressions, parseLabelSort, type LabelSort } from "@/lib/expressions/queries";
-import { cn, formatMoney, formatNumeric } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Labels" };
 export const dynamic = "force-dynamic";
@@ -116,37 +116,7 @@ export default async function ExpressionsPage({
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="hidden font-medium sm:table-cell">{row.brand}</TableCell>
-                  <TableCell>
-                    {/* Brand folds in here on a phone; the edit link is the only
-                        way into a label, so it must never be squeezed off. */}
-                    <span className="block text-xs text-muted-foreground sm:hidden">{row.brand}</span>
-                    <span className="text-accent">{row.name}</span>
-                    {row.pickCount > 0 ? (
-                      <Badge className="ml-2 border-primary/40 text-primary">
-                        {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}
-                      </Badge>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">{row.category}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumeric(row.proof)}</TableCell>
-                  <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                    {formatMoney(row.msrp)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{row.bottleCount}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/expressions/${row.id}/edit`} aria-label={`Edit ${row.brand} ${row.name}`}>
-                        <Pencil className="size-4" />
-                      </Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
+            <LabelTableBody rows={rows} />
           </Table>
         </div>
       )}

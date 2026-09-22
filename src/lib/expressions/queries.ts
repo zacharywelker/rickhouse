@@ -180,6 +180,8 @@ export async function listExpressions(sort: LabelSort = "brand", desc = false) {
     .orderBy(sql`${direction} NULLS LAST`, asc(brands.name), asc(expressions.name));
 }
 
+export type ExpressionRow = Awaited<ReturnType<typeof listExpressions>>[number];
+
 /** Options for the bottle form's expression picker. */
 export async function expressionOptions() {
   const rows = await db
