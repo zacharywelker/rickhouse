@@ -12,7 +12,13 @@ import { saveExpressionAction } from "@/app/(app)/expressions/actions";
 import { EXPRESSION_SECTIONS, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type FieldSpec, type Option } from "@/lib/admin/types";
 import type { FieldGroup } from "@/db/schema";
+import { defaultAgeStatement } from "@/lib/bottles/age";
+import { ProofAbvFields } from "./proof-abv-field";
+import { AgeFields } from "./age-fields";
 import { OrderedPicker, type LinkedRow } from "./ordered-picker";
+
+/** Fields whose checkbox, when switched on, offers a default age statement. */
+const AGE_DESIGNATION_FIELDS = new Set(["isStraight", "isBottledInBond", "isNas"]);
 
 const ALL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
 
@@ -46,7 +52,21 @@ export function ExpressionForm({
   }, [saved, state, router]);
 
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
-  const set = (name: string, value: FieldValue) => setValues((prev) => ({ ...prev, [name]: value }));
+  const set = (name: string, value: FieldValue) =>
+    setValues((prev) => {
+      const next = { ...prev, [name]: value };
+      // Turning on Straight, Bottled In Bond or NAS offers a default age
+      // statement, but only into a blank field — Old Grand Dad 7 is
+      // bottled-in-bond and still reads "7 Year", not the BiB default.
+      if (AGE_DESIGNATION_FIELDS.has(name) && value === true && String(prev.ageStatement ?? "").trim() === "") {
+        next.ageStatement = defaultAgeStatement({
+          isStraight: next.isStraight === true,
+          isBottledInBond: next.isBottledInBond === true,
+          isNas: next.isNas === true,
+        });
+      }
+      return next;
+    });
 
   const categoryRaw = values.categoryId;
   const categoryId = typeof categoryRaw === "string" && categoryRaw !== "" ? Number(categoryRaw) : null;
@@ -63,25 +83,61 @@ export function ExpressionForm({
               {section.description ? <CardDescription>{section.description}</CardDescription> : null}
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {section.fields.map((field) => (
-                <Field
-                  key={field.name}
-                  spec={field}
-                  idPrefix="expression"
-                  value={values[field.name] ?? ""}
-                  onChange={(next) => set(field.name, next)}
-                  error={fieldErrors[field.name]}
-                  options={optionsByField[field.name] ?? []}
-                  onOptionCreated={(option) =>
-                    setOptionsByField((prev) => ({
-                      ...prev,
-                      [field.name]: [...(prev[field.name] ?? []), option].sort((a, b) =>
-                        a.label.localeCompare(b.label),
-                      ),
-                    }))
-                  }
-                />
-              ))}
+              {section.fields.map((field) => {
+                // Proof/ABV and the age triplet render as linked composites
+                // rather than the generic field, but stay in `fields` above
+                // so validation and per-category writability still see them.
+                if (field.name === "proof") {
+                  return (
+                    <ProofAbvFields
+                      key={field.name}
+                      idPrefix="expression"
+                      value={values.proof ?? ""}
+                      onChange={(next) => set("proof", next)}
+                      error={fieldErrors.proof}
+                    />
+                  );
+                }
+                if (field.name === "ageMonths" || field.name === "ageDays") return null;
+                if (field.name === "ageYears") {
+                  return (
+                    <AgeFields
+                      key="age"
+                      idPrefix="expression"
+                      values={{
+                        ageYears: values.ageYears ?? "",
+                        ageMonths: values.ageMonths ?? "",
+                        ageDays: values.ageDays ?? "",
+                      }}
+                      onChange={(name, next) => set(name, next)}
+                      errors={{
+                        ageYears: fieldErrors.ageYears,
+                        ageMonths: fieldErrors.ageMonths,
+                        ageDays: fieldErrors.ageDays,
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <Field
+                    key={field.name}
+                    spec={field}
+                    idPrefix="expression"
+                    value={values[field.name] ?? ""}
+                    onChange={(next) => set(field.name, next)}
+                    error={fieldErrors[field.name]}
+                    options={optionsByField[field.name] ?? []}
+                    onOptionCreated={(option) =>
+                      setOptionsByField((prev) => ({
+                        ...prev,
+                        [field.name]: [...(prev[field.name] ?? []), option].sort((a, b) =>
+                          a.label.localeCompare(b.label),
+                        ),
+                      }))
+                    }
+                  />
+                );
+              })}
             </CardContent>
           </Card>
         );

@@ -171,6 +171,11 @@ CREATE TABLE expressions (
     age_months      integer,
     age_days        integer,
     age_statement   text,                      -- "NAS (Straight, so >= 2 years)"
+    -- Designations that imply a minimum age. Checking one fills in
+    -- age_statement when blank, without clobbering a more specific one
+    -- already typed (Old Grand Dad 7 is bottled-in-bond but reads "7 Year").
+    is_straight     boolean NOT NULL DEFAULT false,
+    is_nas          boolean NOT NULL DEFAULT false,
 
     -- Process
     is_chill_filtered boolean,

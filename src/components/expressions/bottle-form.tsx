@@ -13,6 +13,8 @@ import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "@/lib/expressions/bottle-fields"
 import { sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type Option } from "@/lib/admin/types";
 import { ageBetween, describeAge } from "@/lib/bottles/age";
+import { ProofAbvFields } from "./proof-abv-field";
+import { AgeFields } from "./age-fields";
 
 /**
  * Offers to work the age out from the fill and bottling dates (SPEC M8).
@@ -100,23 +102,61 @@ export function BottleForm({
             {section.description ? <CardDescription>{section.description}</CardDescription> : null}
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {section.fields.map((field) => (
-            <Field
-              key={field.name}
-              spec={field}
-              idPrefix="bottle"
-              value={values[field.name] ?? ""}
-              onChange={(next) => set(field.name, next)}
-              error={fieldErrors[field.name]}
-              options={optionsByField[field.name] ?? []}
-              onOptionCreated={(option) =>
-                setOptionsByField((prev) => ({
-                  ...prev,
-                  [field.name]: [...(prev[field.name] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)),
-                }))
-              }
-            />
-          ))}
+          {section.fields.map((field) => {
+            // Proof/ABV and the age triplet render as linked composites
+            // rather than the generic field; see the label form for the same
+            // pattern. `field` stays in BOTTLE_FIELDS so seeding and the
+            // server's allow-list still see these names.
+            if (field.name === "proof") {
+              return (
+                <ProofAbvFields
+                  key={field.name}
+                  idPrefix="bottle"
+                  value={values.proof ?? ""}
+                  onChange={(next) => set("proof", next)}
+                  error={fieldErrors.proof}
+                />
+              );
+            }
+            if (field.name === "ageMonths" || field.name === "ageDays") return null;
+            if (field.name === "ageYears") {
+              return (
+                <AgeFields
+                  key="age"
+                  idPrefix="bottle"
+                  values={{
+                    ageYears: values.ageYears ?? "",
+                    ageMonths: values.ageMonths ?? "",
+                    ageDays: values.ageDays ?? "",
+                  }}
+                  onChange={(name, next) => set(name, next)}
+                  errors={{
+                    ageYears: fieldErrors.ageYears,
+                    ageMonths: fieldErrors.ageMonths,
+                    ageDays: fieldErrors.ageDays,
+                  }}
+                  help="Filled and bottled above will offer to work this out."
+                />
+              );
+            }
+            return (
+              <Field
+                key={field.name}
+                spec={field}
+                idPrefix="bottle"
+                value={values[field.name] ?? ""}
+                onChange={(next) => set(field.name, next)}
+                error={fieldErrors[field.name]}
+                options={optionsByField[field.name] ?? []}
+                onOptionCreated={(option) =>
+                  setOptionsByField((prev) => ({
+                    ...prev,
+                    [field.name]: [...(prev[field.name] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)),
+                  }))
+                }
+              />
+            );
+          })}
             {section.id === "override" ? <DeriveAge values={values} set={set} /> : null}
           </CardContent>
         </Card>

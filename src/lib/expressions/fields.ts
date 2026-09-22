@@ -56,11 +56,13 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     id: "strength",
     title: "Strength and age",
     description:
-      "As the product is normally sold; a bottle can override both. ABV is derived from proof automatically, and " +
-      "blank age fields mean no age statement.",
+      "As the product is normally sold; a bottle can override both. Proof and ABV calculate each other — enter " +
+      "either one. Straight, Bottled In Bond and NAS fill in the age statement below when it is blank.",
     fields: [
+      // Proof renders as two linked cells (Proof, ABV), so this row is
+      // already a full pair — the age triplet below is a full-span row of
+      // its own, and everything after it pairs up cleanly again.
       { kind: "number", name: "proof", label: "Proof", min: 0, max: 200, step: 0.01, span: "half" },
-      { kind: "checkbox", name: "isCaskStrength", label: "Cask Strength", span: "half" },
       { kind: "number", name: "ageYears", label: "Age — Years", min: 0, max: 100, step: 0.1, span: "half" },
       { kind: "number", name: "ageMonths", label: "Age — Months", min: 0, max: 1200, step: 1, span: "half" },
       {
@@ -73,12 +75,27 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         help: "For a single barrel with an exact fill-to-bottling age.",
         span: "half",
       },
+      { kind: "checkbox", name: "isCaskStrength", label: "Cask Strength", span: "half" },
       {
         kind: "text",
         name: "ageStatement",
         label: "Age Statement",
-        placeholder: "NAS (labeled Straight, so at least 2 years)",
+        placeholder: "e.g. 7 Year",
         help: "The human sentence, for when the numbers do not tell the whole story.",
+        span: "half",
+      },
+      {
+        kind: "checkbox",
+        name: "isStraight",
+        label: "Straight",
+        help: "Straight — at least 2 years old",
+        span: "half",
+      },
+      {
+        kind: "checkbox",
+        name: "isNas",
+        label: "NAS",
+        help: "NAS — no age statement on the bottle",
         span: "half",
       },
     ],
