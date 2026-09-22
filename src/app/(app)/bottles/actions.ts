@@ -244,6 +244,19 @@ export async function setBottleFillAction(bottleId: number, fillPct: number): Pr
   }
 }
 
+/** Toggled from the heart next to the bottle's name — not a form field. */
+export async function setBottleFavoriteAction(bottleId: number, isFavorite: boolean): Promise<ActionResult> {
+  await requireSession();
+  try {
+    await db.update(bottles).set({ isFavorite }).where(eq(bottles.id, bottleId));
+    revalidatePath(`/bottles/${bottleId}`);
+    revalidatePath("/bottles");
+    return { ok: true, message: isFavorite ? "Favorited." : "Unfavorited." };
+  } catch (error: unknown) {
+    return mapDbError(error, { singular: "Bottle" });
+  }
+}
+
 /**
  * Opening stamps `date_opened` the first time and promotes the status from
  * owned to open. Closing it again leaves both alone — the bottle was still

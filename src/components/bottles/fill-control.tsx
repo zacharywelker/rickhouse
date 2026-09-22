@@ -137,7 +137,7 @@ export function FillControl({
         <dt>
           <label htmlFor={`date-${field}`}>{label}</label>
         </dt>
-        <dd>
+        <dd className="flex items-center gap-1">
           <input
             id={`date-${field}`}
             type="date"
@@ -155,6 +155,22 @@ export function FillControl({
             }}
             className="h-7 rounded-md border border-input bg-card px-2 text-xs tabular-nums"
           />
+          <button
+            type="button"
+            // A mousedown fires before the input's blur, so clearing does not
+            // race the onBlur save above and get immediately overwritten.
+            onMouseDown={(event) => {
+              event.preventDefault();
+              setEditing(false);
+              void setBottleDateAction(bottleId, field, "").then((result) => {
+                setDateError(result.ok ? null : result.error);
+                router.refresh();
+              });
+            }}
+            className="rounded px-1 text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+          >
+            Clear
+          </button>
         </dd>
       </div>
     );

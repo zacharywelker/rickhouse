@@ -54,7 +54,6 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
         placeholder: "Bar cart, basement shelf 3",
         span: "half",
       },
-      { kind: "checkbox", name: "isFavorite", label: "Favourite", span: "half" },
     ],
   },
   {
@@ -131,10 +130,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
   {
     id: "notes",
     title: "Notes",
-    fields: [
-      { kind: "textarea", name: "acquisitionNotes", label: "Acquisition Notes", span: "full" },
-      { kind: "textarea", name: "notes", label: "Notes", span: "full" },
-    ],
+    fields: [{ kind: "textarea", name: "notes", label: "Notes", span: "full" }],
   },
 ];
 

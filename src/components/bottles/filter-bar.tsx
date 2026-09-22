@@ -389,7 +389,7 @@ export function FilterBar({
           onClick={() => apply({ favorite: !filters.favorite })}
           className={cn(filters.favorite && "border-primary/50 text-primary")}
         >
-          Favourites
+          Favorites
         </Button>
 
         {active > 0 ? (

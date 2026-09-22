@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BottleImages } from "@/components/expressions/bottle-images";
+import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
@@ -155,11 +156,14 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             {" · "}
             {row.category.name}
           </p>
-          <h1 className="font-display text-3xl">
-            <Link href={`/brands/${row.brand.slug}` as Route} className="hover:underline">
-              {row.brand.name}
-            </Link>{" "}
-            <span className="text-accent">{e.name}</span>
+          <h1 className="flex items-center gap-2 font-display text-3xl">
+            <span>
+              <Link href={`/brands/${row.brand.slug}` as Route} className="hover:underline">
+                {row.brand.name}
+              </Link>{" "}
+              <span className="text-accent">{e.name}</span>
+            </span>
+            <FavoriteToggle bottleId={bottleId} isFavorite={row.bottle.isFavorite} />
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {b.batch ? <Badge>{b.batch}</Badge> : null}
@@ -167,7 +171,6 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             {b.isSingleBarrelPick ? <Badge className="border-primary/40 text-primary">Private selection</Badge> : null}
             {e.isCaskStrength ? <Badge>Cask strength</Badge> : null}
             {e.isBottledInBond ? <Badge>Bottled in bond</Badge> : null}
-            {row.bottle.isFavorite ? <Badge className="border-accent/40 text-accent">Favourite</Badge> : null}
           </div>
         </div>
         <Button variant="outline" asChild>

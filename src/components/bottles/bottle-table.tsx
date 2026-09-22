@@ -120,7 +120,7 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
             {row.original.expressionName}
             {row.original.batch ? <span className="text-muted-foreground"> · {row.original.batch}</span> : null}
             {row.original.isFavorite ? (
-              <Star className="ml-1 inline size-3.5 fill-accent text-accent" aria-label="Favourite" />
+              <Star className="ml-1 inline size-3.5 fill-accent text-accent" aria-label="Favorite" />
             ) : null}
           </Link>
         ),
