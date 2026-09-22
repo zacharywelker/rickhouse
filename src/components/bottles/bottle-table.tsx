@@ -13,14 +13,15 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Star } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { cn, formatMoney, formatNumeric, humanise } from "@/lib/utils";
+import { cn, formatMoney, formatNumeric } from "@/lib/utils";
 import type { BottleFilters, SortKey } from "@/lib/bottles/filters";
+import { categorySwatchClass } from "@/lib/bottles/category-color";
 import type { GridRow } from "@/lib/bottles/grid";
 import { BottleCards } from "./bottle-cards";
 import { FillGauge } from "./fill-gauge";
+import { StatusMark } from "./status-mark";
 import { useGridFilters } from "./use-grid-filters";
 
 const helper = createColumnHelper<GridRow>();
@@ -128,7 +129,15 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
       helper.accessor("category", {
         id: "category",
         header: "Category",
-        cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
+        cell: ({ getValue, row }) => (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+            <span
+              className={cn("size-2 shrink-0 rounded-full", categorySwatchClass(row.original.fieldGroup))}
+              aria-hidden="true"
+            />
+            {getValue()}
+          </span>
+        ),
       }),
       helper.accessor("distilleries", {
         id: "distilleries",
@@ -187,11 +196,7 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
       helper.accessor("status", {
         id: "status",
         header: "Status",
-        cell: ({ getValue, row }) => (
-          <Badge className={row.original.isOpen ? "border-primary/40 text-primary" : ""}>
-            {humanise(getValue())}
-          </Badge>
-        ),
+        cell: ({ getValue }) => <StatusMark status={getValue()} />,
       }),
     ],
     [],

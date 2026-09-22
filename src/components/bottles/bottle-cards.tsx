@@ -4,10 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
 import { Star } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { formatMoney, formatNumeric, humanise } from "@/lib/utils";
+import { cn, formatMoney, formatNumeric } from "@/lib/utils";
+import { categorySwatchClass } from "@/lib/bottles/category-color";
 import type { GridRow } from "@/lib/bottles/grid";
 import { FillGauge } from "./fill-gauge";
+import { StatusMark } from "./status-mark";
 
 /**
  * The grid, below 768px (SPEC M6). A fourteen-column table on a phone is
@@ -49,13 +50,19 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
                   <Star className="size-3.5 shrink-0 fill-accent text-accent" aria-label="Favourite" />
                 ) : null}
               </p>
-              <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                {[row.category, row.proof ? `${formatNumeric(row.proof)} proof` : null, row.ageStatement]
-                  .filter(Boolean)
-                  .join(" · ")}
+              <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
+                <span
+                  className={cn("size-2 shrink-0 rounded-full", categorySwatchClass(row.fieldGroup))}
+                  aria-hidden="true"
+                />
+                <span className="truncate">
+                  {[row.category, row.proof ? `${formatNumeric(row.proof)} proof` : null, row.ageStatement]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                <Badge className={row.isOpen ? "border-primary/40 text-primary" : ""}>{humanise(row.status)}</Badge>
+                <StatusMark status={row.status} className="text-muted-foreground" />
                 <span className="tabular-nums text-muted-foreground">{row.fillPct}% full</span>
                 {row.pricePaid ? <span className="tabular-nums">{formatMoney(row.pricePaid)}</span> : null}
                 {row.avgRating ? (

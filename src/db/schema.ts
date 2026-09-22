@@ -475,6 +475,8 @@ export const bottleList = pgView("bottle_list", {
   brand: citext("brand").notNull(),
   categoryId: integer("category_id").notNull(),
   category: citext("category").notNull(),
+  /** The category's top-level bucket (whiskey, rum, agave…) — what category color keys off, not the display name. */
+  fieldGroup: text("field_group").notNull().$type<FieldGroup>(),
   store: citext("store"),
   distilleries: text("distilleries"),
   finishes: text("finishes"),
