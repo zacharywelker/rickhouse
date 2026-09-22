@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { saveResourceAction } from "@/app/(app)/admin/actions";
 import { IDLE_RESULT, type ActionResult, type AdminRow, type FieldSpec, type Option } from "@/lib/admin/types";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
-import { MashbillSum } from "./mashbill-sum";
+import { GrainEditor, parseGrainRows, type GrainRow } from "./grain-editor";
 
 type FormValues = Record<string, FieldValue>;
 
@@ -44,6 +44,10 @@ export function ResourceForm({
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
   const set = (name: string, value: FieldValue) => setValues((prev) => ({ ...prev, [name]: value }));
 
+  // Mashbill grains are a list, not a field — they ride along in one hidden
+  // input the editor maintains.
+  const [grains, setGrains] = React.useState<GrainRow[]>(() => parseGrainRows(row?.values?.grains));
+
   return (
     <form action={formAction} className="flex min-h-0 flex-col">
       <div className="grid min-h-0 grid-cols-1 gap-4 overflow-y-auto p-6 sm:grid-cols-2">
@@ -66,7 +70,9 @@ export function ResourceForm({
               }
               excludeId={row?.id}
             />
-            {resourceKey === "mashbills" && field.name === "otherGrain" ? <MashbillSum values={values} /> : null}
+            {resourceKey === "mashbills" && field.name === "distilleryId" ? (
+              <GrainEditor rows={grains} onChange={setGrains} error={fieldErrors.grains} />
+            ) : null}
           </React.Fragment>
         ))}
 

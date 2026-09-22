@@ -66,7 +66,7 @@ export default async function HomePage() {
             <p className="text-sm text-muted-foreground">
               Nothing on the shelf yet.{" "}
               <Link href="/expressions/new" className="text-primary hover:underline">
-                Create an expression
+                Create a label
               </Link>{" "}
               for the product, then add the bottle you actually own.
             </p>

@@ -277,6 +277,66 @@ export async function setBottleOpenAction(bottleId: number, isOpen: boolean): Pr
   }
 }
 
+/**
+ * Corrects a stamped date (SPEC M8). Opening a bottle stamps today, which is
+ * wrong for the one you opened three months ago and are only now logging.
+ *
+ * A blank clears it. Clearing the opened date also closes the bottle, because
+ * "open, opened on no date" is a state the rest of the app does not mean.
+ */
+export async function setBottleDateAction(
+  bottleId: number,
+  field: "dateOpened" | "dateKilled",
+  value: string | null,
+): Promise<ActionResult> {
+  await requireSession();
+
+  const date = (value ?? "").trim();
+  if (date !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { ok: false, error: "Use a date like 2025-06-14." };
+  }
+  if (date !== "" && Number.isNaN(Date.parse(date))) {
+    return { ok: false, error: "That is not a real date." };
+  }
+  if (date > new Date().toISOString().slice(0, 10)) {
+    return { ok: false, error: "That date is in the future." };
+  }
+
+  try {
+    const [current] = await db
+      .select({ dateOpened: bottles.dateOpened, dateKilled: bottles.dateKilled })
+      .from(bottles)
+      .where(eq(bottles.id, bottleId))
+      .limit(1);
+    if (!current) return { ok: false, error: "That bottle is gone." };
+
+    const next = date === "" ? null : date;
+    const other = field === "dateOpened" ? current.dateKilled : current.dateOpened;
+
+    // A bottle cannot be killed before it was opened.
+    if (next && other) {
+      const [opened, killed] = field === "dateOpened" ? [next, other] : [other, next];
+      if (killed < opened) {
+        return { ok: false, error: "Killed before it was opened — check these dates." };
+      }
+    }
+
+    await db
+      .update(bottles)
+      .set({
+        [field]: next,
+        ...(field === "dateOpened" && next === null ? { isOpen: false } : {}),
+      })
+      .where(eq(bottles.id, bottleId));
+
+    revalidatePath(`/bottles/${bottleId}`);
+    revalidatePath("/bottles");
+    return { ok: true, message: next === null ? "Date cleared." : "Date updated." };
+  } catch (error: unknown) {
+    return mapDbError(error, { singular: "Bottle" });
+  }
+}
+
 /** Empty and done: status killed, level zero, dated today. */
 export async function killBottleAction(bottleId: number): Promise<ActionResult> {
   await requireSession();

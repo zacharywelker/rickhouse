@@ -79,21 +79,10 @@ CREATE INDEX distilleries_company_idx ON distilleries(company_id);
 -- Percentages should sum to 100; enforced in app, checked loosely here.
 CREATE TABLE mashbills (
     id              serial PRIMARY KEY,
-    name            citext,        -- optional label, e.g. "BBC High Rye"
-    corn            numeric(5,2) NOT NULL DEFAULT 0,
-    rye             numeric(5,2) NOT NULL DEFAULT 0,
-    wheat           numeric(5,2) NOT NULL DEFAULT 0,
-    malted_barley   numeric(5,2) NOT NULL DEFAULT 0,
-    malted_rye      numeric(5,2) NOT NULL DEFAULT 0,
-    other_grain     numeric(5,2) NOT NULL DEFAULT 0,
-    other_grain_name text,
+    name            citext,                    -- "BBC High Rye", optional
     distillery_id   integer REFERENCES distilleries(id) ON DELETE SET NULL,
-    notes           text,
-    CONSTRAINT mashbill_sums_to_100 CHECK (
-        corn + rye + wheat + malted_barley + malted_rye + other_grain
-        BETWEEN 99.0 AND 101.0
-    )
-);
+    notes           text
+)
 
 CREATE TABLE finishes (
     id          serial PRIMARY KEY,
@@ -119,6 +108,50 @@ CREATE TABLE stores (
 -- Expressions (the product)
 -- ------------------------------------------------------------
 
+-- Grains as rows rather than fixed columns (M7). The old shape handled
+-- exactly one unusual grain, through other_grain + other_grain_name, so a
+-- recipe with both oats and triticale lost the second one's name.
+CREATE TABLE mashbill_grains (
+    id          serial PRIMARY KEY,
+    mashbill_id integer NOT NULL REFERENCES mashbills(id) ON DELETE CASCADE,
+    grain       text    NOT NULL,              -- "Corn", "Rye", "Oats"
+    percent     numeric(5,2) NOT NULL CHECK (percent > 0 AND percent <= 100),
+    -- The order it was entered in. Display sorts by percent instead, so this
+    -- is only the tiebreak.
+    position    integer NOT NULL DEFAULT 0,
+    UNIQUE (mashbill_id, grain)
+);
+
+CREATE INDEX mashbill_grains_mashbill_idx ON mashbill_grains(mashbill_id);
+
+-- Published mashbills are often rounded, so 99-101 is the tolerance. This is
+-- a DEFERRABLE constraint trigger, not a CHECK: a CHECK sees one row at a
+-- time, and editing a recipe necessarily passes through totals that are not
+-- 100. Deferring to commit lets the intermediate states be wrong and the
+-- committed state never be. A mashbill with no grains at all is allowed —
+-- that is a recipe you know the name of but not the contents.
+CREATE FUNCTION mashbill_grains_sum_to_100() RETURNS trigger AS $$
+DECLARE
+    target integer := coalesce(NEW.mashbill_id, OLD.mashbill_id);
+    total  numeric;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM mashbills WHERE id = target) THEN
+        RETURN NULL;
+    END IF;
+    SELECT coalesce(sum(percent), 0) INTO total FROM mashbill_grains WHERE mashbill_id = target;
+    IF total <> 0 AND (total < 99.0 OR total > 101.0) THEN
+        RAISE EXCEPTION 'mashbill grains must add up to 100%% (got %)', total
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE CONSTRAINT TRIGGER mashbill_grains_sum_check
+    AFTER INSERT OR UPDATE OR DELETE ON mashbill_grains
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION mashbill_grains_sum_to_100();
+
 CREATE TABLE expressions (
     id              serial PRIMARY KEY,
     brand_id        integer NOT NULL REFERENCES brands(id) ON DELETE RESTRICT,
@@ -126,33 +159,14 @@ CREATE TABLE expressions (
     name            citext  NOT NULL,          -- "Double Oak Spirit"
     slug            text    NOT NULL UNIQUE,
 
-    -- Batch / release identity. Two batches of the same name are two rows.
-    batch           text,                      -- "Batch 2", "B524"
-    release_year    integer,
-    is_single_barrel boolean NOT NULL DEFAULT false,
-    barrel_number   text,
-    bottle_count    integer,                   -- total bottles in the release
-
-    -- Strength
+    -- Strength, as the product is normally sold. A bottle may override it.
     proof           numeric(5,2),
     abv             numeric(5,2) GENERATED ALWAYS AS (proof / 2.0) STORED,
     is_cask_strength boolean NOT NULL DEFAULT false,
     is_bottled_in_bond boolean NOT NULL DEFAULT false,
-    is_single_barrel_pick boolean NOT NULL DEFAULT false,
-    pick_name       text,                      -- store pick / society pick label
 
-    -- ---- Single barrel / private selection detail.
-    -- Nullable; the UI reveals this block when is_single_barrel or
-    -- is_single_barrel_pick is set.
-    picked_by       text,      -- the group that picked it: club, bar, society
-    barrel_filled_on date,     -- fill/dump dates give you the exact age
-    bottled_on      date,
-    warehouse       text,      -- rickhouse identifier, e.g. "Warehouse H"
-    rick_floor      text,      -- floor / rick position, e.g. "5th floor, rick 12"
-
-    -- Age. NULL age_years = NAS; age_statement carries the human text.
-    -- years/months/days let a single barrel carry its exact age when the
-    -- fill and bottling dates are not both known.
+    -- Age, as the product is normally sold. A bottle may override it.
+    -- NULL age_years = NAS; age_statement carries the human text.
     age_years       numeric(4,1),
     age_months      integer,
     age_days        integer,
@@ -191,7 +205,7 @@ CREATE TABLE expressions (
 
     created_at      timestamptz NOT NULL DEFAULT now(),
     updated_at      timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (brand_id, name, batch)
+    UNIQUE (brand_id, name)
 );
 CREATE INDEX expressions_brand_idx    ON expressions(brand_id);
 CREATE INDEX expressions_category_idx ON expressions(category_id);
@@ -232,6 +246,35 @@ CREATE TABLE bottles (
     id              serial PRIMARY KEY,
     expression_id   integer NOT NULL REFERENCES expressions(id) ON DELETE RESTRICT,
 
+    -- ---- Release identity (M7).
+    -- These live here, not on the label, because they vary barrel to barrel.
+    -- Six private selections of one Weller 12 are six bottles of one product,
+    -- not six products — putting them on the label forced a duplicate product
+    -- per pick, which is the duplication the label/bottle split exists to stop.
+    batch           text,                      -- "Batch 2", "B524"
+    release_year    integer,
+    is_single_barrel      boolean NOT NULL DEFAULT false,
+    is_single_barrel_pick boolean NOT NULL DEFAULT false,
+    barrel_number   text,
+    bottle_count    integer,                   -- total bottles in the release
+    pick_name       text,                      -- store pick / society pick label
+    picked_by       text,      -- the group that picked it: club, bar, society
+    barrel_filled_on date,     -- fill/bottling dates give the exact age
+    bottled_on      date,
+    warehouse       text,      -- rickhouse identifier, e.g. "Warehouse H"
+    rick_floor      text,      -- floor / rick position, e.g. "5th floor, rick 12"
+
+    -- ---- Overrides. NULL means "inherit from the label", resolved at read
+    -- time in bottle_list rather than copied on save — so correcting the
+    -- label still flows through to every bottle that did not override it.
+    -- A single barrel almost always differs on exactly these two.
+    proof           numeric(5,2),
+    abv             numeric(5,2) GENERATED ALWAYS AS (proof / 2.0) STORED,
+    age_years       numeric(4,1),
+    age_months      integer,
+    age_days        integer,
+    age_statement   text,
+
     -- Acquisition
     price_paid      numeric(10,2),
     store_id        integer REFERENCES stores(id) ON DELETE SET NULL,
@@ -251,7 +294,6 @@ CREATE TABLE bottles (
 
     location        text,          -- "Bar cart", "Basement shelf 3"
     is_favorite     boolean NOT NULL DEFAULT false,
-    estimated_value numeric(10,2),
     notes           text,
 
     created_at      timestamptz NOT NULL DEFAULT now(),
@@ -316,6 +358,18 @@ CREATE TABLE bottle_tags (
 -- Convenience view: the flat list for the grid page
 -- ------------------------------------------------------------
 
+-- ------------------------------------------------------------
+-- What the M7 merge collapsed. Empty is the happy case.
+-- ------------------------------------------------------------
+CREATE TABLE label_merge_log (
+    id          serial PRIMARY KEY,
+    merged_at   timestamptz NOT NULL DEFAULT now(),
+    kept_id     integer NOT NULL,
+    kept_name   text    NOT NULL,
+    discarded   jsonb   NOT NULL,   -- the whole row, as it was
+    differences text[]  NOT NULL    -- columns where the two disagreed
+);
+
 CREATE VIEW bottle_list AS
 SELECT
     b.id,
@@ -327,16 +381,28 @@ SELECT
     b.date_opened,
     b.is_favorite,
     b.store_id,
+    b.batch,
+    b.release_year,
+    b.is_single_barrel,
+    b.is_single_barrel_pick,
+    b.pick_name,
+    b.barrel_filled_on,
+    b.bottled_on,
     e.id   AS expression_id,
     e.name AS expression_name,
-    e.batch,
-    e.proof,
-    e.abv,
-    e.age_years,
-    e.age_statement,
+    -- Inheritance resolved here, once, so nothing downstream has to remember
+    -- the rule. NULL on the bottle means "whatever the label says"; the
+    -- *_inherited flags let the UI show that rather than pretend the bottle
+    -- was typed with those numbers.
+    coalesce(b.proof, e.proof)                 AS proof,
+    coalesce(b.abv, e.abv)                     AS abv,
+    coalesce(b.age_years, e.age_years)         AS age_years,
+    coalesce(b.age_statement, e.age_statement) AS age_statement,
+    (b.proof IS NULL AND e.proof IS NOT NULL)  AS proof_inherited,
+    (b.age_years IS NULL AND b.age_statement IS NULL
+       AND (e.age_years IS NOT NULL OR e.age_statement IS NOT NULL))
+                                               AS age_inherited,
     e.msrp,
-    e.is_single_barrel,
-    e.is_single_barrel_pick,
     br.id   AS brand_id,
     br.name AS brand,
     c.id    AS category_id,
@@ -370,8 +436,10 @@ SELECT
     (
       setweight(to_tsvector('english', coalesce(br.name::text, '')), 'A') ||
       setweight(to_tsvector('english', coalesce(e.name::text, '')), 'A') ||
-      setweight(to_tsvector('english', coalesce(e.batch, '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(e.age_statement, '')), 'B') ||
+      setweight(to_tsvector('english', coalesce(b.batch, '')), 'B') ||
+      setweight(to_tsvector('english', coalesce(b.pick_name, '')), 'B') ||
+      setweight(to_tsvector('english', coalesce(b.picked_by, '')), 'B') ||
+      setweight(to_tsvector('english', coalesce(b.age_statement, e.age_statement, '')), 'B') ||
       setweight(to_tsvector('english', coalesce(c.name::text, '')), 'B') ||
       setweight(to_tsvector('english', coalesce(s.name::text, '')), 'B') ||
       setweight(to_tsvector('english', coalesce(
@@ -396,7 +464,8 @@ SELECT
     -- grid ORs a substring match over this against the tsvector above. One
     -- column so the two can never cover different fields.
     concat_ws(' ',
-      br.name::text, e.name::text, e.batch, e.age_statement, c.name::text, s.name::text,
+      br.name::text, e.name::text, b.batch, b.pick_name, b.picked_by,
+      coalesce(b.age_statement, e.age_statement), c.name::text, s.name::text,
       (SELECT string_agg(d.name::text, ' ')
          FROM expression_distilleries ed
          JOIN distilleries d ON d.id = ed.distillery_id

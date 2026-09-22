@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { T8keHint } from "./t8ke-hint";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { deleteTastingNoteAction, saveTastingNoteAction } from "@/app/(app)/bottles/actions";
@@ -69,7 +70,10 @@ function NoteForm({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="rating">Rating</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="rating">Rating</Label>
+            <T8keHint />
+          </div>
           <Input
             id="rating"
             name="rating"
@@ -189,7 +193,7 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit tasting note" : "Add a tasting note"}</DialogTitle>
-            <DialogDescription>Nose, palate, finish and a rating out of 10. All optional.</DialogDescription>
+            <DialogDescription>Nose, palate, finish and a t8ke score. All optional.</DialogDescription>
           </DialogHeader>
           {editing !== undefined ? (
             <NoteForm

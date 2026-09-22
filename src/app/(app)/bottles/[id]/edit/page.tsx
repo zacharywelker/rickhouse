@@ -23,7 +23,7 @@ export default async function EditBottlePage({ params }: { params: Promise<{ id:
         <h1 className="font-display text-3xl text-accent">
           {row.brand.name} {row.expression.name}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Editing this bottle, not the expression behind it.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Editing this bottle, not the label behind it.</p>
       </div>
       <BottleForm
         bottleId={bottleId}

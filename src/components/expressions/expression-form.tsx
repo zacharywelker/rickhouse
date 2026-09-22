@@ -148,7 +148,7 @@ export function ExpressionForm({
         </Button>
         <Button type="submit" disabled={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-          {expressionId ? "Save expression" : "Create expression"}
+          {expressionId ? "Save Label" : "Create Label"}
         </Button>
       </div>
     </form>

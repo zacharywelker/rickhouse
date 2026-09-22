@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/", label: "Home", icon: House },
   { href: "/bottles", label: "Collection", icon: Library },
-  { href: "/expressions", label: "Expressions", icon: FlaskConical },
+  { href: "/expressions", label: "Labels", icon: FlaskConical },
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/admin", label: "Configuration", icon: SlidersHorizontal },
 ] as const;

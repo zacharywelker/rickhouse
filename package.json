@@ -16,6 +16,7 @@
     "build:scripts": "esbuild scripts/migrate.ts scripts/seed.ts --bundle --platform=node --target=node22 --format=esm --outdir=dist --out-extension:.js=.mjs --log-level=warning",
     "test:e2e": "playwright test",
     "backup": "bash scripts/backup.sh",
+    "m7:preview": "tsx scripts/preview-m7.ts",
     "db:reset": "tsx scripts/reset.ts && tsx scripts/seed.ts"
   },
   "dependencies": {

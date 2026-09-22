@@ -26,18 +26,18 @@ export default async function NewBottlePage({
       <div className="max-w-2xl">
         <h1 className="font-display text-3xl text-accent">Add a bottle</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Pick the expression it is a bottle of. If it does not exist yet, create the expression first.
+          Pick the label it is a bottle of. If it does not exist yet, create the label first.
         </p>
       </div>
 
       {expressions.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
-          <p className="font-display text-lg">No expressions yet</p>
+          <p className="font-display text-lg">No labels yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             A bottle has to be a bottle <em>of</em> something. Create the product first.
           </p>
           <Button className="mt-4" asChild>
-            <Link href="/expressions/new">Create an expression</Link>
+            <Link href="/expressions/new">Create a label</Link>
           </Button>
         </div>
       ) : (

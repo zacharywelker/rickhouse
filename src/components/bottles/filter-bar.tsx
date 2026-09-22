@@ -217,7 +217,7 @@ export function FilterBar({
               id={SEARCH_INPUT_ID}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search brand, expression, distillery, notes…"
+              placeholder="Search brand, label, distillery, notes…"
               aria-label="Search bottles"
               className="h-9 pl-9"
             />

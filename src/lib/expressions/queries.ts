@@ -1,6 +1,7 @@
 import "server-only";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, asc as sqlAsc, desc, desc as sqlDesc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { describeMashbill } from "@/lib/mashbills";
 import {
   bottleImages,
   bottles,
@@ -12,6 +13,7 @@ import {
   expressionMashbills,
   expressions,
   finishes,
+  mashbillGrains,
   mashbills,
   stores,
   tastingNotes,
@@ -20,9 +22,19 @@ import {
 
 export type LinkedEntity = { id: number; name: string; slug: string | null; amount: string | null };
 
+/**
+ * A mashbill carries its recipe, and on a blend, whose recipe it is — "78%
+ * Corn" means nothing across three distilleries without that.
+ */
+export type LinkedMashbill = LinkedEntity & {
+  recipe: string;
+  attribution?: string;
+  attributionSlug?: string | null;
+};
+
 export async function expressionLinks(expressionId: number): Promise<{
   distilleries: LinkedEntity[];
-  mashbills: LinkedEntity[];
+  mashbills: LinkedMashbill[];
   finishes: LinkedEntity[];
 }> {
   const [d, m, f] = await Promise.all([
@@ -41,17 +53,19 @@ export async function expressionLinks(expressionId: number): Promise<{
       .select({
         id: mashbills.id,
         name: mashbills.name,
-        corn: mashbills.corn,
-        rye: mashbills.rye,
-        wheat: mashbills.wheat,
-        maltedBarley: mashbills.maltedBarley,
-        maltedRye: mashbills.maltedRye,
-        otherGrain: mashbills.otherGrain,
-        otherGrainName: mashbills.otherGrainName,
         amount: expressionMashbills.sharePct,
+        // Which distillery's recipe this is. Surfaced on a blend, where "78%
+        // corn" means nothing without knowing whose 78% corn (SPEC M7).
+        distillery: distilleries.name,
+        distillerySlug: distilleries.slug,
+        recipe: sql<string | null>`(
+          select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
+            from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
+        )`,
       })
       .from(expressionMashbills)
       .innerJoin(mashbills, eq(expressionMashbills.mashbillId, mashbills.id))
+      .leftJoin(distilleries, eq(mashbills.distilleryId, distilleries.id))
       .where(eq(expressionMashbills.expressionId, expressionId))
       .orderBy(asc(expressionMashbills.position)),
     db
@@ -67,39 +81,36 @@ export async function expressionLinks(expressionId: number): Promise<{
       .orderBy(asc(expressionFinishes.position)),
   ]);
 
+  // On a blend, whose recipe it is matters; on a single-distillery label it is
+  // noise, because there is only one answer.
+  const blended = d.length > 1;
+
   return {
     distilleries: d,
     mashbills: m.map((row) => ({
       id: row.id,
-      name: row.name ?? describeRecipe(row),
+      name: row.name ?? describeRecipe(row.recipe),
       slug: null,
       amount: row.amount,
+      recipe: describeRecipe(row.recipe),
+      ...(blended && row.distillery
+        ? { attribution: row.distillery, attributionSlug: row.distillerySlug }
+        : {}),
     })),
     finishes: f,
   };
 }
 
-export function describeRecipe(row: {
-  corn: string;
-  rye: string;
-  wheat: string;
-  maltedBarley: string;
-  maltedRye: string;
-  otherGrain: string;
-  otherGrainName: string | null;
-}): string {
-  const parts: string[] = [];
-  const push = (value: string, label: string) => {
-    const n = Number(value);
-    if (n > 0) parts.push(`${Number(n.toFixed(2))}% ${label}`);
-  };
-  push(row.corn, "corn");
-  push(row.rye, "rye");
-  push(row.wheat, "wheat");
-  push(row.maltedBarley, "malted barley");
-  push(row.maltedRye, "malted rye");
-  push(row.otherGrain, row.otherGrainName ?? "other");
-  return parts.join(" · ") || "No recipe recorded";
+/** Unpacks the "Corn:70|Wheat:16" aggregate the queries above build. */
+export function describeRecipe(packed: string | null): string {
+  const grains = (packed ?? "")
+    .split("|")
+    .filter(Boolean)
+    .map((part) => {
+      const [grain = "", percent = "0"] = part.split(":");
+      return { grain, percent };
+    });
+  return describeMashbill(grains) || "No recipe recorded";
 }
 
 export async function getExpression(id: number) {
@@ -117,26 +128,56 @@ export async function getExpression(id: number) {
   return row ?? null;
 }
 
-export async function listExpressions() {
+/** Sortable columns on the labels list (SPEC M8). */
+export const LABEL_SORTS = ["brand", "name", "category", "proof", "age", "msrp", "bottles"] as const;
+export type LabelSort = (typeof LABEL_SORTS)[number];
+
+export function parseLabelSort(raw: string | null | undefined): LabelSort {
+  return (LABEL_SORTS as readonly string[]).includes(raw ?? "") ? (raw as LabelSort) : "brand";
+}
+
+/**
+ * The labels list, sorted in Postgres like the bottle grid is.
+ *
+ * Batch and the single-barrel flags moved to the bottle in M7, so a label no
+ * longer knows whether it is a pick — its bottles do. "Picks" counts them,
+ * which is the question worth answering here anyway: how many of these did I
+ * buy as store picks.
+ */
+export async function listExpressions(sort: LabelSort = "brand", desc = false) {
+  const bottleCount = sql<number>`(select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id})`;
+  const pickCount = sql<number>`(select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id} and (${bottles.isSingleBarrel} or ${bottles.isSingleBarrelPick}))`;
+
+  const columns = {
+    brand: sql`${brands.name}`,
+    name: sql`${expressions.name}`,
+    category: sql`${categories.name}`,
+    proof: sql`${expressions.proof}`,
+    age: sql`${expressions.ageYears}`,
+    msrp: sql`${expressions.msrp}`,
+    bottles: bottleCount,
+  } as const;
+
+  const direction = desc ? sqlDesc(columns[sort]) : sqlAsc(columns[sort]);
+
   return db
     .select({
       id: expressions.id,
       name: expressions.name,
-      batch: expressions.batch,
       brand: brands.name,
       category: categories.name,
       proof: expressions.proof,
       ageStatement: expressions.ageStatement,
       msrp: expressions.msrp,
       upc: expressions.upc,
-      isSingleBarrel: expressions.isSingleBarrel,
-      isSingleBarrelPick: expressions.isSingleBarrelPick,
-      bottleCount: sql<number>`(select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id})`,
+      bottleCount,
+      pickCount,
     })
     .from(expressions)
     .innerJoin(brands, eq(expressions.brandId, brands.id))
     .innerJoin(categories, eq(expressions.categoryId, categories.id))
-    .orderBy(asc(brands.name), asc(expressions.name), asc(expressions.batch));
+    // NULLS LAST both ways, and a stable tiebreak so paging never reshuffles.
+    .orderBy(sql`${direction} NULLS LAST`, asc(brands.name), asc(expressions.name));
 }
 
 /** Options for the bottle form's expression picker. */
@@ -145,7 +186,6 @@ export async function expressionOptions() {
     .select({
       value: expressions.id,
       name: expressions.name,
-      batch: expressions.batch,
       brand: brands.name,
       proof: expressions.proof,
     })
@@ -154,7 +194,7 @@ export async function expressionOptions() {
     .orderBy(asc(brands.name), asc(expressions.name));
   return rows.map((r) => ({
     value: r.value,
-    label: `${r.brand} ${r.name}${r.batch ? ` — ${r.batch}` : ""}`,
+    label: `${r.brand} ${r.name}`,
     ...(r.proof ? { hint: `${Number(r.proof)} proof` } : {}),
   }));
 }

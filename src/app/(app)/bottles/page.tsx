@@ -84,7 +84,7 @@ export default async function BottlesPage({
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             {filtered
               ? "Loosen a filter, or clear them all and start again."
-              : "Add the expression first, then the bottle you actually own."}
+              : "Add the label first, then the bottle you actually own."}
           </p>
           {!filtered ? (
             <Button className="mt-4" asChild>

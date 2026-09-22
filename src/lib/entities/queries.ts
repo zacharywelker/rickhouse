@@ -7,6 +7,7 @@ import {
   distilleries,
   expressionMashbills,
   finishes,
+  mashbillGrains,
   mashbills,
   stores,
 } from "@/db/schema";
@@ -72,13 +73,10 @@ export async function getMashbill(id: number) {
     .select({
       id: mashbills.id,
       name: mashbills.name,
-      corn: mashbills.corn,
-      rye: mashbills.rye,
-      wheat: mashbills.wheat,
-      maltedBarley: mashbills.maltedBarley,
-      maltedRye: mashbills.maltedRye,
-      otherGrain: mashbills.otherGrain,
-      otherGrainName: mashbills.otherGrainName,
+      recipe: sql<string | null>`(
+        select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
+          from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
+      )`,
       notes: mashbills.notes,
       distillery: distilleries.name,
       distillerySlug: distilleries.slug,
@@ -88,7 +86,7 @@ export async function getMashbill(id: number) {
     .where(eq(mashbills.id, id))
     .limit(1);
   if (!row) return null;
-  return { ...row, recipe: describeRecipe(row) };
+  return { ...row, recipe: describeRecipe(row.recipe) };
 }
 
 /** Every grain split this mashbill is used in, for its own page. */

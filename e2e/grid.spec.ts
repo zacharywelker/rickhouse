@@ -44,14 +44,14 @@ test("filtering by a distillery finds the blends it contributed to", async ({ pa
   await page.goto("/expressions/new");
   await pick(page, "Brand", "Pursuit Spirits");
   await pick(page, "Category", "Bourbon");
-  await page.getByLabel("Expression name").fill(soloName);
+  await page.getByLabel("Label Name").fill(soloName);
   await page.getByLabel("Proof", { exact: true }).fill("92");
   await pick(page, "Add distilleries", "Finger Lakes", "Finger Lakes Distilling");
-  await page.getByRole("button", { name: "Create expression" }).click();
+  await page.getByRole("button", { name: "Create Label" }).click();
   await expect(page).toHaveURL("/expressions");
 
   await page.goto("/bottles/new");
-  await pick(page, "Expression", soloName, `Pursuit Spirits ${soloName}`);
+  await pick(page, "Label", soloName, `Pursuit Spirits ${soloName}`);
   await page.getByRole("button", { name: "Add bottle" }).click();
   await expect(page).toHaveURL(/\/bottles\/\d+$/);
 

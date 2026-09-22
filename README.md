@@ -8,10 +8,10 @@ Every bottle gets its own page. Brands, distilleries, mashbills, finishes and
 stores are real linked records rather than free text, so "show me everything
 Bardstown distilled" works even when the bottle is a three-way blend.
 
-> **Status: Milestone 6 (Polish).** Mobile, light and dark, keyboard
-> shortcuts, full-text search and backups are done and verified. Next is M7,
-> the model revisions that came out of actually using it — see
-> [SPEC.md](SPEC.md).
+> **Status: Milestones 7 and 8.** Release identity moved to the bottle, grains
+> became rows, "expression" is now **Label**, and the wording and interaction
+> fixes landed. Next is M9, tastings for bottles you do not own — see
+> [SPEC.md](SPEC.md), which also lists the three things M7/M8 left open.
 
 ---
 
@@ -441,6 +441,55 @@ exact restore commands for the archive it just made.
 
 Point `BACKUP_DIR` at a share that is part of your actual backup plan. The
 default lives next to the data it is protecting, which is not a backup.
+
+## Labels and bottles
+
+A **label** is the product: brand, name, recipe, proof, MSRP. A **bottle** is
+the physical thing on your shelf.
+
+Everything that varies barrel to barrel lives on the bottle — batch, release
+year, the single-barrel and private-selection flags, and the whole pick block
+(pick name, who picked it, barrel number, warehouse, rick and floor, fill and
+bottling dates). That is the point: six store picks of one Weller 12 are six
+bottles of one label, not six labels.
+
+Proof and age are **overrides** on the bottle. Leave them blank and the bottle
+inherits the label's, resolved when read rather than copied when saved — so
+correcting a label's proof still reaches every bottle that did not say
+otherwise. A single barrel almost always differs on exactly those two, which is
+why they are there.
+
+### Upgrading an existing collection
+
+The migration merges labels that share a brand and name, because batch is no
+longer part of what makes them distinct. Before you upgrade:
+
+```bash
+npm run m7:preview
+```
+
+It is read-only and tells you exactly which labels would merge, how many
+bottles are involved, and whether any of them disagree on anything beyond
+batch. Nothing is lost either way — each bottle carries its own batch down
+first, and any row the merge discards is kept whole in `label_merge_log`.
+
+## Mashbills
+
+Grains are rows, so a recipe can carry any grain at all — oats, triticale,
+spelt, two unusual ones at once. The old fixed columns had exactly one slot for
+an unusual grain and lost the second one's name.
+
+They read **dominant grain first, then the conventional order**: 78/10/12 is
+corn, rye, malted barley, even though the barley is the larger of the last two,
+because that is how the recipe is written. Sorting by percentage alone gets
+that backwards.
+
+On a blend, each mashbill says which distillery it came from. "78% Corn" means
+nothing across three distilleries without that.
+
+The percentages have to total 99–101 (published mashbills are often rounded).
+That is a deferred constraint trigger in Postgres, so editing a recipe can pass
+through totals that are not 100 and only the committed state has to be right.
 
 ---
 

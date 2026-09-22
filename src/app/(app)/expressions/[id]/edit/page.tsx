@@ -4,7 +4,7 @@ import { ExpressionForm } from "@/components/expressions/expression-form";
 import { expressionFormData } from "@/lib/expressions/form-data";
 import { getExpression } from "@/lib/expressions/queries";
 
-export const metadata: Metadata = { title: "Edit expression" };
+export const metadata: Metadata = { title: "Edit Label" };
 export const dynamic = "force-dynamic";
 
 export default async function EditExpressionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +24,7 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
           {row.brand.name} {row.expression.name}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Changes here apply to every bottle of this expression.
+          Changes here apply to every bottle of this label.
         </p>
       </div>
       <ExpressionForm

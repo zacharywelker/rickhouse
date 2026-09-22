@@ -3,6 +3,8 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { Route } from "next";
 import {
   createColumnHelper,
   flexRender,
@@ -42,7 +44,7 @@ export const COLUMN_LABELS: Array<{ id: string; label: string }> = [
   { id: "photo", label: "Photo" },
   { id: "fill", label: "Fill" },
   { id: "brand", label: "Brand" },
-  { id: "expression", label: "Expression" },
+  { id: "expression", label: "Label" },
   { id: "category", label: "Category" },
   { id: "distilleries", label: "Distilleries" },
   { id: "proof", label: "Proof" },
@@ -55,8 +57,26 @@ export const COLUMN_LABELS: Array<{ id: string; label: string }> = [
   { id: "status", label: "Status" },
 ];
 
+/**
+ * Hitting the expression link exactly is fiddly, so the whole row opens on a
+ * double click (SPEC M8). The link stays — it is what makes middle-click and
+ * "open in new tab" work, and it is the keyboard path.
+ *
+ * Skipped when the pointer is on something that already does its own thing,
+ * and when there is a text selection: double-click is also how you select a
+ * word, and navigating away from that is infuriating.
+ */
+function openOnDoubleClick(event: React.MouseEvent, router: ReturnType<typeof useRouter>, id: number) {
+  if (event.target instanceof Element && event.target.closest("a, button, input, select, textarea, [role='slider']")) {
+    return;
+  }
+  if ((window.getSelection()?.toString() ?? "") !== "") return;
+  router.push(`/bottles/${id}` as Route);
+}
+
 export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: BottleFilters }) {
   const { apply } = useGridFilters(filters);
+  const router = useRouter();
 
   const columns = React.useMemo(
     () => [
@@ -94,7 +114,7 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
       }),
       helper.accessor("expressionName", {
         id: "expression",
-        header: "Expression",
+        header: "Label",
         cell: ({ row }) => (
           <Link href={`/bottles/${row.original.id}`} className="whitespace-nowrap font-medium hover:text-accent">
             {row.original.expressionName}
@@ -254,7 +274,11 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow
+              key={row.id}
+              onDoubleClick={(event) => openOnDoubleClick(event, router, row.original.id)}
+              className="cursor-pointer"
+            >
               {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
               ))}
@@ -270,7 +294,7 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
 const MOBILE_SORTS: Array<{ key: SortKey; label: string }> = [
   { key: "acquired", label: "Acquired" },
   { key: "brand", label: "Brand" },
-  { key: "expression", label: "Expression" },
+  { key: "expression", label: "Label" },
   { key: "proof", label: "Proof" },
   { key: "age", label: "Age" },
   { key: "price", label: "Paid" },

@@ -69,9 +69,9 @@ at the end of every milestone.
 | M4 | The fill gauge and the grid | ✅ Done |
 | M5 | Entity pages and stats | ✅ Done |
 | M6 | Polish | ✅ Done |
-| M7 | Model revisions | ▶ Next — from using M3 in anger |
-| M8 | Interaction and wording | Planned — from using M4 in anger |
-| M9 | Tastings beyond the shelf | Later add-on |
+| M7 | Model revisions | ✅ Done |
+| M8 | Interaction and wording | ✅ Done — except the t8ke wording, below |
+| M9 | Tastings beyond the shelf | ▶ Next |
 
 Finished milestones are struck through below. They stay in the document
 because the revisions in M7 only make sense against what was actually built.
@@ -217,7 +217,7 @@ A camera scan on mobile is a later progressive enhancement, degrading to manual
 entry where unsupported. It is not a prerequisite for either of the above.
 
 
-### M7 — Model revisions ▶
+### ~~M7 — Model revisions~~ ✅
 
 Feedback from actually using M3. Deliberately scheduled **after** M4 so the
 fill gauge and the grid land first. Each of these is a migration plus form
@@ -271,7 +271,44 @@ and Spirit. Whatever it becomes is a rename of the user-facing strings and
 optionally the `/expressions` route; the table name can stay.
 
 
-### M8 — Interaction and wording
+**How M7 landed.** `estimated_value` is gone. Batch, release year, the
+single-barrel flags and the whole pick block live on the bottle
+(`drizzle/0005`), which merges labels that shared a brand and name — losslessly,
+since each bottle carries its own batch down first, and anything the two rows
+disagreed on beyond that is kept whole in `label_merge_log`. `npm run m7:preview`
+reports what a given database would merge, before upgrading. Proof and age are
+per-bottle overrides resolved in `bottle_list`, not copied on save, so
+correcting a label still reaches every bottle that did not say otherwise.
+Grains became rows (`drizzle/0006`) with the 99–101 tolerance as a DEFERRABLE
+constraint trigger — a CHECK sees one row at a time and a recipe edit
+necessarily passes through totals that are not 100. "Expression" is **Label**.
+
+**Grain order, resolved differently to how this was written.** The spec asked
+for order by spirit type. It is done by putting the dominant grain first and
+then following the conventional written order, because the dominant grain *is*
+what makes it that spirit (bourbon is ≥51% corn, rye ≥51% rye) and a mashbill
+is shared across labels, so it has no one spirit type to look up. Sorting by
+percentage alone was tried and is wrong: it reads 78/10/12 as corn, malted
+barley, rye, which is not how anyone writes that recipe.
+
+### Still open after M7/M8
+
+- **The t8ke wording is unverified.** t8ke.com is blocked by this build
+  environment's egress proxy, and the search result that describes the scale
+  says explicitly that some of the descriptions belong to a *modified* version.
+  The text is in `src/lib/t8ke.ts` and nowhere else, so correcting it is one
+  edit. Check it against the source before trusting the tooltip.
+- **`/expressions` is still the route** and `expression` is still the CSV
+  column. The spec made the route optional; the CSV column is a data contract
+  with files already exported, and renaming it would break re-importing them.
+  The table name stays too, as planned.
+- **The labels list sorts but has no filter bar.** M8 asked for "the same
+  filter bar shape as bottles". It has server-side sorting in the URL; it does
+  not have the entity filters, ranges or search. That is the M4 filter
+  machinery applied to a second grid, and it is the one piece of M8 that is
+  only part done.
+
+### ~~M8 — Interaction and wording~~ ✅
 
 Feedback from using M4. Small, mostly independent, and none of it structural.
 
@@ -323,7 +360,7 @@ shape as bottles. The machinery from M4 is reusable; this is mostly wiring.
 
 ---
 
-### M9 — Tastings beyond the shelf
+### M9 — Tastings beyond the shelf ▶
 
 A later add-on, recorded so the data model can see it coming.
 
