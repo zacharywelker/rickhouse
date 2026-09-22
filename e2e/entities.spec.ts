@@ -80,8 +80,8 @@ test("an entity page keeps the grid's sorting and view controls", async ({ page 
 });
 
 test("the dashboard renders its charts and can show the numbers instead", async ({ page }) => {
-  await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await page.goto("/numbers");
+  await expect(page.getByRole("heading", { name: "Numbers" })).toBeVisible();
   await expect(page.getByText("What the collection is")).toBeVisible();
   await expect(page.getByText("Proof distribution")).toBeVisible();
   await expect(page.getByText("Most represented distilleries")).toBeVisible();

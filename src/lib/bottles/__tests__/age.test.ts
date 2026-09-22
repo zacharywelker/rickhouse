@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageBetween, describeAge } from "../age";
+import { ageBetween, defaultAgeStatement, describeAge } from "../age";
 
 describe("ageBetween", () => {
   it("counts whole years by the calendar, not by dividing days", () => {
@@ -40,5 +40,30 @@ describe("describeAge", () => {
 
   it("falls back to days when there is nothing bigger to say", () => {
     expect(describeAge({ years: 0, months: 0, days: 6 })).toBe("6 Day");
+  });
+});
+
+describe("defaultAgeStatement", () => {
+  it("is blank when nothing is checked", () => {
+    expect(defaultAgeStatement({ isStraight: false, isBottledInBond: false, isNas: false })).toBe("");
+  });
+
+  it("names the designation that was checked", () => {
+    expect(defaultAgeStatement({ isStraight: true, isBottledInBond: false, isNas: false })).toBe(
+      "Straight (at least 2 years)",
+    );
+    expect(defaultAgeStatement({ isStraight: false, isBottledInBond: true, isNas: false })).toBe(
+      "Bottled-in-Bond (at least 4 years)",
+    );
+    expect(defaultAgeStatement({ isStraight: false, isBottledInBond: false, isNas: true })).toBe("NAS");
+  });
+
+  it("prefers the more specific designation when more than one is checked", () => {
+    // Bottled-in-Bond (>= 4 years) is the stronger, more specific claim over
+    // Straight (>= 2 years) — Old Grand Dad 7 is both, and BiB is the one
+    // that would matter if the statement were left to fill itself in.
+    expect(defaultAgeStatement({ isStraight: true, isBottledInBond: true, isNas: false })).toBe(
+      "Bottled-in-Bond (at least 4 years)",
+    );
   });
 });

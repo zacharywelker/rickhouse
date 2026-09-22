@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Both, so the browser chrome matches whichever theme is actually showing.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#faf6f0" },
-    { media: "(prefers-color-scheme: dark)", color: "#120d08" },
+    { media: "(prefers-color-scheme: light)", color: "#faf8f1" },
+    { media: "(prefers-color-scheme: dark)", color: "#181713" },
   ],
   width: "device-width",
   initialScale: 1,

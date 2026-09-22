@@ -47,3 +47,16 @@ export function describeAge(age: Age): string {
   if (parts.length === 0) parts.push(`${age.days} Day`);
   return parts.join(" ");
 }
+
+/**
+ * The age statement a designation implies, most specific first (SPEC #12).
+ * Bottled-in-Bond (>= 4 years) is a stronger claim than Straight (>= 2), and
+ * a bottle is never both NAS and one of the others. Used only to fill in a
+ * blank statement — a real one, like Old Grand Dad's "7 Year", always wins.
+ */
+export function defaultAgeStatement(flags: { isStraight: boolean; isBottledInBond: boolean; isNas: boolean }): string {
+  if (flags.isBottledInBond) return "Bottled-in-Bond (at least 4 years)";
+  if (flags.isStraight) return "Straight (at least 2 years)";
+  if (flags.isNas) return "NAS";
+  return "";
+}

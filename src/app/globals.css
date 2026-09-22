@@ -1,7 +1,20 @@
 @import "tailwindcss";
 
 /*
- * Warm rickhouse palette: charred oak, amber spirit, rye gold.
+ * Rickhouse design tokens — Phase 0 of the redesign in docs/DESIGN.md and
+ * docs/DESIGN-BRIEF.MD, implementing docs/DESIGN-TOKENS.md.
+ *
+ * This file only changes what the existing semantic tokens (--background,
+ * --foreground, --card, --primary, --ring, font-display, etc.) resolve to,
+ * plus adds new tokens for work not yet started (category color, painter's
+ * tape, status color, type scale). No component files change in this phase:
+ * every component already consumes these tokens by name, so the reskin
+ * lands for free. Known follow-ups this phase deliberately does not fix:
+ *   - Page titles use `font-display` (serif); DESIGN.md 5.1/5.2 reserves the
+ *     serif for editorial copy and wants Helvetica Now on headings. That is
+ *     a per-component edit, left for Phase 1 (navigation & shell).
+ *   - Badge uses `rounded-full` (a pill) for category/status; DESIGN.md 8 and
+ *     45 want radius used sparingly, not pill-everything. Left for Phase 1/2.
  *
  * Light and dark are equals (SPEC M6): every semantic token is declared once
  * with light-dark(), and `color-scheme` decides which half applies. The OS
@@ -9,50 +22,130 @@
  * `only light` / `only dark`, which is why no token needs a second copy.
  */
 @theme {
-  --color-oak-50: #faf6f0;
-  --color-oak-100: #f0e6d8;
-  --color-oak-200: #ddc9ac;
-  --color-oak-300: #c4a678;
-  --color-oak-400: #a8834f;
-  --color-oak-500: #8a6839;
-  --color-oak-600: #6b4f2b;
-  --color-oak-700: #4e3920;
-  --color-oak-800: #332616;
-  --color-oak-900: #1f170e;
-  --color-oak-950: #120d08;
+  /* Typography — DESIGN-TOKENS.md §9, §10, §13, §14 */
+  --font-sans: "Helvetica Now", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
 
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-4xl: 3rem;
+  --text-5xl: 4rem;
+  --text-6xl: 5rem;
+
+  --tracking-tight: -0.025em;
+  --tracking-wide: 0.04em;
+  --tracking-wider: 0.08em;
+
+  --leading-tight: 1.05;
+  --leading-snug: 1.2;
+  --leading-normal: 1.45;
+  --leading-relaxed: 1.65;
+
+  /* Radius — DESIGN-TOKENS.md §19. Sharper than Tailwind's defaults on the
+     larger steps; small steps already coincided with Tailwind's own. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  /* Shadows — DESIGN-TOKENS.md §20. Borders and spacing carry hierarchy;
+     shadows stay this restrained on purpose. */
+  --shadow-sm: 0 1px 2px rgb(23 23 23 / 0.08);
+  --shadow-md: 0 4px 12px rgb(23 23 23 / 0.1);
+  --shadow-lg: 0 10px 30px rgb(23 23 23 / 0.12);
+
+  /* Painter's tape — DESIGN-TOKENS.md §27. A literal physical material, so
+     unlike the semantic tokens below it does not shift between themes. */
+  --color-tape-coral: #f07870;
+  --color-tape-orange: #f29a38;
+  --color-tape-yellow: #e7c84a;
+  --color-tape-green: #72a96b;
+  --color-tape-blue: #6fa8c9;
+  --color-tape-pink: #d98da5;
+  --color-tape-purple: #9b7bb0;
+  --color-tape-neutral: #b9b4a7;
+
+  /*
+   * Deprecated — kept only because src/components/bottles/fill-gauge.tsx
+   * reads --color-oak-700, --color-amber-spirit and --color-rye-gold
+   * directly for its liquid-fill gradient. Retune or remove when that
+   * component is touched (Phase 2/3); nothing else should reference these.
+   */
+  --color-oak-700: #4e3920;
   --color-amber-spirit: #d98b2b;
   --color-rye-gold: #e8b55c;
-
-  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 }
 
 :root {
   color-scheme: light dark;
 
-  --background: light-dark(#faf6f0, #120d08);
-  --foreground: light-dark(#1f170e, #f0e6d8);
-  --card: light-dark(#ffffff, #191208);
-  --card-foreground: light-dark(#1f170e, #f0e6d8);
-  --muted: light-dark(#f0e6d8, #241a0f);
-  --muted-foreground: light-dark(#6b4f2b, #a8977f);
-  --border: light-dark(#ddc9ac, #2e2214);
-  --input: light-dark(#ddc9ac, #2e2214);
-  --primary: light-dark(#8a4b12, #d98b2b);
-  --primary-foreground: light-dark(#ffffff, #1a1206);
-  --ring: light-dark(#8a4b12, #e8b55c);
-  --destructive: light-dark(#b3261e, #c4483a);
+  /*
+   * Base neutrals — DESIGN-TOKENS.md §3.2, §4, §5, §6. Warm paper family in
+   * light; DESIGN-TOKENS.md §43's dark foundation in dark (not an inversion).
+   */
+  --background: light-dark(#faf8f1, #181713);
+  --foreground: light-dark(#171717, #f4f1e8);
+  --card: light-dark(#fffefa, #211f1a);
+  --card-foreground: light-dark(#171717, #f4f1e8);
+  --muted: light-dark(#f3f0e7, #292720);
+  --muted-foreground: light-dark(#3a3a3a, #d1cdc2);
+  --border: light-dark(#c9c5ba, #514d43);
+  --input: light-dark(#c9c5ba, #514d43);
 
   /*
-   * The display accent: headings, gold numerals, the favorite star. Rye gold
-   * carries it on dark, but rye gold on cream is 1.7:1, so light takes a burnt
-   * amber of the same family at 7.7:1. Never hard-code rye gold for text.
+   * Primary action color. Deliberately ink, not a spirit-category hue —
+   * DESIGN.md 4.1 rejects a single "brand" color standing in for one
+   * category, and Swiss graphic design's own answer to "what color is the
+   * primary button" is usually "black." Category color stays reserved for
+   * category meaning.
    */
-  --accent: light-dark(#7a3f0e, #e8b55c);
+  --primary: light-dark(#171717, #f4f1e8);
+  --primary-foreground: light-dark(#fffefa, #181713);
+  --destructive: light-dark(#b42318, #d9483a);
 
-  /* The char-barrel grain behind large pages, warm in both modes. */
-  --glow-1: light-dark(rgba(138, 75, 18, 0.07), rgba(217, 139, 43, 0.10));
-  --glow-2: light-dark(rgba(138, 75, 18, 0.04), rgba(217, 139, 43, 0.05));
+  /* Focus — DESIGN-TOKENS.md §8, §21. A dedicated system color, kept
+     separate from brand/category color so it's never ambiguous. */
+  --ring: light-dark(#005fcc, #4d9fff);
+
+  /*
+   * Editorial/emphasis accent: large numbers, the favorite star, restrained
+   * headline emphasis. Ink family rather than a saturated hue, for the same
+   * reason --primary is ink — DESIGN.md 4.1's "avoid one color standing in
+   * for the brand."
+   */
+  --accent: light-dark(#171717, #f4f1e8);
+
+  /* System colors — DESIGN-TOKENS.md §8. Independent from category color
+     (§45): orange whiskey is never "warning." */
+  --success: light-dark(#2f7d4a, #4a9c67);
+  --warning: light-dark(#a86600, #c98319);
+  --info: light-dark(#246b9b, #4589bb);
+
+  /* Bottle lifecycle — DESIGN-TOKENS.md §41. Three restrained states, not
+     badge soup. */
+  --state-open: light-dark(#c96f2f, #dd8a4f);
+  --state-empty: light-dark(#77736b, #969184);
+  --state-special: light-dark(#7b5c91, #9576ac);
+
+  /*
+   * Category colors — DESIGN-TOKENS.md §7. Identify spirit category; never
+   * reused for system state. Dark values are lightened for a dark surface,
+   * not a flat invert (§43).
+   */
+  --category-whiskey: light-dark(#e97824, #f0934a);
+  --category-agave: light-dark(#e85d75, #ee7f92);
+  --category-gin: light-dark(#4d9b61, #5fb877);
+  --category-rum: light-dark(#c94b3f, #dd6153);
+  --category-vodka: light-dark(#3d82b8, #5a9fd4);
+  --category-liqueur: light-dark(#8b5aa8, #a476c2);
+  --category-brandy: light-dark(#b87333, #cf8c4c);
+  --category-wine: light-dark(#9a4161, #b85a7d);
+  --category-other: light-dark(#6d6a63, #8f8b81);
 }
 
 /* The toggle wins over the OS in both directions. */
@@ -73,19 +166,20 @@
  * Re-run scripts/validate_palette.js before adding a sixth.
  *
  * Series colour carries identity only; text always wears a text token.
+ * Category color joins this palette once Numbers (Phase 4) uses it.
  */
 :root {
   --viz-surface: var(--card);
-  --viz-grid: light-dark(#ddc9ac, #2e2214);
+  --viz-grid: light-dark(#c9c5ba, #514d43);
   --viz-series-1: light-dark(#2a78d6, #3987e5);
   --viz-series-2: light-dark(#eb6834, #d95926);
   --viz-series-3: light-dark(#1baf7a, #199e70);
   --viz-series-4: light-dark(#eda100, #c98500);
   --viz-series-5: light-dark(#e87ba4, #d55181);
   --viz-other: light-dark(#8a8074, #6b6257);
-  /* Single-hue measures (proof, counts, spend) use the app's own amber. */
-  --viz-accent: light-dark(#8a6839, #d98b2b);
-  --viz-accent-soft: light-dark(#c4a678, #8a5418);
+  /* Single-hue measures (proof, counts, spend) use the app's own ink accent. */
+  --viz-accent: light-dark(#171717, #f4f1e8);
+  --viz-accent-soft: light-dark(#969187, #514d43);
 }
 
 @theme inline {
@@ -104,6 +198,25 @@
   --color-accent: var(--accent);
   --color-viz-grid: var(--viz-grid);
   --color-viz-accent: var(--viz-accent);
+
+  --color-focus: var(--ring);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-info: var(--info);
+
+  --color-state-open: var(--state-open);
+  --color-state-empty: var(--state-empty);
+  --color-state-special: var(--state-special);
+
+  --color-category-whiskey: var(--category-whiskey);
+  --color-category-agave: var(--category-agave);
+  --color-category-gin: var(--category-gin);
+  --color-category-rum: var(--category-rum);
+  --color-category-vodka: var(--category-vodka);
+  --color-category-liqueur: var(--category-liqueur);
+  --color-category-brandy: var(--category-brandy);
+  --color-category-wine: var(--category-wine);
+  --color-category-other: var(--category-other);
 }
 
 @layer base {
@@ -114,16 +227,5 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
-  }
-  /* A faint char-barrel grain so large empty pages do not read as broken. */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: -1;
-    background:
-      radial-gradient(ellipse 80% 50% at 50% -10%, var(--glow-1), transparent 70%),
-      radial-gradient(ellipse 60% 40% at 90% 110%, var(--glow-2), transparent 70%);
   }
 }

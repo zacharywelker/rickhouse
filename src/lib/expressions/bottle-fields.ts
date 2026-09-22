@@ -121,7 +121,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
         kind: "text",
         name: "ageStatement",
         label: "Age Statement",
-        placeholder: "NAS (labeled Straight, so at least 2 years)",
+        placeholder: "e.g. 7 Year",
         help: "The human sentence, for when the numbers do not tell the whole story.",
         span: "half",
       },

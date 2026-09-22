@@ -195,6 +195,12 @@ export const expressions = pgTable(
     ageMonths: integer("age_months"),
     ageDays: integer("age_days"),
     ageStatement: text("age_statement"),
+    // Designations that imply a minimum age (SPEC #12): checking one fills in
+    // age_statement when it is blank, without overwriting a more specific
+    // statement someone already typed — Old Grand Dad 7 is bottled-in-bond
+    // (>= 4 years) but the label says "7 Year", and 7 Year is what should show.
+    isStraight: boolean("is_straight").notNull().default(false),
+    isNas: boolean("is_nas").notNull().default(false),
 
     // Process
     isChillFiltered: boolean("is_chill_filtered"),
@@ -475,6 +481,8 @@ export const bottleList = pgView("bottle_list", {
   brand: citext("brand").notNull(),
   categoryId: integer("category_id").notNull(),
   category: citext("category").notNull(),
+  /** The category's top-level bucket (whiskey, rum, agave…) — what category color keys off, not the display name. */
+  fieldGroup: text("field_group").notNull().$type<FieldGroup>(),
   store: citext("store"),
   distilleries: text("distilleries"),
   finishes: text("finishes"),

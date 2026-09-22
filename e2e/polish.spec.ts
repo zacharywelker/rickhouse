@@ -18,8 +18,8 @@ async function signIn(page: Page) {
 const background = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
-const DARK = "rgb(18, 13, 8)";
-const LIGHT = "rgb(250, 246, 240)";
+const DARK = "rgb(24, 23, 19)";
+const LIGHT = "rgb(250, 248, 241)";
 
 /**
  * Shortcuts are bound on hydration, so on a cold page the first keypress can
@@ -74,7 +74,7 @@ test.describe("theme", () => {
     // No paint may happen in the dark default first. Checked against the very
     // first frame rather than the settled state, which is where a theme
     // toggle bolted on after hydration would fail.
-    await page.goto("/dashboard", { waitUntil: "commit" });
+    await page.goto("/numbers", { waitUntil: "commit" });
     expect(await page.locator("html").getAttribute("data-theme")).toBe("light");
   });
 });
@@ -83,7 +83,7 @@ test.describe("on a phone", () => {
   test.use({ viewport: PHONE });
 
   test("no page scrolls sideways, and the nav collapses behind a menu", async ({ page }) => {
-    for (const path of ["/", "/bottles", "/dashboard", "/admin"]) {
+    for (const path of ["/", "/bottles", "/numbers", "/admin"]) {
       await page.goto(path);
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -144,7 +144,7 @@ test.describe("keyboard shortcuts", () => {
   });
 
   test("slash from a page without a search box goes where searching happens", async ({ page }) => {
-    await page.goto("/dashboard");
+    await page.goto("/numbers");
     await pressUntilAt(page, "/", "/bottles");
   });
 });

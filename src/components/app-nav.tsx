@@ -4,17 +4,25 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
-import { BarChart3, FlaskConical, House, Library, Menu, SlidersHorizontal, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
+/**
+ * Canonical nav per docs/DESIGN.md §14: Home · Collection · Labels · Groups ·
+ * Numbers · Settings. Groups isn't built yet (it needs its own data model —
+ * redesign Phase 5), so it's left out rather than linking somewhere empty.
+ * "Configuration" stays as-is rather than becoming "Settings": it's
+ * reference-data CRUD (distilleries, brands, stores…), not the personalization
+ * settings DESIGN.md means by that name, which doesn't exist yet either.
+ */
 const LINKS = [
-  { href: "/", label: "Home", icon: House },
-  { href: "/bottles", label: "Collection", icon: Library },
-  { href: "/expressions", label: "Labels", icon: FlaskConical },
-  { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
-  { href: "/admin", label: "Configuration", icon: SlidersHorizontal },
+  { href: "/", label: "Home" },
+  { href: "/bottles", label: "Collection" },
+  { href: "/expressions", label: "Labels" },
+  { href: "/numbers", label: "Numbers" },
+  { href: "/admin", label: "Configuration" },
 ] as const;
 
 /** Home only matches exactly; everything else matches its subtree. */
@@ -29,6 +37,11 @@ function isCurrent(pathname: string, href: string) {
  *
  * A disclosure, not a modal: Escape closes it, navigating closes it, and the
  * page behind stays readable and scrollable.
+ *
+ * Typographic, not iconography or a filled pill (DESIGN.md §14.1: "stable,
+ * predictable, typographic, grid-aligned, restrained"). Current page reads
+ * from a rule, not a background fill — Rickhouse leans on rules and spacing
+ * for hierarchy rather than card/pill chrome (DESIGN.md §7).
  */
 export function AppNav({ signOut }: { signOut: React.ReactNode }) {
   const pathname = usePathname();
@@ -54,32 +67,49 @@ export function AppNav({ signOut }: { signOut: React.ReactNode }) {
     return () => query.removeEventListener("change", onChange);
   }, []);
 
-  const link = (href: string, label: string, Icon: (typeof LINKS)[number]["icon"], stacked: boolean) => (
+  const desktopLink = (href: string, label: string) => (
     <Link
       key={href}
       href={href as Route}
       aria-current={isCurrent(pathname, href) ? "page" : undefined}
       onClick={() => setOpen(false)}
       className={cn(
-        "flex items-center gap-2 rounded-md transition-colors hover:bg-muted hover:text-foreground",
-        stacked ? "px-3 py-2.5 text-base" : "px-3 py-1.5 text-sm",
-        isCurrent(pathname, href) ? "bg-muted text-foreground" : "text-muted-foreground",
+        "border-b-2 px-1 py-1 text-sm font-medium uppercase tracking-wide transition-colors",
+        isCurrent(pathname, href)
+          ? "border-foreground text-foreground"
+          : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
       )}
     >
-      <Icon className="size-4 shrink-0" />
+      {label}
+    </Link>
+  );
+
+  const mobileLink = (href: string, label: string) => (
+    <Link
+      key={href}
+      href={href as Route}
+      aria-current={isCurrent(pathname, href) ? "page" : undefined}
+      onClick={() => setOpen(false)}
+      className={cn(
+        "border-l-2 px-3 py-2.5 text-base font-medium uppercase tracking-wide transition-colors",
+        isCurrent(pathname, href)
+          ? "border-foreground text-foreground"
+          : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
+      )}
+    >
       {label}
     </Link>
   );
 
   return (
     <header className="border-b border-border">
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
-        <Link href="/" className="font-display text-xl text-accent">
+      <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-4 py-3 sm:px-6">
+        <Link href="/" className="text-lg font-bold uppercase tracking-wide text-foreground">
           Rickhouse
         </Link>
 
-        <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
-          {LINKS.map((item) => link(item.href, item.label, item.icon, false))}
+        <nav aria-label="Main" className="hidden items-center gap-5 md:flex">
+          {LINKS.map((item) => desktopLink(item.href, item.label))}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -106,7 +136,7 @@ export function AppNav({ signOut }: { signOut: React.ReactNode }) {
           aria-label="Main"
           className="mx-auto flex w-full max-w-6xl flex-col gap-1 border-t border-border px-4 py-3 md:hidden"
         >
-          {LINKS.map((item) => link(item.href, item.label, item.icon, true))}
+          {LINKS.map((item) => mobileLink(item.href, item.label))}
           <div className="mt-2 border-t border-border pt-3">{signOut}</div>
         </nav>
       ) : null}

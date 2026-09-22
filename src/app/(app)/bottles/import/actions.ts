@@ -30,7 +30,7 @@ export async function importAction(_prev: ImportState, formData: FormData): Prom
     const report = await importBottlesCsv(text);
     revalidatePath("/bottles");
     revalidatePath("/expressions");
-    revalidatePath("/dashboard");
+    revalidatePath("/numbers");
     return { report, error: null };
   } catch (error: unknown) {
     console.error("[rickhouse] import failed", error);

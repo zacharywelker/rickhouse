@@ -76,7 +76,7 @@ describe("writableFields", () => {
   it("always includes the common fields", () => {
     for (const group of ["whiskey", "rum", "agave", "gin", "other"] as const) {
       const allowed = writableFields(group);
-      for (const name of ["brandId", "categoryId", "name", "proof", "msrp", "upc", "ageStatement"]) {
+      for (const name of ["brandId", "categoryId", "name", "proof", "msrp", "upc", "ageStatement", "isStraight", "isNas"]) {
         expect(allowed.has(name)).toBe(true);
       }
     }

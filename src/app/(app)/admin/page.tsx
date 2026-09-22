@@ -16,7 +16,7 @@ export default async function AdminIndexPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
-        <h1 className="font-display text-3xl text-accent">Configuration</h1>
+        <h1 className="text-3xl text-accent">Configuration</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           The shared vocabulary behind every bottle. Everything here is a real record rather than free text, which is
           what makes &ldquo;show me everything Bardstown distilled&rdquo; work even when the bottle is a three-way
@@ -32,8 +32,8 @@ export default async function AdminIndexPage() {
               <Card className="h-full transition-colors group-hover:border-primary/50">
                 <CardContent className="flex h-full flex-col gap-2 p-5">
                   <div className="flex items-baseline justify-between gap-3">
-                    <h2 className="font-display text-lg">{config.label}</h2>
-                    <span className="font-display text-2xl tabular-nums text-accent">{count}</span>
+                    <h2 className="text-lg">{config.label}</h2>
+                    <span className="text-2xl tabular-nums text-accent">{count}</span>
                   </div>
                   <p className="text-sm text-muted-foreground">{config.description}</p>
                   <span className="mt-auto inline-flex items-center gap-1 pt-2 text-sm text-primary opacity-0 transition-opacity group-hover:opacity-100">

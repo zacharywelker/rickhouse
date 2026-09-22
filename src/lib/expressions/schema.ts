@@ -81,6 +81,8 @@ export const expressionSchema = z
     ageMonths: optionalInt(0, 1200),
     ageDays: optionalInt(0, 40000),
     ageStatement: optionalText(200),
+    isStraight: checkbox,
+    isNas: checkbox,
 
     // Whiskey process
     isBottledInBond: checkbox,

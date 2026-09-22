@@ -71,7 +71,7 @@ export default async function ExpressionsPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <h1 className="font-display text-3xl text-accent">Labels</h1>
+          <h1 className="text-3xl text-accent">Labels</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             The products, separate from the bottles on your shelf. Batch and single-barrel detail belong to the
             bottle, so six picks of one Weller 12 are six bottles of one label.
@@ -87,7 +87,7 @@ export default async function ExpressionsPage({
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
-          <p className="font-display text-lg">No labels yet</p>
+          <p className="text-lg">No labels yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             Start with the product — brand, mashbill, proof — then add the bottle you actually own.
           </p>

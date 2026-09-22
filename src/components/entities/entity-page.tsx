@@ -53,7 +53,7 @@ export async function EntityPage({
     <div className="flex flex-col gap-6">
       <div>
         <p className="text-sm text-muted-foreground">{kind}</p>
-        <h1 className="font-display text-3xl">
+        <h1 className="text-3xl">
           <span className="text-accent">{name}</span>
         </h1>
         {badges ? <div className="mt-2 flex flex-wrap items-center gap-2">{badges}</div> : null}
@@ -83,7 +83,7 @@ export async function EntityPage({
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
-          <p className="font-display text-lg">Nothing here yet</p>
+          <p className="text-lg">Nothing here yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{emptyMessage}</p>
         </div>
       ) : filters.view === "gallery" ? (
@@ -104,7 +104,7 @@ function Stat({ label, value }: { label: string; value: string }) {
     <Card>
       <CardContent className="p-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="font-display text-2xl tabular-nums">{value}</p>
+        <p className="text-2xl tabular-nums">{value}</p>
       </CardContent>
     </Card>
   );
