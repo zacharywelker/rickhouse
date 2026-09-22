@@ -41,7 +41,7 @@ export default async function BottlesPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl text-accent">Collection</h1>
+          <h1 className="text-3xl text-accent">Collection</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Every physical bottle you own. Filtering by a distillery finds the blends it contributed to, not just the
             bottles it made alone.
@@ -80,7 +80,7 @@ export default async function BottlesPage({
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
-          <p className="font-display text-lg">{filtered ? "Nothing matches those filters" : "Nothing on the shelf"}</p>
+          <p className="text-lg">{filtered ? "Nothing matches those filters" : "Nothing on the shelf"}</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             {filtered
               ? "Loosen a filter, or clear them all and start again."
@@ -113,7 +113,7 @@ function Stat({ label, value }: { label: string; value: string }) {
     <Card>
       <CardContent className="p-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="font-display text-2xl tabular-nums">{value}</p>
+        <p className="text-2xl tabular-nums">{value}</p>
       </CardContent>
     </Card>
   );

@@ -65,7 +65,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-xl">Photos</h2>
+        <h2 className="text-xl">Photos</h2>
         <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={busy}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
           Add photos

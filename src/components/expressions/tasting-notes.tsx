@@ -129,7 +129,7 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-xl">Tasting notes</h2>
+        <h2 className="text-xl">Tasting notes</h2>
         <Button type="button" variant="outline" size="sm" onClick={() => setEditing(null)}>
           <Plus className="size-4" />
           Add note
@@ -149,7 +149,7 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
                 <span className="text-sm text-muted-foreground">{note.tastedOn}</span>
                 <div className="flex items-center gap-2">
                   {note.rating ? (
-                    <span className="font-display text-lg text-accent tabular-nums">
+                    <span className="text-lg text-accent tabular-nums">
                       {Number(note.rating)}
                       <span className="text-sm text-muted-foreground">/10</span>
                     </span>

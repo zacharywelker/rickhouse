@@ -48,7 +48,7 @@ export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLD
 }
 
 export function DialogTitle({ className, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {
-  return <DialogPrimitive.Title className={cn("font-display text-xl tracking-tight", className)} {...props} />;
+  return <DialogPrimitive.Title className={cn("text-xl tracking-tight", className)} {...props} />;
 }
 
 export function DialogDescription({

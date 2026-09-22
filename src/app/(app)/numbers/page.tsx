@@ -14,10 +14,10 @@ import {
 } from "@/lib/dashboard/queries";
 import { formatMoney, formatNumeric } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Dashboard" };
+export const metadata: Metadata = { title: "Numbers" };
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+export default async function NumbersPage() {
   const [stats, categories, proof, acquisitions, distilleries, mashbill, finish] = await Promise.all([
     headline(),
     categoryShare(),
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
-        <h1 className="font-display text-3xl text-accent">Dashboard</h1>
+        <h1 className="text-3xl text-accent">Numbers</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           What the collection actually looks like, rather than what you remember buying.
         </p>
@@ -110,7 +110,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
     <Card>
       <CardContent className="p-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="font-display text-3xl tabular-nums">{value}</p>
+        <p className="text-3xl tabular-nums">{value}</p>
         {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}
       </CardContent>
     </Card>
@@ -133,9 +133,9 @@ function Leader({
     <div>
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       {value === null ? (
-        <p className="font-display text-xl text-muted-foreground">Nothing yet</p>
+        <p className="text-xl text-muted-foreground">Nothing yet</p>
       ) : (
-        <p className="font-display text-xl">
+        <p className="text-xl">
           {href ? (
             <Link href={href} className="hover:text-accent">
               {value}

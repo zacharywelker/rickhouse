@@ -83,7 +83,7 @@ export function ResourceView({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <h1 className="font-display text-3xl text-accent">{label}</h1>
+          <h1 className="text-3xl text-accent">{label}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
         <Button onClick={() => setEditing(null)}>
@@ -94,7 +94,7 @@ export function ResourceView({
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
-          <p className="font-display text-lg">No {label.toLowerCase()} yet</p>
+          <p className="text-lg">No {label.toLowerCase()} yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             Add the first one now, or let it appear here the moment you create one inline from a bottle form.
           </p>
