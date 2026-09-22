@@ -412,6 +412,7 @@ SELECT
     br.name AS brand,
     c.id    AS category_id,
     c.name  AS category,
+    c.field_group AS field_group,
     s.name  AS store,
     (SELECT string_agg(d.name, ', ' ORDER BY ed.position)
        FROM expression_distilleries ed

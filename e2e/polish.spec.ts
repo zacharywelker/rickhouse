@@ -18,8 +18,8 @@ async function signIn(page: Page) {
 const background = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
-const DARK = "rgb(18, 13, 8)";
-const LIGHT = "rgb(250, 246, 240)";
+const DARK = "rgb(24, 23, 19)";
+const LIGHT = "rgb(250, 248, 241)";
 
 /**
  * Shortcuts are bound on hydration, so on a cold page the first keypress can
