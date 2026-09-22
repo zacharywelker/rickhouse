@@ -6,12 +6,8 @@ import { useRouter } from "next/navigation";
 import { GripVertical, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  deleteBottleImageAction,
-  reorderBottleImagesAction,
-  setPrimaryImageAction,
-  uploadBottleImagesAction,
-} from "@/app/(app)/bottles/actions";
+import { deleteBottleImageAction, reorderBottleImagesAction, setPrimaryImageAction } from "@/app/(app)/bottles/actions";
+import type { ActionResult } from "@/lib/admin/types";
 
 export type BottleImage = {
   id: number;
@@ -36,11 +32,13 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
     for (const file of Array.from(files)) data.append("images", file);
     setBusy(true);
     setError(null);
-    // `.bind` first: a server action invoked directly (not via <form action>)
-    // only reliably ships File data when the FormData ends up as the sole
-    // call-time argument — passed alongside bottleId as a second positional
-    // argument, the files were silently dropped in transit.
-    const result = await uploadBottleImagesAction.bind(null, bottleId)(data);
+    // A route handler, not a Server Action: with this app's auth middleware
+    // matching every route, Next.js 15.5's Server Action body-cloning path
+    // can silently drop multipart file data in production (the request still
+    // completes with 200, just with an empty FormData on the other end). A
+    // route handler reads the request body directly and doesn't hit that path.
+    const response = await fetch(`/api/bottles/${bottleId}/images`, { method: "POST", body: data });
+    const result: ActionResult = await response.json();
     setBusy(false);
     if (!result.ok) setError(result.error);
     if (inputRef.current) inputRef.current.value = "";

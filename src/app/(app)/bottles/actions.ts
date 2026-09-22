@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleImages, bottles, tastingNotes } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
-import { ImageError, deleteBottleImage, storeBottleImage } from "@/lib/images";
+import { deleteBottleImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import { z } from "zod";
 import { bottleSchema, tastingNoteSchema } from "@/lib/expressions/schema";
@@ -70,43 +70,6 @@ export async function deleteBottleAction(id: number): Promise<ActionResult> {
 // ------------------------------------------------------------
 // Images
 // ------------------------------------------------------------
-
-export async function uploadBottleImagesAction(bottleId: number, formData: FormData): Promise<ActionResult> {
-  await requireSession();
-
-  const files = formData.getAll("images").filter((entry): entry is File => entry instanceof File && entry.size > 0);
-  if (files.length === 0) return { ok: false, error: "No images were selected." };
-
-  try {
-    const [existing] = await db
-      .select({ count: sql<number>`count(*)::int`, maxOrder: sql<number>`coalesce(max(${bottleImages.sortOrder}), -1)::int` })
-      .from(bottleImages)
-      .where(eq(bottleImages.bottleId, bottleId));
-
-    let order = (existing?.maxOrder ?? -1) + 1;
-    let isFirst = (existing?.count ?? 0) === 0;
-
-    for (const file of files) {
-      const stored = await storeBottleImage(file);
-      await db.insert(bottleImages).values({
-        bottleId,
-        filePath: stored.filePath,
-        thumbPath: stored.thumbPath,
-        isPrimary: isFirst,
-        sortOrder: order,
-      });
-      order += 1;
-      isFirst = false;
-    }
-
-    revalidatePath(`/bottles/${bottleId}`);
-    revalidatePath("/bottles");
-    return { ok: true, message: `${files.length} image${files.length === 1 ? "" : "s"} added.` };
-  } catch (error: unknown) {
-    if (error instanceof ImageError) return { ok: false, error: error.message };
-    return mapDbError(error, { singular: "Image" });
-  }
-}
 
 export async function deleteBottleImageAction(imageId: number): Promise<ActionResult> {
   await requireSession();
