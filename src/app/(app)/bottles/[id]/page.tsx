@@ -10,7 +10,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { BottleImages } from "@/components/expressions/bottle-images";
 import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
+import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
+import { categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { cn, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 
@@ -154,7 +156,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
               Bottles
             </Link>
             {" · "}
-            {row.category.name}
+            <span className={cn("font-medium", categoryTextClass(group))}>{row.category.name}</span>
           </p>
           <h1 className="flex items-center gap-2 text-3xl">
             <Link href={`/brands/${row.brand.slug}` as Route} className="hover:underline">
@@ -183,20 +185,25 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_1fr]">
         <div className="flex flex-col gap-4">
-          {hero ? (
-            <Image
-              src={`/api/images/${hero.filePath}`}
-              alt={`${row.brand.name} ${e.name}`}
-              width={640}
-              height={640}
-              unoptimized
-              className="w-full rounded-lg border border-border bg-muted object-contain"
-            />
-          ) : (
-            <div className="flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
-              No photo yet
-            </div>
-          )}
+          <div
+            className={cn(
+              "flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-border p-6",
+              categoryTintClass(group),
+            )}
+          >
+            {hero ? (
+              <Image
+                src={`/api/images/${hero.filePath}`}
+                alt={`${row.brand.name} ${e.name}`}
+                width={640}
+                height={640}
+                unoptimized
+                className="size-full rounded-lg object-contain drop-shadow-md"
+              />
+            ) : (
+              <FillGauge value={row.bottle.fillPct} readOnly decorative height={220} label={`${e.name} fill`} />
+            )}
+          </div>
           <FillControl
             bottleId={bottleId}
             fillPct={row.bottle.fillPct}

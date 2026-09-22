@@ -384,6 +384,8 @@ export const bottleImages = pgTable(
     filePath: text("file_path").notNull(),
     thumbPath: text("thumb_path"),
     caption: text("caption"),
+    /** Label/product shot vs. a personal photo (SPEC §19: catalog info vs. photos of the object's life). */
+    kind: text("kind").notNull().default("life").$type<PhotoKind>(),
     isPrimary: boolean("is_primary").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -548,6 +550,9 @@ export type BottleStatus = (typeof BOTTLE_STATUSES)[number];
 
 export const STILL_TYPES = ["pot", "column", "blend", "coffey"] as const;
 export type StillType = (typeof STILL_TYPES)[number];
+
+export const PHOTO_KINDS = ["catalog", "life"] as const;
+export type PhotoKind = (typeof PHOTO_KINDS)[number];
 
 export type Category = typeof categories.$inferSelect;
 export type Company = typeof companies.$inferSelect;

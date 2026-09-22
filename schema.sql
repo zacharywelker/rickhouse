@@ -320,6 +320,8 @@ CREATE TABLE bottle_images (
     file_path   text    NOT NULL,          -- relative to the uploads volume
     thumb_path  text,
     caption     text,
+    -- 'catalog' (label/product shot) | 'life' (a personal photo of the bottle)
+    kind        text NOT NULL DEFAULT 'life',
     is_primary  boolean NOT NULL DEFAULT false,
     sort_order  integer NOT NULL DEFAULT 0,
     created_at  timestamptz NOT NULL DEFAULT now()
