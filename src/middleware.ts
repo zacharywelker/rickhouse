@@ -37,6 +37,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  // Everything except Next's own assets and the favicon.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
+  // Everything except Next's own assets, the favicon, and bottle photo
+  // uploads. Uploads are excluded rather than gated here because Next 15.5's
+  // request-body clone for middleware-matched routes can silently drop
+  // multipart file data in production; the upload route checks the session
+  // itself instead (see src/app/api/bottles/[id]/images/route.ts).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|api/bottles/[^/]+/images).*)"],
 };
