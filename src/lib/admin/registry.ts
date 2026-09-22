@@ -572,19 +572,16 @@ const mashbillsConfig: ResourceConfig = {
   label: "Mashbills",
   singular: "Mashbill",
   description:
-    "Grain recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any grain can go in — oats, triticale, whatever the distillery actually used.",
+    "Grain recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any grain can go in — oats, triticale, whatever the distillery actually used. The same recipe can come from more than one distillery, so which one applies is set per label, not here.",
   columns: [
     { key: "name", label: "Name" },
     { key: "recipe", label: "Recipe" },
-    { key: "distillery", label: "Distillery", secondary: true },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
   // The grain list is rendered by GrainEditor, not as a FieldSpec — it is a
-  // variable number of rows, which the field renderer has no shape for. It
-  // hangs off distilleryId, the last field before it.
+  // variable number of rows, which the field renderer has no shape for.
   fields: [
     { kind: "text", name: "name", label: "Name", placeholder: "BBC High Rye", span: "half" },
-    { kind: "reference", name: "distilleryId", label: "Distillery", resource: "distilleries", span: "half" },
     notesField,
   ],
   list: async () => {
@@ -592,13 +589,10 @@ const mashbillsConfig: ResourceConfig = {
       .select({
         id: mashbills.id,
         name: mashbills.name,
-        distilleryId: mashbills.distilleryId,
-        distillery: distilleries.name,
         notes: mashbills.notes,
         uses: sql<number>`(select count(*)::int from ${expressionMashbills} where ${expressionMashbills.mashbillId} = ${mashbills.id})`,
       })
       .from(mashbills)
-      .leftJoin(distilleries, eq(mashbills.distilleryId, distilleries.id))
       .orderBy(asc(mashbills.name), asc(mashbills.id));
 
     const grains = await db
@@ -622,10 +616,9 @@ const mashbillsConfig: ResourceConfig = {
       const mine = byMashbill.get(r.id) ?? [];
       return {
         id: r.id,
-        cells: { name: r.name, recipe: describeMashbill(mine), distillery: r.distillery, uses: r.uses },
+        cells: { name: r.name, recipe: describeMashbill(mine), uses: r.uses },
         values: {
           name: r.name,
-          distilleryId: r.distilleryId,
           notes: r.notes,
           // The editor reads this back out of its hidden field.
           grains: JSON.stringify(orderGrains(mine).map((g) => ({ grain: g.grain, percent: String(Number(g.percent)) }))),
@@ -633,13 +626,13 @@ const mashbillsConfig: ResourceConfig = {
       };
     });
   },
-  optionsFor: async () => ({ distilleryId: await distilleryOptions() }),
+  optionsFor: async () => ({}),
   save: async (raw, id) => {
     const parsed = mashbillSchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
 
-    const values = { name: input.name, distilleryId: input.distilleryId, notes: input.notes };
+    const values = { name: input.name, notes: input.notes };
 
     /*
      * Grains are replaced wholesale inside one transaction. The sum trigger is
@@ -933,13 +926,17 @@ async function storeOptions(): Promise<Option[]> {
   return rows.map((r) => ({ value: r.value, label: r.label, ...(r.hint ? { hint: r.hint } : {}) }));
 }
 
-/** Mashbills often have no name, so the recipe itself is the label. */
+/**
+ * Mashbills often have no name, so the recipe itself is the label. They are
+ * also not exclusive to one distillery — the same recipe name gets reused
+ * across producers — so no distillery shows up here; that correlation is
+ * per-label (issue #13), picked in the expression form instead.
+ */
 async function mashbillOptions(): Promise<Option[]> {
   const rows = await db
     .select({
       value: mashbills.id,
       name: mashbills.name,
-      distillery: distilleries.name,
       // string_agg keeps this one query rather than one per mashbill.
       recipe: sql<string | null>`(
         select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
@@ -947,7 +944,6 @@ async function mashbillOptions(): Promise<Option[]> {
       )`,
     })
     .from(mashbills)
-    .leftJoin(distilleries, eq(mashbills.distilleryId, distilleries.id))
     .orderBy(asc(mashbills.name), asc(mashbills.id));
 
   return rows.map((r) => {
@@ -959,14 +955,10 @@ async function mashbillOptions(): Promise<Option[]> {
         return { grain, percent };
       });
     const recipe = describeMashbill(grains);
-    // The distillery matters as much as the recipe on a blend — Pursuit
-    // United's three mashbills are meaningless without knowing whose recipe
-    // each one is (SPEC/issue #13), so it's always in the hint when set.
-    const hintParts = [r.name && recipe ? recipe : null, r.distillery].filter((part): part is string => Boolean(part));
     return {
       value: r.value,
       label: r.name ?? recipe ?? "Unnamed recipe",
-      ...(hintParts.length > 0 ? { hint: hintParts.join(" · ") } : {}),
+      ...(r.name && recipe ? { hint: recipe } : {}),
     };
   });
 }

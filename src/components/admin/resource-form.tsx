@@ -70,7 +70,7 @@ export function ResourceForm({
               }
               excludeId={row?.id}
             />
-            {resourceKey === "mashbills" && field.name === "distilleryId" ? (
+            {resourceKey === "mashbills" && field.name === "name" ? (
               <GrainEditor rows={grains} onChange={setGrains} error={fieldErrors.grains} />
             ) : null}
           </React.Fragment>

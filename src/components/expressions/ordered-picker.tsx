@@ -8,7 +8,14 @@ import { Label } from "@/components/ui/label";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
 
-export type LinkedRow = { id: number; label: string; amount: string; hint?: string };
+export type LinkedRow = {
+  id: number;
+  label: string;
+  amount: string;
+  hint?: string;
+  /** Mashbills only: which of the label's distilleries made this recipe. */
+  distilleryId?: number | null;
+};
 
 /**
  * An ordered many-to-many list — the Pursuit reference bottle has three
@@ -29,6 +36,7 @@ export function OrderedPicker({
   value,
   onChange,
   emptyHint,
+  distilleryChoices,
 }: {
   name: string;
   label: string;
@@ -40,10 +48,18 @@ export function OrderedPicker({
   amountSuffix: string;
   value: LinkedRow[];
   onChange: (rows: LinkedRow[]) => void;
+  /**
+   * Mashbills only: the label's currently chosen distilleries, so each
+   * mashbill can say which one made it (issue #13). With exactly one, that
+   * distillery is the automatic answer — no picker needed, there is nothing
+   * to choose. With none, there is nothing to attribute to yet.
+   */
+  distilleryChoices?: Array<{ id: number; name: string }>;
 }) {
   const [available, setAvailable] = React.useState(options);
   const chosen = new Set(value.map((row) => row.id));
   const selectable = available.filter((option) => !chosen.has(option.value));
+  const soloDistillery = distilleryChoices?.length === 1 ? distilleryChoices[0]! : null;
 
   const move = (index: number, delta: number) => {
     const next = [...value];
@@ -52,6 +68,11 @@ export function OrderedPicker({
     const [row] = next.splice(index, 1);
     next.splice(target, 0, row!);
     onChange(next);
+  };
+
+  const addRow = (option: Option) => {
+    const distilleryId = soloDistillery ? soloDistillery.id : null;
+    onChange([...value, { id: option.value, label: option.label, hint: option.hint, amount: "", distilleryId }]);
   };
 
   return (
@@ -68,6 +89,37 @@ export function OrderedPicker({
                 {row.label}
                 {row.hint ? <span className="ml-1.5 text-xs text-muted-foreground">{row.hint}</span> : null}
               </span>
+
+              {distilleryChoices && distilleryChoices.length > 1 ? (
+                <div className="flex items-center gap-1">
+                  <Label htmlFor={`${name}-distillery-${row.id}`} className="text-xs">
+                    Distillery
+                  </Label>
+                  <select
+                    id={`${name}-distillery-${row.id}`}
+                    value={row.distilleryId ?? ""}
+                    onChange={(e) =>
+                      onChange(
+                        value.map((r) =>
+                          r.id === row.id
+                            ? { ...r, distilleryId: e.target.value === "" ? null : Number(e.target.value) }
+                            : r,
+                        ),
+                      )
+                    }
+                    className="h-8 rounded-md border border-input bg-card px-2 text-xs"
+                  >
+                    <option value="">Not set</option>
+                    {distilleryChoices.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : soloDistillery ? (
+                <span className="text-xs text-muted-foreground">from {soloDistillery.name}</span>
+              ) : null}
 
               <div className="flex items-center gap-1">
                 <Label htmlFor={`${name}-amount-${row.id}`} className="text-xs">
@@ -135,11 +187,11 @@ export function OrderedPicker({
           if (next === null) return;
           const option = available.find((o) => o.value === next);
           if (!option) return;
-          onChange([...value, { id: option.value, label: option.label, hint: option.hint, amount: "" }]);
+          addRow(option);
         }}
         onOptionCreated={(option) => {
           setAvailable((prev) => [...prev, option]);
-          onChange([...value, { id: option.value, label: option.label, hint: option.hint, amount: "" }]);
+          addRow(option);
         }}
         placeholder={`Add ${label.toLowerCase()}…`}
         {...(emptyHint ? { emptyHint } : {})}
@@ -151,7 +203,9 @@ export function OrderedPicker({
       <input
         type="hidden"
         name={name}
-        value={JSON.stringify(value.map((row) => ({ id: row.id, amount: row.amount })))}
+        value={JSON.stringify(
+          value.map((row) => ({ id: row.id, amount: row.amount, distilleryId: row.distilleryId ?? null })),
+        )}
       />
     </fieldset>
   );

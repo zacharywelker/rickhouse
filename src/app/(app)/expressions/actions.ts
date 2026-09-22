@@ -114,12 +114,21 @@ export async function saveExpressionAction(
         );
       }
       if (linkedMashbills.length > 0) {
+        // With exactly one distillery, it is the automatic answer for every
+        // mashbill regardless of what the form sent; with more than one, only
+        // a choice that is actually one of them is kept (issue #13).
+        const soloDistilleryId = linkedDistilleries.length === 1 ? linkedDistilleries[0]!.id : null;
+        const validDistilleryIds = new Set(linkedDistilleries.map((row) => row.id));
+        const distilleryIdFor = (row: (typeof linkedMashbills)[number]) =>
+          soloDistilleryId ?? (row.distilleryId && validDistilleryIds.has(row.distilleryId) ? row.distilleryId : null);
+
         await tx.insert(expressionMashbills).values(
           linkedMashbills.map((row, position) => ({
             expressionId: target,
             mashbillId: row.id,
             position,
             sharePct: row.amount === null ? null : String(row.amount),
+            distilleryId: distilleryIdFor(row),
           })),
         );
       }

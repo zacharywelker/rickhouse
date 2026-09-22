@@ -108,11 +108,16 @@ export const distilleries = pgTable(
   (t) => [index("distilleries_company_idx").on(t.companyId)],
 );
 
-/** Reusable so you can ask "everything using this recipe". */
+/**
+ * Reusable so you can ask "everything using this recipe" — and reused across
+ * distilleries on purpose, because the same recipe name gets used by more
+ * than one producer. Which distillery supplied it is a property of a given
+ * label's blend, not of the recipe, so that link lives on
+ * `expressionMashbills` instead.
+ */
 export const mashbills = pgTable("mashbills", {
   id: serial("id").primaryKey(),
   name: citext("name"),
-  distilleryId: integer("distillery_id").references(() => distilleries.id, { onDelete: "set null" }),
   notes: text("notes"),
 });
 
@@ -274,6 +279,11 @@ export const expressionMashbills = pgTable(
       .references(() => mashbills.id, { onDelete: "cascade" }),
     position: integer("position").notNull().default(0),
     sharePct: pct("share_pct"),
+    // Which of the label's distilleries made this mashbill. Only meaningful
+    // — and only ever set — when the label has more than one distillery;
+    // with exactly one, that distillery is the automatic answer and this
+    // stays NULL (issue #13).
+    distilleryId: integer("distillery_id").references(() => distilleries.id, { onDelete: "set null" }),
   },
   (t) => [primaryKey({ columns: [t.expressionId, t.mashbillId] })],
 );

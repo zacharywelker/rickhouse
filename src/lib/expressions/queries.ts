@@ -24,10 +24,15 @@ export type LinkedEntity = { id: number; name: string; slug: string | null; amou
 
 /**
  * A mashbill carries its recipe, and on a blend, whose recipe it is — "78%
- * Corn" means nothing across three distilleries without that.
+ * Corn" means nothing across three distilleries without that. `distilleryId`
+ * is the raw link (only ever set when the label has more than one
+ * distillery), for the edit form to preselect; `attribution` is it resolved
+ * to a name for display, including the automatic case where the label has
+ * exactly one distillery.
  */
 export type LinkedMashbill = LinkedEntity & {
   recipe: string;
+  distilleryId?: number | null;
   attribution?: string;
   attributionSlug?: string | null;
 };
@@ -54,8 +59,11 @@ export async function expressionLinks(expressionId: number): Promise<{
         id: mashbills.id,
         name: mashbills.name,
         amount: expressionMashbills.sharePct,
-        // Which distillery's recipe this is. Surfaced on a blend, where "78%
-        // corn" means nothing without knowing whose 78% corn (SPEC M7).
+        // Which distillery's recipe this is, as picked on this label — a
+        // mashbill has no distillery of its own (issue #13). Surfaced on a
+        // blend, where "78% corn" means nothing without knowing whose it is
+        // (SPEC M7).
+        distilleryId: expressionMashbills.distilleryId,
         distillery: distilleries.name,
         distillerySlug: distilleries.slug,
         recipe: sql<string | null>`(
@@ -65,7 +73,7 @@ export async function expressionLinks(expressionId: number): Promise<{
       })
       .from(expressionMashbills)
       .innerJoin(mashbills, eq(expressionMashbills.mashbillId, mashbills.id))
-      .leftJoin(distilleries, eq(mashbills.distilleryId, distilleries.id))
+      .leftJoin(distilleries, eq(expressionMashbills.distilleryId, distilleries.id))
       .where(eq(expressionMashbills.expressionId, expressionId))
       .orderBy(asc(expressionMashbills.position)),
     db
@@ -81,8 +89,10 @@ export async function expressionLinks(expressionId: number): Promise<{
       .orderBy(asc(expressionFinishes.position)),
   ]);
 
-  // On a blend, whose recipe it is matters; on a single-distillery label it is
-  // noise, because there is only one answer.
+  // On a blend, whose recipe it is matters and has to be picked; on a
+  // single-distillery label there is only one possible answer, so it is
+  // automatic (issue #13) rather than something to record per mashbill.
+  const solo = d.length === 1 ? d[0]! : null;
   const blended = d.length > 1;
 
   return {
@@ -93,9 +103,12 @@ export async function expressionLinks(expressionId: number): Promise<{
       slug: null,
       amount: row.amount,
       recipe: describeRecipe(row.recipe),
-      ...(blended && row.distillery
-        ? { attribution: row.distillery, attributionSlug: row.distillerySlug }
-        : {}),
+      distilleryId: solo ? solo.id : blended ? row.distilleryId : null,
+      ...(solo
+        ? { attribution: solo.name, attributionSlug: solo.slug }
+        : blended && row.distillery
+          ? { attribution: row.distillery, attributionSlug: row.distillerySlug }
+          : {}),
     })),
     finishes: f,
   };

@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import type { Route } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EntityPage } from "@/components/entities/entity-page";
 import { getMashbill } from "@/lib/entities/queries";
@@ -31,19 +29,7 @@ export default async function MashbillPage({
     <EntityPage
       kind="Mashbill"
       name={row.name ?? row.recipe}
-      meta={[
-        { label: "Recipe", value: row.recipe },
-        {
-          label: "Distillery",
-          value: row.distillerySlug ? (
-            <Link href={`/distilleries/${row.distillerySlug}` as Route} className="text-primary hover:underline">
-              {row.distillery}
-            </Link>
-          ) : (
-            "—"
-          ),
-        },
-      ]}
+      meta={[{ label: "Recipe", value: row.recipe }]}
       notes={row.notes}
       preset={{ mashbillIds: [mashbillId] }}
       searchParams={query}

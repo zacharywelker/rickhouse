@@ -166,7 +166,7 @@ export function ExpressionForm({
           <OrderedPicker
             name="mashbillLinks"
             label="Mashbills"
-            description="One per contributing recipe. A blend of three has three."
+            description="One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
             resource={null}
             emptyHint="Add mashbills under Configuration — their grains have to total 100%."
             options={optionsByField.mashbillLinks ?? []}
@@ -174,6 +174,7 @@ export function ExpressionForm({
             amountSuffix="%"
             value={links.mashbills}
             onChange={(rows) => setLinks((prev) => ({ ...prev, mashbills: rows }))}
+            distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
           />
           <OrderedPicker
             name="finishLinks"

@@ -38,18 +38,22 @@ export async function expressionFormData(expressionId: number | null) {
 
 async function loadLinks(expressionId: number) {
   const linked = await expressionLinks(expressionId);
-  const toRows = (rows: Array<{ id: number; name: string; amount: string | null; hint?: string }>): LinkedRow[] =>
+  const toRows = (rows: Array<{ id: number; name: string; amount: string | null }>): LinkedRow[] =>
     rows.map((row) => ({
       id: row.id,
       label: row.name,
       amount: row.amount === null ? "" : String(Number(row.amount)),
-      ...(row.hint ? { hint: row.hint } : {}),
     }));
   return {
     distilleries: toRows(linked.distilleries),
-    // Which distillery's recipe this is — the point of issue #13's mashbill
-    // correlation, surfaced wherever the mashbill link itself shows up.
-    mashbills: toRows(linked.mashbills.map((row) => ({ ...row, hint: row.attribution }))),
+    mashbills: linked.mashbills.map((row) => ({
+      id: row.id,
+      label: row.name,
+      amount: row.amount === null ? "" : String(Number(row.amount)),
+      // Which of the label's distilleries made this recipe (issue #13); the
+      // picker preselects this once there is more than one to choose from.
+      distilleryId: row.distilleryId ?? null,
+    })),
     finishes: toRows(linked.finishes),
   };
 }

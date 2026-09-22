@@ -4,7 +4,6 @@ import { brandSchema, distillerySchema, mashbillSchema, tagSchema } from "../sch
 /** FormData always hands us strings, so the schemas are fed the same way. */
 const mashbill = (grains: Array<[string, string]> = [], over: Record<string, string> = {}) => ({
   name: "",
-  distilleryId: "",
   notes: "",
   // The grain editor serialises its rows into one hidden field.
   grains: JSON.stringify(grains.map(([grain, percent]) => ({ grain, percent }))),

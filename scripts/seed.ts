@@ -128,12 +128,16 @@ async function seedPursuitExample(db: Db): Promise<void> {
 
   const mashbillRows = await db
     .insert(mashbills)
-    .values([
-      { name: "BBC 78/10/12", distilleryId: bbcId },
-      { name: "TDL 80/10/10", distilleryId: tdlId },
-      { name: "FLD 70/20/10", distilleryId: fldId },
-    ])
+    .values([{ name: "BBC 78/10/12" }, { name: "TDL 80/10/10" }, { name: "FLD 70/20/10" }])
     .returning({ id: mashbills.id, name: mashbills.name });
+
+  // Which distillery made each recipe — a property of this blend, not of the
+  // recipe itself (issue #13).
+  const mashbillDistillery: Record<string, number> = {
+    "BBC 78/10/12": bbcId,
+    "TDL 80/10/10": tdlId,
+    "FLD 70/20/10": fldId,
+  };
 
   // Grains are rows since M7, so a recipe can carry any grain at all.
   const recipes: Record<string, Array<[string, string]>> = {
@@ -198,7 +202,12 @@ async function seedPursuitExample(db: Db): Promise<void> {
   ]);
 
   await db.insert(expressionMashbills).values(
-    mashbillRows.map((m, position) => ({ expressionId: expression.id, mashbillId: m.id, position })),
+    mashbillRows.map((m, position) => ({
+      expressionId: expression.id,
+      mashbillId: m.id,
+      position,
+      distilleryId: mashbillDistillery[m.name ?? ""] ?? null,
+    })),
   );
 
   await db.insert(expressionFinishes).values({ expressionId: expression.id, finishId, position: 0 });
