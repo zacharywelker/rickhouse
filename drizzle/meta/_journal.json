@@ -71,6 +71,13 @@
       "when": 1790080174632,
       "tag": "0009_mashbill_distillery_per_link",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790080174633,
+      "tag": "0010_bottle_image_kind",
+      "breakpoints": true
     }
   ]
 }

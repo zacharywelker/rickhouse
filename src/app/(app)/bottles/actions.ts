@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleImages, bottles, tastingNotes } from "@/db/schema";
+import { bottleImages, bottles, tastingNotes, type PhotoKind } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { deleteBottleImage } from "@/lib/images";
@@ -118,6 +118,22 @@ export async function setPrimaryImageAction(imageId: number): Promise<ActionResu
     revalidatePath(`/bottles/${image.bottleId}`);
     revalidatePath("/bottles");
     return { ok: true, message: "Primary image set." };
+  } catch (error: unknown) {
+    return mapDbError(error, { singular: "Image" });
+  }
+}
+
+export async function setImageKindAction(imageId: number, kind: PhotoKind): Promise<ActionResult> {
+  await requireSession();
+  try {
+    const [image] = await db.select({ bottleId: bottleImages.bottleId }).from(bottleImages).where(eq(bottleImages.id, imageId)).limit(1);
+    if (!image) return { ok: false, error: "That image is already gone." };
+
+    await db.update(bottleImages).set({ kind }).where(eq(bottleImages.id, imageId));
+
+    revalidatePath(`/bottles/${image.bottleId}`);
+    revalidatePath("/bottles");
+    return { ok: true, message: kind === "catalog" ? "Marked as a catalog photo." : "Marked as a life photo." };
   } catch (error: unknown) {
     return mapDbError(error, { singular: "Image" });
   }
