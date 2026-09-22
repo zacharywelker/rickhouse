@@ -21,3 +21,34 @@ const CATEGORY_COLOR: Record<FieldGroup, string> = {
 export function categorySwatchClass(fieldGroup: FieldGroup): string {
   return CATEGORY_COLOR[fieldGroup];
 }
+
+/** A faint category-tinted wash — for backdrops, never for text-on-text contrast. */
+const CATEGORY_TINT: Record<FieldGroup, string> = {
+  whiskey: "bg-category-whiskey/10",
+  rum: "bg-category-rum/10",
+  agave: "bg-category-agave/10",
+  brandy: "bg-category-brandy/10",
+  gin: "bg-category-gin/10",
+  vodka: "bg-category-vodka/10",
+  liqueur: "bg-category-liqueur/10",
+  other: "bg-category-other/10",
+};
+
+export function categoryTintClass(fieldGroup: FieldGroup): string {
+  return CATEGORY_TINT[fieldGroup];
+}
+
+const CATEGORY_TEXT: Record<FieldGroup, string> = {
+  whiskey: "text-category-whiskey",
+  rum: "text-category-rum",
+  agave: "text-category-agave",
+  brandy: "text-category-brandy",
+  gin: "text-category-gin",
+  vodka: "text-category-vodka",
+  liqueur: "text-category-liqueur",
+  other: "text-category-other",
+};
+
+export function categoryTextClass(fieldGroup: FieldGroup): string {
+  return CATEGORY_TEXT[fieldGroup];
+}
