@@ -156,11 +156,12 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             {" · "}
             {row.category.name}
           </p>
-          <h1 className="text-3xl">
+          <h1 className="flex items-center gap-2 text-3xl">
             <Link href={`/brands/${row.brand.slug}` as Route} className="hover:underline">
               {row.brand.name}
             </Link>{" "}
             <span className="text-accent">{e.name}</span>
+            <FavoriteToggle bottleId={bottleId} isFavorite={row.bottle.isFavorite} />
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {b.batch ? <Badge>{b.batch}</Badge> : null}
@@ -170,7 +171,6 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             {e.isBottledInBond ? <Badge>Bottled in bond</Badge> : null}
             {e.isStraight ? <Badge>Straight</Badge> : null}
             {e.isNas ? <Badge>NAS</Badge> : null}
-            {row.bottle.isFavorite ? <Badge className="border-accent/40 text-accent">Favourite</Badge> : null}
           </div>
         </div>
         <Button variant="outline" asChild>

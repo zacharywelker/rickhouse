@@ -209,7 +209,9 @@ export function FillControl({
         </div>
 
         <dl className="flex flex-col gap-1 text-xs text-muted-foreground">
-          {dateOpened ? <EditableDate bottleId={bottleId} field="dateOpened" label="Opened" value={dateOpened} /> : null}
+          {open && dateOpened ? (
+            <EditableDate bottleId={bottleId} field="dateOpened" label="Opened" value={dateOpened} />
+          ) : null}
           {dateKilled ? <EditableDate bottleId={bottleId} field="dateKilled" label="Killed" value={dateKilled} /> : null}
         </dl>
         {dateError ? (
