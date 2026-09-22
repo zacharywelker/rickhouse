@@ -12,7 +12,7 @@
 # part of your parity/backup plan, because ./backups sits next to the data it
 # is meant to protect and that is not a backup.
 #
-# Each backup contains two independent copies of the data:
+# Each backup contains:
 #
 #   database.sql.gz  a full pg_dump, for restoring Rickhouse itself.
 #   csv.tar.gz        every table as a plain CSV, for opening the data in
@@ -20,6 +20,14 @@
 #                     Google Sheets, ...) if Rickhouse is ever unavailable.
 #                     These are a snapshot, not a restorable database: they
 #                     drop foreign keys and column types.
+#   uploads/          the uploaded photos, as a directory rather than a
+#                     tarball. A photo unchanged since the previous backup is
+#                     hardlinked to that backup's copy instead of copied, so
+#                     keeping many backups costs little extra disk even as
+#                     the photo library grows: each backup looks and reads
+#                     like a full copy, but only new or changed files use
+#                     new space. Deleting an older backup is still safe —
+#                     the hardlinks keep the files any newer backup needs.
 #
 # Restores are printed at the end, against the archive just written.
 
@@ -82,9 +90,20 @@ done
 tar -czf "${WORK}/csv.tar.gz" -C "${WORK}" csv
 rm -rf "${WORK}/csv"
 
-echo "==> archiving ${UPLOADS}"
+echo "==> snapshotting ${UPLOADS}"
 if [ -d "$UPLOADS" ]; then
-  tar -czf "${WORK}/uploads.tar.gz" -C "$(dirname "$UPLOADS")" "$(basename "$UPLOADS")"
+  if ! command -v rsync >/dev/null 2>&1; then
+    echo "error: rsync is required to snapshot uploads (hardlinked backups)" >&2
+    exit 1
+  fi
+  # The most recent complete (non-.partial) backup with an uploads/ snapshot,
+  # used as the hardlink source. None found just means a full copy this time.
+  PREV="$(ls -1d "${BACKUP_DIR}"/rickhouse-* 2>/dev/null | grep -v '\.partial$' | sort -r | head -n 1 || true)"
+  LINK_DEST=()
+  if [ -n "$PREV" ] && [ -d "${PREV}/uploads" ]; then
+    LINK_DEST=(--link-dest="$(realpath "${PREV}/uploads")")
+  fi
+  rsync -a --delete "${LINK_DEST[@]}" "${UPLOADS}/" "${WORK}/uploads/"
 else
   echo "    (no uploads directory yet — skipping)"
 fi
@@ -102,7 +121,10 @@ contents:
   csv.tar.gz       - every table as plain CSV, for reading the data
                      elsewhere (Baserow, NocoDB, Excel, ...) if Rickhouse
                      itself is ever unavailable. Not restorable as-is.
-  uploads.tar.gz   - uploaded photos/files
+  uploads/         - uploaded photos/files. Files unchanged since the
+                     previous backup are hardlinks, not copies — this
+                     backup is still a complete, independent snapshot,
+                     it just doesn't cost extra disk for unchanged photos.
 META
 
 trap - EXIT
@@ -125,7 +147,7 @@ cat <<RESTORE
 To restore Rickhouse from this backup:
 
   gunzip -c ${DEST}/database.sql.gz | ${COMPOSE[*]} exec -T db psql -U ${PG_USER} -d ${PG_DB}
-  tar -xzf ${DEST}/uploads.tar.gz -C $(dirname "$UPLOADS")
+  rsync -a --delete ${DEST}/uploads/ ${UPLOADS}/
   ${COMPOSE[*]} restart app
 
 The dump is --clean --if-exists, so it drops what it replaces: restore into

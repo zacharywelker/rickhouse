@@ -160,7 +160,7 @@ The backup script handles both, and writes each backup as:
 rickhouse-<timestamp>/
 ├── database.sql.gz   full pg_dump of the database
 ├── csv.tar.gz         every table as plain CSV
-├── uploads.tar.gz     uploaded photos/files
+├── uploads/            uploaded photos/files
 └── manifest.txt        what this backup is, and how to use it
 ```
 
@@ -171,6 +171,14 @@ BACKUP_DIR=/mnt/user/backups/rickhouse ./scripts/backup.sh
 ```
 
 By default, the script keeps 14 backups.
+
+`uploads/` is a full, independent snapshot every time, but a photo that
+hasn't changed since the previous backup is hardlinked to that backup's copy
+rather than copied again. As a photo collection grows into the hundreds of
+bottles, this keeps 14 backups from costing 14x the photo library on disk —
+only new or changed photos use new space. This needs `rsync` on the host
+(already present on Unraid); deleting an old backup is still safe, since a
+hardlink is only actually freed once nothing references it anymore.
 
 For a real server, schedule this nightly using Unraid's **User Scripts** plugin.
 
@@ -184,7 +192,7 @@ To put a backup back into a running stack:
 
 ```bash
 gunzip -c rickhouse-<timestamp>/database.sql.gz | docker compose exec -T db psql -U rickhouse -d rickhouse
-tar -xzf rickhouse-<timestamp>/uploads.tar.gz -C ./data
+rsync -a --delete rickhouse-<timestamp>/uploads/ ./data/uploads/
 docker compose restart app
 ```
 
