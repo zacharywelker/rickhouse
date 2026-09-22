@@ -32,7 +32,7 @@ export function BottleGallery({ rows }: { rows: GridRow[] }) {
                 <FillGauge value={row.fillPct} readOnly height={130} label={`${row.expressionName} fill`} />
               )}
               {row.isFavorite ? (
-                <Star className="absolute right-2 top-2 size-4 fill-accent text-accent" aria-label="Favourite" />
+                <Star className="absolute right-2 top-2 size-4 fill-accent text-accent" aria-label="Favorite" />
               ) : null}
               {row.thumbPath ? (
                 <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-xs tabular-nums text-white">

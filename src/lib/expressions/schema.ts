@@ -157,10 +157,8 @@ export const bottleSchema = z.object({
   storeId: optionalRef,
   dateAcquired: optionalDate,
   acquisition: z.enum(ACQUISITIONS),
-  acquisitionNotes: optionalText(),
   status: z.enum(BOTTLE_STATUSES),
   location: optionalText(120),
-  isFavorite: checkbox,
   notes: optionalText(),
 
   // Release identity (M7). Moved here from the label with its validation.

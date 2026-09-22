@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BottleImages } from "@/components/expressions/bottle-images";
+import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";

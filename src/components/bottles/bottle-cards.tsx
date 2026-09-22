@@ -47,7 +47,7 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
               <p className="flex items-center gap-1 font-medium leading-tight">
                 <span className="truncate">{row.expressionName}</span>
                 {row.isFavorite ? (
-                  <Star className="size-3.5 shrink-0 fill-accent text-accent" aria-label="Favourite" />
+                  <Star className="size-3.5 shrink-0 fill-accent text-accent" aria-label="Favorite" />
                 ) : null}
               </p>
               <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
