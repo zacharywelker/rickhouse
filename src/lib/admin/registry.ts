@@ -959,10 +959,14 @@ async function mashbillOptions(): Promise<Option[]> {
         return { grain, percent };
       });
     const recipe = describeMashbill(grains);
+    // The distillery matters as much as the recipe on a blend — Pursuit
+    // United's three mashbills are meaningless without knowing whose recipe
+    // each one is (SPEC/issue #13), so it's always in the hint when set.
+    const hintParts = [r.name && recipe ? recipe : null, r.distillery].filter((part): part is string => Boolean(part));
     return {
       value: r.value,
       label: r.name ?? recipe ?? "Unnamed recipe",
-      ...(r.name && recipe ? { hint: recipe } : r.distillery ? { hint: r.distillery } : {}),
+      ...(hintParts.length > 0 ? { hint: hintParts.join(" · ") } : {}),
     };
   });
 }
