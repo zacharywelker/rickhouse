@@ -110,35 +110,70 @@ export const distillerySchema = z.object({
   notes: optionalText(),
 });
 
+/** One row of the grain editor, as it arrives in the hidden JSON field. */
+const grainRow = z.object({
+  grain: z.string().trim().min(1, "Name the grain.").max(60),
+  percent: z.coerce.number().gt(0, "More than 0%.").max(100, "100% at the most."),
+});
+
 export const mashbillSchema = z
   .object({
     name: optionalText(120),
-    corn: percent,
-    rye: percent,
-    wheat: percent,
-    maltedBarley: percent,
-    maltedRye: percent,
-    otherGrain: percent,
-    otherGrainName: optionalText(80),
     distilleryId: optionalRef,
     notes: optionalText(),
+    // The editor serialises its rows into one hidden field.
+    grains: z
+      .string()
+      .default("[]")
+      .transform((raw, ctx) => {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw === "" ? "[]" : raw);
+        } catch {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Could not read the grains." });
+          return z.NEVER;
+        }
+        const rows = z.array(grainRow).safeParse(parsed);
+        if (!rows.success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: rows.error.issues[0]?.message ?? "Check the grains.",
+          });
+          return z.NEVER;
+        }
+        return rows.data;
+      }),
   })
   .superRefine((value, ctx) => {
-    const total = value.corn + value.rye + value.wheat + value.maltedBarley + value.maltedRye + value.otherGrain;
-    // Matches the mashbill_sums_to_100 check constraint, which allows a point
-    // of slack for published mashbills that are rounded.
+    // The transform bails with z.NEVER when the field is not parseable JSON
+    // or not a list of grains, and superRefine still runs — so without this
+    // guard a malformed field throws a TypeError instead of failing cleanly.
+    if (!Array.isArray(value.grains)) return;
+
+    const seen = new Set<string>();
+    for (const row of value.grains) {
+      const key = row.grain.toLowerCase();
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["grains"],
+          message: `${row.grain} is in there twice. Combine them into one row.`,
+        });
+        return;
+      }
+      seen.add(key);
+    }
+
+    // An empty recipe is allowed: a mashbill you know the name of but not the
+    // contents is a real thing to record. Anything else has to add up, with
+    // the same slack the database trigger allows for rounded published bills.
+    if (value.grains.length === 0) return;
+    const total = value.grains.reduce((sum, row) => sum + row.percent, 0);
     if (total < 99 || total > 101) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["corn"],
+        path: ["grains"],
         message: `The grains add up to ${Number(total.toFixed(2))}%, not 100%.`,
-      });
-    }
-    if (value.otherGrain > 0 && value.otherGrainName === null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["otherGrainName"],
-        message: "Name the other grain, or set its percentage to 0.",
       });
     }
   });

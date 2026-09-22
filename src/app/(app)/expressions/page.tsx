@@ -1,46 +1,100 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Pencil, Plus } from "lucide-react";
+import type { Route } from "next";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Pencil, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { listExpressions } from "@/lib/expressions/queries";
-import { formatMoney, formatNumeric } from "@/lib/utils";
+import { listExpressions, parseLabelSort, type LabelSort } from "@/lib/expressions/queries";
+import { cn, formatMoney, formatNumeric } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Expressions" };
+export const metadata: Metadata = { title: "Labels" };
 export const dynamic = "force-dynamic";
 
-export default async function ExpressionsPage() {
-  const rows = await listExpressions();
+const COLUMNS: Array<{ key: LabelSort; label: string; className?: string; numeric?: boolean }> = [
+  { key: "brand", label: "Brand", className: "hidden sm:table-cell" },
+  { key: "name", label: "Label" },
+  { key: "category", label: "Category", className: "hidden sm:table-cell" },
+  { key: "proof", label: "Proof", numeric: true },
+  { key: "msrp", label: "MSRP", className: "hidden sm:table-cell", numeric: true },
+  { key: "bottles", label: "Bottles", numeric: true },
+];
+
+/**
+ * Sorting is server-side and lives in the URL, exactly like the bottle grid —
+ * so a sorted view is a bookmark and the back button behaves (SPEC M8).
+ */
+function SortLink({
+  column,
+  sort,
+  desc,
+}: {
+  column: (typeof COLUMNS)[number];
+  sort: LabelSort;
+  desc: boolean;
+}) {
+  const active = sort === column.key;
+  // Clicking the active column flips it; a new column starts ascending.
+  const params = new URLSearchParams({ sort: column.key });
+  if (active && !desc) params.set("dir", "desc");
+  return (
+    <Link
+      href={`/expressions?${params.toString()}` as Route}
+      aria-label={`Sort by ${column.label}`}
+      className={cn(
+        "-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-foreground",
+        active && "text-primary",
+      )}
+    >
+      {column.label}
+      {active ? (
+        desc ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />
+      ) : (
+        <ChevronsUpDown className="size-3 opacity-40" />
+      )}
+    </Link>
+  );
+}
+
+export default async function ExpressionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const raw = Array.isArray(params.sort) ? params.sort[0] : params.sort;
+  const sort = parseLabelSort(raw);
+  const desc = (Array.isArray(params.dir) ? params.dir[0] : params.dir) === "desc";
+  const rows = await listExpressions(sort, desc);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <h1 className="font-display text-3xl text-accent">Expressions</h1>
+          <h1 className="font-display text-3xl text-accent">Labels</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            The products, separate from the bottles on your shelf. Two batches of the same name are two expressions;
-            two bottles of one batch are one expression.
+            The products, separate from the bottles on your shelf. Batch and single-barrel detail belong to the
+            bottle, so six picks of one Weller 12 are six bottles of one label.
           </p>
         </div>
         <Button asChild>
           <Link href="/expressions/new">
             <Plus className="size-4" />
-            New expression
+            New Label
           </Link>
         </Button>
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
-          <p className="font-display text-lg">No expressions yet</p>
+          <p className="font-display text-lg">No labels yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             Start with the product — brand, mashbill, proof — then add the bottle you actually own.
           </p>
           <Button className="mt-4" asChild>
             <Link href="/expressions/new">
               <Plus className="size-4" />
-              New expression
+              New Label
             </Link>
           </Button>
         </div>
@@ -49,15 +103,14 @@ export default async function ExpressionsPage() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                {/* Brand folds into the Expression cell on a phone; the
-                    edit link is the only way into an expression, so it is the
-                    one column that must never be squeezed off the edge. */}
-                <TableHead className="hidden sm:table-cell">Brand</TableHead>
-                <TableHead>Expression</TableHead>
-                <TableHead className="hidden sm:table-cell">Category</TableHead>
-                <TableHead className="text-right">Proof</TableHead>
-                <TableHead className="hidden text-right sm:table-cell">MSRP</TableHead>
-                <TableHead className="text-right">Bottles</TableHead>
+                {COLUMNS.map((column) => (
+                  <TableHead
+                    key={column.key}
+                    className={cn(column.className, column.numeric && "text-right")}
+                  >
+                    <SortLink column={column} sort={sort} desc={desc} />
+                  </TableHead>
+                ))}
                 <TableHead className="w-12 text-right">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -68,12 +121,13 @@ export default async function ExpressionsPage() {
                 <TableRow key={row.id}>
                   <TableCell className="hidden font-medium sm:table-cell">{row.brand}</TableCell>
                   <TableCell>
+                    {/* Brand folds in here on a phone; the edit link is the only
+                        way into a label, so it must never be squeezed off. */}
                     <span className="block text-xs text-muted-foreground sm:hidden">{row.brand}</span>
                     <span className="text-accent">{row.name}</span>
-                    {row.batch ? <span className="text-muted-foreground"> · {row.batch}</span> : null}
-                    {row.isSingleBarrel || row.isSingleBarrelPick ? (
+                    {row.pickCount > 0 ? (
                       <Badge className="ml-2 border-primary/40 text-primary">
-                        {row.isSingleBarrelPick ? "Pick" : "Single barrel"}
+                        {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}
                       </Badge>
                     ) : null}
                   </TableCell>

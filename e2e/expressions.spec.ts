@@ -64,26 +64,27 @@ test("the expression form reveals sections for the chosen category", async ({ pa
   await expect(page.getByLabel("Marque")).toBeVisible();
 });
 
-test("single barrel reveals the pick detail section", async ({ page }) => {
+// The pick block lives on the bottle since M7 — a label does not know whether
+// any given bottle of it was a store pick.
+test("single barrel reveals the pick detail on the bottle, not the label", async ({ page }) => {
   await page.goto("/expressions/new");
-  await expect(page.getByRole("heading", { name: "Single barrel detail" })).toBeHidden();
+  await expect(page.getByLabel("Single Barrel", { exact: true })).toBeHidden();
 
-  await page.getByLabel("Single barrel", { exact: true }).check();
-  await expect(page.getByRole("heading", { name: "Single barrel detail" })).toBeVisible();
-  await expect(page.getByLabel("Picked by")).toBeVisible();
+  await page.goto("/bottles/new");
+  await expect(page.getByRole("heading", { name: "Single Barrel Detail" })).toBeHidden();
+
+  await page.getByLabel("Single Barrel", { exact: true }).check();
+  await expect(page.getByRole("heading", { name: "Single Barrel Detail" })).toBeVisible();
+  await expect(page.getByLabel("Picked By")).toBeVisible();
   await expect(page.getByLabel("Warehouse")).toBeVisible();
 });
 
 test("rejects a bottling date before the fill date", async ({ page }) => {
-  const name = `Date Check ${stamp()}`;
-  await page.goto("/expressions/new");
-  await pick(page, "Brand", "Pursuit Spirits");
-  await pick(page, "Category", "Bourbon");
-  await page.getByLabel("Expression name").fill(name);
-  await page.getByLabel("Single barrel", { exact: true }).check();
-  await page.getByLabel("Barrel filled").fill("2020-06-01");
+  await page.goto("/bottles/new");
+  await pick(page, "Label", "Double Oak Spirit", "Pursuit Spirits Double Oak Spirit");
+  await page.getByLabel("Barrel Filled").fill("2020-06-01");
   await page.getByLabel("Bottled", { exact: true }).fill("2019-06-01");
-  await page.getByRole("button", { name: "Create expression" }).click();
+  await page.getByRole("button", { name: "Add bottle" }).click();
 
   await expect(page.getByRole("alert").filter({ hasText: /Bottled before it was filled/ }).first()).toBeVisible();
 });
@@ -97,7 +98,7 @@ test("creates a blended expression with ordered distilleries, then a bottle, the
   await page.goto("/expressions/new");
   await pick(page, "Brand", "Pursuit Spirits");
   await pick(page, "Category", "Bourbon");
-  await page.getByLabel("Expression name").fill(name);
+  await page.getByLabel("Label Name").fill(name);
   await page.getByLabel("Proof", { exact: true }).fill("108");
   await page.getByLabel("Age statement").fill("NAS (labeled Straight, so at least 2 years)");
   await page.getByLabel("MSRP").fill("69.99");
@@ -116,13 +117,13 @@ test("creates a blended expression with ordered distilleries, then a bottle, the
   await expect(distilleryList.getByRole("listitem").nth(1)).toContainText(newDistillery);
 
   await pick(page, "Add finishes", "French Oak");
-  await page.getByRole("button", { name: "Create expression" }).click();
+  await page.getByRole("button", { name: "Create Label" }).click();
   await expect(page).toHaveURL("/expressions");
   await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
 
   // --- the bottle ---
   await page.goto("/bottles/new");
-  await pick(page, "Expression", name, `Pursuit Spirits ${name}`);
+  await pick(page, "Label", name, `Pursuit Spirits ${name}`);
   await page.getByLabel("Price paid").fill("69.99");
   await pick(page, "Store", "P.Club", "P.Club by Pursuit Spirits");
   await page.getByLabel("Date acquired").fill("2025-03-27");
@@ -195,10 +196,10 @@ test("recategorising does not silently wipe the hidden fields", async ({ page })
   await page.goto("/expressions/new");
   await pick(page, "Brand", "Pursuit Spirits");
   await pick(page, "Category", "Rum");
-  await page.getByLabel("Expression name").fill(name);
+  await page.getByLabel("Label Name").fill(name);
   await page.getByLabel("Marque").fill("DOK");
   await page.getByLabel("Esters (g/hLAA)").fill("1500");
-  await page.getByRole("button", { name: "Create expression" }).click();
+  await page.getByRole("button", { name: "Create Label" }).click();
   await expect(page).toHaveURL("/expressions");
 
   // Recategorise it as a Bourbon, which hides the rum section entirely.
@@ -206,7 +207,7 @@ test("recategorising does not silently wipe the hidden fields", async ({ page })
   await expect(page.getByLabel("Esters (g/hLAA)")).toHaveValue("1500");
   await pick(page, "Category", "Bourbon");
   await expect(page.getByRole("heading", { name: "Rum detail" })).toBeHidden();
-  await page.getByRole("button", { name: "Save expression" }).click();
+  await page.getByRole("button", { name: "Save Label" }).click();
   await expect(page).toHaveURL("/expressions");
 
   // Switching back must find the esters still there.

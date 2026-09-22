@@ -43,7 +43,7 @@ export default async function DashboardPage() {
       </div>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Bottles" value={String(stats.bottles)} hint={`${stats.expressions} expressions`} />
+        <Stat label="Bottles" value={String(stats.bottles)} hint={`${stats.expressions} labels`} />
         <Stat
           label="Open"
           value={String(stats.open)}

@@ -82,20 +82,6 @@ export const expressionSchema = z
     ageDays: optionalInt(0, 40000),
     ageStatement: optionalText(200),
 
-    // Release
-    isSingleBarrel: checkbox,
-    isSingleBarrelPick: checkbox,
-    barrelNumber: optionalText(80),
-    bottleCount: optionalInt(1, 10_000_000),
-
-    // Single barrel detail
-    pickName: optionalText(160),
-    pickedBy: optionalText(160),
-    barrelFilledOn: optionalDate,
-    bottledOn: optionalDate,
-    warehouse: optionalText(80),
-    rickFloor: optionalText(80),
-
     // Whiskey process
     isBottledInBond: checkbox,
     entryProof: optionalDecimal(0, 200),
@@ -134,15 +120,6 @@ export const expressionSchema = z
         .transform((v) => (v === "" ? null : v)),
     ),
     labelNotes: optionalText(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.barrelFilledOn && value.bottledOn && value.bottledOn < value.barrelFilledOn) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["bottledOn"],
-        message: "Bottled before it was filled — check these dates.",
-      });
-    }
   });
 
 export type ExpressionInput = z.infer<typeof expressionSchema>;
@@ -182,8 +159,36 @@ export const bottleSchema = z.object({
   status: z.enum(BOTTLE_STATUSES),
   location: optionalText(120),
   isFavorite: checkbox,
-  estimatedValue: optionalDecimal(0, 99_999_999),
   notes: optionalText(),
+
+  // Release identity (M7). Moved here from the label with its validation.
+  batch: optionalText(80),
+  releaseYear: optionalInt(1700, 2200),
+  isSingleBarrel: checkbox,
+  isSingleBarrelPick: checkbox,
+  barrelNumber: optionalText(80),
+  bottleCount: optionalInt(1, 10_000_000),
+  pickName: optionalText(160),
+  pickedBy: optionalText(160),
+  barrelFilledOn: optionalDate,
+  bottledOn: optionalDate,
+  warehouse: optionalText(80),
+  rickFloor: optionalText(80),
+
+  // Overrides. Blank inherits from the label.
+  proof: optionalDecimal(0, 200),
+  ageYears: optionalDecimal(0, 100),
+  ageMonths: optionalInt(0, 1200),
+  ageDays: optionalInt(0, 40000),
+  ageStatement: optionalText(200),
+}).superRefine((value, ctx) => {
+  if (value.barrelFilledOn && value.bottledOn && value.bottledOn < value.barrelFilledOn) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["bottledOn"],
+      message: "Bottled before it was filled — check these dates.",
+    });
+  }
 });
 
 export type BottleInput = z.infer<typeof bottleSchema>;

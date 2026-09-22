@@ -16,7 +16,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { killBottleAction, setBottleFillAction, setBottleOpenAction } from "@/app/(app)/bottles/actions";
+import {
+  killBottleAction,
+  setBottleDateAction,
+  setBottleFillAction,
+  setBottleOpenAction,
+} from "@/app/(app)/bottles/actions";
 import { clampPct } from "@/lib/bottles/geometry";
 import { FillGauge } from "./fill-gauge";
 
@@ -48,6 +53,7 @@ export function FillControl({
   const [open, setOpen] = React.useState(isOpen);
   const [saving, setSaving] = React.useState(false);
   const [askKill, setAskKill] = React.useState(false);
+  const [dateError, setDateError] = React.useState<string | null>(null);
   const [killing, setKilling] = React.useState(false);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const killed = status === "killed";
@@ -85,6 +91,75 @@ export function FillControl({
     router.refresh();
   }
 
+  /**
+   * Opening a bottle stamps today, which is wrong for the one you opened
+   * three months ago and are only now logging (SPEC M8). A real date input,
+   * revealed on click, rather than a bespoke editor — the phone then gets its
+   * native date picker for free.
+   */
+  function EditableDate({
+    field,
+    label,
+    value,
+  }: {
+    bottleId: number;
+    field: "dateOpened" | "dateKilled";
+    label: string;
+    value: string;
+  }) {
+    const [editing, setEditing] = React.useState(false);
+
+    if (!editing) {
+      return (
+        <div className="flex items-center justify-between gap-2">
+          <dt>{label}</dt>
+          <dd>
+            <button
+              type="button"
+              onClick={() => {
+                setDateError(null);
+                setEditing(true);
+              }}
+              className="rounded px-1 tabular-nums underline decoration-dotted underline-offset-2 hover:text-foreground"
+              // Not "${label} …": that would collide with the Opened
+              // checkbox's own accessible name and make both ambiguous.
+              aria-label={`Change the ${label.toLowerCase()} date, currently ${value}`}
+            >
+              {value}
+            </button>
+          </dd>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <dt>
+          <label htmlFor={`date-${field}`}>{label}</label>
+        </dt>
+        <dd>
+          <input
+            id={`date-${field}`}
+            type="date"
+            defaultValue={value}
+            max={new Date().toISOString().slice(0, 10)}
+            autoFocus
+            onBlur={(event) => {
+              const next = event.target.value;
+              setEditing(false);
+              if (next === value) return;
+              void setBottleDateAction(bottleId, field, next).then((result) => {
+                setDateError(result.ok ? null : result.error);
+                router.refresh();
+              });
+            }}
+            className="h-7 rounded-md border border-input bg-card px-2 text-xs tabular-nums"
+          />
+        </dd>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center gap-4 rounded-lg border border-border bg-card p-5">
       <FillGauge value={pct} onChange={change} height={220} label="Fill level" />
@@ -118,19 +193,14 @@ export function FillControl({
         </div>
 
         <dl className="flex flex-col gap-1 text-xs text-muted-foreground">
-          {dateOpened ? (
-            <div className="flex justify-between gap-2">
-              <dt>Opened</dt>
-              <dd className="tabular-nums">{dateOpened}</dd>
-            </div>
-          ) : null}
-          {dateKilled ? (
-            <div className="flex justify-between gap-2">
-              <dt>Killed</dt>
-              <dd className="tabular-nums">{dateKilled}</dd>
-            </div>
-          ) : null}
+          {dateOpened ? <EditableDate bottleId={bottleId} field="dateOpened" label="Opened" value={dateOpened} /> : null}
+          {dateKilled ? <EditableDate bottleId={bottleId} field="dateKilled" label="Killed" value={dateKilled} /> : null}
         </dl>
+        {dateError ? (
+          <p role="alert" className="text-xs text-destructive">
+            {dateError}
+          </p>
+        ) : null}
       </div>
 
       <Dialog open={askKill} onOpenChange={setAskKill}>

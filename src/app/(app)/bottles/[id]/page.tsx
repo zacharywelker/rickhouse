@@ -31,6 +31,57 @@ function Spec({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/**
+ * Mashbills read as their recipe, not as a bare name, and on a blend each one
+ * says whose it is (SPEC M7) — "78% Corn · 10% Rye · 12% Malted Barley" means
+ * nothing on a three-distillery blend without knowing which distillery made
+ * that part. On a single-distillery label the attribution is left off, because
+ * there is only one possible answer.
+ */
+function Mashbills({
+  items,
+}: {
+  items: Array<{
+    id: number;
+    name: string;
+    amount: string | null;
+    recipe: string;
+    attribution?: string;
+    attributionSlug?: string | null;
+  }>;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs uppercase tracking-wide text-muted-foreground">Mashbills</span>
+      <ul className="flex flex-col gap-1.5">
+        {items.map((item) => (
+          <li key={item.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+            <Link href={`/mashbills/${item.id}` as Route} className="font-medium hover:text-accent">
+              {item.recipe}
+            </Link>
+            {item.amount !== null ? (
+              <span className="text-muted-foreground">{Number(item.amount)}% of the blend</span>
+            ) : null}
+            {item.attribution ? (
+              <span className="text-muted-foreground">
+                from{" "}
+                {item.attributionSlug ? (
+                  <Link href={`/distilleries/${item.attributionSlug}` as Route} className="hover:text-accent">
+                    {item.attribution}
+                  </Link>
+                ) : (
+                  item.attribution
+                )}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Chips({
   label,
   items,
@@ -83,6 +134,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
   const hero = images.find((image) => image.isPrimary) ?? images[0] ?? null;
   const e = row.expression;
+  const b = row.bottle;
   const group = row.category.fieldGroup;
 
   const age =
@@ -110,9 +162,9 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <span className="text-accent">{e.name}</span>
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            {e.batch ? <Badge>{e.batch}</Badge> : null}
-            {e.isSingleBarrel ? <Badge className="border-primary/40 text-primary">Single barrel</Badge> : null}
-            {e.isSingleBarrelPick ? <Badge className="border-primary/40 text-primary">Private selection</Badge> : null}
+            {b.batch ? <Badge>{b.batch}</Badge> : null}
+            {b.isSingleBarrel ? <Badge className="border-primary/40 text-primary">Single barrel</Badge> : null}
+            {b.isSingleBarrelPick ? <Badge className="border-primary/40 text-primary">Private selection</Badge> : null}
             {e.isCaskStrength ? <Badge>Cask strength</Badge> : null}
             {e.isBottledInBond ? <Badge>Bottled in bond</Badge> : null}
             {row.bottle.isFavorite ? <Badge className="border-accent/40 text-accent">Favourite</Badge> : null}
@@ -187,25 +239,21 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
                 items={links.distilleries}
                 hrefFor={(item) => (item.slug ? (`/distilleries/${item.slug}` as Route) : null)}
               />
-              <Chips
-                label="Mashbills"
-                items={links.mashbills}
-                hrefFor={(item) => `/mashbills/${item.id}` as Route}
-              />
+              <Mashbills items={links.mashbills} />
               <Chips
                 label="Finishes"
                 items={links.finishes}
                 hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}
               />
-              {e.pickName || e.pickedBy || e.barrelNumber || e.warehouse ? (
+              {b.pickName || b.pickedBy || b.barrelNumber || b.warehouse || b.barrelFilledOn || b.bottledOn ? (
                 <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
-                  <Spec label="Pick" value={e.pickName} />
-                  <Spec label="Picked by" value={e.pickedBy} />
-                  <Spec label="Barrel" value={e.barrelNumber} />
-                  <Spec label="Warehouse" value={e.warehouse} />
-                  <Spec label="Rick / floor" value={e.rickFloor} />
-                  <Spec label="Filled" value={e.barrelFilledOn} />
-                  <Spec label="Bottled" value={e.bottledOn} />
+                  <Spec label="Pick" value={b.pickName} />
+                  <Spec label="Picked By" value={b.pickedBy} />
+                  <Spec label="Barrel" value={b.barrelNumber} />
+                  <Spec label="Warehouse" value={b.warehouse} />
+                  <Spec label="Rick / Floor" value={b.rickFloor} />
+                  <Spec label="Filled" value={b.barrelFilledOn} />
+                  <Spec label="Bottled" value={b.bottledOn} />
                 </dl>
               ) : null}
               {group === "rum" ? (
@@ -227,9 +275,9 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
                 </dl>
               ) : null}
               <p className="border-t border-border pt-4 text-xs text-muted-foreground">
-                Specs belong to the expression.{" "}
+                Specs belong to the label.{" "}
                 <Link href={`/expressions/${e.id}/edit`} className="text-primary hover:underline">
-                  Edit the expression
+                  Edit the label
                 </Link>{" "}
                 to change them for every bottle of it.
               </p>

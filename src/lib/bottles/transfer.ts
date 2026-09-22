@@ -55,7 +55,9 @@ export async function exportBottlesCsv(): Promise<string> {
     .select({
       brand: brands.name,
       expression: expressions.name,
-      batch: expressions.batch,
+      // Batch lives on the bottle now (M7): two batches of one product are
+      // two bottles of one label, so it exports per row rather than per label.
+      batch: bottles.batch,
       category: categories.name,
       proof: expressions.proof,
       ageStatement: expressions.ageStatement,
@@ -231,16 +233,13 @@ export async function importBottlesCsv(text: string): Promise<ImportReport> {
       const brandId = await findOrCreate("brand", brandName);
       const batch = (row.batch ?? "").trim() || null;
 
-      // Match an existing expression on brand + name + batch, which is the
-      // same key the table uses, so a re-import updates nothing and adds a
-      // bottle rather than duplicating the product.
+      // Match an existing label on brand + name, which is the key the table
+      // uses since M7 — so importing a second batch of something you already
+      // own adds a bottle to that label rather than duplicating the product.
       const existing = await db
         .select({ id: expressions.id })
         .from(expressions)
-        .where(
-          sql`${expressions.brandId} = ${brandId} AND ${expressions.name} = ${expressionName}
-              AND ${expressions.batch} IS NOT DISTINCT FROM ${batch}`,
-        )
+        .where(sql`${expressions.brandId} = ${brandId} AND ${expressions.name} = ${expressionName}`)
         .limit(1);
 
       let expressionId = existing[0]?.id;
@@ -251,8 +250,7 @@ export async function importBottlesCsv(text: string): Promise<ImportReport> {
             brandId,
             categoryId: category.id,
             name: expressionName,
-            batch,
-            slug: await freeSlug(expressions, expressions.slug, `${expressionName} ${batch ?? ""}`),
+            slug: await freeSlug(expressions, expressions.slug, expressionName),
             proof: numberOrNull(row.proof ?? ""),
             ageStatement: (row.age_statement ?? "").trim() || null,
             msrp: numberOrNull(row.msrp ?? ""),
@@ -282,6 +280,8 @@ export async function importBottlesCsv(text: string): Promise<ImportReport> {
 
       await db.insert(bottles).values({
         expressionId,
+        // Release identity belongs to the bottle since M7.
+        batch,
         pricePaid: numberOrNull(row.price_paid ?? ""),
         storeId: storeName ? await findOrCreate("store", storeName) : null,
         dateAcquired: /^\d{4}-\d{2}-\d{2}$/.test(row.date_acquired ?? "") ? row.date_acquired! : null,
@@ -299,7 +299,7 @@ export async function importBottlesCsv(text: string): Promise<ImportReport> {
         line,
         label,
         status: "created",
-        detail: existing[0] ? "Added a bottle to the existing expression." : "Created the expression and a bottle.",
+        detail: existing[0] ? "Added a bottle to the existing label." : "Created the label and a bottle.",
       });
     } catch (error: unknown) {
       console.error("[rickhouse] import row failed", line, error);

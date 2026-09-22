@@ -36,6 +36,20 @@
       "when": 1790041322176,
       "tag": "0004_bottle_list_search",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790080174628,
+      "tag": "0005_release_identity_to_bottle",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790080174629,
+      "tag": "0006_mashbill_grains",
+      "breakpoints": true
     }
   ]
 }

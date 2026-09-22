@@ -2,32 +2,30 @@ import { describe, expect, it } from "vitest";
 import { brandSchema, distillerySchema, mashbillSchema, tagSchema } from "../schemas";
 
 /** FormData always hands us strings, so the schemas are fed the same way. */
-const mashbill = (over: Record<string, string> = {}) => ({
+const mashbill = (grains: Array<[string, string]> = [], over: Record<string, string> = {}) => ({
   name: "",
-  corn: "0",
-  rye: "0",
-  wheat: "0",
-  maltedBarley: "0",
-  maltedRye: "0",
-  otherGrain: "0",
-  otherGrainName: "",
   distilleryId: "",
   notes: "",
+  // The grain editor serialises its rows into one hidden field.
+  grains: JSON.stringify(grains.map(([grain, percent]) => ({ grain, percent }))),
   ...over,
 });
 
 describe("mashbillSchema", () => {
   it("accepts the Pursuit reference recipe", () => {
-    const parsed = mashbillSchema.safeParse(mashbill({ corn: "78", rye: "10", maltedBarley: "12" }));
+    const parsed = mashbillSchema.safeParse(
+      mashbill([["Corn", "78"], ["Rye", "10"], ["Malted Barley", "12"]]),
+    );
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data.corn).toBe(78);
+      expect(parsed.data.grains).toHaveLength(3);
+      expect(parsed.data.grains[0]).toEqual({ grain: "Corn", percent: 78 });
       expect(parsed.data.name).toBeNull();
     }
   });
 
   it("rejects grains that do not add up", () => {
-    const parsed = mashbillSchema.safeParse(mashbill({ corn: "70", rye: "10" }));
+    const parsed = mashbillSchema.safeParse(mashbill([["Corn", "70"], ["Rye", "10"]]));
     expect(parsed.success).toBe(false);
     if (!parsed.success) {
       expect(parsed.error.issues[0]?.message).toContain("80");
@@ -35,28 +33,46 @@ describe("mashbillSchema", () => {
   });
 
   it("allows the rounding tolerance the database allows", () => {
-    // Published mashbills are often rounded; 99-101 matches the check constraint.
-    expect(mashbillSchema.safeParse(mashbill({ corn: "79", rye: "10", maltedBarley: "12" })).success).toBe(true);
-    expect(mashbillSchema.safeParse(mashbill({ corn: "77", rye: "10", maltedBarley: "12" })).success).toBe(true);
-    expect(mashbillSchema.safeParse(mashbill({ corn: "80", rye: "10", maltedBarley: "12" })).success).toBe(false);
+    // Published mashbills are often rounded; 99-101 matches the trigger.
+    expect(mashbillSchema.safeParse(mashbill([["Corn", "79"], ["Rye", "10"], ["Malted Barley", "12"]])).success).toBe(true);
+    expect(mashbillSchema.safeParse(mashbill([["Corn", "77"], ["Rye", "10"], ["Malted Barley", "12"]])).success).toBe(true);
+    expect(mashbillSchema.safeParse(mashbill([["Corn", "80"], ["Rye", "10"], ["Malted Barley", "12"]])).success).toBe(false);
   });
 
-  it("insists on naming the other grain when it is used", () => {
-    const parsed = mashbillSchema.safeParse(mashbill({ corn: "90", otherGrain: "10" }));
-    expect(parsed.success).toBe(false);
-    if (!parsed.success) {
-      expect(parsed.error.issues.some((i) => i.path[0] === "otherGrainName")).toBe(true);
+  it("takes any grain, which is the point of the child table", () => {
+    const parsed = mashbillSchema.safeParse(
+      mashbill([["Corn", "60"], ["Oats", "20"], ["Triticale", "10"], ["Malted Barley", "10"]]),
+    );
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.grains.map((g) => g.grain)).toContain("Triticale");
     }
   });
 
-  it("accepts a named other grain", () => {
-    expect(mashbillSchema.safeParse(mashbill({ corn: "90", otherGrain: "10", otherGrainName: "Oats" })).success).toBe(
-      true,
-    );
+  it("refuses the same grain twice rather than silently adding them", () => {
+    const parsed = mashbillSchema.safeParse(mashbill([["Corn", "50"], ["corn", "50"]]));
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues[0]?.message).toContain("twice");
+    }
+  });
+
+  it("allows a recipe with no grains at all", () => {
+    // A mashbill you know the name of but not the contents is a real thing.
+    expect(mashbillSchema.safeParse(mashbill([], { name: "Unknown high rye" })).success).toBe(true);
+  });
+
+  it("rejects a grain with no name, and a percentage of zero", () => {
+    expect(mashbillSchema.safeParse(mashbill([["", "100"]])).success).toBe(false);
+    expect(mashbillSchema.safeParse(mashbill([["Corn", "100"], ["Rye", "0"]])).success).toBe(false);
   });
 
   it("rejects a negative percentage", () => {
-    expect(mashbillSchema.safeParse(mashbill({ corn: "110", rye: "-10" })).success).toBe(false);
+    expect(mashbillSchema.safeParse(mashbill([["Corn", "110"], ["Rye", "-10"]])).success).toBe(false);
+  });
+
+  it("survives a grains field that is not JSON at all", () => {
+    expect(mashbillSchema.safeParse(mashbill([], { grains: "not json" })).success).toBe(false);
   });
 });
 

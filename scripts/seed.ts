@@ -20,6 +20,7 @@ const {
   companies,
   brands,
   distilleries,
+  mashbillGrains,
   mashbills,
   finishes,
   stores,
@@ -128,11 +129,28 @@ async function seedPursuitExample(db: Db): Promise<void> {
   const mashbillRows = await db
     .insert(mashbills)
     .values([
-      { name: "BBC 78/10/12", corn: "78", rye: "10", wheat: "0", maltedBarley: "12", distilleryId: bbcId },
-      { name: "TDL 80/10/10", corn: "80", rye: "10", wheat: "0", maltedBarley: "10", distilleryId: tdlId },
-      { name: "FLD 70/20/10", corn: "70", rye: "0", wheat: "20", maltedBarley: "10", distilleryId: fldId },
+      { name: "BBC 78/10/12", distilleryId: bbcId },
+      { name: "TDL 80/10/10", distilleryId: tdlId },
+      { name: "FLD 70/20/10", distilleryId: fldId },
     ])
     .returning({ id: mashbills.id, name: mashbills.name });
+
+  // Grains are rows since M7, so a recipe can carry any grain at all.
+  const recipes: Record<string, Array<[string, string]>> = {
+    "BBC 78/10/12": [["Corn", "78"], ["Rye", "10"], ["Malted Barley", "12"]],
+    "TDL 80/10/10": [["Corn", "80"], ["Rye", "10"], ["Malted Barley", "10"]],
+    "FLD 70/20/10": [["Corn", "70"], ["Wheat", "20"], ["Malted Barley", "10"]],
+  };
+  await db.insert(mashbillGrains).values(
+    mashbillRows.flatMap((m) =>
+      (recipes[m.name ?? ""] ?? []).map(([grain, percent], position) => ({
+        mashbillId: m.id,
+        grain,
+        percent,
+        position,
+      })),
+    ),
+  );
 
   const [finish] = await db
     .insert(finishes)

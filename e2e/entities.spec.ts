@@ -27,7 +27,9 @@ test.beforeEach(async ({ page }) => {
 /** The M5 acceptance criterion. */
 test("a distillery chip leads to a page listing the blend it contributed to", async ({ page }) => {
   await openSeededBottle(page);
-  await page.getByRole("link", { name: "Bardstown Bourbon Company" }).click();
+  // The distillery appears twice now: as a chip, and again as the source of
+  // its mashbill on this three-way blend. The chip is the one under test.
+  await page.getByRole("link", { name: "Bardstown Bourbon Company" }).first().click();
 
   await expect(page).toHaveURL("/distilleries/bardstown-bourbon-company");
   await expect(page.getByRole("heading", { name: "Bardstown Bourbon Company" })).toBeVisible();
@@ -53,10 +55,20 @@ test("brand, store, finish and mashbill all have pages of their own", async ({ p
   await expect(page).toHaveURL("/stores/p-club");
   await expect(page.getByRole("cell", { name: "Double Oak Spirit", exact: true })).toBeVisible();
 
+  // A mashbill reads as its recipe now, not its name (SPEC M7).
   await openSeededBottle(page);
-  await page.getByRole("link", { name: "BBC 78/10/12" }).click();
+  await page.getByRole("link", { name: "78% Corn · 10% Rye · 12% Malted Barley" }).click();
   await expect(page).toHaveURL(/\/mashbills\/\d+$/);
   await expect(page.getByRole("cell", { name: "Double Oak Spirit", exact: true })).toBeVisible();
+});
+
+test("on a blend, each mashbill says which distillery it came from", async ({ page }) => {
+  await openSeededBottle(page);
+  // Three distilleries, three recipes — "78% corn" is meaningless without
+  // knowing whose (SPEC M7).
+  await expect(page.getByText("from Bardstown Bourbon Company")).toBeVisible();
+  await expect(page.getByText("from Tennessee Distilling Ltd.")).toBeVisible();
+  await expect(page.getByText("from Finger Lakes Distilling")).toBeVisible();
 });
 
 test("an entity page keeps the grid's sorting and view controls", async ({ page }) => {

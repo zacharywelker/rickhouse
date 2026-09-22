@@ -9,8 +9,56 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { saveBottleAction } from "@/app/(app)/bottles/actions";
-import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
+import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "@/lib/expressions/bottle-fields";
+import { sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type Option } from "@/lib/admin/types";
+import { ageBetween, describeAge } from "@/lib/bottles/age";
+
+/**
+ * Offers to work the age out from the fill and bottling dates (SPEC M8).
+ *
+ * Offers, rather than computes on change: an age statement you typed is the
+ * one that should win, and silently rewriting fields as you tab through dates
+ * is how people lose what they entered. Nothing moves until this is clicked.
+ */
+function DeriveAge({
+  values,
+  set,
+}: {
+  values: Record<string, FieldValue>;
+  set: (name: string, value: FieldValue) => void;
+}) {
+  const filled = String(values.barrelFilledOn ?? "");
+  const bottled = String(values.bottledOn ?? "");
+  const age = filled && bottled ? ageBetween(filled, bottled) : null;
+  if (!age) return null;
+
+  const already =
+    String(values.ageYears ?? "") === String(age.years) &&
+    String(values.ageMonths ?? "") === String(age.months) &&
+    String(values.ageDays ?? "") === String(age.days);
+
+  return (
+    <div className="col-span-full flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
+      <p className="text-sm text-muted-foreground">
+        Those dates are <span className="text-foreground">{describeAge(age)}</span> apart.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={already}
+        onClick={() => {
+          set("ageYears", String(age.years));
+          set("ageMonths", String(age.months));
+          set("ageDays", String(age.days));
+        }}
+      >
+        {already ? "Age filled in" : "Use that as the age"}
+      </Button>
+    </div>
+  );
+}
 
 export function BottleForm({
   bottleId,
@@ -41,16 +89,18 @@ export function BottleForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{bottleId ? "This bottle" : "Add a bottle"}</CardTitle>
-          <CardDescription>
-            What is true of this particular bottle. The mashbill, proof and distillery live on the expression, so a
-            second bottle of the same thing only needs filling in once.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {BOTTLE_FIELDS.map((field) => (
+      {BOTTLE_SECTIONS.map((section) => {
+        // The pick block is revealed by the single-barrel checkboxes, the same
+        // way the label form reveals its per-spirit sections.
+        if (!sectionVisible(section, null, values)) return null;
+        return (
+        <Card key={section.id}>
+          <CardHeader>
+            <CardTitle>{section.id === "bottle" && !bottleId ? "Add a Bottle" : section.title}</CardTitle>
+            {section.description ? <CardDescription>{section.description}</CardDescription> : null}
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {section.fields.map((field) => (
             <Field
               key={field.name}
               spec={field}
@@ -67,8 +117,11 @@ export function BottleForm({
               }
             />
           ))}
-        </CardContent>
-      </Card>
+            {section.id === "override" ? <DeriveAge values={values} set={set} /> : null}
+          </CardContent>
+        </Card>
+        );
+      })}
 
       {!state.ok && state.error ? (
         <p

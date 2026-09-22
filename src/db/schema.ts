@@ -109,28 +109,40 @@ export const distilleries = pgTable(
 );
 
 /** Reusable so you can ask "everything using this recipe". */
-export const mashbills = pgTable(
-  "mashbills",
+export const mashbills = pgTable("mashbills", {
+  id: serial("id").primaryKey(),
+  name: citext("name"),
+  distilleryId: integer("distillery_id").references(() => distilleries.id, { onDelete: "set null" }),
+  notes: text("notes"),
+});
+
+/**
+ * Grains as rows (M7). The old fixed columns handled exactly one unusual
+ * grain; a recipe with both oats and triticale lost the second one's name.
+ *
+ * The 99–101 tolerance lives in a DEFERRABLE constraint trigger in Postgres,
+ * which Drizzle has no way to declare — see schema.sql. It fires at commit, so
+ * a multi-row edit can pass through totals that are not 100.
+ */
+export const mashbillGrains = pgTable(
+  "mashbill_grains",
   {
     id: serial("id").primaryKey(),
-    name: citext("name"),
-    corn: pct("corn").notNull().default("0"),
-    rye: pct("rye").notNull().default("0"),
-    wheat: pct("wheat").notNull().default("0"),
-    maltedBarley: pct("malted_barley").notNull().default("0"),
-    maltedRye: pct("malted_rye").notNull().default("0"),
-    otherGrain: pct("other_grain").notNull().default("0"),
-    otherGrainName: text("other_grain_name"),
-    distilleryId: integer("distillery_id").references(() => distilleries.id, { onDelete: "set null" }),
-    notes: text("notes"),
+    mashbillId: integer("mashbill_id")
+      .notNull()
+      .references(() => mashbills.id, { onDelete: "cascade" }),
+    grain: text("grain").notNull(),
+    percent: pct("percent").notNull(),
+    /** Entry order. Display sorts by percent; this is only the tiebreak. */
+    position: integer("position").notNull().default(0),
   },
   (t) => [
-    check(
-      "mashbill_sums_to_100",
-      sql`${t.corn} + ${t.rye} + ${t.wheat} + ${t.maltedBarley} + ${t.maltedRye} + ${t.otherGrain} BETWEEN 99.0 AND 101.0`,
-    ),
+    index("mashbill_grains_mashbill_idx").on(t.mashbillId),
+    unique().on(t.mashbillId, t.grain),
+    check("mashbill_grains_percent_check", sql`${t.percent} > 0 AND ${t.percent} <= 100`),
   ],
 );
+
 
 export const finishes = pgTable("finishes", {
   id: serial("id").primaryKey(),
@@ -171,30 +183,14 @@ export const expressions = pgTable(
     name: citext("name").notNull(),
     slug: text("slug").notNull().unique(),
 
-    // Batch / release identity. Two batches of the same name are two rows.
-    batch: text("batch"),
-    releaseYear: integer("release_year"),
-    isSingleBarrel: boolean("is_single_barrel").notNull().default(false),
-    barrelNumber: text("barrel_number"),
-    bottleCount: integer("bottle_count"),
-
-    // Strength
+    // Strength, as the product is normally sold. A bottle may override it.
     proof: pct("proof"),
     abv: pct("abv").generatedAlwaysAs(sql`(proof / 2.0)`),
     isCaskStrength: boolean("is_cask_strength").notNull().default(false),
     isBottledInBond: boolean("is_bottled_in_bond").notNull().default(false),
-    isSingleBarrelPick: boolean("is_single_barrel_pick").notNull().default(false),
-    pickName: text("pick_name"),
 
-    // ---- Single barrel / private selection detail (nullable; shown when
-    // is_single_barrel or is_single_barrel_pick is set).
-    pickedBy: text("picked_by"),
-    barrelFilledOn: date("barrel_filled_on"),
-    bottledOn: date("bottled_on"),
-    warehouse: text("warehouse"),
-    rickFloor: text("rick_floor"),
-
-    // Age. NULL age_years = NAS; age_statement carries the human text.
+    // Age, as the product is normally sold. A bottle may override it.
+    // NULL age_years = NAS; age_statement carries the human text.
     ageYears: numeric("age_years", { precision: 4, scale: 1 }),
     ageMonths: integer("age_months"),
     ageDays: integer("age_days"),
@@ -242,7 +238,7 @@ export const expressions = pgTable(
     index("expressions_category_idx").on(t.categoryId),
     // Barcode lookup. Not unique: relabels and regional variants share codes.
     index("expressions_upc_idx").on(t.upc).where(sql`${t.upc} IS NOT NULL`),
-    unique().on(t.brandId, t.name, t.batch),
+    unique().on(t.brandId, t.name),
   ],
 );
 
@@ -304,6 +300,31 @@ export const bottles = pgTable(
       .notNull()
       .references(() => expressions.id, { onDelete: "restrict" }),
 
+    // ---- Release identity (M7). Here, not on the label, because these vary
+    // barrel to barrel — six picks of one Weller 12 are six bottles of one
+    // product, and putting these upstream forced a duplicate product per pick.
+    batch: text("batch"),
+    releaseYear: integer("release_year"),
+    isSingleBarrel: boolean("is_single_barrel").notNull().default(false),
+    isSingleBarrelPick: boolean("is_single_barrel_pick").notNull().default(false),
+    barrelNumber: text("barrel_number"),
+    bottleCount: integer("bottle_count"),
+    pickName: text("pick_name"),
+    pickedBy: text("picked_by"),
+    barrelFilledOn: date("barrel_filled_on"),
+    bottledOn: date("bottled_on"),
+    warehouse: text("warehouse"),
+    rickFloor: text("rick_floor"),
+
+    // ---- Overrides. NULL inherits from the label, resolved in bottle_list
+    // rather than copied on save, so correcting the label still flows through.
+    proof: pct("proof"),
+    abv: pct("abv").generatedAlwaysAs(sql`(proof / 2.0)`),
+    ageYears: numeric("age_years", { precision: 4, scale: 1 }),
+    ageMonths: integer("age_months"),
+    ageDays: integer("age_days"),
+    ageStatement: text("age_statement"),
+
     // Acquisition
     pricePaid: money("price_paid"),
     storeId: integer("store_id").references(() => stores.id, { onDelete: "set null" }),
@@ -320,7 +341,6 @@ export const bottles = pgTable(
 
     location: text("location"),
     isFavorite: boolean("is_favorite").notNull().default(false),
-    estimatedValue: money("estimated_value"),
     notes: text("notes"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -433,16 +453,24 @@ export const bottleList = pgView("bottle_list", {
   dateOpened: date("date_opened"),
   isFavorite: boolean("is_favorite").notNull(),
   storeId: integer("store_id"),
+  batch: text("batch"),
+  releaseYear: integer("release_year"),
+  isSingleBarrel: boolean("is_single_barrel").notNull(),
+  isSingleBarrelPick: boolean("is_single_barrel_pick").notNull(),
+  pickName: text("pick_name"),
+  barrelFilledOn: date("barrel_filled_on"),
+  bottledOn: date("bottled_on"),
   expressionId: integer("expression_id").notNull(),
   expressionName: citext("expression_name").notNull(),
-  batch: text("batch"),
+  /** Already resolved: the bottle's own value, or the label's. */
   proof: pct("proof"),
   abv: pct("abv"),
   ageYears: numeric("age_years", { precision: 4, scale: 1 }),
   ageStatement: text("age_statement"),
+  /** True when the value above came from the label rather than the bottle. */
+  proofInherited: boolean("proof_inherited").notNull(),
+  ageInherited: boolean("age_inherited").notNull(),
   msrp: money("msrp"),
-  isSingleBarrel: boolean("is_single_barrel").notNull(),
-  isSingleBarrelPick: boolean("is_single_barrel_pick").notNull(),
   brandId: integer("brand_id").notNull(),
   brand: citext("brand").notNull(),
   categoryId: integer("category_id").notNull(),

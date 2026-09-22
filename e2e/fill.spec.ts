@@ -58,7 +58,7 @@ test("the gauge can be poured with the keyboard and the level sticks", async ({ 
 
 test("opening a bottle stamps the date", async ({ page }) => {
   await openSeededBottle(page);
-  await page.getByLabel("Opened").check();
+  await page.getByLabel("Opened", { exact: true }).check();
 
   // Wait for the stamped date, not for the word "Opened" — the label carries
   // that text whether or not the write landed, so asserting on it would let
@@ -66,7 +66,7 @@ test("opening a bottle stamps the date", async ({ page }) => {
   await expect(page.getByRole("definition").first()).toHaveText(/\d{4}-\d{2}-\d{2}/);
 
   await page.reload();
-  await expect(page.getByLabel("Opened")).toBeChecked();
+  await expect(page.getByLabel("Opened", { exact: true })).toBeChecked();
   await expect(page.getByRole("definition").first()).toHaveText(/\d{4}-\d{2}-\d{2}/);
 });
 
@@ -93,7 +93,7 @@ test("emptying a bottle offers to mark it killed", async ({ page }) => {
 test("declining the prompt leaves the bottle empty but alive", async ({ page }) => {
   await page.goto("/bottles/new");
   // A fresh bottle so this test does not depend on the previous one's outcome.
-  await page.getByRole("combobox", { name: "Expression" }).click();
+  await page.getByRole("combobox", { name: "Label" }).click();
   await page.locator("[cmdk-input]").fill("Double Oak");
   await page.locator('[cmdk-item]:not([data-value="__create__"])').first().click();
   await page.getByRole("button", { name: "Add bottle" }).click();

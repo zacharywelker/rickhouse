@@ -3,6 +3,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import { db } from "@/db";
+import { describeMashbill, orderGrains } from "@/lib/mashbills";
 import {
   FIELD_GROUPS,
   FINISH_TYPES,
@@ -17,6 +18,7 @@ import {
   expressionMashbills,
   expressions,
   finishes,
+  mashbillGrains,
   mashbills,
   stores,
   tags,
@@ -90,7 +92,7 @@ function invalid(error: z.ZodError): SaveOutcome {
 const slugField: FieldSpec = {
   kind: "text",
   name: "slug",
-  label: "URL slug",
+  label: "URL Slug",
   placeholder: "generated from the name",
   help: "Used in links. Leave blank and one is made for you.",
   span: "half",
@@ -111,13 +113,13 @@ const categoriesConfig: ResourceConfig = {
   label: "Categories",
   singular: "Category",
   description:
-    "The spirit tree: Whiskey → American Whiskey → Bourbon, and later Rum → Jamaican → Pot Still. A category's field group decides which specialist fields an expression form shows.",
+    "The spirit tree: Whiskey → American Whiskey → Bourbon, and later Rum → Jamaican → Pot Still. A category's spirit type decides which specialist fields a label form shows.",
   columns: [
     nameColumn,
     { key: "parent", label: "Parent" },
-    { key: "fieldGroup", label: "Field group" },
+    { key: "fieldGroup", label: "Spirit Type" },
     { key: "sortOrder", label: "Order", numeric: true, secondary: true },
-    { key: "uses", label: "Expressions", numeric: true, secondary: true },
+    { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
   fields: [
     { kind: "text", name: "name", label: "Name", required: true, span: "half" },
@@ -125,7 +127,7 @@ const categoriesConfig: ResourceConfig = {
     {
       kind: "reference",
       name: "parentId",
-      label: "Parent category",
+      label: "Parent Category",
       resource: "categories",
       excludeSelfAndDescendants: true,
       help: "Leave empty for a top-level category.",
@@ -134,13 +136,21 @@ const categoriesConfig: ResourceConfig = {
     {
       kind: "select",
       name: "fieldGroup",
-      label: "Field group",
+      label: "Spirit Type",
       required: true,
       options: FIELD_GROUPS.map((g) => ({ value: g, label: g[0]!.toUpperCase() + g.slice(1) })),
-      help: "Which specialist fields expressions in this category show.",
+      help: "Which specialist fields a label in this category shows — a rum asks about esters and marque, a bourbon about char level.",
       span: "half",
     },
-    { kind: "number", name: "sortOrder", label: "Sort order", min: 0, step: 1, span: "half" },
+    {
+      kind: "number",
+      name: "sortOrder",
+      label: "Sort Order",
+      min: 0,
+      step: 1,
+      help: "Where this sits in pickers and lists. Low numbers first, ties fall back to the name — so Bourbon can sit above Rye instead of below Light Whiskey.",
+      span: "half",
+    },
   ],
   list: async () => {
     const rows = await db
@@ -168,7 +178,7 @@ const categoriesConfig: ResourceConfig = {
         fieldGroup: r.fieldGroup,
         sortOrder: r.sortOrder,
       },
-      ...(r.uses > 0 ? { deleteBlockedBy: `${r.uses} expression${r.uses === 1 ? " uses" : "s use"} this category` } : {}),
+      ...(r.uses > 0 ? { deleteBlockedBy: `${r.uses} label${r.uses === 1 ? " uses" : "s use"} this category` } : {}),
     }));
   },
   optionsFor: async () => ({ parentId: await categoryOptions() }),
@@ -241,7 +251,7 @@ const companiesConfig: ResourceConfig = {
     "Who owns what. Self-referencing, so ownership chains work: Brown-Forman owns Old Forester. A brand and a distillery can both point at the same company.",
   columns: [
     nameColumn,
-    { key: "parent", label: "Owned by" },
+    { key: "parent", label: "Owned By" },
     { key: "country", label: "Country", secondary: true },
     { key: "brands", label: "Brands", numeric: true, secondary: true },
     { key: "distilleries", label: "Distilleries", numeric: true, secondary: true },
@@ -252,7 +262,7 @@ const companiesConfig: ResourceConfig = {
     {
       kind: "reference",
       name: "parentId",
-      label: "Parent company",
+      label: "Parent Company",
       resource: "companies",
       excludeSelfAndDescendants: true,
       help: "For ownership chains. Leave empty if it owns itself.",
@@ -369,7 +379,7 @@ const brandsConfig: ResourceConfig = {
     nameColumn,
     { key: "company", label: "Company" },
     { key: "isNdp", label: "NDP" },
-    { key: "uses", label: "Expressions", numeric: true, secondary: true },
+    { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
   fields: [
     { kind: "text", name: "name", label: "Name", required: true, span: "half" },
@@ -378,7 +388,7 @@ const brandsConfig: ResourceConfig = {
     {
       kind: "checkbox",
       name: "isNdp",
-      label: "Non-distiller producer",
+      label: "Non-Distiller Producer",
       help: "Sources whiskey rather than distilling it.",
       span: "half",
     },
@@ -404,7 +414,7 @@ const brandsConfig: ResourceConfig = {
       id: r.id,
       cells: { name: r.name, company: r.company, isNdp: r.isNdp, uses: r.uses },
       values: { name: r.name, slug: r.slug, companyId: r.companyId, isNdp: r.isNdp, notes: r.notes },
-      ...(r.uses > 0 ? { deleteBlockedBy: `${r.uses} expression${r.uses === 1 ? " uses" : "s use"} this brand` } : {}),
+      ...(r.uses > 0 ? { deleteBlockedBy: `${r.uses} label${r.uses === 1 ? " uses" : "s use"} this brand` } : {}),
     }));
   },
   optionsFor: async () => ({ companyId: await companyOptions() }),
@@ -451,7 +461,7 @@ const distilleriesConfig: ResourceConfig = {
     { key: "company", label: "Company", secondary: true },
     { key: "where", label: "Location" },
     { key: "dspNumber", label: "DSP", secondary: true },
-    { key: "uses", label: "Expressions", numeric: true, secondary: true },
+    { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
   fields: [
     { kind: "text", name: "name", label: "Name", required: true, span: "half" },
@@ -460,7 +470,7 @@ const distilleriesConfig: ResourceConfig = {
     { kind: "text", name: "country", label: "Country", required: true, defaultValue: "USA", span: "half" },
     { kind: "text", name: "city", label: "City", span: "half" },
     { kind: "text", name: "state", label: "State", placeholder: "KY", span: "half" },
-    { kind: "text", name: "dspNumber", label: "DSP number", placeholder: "DSP-KY-95", span: "half" },
+    { kind: "text", name: "dspNumber", label: "DSP Number", placeholder: "DSP-KY-95", span: "half" },
     { kind: "number", name: "founded", label: "Founded", min: 1600, max: 2200, step: 1, span: "half" },
     notesField,
   ],
@@ -557,57 +567,24 @@ async function distilleryOptions(): Promise<Option[]> {
 // Mashbills
 // ------------------------------------------------------------
 
-const GRAINS = [
-  { name: "corn", label: "Corn" },
-  { name: "rye", label: "Rye" },
-  { name: "wheat", label: "Wheat" },
-  { name: "maltedBarley", label: "Malted barley" },
-  { name: "maltedRye", label: "Malted rye" },
-  { name: "otherGrain", label: "Other grain" },
-] as const;
-
-function describeMashbill(row: {
-  corn: string;
-  rye: string;
-  wheat: string;
-  maltedBarley: string;
-  maltedRye: string;
-  otherGrain: string;
-  otherGrainName: string | null;
-}): string {
-  const parts: string[] = [];
-  const push = (value: string, label: string) => {
-    const n = Number(value);
-    if (n > 0) parts.push(`${Number(n.toFixed(2))}% ${label}`);
-  };
-  push(row.corn, "corn");
-  push(row.rye, "rye");
-  push(row.wheat, "wheat");
-  push(row.maltedBarley, "malted barley");
-  push(row.maltedRye, "malted rye");
-  push(row.otherGrain, row.otherGrainName ?? "other");
-  return parts.join(" · ");
-}
-
 const mashbillsConfig: ResourceConfig = {
   key: "mashbills",
   label: "Mashbills",
   singular: "Mashbill",
   description:
-    "Grain recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100.",
+    "Grain recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any grain can go in — oats, triticale, whatever the distillery actually used.",
   columns: [
     { key: "name", label: "Name" },
     { key: "recipe", label: "Recipe" },
     { key: "distillery", label: "Distillery", secondary: true },
-    { key: "uses", label: "Expressions", numeric: true, secondary: true },
+    { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
+  // The grain list is rendered by GrainEditor, not as a FieldSpec — it is a
+  // variable number of rows, which the field renderer has no shape for. It
+  // hangs off distilleryId, the last field before it.
   fields: [
     { kind: "text", name: "name", label: "Name", placeholder: "BBC High Rye", span: "half" },
     { kind: "reference", name: "distilleryId", label: "Distillery", resource: "distilleries", span: "half" },
-    ...GRAINS.map(
-      (g): FieldSpec => ({ kind: "number", name: g.name, label: g.label, min: 0, max: 100, step: 0.01, span: "half" }),
-    ),
-    { kind: "text", name: "otherGrainName", label: "Other grain name", placeholder: "Oats", span: "half" },
     notesField,
   ],
   list: async () => {
@@ -615,13 +592,6 @@ const mashbillsConfig: ResourceConfig = {
       .select({
         id: mashbills.id,
         name: mashbills.name,
-        corn: mashbills.corn,
-        rye: mashbills.rye,
-        wheat: mashbills.wheat,
-        maltedBarley: mashbills.maltedBarley,
-        maltedRye: mashbills.maltedRye,
-        otherGrain: mashbills.otherGrain,
-        otherGrainName: mashbills.otherGrainName,
         distilleryId: mashbills.distilleryId,
         distillery: distilleries.name,
         notes: mashbills.notes,
@@ -631,22 +601,37 @@ const mashbillsConfig: ResourceConfig = {
       .leftJoin(distilleries, eq(mashbills.distilleryId, distilleries.id))
       .orderBy(asc(mashbills.name), asc(mashbills.id));
 
-    return rows.map((r) => ({
-      id: r.id,
-      cells: { name: r.name, recipe: describeMashbill(r), distillery: r.distillery, uses: r.uses },
-      values: {
-        name: r.name,
-        corn: r.corn,
-        rye: r.rye,
-        wheat: r.wheat,
-        maltedBarley: r.maltedBarley,
-        maltedRye: r.maltedRye,
-        otherGrain: r.otherGrain,
-        otherGrainName: r.otherGrainName,
-        distilleryId: r.distilleryId,
-        notes: r.notes,
-      },
-    }));
+    const grains = await db
+      .select({
+        mashbillId: mashbillGrains.mashbillId,
+        grain: mashbillGrains.grain,
+        percent: mashbillGrains.percent,
+        position: mashbillGrains.position,
+      })
+      .from(mashbillGrains)
+      .orderBy(asc(mashbillGrains.mashbillId), asc(mashbillGrains.position));
+
+    const byMashbill = new Map<number, Array<{ grain: string; percent: string; position: number }>>();
+    for (const g of grains) {
+      const list = byMashbill.get(g.mashbillId) ?? [];
+      list.push({ grain: g.grain, percent: g.percent, position: g.position });
+      byMashbill.set(g.mashbillId, list);
+    }
+
+    return rows.map((r) => {
+      const mine = byMashbill.get(r.id) ?? [];
+      return {
+        id: r.id,
+        cells: { name: r.name, recipe: describeMashbill(mine), distillery: r.distillery, uses: r.uses },
+        values: {
+          name: r.name,
+          distilleryId: r.distilleryId,
+          notes: r.notes,
+          // The editor reads this back out of its hidden field.
+          grains: JSON.stringify(orderGrains(mine).map((g) => ({ grain: g.grain, percent: String(Number(g.percent)) }))),
+        },
+      };
+    });
   },
   optionsFor: async () => ({ distilleryId: await distilleryOptions() }),
   save: async (raw, id) => {
@@ -654,26 +639,32 @@ const mashbillsConfig: ResourceConfig = {
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
 
-    // Percentages are numeric in Postgres, so they go back as strings.
-    const values = {
-      name: input.name,
-      corn: String(input.corn),
-      rye: String(input.rye),
-      wheat: String(input.wheat),
-      maltedBarley: String(input.maltedBarley),
-      maltedRye: String(input.maltedRye),
-      otherGrain: String(input.otherGrain),
-      otherGrainName: input.otherGrainName,
-      distilleryId: input.distilleryId,
-      notes: input.notes,
-    };
+    const values = { name: input.name, distilleryId: input.distilleryId, notes: input.notes };
 
-    if (id === null) {
-      const [row] = await db.insert(mashbills).values(values).returning({ id: mashbills.id });
-      return { ok: true, id: row!.id };
-    }
-    await db.update(mashbills).set(values).where(eq(mashbills.id, id));
-    return { ok: true, id };
+    /*
+     * Grains are replaced wholesale inside one transaction. The sum trigger is
+     * DEFERRABLE, so the delete-then-insert passes through a total of 0 and is
+     * only judged at commit — which is exactly why it is deferrable.
+     */
+    return db.transaction(async (tx) => {
+      const mashbillId =
+        id === null
+          ? (await tx.insert(mashbills).values(values).returning({ id: mashbills.id }))[0]!.id
+          : (await tx.update(mashbills).set(values).where(eq(mashbills.id, id)).returning({ id: mashbills.id }))[0]!.id;
+
+      await tx.delete(mashbillGrains).where(eq(mashbillGrains.mashbillId, mashbillId));
+      if (input.grains.length > 0) {
+        await tx.insert(mashbillGrains).values(
+          input.grains.map((g, position) => ({
+            mashbillId,
+            grain: g.grain,
+            percent: String(g.percent),
+            position,
+          })),
+        );
+      }
+      return { ok: true as const, id: mashbillId };
+    });
   },
   remove: async (id) => {
     await db.delete(mashbills).where(eq(mashbills.id, id));
@@ -692,7 +683,7 @@ const finishesConfig: ResourceConfig = {
   columns: [
     nameColumn,
     { key: "finishType", label: "Type" },
-    { key: "uses", label: "Expressions", numeric: true, secondary: true },
+    { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
   fields: [
     { kind: "text", name: "name", label: "Name", required: true, span: "half" },
@@ -774,7 +765,7 @@ const storesConfig: ResourceConfig = {
     { kind: "text", name: "name", label: "Name", required: true, span: "half" },
     slugField,
     { kind: "text", name: "location", label: "Location", placeholder: "Louisville, KY or Online", span: "half" },
-    { kind: "checkbox", name: "isOnline", label: "Online retailer", span: "half" },
+    { kind: "checkbox", name: "isOnline", label: "Online Retailer", span: "half" },
     { kind: "text", name: "url", label: "Website", placeholder: "https://", span: "full" },
     notesField,
   ],
@@ -948,23 +939,32 @@ async function mashbillOptions(): Promise<Option[]> {
     .select({
       value: mashbills.id,
       name: mashbills.name,
-      corn: mashbills.corn,
-      rye: mashbills.rye,
-      wheat: mashbills.wheat,
-      maltedBarley: mashbills.maltedBarley,
-      maltedRye: mashbills.maltedRye,
-      otherGrain: mashbills.otherGrain,
-      otherGrainName: mashbills.otherGrainName,
       distillery: distilleries.name,
+      // string_agg keeps this one query rather than one per mashbill.
+      recipe: sql<string | null>`(
+        select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
+          from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
+      )`,
     })
     .from(mashbills)
     .leftJoin(distilleries, eq(mashbills.distilleryId, distilleries.id))
     .orderBy(asc(mashbills.name), asc(mashbills.id));
-  return rows.map((r) => ({
-    value: r.value,
-    label: r.name ?? describeMashbill(r),
-    ...(r.name ? { hint: describeMashbill(r) } : r.distillery ? { hint: r.distillery } : {}),
-  }));
+
+  return rows.map((r) => {
+    const grains = (r.recipe ?? "")
+      .split("|")
+      .filter(Boolean)
+      .map((part) => {
+        const [grain = "", percent = "0"] = part.split(":");
+        return { grain, percent };
+      });
+    const recipe = describeMashbill(grains);
+    return {
+      value: r.value,
+      label: r.name ?? recipe ?? "Unnamed recipe",
+      ...(r.name && recipe ? { hint: recipe } : r.distillery ? { hint: r.distillery } : {}),
+    };
+  });
 }
 
 async function tagOptions(): Promise<Option[]> {
