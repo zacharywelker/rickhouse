@@ -144,13 +144,16 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                 <span className="pl-1 text-white/70" aria-hidden="true">
                   <GripVertical className="size-4" />
                 </span>
-                <div className="flex items-center gap-0.5">
+                {/* flex-wrap: five icon buttons don't fit in one row on narrow
+                    thumbnails, and the li's overflow-hidden was clipping the
+                    trailing ones (delete) instead of wrapping them. */}
+                <div className="flex flex-wrap items-center justify-end gap-0.5">
                   {/* Keyboard equivalents for the drag-and-drop above. */}
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:bg-white/20"
+                    className="size-7 p-0 text-white hover:bg-white/20"
                     onClick={() => moveTo(index, index - 1)}
                     disabled={index === 0}
                     aria-label="Move earlier"
@@ -161,7 +164,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:bg-white/20"
+                    className="size-7 p-0 text-white hover:bg-white/20"
                     onClick={() => moveTo(index, index + 1)}
                     disabled={index === order.length - 1}
                     aria-label="Move later"
@@ -172,7 +175,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:bg-white/20"
+                    className="size-7 p-0 text-white hover:bg-white/20"
                     onClick={() => void setPrimaryImageAction(image.id).then(() => router.refresh())}
                     disabled={image.isPrimary}
                     aria-label="Make hero image"
@@ -183,7 +186,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:bg-white/20"
+                    className="size-7 p-0 text-white hover:bg-white/20"
                     onClick={() => {
                       const kind = image.kind === "catalog" ? "life" : "catalog";
                       void setImageKindAction(image.id, kind).then(() => router.refresh());
@@ -197,7 +200,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:bg-white/20"
+                    className="size-7 p-0 text-white hover:bg-white/20"
                     onClick={() => void deleteBottleImageAction(image.id).then(() => router.refresh())}
                     aria-label="Delete photo"
                   >
