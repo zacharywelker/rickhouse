@@ -12,6 +12,15 @@
 # part of your parity/backup plan, because ./backups sits next to the data it
 # is meant to protect and that is not a backup.
 #
+# Each backup contains two independent copies of the data:
+#
+#   database.sql.gz  a full pg_dump, for restoring Rickhouse itself.
+#   csv.tar.gz        every table as a plain CSV, for opening the data in
+#                     something other than Rickhouse (Baserow, NocoDB, Excel,
+#                     Google Sheets, ...) if Rickhouse is ever unavailable.
+#                     These are a snapshot, not a restorable database: they
+#                     drop foreign keys and column types.
+#
 # Restores are printed at the end, against the archive just written.
 
 set -euo pipefail
@@ -61,6 +70,18 @@ echo "==> dumping ${PG_DB}"
 "${COMPOSE[@]}" exec -T db pg_dump -U "$PG_USER" -d "$PG_DB" --clean --if-exists \
   | gzip > "${WORK}/database.sql.gz"
 
+echo "==> exporting tables to CSV"
+mkdir -p "${WORK}/csv"
+TABLES="$("${COMPOSE[@]}" exec -T db psql -U "$PG_USER" -d "$PG_DB" -Atc \
+  "select tablename from pg_tables where schemaname = 'public' order by tablename")"
+for TABLE in $TABLES; do
+  "${COMPOSE[@]}" exec -T db psql -U "$PG_USER" -d "$PG_DB" -c \
+    "\\copy (select * from \"${TABLE}\") to stdout with csv header" \
+    > "${WORK}/csv/${TABLE}.csv"
+done
+tar -czf "${WORK}/csv.tar.gz" -C "${WORK}" csv
+rm -rf "${WORK}/csv"
+
 echo "==> archiving ${UPLOADS}"
 if [ -d "$UPLOADS" ]; then
   tar -czf "${WORK}/uploads.tar.gz" -C "$(dirname "$UPLOADS")" "$(basename "$UPLOADS")"
@@ -76,6 +97,12 @@ database: ${PG_DB}
 user:     ${PG_USER}
 uploads:  ${UPLOADS}
 image:    $("${COMPOSE[@]}" images app --format json 2>/dev/null | head -c 2000 || echo "unknown")
+contents:
+  database.sql.gz - full pg_dump, for restoring Rickhouse
+  csv.tar.gz       - every table as plain CSV, for reading the data
+                     elsewhere (Baserow, NocoDB, Excel, ...) if Rickhouse
+                     itself is ever unavailable. Not restorable as-is.
+  uploads.tar.gz   - uploaded photos/files
 META
 
 trap - EXIT
@@ -95,7 +122,7 @@ fi
 
 cat <<RESTORE
 
-To restore this backup:
+To restore Rickhouse from this backup:
 
   gunzip -c ${DEST}/database.sql.gz | ${COMPOSE[*]} exec -T db psql -U ${PG_USER} -d ${PG_DB}
   tar -xzf ${DEST}/uploads.tar.gz -C $(dirname "$UPLOADS")
@@ -103,4 +130,10 @@ To restore this backup:
 
 The dump is --clean --if-exists, so it drops what it replaces: restore into
 the database you meant to.
+
+To just read the data in something other than Rickhouse (Baserow, NocoDB,
+Excel, Google Sheets, ...) without running Postgres at all:
+
+  tar -xzf ${DEST}/csv.tar.gz -C /tmp
+  # -> /tmp/csv/*.csv, one file per table, ready to import.
 RESTORE

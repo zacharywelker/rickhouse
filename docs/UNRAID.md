@@ -154,7 +154,15 @@ Rickhouse has two things you really don't want to lose:
 * PostgreSQL data
 * Uploaded photos/files
 
-The backup script handles both.
+The backup script handles both, and writes each backup as:
+
+```
+rickhouse-<timestamp>/
+├── database.sql.gz   full pg_dump of the database
+├── csv.tar.gz         every table as plain CSV
+├── uploads.tar.gz     uploaded photos/files
+└── manifest.txt        what this backup is, and how to use it
+```
 
 For example:
 
@@ -169,6 +177,36 @@ For a real server, schedule this nightly using Unraid's **User Scripts** plugin.
 And occasionally make sure you can actually restore one.
 
 A backup you have never tested is less of a backup and more of a very reassuring bedtime story.
+
+## Restoring Rickhouse
+
+To put a backup back into a running stack:
+
+```bash
+gunzip -c rickhouse-<timestamp>/database.sql.gz | docker compose exec -T db psql -U rickhouse -d rickhouse
+tar -xzf rickhouse-<timestamp>/uploads.tar.gz -C ./data
+docker compose restart app
+```
+
+(The exact command, with your actual user/db names, is printed at the end of
+every `backup.sh` run.) The dump is `--clean --if-exists`, so it drops
+whatever it replaces — make sure you're restoring into the database you mean to.
+
+## Reading the data without Rickhouse
+
+If Rickhouse itself is down, gone, or you just want to look at the data in
+something else — Baserow, NocoDB, Excel, Google Sheets, a spreadsheet, `grep`
+— every backup includes `csv.tar.gz`: one plain CSV file per table, no
+Postgres required to read it.
+
+```bash
+tar -xzf rickhouse-<timestamp>/csv.tar.gz -C /tmp
+```
+
+That gives you `/tmp/csv/*.csv`, ready to open or import directly. This export
+is a snapshot for reading, not a restorable database — it drops foreign keys
+and column types, so use `database.sql.gz` (above) to actually bring
+Rickhouse back.
 
 # Troubleshooting
 
