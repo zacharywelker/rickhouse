@@ -36,7 +36,11 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
     for (const file of Array.from(files)) data.append("images", file);
     setBusy(true);
     setError(null);
-    const result = await uploadBottleImagesAction(bottleId, data);
+    // `.bind` first: a server action invoked directly (not via <form action>)
+    // only reliably ships File data when the FormData ends up as the sole
+    // call-time argument — passed alongside bottleId as a second positional
+    // argument, the files were silently dropped in transit.
+    const result = await uploadBottleImagesAction.bind(null, bottleId)(data);
     setBusy(false);
     if (!result.ok) setError(result.error);
     if (inputRef.current) inputRef.current.value = "";
