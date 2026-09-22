@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Star } from "lucide-react";
+import { Layers, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatNumeric, humanise } from "@/lib/utils";
 import type { GridRow } from "@/lib/bottles/grid";
@@ -107,6 +107,22 @@ function FamilyCluster({ rows, onExpand }: { rows: GridRow[]; onExpand: () => vo
   );
 }
 
+/** Sits at the front of an expanded family so fanning it out isn't a one-way trip. */
+function CollapseTile({ brand, expressionName, onCollapse }: { brand: string; expressionName: string; onCollapse: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onCollapse}
+      className="group flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-4 text-center text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+    >
+      <Layers className="size-6" />
+      <span className="text-xs">
+        Regroup {brand} <span className="font-medium">{expressionName}</span>
+      </span>
+    </button>
+  );
+}
+
 /** The same filtered set as the table, shown as photos (SPEC M4). */
 export function BottleGallery({ rows }: { rows: GridRow[] }) {
   const [expanded, setExpanded] = React.useState<ReadonlySet<number>>(new Set());
@@ -130,12 +146,35 @@ export function BottleGallery({ rows }: { rows: GridRow[] }) {
         seen.add(row.expressionId);
 
         const family = families.get(row.expressionId)!;
-        if (family.length === 1 || expanded.has(row.expressionId)) {
-          return family.map((member) => (
-            <li key={member.id}>
-              <BottleTile row={member} />
+        if (family.length === 1) {
+          return (
+            <li key={row.id}>
+              <BottleTile row={row} />
             </li>
-          ));
+          );
+        }
+
+        if (expanded.has(row.expressionId)) {
+          return [
+            <li key={`${row.expressionId}-collapse`}>
+              <CollapseTile
+                brand={row.brand}
+                expressionName={row.expressionName}
+                onCollapse={() =>
+                  setExpanded((prev) => {
+                    const next = new Set(prev);
+                    next.delete(row.expressionId);
+                    return next;
+                  })
+                }
+              />
+            </li>,
+            ...family.map((member) => (
+              <li key={member.id}>
+                <BottleTile row={member} />
+              </li>
+            )),
+          ];
         }
 
         return (
