@@ -14,33 +14,34 @@ export type Option = {
   parentId?: number | null;
 };
 
+/** Fields shared by every field kind. */
+type FieldBase = {
+  name: string;
+  label: string;
+  span?: FieldSpan;
+  /** Shown only when at least one of these boolean fields (in the same form) is on. Absent means always. */
+  showWhenAny?: ReadonlyArray<string>;
+};
+
 /** A field on an admin form. `name` matches the FormData key and the Zod key. */
 export type FieldSpec =
-  | {
+  | (FieldBase & {
       kind: "text";
-      name: string;
-      label: string;
       required?: boolean;
       placeholder?: string;
       help?: string;
       /** Prefilled when creating. Mirror the column default where there is one. */
       defaultValue?: string;
-      span?: FieldSpan;
-    }
-  | { kind: "textarea"; name: string; label: string; placeholder?: string; help?: string; span?: FieldSpan }
-  | {
+    })
+  | (FieldBase & { kind: "textarea"; placeholder?: string; help?: string })
+  | (FieldBase & {
       kind: "date";
-      name: string;
-      label: string;
       required?: boolean;
       help?: string;
       defaultValue?: string;
-      span?: FieldSpan;
-    }
-  | {
+    })
+  | (FieldBase & {
       kind: "number";
-      name: string;
-      label: string;
       required?: boolean;
       min?: number;
       max?: number;
@@ -49,35 +50,28 @@ export type FieldSpec =
       help?: string;
       /** Prefilled when creating. Mirror the column default where there is one. */
       defaultValue?: string;
-      span?: FieldSpan;
-    }
-  | { kind: "checkbox"; name: string; label: string; help?: string; span?: FieldSpan }
-  | {
+    })
+  | (FieldBase & { kind: "checkbox"; help?: string })
+  | (FieldBase & {
       kind: "select";
-      name: string;
-      label: string;
       options: ReadonlyArray<{ value: string; label: string }>;
       required?: boolean;
       help?: string;
-      span?: FieldSpan;
-    }
+    })
   /**
    * A picker over another entity, with "create new" inline. This is the field
    * that stops adding a bottle from turning into a detour to go create a
    * distillery first.
    */
-  | {
+  | (FieldBase & {
       kind: "reference";
-      name: string;
-      label: string;
       /** Null disables inline create for this picker. */
       resource: ReferenceResource | null;
       required?: boolean;
       help?: string;
       /** Rows that would create a cycle, e.g. a category's own descendants. */
       excludeSelfAndDescendants?: boolean;
-      span?: FieldSpan;
-    };
+    });
 
 export type FieldSpan = "full" | "half";
 

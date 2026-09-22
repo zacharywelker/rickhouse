@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXPRESSION_SECTIONS, sectionVisible, writableFields } from "../fields";
+import { EXPRESSION_SECTIONS, fieldVisible, sectionVisible, writableFields } from "../fields";
 import { BOTTLE_SECTIONS } from "../bottle-fields";
 
 const bottleSection = (id: string) => {
@@ -54,6 +54,30 @@ describe("sectionVisible", () => {
     for (const moved of ["batch", "releaseYear", "isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy"]) {
       expect(bottleFields.has(moved), `${moved} should be on the bottle`).toBe(true);
     }
+  });
+});
+
+describe("fieldVisible", () => {
+  const pickField = (name: string) => {
+    const found = bottleSection("pick").fields.find((f) => f.name === name);
+    if (!found) throw new Error(`no pick field ${name}`);
+    return found;
+  };
+
+  it("hides pick name and picked-by for a plain single barrel", () => {
+    expect(fieldVisible(pickField("pickName"), { isSingleBarrel: true })).toBe(false);
+    expect(fieldVisible(pickField("pickedBy"), { isSingleBarrel: true })).toBe(false);
+  });
+
+  it("shows every pick field, including pick name and picked-by, for a private selection", () => {
+    const values = { isSingleBarrelPick: true };
+    for (const field of bottleSection("pick").fields) {
+      expect(fieldVisible(field, values), `${field.name} should show for a private selection`).toBe(true);
+    }
+  });
+
+  it("shows fields with no showWhenAny regardless of values", () => {
+    expect(fieldVisible(pickField("barrelNumber"), {})).toBe(true);
   });
 });
 

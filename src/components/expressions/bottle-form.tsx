@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { saveBottleAction } from "@/app/(app)/bottles/actions";
 import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "@/lib/expressions/bottle-fields";
-import { sectionVisible } from "@/lib/expressions/fields";
+import { fieldVisible, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type Option } from "@/lib/admin/types";
 import { ageBetween, describeAge } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
@@ -103,6 +103,7 @@ export function BottleForm({
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {section.fields.map((field) => {
+            if (!fieldVisible(field, values)) return null;
             // Proof/ABV and the age triplet render as linked composites
             // rather than the generic field; see the label form for the same
             // pattern. `field` stays in BOTTLE_FIELDS so seeding and the

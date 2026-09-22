@@ -79,13 +79,23 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
     description: "Fill and bottling dates give the exact age without you having to work it out.",
     showWhenAny: ["isSingleBarrel", "isSingleBarrelPick"],
     fields: [
-      { kind: "text", name: "pickName", label: "Pick Name", placeholder: "Barrel #24 — Bourbon Society", span: "half" },
+      {
+        kind: "text",
+        name: "pickName",
+        label: "Pick Name",
+        placeholder: "Barrel #24 — Bourbon Society",
+        span: "half",
+        // A plain single barrel has no pick behind it — only a private
+        // selection does.
+        showWhenAny: ["isSingleBarrelPick"],
+      },
       {
         kind: "text",
         name: "pickedBy",
         label: "Picked By",
         placeholder: "The club, bar or society that chose it",
         span: "half",
+        showWhenAny: ["isSingleBarrelPick"],
       },
       { kind: "text", name: "barrelNumber", label: "Barrel Number", span: "half" },
       { kind: "number", name: "bottleCount", label: "Bottles In The Release", min: 1, step: 1, span: "half" },
