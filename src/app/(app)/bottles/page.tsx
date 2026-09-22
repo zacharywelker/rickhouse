@@ -41,7 +41,7 @@ export default async function BottlesPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl text-rye-gold">Collection</h1>
+          <h1 className="font-display text-3xl text-accent">Collection</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Every physical bottle you own. Filtering by a distillery finds the blends it contributed to, not just the
             bottles it made alone.

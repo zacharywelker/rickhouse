@@ -2,8 +2,11 @@
 
 /*
  * Warm rickhouse palette: charred oak, amber spirit, rye gold.
- * Dark is the default (SPEC M6); the light values are here so the toggle
- * added later has somewhere to land.
+ *
+ * Light and dark are equals (SPEC M6): every semantic token is declared once
+ * with light-dark(), and `color-scheme` decides which half applies. The OS
+ * preference is the default; a `data-theme` stamp on <html> overrides it with
+ * `only light` / `only dark`, which is why no token needs a second copy.
  */
 @theme {
   --color-oak-50: #faf6f0;
@@ -25,68 +28,64 @@
 }
 
 :root {
-  --background: var(--color-oak-950);
-  --foreground: var(--color-oak-100);
-  --card: #191208;
-  --card-foreground: var(--color-oak-100);
-  --muted: #241a0f;
-  --muted-foreground: #a8977f;
-  --border: #2e2214;
-  --input: #2e2214;
-  --primary: var(--color-amber-spirit);
-  --primary-foreground: #1a1206;
-  --ring: var(--color-rye-gold);
-  --destructive: #c4483a;
+  color-scheme: light dark;
+
+  --background: light-dark(#faf6f0, #120d08);
+  --foreground: light-dark(#1f170e, #f0e6d8);
+  --card: light-dark(#ffffff, #191208);
+  --card-foreground: light-dark(#1f170e, #f0e6d8);
+  --muted: light-dark(#f0e6d8, #241a0f);
+  --muted-foreground: light-dark(#6b4f2b, #a8977f);
+  --border: light-dark(#ddc9ac, #2e2214);
+  --input: light-dark(#ddc9ac, #2e2214);
+  --primary: light-dark(#8a4b12, #d98b2b);
+  --primary-foreground: light-dark(#ffffff, #1a1206);
+  --ring: light-dark(#8a4b12, #e8b55c);
+  --destructive: light-dark(#b3261e, #c4483a);
+
+  /*
+   * The display accent: headings, gold numerals, the favourite star. Rye gold
+   * carries it on dark, but rye gold on cream is 1.7:1, so light takes a burnt
+   * amber of the same family at 7.7:1. Never hard-code rye gold for text.
+   */
+  --accent: light-dark(#7a3f0e, #e8b55c);
+
+  /* The char-barrel grain behind large pages, warm in both modes. */
+  --glow-1: light-dark(rgba(138, 75, 18, 0.07), rgba(217, 139, 43, 0.10));
+  --glow-2: light-dark(rgba(138, 75, 18, 0.04), rgba(217, 139, 43, 0.05));
 }
 
-:root.light {
-  --background: var(--color-oak-50);
-  --foreground: var(--color-oak-900);
-  --card: #ffffff;
-  --card-foreground: var(--color-oak-900);
-  --muted: var(--color-oak-100);
-  --muted-foreground: var(--color-oak-600);
-  --border: var(--color-oak-200);
-  --input: var(--color-oak-200);
-  --primary: var(--color-oak-600);
-  --primary-foreground: #ffffff;
-  --ring: var(--color-oak-500);
-  --destructive: #b3261e;
+/* The toggle wins over the OS in both directions. */
+:root[data-theme="light"] {
+  color-scheme: only light;
+}
+:root[data-theme="dark"] {
+  color-scheme: only dark;
 }
 
 /*
  * Chart palette. The categorical slots are the validated eight-hue order from
  * the data-viz reference, stepped for each surface — not one palette flipped.
- * Validated against this app's card surface (#191208): lightness band, chroma
- * floor, CVD separation, normal-vision floor and 3:1 contrast all pass for the
- * five slots in use. Re-run the validator before adding a sixth.
+ * Both columns pass the lightness band, chroma floor, CVD separation and
+ * normal-vision floor against their own surface. Three light steps (aqua,
+ * yellow, magenta) sit under 3:1 on white, which the relief rule allows
+ * because every chart here ships direct labels and a table view.
+ * Re-run scripts/validate_palette.js before adding a sixth.
  *
  * Series colour carries identity only; text always wears a text token.
  */
 :root {
   --viz-surface: var(--card);
-  --viz-grid: #2e2214;
-  --viz-series-1: #3987e5;
-  --viz-series-2: #d95926;
-  --viz-series-3: #199e70;
-  --viz-series-4: #c98500;
-  --viz-series-5: #d55181;
-  --viz-other: #6b6257;
+  --viz-grid: light-dark(#ddc9ac, #2e2214);
+  --viz-series-1: light-dark(#2a78d6, #3987e5);
+  --viz-series-2: light-dark(#eb6834, #d95926);
+  --viz-series-3: light-dark(#1baf7a, #199e70);
+  --viz-series-4: light-dark(#eda100, #c98500);
+  --viz-series-5: light-dark(#e87ba4, #d55181);
+  --viz-other: light-dark(#8a8074, #6b6257);
   /* Single-hue measures (proof, counts, spend) use the app's own amber. */
-  --viz-accent: #d98b2b;
-  --viz-accent-soft: #8a5418;
-}
-
-:root.light {
-  --viz-grid: #ddc9ac;
-  --viz-series-1: #2a78d6;
-  --viz-series-2: #eb6834;
-  --viz-series-3: #1baf7a;
-  --viz-series-4: #eda100;
-  --viz-series-5: #e87ba4;
-  --viz-other: #8a8074;
-  --viz-accent: #8a6839;
-  --viz-accent-soft: #c4a678;
+  --viz-accent: light-dark(#8a6839, #d98b2b);
+  --viz-accent-soft: light-dark(#c4a678, #8a5418);
 }
 
 @theme inline {
@@ -102,6 +101,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
+  --color-accent: var(--accent);
   --color-viz-grid: var(--viz-grid);
   --color-viz-accent: var(--viz-accent);
 }
@@ -123,7 +123,7 @@
     pointer-events: none;
     z-index: -1;
     background:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(217, 139, 43, 0.10), transparent 70%),
-      radial-gradient(ellipse 60% 40% at 90% 110%, rgba(217, 139, 43, 0.05), transparent 70%);
+      radial-gradient(ellipse 80% 50% at 50% -10%, var(--glow-1), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 90% 110%, var(--glow-2), transparent 70%);
   }
 }

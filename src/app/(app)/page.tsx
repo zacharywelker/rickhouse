@@ -43,7 +43,7 @@ export default async function HomePage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="font-display text-3xl text-rye-gold">Rickhouse</h1>
+        <h1 className="font-display text-3xl text-accent">Rickhouse</h1>
         <p className="text-sm text-muted-foreground">Your shelf, catalogued.</p>
       </div>
 
@@ -76,7 +76,7 @@ export default async function HomePage() {
                 <li key={bottle.id} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <Link href={`/bottles/${bottle.id}`} className="font-medium hover:underline">
-                      {bottle.brand} <span className="text-rye-gold">{bottle.name}</span>
+                      {bottle.brand} <span className="text-accent">{bottle.name}</span>
                     </Link>
                     <span className="text-sm text-muted-foreground">
                       {formatNumeric(bottle.proof)} proof · {formatMoney(bottle.pricePaid)}
@@ -95,7 +95,7 @@ export default async function HomePage() {
       </Card>
 
       <footer className="mt-auto text-xs text-muted-foreground">
-        <Link href="/api/health" className="hover:text-rye-gold">
+        <Link href="/api/health" className="hover:text-accent">
           Health check
         </Link>
       </footer>

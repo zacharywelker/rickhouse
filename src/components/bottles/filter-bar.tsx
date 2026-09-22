@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { BOTTLE_STATUSES } from "@/db/schema";
 import { DEFAULT_FILTERS, activeFilterCount, type BottleFilters, type Range } from "@/lib/bottles/filters";
 import type { Option } from "@/lib/admin/types";
+import { SEARCH_INPUT_ID } from "@/components/keyboard-shortcuts";
 import { useGridFilters } from "./use-grid-filters";
 
 export type FilterOptions = {
@@ -171,9 +172,24 @@ export function FilterBar({
 }) {
   const { apply, toggleId } = useGridFilters(filters);
   const [search, setSearch] = React.useState(filters.q ?? "");
+  // Eleven filter buttons push the first bottle off a phone screen, so below
+  // `sm` they live behind a disclosure. Open it if filters are already on:
+  // a narrowed list with no visible reason why is the worse failure.
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
   const active = activeFilterCount(filters);
 
   React.useEffect(() => setSearch(filters.q ?? ""), [filters.q]);
+
+  // Escape closes the mobile filter panel, like every other dismissable
+  // surface here. Radix handles its own popovers; this disclosure is ours.
+  React.useEffect(() => {
+    if (!filtersOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFiltersOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [filtersOpen]);
 
   const entities: Array<{ key: IdKey; label: string; options: Option[] }> = [
     { key: "categoryIds", label: "Category", options: options.categories },
@@ -198,9 +214,10 @@ export function FilterBar({
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id={SEARCH_INPUT_ID}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search brand, expression, distillery…"
+              placeholder="Search brand, expression, distillery, notes…"
               aria-label="Search bottles"
               className="h-9 pl-9"
             />
@@ -236,7 +253,8 @@ export function FilterBar({
         {filters.view === "table" ? (
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm">
+              {/* Hidden on phones: it tunes the table, and the phone shows cards. */}
+              <Button variant="outline" size="sm" className="hidden md:inline-flex">
                 <SlidersHorizontal className="size-4" />
                 Columns
               </Button>
@@ -270,8 +288,30 @@ export function FilterBar({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 sm:hidden">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-expanded={filtersOpen}
+          aria-controls="filter-row"
+          onClick={() => setFiltersOpen((v) => !v)}
+          className={cn(active > 0 && "border-primary/50 text-primary")}
+        >
+          <Filter className="size-4" />
+          Filters
+          {active > 0 ? <Badge className="ml-1 border-primary/40 text-primary">{active}</Badge> : null}
+        </Button>
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {total} bottle{total === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div
+        id="filter-row"
+        className={cn("flex-wrap items-center gap-2 sm:flex", filtersOpen ? "flex" : "hidden")}
+      >
+        <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
           <Filter className="size-3.5" />
           Filter
         </span>
@@ -374,7 +414,7 @@ export function FilterBar({
           </Button>
         ) : null}
 
-        <span className="ml-auto text-sm tabular-nums text-muted-foreground">
+        <span className="ml-auto hidden text-sm tabular-nums text-muted-foreground sm:inline">
           {total} bottle{total === 1 ? "" : "s"}
         </span>
       </div>

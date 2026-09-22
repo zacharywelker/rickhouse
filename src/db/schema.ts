@@ -452,6 +452,15 @@ export const bottleList = pgView("bottle_list", {
   finishes: text("finishes"),
   avgRating: numeric("avg_rating", { precision: 3, scale: 1 }),
   thumbPath: text("thumb_path"),
+  /**
+   * Weighted tsvector over brand, expression, distilleries, finishes, store
+   * and every note attached to the bottle (SPEC M6). Declared as text because
+   * Drizzle has no tsvector type and nothing here ever reads the value — it is
+   * only ever matched against, in raw SQL.
+   */
+  search: text("search"),
+  /** The same corpus as plain text, for the substring arm of the search. */
+  searchText: text("search_text"),
 }).existing();
 
 // ------------------------------------------------------------

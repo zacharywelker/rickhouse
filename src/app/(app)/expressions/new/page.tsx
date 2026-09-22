@@ -11,7 +11,7 @@ export default async function NewExpressionPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
-        <h1 className="font-display text-3xl text-rye-gold">New expression</h1>
+        <h1 className="font-display text-3xl text-accent">New expression</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           An expression is the product — the mashbill, proof and distillery. The bottle on your shelf comes next, and
           buying a second one just adds another bottle to this same expression.

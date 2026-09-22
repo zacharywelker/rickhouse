@@ -60,10 +60,13 @@ test("opening a bottle stamps the date", async ({ page }) => {
   await openSeededBottle(page);
   await page.getByLabel("Opened").check();
 
-  await expect(page.getByText("Opened", { exact: true }).last()).toBeVisible();
+  // Wait for the stamped date, not for the word "Opened" — the label carries
+  // that text whether or not the write landed, so asserting on it would let
+  // the reload below race an in-flight server action.
+  await expect(page.getByRole("definition").first()).toHaveText(/\d{4}-\d{2}-\d{2}/);
+
   await page.reload();
   await expect(page.getByLabel("Opened")).toBeChecked();
-  // The stamped date appears in the gauge panel's summary list.
   await expect(page.getByRole("definition").first()).toHaveText(/\d{4}-\d{2}-\d{2}/);
 });
 

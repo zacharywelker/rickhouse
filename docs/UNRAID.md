@@ -198,6 +198,35 @@ is a good reason to pin once you have data you care about.
 
 ---
 
+## Backups
+
+The stack ships a backup script. Run it from the stack directory — the same
+one holding `docker-compose.yml`:
+
+```sh
+cd /boot/config/plugins/compose.manager/projects/rickhouse
+BACKUP_DIR=/mnt/user/backups/rickhouse ./scripts/backup.sh
+```
+
+It dumps the database through the `db` container, tars the uploads directory,
+and prints the restore commands for the archive it just wrote. `BACKUP_KEEP`
+controls retention (14 by default).
+
+Point `BACKUP_DIR` at a user share your parity or cloud backup already
+covers. The default writes next to the data it is protecting, which does not
+survive the disk failing.
+
+To run it nightly, add a cron entry with the **User Scripts** plugin, set to
+"Scheduled Daily":
+
+```sh
+#!/bin/bash
+cd /boot/config/plugins/compose.manager/projects/rickhouse
+BACKUP_DIR=/mnt/user/backups/rickhouse ./scripts/backup.sh
+```
+
+---
+
 ## Troubleshooting
 
 **`denied` or `manifest unknown` when pulling.** The GHCR package is still

@@ -97,7 +97,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">
-            <Link href="/bottles" className="hover:text-rye-gold">
+            <Link href="/bottles" className="hover:text-accent">
               Bottles
             </Link>
             {" · "}
@@ -107,7 +107,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Link href={`/brands/${row.brand.slug}` as Route} className="hover:underline">
               {row.brand.name}
             </Link>{" "}
-            <span className="text-rye-gold">{e.name}</span>
+            <span className="text-accent">{e.name}</span>
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {e.batch ? <Badge>{e.batch}</Badge> : null}
@@ -115,7 +115,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             {e.isSingleBarrelPick ? <Badge className="border-primary/40 text-primary">Private selection</Badge> : null}
             {e.isCaskStrength ? <Badge>Cask strength</Badge> : null}
             {e.isBottledInBond ? <Badge>Bottled in bond</Badge> : null}
-            {row.bottle.isFavorite ? <Badge className="border-rye-gold/40 text-rye-gold">Favourite</Badge> : null}
+            {row.bottle.isFavorite ? <Badge className="border-accent/40 text-accent">Favourite</Badge> : null}
           </div>
         </div>
         <Button variant="outline" asChild>

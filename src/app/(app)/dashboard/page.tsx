@@ -36,7 +36,7 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
-        <h1 className="font-display text-3xl text-rye-gold">Dashboard</h1>
+        <h1 className="font-display text-3xl text-accent">Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           What the collection actually looks like, rather than what you remember buying.
         </p>
@@ -137,7 +137,7 @@ function Leader({
       ) : (
         <p className="font-display text-xl">
           {href ? (
-            <Link href={href} className="hover:text-rye-gold">
+            <Link href={href} className="hover:text-accent">
               {value}
             </Link>
           ) : (

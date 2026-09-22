@@ -32,7 +32,7 @@ export function BottleGallery({ rows }: { rows: GridRow[] }) {
                 <FillGauge value={row.fillPct} readOnly height={130} label={`${row.expressionName} fill`} />
               )}
               {row.isFavorite ? (
-                <Star className="absolute right-2 top-2 size-4 fill-rye-gold text-rye-gold" aria-label="Favourite" />
+                <Star className="absolute right-2 top-2 size-4 fill-accent text-accent" aria-label="Favourite" />
               ) : null}
               {row.thumbPath ? (
                 <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-xs tabular-nums text-white">
@@ -42,7 +42,7 @@ export function BottleGallery({ rows }: { rows: GridRow[] }) {
             </div>
             <div className="flex flex-1 flex-col gap-1 p-3">
               <p className="text-xs text-muted-foreground">{row.brand}</p>
-              <p className="font-medium leading-tight group-hover:text-rye-gold">{row.expressionName}</p>
+              <p className="font-medium leading-tight group-hover:text-accent">{row.expressionName}</p>
               <p className="text-xs text-muted-foreground">
                 {formatNumeric(row.proof)} proof
                 {row.batch ? ` · ${row.batch}` : ""}

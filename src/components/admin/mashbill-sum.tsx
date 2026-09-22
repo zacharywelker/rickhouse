@@ -30,7 +30,7 @@ export function MashbillSum({ values }: { values: Record<string, string | boolea
         <span
           className={cn(
             "font-display text-lg tabular-nums",
-            exact ? "text-primary" : acceptable ? "text-rye-gold" : "text-destructive",
+            exact ? "text-primary" : acceptable ? "text-accent" : "text-destructive",
           )}
         >
           {rounded}%
@@ -40,7 +40,7 @@ export function MashbillSum({ values }: { values: Record<string, string | boolea
         <div
           className={cn(
             "h-full rounded-full transition-all",
-            exact ? "bg-primary" : acceptable ? "bg-rye-gold" : "bg-destructive",
+            exact ? "bg-primary" : acceptable ? "bg-accent" : "bg-destructive",
           )}
           style={{ width: `${Math.min(100, Math.max(0, total))}%` }}
         />
