@@ -50,6 +50,13 @@
       "when": 1790080174629,
       "tag": "0006_mashbill_grains",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790080174630,
+      "tag": "0007_proof_age_fixes",
+      "breakpoints": true
     }
   ]
 }
