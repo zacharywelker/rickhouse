@@ -54,6 +54,41 @@
   --destructive: #b3261e;
 }
 
+/*
+ * Chart palette. The categorical slots are the validated eight-hue order from
+ * the data-viz reference, stepped for each surface — not one palette flipped.
+ * Validated against this app's card surface (#191208): lightness band, chroma
+ * floor, CVD separation, normal-vision floor and 3:1 contrast all pass for the
+ * five slots in use. Re-run the validator before adding a sixth.
+ *
+ * Series colour carries identity only; text always wears a text token.
+ */
+:root {
+  --viz-surface: var(--card);
+  --viz-grid: #2e2214;
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+  --viz-series-3: #199e70;
+  --viz-series-4: #c98500;
+  --viz-series-5: #d55181;
+  --viz-other: #6b6257;
+  /* Single-hue measures (proof, counts, spend) use the app's own amber. */
+  --viz-accent: #d98b2b;
+  --viz-accent-soft: #8a5418;
+}
+
+:root.light {
+  --viz-grid: #ddc9ac;
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  --viz-series-3: #1baf7a;
+  --viz-series-4: #eda100;
+  --viz-series-5: #e87ba4;
+  --viz-other: #8a8074;
+  --viz-accent: #8a6839;
+  --viz-accent-soft: #c4a678;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -67,6 +102,8 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
+  --color-viz-grid: var(--viz-grid);
+  --color-viz-accent: var(--viz-accent);
 }
 
 @layer base {

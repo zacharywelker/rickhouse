@@ -67,9 +67,11 @@ at the end of every milestone.
 | M2 | Configuration CRUD | ✅ Done |
 | M3 | Expressions and bottles | ✅ Done — but see [Model revisions](#m7--model-revisions) |
 | M4 | The fill gauge and the grid | ✅ Done |
-| M5 | Entity pages and stats | ▶ Next |
-| M6 | Polish | Planned |
+| M5 | Entity pages and stats | ✅ Done |
+| M6 | Polish | ▶ Next |
 | M7 | Model revisions | Planned — from using M3 in anger |
+| M8 | Interaction and wording | Planned — from using M4 in anger |
+| M9 | Tastings beyond the shelf | Later add-on |
 
 Finished milestones are struck through below. They stay in the document
 because the revisions in M7 only make sense against what was actually built.
@@ -131,19 +133,37 @@ Shipped as **Configuration**; "taxonomy" was a database word.
 - ~~**Done when:** filtering by distillery returns every blend that distillery
   contributed to, not just single-distillery bottles.~~
 
-### M5 — Entity pages and stats ▶
-- `/distilleries/[slug]`, `/brands/[slug]`, `/mashbills/[id]`,
+### ~~M5 — Entity pages and stats~~ ✅
+- ~~`/distilleries/[slug]`, `/brands/[slug]`, `/mashbills/[id]`,
   `/finishes/[slug]`, `/stores/[slug]`: each lists every bottle connected to it
-  with a summary header (count, total spend, average proof, average rating).
-- `/dashboard`: collection size, total spend, spend vs. MSRP delta, breakdown by
+  with a summary header (count, total spend, average proof, average rating).~~
+  Each page is the M4 grid with a preset filter, so sorting, pagination and the
+  gallery toggle all come for free. The preset is merged *after* the URL
+  filters, so the entity can never be filtered away from its own page.
+- ~~`/dashboard`: collection size, total spend, spend vs. MSRP delta, breakdown by
   category, proof distribution, acquisitions over time, open vs. unopened,
-  top distilleries. Use Recharts.
-- Tasting notes CRUD with nose/palate/finish/overall and a 0–10 rating.
-- CSV import and export for bottles.
-- **Done when:** clicking Bardstown Bourbon Company from the Pursuit bottle
-  lands on a page listing that bottle among its contributions.
+  top distilleries. Use Recharts.~~
+- ~~Dashboard analytics, added after M4: what share of the collection is rye
+  versus bourbon versus everything else, the most-used mashbill, the most-used
+  distillery, the most-used finish. A dedicated analytics page can come later;
+  the dashboard carries these now.~~
+- ~~Tasting notes CRUD with nose/palate/finish/overall and a 0–10 rating.~~
+- ~~CSV import and export for bottles.~~ Import creates brands, distilleries,
+  finishes and stores as it meets them, but never categories — guessing where a
+  spirit sits in the tree is how a taxonomy rots. Rows are reported one by one
+  and nothing is rolled back, so a partial import is a usable import.
+- ~~**Done when:** clicking Bardstown Bourbon Company from the Pursuit bottle
+  lands on a page listing that bottle among its contributions.~~
+- Nav renamed along the way, per the M4 feedback: Home, Collection, Expressions,
+  Dashboard, Configuration.
 
-### M6 — Polish
+Two charting decisions worth keeping: every chart has a **Table** toggle that
+shows the same numbers as a real table (the chart is never the only way to read
+the data), and the acquisitions line is **stepped, not smoothed** — a month's
+count is discrete, and a curve between two months draws bottles that were never
+bought.
+
+### M6 — Polish ▶
 - Mobile-responsive throughout; the grid collapses to cards under 768px.
   Desktop functionality comes first, but the iPhone is a primary target, not an
   afterthought — it is where bottles actually get logged.
@@ -222,6 +242,76 @@ in this app's voice — it reads like industry jargon where everything else
 reads plainly. Undecided; candidates include Product, Release, Label, Bottling
 and Spirit. Whatever it becomes is a rename of the user-facing strings and
 optionally the `/expressions` route; the table name can stay.
+
+
+### M8 — Interaction and wording
+
+Feedback from using M4. Small, mostly independent, and none of it structural.
+
+**Rows open on double-click.** Hitting the expression link exactly is fiddly.
+Double-clicking anywhere in a grid row should open that bottle. Keep the link
+too — it is what makes middle-click and "open in new tab" work — and give the
+row `cursor: pointer` so the affordance is visible.
+
+**The opened date is editable.** Today opening a bottle stamps the date and
+that is the end of it. Clicking the date should let you correct it, for the
+bottle you opened three months ago and are only now logging.
+
+**Distillation and bottling dates on the expression, with age derived.** There
+are already `barrel_filled_on` and `bottled_on` in the single-barrel block.
+Surface them generally, and offer to compute years/months/days from the pair
+rather than making you work it out. Computed, not overwritten: a typed age
+statement still wins.
+
+**Title Case for field labels.** "Price paid" reads awkwardly beside "MSRP" and
+"UPC". Labels become "Price Paid", "Date Acquired", "Age Statement". This is a
+pass over the field specs, not a mechanism change.
+
+**Navigation renamed.** "Bottles" becomes **Collection** — it is the thing
+people mean — and today's "Collection" becomes **Home**. Landing on the wrong
+one repeatedly is the tell.
+
+**Ratings on the t8ke scale, explained in place.** The column is already
+`numeric(3,1)` over 0–10, which is the right shape. What is missing is that the
+scale is named and explained: hovering the Rating label should show what the
+numbers mean, because a bare 0–10 invites a 90-point-scale mental model where
+7 is mediocre. On t8ke's scale 5 is average and genuinely good.
+
+> The canonical wording lives at t8ke.com, which was unreachable from the build
+> environment. What is implemented is assembled from secondary sources and kept
+> in one constant so it is a one-line correction. Verify it against the source
+> before trusting the tooltip.
+
+**Categories: "Field group" needs a better name.** It decides which specialist
+fields an expression shows, and the values are whiskey / rum / agave / brandy.
+**Spirit type** is the honest name. Rename the label; the column can stay.
+
+**Categories: `sort_order` needs a purpose or a grave.** It controls the order
+categories appear in pickers and lists — so Bourbon can sit above Rye rather
+than falling alphabetically. If that is not worth the field, drop the column
+and sort by name. Decide, then either explain it in help text or remove it.
+
+**Expressions get the grid treatment.** Sortable columns, the same filter bar
+shape as bottles. The machinery from M4 is reusable; this is mostly wiring.
+
+---
+
+### M9 — Tastings beyond the shelf
+
+A later add-on, recorded so the data model can see it coming.
+
+Tasting notes hang off `bottles` today, which means you can only record what
+you own. Most tasting happens elsewhere — a bottle share, a bar, someone's
+kitchen. Those are worth keeping and they are exactly the ones you will forget.
+
+The shape that probably works: let a tasting note attach to an **expression**
+directly, with the bottle optional. A note then has a source — owned, bar,
+bottle share, sample, store pour — and a "tasted at" field. Nothing already
+recorded has to move.
+
+With that in place, a **tastings timeline** becomes possible: everything you
+have tried, newest first, owned or not, with the ratings alongside. That is a
+different and more interesting page than a list of what is on the shelf.
 
 ---
 

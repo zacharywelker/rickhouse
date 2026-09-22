@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { GripVertical, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ export type BottleImage = {
 };
 
 export function BottleImages({ bottleId, images }: { bottleId: number; images: BottleImage[] }) {
+  const router = useRouter();
   const [order, setOrder] = React.useState(images);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -38,6 +40,9 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
     setBusy(false);
     if (!result.ok) setError(result.error);
     if (inputRef.current) inputRef.current.value = "";
+    // Refresh explicitly rather than leaning on revalidation to land in time:
+    // the new photo has to appear the moment the upload returns.
+    router.refresh();
   }
 
   async function persist(next: BottleImage[]) {
@@ -153,7 +158,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                     variant="ghost"
                     size="sm"
                     className="text-white hover:bg-white/20"
-                    onClick={() => void setPrimaryImageAction(image.id)}
+                    onClick={() => void setPrimaryImageAction(image.id).then(() => router.refresh())}
                     disabled={image.isPrimary}
                     aria-label="Make hero image"
                   >
@@ -164,7 +169,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                     variant="ghost"
                     size="sm"
                     className="text-white hover:bg-white/20"
-                    onClick={() => void deleteBottleImageAction(image.id)}
+                    onClick={() => void deleteBottleImageAction(image.id).then(() => router.refresh())}
                     aria-label="Delete photo"
                   >
                     <Trash2 className="size-4" />

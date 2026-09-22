@@ -18,12 +18,13 @@ export type FilterOptions = {
   categories: Option[];
   brands: Option[];
   distilleries: Option[];
+  mashbills: Option[];
   finishes: Option[];
   stores: Option[];
   tags: Option[];
 };
 
-type IdKey = "categoryIds" | "brandIds" | "distilleryIds" | "finishIds" | "storeIds" | "tagIds";
+type IdKey = "categoryIds" | "brandIds" | "distilleryIds" | "mashbillIds" | "finishIds" | "storeIds" | "tagIds";
 
 function EntityFilter({
   label,
@@ -178,6 +179,7 @@ export function FilterBar({
     { key: "categoryIds", label: "Category", options: options.categories },
     { key: "brandIds", label: "Brand", options: options.brands },
     { key: "distilleryIds", label: "Distillery", options: options.distilleries },
+    { key: "mashbillIds", label: "Mashbill", options: options.mashbills },
     { key: "finishIds", label: "Finish", options: options.finishes },
     { key: "storeIds", label: "Store", options: options.stores },
     { key: "tagIds", label: "Tag", options: options.tags },

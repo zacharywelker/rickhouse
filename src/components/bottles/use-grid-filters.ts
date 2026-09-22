@@ -31,7 +31,8 @@ export function useGridFilters(filters: BottleFilters) {
 
   /** Adds or removes one id from a multi-select filter. */
   const toggleId = React.useCallback(
-    (key: "categoryIds" | "brandIds" | "distilleryIds" | "finishIds" | "storeIds" | "tagIds", id: number) => {
+    (key: "categoryIds" | "brandIds" | "distilleryIds" | "mashbillIds" | "finishIds" | "storeIds" | "tagIds",
+      id: number) => {
       const current = filters[key];
       apply({ [key]: current.includes(id) ? current.filter((v) => v !== id) : [...current, id] });
     },
