@@ -217,6 +217,12 @@ export function sectionVisible(
   return true;
 }
 
+/** Same rule as `sectionVisible`, for a single field within a visible section. */
+export function fieldVisible(field: FieldSpec, values: Record<string, string | boolean>): boolean {
+  if (field.showWhenAny && !field.showWhenAny.some((name) => values[name] === true)) return false;
+  return true;
+}
+
 /** Field names a given field group is allowed to write. */
 export function writableFields(fieldGroup: FieldGroup): Set<string> {
   const names = new Set<string>();
