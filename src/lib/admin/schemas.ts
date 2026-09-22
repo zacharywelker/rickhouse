@@ -119,7 +119,6 @@ const grainRow = z.object({
 export const mashbillSchema = z
   .object({
     name: optionalText(120),
-    distilleryId: optionalRef,
     notes: optionalText(),
     // The editor serialises its rows into one hidden field.
     grains: z

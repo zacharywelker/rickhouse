@@ -75,12 +75,14 @@ CREATE TABLE distilleries (
 );
 CREATE INDEX distilleries_company_idx ON distilleries(company_id);
 
--- Mashbills are reusable entities so you can ask "everything using this recipe".
+-- Mashbills are reusable entities so you can ask "everything using this recipe" --
+-- reused across distilleries on purpose, since the same recipe name gets used by
+-- more than one producer. Which distillery supplied it belongs to the label's
+-- blend, not the recipe, so that link lives on expression_mashbills instead.
 -- Percentages should sum to 100; enforced in app, checked loosely here.
 CREATE TABLE mashbills (
     id              serial PRIMARY KEY,
     name            citext,                    -- "BBC High Rye", optional
-    distillery_id   integer REFERENCES distilleries(id) ON DELETE SET NULL,
     notes           text
 )
 
@@ -232,6 +234,10 @@ CREATE TABLE expression_mashbills (
     mashbill_id   integer NOT NULL REFERENCES mashbills(id) ON DELETE CASCADE,
     position      integer NOT NULL DEFAULT 0,
     share_pct     numeric(5,2),
+    -- Which of the label's distilleries made this mashbill. Only meaningful,
+    -- and only ever set, when the label has more than one distillery; with
+    -- exactly one, that distillery is the automatic answer and this is NULL.
+    distillery_id integer REFERENCES distilleries(id) ON DELETE SET NULL,
     PRIMARY KEY (expression_id, mashbill_id)
 );
 

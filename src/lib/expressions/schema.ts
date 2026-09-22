@@ -133,6 +133,8 @@ export const linkRowSchema = z.object({
   amount: z
     .union([z.literal(""), z.coerce.number().min(0).max(100000)])
     .transform((v) => (v === "" ? null : v)),
+  /** Mashbills only: which of the label's distilleries made this recipe. */
+  distilleryId: z.number().int().positive().nullable().optional(),
 });
 
 export type LinkRow = z.infer<typeof linkRowSchema>;

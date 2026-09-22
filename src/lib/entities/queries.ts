@@ -78,11 +78,8 @@ export async function getMashbill(id: number) {
           from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
       )`,
       notes: mashbills.notes,
-      distillery: distilleries.name,
-      distillerySlug: distilleries.slug,
     })
     .from(mashbills)
-    .leftJoin(distilleries, eq(mashbills.distilleryId, distilleries.id))
     .where(eq(mashbills.id, id))
     .limit(1);
   if (!row) return null;
