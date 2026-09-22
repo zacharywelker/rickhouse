@@ -1,315 +1,254 @@
 # Deploying Rickhouse on Unraid
 
-The app image is built by GitHub Actions and published to GitHub Container
-Registry, so your server pulls a finished image instead of compiling Next.js.
-Setup is two text files and a button — no clone, no build, no `git` on Unraid.
+Get Rickhouse onto your server without turning your server into a development machine.
 
-About ten minutes.
+The normal journey is:
 
----
+**GitHub → GitHub Actions → GHCR → Unraid → Rickhouse**
+
+GitHub builds the bottle. GHCR stores it. Unraid puts it on the shelf.
+
+You don't need to clone the repo, install Node.js, or build Next.js on the server. That's development work. Your server has better things to do.
 
 ## Before you start
 
-| | |
-|---|---|
-| Unraid | 6.12 or newer |
-| Community Applications | installed (it is how you get the plugin) |
-| The GHCR package | readable — see [step 0](#0-make-the-image-pullable) |
+You need:
 
----
+* Unraid 6.12+
+* Community Applications installed
+* Access to the Rickhouse container image in GHCR
 
-## 0. Make the image pullable
+That's about it. Let's put some liquor on the server.
 
-The first workflow run publishes `ghcr.io/zacharywelker/rickhouse`, and **new
-GHCR packages are private by default**. A private package means `docker pull`
-on Unraid fails with `denied` or `manifest unknown`, which looks like the image
-does not exist.
+## Step 1: Install Compose Manager Plus
 
-Pick one:
+In **Apps**, search for **Compose Manager** and install **Compose Manager Plus**.
 
-**Make it public** (simplest for a personal project — the image contains no
-secrets, only application code that is already in a public repo):
+This is how we'll manage the Rickhouse stack without spending our afternoon arguing with Docker.
 
-> github.com/users/zacharywelker/packages/container/rickhouse/settings →
-> **Danger Zone** → **Change visibility** → **Public**
+## Step 2: Create the Rickhouse stack
 
-**Or keep it private** and log Unraid in once. Create a
-[personal access token](https://github.com/settings/tokens) with the
-`read:packages` scope, then from the Unraid terminal:
+Open **Compose Manager** and create a new stack named:
 
-```sh
-echo '<your-token>' | docker login ghcr.io -u zacharywelker --password-stdin
+```text id="lb47tn"
+rickhouse
 ```
 
-The credential persists in `/root/.docker/config.json`, which does not survive
-a reboot on Unraid — so if you go this route, add that command to a **User
-Scripts** entry set to run at array start.
+Paste the Rickhouse `docker-compose.yml` into the stack.
 
----
+The Compose file takes care of the boring but important stuff: containers, networking, ports, volumes, and environment variables.
 
-## 1. Install Compose Manager Plus
+You get to worry about the fun stuff.
 
-**Apps** → search `Compose Manager Plus` → **Install**.
+## Step 3: Create the environment file
 
-Use *Plus*, not the original **Docker Compose Manager** — the original is
-deprecated and no longer updated. If you already have the old one, installing
-Plus removes it and takes over.
+Create the stack's `.env` file:
 
-A **Compose** section appears at the bottom of the **Docker** tab.
+```ini id="15rpb1"
+POSTGRES_PASSWORD=<something-long-and-random>
+APP_PASSWORD=<the-password-you-will-use-to-sign-in>
+SESSION_SECRET=<64-random-hex-characters>
 
----
-
-## 2. Create the stack
-
-**Docker** tab → **Compose** → **Add New Stack** → name it `rickhouse`.
-
-Click the stack's cog → **Edit Stack** → **Compose File**, and paste the
-contents of [`docker-compose.yml`](../docker-compose.yml) from this repository.
-
-Nothing in it needs editing — every value you might change comes from `.env`
-in the next step.
-
----
-
-## 3. Write your `.env`
-
-Same cog → **Edit Stack** → **Env File**. Paste
-[`.env.example`](../.env.example), then set these:
-
-```ini
-POSTGRES_PASSWORD=<something long>
-APP_PASSWORD=<the password you will type to sign in>
-SESSION_SECRET=<64 random hex characters>
-
-# Absolute paths on your array. See the warning below.
 POSTGRES_DATA_PATH=/mnt/user/appdata/rickhouse/postgres
 UPLOADS_PATH=/mnt/user/appdata/rickhouse/uploads
 ```
 
-Generate the secret from the Unraid terminal:
+Generate a session secret with:
 
-```sh
+```bash id="udoyyb"
 openssl rand -hex 32
 ```
 
-> **Set those two paths.** They default to `./data/...`, relative to the stack
-> folder — which lives on the **USB flash drive**. A Postgres database does not
-> belong on the boot stick: it is slow, it is small, and flash backups would
-> try to copy it. Absolute paths on the array are not optional here.
+### Give the database somewhere permanent to live
 
-`PUID=99` and `PGID=100` are already correct for Unraid (`nobody:users`) — the
-app drops to that uid/gid so bottle photos land on the share with ownership you
-can actually use from SMB and the file manager.
+The PostgreSQL and uploads paths should point to persistent storage on the Unraid array.
 
-Leave `COOKIE_SECURE=false` unless you reach the box over HTTPS.
+Do **not** put the PostgreSQL database on the USB boot drive.
 
----
+Your database contains the collection. The collection contains the important stuff. The boot drive does not need that kind of responsibility.
 
-## 4. Up
+The container also runs with:
 
-From the stack's menu: **Compose Up**. It pulls two images — the app from GHCR
-and stock `postgres:16-alpine` — and starts them.
+```ini id="uuockr"
+PUID=99
+PGID=100
+```
 
-First run does three things in order: starts Postgres, waits for it to pass its
-health check, then runs migrations and seeds the category tree plus the example
-bottle. Watch it:
+These correspond to Unraid's standard `nobody:users` permissions.
 
-```sh
+### If you're using HTTP vs HTTPS
+
+For plain HTTP:
+
+```ini id="kgsmum"
+COOKIE_SECURE=false
+```
+
+For HTTPS:
+
+```ini id="t6mn7w"
+COOKIE_SECURE=true
+```
+
+Get this wrong and you may successfully sign in only to immediately discover that Rickhouse has forgotten who you are.
+
+A deeply unnecessary betrayal.
+
+## Step 4: Start Rickhouse
+
+In Compose Manager, select the `rickhouse` stack and choose **Compose Up**.
+
+Then check the application logs:
+
+```bash id="ev3cy8"
 docker logs -f rickhouse-app
 ```
 
-You want `migrations applied`, `seed complete`, then
-`rickhouse: starting on port 1964`.
+On first startup, Rickhouse should:
 
----
+1. Connect to PostgreSQL
+2. Run any required migrations
+3. Start the application
+4. Begin listening on port `1964`
 
-## 5. Open it
+Once it's running, open:
 
-**http://\<your-unraid-ip\>:1964**
+```text id="7odiaj"
+http://YOUR-UNRAID-IP:1964
+```
 
-Sign in with `APP_PASSWORD`. Both containers appear in the **Docker** tab, and
-`rickhouse-app` carries a **WebUI** link that goes straight there.
+Welcome home.
 
-Confirm it is genuinely healthy, not merely running:
+### Check the health endpoint
 
-```sh
+From the Unraid terminal:
+
+```bash id="d6o0en"
 curl http://localhost:1964/api/health
-# {"status":"ok","database":"up"}
 ```
 
-That endpoint also backs the container's health check, so an `unhealthy`
-`rickhouse-app` means the database connection is broken even if the page loads.
+A healthy Rickhouse should respond:
 
----
-
-## Updating
-
-> **`docker compose up -d` on its own will not update anything.** Compose only
-> pulls when the tag is missing locally. You already have an image tagged
-> `latest`, so it is reused without the registry ever being asked whether
-> `latest` now points somewhere else. Tags are mutable pointers and Docker does
-> not re-check them on `up`. You have to pull.
-
-**Compose** → stack menu → **Update Stack**, which pulls and recreates. The
-plain **Compose Up** entry is the one that appears to do nothing.
-
-From the terminal, the same thing:
-
-```sh
-cd /boot/config/plugins/compose.manager/projects/rickhouse
-docker compose pull && docker compose up -d
+```json id="tybxxy"
+{"status":"ok","database":"up"}
 ```
 
-Confirm you are on the build you expected:
+If Rickhouse says the database is up, the database is up. Beautiful. We can all go home.
 
-```sh
-docker image inspect ghcr.io/zacharywelker/rickhouse:latest --format '{{index .RepoDigests 0}}'
-```
+# Updating Rickhouse
 
-Compare that digest against the one the GitHub Actions run published — the
-workflow summary prints the tags it pushed, and `sha-<commit>` always points at
-exactly one build.
+When a new Rickhouse image is published, update the stack through Compose Manager.
 
-Migrations run automatically on start and are idempotent. Your data lives in
-the bind-mounted folders and is untouched by the update.
+In **Docker → Compose → Rickhouse**, use **Update Stack**.
 
-The compose file and `.env` on your server are copies, not links to the
-repository. Most releases change neither, but when one does, the release notes
-say so and you re-paste the changed file before updating.
+The new image will be pulled and the containers recreated.
 
-Old image layers accumulate. Occasionally:
+Database migrations run automatically when required.
 
-```sh
-docker image prune -f
-```
+No rebuilding. No cloning. No server-side development environment. Just the new bottle going on the shelf.
 
-### Pinning a version
+# Backups
 
-`RICKHOUSE_TAG=latest` follows `main`. To update deliberately instead, pin a
-tag in `.env`:
+Rickhouse has two things you really don't want to lose:
 
-```ini
-RICKHOUSE_TAG=sha-1a2b3c4     # a specific commit
-RICKHOUSE_TAG=1.2.0           # a release, once tags exist
-```
+* PostgreSQL data
+* Uploaded photos/files
 
-Rolling back is then editing that line and running Update Stack again — which
-is a good reason to pin once you have data you care about.
+The backup script handles both.
 
----
+For example:
 
-## Backups
-
-The stack ships a backup script. Run it from the stack directory — the same
-one holding `docker-compose.yml`:
-
-```sh
-cd /boot/config/plugins/compose.manager/projects/rickhouse
+```bash id="4k3z4p"
 BACKUP_DIR=/mnt/user/backups/rickhouse ./scripts/backup.sh
 ```
 
-It dumps the database through the `db` container, tars the uploads directory,
-and prints the restore commands for the archive it just wrote. `BACKUP_KEEP`
-controls retention (14 by default).
+By default, the script keeps 14 backups.
 
-Point `BACKUP_DIR` at a user share your parity or cloud backup already
-covers. The default writes next to the data it is protecting, which does not
-survive the disk failing.
+For a real server, schedule this nightly using Unraid's **User Scripts** plugin.
 
-To run it nightly, add a cron entry with the **User Scripts** plugin, set to
-"Scheduled Daily":
+And occasionally make sure you can actually restore one.
 
-```sh
-#!/bin/bash
-cd /boot/config/plugins/compose.manager/projects/rickhouse
-BACKUP_DIR=/mnt/user/backups/rickhouse ./scripts/backup.sh
+A backup you have never tested is less of a backup and more of a very reassuring bedtime story.
+
+# Troubleshooting
+
+### Rickhouse keeps restarting
+
+Check the application logs:
+
+```bash id="lalcgs"
+docker logs rickhouse-app
 ```
 
----
+Then check PostgreSQL:
 
-## Troubleshooting
-
-**`denied` or `manifest unknown` when pulling.** The GHCR package is still
-private and Unraid is not logged in. See [step 0](#0-make-the-image-pullable).
-
-**App container restarts in a loop.** `docker logs rickhouse-app`. Almost
-always a missing or too-short variable — the app refuses to start rather than
-run insecurely. `SESSION_SECRET` needs 32+ characters, `APP_PASSWORD` needs 8+.
-
-**Sign-in does nothing, no error.** `COOKIE_SECURE=true` while reaching the box
-over plain HTTP. The browser is told to send the cookie only over HTTPS, so it
-never comes back. Set it to `false`.
-
-**Photos upload but you cannot delete them from SMB.** `PUID`/`PGID` do not
-match your share. They should be `99` and `100`.
-
-**Postgres will not start after changing `POSTGRES_PASSWORD`.** That variable
-only applies when the data directory is first created. See *Changing the
-database password* in the main [README](../README.md).
-
-**Port 1964 is taken.** Change `APP_PORT` in `.env`. That is the host side of
-the mapping only; nothing inside the container moves.
-
-**An update changed nothing.** You ran `docker compose up -d` without pulling
-first. See [Updating](#updating) — `up` reuses whatever `latest` already points
-at on disk. If you pulled and it still looks unchanged, check the digest you
-are actually running:
-
-```sh
-docker inspect rickhouse-app --format '{{.Image}}'
-docker image inspect ghcr.io/zacharywelker/rickhouse:latest --format '{{.Id}}'
+```bash id="0882xr"
+docker logs rickhouse-db
 ```
 
-Those two matching means the container is running the image you have; if the
-image is still the old one, the pull did not happen. A stale browser cache can
-also hide a change that did land — hard-reload before concluding anything.
+The usual suspects are incorrect environment variables, database permissions, or PostgreSQL failing to start.
 
-**Starting completely over.** `docker compose down`, delete the `postgres` and
-`uploads` folders, bring it up again. The seed reappears because the collection
-is empty.
+Rick is not hiding the evidence. The logs are right there.
 
----
+### Sign-in doesn't work
 
-## Appendix: building on the server instead
+Check:
 
-If you would rather not depend on the registry — a private fork, or local
-changes you have not pushed — you can build on the box. It costs a few minutes
-of CPU per update and some Docker vDisk space.
+* `APP_PASSWORD`
+* `COOKIE_SECURE`
+* whether you're accessing Rickhouse over HTTP or HTTPS
+* application logs
 
-```sh
-mkdir -p /mnt/user/appdata/rickhouse
-cd /mnt/user/appdata/rickhouse
-git clone https://github.com/zacharywelker/rickhouse.git source
-cd source
-cp .env.example .env && nano .env        # same values as step 3
-docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+If you're using HTTP, make sure:
+
+```ini id="xqowrb"
+COOKIE_SECURE=false
 ```
 
-`git` is not in Unraid's base install — add it via
-[NerdTools](https://github.com/UnRAIDES/unRAID-NerdTools), or download the repo
-zip instead.
+If you're using HTTPS, make sure it's:
 
-Put the clone on the **array**, not in the plugin's project folder on the flash
-drive, and keep the data paths pointed outside the clone so a re-clone or
-`git clean` cannot take your collection with it.
-
-To register this with Compose Manager Plus, use its **indirect stack** support
-to point at `/mnt/user/appdata/rickhouse/source/docker-compose.yml`.
-
-Reclaim build cache periodically:
-
-```sh
-docker builder prune -f
+```ini id="t6mn7w"
+COOKIE_SECURE=true
 ```
 
----
+### Photos disappear after a restart
 
-## Sources
+Check that:
 
-- [Compose Manager Plus](https://github.com/mstrhakr/compose_plugin) — the
-  maintained replacement for the deprecated Docker Compose Manager, including
-  `build:` support and indirect stacks.
-- [Unraid forums: Docker labels for template information](https://forums.unraid.net/topic/105284-use-docker-labels-for-unraid-specific-information-in-docker-templates-to-allow-for-a-11-map-between-unraid-templates-and-docker-compose-files/)
-  — `net.unraid.docker.webui` and `net.unraid.docker.icon`.
-- [NerdTools](https://github.com/UnRAIDES/unRAID-NerdTools) — how to get `git`
-  onto Unraid if you want it.
+```ini id="ap80s7"
+UPLOADS_PATH=/mnt/user/appdata/rickhouse/uploads
+```
+
+points to persistent Unraid storage.
+
+If uploads are stored only inside the container, they're temporary.
+
+Containers are disposable.
+
+Your photos of that bottle you bought in Kentucky because you were “definitely not buying any more bourbon” are not.
+
+### PostgreSQL password problems
+
+`POSTGRES_PASSWORD` is used when PostgreSQL initializes its database.
+
+Changing the value in `.env` **after the database already exists does not change PostgreSQL's existing password**.
+
+If you need to change the database password, handle that as a PostgreSQL credential change rather than simply editing `.env`.
+
+This is one of those places where Docker politely lets you make a change that looks like it should work.
+
+It doesn't.
+
+## Starting completely over
+
+If you intentionally want to destroy the Rickhouse installation and its data, stop the stack and remove the persistent PostgreSQL data and uploads directories.
+
+**This is destructive. Make sure you have a backup first.**
+
+The PostgreSQL directory contains your collection data.
+
+The uploads directory contains your photos.
+
+Deleting them is not an uninstall.
+
+It's a small digital fire.
