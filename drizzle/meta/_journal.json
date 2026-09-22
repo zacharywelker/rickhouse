@@ -57,6 +57,13 @@
       "when": 1790080174630,
       "tag": "0007_proof_age_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790080174631,
+      "tag": "0008_bottle_list_field_group",
+      "breakpoints": true
     }
   ]
 }
