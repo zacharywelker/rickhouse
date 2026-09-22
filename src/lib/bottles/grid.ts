@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, getViewSelectedFields, gte, ilike, inArray, lte, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList } from "@/db/schema";
 import type { BottleFilters, SortKey } from "./filters";
@@ -48,13 +48,23 @@ function buildWhere(filters: BottleFilters): SQL | undefined {
   const clauses: SQL[] = [];
 
   if (filters.q) {
-    const needle = `%${filters.q}%`;
+    /*
+     * Full text OR substring (SPEC M6).
+     *
+     * websearch_to_tsquery gives quoted phrases, OR and -exclusion for free,
+     * and stems — so "barrels" finds "barrel". What it cannot do is prefixes:
+     * nobody typing "goose" wants zero results on the way to "gooseberry". So
+     * a substring arm runs beside it over search_text, which is the identical
+     * corpus as plain text — the two can never disagree about which fields
+     * are searchable.
+     *
+     * Order is untouched on purpose. The grid's sort is the user's, and
+     * silently switching to relevance because a search box has text in it is
+     * the kind of helpfulness that loses people their place.
+     */
     const match = or(
-      ilike(sql`${bottleList.brand}::text`, needle),
-      ilike(sql`${bottleList.expressionName}::text`, needle),
-      ilike(sql`coalesce(${bottleList.distilleries}, '')`, needle),
-      ilike(sql`coalesce(${bottleList.batch}, '')`, needle),
-      ilike(sql`coalesce(${bottleList.ageStatement}, '')`, needle),
+      sql`${bottleList.search} @@ websearch_to_tsquery('english', ${filters.q})`,
+      ilike(bottleList.searchText, `%${filters.q}%`),
     );
     if (match) clauses.push(match);
   }
@@ -108,7 +118,14 @@ function buildWhere(filters: BottleFilters): SQL | undefined {
   return clauses.length === 0 ? undefined : and(...clauses);
 }
 
-export type GridRow = typeof bottleList.$inferSelect;
+/*
+ * Every column except the two search ones. They are only ever matched
+ * against, and a `select *` would ship the whole corpus — lexemes and the
+ * plain text of every tasting note — to the browser for each of 25 rows.
+ */
+const { search: _search, searchText: _searchText, ...GRID_COLUMNS } = getViewSelectedFields(bottleList);
+
+export type GridRow = Omit<typeof bottleList.$inferSelect, "search" | "searchText">;
 
 export async function queryBottles(filters: BottleFilters): Promise<{
   rows: GridRow[];
@@ -130,7 +147,7 @@ export async function queryBottles(filters: BottleFilters): Promise<{
   const page = Math.min(filters.page, pageCount);
 
   const rows = await db
-    .select()
+    .select(GRID_COLUMNS)
     .from(bottleList)
     .where(where)
     .orderBy(sql`${direction} NULLS LAST`, desc(bottleList.id))

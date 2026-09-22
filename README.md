@@ -8,10 +8,10 @@ Every bottle gets its own page. Brands, distilleries, mashbills, finishes and
 stores are real linked records rather than free text, so "show me everything
 Bardstown distilled" works even when the bottle is a three-way blend.
 
-> **Status: Milestone 5 (Entity pages and stats).** Everything through the
-> dashboard, entity pages and CSV transfer is done and verified. Polish —
-> mobile, light mode, search — is next; see [SPEC.md](SPEC.md), which also
-> lists the model revisions queued as M7.
+> **Status: Milestone 6 (Polish).** Mobile, light and dark, keyboard
+> shortcuts, full-text search and backups are done and verified. Next is M7,
+> the model revisions that came out of actually using it — see
+> [SPEC.md](SPEC.md).
 
 ---
 
@@ -28,7 +28,7 @@ Bardstown distilled" works even when the bottle is a three-way blend.
 | `src/db/schema.ts` | Drizzle mirror of `schema.sql`. Keep the two in lockstep. |
 | `src/lib/admin/registry.ts` | Every lookup entity described once — fields, columns, queries. |
 | `drizzle/` | Generated migrations. `0001` adds the `bottle_list` view by hand. |
-| `scripts/` | `migrate.ts` and `seed.ts`, both idempotent, both run at container start. |
+| `scripts/` | `migrate.ts` and `seed.ts`, both idempotent, both run at container start; `backup.sh` for dumps. |
 
 ---
 
@@ -179,16 +179,23 @@ On Unraid, the Compose Manager **Update Stack** action does both; plain
 ## Backup and restore
 
 ```sh
-# Backup: database + uploaded images
+npm run backup                              # -> ./backups/rickhouse-<timestamp>/
+BACKUP_DIR=/mnt/user/backups npm run backup # somewhere your parity plan covers
+```
+
+`scripts/backup.sh` dumps the database through the `db` container, tars the
+uploads directory, and prints the restore commands for the archive it just
+made. See [Backups](#backups) for retention and the safety properties.
+
+By hand, if you would rather:
+
+```sh
 docker compose exec -T db pg_dump -U rickhouse -Fc rickhouse > rickhouse-$(date +%F).dump
 tar czf rickhouse-uploads-$(date +%F).tar.gz -C /mnt/user/appdata/rickhouse uploads
 
-# Restore
 docker compose exec -T db pg_restore -U rickhouse -d rickhouse --clean --if-exists < rickhouse-2026-01-01.dump
 tar xzf rickhouse-uploads-2026-01-01.tar.gz -C /mnt/user/appdata/rickhouse
 ```
-
-A scripted version of this lands in Milestone 6.
 
 ### Changing the database password
 
@@ -366,6 +373,74 @@ so an unknown one fails its row and says so.
 
 Nothing is rolled back. Every row reports its own outcome, so a partial import
 is a usable import: fix the rows that failed and run them again.
+
+## Light, dark, and the phone
+
+Both themes are first-class. The app follows your system by default, and the
+toggle in the header (System / Light / Dark) overrides it in either direction.
+The choice is remembered per browser and applied by an inline script before
+first paint, so a stored light theme never flashes dark on the way in.
+
+Under the hood every token is declared once with CSS `light-dark()` and
+`color-scheme` picks the half — there is no duplicated dark block to drift.
+
+On a phone the nav collapses behind a menu, the grid becomes cards, and the
+filter row hides behind a **Filters** button so bottles are on screen without
+scrolling. The card keeps the fill gauge, because it is still the fastest read
+on the page.
+
+Light mode is accessible rather than designed: every colour passes contrast,
+but the real visual direction is still the brief in
+[docs/DESIGN.md](docs/DESIGN.md), deliberately unscheduled.
+
+## Keyboard
+
+| Key | Does |
+|---|---|
+| `/` | Focus the search box. From a page without one, goes to the collection. |
+| `n` | New bottle. |
+| `esc` | Closes whatever is open — dialogs, popovers, the nav and filter panels. |
+
+Neither `/` nor `n` fires while you are typing in a field, and neither steals a
+browser chord.
+
+## Search
+
+The search box runs two matches at once and returns anything either finds.
+
+A **weighted tsvector** covers the brand, expression, batch, age statement,
+category, store, distilleries, finishes, the expression's description, the
+bottle's notes and every tasting note on it. The name of the thing outranks
+what someone wrote about it. Because it is `websearch_to_tsquery`, quoted
+phrases, `OR` and `-exclusion` all work, and it stems — "barrels" finds
+"barrel".
+
+A **substring match** runs beside it over the identical corpus as plain text,
+because full text cannot match a prefix and nobody typing "goose" wants
+nothing on the way to "gooseberry".
+
+Sorting is left alone when you search. The grid's sort is yours; quietly
+switching to relevance because a box has text in it loses people their place.
+
+Both columns are computed in the `bottle_list` view, so they are never stale —
+and cannot be indexed. That is the right trade at a home collection's scale;
+`schema.sql` says what to do if it ever stops being.
+
+## Backups
+
+```bash
+npm run backup                      # -> ./backups/rickhouse-<timestamp>/
+BACKUP_DIR=/mnt/user/backups npm run backup
+BACKUP_KEEP=30 npm run backup       # keep the 30 newest
+```
+
+Dumps the database through the `db` container and tars the uploads directory.
+It writes to a `.partial` directory and renames at the end, so an interrupted
+run never leaves something that looks like a usable backup, and it prints the
+exact restore commands for the archive it just made.
+
+Point `BACKUP_DIR` at a share that is part of your actual backup plan. The
+default lives next to the data it is protecting, which is not a backup.
 
 ---
 

@@ -17,7 +17,7 @@ export default async function ExpressionsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <h1 className="font-display text-3xl text-rye-gold">Expressions</h1>
+          <h1 className="font-display text-3xl text-accent">Expressions</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             The products, separate from the bottles on your shelf. Two batches of the same name are two expressions;
             two bottles of one batch are one expression.
@@ -49,7 +49,10 @@ export default async function ExpressionsPage() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>Brand</TableHead>
+                {/* Brand folds into the Expression cell on a phone; the
+                    edit link is the only way into an expression, so it is the
+                    one column that must never be squeezed off the edge. */}
+                <TableHead className="hidden sm:table-cell">Brand</TableHead>
                 <TableHead>Expression</TableHead>
                 <TableHead className="hidden sm:table-cell">Category</TableHead>
                 <TableHead className="text-right">Proof</TableHead>
@@ -63,9 +66,10 @@ export default async function ExpressionsPage() {
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell className="font-medium">{row.brand}</TableCell>
+                  <TableCell className="hidden font-medium sm:table-cell">{row.brand}</TableCell>
                   <TableCell>
-                    <span className="text-rye-gold">{row.name}</span>
+                    <span className="block text-xs text-muted-foreground sm:hidden">{row.brand}</span>
+                    <span className="text-accent">{row.name}</span>
                     {row.batch ? <span className="text-muted-foreground"> · {row.batch}</span> : null}
                     {row.isSingleBarrel || row.isSingleBarrelPick ? (
                       <Badge className="ml-2 border-primary/40 text-primary">

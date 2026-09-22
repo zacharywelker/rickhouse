@@ -68,8 +68,8 @@ at the end of every milestone.
 | M3 | Expressions and bottles | ✅ Done — but see [Model revisions](#m7--model-revisions) |
 | M4 | The fill gauge and the grid | ✅ Done |
 | M5 | Entity pages and stats | ✅ Done |
-| M6 | Polish | ▶ Next |
-| M7 | Model revisions | Planned — from using M3 in anger |
+| M6 | Polish | ✅ Done |
+| M7 | Model revisions | ▶ Next — from using M3 in anger |
 | M8 | Interaction and wording | Planned — from using M4 in anger |
 | M9 | Tastings beyond the shelf | Later add-on |
 
@@ -163,15 +163,42 @@ the data), and the acquisitions line is **stepped, not smoothed** — a month's
 count is discrete, and a curve between two months draws bottles that were never
 bought.
 
-### M6 — Polish ▶
-- Mobile-responsive throughout; the grid collapses to cards under 768px.
+### ~~M6 — Polish~~ ✅
+- ~~Mobile-responsive throughout; the grid collapses to cards under 768px.
   Desktop functionality comes first, but the iPhone is a primary target, not an
-  afterthought — it is where bottles actually get logged.
-- Light and dark both first-class, following the system by default with a
-  manual override. Neither is the "real" theme.
-- Keyboard shortcuts: `n` new bottle, `/` focus search, `esc` close dialogs.
-- Full-text search across brand, expression name, distillery and notes.
-- Backup script that dumps Postgres and tars the uploads volume.
+  afterthought — it is where bottles actually get logged.~~ The nav was the
+  real culprit: five links that would not wrap made *every* page 597px wide on
+  a 390px screen. It collapses behind a disclosure now, the grid becomes cards,
+  and the filter row hides behind a "Filters" button so bottles are above the
+  fold. A test asserts zero horizontal overflow on every top-level page.
+- ~~Light and dark both first-class, following the system by default with a
+  manual override. Neither is the "real" theme.~~ Every token is declared once
+  with `light-dark()`; `color-scheme` picks the half. The three-way toggle
+  (System / Light / Dark) stamps `data-theme` on `<html>`, and an inline script
+  in `<head>` applies a stored choice before first paint.
+- ~~Keyboard shortcuts: `n` new bottle, `/` focus search, `esc` close dialogs.~~
+  Escape is not a global handler — Radix closes its own dialogs and popovers,
+  and the two hand-rolled disclosures handle their own. One global listener for
+  all three would fight them.
+- ~~Full-text search across brand, expression name, distillery and notes.~~ A
+  weighted tsvector in the view, matched with `websearch_to_tsquery` so phrases
+  and `-exclusion` work, OR'd with a substring match over the same corpus as
+  plain text — full text cannot match a prefix, and nobody typing "goose"
+  wants nothing on the way to "gooseberry".
+- ~~Backup script that dumps Postgres and tars the uploads volume.~~
+  `npm run backup`, with retention, an atomic write, and the restore commands
+  printed against the archive it just made.
+
+Two things worth keeping in mind later:
+
+- **The search columns are computed in the view, so they cannot be indexed.**
+  That is deliberate — the corpus spans six tables, and a stored copy is six
+  ways to go stale. At a home collection's scale the sequential scan is
+  microseconds. If that ever stops being true, materialise the view rather
+  than scattering triggers.
+- **Light mode is accessible, not designed.** It exists because M6 asked for
+  both themes to be first-class, and every token passes contrast. The actual
+  visual direction is still [Design direction](#design-direction), unscheduled.
 
 ### Barcodes
 
@@ -190,7 +217,7 @@ A camera scan on mobile is a later progressive enhancement, degrading to manual
 entry where unsupported. It is not a prerequisite for either of the above.
 
 
-### M7 — Model revisions
+### M7 — Model revisions ▶
 
 Feedback from actually using M3. Deliberately scheduled **after** M4 so the
 fill gauge and the grid land first. Each of these is a migration plus form

@@ -145,7 +145,7 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
                 <span className="text-sm text-muted-foreground">{note.tastedOn}</span>
                 <div className="flex items-center gap-2">
                   {note.rating ? (
-                    <span className="font-display text-lg text-rye-gold tabular-nums">
+                    <span className="font-display text-lg text-accent tabular-nums">
                       {Number(note.rating)}
                       <span className="text-sm text-muted-foreground">/10</span>
                     </span>

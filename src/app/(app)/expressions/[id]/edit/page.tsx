@@ -20,7 +20,7 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
   return (
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
-        <h1 className="font-display text-3xl text-rye-gold">
+        <h1 className="font-display text-3xl text-accent">
           {row.brand.name} {row.expression.name}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">

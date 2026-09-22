@@ -41,6 +41,12 @@ export type FillGaugeProps = {
   /** Rendered height in pixels; the SVG scales to it. */
   height?: number;
   label?: string;
+  /**
+   * Hide it from assistive tech entirely. For the mobile card, where the same
+   * level is already stated as text beside it — announcing it twice is noise,
+   * and two gauges with one name is an ambiguous reference.
+   */
+  decorative?: boolean;
   className?: string;
 };
 
@@ -50,6 +56,7 @@ export function FillGauge({
   readOnly = false,
   height = 240,
   label = "Fill level",
+  decorative = false,
   className,
 }: FillGaugeProps) {
   const svgRef = React.useRef<SVGSVGElement>(null);
@@ -117,7 +124,7 @@ export function FillGauge({
         interactive && "cursor-ns-resize touch-none focus-visible:outline-none",
         className,
       )}
-      role={interactive ? "slider" : "img"}
+      role={interactive ? "slider" : decorative ? undefined : "img"}
       {...(interactive
         ? {
             tabIndex: 0,
@@ -135,6 +142,8 @@ export function FillGauge({
               onChange?.(pctFromPointer(event.clientY));
             },
           }
+        : decorative
+        ? { "aria-hidden": true, role: undefined }
         : { "aria-label": `${label}: ${pct} percent full` })}
     >
       <defs>
@@ -166,7 +175,7 @@ export function FillGauge({
             cy={y}
             rx={VIEW_W / 2}
             ry="3"
-            className="fill-rye-gold/70 motion-safe:transition-all motion-safe:duration-300"
+            className="fill-accent/70 motion-safe:transition-all motion-safe:duration-300"
           />
         ) : null}
       </g>

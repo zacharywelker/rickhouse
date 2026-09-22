@@ -54,7 +54,7 @@ export async function EntityPage({
       <div>
         <p className="text-sm text-muted-foreground">{kind}</p>
         <h1 className="font-display text-3xl">
-          <span className="text-rye-gold">{name}</span>
+          <span className="text-accent">{name}</span>
         </h1>
         {badges ? <div className="mt-2 flex flex-wrap items-center gap-2">{badges}</div> : null}
       </div>

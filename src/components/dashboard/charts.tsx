@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { ChartCard } from "./chart-card";
 import type { Bin, Point, Ranked, Slice } from "@/lib/dashboard/queries";
 import { formatMoney } from "@/lib/utils";
@@ -209,7 +210,20 @@ export function Acquisitions({ data }: { data: Point[] }) {
 }
 
 /** Horizontal, because distillery names are long. One hue; length is the data. */
+/*
+ * Ellipsis rather than a clipped word: "Bardstown Bourbo…" beats "ardstown".
+ * The character budget is set so the text always renders narrower than the
+ * axis gutter — Recharts wraps a tick that does not fit and then clips the
+ * second line, which is worse than either.
+ */
+function truncate(label: string, max: number) {
+  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+}
+
 export function TopDistilleries({ data }: { data: Ranked[] }) {
+  // A 150px label gutter eats half a phone screen, so the axis narrows and the
+  // names truncate instead of overflowing the card.
+  const narrow = useMediaQuery("(max-width: 640px)");
   return (
     <ChartCard
       title="Most represented distilleries"
@@ -221,7 +235,13 @@ export function TopDistilleries({ data }: { data: Ranked[] }) {
         <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
           <CartesianGrid horizontal={false} stroke="var(--viz-grid)" />
           <XAxis type="number" allowDecimals={false} {...axis} />
-          <YAxis type="category" dataKey="label" width={150} {...axis} />
+          <YAxis
+            type="category"
+            dataKey="label"
+            width={narrow ? 96 : 190}
+            tickFormatter={(label: string) => truncate(label, narrow ? 13 : 26)}
+            {...axis}
+          />
           <Tooltip
             cursor={{ fill: "var(--muted)" }}
             content={({ active, payload, label }) => (

@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 import type { BottleFilters, SortKey } from "@/lib/bottles/filters";
 import type { GridRow } from "@/lib/bottles/grid";
+import { BottleCards } from "./bottle-cards";
 import { FillGauge } from "./fill-gauge";
 import { useGridFilters } from "./use-grid-filters";
 
@@ -95,11 +96,11 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
         id: "expression",
         header: "Expression",
         cell: ({ row }) => (
-          <Link href={`/bottles/${row.original.id}`} className="whitespace-nowrap font-medium hover:text-rye-gold">
+          <Link href={`/bottles/${row.original.id}`} className="whitespace-nowrap font-medium hover:text-accent">
             {row.original.expressionName}
             {row.original.batch ? <span className="text-muted-foreground"> · {row.original.batch}</span> : null}
             {row.original.isFavorite ? (
-              <Star className="ml-1 inline size-3.5 fill-rye-gold text-rye-gold" aria-label="Favourite" />
+              <Star className="ml-1 inline size-3.5 fill-accent text-accent" aria-label="Favourite" />
             ) : null}
           </Link>
         ),
@@ -161,7 +162,7 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
         id: "rating",
         header: "Rating",
         cell: ({ getValue }) =>
-          getValue() ? <span className="tabular-nums text-rye-gold">{Number(getValue())}</span> : "—",
+          getValue() ? <span className="tabular-nums text-accent">{Number(getValue())}</span> : "—",
       }),
       helper.accessor("status", {
         id: "status",
@@ -199,8 +200,20 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card">
-      <Table>
+    <>
+      {/*
+       * Under 768px the same rows render as cards (SPEC M6). Both trees are in
+       * the DOM and CSS picks one, so there is no hydration flash and no
+       * viewport guess on the server — the card gauge is aria-hidden precisely
+       * so the hidden tree cannot answer to the visible one's name.
+       */}
+      <div className="flex flex-col gap-3 md:hidden">
+        <MobileSort filters={filters} onSort={apply} />
+        <BottleCards rows={rows} />
+      </div>
+
+      <div className="hidden rounded-lg border border-border bg-card md:block">
+        <Table>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id} className="hover:bg-transparent">
@@ -248,7 +261,61 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
             </TableRow>
           ))}
         </TableBody>
-      </Table>
+        </Table>
+      </div>
+    </>
+  );
+}
+
+const MOBILE_SORTS: Array<{ key: SortKey; label: string }> = [
+  { key: "acquired", label: "Acquired" },
+  { key: "brand", label: "Brand" },
+  { key: "expression", label: "Expression" },
+  { key: "proof", label: "Proof" },
+  { key: "age", label: "Age" },
+  { key: "price", label: "Paid" },
+  { key: "fill", label: "Fill" },
+  { key: "rating", label: "Rating" },
+];
+
+/**
+ * Cards have no header row to click, so sorting needs its own control. A
+ * native select on purpose: it is the one picker a phone already knows how to
+ * present well.
+ */
+function MobileSort({
+  filters,
+  onSort,
+}: {
+  filters: BottleFilters;
+  onSort: (next: Partial<BottleFilters>) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor="mobile-sort" className="text-sm text-muted-foreground">
+        Sort
+      </label>
+      <select
+        id="mobile-sort"
+        value={filters.sort}
+        onChange={(event) => onSort({ sort: event.target.value as SortKey })}
+        className="h-9 flex-1 rounded-md border border-input bg-card px-2 text-sm"
+      >
+        {MOBILE_SORTS.map((option) => (
+          <option key={option.key} value={option.key}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onSort({ desc: !filters.desc })}
+        aria-label={filters.desc ? "Sorted descending. Sort ascending." : "Sorted ascending. Sort descending."}
+      >
+        {filters.desc ? <ArrowDown className="size-4" /> : <ArrowUp className="size-4" />}
+      </Button>
     </div>
   );
 }
