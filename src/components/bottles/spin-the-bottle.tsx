@@ -54,14 +54,18 @@ const WHEEL_BACKGROUND = (() => {
   return `conic-gradient(${stops.join(", ")})`;
 })();
 
-// The trigger's glow ring — adapted from https://uiverse.io/SelfMadeSystem/swift-bullfrog-34.
-const RAINBOW_GRADIENT =
-  "conic-gradient(hsl(0, 100%, 50%), hsl(30, 100%, 50%), hsl(60, 100%, 50%), hsl(90, 100%, 50%), hsl(120, 100%, 50%), hsl(150, 100%, 50%), hsl(180, 100%, 50%), hsl(210, 100%, 50%), hsl(240, 100%, 60%), hsl(270, 100%, 50%), hsl(300, 100%, 50%), hsl(330, 100%, 50%), hsl(360, 100%, 50%))";
+// The trigger's glow ring — adapted from https://uiverse.io/SelfMadeSystem/swift-bullfrog-34,
+// but using the same category palette as the wheel instead of a generic hue
+// sweep, so the button previews the wheel it opens. A conic-gradient is
+// already a closed loop (0deg meets 360deg with no seam), so the wheel's own
+// background works as the ring unchanged.
+const RAINBOW_GRADIENT = WHEEL_BACKGROUND;
 
-// Same hue sweep as the ring, but a linear run down in lightness — the ring's
-// hsl(60, 100%, 50%) yellow all but disappears as text on the card background.
-const RAINBOW_TEXT_GRADIENT =
-  "linear-gradient(90deg, hsl(0, 90%, 45%), hsl(30, 90%, 42%), hsl(60, 90%, 38%), hsl(90, 80%, 35%), hsl(120, 80%, 35%), hsl(150, 80%, 35%), hsl(180, 80%, 38%), hsl(210, 90%, 48%), hsl(240, 90%, 58%), hsl(270, 90%, 52%), hsl(300, 90%, 45%), hsl(330, 90%, 45%), hsl(360, 90%, 45%))";
+// Same colors, as a scrolling linear run — the first color repeats at the
+// end so the looping background-position animation doesn't jump at the seam.
+// These are already used as text colors elsewhere (category-color.ts), so
+// they read fine on the card background without darkening.
+const RAINBOW_TEXT_GRADIENT = `linear-gradient(90deg, ${[...WHEEL_COLORS, WHEEL_COLORS[0]].join(", ")})`;
 
 /**
  * A rotating rainbow ring behind the button face: a wider, softly blurred
