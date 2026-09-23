@@ -224,6 +224,39 @@
   * {
     border-color: var(--color-border);
   }
+}
+
+/* Stat strip (src/components/ui/stat-strip.tsx) — a ruled row of numbers
+   instead of a card per number. Two columns on mobile (row dividers via a
+   top rule), one row of --stat-cols columns from sm: up (dividers move to
+   the left edge); the container's own border-t-2 covers the first row/item
+   so nothing doubles up. */
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.stat-strip > * {
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-border);
+}
+.stat-strip > *:nth-child(-n + 2) {
+  border-top: none;
+}
+@media (min-width: 640px) {
+  .stat-strip {
+    grid-template-columns: repeat(var(--stat-cols, 4), minmax(0, 1fr));
+  }
+  .stat-strip > * {
+    border-top: none;
+    border-left: 1px solid var(--color-border);
+  }
+  .stat-strip > *:first-child {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+
+@layer base {
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);

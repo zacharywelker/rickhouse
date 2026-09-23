@@ -5,6 +5,7 @@ import { BottleTable } from "@/components/bottles/bottle-table";
 import { GridPagination } from "@/components/bottles/grid-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { StatStrip } from "@/components/ui/stat-strip";
 import { parseFilters, type BottleFilters } from "@/lib/bottles/filters";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { formatMoney, formatNumeric } from "@/lib/utils";
@@ -74,12 +75,14 @@ export async function EntityPage({
 
       {notes ? <p className="max-w-3xl text-sm text-muted-foreground">{notes}</p> : null}
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Bottles" value={String(summary.count)} />
-        <Stat label="Total spend" value={formatMoney(summary.spend)} />
-        <Stat label="Average proof" value={formatNumeric(summary.avgProof)} />
-        <Stat label="Average rating" value={summary.avgRating ? `${Number(summary.avgRating)}/10` : "—"} />
-      </section>
+      <StatStrip
+        items={[
+          { label: "Bottles", value: summary.count },
+          { label: "Total spend", value: formatMoney(summary.spend) },
+          { label: "Average proof", value: formatNumeric(summary.avgProof) },
+          { label: "Average rating", value: summary.avgRating ? `${Number(summary.avgRating)}/10` : "—" },
+        ]}
+      />
 
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
@@ -96,17 +99,6 @@ export async function EntityPage({
         <GridPagination filters={filters} page={page} pageCount={pageCount} total={total} />
       ) : null}
     </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="text-2xl tabular-nums">{value}</p>
-      </CardContent>
-    </Card>
   );
 }
 
