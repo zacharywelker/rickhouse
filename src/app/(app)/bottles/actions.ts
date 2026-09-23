@@ -8,6 +8,7 @@ import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
+import type { BulkSaveResult } from "@/lib/bulk/types";
 import { z } from "zod";
 import { bottleSchema, tastingNoteSchema } from "@/lib/expressions/schema";
 
@@ -50,6 +51,50 @@ export async function saveBottleAction(
   } catch (error: unknown) {
     return mapDbError(error, { singular: "Bottle" });
   }
+}
+
+/**
+ * Bulk grid save (Issue #49). Each row is validated and inserted on its own —
+ * not wrapped in one shared transaction — because the rows are independent
+ * bottles with no cross-row constraint, and a bad row should never roll back
+ * the good ones next to it.
+ */
+export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Promise<BulkSaveResult> {
+  await requireSession();
+  const results: BulkSaveResult["results"] = [];
+
+  for (const [index, row] of rows.entries()) {
+    const parsed = bottleSchema.safeParse(row);
+    if (!parsed.success) {
+      const shaped = invalid(parsed.error.issues);
+      results.push({
+        index,
+        ok: false,
+        error: shaped.ok ? "Could not save this row." : shaped.error,
+        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
+      });
+      continue;
+    }
+    try {
+      const [inserted] = await db.insert(bottles).values(parsed.data).returning({ id: bottles.id });
+      results.push({ index, ok: true, id: inserted!.id });
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Bottle" });
+      results.push({
+        index,
+        ok: false,
+        error: shaped.ok ? "Could not save this row." : shaped.error,
+        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
+      });
+    }
+  }
+
+  if (results.some((r) => r.ok)) {
+    revalidatePath("/bottles");
+    revalidatePath("/");
+  }
+
+  return { savedCount: results.filter((r) => r.ok).length, results };
 }
 
 export async function deleteBottleAction(id: number): Promise<ActionResult> {

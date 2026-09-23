@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Download, Plus, Upload } from "lucide-react";
+import { Download, Plus, Rows3, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BottleGallery } from "@/components/bottles/bottle-gallery";
@@ -60,6 +60,12 @@ export default async function BottlesPage({
             <Link href="/bottles/import">
               <Upload className="size-4" />
               Import
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/bottles/bulk">
+              <Rows3 className="size-4" />
+              Bulk add
             </Link>
           </Button>
           <Button asChild>
