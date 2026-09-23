@@ -78,6 +78,13 @@
       "when": 1790080174633,
       "tag": "0010_bottle_image_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790080174634,
+      "tag": "0011_bottle_image_hero_backfill",
+      "breakpoints": true
     }
   ]
 }

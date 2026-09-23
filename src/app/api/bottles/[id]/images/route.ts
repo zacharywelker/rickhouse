@@ -48,6 +48,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         filePath: stored.filePath,
         thumbPath: stored.thumbPath,
         isPrimary: isFirst,
+        // The hero photo is always the catalog photo; everything else is life.
+        kind: isFirst ? "catalog" : "life",
         sortOrder: order,
       });
       order += 1;

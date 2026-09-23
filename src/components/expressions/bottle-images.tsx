@@ -3,15 +3,10 @@
 import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { GripVertical, ImagePlus, Loader2, Star, Tag, Trash2 } from "lucide-react";
+import { GripVertical, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  deleteBottleImageAction,
-  reorderBottleImagesAction,
-  setImageKindAction,
-  setPrimaryImageAction,
-} from "@/app/(app)/bottles/actions";
+import { deleteBottleImageAction, reorderBottleImagesAction, setPrimaryImageAction } from "@/app/(app)/bottles/actions";
 import type { ActionResult } from "@/lib/admin/types";
 import type { PhotoKind } from "@/db/schema";
 
@@ -133,12 +128,6 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                 </span>
               ) : null}
 
-              {image.kind === "catalog" ? (
-                <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
-                  Catalog
-                </span>
-              ) : null}
-
               <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/60 p-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
                 <span className="pl-1 text-white/70" aria-hidden="true">
                   <GripVertical className="size-4" />
@@ -154,20 +143,6 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                     aria-label="Make hero image"
                   >
                     <Star className={cn("size-4", image.isPrimary && "fill-current")} />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0 text-white hover:bg-white/20"
-                    onClick={() => {
-                      const kind = image.kind === "catalog" ? "life" : "catalog";
-                      void setImageKindAction(image.id, kind).then(() => router.refresh());
-                    }}
-                    aria-label={image.kind === "catalog" ? "Mark as a life photo" : "Mark as a catalog photo"}
-                    aria-pressed={image.kind === "catalog"}
-                  >
-                    <Tag className={cn("size-4", image.kind === "catalog" && "fill-current")} />
                   </Button>
                   <Button
                     type="button"
