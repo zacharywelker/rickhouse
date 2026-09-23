@@ -35,7 +35,13 @@ function MemberTile({ row, onRemove }: { row: GridRow; onRemove: () => void }) {
               className="size-full object-cover"
             />
           ) : (
-            <FillGauge value={row.fillPct} readOnly height={110} label={`${row.expressionName} fill`} />
+            <FillGauge
+              value={row.fillPct}
+              readOnly
+              fieldGroup={row.fieldGroup}
+              height={110}
+              label={`${row.expressionName} fill`}
+            />
           )}
         </div>
         <div className="flex flex-col gap-0.5 p-3">
