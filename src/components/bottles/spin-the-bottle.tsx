@@ -46,7 +46,6 @@ const WHEEL_COLORS = [
   "var(--category-gin)",
   "var(--category-vodka)",
   "var(--category-liqueur)",
-  "var(--category-other)",
 ];
 
 const WHEEL_BACKGROUND = (() => {
