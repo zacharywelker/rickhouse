@@ -232,13 +232,13 @@
 
 /* The rotating conic-gradient ring behind the "Spin the Bottle" trigger
    (src/components/bottles/spin-the-bottle.tsx) — adapted from the glow-card
-   technique at https://uiverse.io/SelfMadeSystem/swift-bullfrog-34. */
+   technique at https://uiverse.io/SelfMadeSystem/swift-bullfrog-34, but
+   rotating around the element's own center rather than uiverse's off-center
+   rotate+translate pivot — that pivot reads as ambient motion on a large
+   blurred glow, but swirls visibly off to one side on a small crisp border. */
 @keyframes rainbow-spin {
-  from {
-    transform: rotate(0deg) translate(-50%, -50%);
-  }
   to {
-    transform: rotate(360deg) translate(-50%, -50%);
+    transform: rotate(360deg);
   }
 }
 
