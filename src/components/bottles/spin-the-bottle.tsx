@@ -46,7 +46,6 @@ const WHEEL_COLORS = [
   "var(--category-gin)",
   "var(--category-vodka)",
   "var(--category-liqueur)",
-  "var(--category-other)",
 ];
 
 const WHEEL_BACKGROUND = (() => {
@@ -54,6 +53,37 @@ const WHEEL_BACKGROUND = (() => {
   const stops = WHEEL_COLORS.map((color, i) => `${color} ${i * slice}deg ${(i + 1) * slice}deg`);
   return `conic-gradient(${stops.join(", ")})`;
 })();
+
+// The trigger's glow ring — adapted from https://uiverse.io/SelfMadeSystem/swift-bullfrog-34.
+const RAINBOW_GRADIENT =
+  "conic-gradient(hsl(0, 100%, 50%), hsl(30, 100%, 50%), hsl(60, 100%, 50%), hsl(90, 100%, 50%), hsl(120, 100%, 50%), hsl(150, 100%, 50%), hsl(180, 100%, 50%), hsl(210, 100%, 50%), hsl(240, 100%, 60%), hsl(270, 100%, 50%), hsl(300, 100%, 50%), hsl(330, 100%, 50%), hsl(360, 100%, 50%))";
+
+// Same hue sweep as the ring, but a linear run down in lightness — the ring's
+// hsl(60, 100%, 50%) yellow all but disappears as text on the card background.
+const RAINBOW_TEXT_GRADIENT =
+  "linear-gradient(90deg, hsl(0, 90%, 45%), hsl(30, 90%, 42%), hsl(60, 90%, 38%), hsl(90, 80%, 35%), hsl(120, 80%, 35%), hsl(150, 80%, 35%), hsl(180, 80%, 38%), hsl(210, 90%, 48%), hsl(240, 90%, 58%), hsl(270, 90%, 52%), hsl(300, 90%, 45%), hsl(330, 90%, 45%), hsl(360, 90%, 45%))";
+
+/**
+ * A rotating rainbow ring behind the button face: a wider, softly blurred
+ * copy for a mild bleed, and a thick sharp-edged copy on top so it reads as
+ * an actual border rather than a haze.
+ */
+function RainbowRing({ glow }: { glow?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "absolute overflow-hidden",
+        glow ? "-inset-[7px] rounded-[15px] opacity-70 blur-[5px]" : "-inset-[4px] rounded-[11px]",
+      )}
+      aria-hidden="true"
+    >
+      <span
+        className="absolute left-1/2 top-1/2 aspect-square min-h-[150%] min-w-[150%] origin-top-left -translate-x-1/2 -translate-y-1/2 [animation:rainbow-spin_4s_linear_infinite]"
+        style={{ backgroundImage: RAINBOW_GRADIENT }}
+      />
+    </span>
+  );
+}
 
 function toggle(ids: number[], id: number): number[] {
   return ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id];
@@ -235,10 +265,19 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <Dices className="size-4" />
-          Spin the Bottle
-        </Button>
+        <button type="button" className="group relative inline-flex h-10 items-center rounded-[11px]">
+          <RainbowRing glow />
+          <RainbowRing />
+          <span className="relative inline-flex h-10 items-center gap-2 rounded-[8px] bg-card px-4 text-sm font-semibold shadow-sm transition-transform group-hover:scale-[1.02] group-active:scale-[0.98]">
+            <Dices className="size-4 text-foreground" />
+            <span
+              className="animate-[rainbow-text-flow_4s_linear_infinite] bg-clip-text text-transparent [background-size:300%_100%]"
+              style={{ backgroundImage: RAINBOW_TEXT_GRADIENT }}
+            >
+              Spin the Bottle
+            </span>
+          </span>
+        </button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
