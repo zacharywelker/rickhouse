@@ -62,7 +62,6 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
     );
   }
 
-  /** Shared by drag-and-drop and the keyboard buttons. */
   function moveTo(from: number, to: number) {
     if (to < 0 || to >= order.length || from === to) return;
     const next = [...order];
@@ -144,33 +143,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                 <span className="pl-1 text-white/70" aria-hidden="true">
                   <GripVertical className="size-4" />
                 </span>
-                {/* flex-wrap: five icon buttons don't fit in one row on narrow
-                    thumbnails, and the li's overflow-hidden was clipping the
-                    trailing ones (delete) instead of wrapping them. */}
                 <div className="flex flex-wrap items-center justify-end gap-0.5">
-                  {/* Keyboard equivalents for the drag-and-drop above. */}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0 text-white hover:bg-white/20"
-                    onClick={() => moveTo(index, index - 1)}
-                    disabled={index === 0}
-                    aria-label="Move earlier"
-                  >
-                    ←
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0 text-white hover:bg-white/20"
-                    onClick={() => moveTo(index, index + 1)}
-                    disabled={index === order.length - 1}
-                    aria-label="Move later"
-                  >
-                    →
-                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
