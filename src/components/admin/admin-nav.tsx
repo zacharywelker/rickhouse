@@ -18,7 +18,7 @@ export function AdminNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-full border px-3 py-1.5 text-sm transition-colors",
+              "border px-3 py-1.5 text-sm transition-colors",
               active
                 ? "border-primary/50 bg-primary/15 text-primary"
                 : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
