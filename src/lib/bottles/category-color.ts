@@ -52,3 +52,19 @@ const CATEGORY_TEXT: Record<FieldGroup, string> = {
 export function categoryTextClass(fieldGroup: FieldGroup): string {
   return CATEGORY_TEXT[fieldGroup];
 }
+
+/** The raw custom property, for chart fills that can't take a Tailwind class. */
+const CATEGORY_VAR: Record<FieldGroup, string> = {
+  whiskey: "var(--category-whiskey)",
+  rum: "var(--category-rum)",
+  agave: "var(--category-agave)",
+  brandy: "var(--category-brandy)",
+  gin: "var(--category-gin)",
+  vodka: "var(--category-vodka)",
+  liqueur: "var(--category-liqueur)",
+  other: "var(--category-other)",
+};
+
+export function categoryColorVar(fieldGroup: FieldGroup): string {
+  return CATEGORY_VAR[fieldGroup];
+}

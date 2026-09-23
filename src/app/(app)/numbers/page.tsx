@@ -7,31 +7,46 @@ import {
   acquisitionsOverTime,
   categoryShare,
   headline,
+  longHeldCount,
+  longestHeldBottle,
+  mostExpensiveBottle,
   proofDistribution,
   topDistilleries,
   topFinish,
   topMashbill,
 } from "@/lib/dashboard/queries";
-import { formatMoney, formatNumeric } from "@/lib/utils";
+import { buildObservations, type Observation } from "@/lib/dashboard/observations";
 
 export const metadata: Metadata = { title: "Numbers" };
 export const dynamic = "force-dynamic";
 
-export default async function NumbersPage() {
-  const [stats, categories, proof, acquisitions, distilleries, mashbill, finish] = await Promise.all([
-    headline(),
-    categoryShare(),
-    proofDistribution(),
-    acquisitionsOverTime(),
-    topDistilleries(),
-    topMashbill(),
-    topFinish(),
-  ]);
+const LONG_HELD_YEARS = 5;
 
-  const spend = Number(stats.spend);
-  const msrp = Number(stats.msrp);
-  // Only over bottles where a price was recorded, so gifts do not read as savings.
-  const delta = msrp > 0 ? spend - msrp : null;
+export default async function NumbersPage() {
+  const [stats, categories, proof, acquisitions, distilleries, mashbill, finish, expensive, longestHeld, longHeld] =
+    await Promise.all([
+      headline(),
+      categoryShare(),
+      proofDistribution(),
+      acquisitionsOverTime(),
+      topDistilleries(),
+      topMashbill(),
+      topFinish(),
+      mostExpensiveBottle(),
+      longestHeldBottle(),
+      longHeldCount(LONG_HELD_YEARS),
+    ]);
+
+  const items = buildObservations({
+    stats,
+    categories,
+    proof,
+    distilleries,
+    expensive,
+    longestHeld,
+    longHeldYears: LONG_HELD_YEARS,
+    longHeldCount: longHeld,
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,32 +57,13 @@ export default async function NumbersPage() {
         </p>
       </div>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Bottles" value={String(stats.bottles)} hint={`${stats.expressions} labels`} />
-        <Stat
-          label="Open"
-          value={String(stats.open)}
-          hint={stats.killed > 0 ? `${stats.killed} killed` : undefined}
-        />
-        <Stat
-          label="Total spend"
-          value={formatMoney(stats.spend)}
-          hint={
-            delta === null
-              ? undefined
-              : delta === 0
-                ? "Exactly MSRP"
-                : delta > 0
-                  ? `${formatMoney(String(delta))} over MSRP`
-                  : `${formatMoney(String(Math.abs(delta)))} under MSRP`
-          }
-        />
-        <Stat
-          label="Average proof"
-          value={formatNumeric(stats.avgProof)}
-          hint={stats.avgRating ? `${Number(stats.avgRating)}/10 average rating` : undefined}
-        />
-      </section>
+      {items.length > 0 ? (
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => (
+            <ObservationCard key={item.id} item={item} />
+          ))}
+        </section>
+      ) : null}
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CategoryShare data={categories} />
@@ -78,12 +74,6 @@ export default async function NumbersPage() {
               value={mashbill?.label ?? null}
               count={mashbill?.count}
               href={mashbill ? (`/mashbills/${mashbill.id}` as Route) : null}
-            />
-            <Leader
-              label="Most represented distillery"
-              value={distilleries[0]?.label ?? null}
-              count={distilleries[0]?.count}
-              href={distilleries[0]?.slug ? (`/distilleries/${distilleries[0].slug}` as Route) : null}
             />
             <Leader
               label="Most-used finish"
@@ -105,15 +95,26 @@ export default async function NumbersPage() {
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+/**
+ * Curiosity before dashboards (DESIGN-BRIEF.MD §22): a short claim about the
+ * collection, pointing straight at the bottles behind it.
+ */
+function ObservationCard({ item }: { item: Observation }) {
+  const body = (
+    <CardContent className="p-4">
+      <p className="text-sm text-foreground">{item.text}</p>
+      {item.detail ? <p className="mt-1 text-2xl tabular-nums text-accent">{item.detail}</p> : null}
+    </CardContent>
+  );
+
+  if (!item.href) {
+    return <Card>{body}</Card>;
+  }
+
   return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="text-3xl tabular-nums">{value}</p>
-        {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}
-      </CardContent>
-    </Card>
+    <Link href={item.href} className="block">
+      <Card className="h-full transition-colors hover:border-accent">{body}</Card>
+    </Link>
   );
 }
 

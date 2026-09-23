@@ -1,41 +1,56 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import type { FieldGroup } from "@/db/schema";
+import { humanise } from "@/lib/utils";
 
 /**
  * Dashboard analytics. Everything is computed in Postgres and returned ready
  * to render — the charts receive rows, not raw tables to reduce in the browser.
  */
 
-export type Slice = { label: string; count: number; share: number };
-export type Bin = { label: string; count: number };
+/** categoryIds carries the subtree behind the family, so a slice can link to /bottles?category=... */
+export type Slice = { fieldGroup: FieldGroup; label: string; count: number; share: number; categoryIds: number[] };
+export type Bin = { label: string; count: number; min: number; max: number };
 export type Point = { month: string; count: number; spend: number };
-export type Ranked = { label: string; slug: string | null; count: number };
+export type Ranked = { id: number; label: string; slug: string | null; count: number };
 
-/** Top classes by bottle count, with the tail folded into one "Other". */
-export async function categoryShare(limit = 5): Promise<Slice[]> {
-  const rows = await db.execute<{ label: string; count: number }>(sql`
-    SELECT c.name::text AS label, count(*)::int AS count
-      FROM bottles b
-      JOIN expressions e ON e.id = b.expression_id
-      JOIN categories  c ON c.id = e.category_id
-     GROUP BY c.name
-     ORDER BY count DESC, c.name
-  `);
+/**
+ * Bottle count by category field group — whiskey, rum, agave… — the same
+ * families category color keys off (DESIGN-TOKENS.md §7), so a chart series
+ * and its legend always match the color a bottle wears everywhere else.
+ */
+export async function categoryShare(): Promise<Slice[]> {
+  const [counts, groups] = await Promise.all([
+    db.execute<{ fieldGroup: FieldGroup; count: number }>(sql`
+      SELECT c.field_group AS "fieldGroup", count(*)::int AS count
+        FROM bottles b
+        JOIN expressions e ON e.id = b.expression_id
+        JOIN categories  c ON c.id = e.category_id
+       GROUP BY c.field_group
+       ORDER BY count DESC, c.field_group
+    `),
+    db.execute<{ id: number; fieldGroup: FieldGroup }>(sql`
+      SELECT id, field_group AS "fieldGroup" FROM categories
+    `),
+  ]);
 
-  const all = [...rows];
-  const total = all.reduce((sum, row) => sum + row.count, 0);
+  const total = [...counts].reduce((sum, row) => sum + row.count, 0);
   if (total === 0) return [];
 
-  const head = all.slice(0, limit);
-  const tailCount = all.slice(limit).reduce((sum, row) => sum + row.count, 0);
-  // Never invent a colour for a ninth series: the tail folds into one slice.
-  const slices = tailCount > 0 ? [...head, { label: "Other", count: tailCount }] : head;
+  const idsByGroup = new Map<FieldGroup, number[]>();
+  for (const row of groups) {
+    const list = idsByGroup.get(row.fieldGroup) ?? [];
+    list.push(row.id);
+    idsByGroup.set(row.fieldGroup, list);
+  }
 
-  return slices.map((row) => ({
-    label: row.label,
+  return [...counts].map((row) => ({
+    fieldGroup: row.fieldGroup,
+    label: humanise(row.fieldGroup),
     count: row.count,
     share: Math.round((row.count / total) * 1000) / 10,
+    categoryIds: idsByGroup.get(row.fieldGroup) ?? [],
   }));
 }
 
@@ -59,7 +74,7 @@ export async function proofDistribution(): Promise<Bin[]> {
 
   const bins: Bin[] = [];
   for (let bucket = low; bucket <= high; bucket += 10) {
-    bins.push({ label: `${bucket}–${bucket + 9}`, count: byBucket.get(bucket) ?? 0 });
+    bins.push({ label: `${bucket}–${bucket + 9}`, count: byBucket.get(bucket) ?? 0, min: bucket, max: bucket + 9 });
   }
   return bins;
 }
@@ -94,12 +109,12 @@ export async function acquisitionsOverTime(months = 24): Promise<Point[]> {
 
 /** Distilleries by how many bottles they contributed to, blends included. */
 export async function topDistilleries(limit = 8): Promise<Ranked[]> {
-  const rows = await db.execute<{ label: string; slug: string; count: number }>(sql`
-    SELECT d.name::text AS label, d.slug AS slug, count(DISTINCT b.id)::int AS count
+  const rows = await db.execute<{ id: number; label: string; slug: string; count: number }>(sql`
+    SELECT d.id AS id, d.name::text AS label, d.slug AS slug, count(DISTINCT b.id)::int AS count
       FROM expression_distilleries ed
       JOIN distilleries d ON d.id = ed.distillery_id
       JOIN bottles b ON b.expression_id = ed.expression_id
-     GROUP BY d.name, d.slug
+     GROUP BY d.id, d.name, d.slug
      ORDER BY count DESC, d.name
      LIMIT ${limit}
   `);
@@ -130,6 +145,46 @@ export async function topFinish(): Promise<{ label: string; slug: string; count:
      LIMIT 1
   `);
   return [...rows][0] ?? null;
+}
+
+export type BottleHighlight = { id: number; name: string };
+
+/** The single priciest bottle, for a headline that points at one object. */
+export async function mostExpensiveBottle(): Promise<(BottleHighlight & { price: string }) | null> {
+  const rows = await db.execute<{ id: number; brand: string; expressionName: string; pricePaid: string }>(sql`
+    SELECT id, brand::text AS brand, expression_name::text AS "expressionName", price_paid AS "pricePaid"
+      FROM bottle_list
+     WHERE price_paid IS NOT NULL
+     ORDER BY price_paid DESC
+     LIMIT 1
+  `);
+  const row = [...rows][0];
+  return row ? { id: row.id, name: `${row.brand} ${row.expressionName}`, price: row.pricePaid } : null;
+}
+
+/** The bottle that has sat in the collection the longest, by acquisition date. */
+export async function longestHeldBottle(): Promise<(BottleHighlight & { years: number }) | null> {
+  const rows = await db.execute<{ id: number; brand: string; expressionName: string; years: number }>(sql`
+    SELECT id, brand::text AS brand, expression_name::text AS "expressionName",
+           extract(year FROM age(current_date, date_acquired))::int AS years
+      FROM bottle_list
+     WHERE date_acquired IS NOT NULL
+     ORDER BY date_acquired ASC
+     LIMIT 1
+  `);
+  const row = [...rows][0];
+  return row ? { id: row.id, name: `${row.brand} ${row.expressionName}`, years: row.years } : null;
+}
+
+/** How many bottles have been owned for at least this many years. */
+export async function longHeldCount(years = 5): Promise<number> {
+  const rows = await db.execute<{ count: number }>(sql`
+    SELECT count(*)::int AS count
+      FROM bottle_list
+     WHERE date_acquired IS NOT NULL
+       AND date_acquired <= (current_date - make_interval(years => ${years}))
+  `);
+  return [...rows][0]?.count ?? 0;
 }
 
 export type Headline = {
