@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Route } from "next";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Plus, Rows3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LabelTableBody } from "@/components/expressions/label-table-body";
@@ -77,12 +77,20 @@ export default async function ExpressionsPage({
             bottle, so six picks of one Weller 12 are six bottles of one label.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/expressions/new">
-            <Plus className="size-4" />
-            New Label
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/expressions/bulk">
+              <Rows3 className="size-4" />
+              Bulk add
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/expressions/new">
+              <Plus className="size-4" />
+              New Label
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {rows.length === 0 ? (

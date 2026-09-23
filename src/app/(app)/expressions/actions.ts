@@ -14,6 +14,7 @@ import { mapDbError } from "@/lib/db-errors";
 import { resolveSlug } from "@/lib/slug";
 import { slugify } from "@/lib/utils";
 import type { ActionResult } from "@/lib/admin/types";
+import type { BulkSaveResult } from "@/lib/bulk/types";
 import { writableFields } from "@/lib/expressions/fields";
 import { expressionSchema, parseLinks, type ExpressionInput } from "@/lib/expressions/schema";
 import { fieldGroupForCategory } from "@/lib/expressions/queries";
@@ -157,6 +158,72 @@ export async function saveExpressionAction(
   } catch (error: unknown) {
     return mapDbError(error, { singular: "Expression" });
   }
+}
+
+/**
+ * Bulk grid save (Issue #49). The grid only ever sends the columns every
+ * category writes (identity, strength, commercial — `COMMON_FIELDS`), so
+ * there is no field-group filtering to do: every row is a plain create, and
+ * `valuesForGroup` exists to protect an *update* from clobbering hidden
+ * sections, which a brand-new row has none of.
+ *
+ * As with the bottle grid, each row is validated and inserted on its own
+ * rather than under one shared transaction, so a bad row never rolls back
+ * the good ones next to it.
+ */
+export async function saveExpressionsBulkAction(rows: Record<string, unknown>[]): Promise<BulkSaveResult> {
+  await requireSession();
+  const results: BulkSaveResult["results"] = [];
+
+  for (const [index, row] of rows.entries()) {
+    const parsed = expressionSchema.safeParse(row);
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0];
+        if (typeof key === "string" && !(key in fieldErrors)) fieldErrors[key] = issue.message;
+      }
+      results.push({
+        index,
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Please check the highlighted fields.",
+        fieldErrors,
+      });
+      continue;
+    }
+
+    const input = parsed.data;
+    try {
+      const slug = await resolveSlug({
+        table: expressions,
+        column: expressions.slug,
+        idColumn: expressions.id,
+        requested: input.slug,
+        fallbackFrom: input.name,
+      });
+      const [inserted] = await db
+        .insert(expressions)
+        .values({ ...input, slug })
+        .returning({ id: expressions.id });
+      results.push({ index, ok: true, id: inserted!.id });
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Label" });
+      results.push({
+        index,
+        ok: false,
+        error: shaped.ok ? "Could not save this row." : shaped.error,
+        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
+      });
+    }
+  }
+
+  if (results.some((r) => r.ok)) {
+    revalidatePath("/expressions");
+    revalidatePath("/bottles");
+    revalidatePath("/");
+  }
+
+  return { savedCount: results.filter((r) => r.ok).length, results };
 }
 
 export async function deleteExpressionAction(id: number): Promise<ActionResult> {
