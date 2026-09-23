@@ -19,8 +19,9 @@ if [ "$(id -u)" = "0" ]; then
     adduser -D -H -u "$PUID" -G node node 2>/dev/null || true
   fi
 
-  mkdir -p "${UPLOAD_DIR:-/data/uploads}"
+  mkdir -p "${UPLOAD_DIR:-/data/uploads}" "${BACKUP_DIR:-/data/backups}"
   chown -R "$PUID:$PGID" "${UPLOAD_DIR:-/data/uploads}"
+  chown -R "$PUID:$PGID" "${BACKUP_DIR:-/data/backups}"
   chown -R "$PUID:$PGID" /app/.next 2>/dev/null || true
 fi
 

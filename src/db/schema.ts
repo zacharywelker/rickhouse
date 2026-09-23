@@ -453,6 +453,26 @@ export const bottleTags = pgTable(
 );
 
 // ------------------------------------------------------------
+// Backups
+// ------------------------------------------------------------
+
+/**
+ * Single row (id is always 1), so the schedule lives in the same database it
+ * protects rather than in a config file the admin UI can't reach. The app
+ * itself runs the backup — see src/lib/backup — so this is the only
+ * persisted state a restart needs to pick the schedule back up.
+ */
+export const backupSettings = pgTable("backup_settings", {
+  id: integer("id").primaryKey().default(1),
+  enabled: boolean("enabled").notNull().default(false),
+  intervalHours: integer("interval_hours").notNull().default(24),
+  keep: integer("keep").notNull().default(14),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+  lastRunOk: boolean("last_run_ok"),
+  lastRunError: text("last_run_error"),
+});
+
+// ------------------------------------------------------------
 // Convenience view: the flat list for the grid page
 // ------------------------------------------------------------
 
