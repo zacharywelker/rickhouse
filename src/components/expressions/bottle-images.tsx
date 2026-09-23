@@ -191,7 +191,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                 ) : (
                   <>
                     {/* Paper fiber across the whole card, punched holes included. */}
-                    <Grain opacity={0.24} />
+                    <Grain opacity={0.11} />
                     <div className="relative size-full overflow-hidden shadow-[inset_0_1px_3px_rgb(0_0_0_/_0.35)]">
                       <Image
                         src={`/api/images/${image.thumbPath ?? image.filePath}`}
@@ -204,7 +204,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                       {/* Ink vignette + print grain — an engraved/offset print
                           is never perfectly flat or evenly inked. */}
                       <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,transparent_40%,rgb(0_0_0_/_0.3)_100%)]" />
-                      <Grain opacity={0.2} />
+                      <Grain opacity={0.1} />
                     </div>
                     <Perforation />
                   </>

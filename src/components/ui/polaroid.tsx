@@ -51,7 +51,7 @@ export function Polaroid({
       }}
     >
       {/* Paper fiber, over the whole card including the border strip. */}
-      <Grain opacity={0.22} />
+      <Grain opacity={0.1} />
       <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-muted shadow-[inset_0_1px_4px_rgb(0_0_0_/_0.35)]">
         {children}
         {/* A vignette and a sheen across the photo emulsion — light falls
@@ -59,9 +59,9 @@ export function Polaroid({
             photo reading as a flat, evenly-lit render. */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/15" />
         <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,transparent_45%,rgb(0_0_0_/_0.24)_100%)]" />
-        {/* Print grain sits directly on the image, heavier than the paper's
-            own fiber so it reads as the photo's own grain. */}
-        <Grain opacity={0.18} />
+        {/* Print grain sits directly on the image, a touch heavier than the
+            paper's own fiber so it reads as the photo's own grain. */}
+        <Grain opacity={0.09} />
       </div>
       {caption ? (
         <p className={cn("relative mt-3 text-center text-lg leading-none text-tape-ink", font?.className)}>

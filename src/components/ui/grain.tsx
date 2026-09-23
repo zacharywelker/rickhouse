@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  * `pointer-events-none` and purely decorative.
  */
 export function Grain({
-  opacity = 0.16,
+  opacity = 0.1,
   blend = "multiply",
   className,
 }: {
