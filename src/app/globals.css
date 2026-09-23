@@ -229,3 +229,15 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* The rotating conic-gradient ring behind the "Spin the Bottle" trigger
+   (src/components/bottles/spin-the-bottle.tsx) — adapted from the glow-card
+   technique at https://uiverse.io/SelfMadeSystem/swift-bullfrog-34. */
+@keyframes rainbow-spin {
+  from {
+    transform: rotate(0deg) translate(-50%, -50%);
+  }
+  to {
+    transform: rotate(360deg) translate(-50%, -50%);
+  }
+}

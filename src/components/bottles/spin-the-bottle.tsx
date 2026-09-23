@@ -54,6 +54,25 @@ const WHEEL_BACKGROUND = (() => {
   return `conic-gradient(${stops.join(", ")})`;
 })();
 
+// The trigger's glow ring — adapted from https://uiverse.io/SelfMadeSystem/swift-bullfrog-34.
+const RAINBOW_GRADIENT =
+  "conic-gradient(hsl(0, 100%, 50%), hsl(30, 100%, 50%), hsl(60, 100%, 50%), hsl(90, 100%, 50%), hsl(120, 100%, 50%), hsl(150, 100%, 50%), hsl(180, 100%, 50%), hsl(210, 100%, 50%), hsl(240, 100%, 60%), hsl(270, 100%, 50%), hsl(300, 100%, 50%), hsl(330, 100%, 50%), hsl(360, 100%, 50%))";
+
+/** One layer of the rotating ring: a blurred copy sits behind a sharp one for the glow. */
+function RainbowRing({ blurred }: { blurred?: boolean }) {
+  return (
+    <span className="absolute -inset-[2px] overflow-hidden rounded-[10px]" aria-hidden="true">
+      <span
+        className={cn(
+          "absolute left-1/2 top-1/2 aspect-square min-h-[150%] min-w-[150%] origin-top-left -translate-x-1/2 -translate-y-1/2 [animation:rainbow-spin_4s_linear_infinite]",
+          blurred && "blur-md",
+        )}
+        style={{ backgroundImage: RAINBOW_GRADIENT }}
+      />
+    </span>
+  );
+}
+
 function toggle(ids: number[], id: number): number[] {
   return ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id];
 }
@@ -234,10 +253,14 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <Dices className="size-4" />
-          Spin the Bottle
-        </Button>
+        <button type="button" className="group relative inline-flex h-10 items-center rounded-[10px]">
+          <RainbowRing blurred />
+          <RainbowRing />
+          <span className="relative inline-flex h-10 items-center gap-2 rounded-[8px] bg-card px-4 text-sm font-medium text-foreground shadow-sm transition-transform group-hover:scale-[1.02] group-active:scale-[0.98]">
+            <Dices className="size-4" />
+            Spin the Bottle
+          </span>
+        </button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
