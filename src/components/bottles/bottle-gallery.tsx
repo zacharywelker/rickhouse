@@ -29,7 +29,13 @@ function BottleTile({ row }: { row: GridRow }) {
             className="size-full object-cover"
           />
         ) : (
-          <FillGauge value={row.fillPct} readOnly height={130} label={`${row.expressionName} fill`} />
+          <FillGauge
+            value={row.fillPct}
+            readOnly
+            fieldGroup={row.fieldGroup}
+            height={130}
+            label={`${row.expressionName} fill`}
+          />
         )}
         {row.isFavorite ? (
           <Star className="absolute right-2 top-2 size-4 fill-accent text-accent" aria-label="Favorite" />
@@ -90,7 +96,13 @@ function FamilyCluster({ rows, onExpand }: { rows: GridRow[]; onExpand: () => vo
             <Image src={`/api/images/${front.thumbPath}`} alt="" fill unoptimized className="rounded-md object-cover" />
           ) : (
             <div className="flex size-full items-center justify-center">
-              <FillGauge value={front.fillPct} readOnly height={110} label={`${front.expressionName} fill`} />
+              <FillGauge
+                value={front.fillPct}
+                readOnly
+                fieldGroup={front.fieldGroup}
+                height={110}
+                label={`${front.expressionName} fill`}
+              />
             </div>
           )}
         </div>

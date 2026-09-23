@@ -22,6 +22,7 @@ import {
   setBottleFillAction,
   setBottleOpenAction,
 } from "@/app/(app)/bottles/actions";
+import type { FieldGroup } from "@/db/schema";
 import { clampPct } from "@/lib/bottles/geometry";
 import { FillGauge } from "./fill-gauge";
 
@@ -36,6 +37,7 @@ import { FillGauge } from "./fill-gauge";
 export function FillControl({
   bottleId,
   fillPct,
+  fieldGroup,
   isOpen,
   status,
   dateOpened,
@@ -43,6 +45,7 @@ export function FillControl({
 }: {
   bottleId: number;
   fillPct: number;
+  fieldGroup?: FieldGroup;
   isOpen: boolean;
   status: string;
   dateOpened: string | null;
@@ -178,7 +181,7 @@ export function FillControl({
 
   return (
     <div className="flex flex-col items-center gap-4 rounded-lg border border-border bg-card p-5">
-      <FillGauge value={pct} onChange={change} height={220} label="Fill level" />
+      <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={220} label="Fill level" />
 
       <div className="flex w-full flex-col gap-3">
         <div className="flex items-end gap-2">
