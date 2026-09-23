@@ -13,6 +13,7 @@ import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
+import { Tape } from "@/components/ui/tape";
 import { categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
@@ -191,10 +192,15 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
         <div className="flex flex-col gap-4">
           <div
             className={cn(
-              "flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-border p-6",
+              "relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-border p-6",
               categoryTintClass(group),
             )}
           >
+            {b.acquisition === "gift" ? (
+              <Tape color="pink" className="absolute top-3 left-3 z-10">
+                Gift
+              </Tape>
+            ) : null}
             {hero ? (
               <Image
                 src={`/api/images/${hero.filePath}`}
