@@ -3,6 +3,7 @@ import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList } from "@/db/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatStrip } from "@/components/ui/stat-strip";
 import { formatMoney, formatNumeric } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -47,11 +48,13 @@ export default async function HomePage() {
         <p className="text-sm text-muted-foreground">Your shelf, catalogued.</p>
       </div>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Stat label="Bottles" value={String(summary.bottles)} />
-        <Stat label="Open" value={String(summary.open)} />
-        <Stat label="Total spend" value={formatMoney(summary.spend)} />
-      </section>
+      <StatStrip
+        items={[
+          { label: "Bottles", value: summary.bottles },
+          { label: "Open", value: summary.open },
+          { label: "Total spend", value: formatMoney(summary.spend) },
+        ]}
+      />
 
       <Card>
         <CardHeader>
@@ -100,16 +103,5 @@ export default async function HomePage() {
         </Link>
       </footer>
     </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="text-3xl text-foreground">{value}</p>
-      </CardContent>
-    </Card>
   );
 }

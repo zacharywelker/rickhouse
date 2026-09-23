@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Download, Plus, Rows3, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { StatStrip } from "@/components/ui/stat-strip";
 import { BottleGallery } from "@/components/bottles/bottle-gallery";
 import { BottleTable, COLUMN_LABELS } from "@/components/bottles/bottle-table";
 import { FilterBar } from "@/components/bottles/filter-bar";
@@ -77,12 +77,14 @@ export default async function BottlesPage({
         </div>
       </div>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label={filtered ? "Matching" : "Bottles"} value={String(total)} />
-        <Stat label="Open" value={String(summary.open)} />
-        <Stat label={filtered ? "Spend, filtered" : "Total spend"} value={formatMoney(summary.spend)} />
-        <Stat label="Average proof" value={formatNumeric(summary.avgProof)} />
-      </section>
+      <StatStrip
+        items={[
+          { label: filtered ? "Matching" : "Bottles", value: total },
+          { label: "Open", value: summary.open },
+          { label: filtered ? "Spend, filtered" : "Total spend", value: formatMoney(summary.spend) },
+          { label: "Average proof", value: formatNumeric(summary.avgProof) },
+        ]}
+      />
 
       <FilterBar filters={filters} options={{ categories, brands, distilleries, mashbills, finishes, stores, tags }} columns={COLUMN_LABELS} total={total} />
 
@@ -113,16 +115,5 @@ export default async function BottlesPage({
         <GridPagination filters={filters} page={page} pageCount={pageCount} total={total} />
       ) : null}
     </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="text-2xl tabular-nums">{value}</p>
-      </CardContent>
-    </Card>
   );
 }
