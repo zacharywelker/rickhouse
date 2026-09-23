@@ -138,7 +138,16 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                         backgroundColor: "var(--color-paper)",
                         padding: `${STAMP_MARGIN_TOP}px ${STAMP_MARGIN_X}px ${STAMP_MARGIN_BOTTOM}px`,
                         clipPath: scallopRectClipPath(),
-                        boxShadow: "0 1px 1px rgb(23 23 23 / 0.2), 0 6px 10px -6px rgb(23 23 23 / 0.3)",
+                        // `box-shadow` ignores `clip-path` — it would draw a
+                        // plain rectangular shadow behind the scalloped card,
+                        // which reads as a soft blur that hides the wave
+                        // rather than tracing it. `filter: drop-shadow`
+                        // follows the element's actual clipped silhouette,
+                        // so the shadow itself scallops and the edge is
+                        // legible even where the paper and page are close
+                        // in tone (light mode).
+                        filter:
+                          "drop-shadow(0 1px 1px rgb(23 23 23 / 0.28)) drop-shadow(0 5px 8px rgb(23 23 23 / 0.4))",
                       }),
                 }}
               >
