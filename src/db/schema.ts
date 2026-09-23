@@ -453,6 +453,40 @@ export const bottleTags = pgTable(
 );
 
 // ------------------------------------------------------------
+// Groups (personal, curated collections — not saved filters. DESIGN.md §15:
+// "The database tells you what you own. Groups tell you what it means.")
+// ------------------------------------------------------------
+
+export const groups = pgTable("groups", {
+  id: serial("id").primaryKey(),
+  name: citext("name").notNull().unique(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  coverImagePath: text("cover_image_path"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const groupBottles = pgTable(
+  "group_bottles",
+  {
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    bottleId: integer("bottle_id")
+      .notNull()
+      .references(() => bottles.id, { onDelete: "cascade" }),
+    /** Entry order — groups arrange bottles in clusters, not a sorted table. */
+    position: integer("position").notNull().default(0),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.bottleId] }), index("group_bottles_bottle_idx").on(t.bottleId)],
+);
+
+// ------------------------------------------------------------
 // Backups
 // ------------------------------------------------------------
 
@@ -566,3 +600,4 @@ export type Bottle = typeof bottles.$inferSelect;
 export type BottleImage = typeof bottleImages.$inferSelect;
 export type TastingNote = typeof tastingNotes.$inferSelect;
 export type BottleListRow = typeof bottleList.$inferSelect;
+export type Group = typeof groups.$inferSelect;

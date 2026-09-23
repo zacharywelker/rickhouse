@@ -11,8 +11,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Canonical nav per docs/DESIGN.md §14: Home · Collection · Labels · Groups ·
- * Numbers · Settings. Groups isn't built yet (it needs its own data model —
- * redesign Phase 5), so it's left out rather than linking somewhere empty.
+ * Numbers · Settings.
  * "Configuration" stays as-is rather than becoming "Settings": it's
  * reference-data CRUD (distilleries, brands, stores…), not the personalization
  * settings DESIGN.md means by that name, which doesn't exist yet either.
@@ -21,6 +20,7 @@ const LINKS = [
   { href: "/", label: "Home" },
   { href: "/bottles", label: "Collection" },
   { href: "/expressions", label: "Labels" },
+  { href: "/groups", label: "Groups" },
   { href: "/numbers", label: "Numbers" },
   { href: "/admin", label: "Configuration" },
 ] as const;

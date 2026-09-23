@@ -8,12 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BottleImages } from "@/components/expressions/bottle-images";
+import { BottleGroups } from "@/components/bottles/bottle-groups";
 import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
 import { categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
+import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { cn, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -129,10 +131,12 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   const row = await getBottle(bottleId);
   if (!row) notFound();
 
-  const [images, notes, links] = await Promise.all([
+  const [images, notes, links, memberOf, allGroups] = await Promise.all([
     bottleImagesFor(bottleId),
     tastingNotesFor(bottleId),
     expressionLinks(row.expression.id),
+    groupsForBottle(bottleId),
+    allGroupOptions(),
   ]);
 
   const hero = images.find((image) => image.isPrimary) ?? images[0] ?? null;
@@ -239,6 +243,12 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
               <Spec label="Status" value={humanise(row.bottle.status)} />
               <Spec label="Where" value={row.bottle.location} />
               <Spec label="UPC" value={e.upc} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-5">
+              <BottleGroups bottleId={bottleId} memberOf={memberOf} allGroups={allGroups} />
             </CardContent>
           </Card>
 
