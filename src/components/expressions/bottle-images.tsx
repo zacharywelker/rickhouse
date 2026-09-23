@@ -25,6 +25,24 @@ const PERF_HOLE_R = 3.5;
 const PERF_PERIOD = 11;
 
 /**
+ * Classic US definitives (Washington-Franklins, the Prexies) are printed
+ * in a single engraving ink on the paper stock, not full color — that
+ * single-ink portrait is most of what reads as "a stamp" rather than "a
+ * square photo with a punched border." One is picked per image (seeded,
+ * so it's stable across visits) rather than a continuous hue-rotate,
+ * because these are specific ink colors real definitives used, not an
+ * arbitrary tint.
+ */
+const STAMP_INKS = [
+  "#8a2332", // carmine rose
+  "#1f3f5c", // ultramarine
+  "#2f4d33", // deep green
+  "#5a3921", // sepia
+  "#4a2545", // dull violet
+  "#2b2b2b", // bureau black
+] as const;
+
+/**
  * A stamp's perforated edge, built from actual punched-out circles (a
  * repeating radial gradient masking through to the page background)
  * rather than a CSS `dotted` border — `border-style: dotted` renders
@@ -154,6 +172,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
             const rng = seededRandom(image.id);
             const rotateDeg = seededRange(rng, -6, 6);
             const isSticker = image.kind === "catalog";
+            const ink = STAMP_INKS[Math.floor(rng() * STAMP_INKS.length)];
 
             return (
               <li
@@ -192,19 +211,33 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                   <>
                     {/* Paper fiber across the whole card, punched holes included. */}
                     <Grain opacity={0.11} />
-                    <div className="relative size-full overflow-hidden shadow-[inset_0_1px_3px_rgb(0_0_0_/_0.35)]">
-                      <Image
-                        src={`/api/images/${image.thumbPath ?? image.filePath}`}
-                        alt=""
-                        width={480}
-                        height={480}
-                        unoptimized
-                        className="size-full object-cover"
-                      />
-                      {/* Ink vignette + print grain — an engraved/offset print
-                          is never perfectly flat or evenly inked. */}
-                      <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,transparent_40%,rgb(0_0_0_/_0.3)_100%)]" />
-                      <Grain opacity={0.1} />
+                    {/* The classic-definitive double rule: a thin ink frame,
+                        a sliver of paper, then a second thin ink frame right
+                        against the vignette — not just a punched border. */}
+                    <div className="relative size-full" style={{ border: `1.5px solid ${ink}`, padding: 2 }}>
+                      <div
+                        className="relative size-full overflow-hidden shadow-[inset_0_1px_3px_rgb(0_0_0_/_0.35)]"
+                        style={{ border: `1px solid ${ink}` }}
+                      >
+                        <Image
+                          src={`/api/images/${image.thumbPath ?? image.filePath}`}
+                          alt=""
+                          width={480}
+                          height={480}
+                          unoptimized
+                          className="size-full object-cover [filter:grayscale(1)_contrast(1.2)_brightness(1.08)]"
+                        />
+                        {/* The single-color engraving ink, multiplied over the
+                            grayscale photo — a duotone portrait, not a full-
+                            color snapshot, is most of what reads as "a stamp"
+                            rather than "a photo with a punched border." */}
+                        <div
+                          className="pointer-events-none absolute inset-0 mix-blend-multiply"
+                          style={{ backgroundColor: ink }}
+                        />
+                        <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,transparent_35%,rgb(0_0_0_/_0.35)_100%)]" />
+                        <Grain opacity={0.12} />
+                      </div>
                     </div>
                     <Perforation />
                   </>
