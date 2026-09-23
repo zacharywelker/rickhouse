@@ -65,7 +65,7 @@ const RAINBOW_TEXT_GRADIENT =
 
 /**
  * A rotating rainbow ring behind the button face: a wider, softly blurred
- * copy for a mild bleed, and a thick sharp-edged copy on top so it reads as
+ * copy for a mild bleed, and a thin sharp-edged copy on top so it reads as
  * an actual border rather than a haze.
  */
 function RainbowRing({ glow }: { glow?: boolean }) {
@@ -73,14 +73,19 @@ function RainbowRing({ glow }: { glow?: boolean }) {
     <span
       className={cn(
         "absolute flex items-center justify-center overflow-hidden",
-        glow ? "-inset-[6px] rounded-[14px] opacity-70 blur-[5px]" : "-inset-[3px] rounded-[10px]",
+        glow ? "-inset-[4px] rounded-[12px] opacity-50 blur-[4px]" : "-inset-[2px] rounded-[9px]",
       )}
       aria-hidden="true"
     >
-      {/* 200% covers the wrapper's diagonal at every angle, so nothing but
-          gradient is ever visible through the rotation — no off-center gap. */}
+      {/*
+       * A fixed square well past the wrapper's own diagonal (a ~180×40 pill
+       * has a ~185px diagonal) — sizing this off the wrapper's own percentage
+       * width/height instead made it a rectangle, not a square, so at some
+       * angles its corners swung inside the wrapper's corners and the border
+       * visibly dropped out there once per rotation.
+       */}
       <span
-        className="h-[200%] w-[200%] shrink-0 [animation:rainbow-spin_4s_linear_infinite]"
+        className="h-[280px] w-[280px] shrink-0 [animation:rainbow-spin_4s_linear_infinite]"
         style={{ backgroundImage: RAINBOW_GRADIENT }}
       />
     </span>
