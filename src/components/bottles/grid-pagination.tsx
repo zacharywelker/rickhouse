@@ -36,7 +36,7 @@ export function GridPagination({
             id="page-size"
             value={filters.pageSize}
             onChange={(e) => apply({ pageSize: Number(e.target.value) })}
-            className="h-8 rounded-md border border-input bg-card px-2 text-sm"
+            className="h-8 border border-input bg-card px-2 text-sm"
           >
             {PAGE_SIZES.map((size) => (
               <option key={size} value={size}>

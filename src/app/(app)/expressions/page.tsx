@@ -107,7 +107,7 @@ export default async function ExpressionsPage({
           </Button>
         </div>
       ) : (
-        <div className="rounded-lg border border-border bg-card">
+        <div className="border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
