@@ -13,6 +13,7 @@ import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
+import { Tape } from "@/components/ui/tape";
 import { categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
@@ -189,24 +190,38 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_1fr]">
         <div className="flex flex-col gap-4">
-          <div
-            className={cn(
-              "flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-border p-6",
-              categoryTintClass(group),
-            )}
-          >
-            {hero ? (
-              <Image
-                src={`/api/images/${hero.filePath}`}
-                alt={`${row.brand.name} ${e.name}`}
-                width={640}
-                height={640}
-                unoptimized
-                className="size-full rounded-lg object-contain drop-shadow-md"
-              />
-            ) : (
-              <FillGauge value={row.bottle.fillPct} readOnly decorative height={220} label={`${e.name} fill`} />
-            )}
+          <div className="relative aspect-square w-full">
+            {/*
+             * The frame below clips the photo to its rounded corners, but
+             * not this wrapper — so a corner tape flag can hang slightly
+             * over the frame's edge instead of sitting neatly inside it,
+             * the way a real piece of tape crosses over whatever it's
+             * stuck to rather than stopping at its border.
+             */}
+            {b.acquisition === "gift" ? (
+              <Tape color="pink" className="absolute -top-2 -left-3 z-10">
+                Gift
+              </Tape>
+            ) : null}
+            <div
+              className={cn(
+                "flex size-full items-center justify-center overflow-hidden rounded-xl border border-border p-6",
+                categoryTintClass(group),
+              )}
+            >
+              {hero ? (
+                <Image
+                  src={`/api/images/${hero.filePath}`}
+                  alt={`${row.brand.name} ${e.name}`}
+                  width={640}
+                  height={640}
+                  unoptimized
+                  className="size-full rounded-lg object-contain drop-shadow-md"
+                />
+              ) : (
+                <FillGauge value={row.bottle.fillPct} readOnly decorative height={220} label={`${e.name} fill`} />
+              )}
+            </div>
           </div>
           <FillControl
             bottleId={bottleId}

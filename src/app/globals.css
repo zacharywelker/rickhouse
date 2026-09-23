@@ -69,6 +69,10 @@
   --color-tape-pink: #d98da5;
   --color-tape-purple: #9b7bb0;
   --color-tape-neutral: #b9b4a7;
+  /* Label ink for tape — fixed dark, not --foreground, because the tape
+     itself doesn't invert for dark mode (see above) and needs to keep
+     reading against its own pastel regardless of theme. */
+  --color-tape-ink: #242424;
 
   /*
    * Deprecated — kept only because src/components/bottles/fill-gauge.tsx
