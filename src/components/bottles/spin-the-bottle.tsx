@@ -280,7 +280,6 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
               }}
               aria-hidden="true"
             />
-            <div className="absolute inset-6 rounded-full bg-card shadow-inner ring-1 ring-border" aria-hidden="true" />
             <div className="absolute inset-0 flex items-center justify-center">
               <BottleGlyph
                 className="h-24 w-24 text-accent drop-shadow-md sm:h-28 sm:w-28"
