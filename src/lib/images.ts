@@ -16,6 +16,8 @@ import { env } from "./env";
 
 const ORIGINALS = "bottles";
 const THUMBS = "bottles/thumbs";
+const GROUP_ORIGINALS = "groups";
+const GROUP_THUMBS = "groups/thumbs";
 
 /** Formats sharp can read that a browser can display. */
 const ACCEPTED = new Map<string, string>([
@@ -51,7 +53,7 @@ export function resolveUpload(relative: string): string {
   return resolved;
 }
 
-export async function storeBottleImage(file: File): Promise<StoredImage> {
+async function storeImage(file: File, originalsDir: string, thumbsDir: string): Promise<StoredImage> {
   const extension = ACCEPTED.get(file.type);
   if (!extension) {
     throw new ImageError(`${file.type || "That file type"} is not an image this app can store.`);
@@ -61,7 +63,7 @@ export async function storeBottleImage(file: File): Promise<StoredImage> {
   }
 
   const root = uploadRoot();
-  await mkdir(path.join(root, THUMBS), { recursive: true });
+  await mkdir(path.join(root, thumbsDir), { recursive: true });
 
   const id = randomUUID();
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -75,8 +77,8 @@ export async function storeBottleImage(file: File): Promise<StoredImage> {
     throw new ImageError("That file does not look like an image.");
   }
 
-  const fileRelative = path.posix.join(ORIGINALS, `${id}.webp`);
-  const thumbRelative = path.posix.join(THUMBS, `${id}.webp`);
+  const fileRelative = path.posix.join(originalsDir, `${id}.webp`);
+  const thumbRelative = path.posix.join(thumbsDir, `${id}.webp`);
 
   const full = await pipeline
     .clone()
@@ -101,8 +103,21 @@ export async function storeBottleImage(file: File): Promise<StoredImage> {
   };
 }
 
-/** Best effort: a missing file must not stop the database row being removed. */
-export async function deleteBottleImage(filePath: string, thumbPath: string | null): Promise<void> {
+export async function storeBottleImage(file: File): Promise<StoredImage> {
+  return storeImage(file, ORIGINALS, THUMBS);
+}
+
+/** A Group's cover image (DESIGN.md §23). Same pipeline, a separate directory. */
+export async function storeGroupCoverImage(file: File): Promise<StoredImage> {
+  return storeImage(file, GROUP_ORIGINALS, GROUP_THUMBS);
+}
+
+/**
+ * Best effort: a missing file must not stop the database row being removed.
+ * Generic over both bottle photos and Group cover images — both are just a
+ * full-size file plus a thumbnail under the uploads volume.
+ */
+export async function deleteStoredImage(filePath: string, thumbPath: string | null): Promise<void> {
   for (const relative of [filePath, thumbPath]) {
     if (!relative) continue;
     try {

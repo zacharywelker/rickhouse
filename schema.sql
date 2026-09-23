@@ -368,6 +368,33 @@ CREATE TABLE bottle_tags (
 );
 
 -- ------------------------------------------------------------
+-- Groups
+-- ------------------------------------------------------------
+
+-- Personal, curated collections ("Japan 2026", "Store Picks") — not saved
+-- filters. A bottle can belong to many groups and a group holds many
+-- bottles, so this is many-to-many like expression_finishes, with the same
+-- position column for the order bottles were arranged in.
+CREATE TABLE groups (
+    id               serial PRIMARY KEY,
+    name             citext NOT NULL UNIQUE,
+    slug             text   NOT NULL UNIQUE,
+    description      text,
+    cover_image_path text,
+    created_at       timestamptz NOT NULL DEFAULT now(),
+    updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE group_bottles (
+    group_id  integer NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    bottle_id integer NOT NULL REFERENCES bottles(id) ON DELETE CASCADE,
+    position  integer NOT NULL DEFAULT 0,
+    added_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (group_id, bottle_id)
+);
+CREATE INDEX group_bottles_bottle_idx ON group_bottles(bottle_id);
+
+-- ------------------------------------------------------------
 -- Backups
 -- ------------------------------------------------------------
 

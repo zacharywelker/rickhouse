@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { bottleImages, bottles, tastingNotes } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
-import { deleteBottleImage } from "@/lib/images";
+import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import { z } from "zod";
 import { bottleSchema, tastingNoteSchema } from "@/lib/expressions/schema";
@@ -58,7 +58,7 @@ export async function deleteBottleAction(id: number): Promise<ActionResult> {
     // Images cascade in the database; the files on disk do not.
     const images = await db.select().from(bottleImages).where(eq(bottleImages.bottleId, id));
     await db.delete(bottles).where(eq(bottles.id, id));
-    await Promise.all(images.map((image) => deleteBottleImage(image.filePath, image.thumbPath)));
+    await Promise.all(images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)));
     revalidatePath("/bottles");
     revalidatePath("/");
     return { ok: true, message: "Bottle deleted." };
@@ -78,7 +78,7 @@ export async function deleteBottleImageAction(imageId: number): Promise<ActionRe
     if (!image) return { ok: false, error: "That image is already gone." };
 
     await db.delete(bottleImages).where(eq(bottleImages.id, imageId));
-    await deleteBottleImage(image.filePath, image.thumbPath);
+    await deleteStoredImage(image.filePath, image.thumbPath);
 
     // Losing the primary must not leave the bottle without one.
     if (image.isPrimary) {
