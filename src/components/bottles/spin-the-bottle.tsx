@@ -63,10 +63,20 @@ const RAINBOW_GRADIENT =
 const RAINBOW_TEXT_GRADIENT =
   "linear-gradient(90deg, hsl(0, 90%, 45%), hsl(30, 90%, 42%), hsl(60, 90%, 38%), hsl(90, 80%, 35%), hsl(120, 80%, 35%), hsl(150, 80%, 35%), hsl(180, 80%, 38%), hsl(210, 90%, 48%), hsl(240, 90%, 58%), hsl(270, 90%, 52%), hsl(300, 90%, 45%), hsl(330, 90%, 45%), hsl(360, 90%, 45%))";
 
-/** A solid, sharp-edged rainbow ring rotating behind the button face — a border, not a haze. */
-function RainbowRing() {
+/**
+ * A rotating rainbow ring behind the button face: a wider, softly blurred
+ * copy for a mild bleed, and a thick sharp-edged copy on top so it reads as
+ * an actual border rather than a haze.
+ */
+function RainbowRing({ glow }: { glow?: boolean }) {
   return (
-    <span className="absolute -inset-[3px] overflow-hidden rounded-[11px]" aria-hidden="true">
+    <span
+      className={cn(
+        "absolute overflow-hidden",
+        glow ? "-inset-[7px] rounded-[15px] opacity-70 blur-[5px]" : "-inset-[4px] rounded-[11px]",
+      )}
+      aria-hidden="true"
+    >
       <span
         className="absolute left-1/2 top-1/2 aspect-square min-h-[150%] min-w-[150%] origin-top-left -translate-x-1/2 -translate-y-1/2 [animation:rainbow-spin_4s_linear_infinite]"
         style={{ backgroundImage: RAINBOW_GRADIENT }}
@@ -256,6 +266,7 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
     >
       <DialogTrigger asChild>
         <button type="button" className="group relative inline-flex h-10 items-center rounded-[11px]">
+          <RainbowRing glow />
           <RainbowRing />
           <span className="relative inline-flex h-10 items-center gap-2 rounded-[8px] bg-card px-4 text-sm font-semibold shadow-sm transition-transform group-hover:scale-[1.02] group-active:scale-[0.98]">
             <Dices className="size-4 text-foreground" />
