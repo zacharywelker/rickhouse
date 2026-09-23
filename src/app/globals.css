@@ -71,6 +71,11 @@
      reading against its own pastel regardless of theme. */
   --color-tape-ink: #242424;
 
+  /* Instant-photo/stamp paper — same rationale as tape: real paper doesn't
+     turn dark just because the room's lights dim, so it's fixed rather than
+     following --card into dark mode. */
+  --color-paper: #fffefa;
+
   /*
    * Deprecated — kept only because src/components/bottles/fill-gauge.tsx
    * reads --color-oak-700, --color-amber-spirit and --color-rye-gold

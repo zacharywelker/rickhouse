@@ -6,7 +6,8 @@ import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { MarginTag } from "@/components/ui/margin-tag";
+import { Polaroid } from "@/components/ui/polaroid";
 import { BottleImages } from "@/components/expressions/bottle-images";
 import { BottleGroups } from "@/components/bottles/bottle-groups";
 import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
@@ -17,6 +18,8 @@ import { Tape } from "@/components/ui/tape";
 import { categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
+import { hashSeed, seededRandom } from "@/lib/seeded-random";
+import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { cn, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -27,12 +30,27 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: row ? `${row.brand.name} ${row.expression.name}` : "Bottle" };
 }
 
-function Spec({ label, value }: { label: string; value: React.ReactNode }) {
+/**
+ * Label facts (proof, ABV, size — printed on the bottle itself) and
+ * bottle facts (what you paid, where, when — true of this one copy) get
+ * two different inks: the label facts stay in the app's normal type, the
+ * bottle facts render like they were filled in by hand after the fact.
+ */
+function Spec({
+  label,
+  value,
+  handFont,
+}: {
+  label: string;
+  value: React.ReactNode;
+  /** A TAPE_FONTS className: renders the value like it was filled in by hand. */
+  handFont?: string;
+}) {
   if (value === null || value === undefined || value === "" || value === "—") return null;
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="text-sm">{value}</dd>
+      <dd className={cn("text-sm", handFont && cn("text-lg leading-tight text-accent", handFont))}>{value}</dd>
     </div>
   );
 }
@@ -152,6 +170,10 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
       .join(" ") ??
     null;
 
+  // The pen this bottle's entry was "filled in" with — one hand for the
+  // whole page, not a different marker per field.
+  const handFont = TAPE_FONTS[Math.floor(seededRandom(bottleId)() * TAPE_FONTS.length)]?.className;
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -170,14 +192,16 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <span className="text-accent">{e.name}</span>
             <FavoriteToggle bottleId={bottleId} isFavorite={row.bottle.isFavorite} />
           </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {b.batch ? <Badge>{b.batch}</Badge> : null}
-            {b.isSingleBarrel ? <Badge className="border-primary/40 text-primary">Single barrel</Badge> : null}
-            {b.isSingleBarrelPick ? <Badge className="border-primary/40 text-primary">Private selection</Badge> : null}
-            {e.isCaskStrength ? <Badge>Cask strength</Badge> : null}
-            {e.isBottledInBond ? <Badge>Bottled in bond</Badge> : null}
-            {e.isStraight ? <Badge>Straight</Badge> : null}
-            {e.isNas ? <Badge>NAS</Badge> : null}
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {b.batch ? <MarginTag seed={hashSeed(`batch-${bottleId}`)}>{b.batch}</MarginTag> : null}
+            {b.isSingleBarrel ? <MarginTag seed={hashSeed(`single-barrel-${bottleId}`)}>Single barrel</MarginTag> : null}
+            {b.isSingleBarrelPick ? (
+              <MarginTag seed={hashSeed(`private-selection-${bottleId}`)}>Private selection</MarginTag>
+            ) : null}
+            {e.isCaskStrength ? <MarginTag seed={hashSeed(`cask-strength-${e.id}`)}>Cask strength</MarginTag> : null}
+            {e.isBottledInBond ? <MarginTag seed={hashSeed(`bib-${e.id}`)}>Bottled in bond</MarginTag> : null}
+            {e.isStraight ? <MarginTag seed={hashSeed(`straight-${e.id}`)}>Straight</MarginTag> : null}
+            {e.isNas ? <MarginTag seed={hashSeed(`nas-${e.id}`)}>NAS</MarginTag> : null}
           </div>
         </div>
         <Button variant="outline" asChild>
@@ -190,38 +214,35 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_1fr]">
         <div className="flex flex-col gap-4">
-          <div className="relative aspect-square w-full">
+          <div className="relative w-full">
             {/*
-             * The frame below clips the photo to its rounded corners, but
-             * not this wrapper — so a corner tape flag can hang slightly
-             * over the frame's edge instead of sitting neatly inside it,
-             * the way a real piece of tape crosses over whatever it's
-             * stuck to rather than stopping at its border.
+             * The Polaroid frame clips the photo to its own shape (clean or
+             * torn), but not this wrapper — so a corner tape flag can hang
+             * slightly over the frame's edge instead of sitting neatly
+             * inside it, the way a real piece of tape crosses over whatever
+             * it's stuck to rather than stopping at its border.
              */}
             {b.acquisition === "gift" ? (
               <Tape color="pink" className="absolute -top-2 -left-3 z-10">
                 Gift
               </Tape>
             ) : null}
-            <div
-              className={cn(
-                "flex size-full items-center justify-center overflow-hidden rounded-xl border border-border p-6",
-                categoryTintClass(group),
-              )}
-            >
-              {hero ? (
-                <Image
-                  src={`/api/images/${hero.filePath}`}
-                  alt={`${row.brand.name} ${e.name}`}
-                  width={640}
-                  height={640}
-                  unoptimized
-                  className="size-full rounded-lg object-contain drop-shadow-md"
-                />
-              ) : (
-                <FillGauge value={row.bottle.fillPct} readOnly decorative height={220} label={`${e.name} fill`} />
-              )}
-            </div>
+            <Polaroid seed={bottleId} caption={b.batch ? `${row.brand.name} — ${b.batch}` : row.brand.name}>
+              <div className={cn("flex size-full items-center justify-center p-6", categoryTintClass(group))}>
+                {hero ? (
+                  <Image
+                    src={`/api/images/${hero.filePath}`}
+                    alt={`${row.brand.name} ${e.name}`}
+                    width={640}
+                    height={640}
+                    unoptimized
+                    className="size-full object-contain"
+                  />
+                ) : (
+                  <FillGauge value={row.bottle.fillPct} readOnly decorative height={220} label={`${e.name} fill`} />
+                )}
+              </div>
+            </Polaroid>
           </div>
           <FillControl
             bottleId={bottleId}
@@ -235,102 +256,97 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
         </div>
 
         <div className="flex flex-col gap-6">
-          <Card>
-            <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3">
-              <Spec label="Proof" value={formatNumeric(e.proof)} />
-              <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
-              <Spec label="Age" value={age} />
-              <Spec label="Size" value={`${e.sizeMl} ml`} />
-              <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp) : null} />
-              <Spec label="Paid" value={row.bottle.pricePaid ? formatMoney(row.bottle.pricePaid) : null} />
-              <Spec
-                label="Store"
-                value={
-                  row.store ? (
-                    <Link href={`/stores/${row.store.slug}` as Route} className="text-primary hover:underline">
-                      {row.store.name}
-                    </Link>
-                  ) : null
-                }
-              />
-              <Spec label="Acquired" value={row.bottle.dateAcquired} />
-              <Spec label="How" value={humanise(row.bottle.acquisition)} />
-              <Spec label="Status" value={humanise(row.bottle.status)} />
-              <Spec label="Where" value={row.bottle.location} />
-              <Spec label="UPC" value={e.upc} />
-            </CardContent>
-          </Card>
+          <dl
+            className="grid grid-cols-2 gap-x-4 gap-y-4 bg-[repeating-linear-gradient(to_bottom,transparent,transparent_1.6rem,var(--color-border)_1.6rem,var(--color-border)_calc(1.6rem+1px))] py-2 sm:grid-cols-3"
+          >
+            <Spec label="Proof" value={formatNumeric(e.proof)} />
+            <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
+            <Spec label="Age" value={age} />
+            <Spec label="Size" value={`${e.sizeMl} ml`} />
+            <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp) : null} />
+            <Spec label="Paid" value={row.bottle.pricePaid ? formatMoney(row.bottle.pricePaid) : null} handFont={handFont} />
+            <Spec
+              label="Store"
+              value={
+                row.store ? (
+                  <Link href={`/stores/${row.store.slug}` as Route} className="text-primary hover:underline">
+                    {row.store.name}
+                  </Link>
+                ) : null
+              }
+              handFont={handFont}
+            />
+            <Spec label="Acquired" value={row.bottle.dateAcquired} handFont={handFont} />
+            <Spec label="How" value={humanise(row.bottle.acquisition)} handFont={handFont} />
+            <Spec label="Status" value={humanise(row.bottle.status)} handFont={handFont} />
+            <Spec label="Where" value={row.bottle.location} handFont={handFont} />
+            <Spec label="UPC" value={e.upc} />
+          </dl>
 
-          <Card>
-            <CardContent className="p-5">
-              <BottleGroups bottleId={bottleId} memberOf={memberOf} allGroups={allGroups} />
-            </CardContent>
-          </Card>
+          <div className="border-t border-border pt-6">
+            <BottleGroups bottleId={bottleId} memberOf={memberOf} allGroups={allGroups} />
+          </div>
 
-          <Card>
-            <CardContent className="flex flex-col gap-4 p-5">
-              <Chips
-                label="Distilleries"
-                items={links.distilleries}
-                hrefFor={(item) => (item.slug ? (`/distilleries/${item.slug}` as Route) : null)}
-              />
-              <Mashbills items={links.mashbills} />
-              <Chips
-                label="Finishes"
-                items={links.finishes}
-                hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}
-              />
-              {b.pickName || b.pickedBy || b.barrelNumber || b.warehouse || b.barrelFilledOn || b.bottledOn ? (
-                <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
-                  <Spec label="Pick" value={b.pickName} />
-                  <Spec label="Picked By" value={b.pickedBy} />
-                  <Spec label="Barrel" value={b.barrelNumber} />
-                  <Spec label="Warehouse" value={b.warehouse} />
-                  <Spec label="Rick / Floor" value={b.rickFloor} />
-                  <Spec label="Filled" value={b.barrelFilledOn} />
-                  <Spec label="Bottled" value={b.bottledOn} />
-                </dl>
-              ) : null}
-              {group === "rum" ? (
-                <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
-                  <Spec label="Still" value={humanise(e.stillType)} />
-                  <Spec label="Estate" value={e.estate} />
-                  <Spec label="Marque" value={e.marque} />
-                  <Spec label="Esters" value={e.esterGl ? `${Number(e.esterGl)} g/hLAA` : null} />
-                  <Spec label="Added sugar" value={e.sugarGPerL ? `${Number(e.sugarGPerL)} g/L` : null} />
-                  <Spec label="Base" value={humanise(e.molassesOrCane)} />
-                </dl>
-              ) : null}
-              {group === "agave" ? (
-                <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
-                  <Spec label="Agave" value={e.agaveType} />
-                  <Spec label="Region" value={e.agaveRegion} />
-                  <Spec label="Cooking" value={humanise(e.cookingMethod)} />
-                  <Spec label="Extraction" value={humanise(e.extraction)} />
-                </dl>
-              ) : null}
-              <p className="border-t border-border pt-4 text-xs text-muted-foreground">
-                Specs belong to the label.{" "}
-                <Link href={`/expressions/${e.id}/edit`} className="text-primary hover:underline">
-                  Edit the label
-                </Link>{" "}
-                to change them for every bottle of it.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col gap-4 border-t border-border pt-6">
+            <Chips
+              label="Distilleries"
+              items={links.distilleries}
+              hrefFor={(item) => (item.slug ? (`/distilleries/${item.slug}` as Route) : null)}
+            />
+            <Mashbills items={links.mashbills} />
+            <Chips
+              label="Finishes"
+              items={links.finishes}
+              hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}
+            />
+            {b.pickName || b.pickedBy || b.barrelNumber || b.warehouse || b.barrelFilledOn || b.bottledOn ? (
+              <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
+                <Spec label="Pick" value={b.pickName} />
+                <Spec label="Picked By" value={b.pickedBy} />
+                <Spec label="Barrel" value={b.barrelNumber} />
+                <Spec label="Warehouse" value={b.warehouse} />
+                <Spec label="Rick / Floor" value={b.rickFloor} />
+                <Spec label="Filled" value={b.barrelFilledOn} />
+                <Spec label="Bottled" value={b.bottledOn} />
+              </dl>
+            ) : null}
+            {group === "rum" ? (
+              <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
+                <Spec label="Still" value={humanise(e.stillType)} />
+                <Spec label="Estate" value={e.estate} />
+                <Spec label="Marque" value={e.marque} />
+                <Spec label="Esters" value={e.esterGl ? `${Number(e.esterGl)} g/hLAA` : null} />
+                <Spec label="Added sugar" value={e.sugarGPerL ? `${Number(e.sugarGPerL)} g/L` : null} />
+                <Spec label="Base" value={humanise(e.molassesOrCane)} />
+              </dl>
+            ) : null}
+            {group === "agave" ? (
+              <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
+                <Spec label="Agave" value={e.agaveType} />
+                <Spec label="Region" value={e.agaveRegion} />
+                <Spec label="Cooking" value={humanise(e.cookingMethod)} />
+                <Spec label="Extraction" value={humanise(e.extraction)} />
+              </dl>
+            ) : null}
+            <p className="border-t border-border pt-4 text-xs text-muted-foreground">
+              Specs belong to the label.{" "}
+              <Link href={`/expressions/${e.id}/edit`} className="text-primary hover:underline">
+                Edit the label
+              </Link>{" "}
+              to change them for every bottle of it.
+            </p>
+          </div>
 
           {e.description || row.bottle.notes ? (
-            <Card>
-              <CardContent className="flex flex-col gap-3 p-5">
-                {e.description ? <p className="text-sm">{e.description}</p> : null}
-                {row.bottle.notes ? (
-                  <p className="text-sm text-muted-foreground">{row.bottle.notes}</p>
-                ) : null}
-              </CardContent>
-            </Card>
+            <div className="flex flex-col gap-3 border-t border-border pt-6">
+              {e.description ? <p className="text-sm">{e.description}</p> : null}
+              {row.bottle.notes ? <p className={cn("text-lg text-accent", handFont)}>{row.bottle.notes}</p> : null}
+            </div>
           ) : null}
 
-          <TastingNotes bottleId={bottleId} notes={notes} />
+          <div className="border-t border-border pt-6">
+            <TastingNotes bottleId={bottleId} notes={notes} />
+          </div>
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { GripVertical, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { seededRandom, seededRange } from "@/lib/seeded-random";
 import { deleteBottleImageAction, reorderBottleImagesAction, setPrimaryImageAction } from "@/app/(app)/bottles/actions";
 import type { ActionResult } from "@/lib/admin/types";
 import type { PhotoKind } from "@/db/schema";
@@ -96,68 +97,87 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
         </p>
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {order.map((image, index) => (
-            <li
-              key={image.id}
-              draggable
-              onDragStart={() => setDragging(index)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragging !== null) moveTo(dragging, index);
-                setDragging(null);
-              }}
-              onDragEnd={() => setDragging(null)}
-              className={cn(
-                "group relative overflow-hidden rounded-lg border border-border bg-muted",
-                dragging === index && "opacity-50",
-              )}
-            >
-              <Image
-                src={`/api/images/${image.thumbPath ?? image.filePath}`}
-                alt=""
-                width={480}
-                height={480}
-                unoptimized
-                className="aspect-square w-full object-cover"
-              />
+          {order.map((image, index) => {
+            // Catalog shots (label/product photos, usually already cut out)
+            // read as die-cut stickers — the photo's own silhouette, no
+            // frame. Life photos (snapshots of the actual bottle) read as
+            // postage stamps — white paper, a punched-hole border. Seeded
+            // off the image id so the tilt is stable across visits.
+            const rng = seededRandom(image.id);
+            const rotateDeg = seededRange(rng, -6, 6);
+            const isSticker = image.kind === "catalog";
 
-              {image.isPrimary ? (
-                <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                  Hero
-                </span>
-              ) : null}
+            return (
+              <li
+                key={image.id}
+                draggable
+                onDragStart={() => setDragging(index)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragging !== null) moveTo(dragging, index);
+                  setDragging(null);
+                }}
+                onDragEnd={() => setDragging(null)}
+                className={cn(
+                  "group relative",
+                  isSticker ? "aspect-square" : "aspect-square bg-paper p-2.5",
+                  dragging === index && "opacity-50",
+                )}
+                style={{
+                  transform: `rotate(${rotateDeg.toFixed(2)}deg)`,
+                  border: isSticker ? undefined : "7px dotted var(--color-background)",
+                }}
+              >
+                <Image
+                  src={`/api/images/${image.thumbPath ?? image.filePath}`}
+                  alt=""
+                  width={480}
+                  height={480}
+                  unoptimized
+                  className={cn(
+                    "size-full",
+                    isSticker ? "object-contain p-2 [filter:drop-shadow(0_3px_3px_rgb(0_0_0_/_0.35))]" : "object-cover",
+                  )}
+                />
 
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/60 p-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                <span className="pl-1 text-white/70" aria-hidden="true">
-                  <GripVertical className="size-4" />
-                </span>
-                <div className="flex flex-wrap items-center justify-end gap-0.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0 text-white hover:bg-white/20"
-                    onClick={() => void setPrimaryImageAction(image.id).then(() => router.refresh())}
-                    disabled={image.isPrimary}
-                    aria-label="Make hero image"
-                  >
-                    <Star className={cn("size-4", image.isPrimary && "fill-current")} />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0 text-white hover:bg-white/20"
-                    onClick={() => void deleteBottleImageAction(image.id).then(() => router.refresh())}
-                    aria-label="Delete photo"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                {image.isPrimary ? (
+                  <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+                    Hero
+                  </span>
+                ) : null}
+
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/60 p-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                  <span className="pl-1 text-white/70" aria-hidden="true">
+                    <GripVertical className="size-4" />
+                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-7 p-0 text-white hover:bg-white/20"
+                      onClick={() => void setPrimaryImageAction(image.id).then(() => router.refresh())}
+                      disabled={image.isPrimary}
+                      aria-label="Make hero image"
+                    >
+                      <Star className={cn("size-4", image.isPrimary && "fill-current")} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-7 p-0 text-white hover:bg-white/20"
+                      onClick={() => void deleteBottleImageAction(image.id).then(() => router.refresh())}
+                      aria-label="Delete photo"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
