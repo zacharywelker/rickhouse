@@ -237,7 +237,7 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
         <BottleCards rows={rows} />
       </div>
 
-      <div className="hidden rounded-lg border border-border bg-card md:block">
+      <div className="hidden border border-border bg-card md:block">
         <Table>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (

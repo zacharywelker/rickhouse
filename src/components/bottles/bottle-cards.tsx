@@ -27,7 +27,7 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
         <li key={row.id}>
           <Link
             href={`/bottles/${row.id}` as Route}
-            className="flex gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40"
+            className="flex gap-3 border border-border bg-card p-3 transition-colors hover:border-primary/40"
           >
             {row.thumbPath ? (
               <Image
