@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Grain } from "@/components/ui/grain";
 import { cn } from "@/lib/utils";
 import { seededRandom, seededRange } from "@/lib/seeded-random";
+import { scallopRectClipPath } from "@/lib/scallop-edge";
 import { deleteBottleImageAction, reorderBottleImagesAction, setPrimaryImageAction } from "@/app/(app)/bottles/actions";
 import type { ActionResult } from "@/lib/admin/types";
 import type { PhotoKind } from "@/db/schema";
@@ -20,70 +21,13 @@ export type BottleImage = {
   kind: PhotoKind;
 };
 
-const PERF_FRAME = 10;
-const PERF_HOLE_R = 3.5;
-const PERF_PERIOD = 11;
-
-/**
- * Classic US definitives (Washington-Franklins, the Prexies) are printed
- * in a single engraving ink on the paper stock, not full color — that
- * single-ink portrait is most of what reads as "a stamp" rather than "a
- * square photo with a punched border." One is picked per image (seeded,
- * so it's stable across visits) rather than a continuous hue-rotate,
- * because these are specific ink colors real definitives used, not an
- * arbitrary tint.
- */
-const STAMP_INKS = [
-  "#8a2332", // carmine rose
-  "#1f3f5c", // ultramarine
-  "#2f4d33", // deep green
-  "#5a3921", // sepia
-  "#4a2545", // dull violet
-  "#2b2b2b", // bureau black
-] as const;
-
-/**
- * A stamp's perforated edge, built from actual punched-out circles (a
- * repeating radial gradient masking through to the page background)
- * rather than a CSS `dotted` border — `border-style: dotted` renders
- * uneven, squashed dots that bunch up at corners and reads as "a CSS
- * border," not a punched edge. Four independent strips avoid that.
- */
-// Each hole gets a thin dark rim between the punched-through center and the
-// paper — a flat colored circle reads as a printed dot; a rim (the cut
-// edge of the paper catching a little shadow) reads as an actual hole with
-// depth. `RIM` intentionally never themes with the paper (a cut edge is
-// always a bit darker than the surrounding stock, in either mode).
-const RIM = "rgb(0 0 0 / 0.32)";
-
-function holeGradient(): string {
-  return `radial-gradient(circle ${PERF_HOLE_R}px, var(--color-background) 0 ${PERF_HOLE_R - 1.4}px, ${RIM} ${PERF_HOLE_R - 1.4}px ${PERF_HOLE_R - 0.5}px, transparent ${PERF_HOLE_R}px)`;
-}
-
-function Perforation() {
-  const hStyle: React.CSSProperties = {
-    height: PERF_FRAME,
-    backgroundImage: holeGradient(),
-    backgroundRepeat: "repeat-x",
-    backgroundPosition: "center",
-    backgroundSize: `${PERF_PERIOD}px ${PERF_FRAME}px`,
-  };
-  const vStyle: React.CSSProperties = {
-    width: PERF_FRAME,
-    backgroundImage: holeGradient(),
-    backgroundRepeat: "repeat-y",
-    backgroundPosition: "center",
-    backgroundSize: `${PERF_FRAME}px ${PERF_PERIOD}px`,
-  };
-  return (
-    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-      <div className="absolute inset-x-0 top-0" style={hStyle} />
-      <div className="absolute inset-x-0 bottom-0" style={hStyle} />
-      <div className="absolute inset-y-0 left-0" style={vStyle} />
-      <div className="absolute inset-y-0 right-0" style={vStyle} />
-    </div>
-  );
-}
+// A modern self-adhesive Forever stamp, not a water-activated one: a
+// continuous die-cut wavy edge rather than round perforation holes, a
+// thin frame right against the photo, and more white margin at the
+// bottom than the other three sides.
+const STAMP_MARGIN_X = 9;
+const STAMP_MARGIN_TOP = 9;
+const STAMP_MARGIN_BOTTOM = 16;
 
 export function BottleImages({ bottleId, images }: { bottleId: number; images: BottleImage[] }) {
   const router = useRouter();
@@ -172,7 +116,6 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
             const rng = seededRandom(image.id);
             const rotateDeg = seededRange(rng, -6, 6);
             const isSticker = image.kind === "catalog";
-            const ink = STAMP_INKS[Math.floor(rng() * STAMP_INKS.length)];
 
             return (
               <li
@@ -193,7 +136,8 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                     ? {}
                     : {
                         backgroundColor: "var(--color-paper)",
-                        padding: PERF_FRAME,
+                        padding: `${STAMP_MARGIN_TOP}px ${STAMP_MARGIN_X}px ${STAMP_MARGIN_BOTTOM}px`,
+                        clipPath: scallopRectClipPath(),
                         boxShadow: "0 1px 1px rgb(23 23 23 / 0.2), 0 6px 10px -6px rgb(23 23 23 / 0.3)",
                       }),
                 }}
@@ -209,37 +153,25 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                   />
                 ) : (
                   <>
-                    {/* Paper fiber across the whole card, punched holes included. */}
+                    {/* Paper fiber across the whole card. */}
                     <Grain opacity={0.11} />
-                    {/* The classic-definitive double rule: a thin ink frame,
-                        a sliver of paper, then a second thin ink frame right
-                        against the vignette — not just a punched border. */}
-                    <div className="relative size-full" style={{ border: `1.5px solid ${ink}`, padding: 2 }}>
-                      <div
-                        className="relative size-full overflow-hidden shadow-[inset_0_1px_3px_rgb(0_0_0_/_0.35)]"
-                        style={{ border: `1px solid ${ink}` }}
-                      >
-                        <Image
-                          src={`/api/images/${image.thumbPath ?? image.filePath}`}
-                          alt=""
-                          width={480}
-                          height={480}
-                          unoptimized
-                          className="size-full object-cover [filter:grayscale(1)_contrast(1.2)_brightness(1.08)]"
-                        />
-                        {/* The single-color engraving ink, multiplied over the
-                            grayscale photo — a duotone portrait, not a full-
-                            color snapshot, is most of what reads as "a stamp"
-                            rather than "a photo with a punched border." */}
-                        <div
-                          className="pointer-events-none absolute inset-0 mix-blend-multiply"
-                          style={{ backgroundColor: ink }}
-                        />
-                        <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,transparent_35%,rgb(0_0_0_/_0.35)_100%)]" />
-                        <Grain opacity={0.12} />
-                      </div>
+                    <div
+                      className="relative size-full overflow-hidden shadow-[inset_0_1px_3px_rgb(0_0_0_/_0.35)]"
+                      style={{ border: "1px solid rgb(0 0 0 / 0.18)" }}
+                    >
+                      <Image
+                        src={`/api/images/${image.thumbPath ?? image.filePath}`}
+                        alt=""
+                        width={480}
+                        height={480}
+                        unoptimized
+                        className="size-full object-cover"
+                      />
+                      {/* A little vignette + print grain so the photo itself
+                          doesn't read as a flat, evenly-lit render. */}
+                      <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,transparent_55%,rgb(0_0_0_/_0.18)_100%)]" />
+                      <Grain opacity={0.08} />
                     </div>
-                    <Perforation />
                   </>
                 )}
 
