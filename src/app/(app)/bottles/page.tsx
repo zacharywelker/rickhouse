@@ -7,6 +7,7 @@ import { BottleGallery } from "@/components/bottles/bottle-gallery";
 import { BottleTable, COLUMN_LABELS } from "@/components/bottles/bottle-table";
 import { FilterBar } from "@/components/bottles/filter-bar";
 import { GridPagination } from "@/components/bottles/grid-pagination";
+import { SpinTheBottle } from "@/components/bottles/spin-the-bottle";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { activeFilterCount, parseFilters } from "@/lib/bottles/filters";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
@@ -48,6 +49,7 @@ export default async function BottlesPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <SpinTheBottle categories={categories} finishes={finishes} />
           <Button variant="outline" asChild>
             <a href="/api/bottles/export" download>
               <Download className="size-4" />
