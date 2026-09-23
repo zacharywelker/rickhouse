@@ -20,7 +20,7 @@ export function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          "z-50 w-[--radix-popover-trigger-width] overflow-hidden rounded-md border border-border bg-card shadow-lg outline-none",
+          "z-50 w-[--radix-popover-trigger-width] overflow-hidden border border-border bg-card shadow-lg outline-none",
           className,
         )}
         {...props}
