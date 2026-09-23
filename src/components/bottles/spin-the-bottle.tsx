@@ -58,6 +58,11 @@ const WHEEL_BACKGROUND = (() => {
 const RAINBOW_GRADIENT =
   "conic-gradient(hsl(0, 100%, 50%), hsl(30, 100%, 50%), hsl(60, 100%, 50%), hsl(90, 100%, 50%), hsl(120, 100%, 50%), hsl(150, 100%, 50%), hsl(180, 100%, 50%), hsl(210, 100%, 50%), hsl(240, 100%, 60%), hsl(270, 100%, 50%), hsl(300, 100%, 50%), hsl(330, 100%, 50%), hsl(360, 100%, 50%))";
 
+// Same hue sweep as the ring, but a linear run down in lightness — the ring's
+// hsl(60, 100%, 50%) yellow all but disappears as text on the card background.
+const RAINBOW_TEXT_GRADIENT =
+  "linear-gradient(90deg, hsl(0, 90%, 45%), hsl(30, 90%, 42%), hsl(60, 90%, 38%), hsl(90, 80%, 35%), hsl(120, 80%, 35%), hsl(150, 80%, 35%), hsl(180, 80%, 38%), hsl(210, 90%, 48%), hsl(240, 90%, 58%), hsl(270, 90%, 52%), hsl(300, 90%, 45%), hsl(330, 90%, 45%), hsl(360, 90%, 45%))";
+
 /** One layer of the rotating ring: a blurred copy sits behind a sharp one for the glow. */
 function RainbowRing({ blurred }: { blurred?: boolean }) {
   return (
@@ -256,9 +261,14 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
         <button type="button" className="group relative inline-flex h-10 items-center rounded-[10px]">
           <RainbowRing blurred />
           <RainbowRing />
-          <span className="relative inline-flex h-10 items-center gap-2 rounded-[8px] bg-card px-4 text-sm font-medium text-foreground shadow-sm transition-transform group-hover:scale-[1.02] group-active:scale-[0.98]">
-            <Dices className="size-4" />
-            Spin the Bottle
+          <span className="relative inline-flex h-10 items-center gap-2 rounded-[8px] bg-card px-4 text-sm font-semibold shadow-sm transition-transform group-hover:scale-[1.02] group-active:scale-[0.98]">
+            <Dices className="size-4 text-foreground" />
+            <span
+              className="animate-[rainbow-text-flow_4s_linear_infinite] bg-clip-text text-transparent [background-size:300%_100%]"
+              style={{ backgroundImage: RAINBOW_TEXT_GRADIENT }}
+            >
+              Spin the Bottle
+            </span>
           </span>
         </button>
       </DialogTrigger>

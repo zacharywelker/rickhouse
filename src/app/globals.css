@@ -241,3 +241,11 @@
     transform: rotate(360deg) translate(-50%, -50%);
   }
 }
+
+/* The "Spin the Bottle" label text, flowing through the same hues as the
+   ring around it. */
+@keyframes rainbow-text-flow {
+  to {
+    background-position: 300% center;
+  }
+}
