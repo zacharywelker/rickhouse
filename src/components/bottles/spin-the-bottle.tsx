@@ -72,13 +72,15 @@ function RainbowRing({ glow }: { glow?: boolean }) {
   return (
     <span
       className={cn(
-        "absolute overflow-hidden",
-        glow ? "-inset-[7px] rounded-[15px] opacity-70 blur-[5px]" : "-inset-[4px] rounded-[11px]",
+        "absolute flex items-center justify-center overflow-hidden",
+        glow ? "-inset-[6px] rounded-[14px] opacity-70 blur-[5px]" : "-inset-[3px] rounded-[10px]",
       )}
       aria-hidden="true"
     >
+      {/* 200% covers the wrapper's diagonal at every angle, so nothing but
+          gradient is ever visible through the rotation — no off-center gap. */}
       <span
-        className="absolute left-1/2 top-1/2 aspect-square min-h-[150%] min-w-[150%] origin-top-left -translate-x-1/2 -translate-y-1/2 [animation:rainbow-spin_4s_linear_infinite]"
+        className="h-[200%] w-[200%] shrink-0 [animation:rainbow-spin_4s_linear_infinite]"
         style={{ backgroundImage: RAINBOW_GRADIENT }}
       />
     </span>
