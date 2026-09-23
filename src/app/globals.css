@@ -10,9 +10,6 @@
  * tape, status color, type scale). No component files change in this phase:
  * every component already consumes these tokens by name, so the reskin
  * lands for free. Known follow-ups this phase deliberately does not fix:
- *   - Page titles use `font-display` (serif); DESIGN.md 5.1/5.2 reserves the
- *     serif for editorial copy and wants Helvetica Now on headings. That is
- *     a per-component edit, left for Phase 1 (navigation & shell).
  *   - Badge uses `rounded-full` (a pill) for category/status; DESIGN.md 8 and
  *     45 want radius used sparingly, not pill-everything. Left for Phase 1/2.
  *
@@ -230,7 +227,16 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-sans);
   }
 }
 
