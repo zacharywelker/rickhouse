@@ -28,15 +28,29 @@ export function Polaroid({
   const rng = seededRandom(seed);
   const rotateDeg = seededRange(rng, -3, 3);
   const torn = rng() < 0.4;
-  const clipPath = torn ? tornRectClipPath(rng, 6, 3, 5) : undefined;
+  const clipPath = torn ? tornRectClipPath(rng, 6, 9) : undefined;
   const font = TAPE_FONTS[Math.floor(rng() * TAPE_FONTS.length)];
 
   return (
     <div
-      className={cn("flex flex-col bg-paper p-3 pb-8 shadow-md", !torn && "rounded-sm", className)}
-      style={{ clipPath, transform: `rotate(${rotateDeg.toFixed(2)}deg)` }}
+      className={cn("flex flex-col bg-paper p-3 pb-8", !torn && "rounded-sm", className)}
+      style={{
+        clipPath,
+        transform: `rotate(${rotateDeg.toFixed(2)}deg)`,
+        // Two shadows instead of one flat `shadow-md`: a tight, dark
+        // contact shadow right under the paper (where it actually
+        // touches the page) plus a wider, softer one for the lift —
+        // a single uniform blur reads as "div with box-shadow," not a
+        // print sitting on a surface.
+        boxShadow: "0 1px 1px rgb(23 23 23 / 0.22), 0 10px 18px -8px rgb(23 23 23 / 0.28)",
+      }}
     >
-      <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted">{children}</div>
+      <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-muted">
+        {children}
+        {/* A faint sheen across the photo stock — glossy paper catches
+            light unevenly rather than sitting perfectly flat/matte. */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/5" />
+      </div>
       {caption ? (
         <p className={cn("mt-3 text-center text-lg leading-none text-tape-ink", font?.className)}>{caption}</p>
       ) : null}

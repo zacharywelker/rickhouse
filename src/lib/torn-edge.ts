@@ -4,32 +4,39 @@
  * tape strip. Takes an rng function so callers can drive it with
  * `seededRandom()` for a stable-per-item look instead of Tape's
  * reroll-on-mount look.
+ *
+ * A real tear isn't a symmetric sawtooth (equal-width teeth alternating
+ * with equal-length flats reads as "cut with pinking shears," not torn) —
+ * it's a continuous ragged line: irregular spacing, and depth that
+ * wanders via a random walk rather than snapping between two fixed
+ * values. `raggedEdge` builds that walk once per side.
  */
-export function tornRectClipPath(rng: () => number, toothDepthPx = 3, jitterPx = 1.75, teethPerEdge = 6): string {
-  const depth = () => Math.max(0.5, toothDepthPx + (rng() * 2 - 1) * jitterPx).toFixed(1);
-  const steps = teethPerEdge * 2;
-  const isJagged = (i: number) => i > 0 && i < steps && i % 2 === 1;
+function raggedEdge(rng: () => number, pointCount: number, maxDepthPx: number): Array<{ t: number; d: number }> {
+  const points: Array<{ t: number; d: number }> = [{ t: 0, d: rng() * maxDepthPx * 0.3 }];
+  let depth = points[0]!.d;
+  for (let i = 1; i < pointCount; i++) {
+    // Irregular spacing: some teeth are narrow slivers, some are wide fibers.
+    const t = (i / pointCount) + (rng() * 2 - 1) * (0.5 / pointCount);
+    depth = Math.min(maxDepthPx, Math.max(0, depth + (rng() * 2 - 1) * maxDepthPx * 0.55));
+    // Occasionally the tear catches and pulls a deeper chunk out.
+    if (rng() < 0.12) depth = Math.min(maxDepthPx, depth + maxDepthPx * 0.5);
+    points.push({ t: Math.min(0.98, Math.max(0.02, t)), d: depth });
+  }
+  points.push({ t: 1, d: rng() * maxDepthPx * 0.3 });
+  return points;
+}
 
-  const top: string[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const x = ((100 * i) / steps).toFixed(2);
-    top.push(`${x}% ${isJagged(i) ? depth() : "0"}px`);
-  }
-  const right: string[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const y = ((100 * i) / steps).toFixed(2);
-    right.push(`calc(100% - ${isJagged(i) ? depth() : "0"}px) ${y}%`);
-  }
-  const bottom: string[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const x = (100 - (100 * i) / steps).toFixed(2);
-    bottom.push(`${x}% calc(100% - ${isJagged(i) ? depth() : "0"}px)`);
-  }
-  const left: string[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const y = (100 - (100 * i) / steps).toFixed(2);
-    left.push(`${isJagged(i) ? depth() : "0"}px ${y}%`);
-  }
+export function tornRectClipPath(rng: () => number, maxDepthPx = 7, pointsPerEdge = 9): string {
+  const top = raggedEdge(rng, pointsPerEdge, maxDepthPx).map((p) => `${(p.t * 100).toFixed(2)}% ${p.d.toFixed(1)}px`);
+  const right = raggedEdge(rng, pointsPerEdge, maxDepthPx).map(
+    (p) => `calc(100% - ${p.d.toFixed(1)}px) ${(p.t * 100).toFixed(2)}%`,
+  );
+  const bottom = raggedEdge(rng, pointsPerEdge, maxDepthPx).map(
+    (p) => `${(100 - p.t * 100).toFixed(2)}% calc(100% - ${p.d.toFixed(1)}px)`,
+  );
+  const left = raggedEdge(rng, pointsPerEdge, maxDepthPx).map(
+    (p) => `${p.d.toFixed(1)}px ${(100 - p.t * 100).toFixed(2)}%`,
+  );
 
   return `polygon(${[...top, ...right, ...bottom, ...left].join(", ")})`;
 }

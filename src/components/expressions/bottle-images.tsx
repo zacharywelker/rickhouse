@@ -19,6 +19,42 @@ export type BottleImage = {
   kind: PhotoKind;
 };
 
+const PERF_FRAME = 10;
+const PERF_HOLE_R = 3.5;
+const PERF_PERIOD = 11;
+
+/**
+ * A stamp's perforated edge, built from actual punched-out circles (a
+ * repeating radial gradient masking through to the page background)
+ * rather than a CSS `dotted` border — `border-style: dotted` renders
+ * uneven, squashed dots that bunch up at corners and reads as "a CSS
+ * border," not a punched edge. Four independent strips avoid that.
+ */
+function Perforation() {
+  const hStyle: React.CSSProperties = {
+    height: PERF_FRAME,
+    backgroundImage: `radial-gradient(circle ${PERF_HOLE_R}px, var(--color-background) ${PERF_HOLE_R - 0.5}px, transparent ${PERF_HOLE_R}px)`,
+    backgroundRepeat: "repeat-x",
+    backgroundPosition: "center",
+    backgroundSize: `${PERF_PERIOD}px ${PERF_FRAME}px`,
+  };
+  const vStyle: React.CSSProperties = {
+    width: PERF_FRAME,
+    backgroundImage: `radial-gradient(circle ${PERF_HOLE_R}px, var(--color-background) ${PERF_HOLE_R - 0.5}px, transparent ${PERF_HOLE_R}px)`,
+    backgroundRepeat: "repeat-y",
+    backgroundPosition: "center",
+    backgroundSize: `${PERF_FRAME}px ${PERF_PERIOD}px`,
+  };
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+      <div className="absolute inset-x-0 top-0" style={hStyle} />
+      <div className="absolute inset-x-0 bottom-0" style={hStyle} />
+      <div className="absolute inset-y-0 left-0" style={vStyle} />
+      <div className="absolute inset-y-0 right-0" style={vStyle} />
+    </div>
+  );
+}
+
 export function BottleImages({ bottleId, images }: { bottleId: number; images: BottleImage[] }) {
   const router = useRouter();
   const [order, setOrder] = React.useState(images);
@@ -119,16 +155,19 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                   setDragging(null);
                 }}
                 onDragEnd={() => setDragging(null)}
-                className={cn(
-                  "group relative",
-                  isSticker ? "aspect-square" : "aspect-square bg-paper p-2.5",
-                  dragging === index && "opacity-50",
-                )}
+                className={cn("group relative aspect-square", isSticker && "p-1", dragging === index && "opacity-50")}
                 style={{
                   transform: `rotate(${rotateDeg.toFixed(2)}deg)`,
-                  border: isSticker ? undefined : "7px dotted var(--color-background)",
+                  ...(isSticker
+                    ? {}
+                    : {
+                        backgroundColor: "var(--color-paper)",
+                        padding: PERF_FRAME,
+                        boxShadow: "0 1px 1px rgb(23 23 23 / 0.2), 0 6px 10px -6px rgb(23 23 23 / 0.3)",
+                      }),
                 }}
               >
+                {isSticker ? null : <Perforation />}
                 <Image
                   src={`/api/images/${image.thumbPath ?? image.filePath}`}
                   alt=""
