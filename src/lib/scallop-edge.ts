@@ -6,10 +6,13 @@
  */
 export function scallopRectClipPath(bumpsPerSide = 7, ampPx = 4.5, samplesPerBump = 6): string {
   const samples = bumpsPerSide * samplesPerBump;
-  // Each bump is a shallow inward bite; the cosine keeps the corners (t=0,
-  // t=1 on every edge) sitting right at depth 0 so adjacent edges meet
-  // cleanly instead of leaving a notch at the corner.
-  const depthAt = (t: number) => (ampPx * (1 - Math.cos(2 * Math.PI * bumpsPerSide * t))) / 2;
+  // Pinning depth to 0 at every corner (t=0/t=1) left a sharp, perfectly
+  // square corner jammed between two soft waves — that mismatch is what
+  // read as "wrong." Phasing it so each edge instead *peaks* at both ends
+  // means the corner sits inside a bump like the rest of the edge, and the
+  // two adjacent edges' half-bumps join into one continuous rounded corner
+  // instead of a right angle.
+  const depthAt = (t: number) => (ampPx * (1 + Math.cos(2 * Math.PI * bumpsPerSide * t))) / 2;
 
   function edge(pointAt: (t: number, d: number) => string): string[] {
     const pts: string[] = [];
