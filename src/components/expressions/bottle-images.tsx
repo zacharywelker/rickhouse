@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { GripVertical, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Grain } from "@/components/ui/grain";
 import { cn } from "@/lib/utils";
 import { seededRandom, seededRange } from "@/lib/seeded-random";
 import { deleteBottleImageAction, reorderBottleImagesAction, setPrimaryImageAction } from "@/app/(app)/bottles/actions";
@@ -30,17 +31,28 @@ const PERF_PERIOD = 11;
  * uneven, squashed dots that bunch up at corners and reads as "a CSS
  * border," not a punched edge. Four independent strips avoid that.
  */
+// Each hole gets a thin dark rim between the punched-through center and the
+// paper — a flat colored circle reads as a printed dot; a rim (the cut
+// edge of the paper catching a little shadow) reads as an actual hole with
+// depth. `RIM` intentionally never themes with the paper (a cut edge is
+// always a bit darker than the surrounding stock, in either mode).
+const RIM = "rgb(0 0 0 / 0.32)";
+
+function holeGradient(): string {
+  return `radial-gradient(circle ${PERF_HOLE_R}px, var(--color-background) 0 ${PERF_HOLE_R - 1.4}px, ${RIM} ${PERF_HOLE_R - 1.4}px ${PERF_HOLE_R - 0.5}px, transparent ${PERF_HOLE_R}px)`;
+}
+
 function Perforation() {
   const hStyle: React.CSSProperties = {
     height: PERF_FRAME,
-    backgroundImage: `radial-gradient(circle ${PERF_HOLE_R}px, var(--color-background) ${PERF_HOLE_R - 0.5}px, transparent ${PERF_HOLE_R}px)`,
+    backgroundImage: holeGradient(),
     backgroundRepeat: "repeat-x",
     backgroundPosition: "center",
     backgroundSize: `${PERF_PERIOD}px ${PERF_FRAME}px`,
   };
   const vStyle: React.CSSProperties = {
     width: PERF_FRAME,
-    backgroundImage: `radial-gradient(circle ${PERF_HOLE_R}px, var(--color-background) ${PERF_HOLE_R - 0.5}px, transparent ${PERF_HOLE_R}px)`,
+    backgroundImage: holeGradient(),
     backgroundRepeat: "repeat-y",
     backgroundPosition: "center",
     backgroundSize: `${PERF_FRAME}px ${PERF_PERIOD}px`,
@@ -167,18 +179,36 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                       }),
                 }}
               >
-                {isSticker ? null : <Perforation />}
-                <Image
-                  src={`/api/images/${image.thumbPath ?? image.filePath}`}
-                  alt=""
-                  width={480}
-                  height={480}
-                  unoptimized
-                  className={cn(
-                    "size-full",
-                    isSticker ? "object-contain p-2 [filter:drop-shadow(0_3px_3px_rgb(0_0_0_/_0.35))]" : "object-cover",
-                  )}
-                />
+                {isSticker ? (
+                  <Image
+                    src={`/api/images/${image.thumbPath ?? image.filePath}`}
+                    alt=""
+                    width={480}
+                    height={480}
+                    unoptimized
+                    className="size-full object-contain p-2 [filter:drop-shadow(0_3px_3px_rgb(0_0_0_/_0.35))]"
+                  />
+                ) : (
+                  <>
+                    {/* Paper fiber across the whole card, punched holes included. */}
+                    <Grain opacity={0.24} />
+                    <div className="relative size-full overflow-hidden shadow-[inset_0_1px_3px_rgb(0_0_0_/_0.35)]">
+                      <Image
+                        src={`/api/images/${image.thumbPath ?? image.filePath}`}
+                        alt=""
+                        width={480}
+                        height={480}
+                        unoptimized
+                        className="size-full object-cover"
+                      />
+                      {/* Ink vignette + print grain — an engraved/offset print
+                          is never perfectly flat or evenly inked. */}
+                      <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,transparent_40%,rgb(0_0_0_/_0.3)_100%)]" />
+                      <Grain opacity={0.2} />
+                    </div>
+                    <Perforation />
+                  </>
+                )}
 
                 {image.isPrimary ? (
                   <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
