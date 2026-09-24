@@ -50,7 +50,7 @@ function Spec({
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className={cn("text-sm", handFont && cn("text-lg leading-tight text-accent", handFont))}>{value}</dd>
+      <dd className={cn("text-base", handFont && cn("text-xl leading-tight text-accent", handFont))}>{value}</dd>
     </div>
   );
 }
@@ -263,10 +263,8 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
           <BottleImages bottleId={bottleId} images={images} />
         </div>
 
-        <div className="flex flex-col gap-6">
-          <dl
-            className="grid grid-cols-2 gap-x-4 gap-y-4 bg-[repeating-linear-gradient(to_bottom,transparent,transparent_1.6rem,var(--color-border)_1.6rem,var(--color-border)_calc(1.6rem+1px))] py-2 sm:grid-cols-3"
-          >
+        <div className="flex flex-col gap-6 bg-[repeating-linear-gradient(to_bottom,transparent,transparent_1.6rem,var(--color-border)_1.6rem,var(--color-border)_calc(1.6rem+1px))] pb-6">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-4 py-2 sm:grid-cols-3">
             <Spec label="Proof" value={formatNumeric(e.proof)} />
             <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
             <Spec label="Age" value={age} />
