@@ -5,7 +5,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { GripVertical, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Grain } from "@/components/ui/grain";
 import { cn } from "@/lib/utils";
+import { seededRandom, seededRange } from "@/lib/seeded-random";
+import { scallopRectClipPath } from "@/lib/scallop-edge";
 import { deleteBottleImageAction, reorderBottleImagesAction, setPrimaryImageAction } from "@/app/(app)/bottles/actions";
 import type { ActionResult } from "@/lib/admin/types";
 import type { PhotoKind } from "@/db/schema";
@@ -17,6 +20,14 @@ export type BottleImage = {
   isPrimary: boolean;
   kind: PhotoKind;
 };
+
+// A modern self-adhesive Forever stamp, not a water-activated one: a
+// continuous die-cut wavy edge rather than round perforation holes, a
+// thin frame right against the photo, and more white margin at the
+// bottom than the other three sides.
+const STAMP_MARGIN_X = 9;
+const STAMP_MARGIN_TOP = 9;
+const STAMP_MARGIN_BOTTOM = 16;
 
 export function BottleImages({ bottleId, images }: { bottleId: number; images: BottleImage[] }) {
   const router = useRouter();
@@ -96,68 +107,127 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
         </p>
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {order.map((image, index) => (
-            <li
-              key={image.id}
-              draggable
-              onDragStart={() => setDragging(index)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragging !== null) moveTo(dragging, index);
-                setDragging(null);
-              }}
-              onDragEnd={() => setDragging(null)}
-              className={cn(
-                "group relative overflow-hidden rounded-lg border border-border bg-muted",
-                dragging === index && "opacity-50",
-              )}
-            >
-              <Image
-                src={`/api/images/${image.thumbPath ?? image.filePath}`}
-                alt=""
-                width={480}
-                height={480}
-                unoptimized
-                className="aspect-square w-full object-cover"
-              />
+          {order.map((image, index) => {
+            // Catalog shots (label/product photos, usually already cut out)
+            // read as die-cut stickers — the photo's own silhouette, no
+            // frame. Life photos (snapshots of the actual bottle) read as
+            // postage stamps — white paper, a punched-hole border. Seeded
+            // off the image id so the tilt is stable across visits.
+            const rng = seededRandom(image.id);
+            const rotateDeg = seededRange(rng, -6, 6);
+            const isSticker = image.kind === "catalog";
 
-              {image.isPrimary ? (
-                <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                  Hero
-                </span>
-              ) : null}
+            return (
+              <li
+                key={image.id}
+                draggable
+                onDragStart={() => setDragging(index)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragging !== null) moveTo(dragging, index);
+                  setDragging(null);
+                }}
+                onDragEnd={() => setDragging(null)}
+                className={cn("group relative aspect-square", isSticker && "p-1", dragging === index && "opacity-50")}
+                style={{
+                  transform: `rotate(${rotateDeg.toFixed(2)}deg)`,
+                  ...(isSticker
+                    ? {}
+                    : {
+                        // `filter` renders its effect region and *then* gets
+                        // clipped by this same element's own `clip-path` — a
+                        // drop-shadow that's supposed to bleed past the
+                        // scalloped silhouette gets sliced off by that exact
+                        // silhouette and disappears entirely. Keeping the
+                        // shadow filter here, on the unclipped li, and the
+                        // clip-path one level down on the card itself, lets
+                        // the shadow trace the clipped shape without being
+                        // clipped along with it.
+                        filter:
+                          // Light from 315° (upper-left) casts the shadow
+                          // toward the opposite corner — equal x/y offset.
+                          "drop-shadow(1.5px 1.5px 1px rgb(23 23 23 / 0.32))",
+                      }),
+                }}
+              >
+                {isSticker ? (
+                  <Image
+                    src={`/api/images/${image.thumbPath ?? image.filePath}`}
+                    alt=""
+                    width={480}
+                    height={480}
+                    unoptimized
+                    className="size-full object-contain p-2 [filter:drop-shadow(0_3px_3px_rgb(0_0_0_/_0.35))]"
+                  />
+                ) : (
+                  <div
+                    className="relative size-full"
+                    style={{
+                      backgroundColor: "var(--color-paper)",
+                      padding: `${STAMP_MARGIN_TOP}px ${STAMP_MARGIN_X}px ${STAMP_MARGIN_BOTTOM}px`,
+                      clipPath: scallopRectClipPath(),
+                    }}
+                  >
+                    {/* Paper fiber across the whole card. */}
+                    <Grain opacity={0.11} />
+                    <div
+                      className="relative size-full overflow-hidden shadow-[inset_0_1px_3px_rgb(0_0_0_/_0.35)]"
+                      style={{ border: "1px solid rgb(0 0 0 / 0.18)" }}
+                    >
+                      <Image
+                        src={`/api/images/${image.thumbPath ?? image.filePath}`}
+                        alt=""
+                        width={480}
+                        height={480}
+                        unoptimized
+                        className="size-full object-cover"
+                      />
+                      {/* A little vignette + print grain so the photo itself
+                          doesn't read as a flat, evenly-lit render. */}
+                      <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,transparent_55%,rgb(0_0_0_/_0.18)_100%)]" />
+                      <Grain opacity={0.08} />
+                    </div>
+                  </div>
+                )}
 
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/60 p-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                <span className="pl-1 text-white/70" aria-hidden="true">
-                  <GripVertical className="size-4" />
-                </span>
-                <div className="flex flex-wrap items-center justify-end gap-0.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0 text-white hover:bg-white/20"
-                    onClick={() => void setPrimaryImageAction(image.id).then(() => router.refresh())}
-                    disabled={image.isPrimary}
-                    aria-label="Make hero image"
-                  >
-                    <Star className={cn("size-4", image.isPrimary && "fill-current")} />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="size-7 p-0 text-white hover:bg-white/20"
-                    onClick={() => void deleteBottleImageAction(image.id).then(() => router.refresh())}
-                    aria-label="Delete photo"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                {image.isPrimary ? (
+                  <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+                    Hero
+                  </span>
+                ) : null}
+
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/60 p-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                  <span className="pl-1 text-white/70" aria-hidden="true">
+                    <GripVertical className="size-4" />
+                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-7 p-0 text-white hover:bg-white/20"
+                      onClick={() => void setPrimaryImageAction(image.id).then(() => router.refresh())}
+                      disabled={image.isPrimary}
+                      aria-label="Make hero image"
+                    >
+                      <Star className={cn("size-4", image.isPrimary && "fill-current")} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-7 p-0 text-white hover:bg-white/20"
+                      onClick={() => void deleteBottleImageAction(image.id).then(() => router.refresh())}
+                      aria-label="Delete photo"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

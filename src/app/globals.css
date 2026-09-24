@@ -71,6 +71,11 @@
      reading against its own pastel regardless of theme. */
   --color-tape-ink: #242424;
 
+  /* Instant-photo/stamp paper — same rationale as tape: real paper doesn't
+     turn dark just because the room's lights dim, so it's fixed rather than
+     following --card into dark mode. */
+  --color-paper: #fffefa;
+
   /*
    * Deprecated — kept only because src/components/bottles/fill-gauge.tsx
    * reads --color-oak-700, --color-amber-spirit and --color-rye-gold
@@ -271,6 +276,30 @@
   h6 {
     font-family: var(--font-sans);
   }
+}
+
+/* Procedural film/paper grain — a fractal-noise SVG filter rather than a
+   photographed-paper bitmap (DESIGN.md 24/46 warns off "artificial paper
+   textures" and "fake paper texture everywhere", which reads as a stock
+   texture pasted over everything; this is closer to sensor/print grain: an
+   irregular, non-repeating-looking field applied at low opacity with
+   `mix-blend-mode` so it modulates what's underneath instead of sitting on
+   top of it). Vector and seed-fixed, so it costs nothing to reuse and never
+   causes a hydration mismatch. Consumers control strength via opacity and
+   `mix-blend-mode` on the element, not by editing this pattern. */
+.bg-grain {
+  /* Fully percent-encoded (not just `#`) — an SVG data URI needs an
+     explicit width/height/viewBox to rasterize `width="100%"` at all, and
+     quoting it loosely enough to skip that step previously made this
+     filter resolve to nothing.
+     Full-contrast opaque grayscale noise (`saturate(0)` on the turbulence,
+     not an alpha-only black speckle) — paired with `mix-blend-mode:
+     multiply` in Grain.tsx, so it actually darkens against the light
+     paper/card tokens instead of disappearing into them the way `overlay`
+     does against near-white backdrops. Consumers dial the effect with
+     opacity alone. */
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22160%22%20height%3D%22160%22%20viewBox%3D%220%200%20160%20160%22%3E%3Cfilter%20id%3D%22n%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.85%22%20numOctaves%3D%223%22%20stitchTiles%3D%22stitch%22%20result%3D%22t%22/%3E%3CfeColorMatrix%20in%3D%22t%22%20type%3D%22saturate%22%20values%3D%220%22/%3E%3C/filter%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20filter%3D%22url%28%23n%29%22/%3E%3C/svg%3E");
+  background-size: 160px 160px;
 }
 
 /* The rotating conic-gradient ring behind the "Spin the Bottle" trigger
