@@ -135,19 +135,17 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                   ...(isSticker
                     ? {}
                     : {
-                        backgroundColor: "var(--color-paper)",
-                        padding: `${STAMP_MARGIN_TOP}px ${STAMP_MARGIN_X}px ${STAMP_MARGIN_BOTTOM}px`,
-                        clipPath: scallopRectClipPath(),
-                        // `box-shadow` ignores `clip-path` — it would draw a
-                        // plain rectangular shadow behind the scalloped card,
-                        // which reads as a soft blur that hides the wave
-                        // rather than tracing it. `filter: drop-shadow`
-                        // follows the element's actual clipped silhouette,
-                        // so the shadow itself scallops and the edge is
-                        // legible even where the paper and page are close
-                        // in tone (light mode).
+                        // `filter` renders its effect region and *then* gets
+                        // clipped by this same element's own `clip-path` — a
+                        // drop-shadow that's supposed to bleed past the
+                        // scalloped silhouette gets sliced off by that exact
+                        // silhouette and disappears entirely. Keeping the
+                        // shadow filter here, on the unclipped li, and the
+                        // clip-path one level down on the card itself, lets
+                        // the shadow trace the clipped shape without being
+                        // clipped along with it.
                         filter:
-                          "drop-shadow(0 2px 2px rgb(23 23 23 / 0.55)) drop-shadow(0 8px 14px rgb(23 23 23 / 0.65))",
+                          "drop-shadow(0 1px 1px rgb(23 23 23 / 0.2)) drop-shadow(0 3px 5px rgb(23 23 23 / 0.22))",
                       }),
                 }}
               >
@@ -161,7 +159,14 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                     className="size-full object-contain p-2 [filter:drop-shadow(0_3px_3px_rgb(0_0_0_/_0.35))]"
                   />
                 ) : (
-                  <>
+                  <div
+                    className="relative size-full"
+                    style={{
+                      backgroundColor: "var(--color-paper)",
+                      padding: `${STAMP_MARGIN_TOP}px ${STAMP_MARGIN_X}px ${STAMP_MARGIN_BOTTOM}px`,
+                      clipPath: scallopRectClipPath(),
+                    }}
+                  >
                     {/* Paper fiber across the whole card. */}
                     <Grain opacity={0.11} />
                     <div
@@ -181,7 +186,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                       <div className="pointer-events-none absolute inset-0 [background:radial-gradient(ellipse_at_center,transparent_55%,rgb(0_0_0_/_0.18)_100%)]" />
                       <Grain opacity={0.08} />
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {image.isPrimary ? (
