@@ -103,7 +103,13 @@ export function BottleTable({ rows, filters }: { rows: GridRow[]; filters: Bottl
         header: "Fill",
         cell: ({ getValue, row }) => (
           <div className="flex items-center gap-2">
-            <FillGauge value={getValue()} readOnly height={34} label={`${row.original.expressionName} fill`} />
+            <FillGauge
+              value={getValue()}
+              readOnly
+              fieldGroup={row.original.fieldGroup}
+              height={34}
+              label={`${row.original.expressionName} fill`}
+            />
             <span className="whitespace-nowrap tabular-nums text-muted-foreground">{getValue()}%</span>
           </div>
         ),

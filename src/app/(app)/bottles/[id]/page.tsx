@@ -239,7 +239,14 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
                     className="size-full object-contain"
                   />
                 ) : (
-                  <FillGauge value={row.bottle.fillPct} readOnly decorative height={220} label={`${e.name} fill`} />
+                  <FillGauge
+                    value={row.bottle.fillPct}
+                    readOnly
+                    decorative
+                    fieldGroup={group}
+                    height={220}
+                    label={`${e.name} fill`}
+                  />
                 )}
               </div>
             </Polaroid>
@@ -247,6 +254,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
           <FillControl
             bottleId={bottleId}
             fillPct={row.bottle.fillPct}
+            fieldGroup={group}
             isOpen={row.bottle.isOpen}
             status={row.bottle.status}
             dateOpened={row.bottle.dateOpened}

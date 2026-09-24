@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import type { FieldGroup } from "@/db/schema";
+import { categoryColorVar } from "@/lib/bottles/category-color";
 import { LIQUID_BOTTOM, clampPct, pctFromY, surfaceY } from "@/lib/bottles/geometry";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +40,13 @@ export type FillGaugeProps = {
   value: number;
   onChange?: (value: number) => void;
   readOnly?: boolean;
+  /**
+   * The bottle's spirit family (DESIGN.md §4.3) — the liquid is tinted with
+   * this category's accent color instead of the generic amber, so the gauge
+   * reads as whiskey, rum, agave… at a glance. Falls back to the amber/oak
+   * default where a category isn't known (or doesn't apply).
+   */
+  fieldGroup?: FieldGroup;
   /** Rendered height in pixels; the SVG scales to it. */
   height?: number;
   label?: string;
@@ -54,6 +63,7 @@ export function FillGauge({
   value,
   onChange,
   readOnly = false,
+  fieldGroup,
   height = 240,
   label = "Fill level",
   decorative = false,
@@ -63,6 +73,7 @@ export function FillGauge({
   const [dragging, setDragging] = React.useState(false);
   const clipId = React.useId();
   const gradientId = React.useId();
+  const spirit = fieldGroup ? categoryColorVar(fieldGroup) : null;
 
   const pct = clampPct(value);
   const interactive = !readOnly && onChange !== undefined;
@@ -151,9 +162,19 @@ export function FillGauge({
           <path d={BOTTLE_PATH} />
         </clipPath>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--color-rye-gold)" />
-          <stop offset="55%" stopColor="var(--color-amber-spirit)" />
-          <stop offset="100%" stopColor="#a8531f" />
+          {spirit ? (
+            <>
+              <stop offset="0%" stopColor={`color-mix(in srgb, ${spirit} 65%, white)`} />
+              <stop offset="55%" stopColor={spirit} />
+              <stop offset="100%" stopColor={`color-mix(in srgb, ${spirit} 70%, black)`} />
+            </>
+          ) : (
+            <>
+              <stop offset="0%" stopColor="var(--color-rye-gold)" />
+              <stop offset="55%" stopColor="var(--color-amber-spirit)" />
+              <stop offset="100%" stopColor="#a8531f" />
+            </>
+          )}
         </linearGradient>
       </defs>
 

@@ -78,7 +78,7 @@ function EntityFilter({
                     type="button"
                     onClick={() => onToggle(option.value)}
                     aria-pressed={active}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-muted"
+                    className="flex w-full items-center gap-2 px-2 py-2 text-left text-sm hover:bg-muted"
                   >
                     <Check className={cn("size-4 shrink-0", active ? "opacity-100 text-primary" : "opacity-0")} />
                     <span className="min-w-0 flex-1 truncate">{option.label}</span>
@@ -227,7 +227,7 @@ export function FilterBar({
           </Button>
         </form>
 
-        <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+        <div className="flex items-center gap-1 border border-border p-0.5">
           <Button
             type="button"
             variant={filters.view === "table" ? "default" : "ghost"}
@@ -264,7 +264,7 @@ export function FilterBar({
                 {columns.map((column) => {
                   const hidden = filters.hidden.includes(column.id);
                   return (
-                    <li key={column.id} className="flex items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-muted">
+                    <li key={column.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted">
                       <Checkbox
                         id={`col-${column.id}`}
                         checked={!hidden}
@@ -349,7 +349,7 @@ export function FilterBar({
               {BOTTLE_STATUSES.map((status) => {
                 const on = filters.statuses.includes(status);
                 return (
-                  <li key={status} className="flex items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-muted">
+                  <li key={status} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted">
                     <Checkbox
                       id={`status-${status}`}
                       checked={on}

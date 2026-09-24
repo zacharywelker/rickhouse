@@ -29,7 +29,7 @@ export default async function AdminIndexPage() {
           const config = RESOURCES[key];
           return (
             <Link key={key} href={`/admin/${key}` as Route} className="group">
-              <Card className="h-full transition-colors group-hover:border-primary/50">
+              <Card className="h-full rounded-none shadow-none transition-colors group-hover:border-primary/50">
                 <CardContent className="flex h-full flex-col gap-2 p-5">
                   <div className="flex items-baseline justify-between gap-3">
                     <h2 className="text-lg">{config.label}</h2>
