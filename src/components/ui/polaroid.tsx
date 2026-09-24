@@ -42,8 +42,10 @@ export function Polaroid({
         // contact shadow right under the paper (where it actually
         // touches the page) plus a wider, softer one for the lift —
         // a single uniform blur reads as "div with box-shadow," not a
-        // print sitting on a surface.
-        boxShadow: "0 1px 1px rgb(23 23 23 / 0.22), 0 10px 18px -8px rgb(23 23 23 / 0.28)",
+        // print sitting on a surface. Cast at 315° (light from the
+        // upper-left) to match the stamp's shadow, rather than straight
+        // down — equal x/y offset on both layers.
+        boxShadow: "1px 1px 1px rgb(23 23 23 / 0.22), 7px 7px 18px -8px rgb(23 23 23 / 0.28)",
         // The card stock isn't a flat swatch — a soft, off-axis gradient
         // reads as light falling unevenly across real paper instead of a
         // perfectly uniform color fill.
