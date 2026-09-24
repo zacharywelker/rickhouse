@@ -145,7 +145,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                         // the shadow trace the clipped shape without being
                         // clipped along with it.
                         filter:
-                          "drop-shadow(0 1px 1px rgb(23 23 23 / 0.2)) drop-shadow(0 3px 5px rgb(23 23 23 / 0.22))",
+                          "drop-shadow(0 2px 1px rgb(23 23 23 / 0.32))",
                       }),
                 }}
               >
