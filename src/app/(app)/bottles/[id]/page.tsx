@@ -10,6 +10,7 @@ import { MarginTag } from "@/components/ui/margin-tag";
 import { Polaroid } from "@/components/ui/polaroid";
 import { BottleImages } from "@/components/expressions/bottle-images";
 import { BottleGroups } from "@/components/bottles/bottle-groups";
+import { DeleteBottleButton } from "@/components/bottles/delete-bottle-button";
 import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
@@ -204,12 +205,15 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             {e.isNas ? <MarginTag seed={hashSeed(`nas-${e.id}`)}>NAS</MarginTag> : null}
           </div>
         </div>
-        <Button variant="outline" asChild>
-          <Link href={`/bottles/${bottleId}/edit`}>
-            <Pencil className="size-4" />
-            Edit bottle
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/bottles/${bottleId}/edit`}>
+              <Pencil className="size-4" />
+              Edit bottle
+            </Link>
+          </Button>
+          <DeleteBottleButton bottleId={bottleId} name={`${row.brand.name} ${e.name}`} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_1fr]">

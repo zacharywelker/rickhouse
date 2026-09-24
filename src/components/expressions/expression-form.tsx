@@ -16,6 +16,7 @@ import { defaultAgeStatement } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
 import { OrderedPicker, type LinkedRow } from "./ordered-picker";
+import { DeleteExpressionButton } from "./delete-expression-button";
 
 /** Fields whose checkbox, when switched on, offers a default age statement. */
 const AGE_DESIGNATION_FIELDS = new Set(["isStraight", "isBottledInBond", "isNas"]);
@@ -199,7 +200,12 @@ export function ExpressionForm({
         </p>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+        {expressionId ? (
+          <div className="sm:mr-auto">
+            <DeleteExpressionButton expressionId={expressionId} name={String(values.name ?? "This label")} />
+          </div>
+        ) : null}
         <Button type="button" variant="outline" asChild>
           <Link href="/expressions">Cancel</Link>
         </Button>
