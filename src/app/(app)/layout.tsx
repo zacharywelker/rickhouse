@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const signOut = (
     <form action={logout}>
-      <Button type="submit" variant="ghost" size="sm" className="w-full justify-start md:w-auto md:justify-center">
+      <Button type="submit" variant="ghost" size="sm" className="w-full justify-start lg:w-auto lg:justify-center">
         Sign out
       </Button>
     </form>
@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-dvh flex-col">
       <KeyboardShortcuts />
       <AppNav signOut={signOut} />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      <main className="mx-auto w-full max-w-page flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
   );
 }

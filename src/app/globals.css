@@ -43,6 +43,10 @@
   --leading-normal: 1.45;
   --leading-relaxed: 1.65;
 
+  /* Page width — DESIGN-TOKENS.md §17: the workbench gets --container-2xl,
+     not a narrow reading column (\`max-w-page\`). */
+  --container-page: 1440px;
+
   /* Radius — DESIGN-TOKENS.md §19. Sharper than Tailwind's defaults on the
      larger steps; small steps already coincided with Tailwind's own. */
   --radius-sm: 4px;
