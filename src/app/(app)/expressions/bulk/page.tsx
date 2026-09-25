@@ -15,11 +15,6 @@ export default async function BulkExpressionsPage() {
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Bulk add labels</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Add several labels at once — brand, category and the core commercial details. Tab moves across a row,
-          Enter moves down a column. Rum, agave and process detail still need the single-label form. Rows save
-          independently — fixing one bad row never loses the others.
-        </p>
       </div>
 
       <ExpressionBulkGrid brands={brands} categories={categories} />
