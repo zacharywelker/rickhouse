@@ -15,11 +15,14 @@ export function Polaroid({
   seed,
   caption,
   className,
+  backdropClassName,
   children,
 }: {
   seed: number;
   caption?: React.ReactNode;
   className?: string;
+  /** Background for the photo well itself — defaults to a neutral backing. */
+  backdropClassName?: string;
   children: React.ReactNode;
 }) {
   const rng = seededRandom(seed);
@@ -49,7 +52,12 @@ export function Polaroid({
     >
       {/* Paper fiber, over the whole card including the border strip. */}
       <Grain opacity={0.1} />
-      <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-muted shadow-[inset_0_1px_4px_rgb(0_0_0_/_0.35)]">
+      <div
+        className={cn(
+          "relative flex aspect-square items-center justify-center overflow-hidden shadow-[inset_0_1px_4px_rgb(0_0_0_/_0.35)]",
+          backdropClassName ?? "bg-muted",
+        )}
+      >
         {children}
         {/* A vignette and a sheen across the photo emulsion — light falls
             off toward the corners and catches unevenly, rather than the

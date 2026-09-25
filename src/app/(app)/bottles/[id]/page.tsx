@@ -16,7 +16,7 @@ import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
 import { Tape } from "@/components/ui/tape";
-import { categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
+import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { seededRandom } from "@/lib/seeded-random";
@@ -220,8 +220,12 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
                 Gift
               </Tape>
             ) : null}
-            <Polaroid seed={bottleId} caption={b.batch ? `${row.brand.name} — ${b.batch}` : row.brand.name}>
-              <div className={cn("flex size-full items-center justify-center p-6", categoryTintClass(group))}>
+            <Polaroid
+              seed={bottleId}
+              backdropClassName={categoryBackdropClass(group)}
+              caption={b.batch ? `${row.brand.name} — ${b.batch}` : row.brand.name}
+            >
+              <div className="flex size-full items-center justify-center p-6">
                 {hero ? (
                   <Image
                     src={`/api/images/${hero.filePath}`}
