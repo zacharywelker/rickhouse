@@ -32,7 +32,7 @@ export function ImportForm() {
                 name="file"
                 type="file"
                 accept=".csv,text/csv"
-                className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-sm file:text-foreground hover:file:bg-muted/70"
+                className="block w-full text-sm text-muted-foreground file:mr-3 file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-sm file:text-foreground hover:file:bg-muted/70"
               />
             </div>
 
@@ -55,7 +55,7 @@ export function ImportForm() {
             {state.error ? (
               <p
                 role="alert"
-                className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
               >
                 {state.error}
               </p>

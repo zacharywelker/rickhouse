@@ -31,7 +31,7 @@ export default async function NewBottlePage({
       </div>
 
       {expressions.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
+        <div className="border border-dashed border-border p-10 text-center">
           <p className="text-lg">No labels yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             A bottle has to be a bottle <em>of</em> something. Create the product first.

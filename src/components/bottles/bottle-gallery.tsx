@@ -82,18 +82,18 @@ function FamilyCluster({ rows, onExpand }: { rows: GridRow[]; onExpand: () => vo
           <div
             key={row.id}
             className={cn(
-              "absolute inset-4 rounded-md border border-border bg-card shadow-md",
+              "absolute inset-4 border border-border bg-card shadow-md",
               STACK_TILT[i % STACK_TILT.length],
             )}
           >
             {row.thumbPath ? (
-              <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="rounded-md object-cover" />
+              <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="object-cover" />
             ) : null}
           </div>
         ))}
-        <div className="absolute inset-4 rounded-md border border-border bg-card shadow-lg">
+        <div className="absolute inset-4 border border-border bg-card shadow-lg">
           {front.thumbPath ? (
-            <Image src={`/api/images/${front.thumbPath}`} alt="" fill unoptimized className="rounded-md object-cover" />
+            <Image src={`/api/images/${front.thumbPath}`} alt="" fill unoptimized className="object-cover" />
           ) : (
             <div className="flex size-full items-center justify-center">
               <FillGauge

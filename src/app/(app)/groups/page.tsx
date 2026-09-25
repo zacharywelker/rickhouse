@@ -30,7 +30,7 @@ export default async function GroupsPage() {
       </div>
 
       {groups.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
+        <div className="border border-dashed border-border p-10 text-center">
           <p className="text-lg">No groups yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             An unfinished scrapbook page. Start one to pull bottles together around a story.

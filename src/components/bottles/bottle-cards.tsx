@@ -36,7 +36,7 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
                 width={56}
                 height={56}
                 unoptimized
-                className="size-14 shrink-0 rounded border border-border object-cover"
+                className="size-14 shrink-0 border border-border object-cover"
               />
             ) : (
               <FillGauge value={row.fillPct} readOnly decorative fieldGroup={row.fieldGroup} height={56} />

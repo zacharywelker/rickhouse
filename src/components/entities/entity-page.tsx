@@ -87,7 +87,7 @@ export async function EntityPage({
       />
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
+        <div className="border border-dashed border-border p-10 text-center">
           <p className="text-lg">Nothing here yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{emptyMessage}</p>
         </div>

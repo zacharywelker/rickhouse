@@ -41,7 +41,7 @@ function DeriveAge({
     String(values.ageDays ?? "") === String(age.days);
 
   return (
-    <div className="col-span-full flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
+    <div className="col-span-full flex flex-wrap items-center gap-3 border border-border bg-muted/40 px-3 py-2">
       <p className="text-sm text-muted-foreground">
         Those dates are <span className="text-foreground">{describeAge(age)}</span> apart.
       </p>
@@ -167,7 +167,7 @@ export function BottleForm({
       {!state.ok && state.error ? (
         <p
           role="alert"
-          className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           {state.error}
         </p>

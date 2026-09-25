@@ -223,10 +223,10 @@ export function BottleTable({
               width={40}
               height={40}
               unoptimized
-              className="size-10 rounded border border-border object-cover"
+              className="size-10 border border-border object-cover"
             />
           ) : (
-            <div className="size-10 rounded border border-dashed border-border" aria-hidden="true" />
+            <div className="size-10 border border-dashed border-border" aria-hidden="true" />
           ),
       }),
       helper.accessor("fillPct", {
@@ -372,7 +372,7 @@ export function BottleTable({
             <select
               value={edits[row.original.id]?.status ?? editableFrom(row.original).status}
               onChange={(e) => updateEdit(row.original, "status", e.target.value)}
-              className="h-8 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
+              className="h-8 w-full border border-input bg-card px-2 text-sm text-foreground"
             >
               {BOTTLE_STATUSES.map((value) => (
                 <option key={value} value={value}>
@@ -480,7 +480,7 @@ export function BottleTable({
                         onClick={() => toggleSort(header.column.id)}
                         aria-label={`Sort by ${String(header.column.columnDef.header)}`}
                         className={cn(
-                          "-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-foreground",
+                          "-mx-1 inline-flex items-center gap-1 px-1 py-0.5 hover:text-foreground",
                           active && "text-primary",
                         )}
                       >
@@ -566,7 +566,7 @@ function MobileSort({
         id="mobile-sort"
         value={filters.sort}
         onChange={(event) => onSort({ sort: event.target.value as SortKey })}
-        className="h-9 flex-1 rounded-md border border-input bg-card px-2 text-sm"
+        className="h-9 flex-1 border border-input bg-card px-2 text-sm"
       >
         {MOBILE_SORTS.map((option) => (
           <option key={option.key} value={option.key}>

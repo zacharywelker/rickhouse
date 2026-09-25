@@ -86,7 +86,7 @@ export function Field({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           className={cn(
-            "h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "h-10 border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             error && "border-destructive",
           )}
         >

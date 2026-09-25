@@ -16,7 +16,7 @@ function CoverCollage({ thumbs }: { thumbs: string[] }) {
         <div
           key={thumb}
           className={cn(
-            "absolute inset-6 overflow-hidden rounded-md border border-border bg-card shadow-md",
+            "absolute inset-6 overflow-hidden border border-border bg-card shadow-md",
             STACK_TILT[i % STACK_TILT.length],
           )}
           style={{ zIndex: i }}

@@ -29,7 +29,7 @@ export default function ImportPage() {
         </SectionHeader>
         <SectionContent className="flex flex-col gap-3">
           {/* Wrapped, not scrolled: the point of the block is to see every column at once. */}
-          <code className="block whitespace-pre-wrap break-words rounded-md border border-border bg-muted/40 p-3 text-xs leading-relaxed">
+          <code className="block whitespace-pre-wrap break-words border border-border bg-muted/40 p-3 text-xs leading-relaxed">
             {TRANSFER_HEADERS.join(",")}
           </code>
           <p className="text-sm text-muted-foreground">
