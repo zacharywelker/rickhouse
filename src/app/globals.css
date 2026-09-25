@@ -20,7 +20,7 @@
  */
 @theme {
   /* Typography — DESIGN-TOKENS.md §9, §10, §13, §14 */
-  --font-sans: "Helvetica Now", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-sans: var(--font-aileron), "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-display: Georgia, "Times New Roman", serif;
 
   --text-xs: 0.6875rem;

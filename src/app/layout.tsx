@@ -1,6 +1,22 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
+
+// Aileron — free, public-domain grotesk (open-foundry.com/fonts/aileron).
+// Self-hosted as static files since it isn't on Google Fonts.
+const aileron = localFont({
+  src: [
+    { path: "../fonts/aileron/Aileron-Regular.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/aileron/Aileron-Italic.woff2", weight: "400", style: "italic" },
+    { path: "../fonts/aileron/Aileron-SemiBold.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/aileron/Aileron-SemiBoldItalic.woff2", weight: "600", style: "italic" },
+    { path: "../fonts/aileron/Aileron-Bold.woff2", weight: "700", style: "normal" },
+    { path: "../fonts/aileron/Aileron-BoldItalic.woff2", weight: "700", style: "italic" },
+  ],
+  variable: "--font-aileron",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: { default: "Rickhouse", template: "%s · Rickhouse" },
@@ -22,7 +38,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={aileron.variable}>
       <head>
         {/*
          * Stamps data-theme before first paint. Without this a stored "light"
