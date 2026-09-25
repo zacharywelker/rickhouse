@@ -17,7 +17,7 @@ export function T8keHint() {
         <button
           type="button"
           aria-label="What the t8ke scores mean"
-          className="rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Info className="size-3.5" />
         </button>

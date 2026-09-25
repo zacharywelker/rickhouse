@@ -164,7 +164,7 @@ function EntityPicker({
                     type="button"
                     onClick={() => onToggle(option.value)}
                     aria-pressed={active}
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-muted"
+                    className="flex w-full items-center gap-2 px-2 py-2 text-left text-sm hover:bg-muted"
                   >
                     <Check className={cn("size-4 shrink-0", active ? "opacity-100 text-primary" : "opacity-0")} />
                     <span className="min-w-0 flex-1 truncate">{option.label}</span>

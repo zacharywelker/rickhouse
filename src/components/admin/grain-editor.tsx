@@ -124,7 +124,7 @@ export function GrainEditor({
       </div>
 
       {!empty ? (
-        <div className="flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3">
+        <div className="flex flex-col gap-2 border border-border bg-muted/40 p-3">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-sm text-muted-foreground">Grain total</span>
             <span

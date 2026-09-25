@@ -46,7 +46,7 @@ function Hint({
 }) {
   if (!active) return null;
   return (
-    <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-lg">
+    <div className="border border-border bg-card px-3 py-2 text-sm shadow-lg">
       {label ? <p className="mb-1 font-medium text-foreground">{label}</p> : null}
       {rows.map((row) => (
         <p key={row.name} className="flex items-center gap-2 text-muted-foreground">

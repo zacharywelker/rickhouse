@@ -122,9 +122,9 @@ function AddBottlesDialog({
                     onClick={() => void toggle(option.id, !active)}
                     disabled={pending === option.id}
                     aria-pressed={active}
-                    className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-60"
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-60"
                   >
-                    <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted/60">
+                    <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden bg-muted/60">
                       {option.thumbPath ? (
                         <Image src={`/api/images/${option.thumbPath}`} alt="" fill unoptimized className="object-cover" />
                       ) : null}
@@ -177,7 +177,7 @@ export function GroupBottleGrid({
       </div>
 
       {members.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <p className="border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           An unfinished scrapbook page. Add a bottle to get this group started.
         </p>
       ) : (
