@@ -41,6 +41,10 @@
   --leading-normal: 1.45;
   --leading-relaxed: 1.65;
 
+  /* Page width — DESIGN-TOKENS.md §17: the workbench gets --container-2xl,
+     not a narrow reading column (\`max-w-page\`). */
+  --container-page: 1440px;
+
   /* Radius — DESIGN-TOKENS.md §19. Square by default: 4px is for physical
      labels (badges, the polaroid) and rounded-full for inherently round
      things. md/lg/xl are flattened to 0 so a stray rounded-md or rounded-lg
