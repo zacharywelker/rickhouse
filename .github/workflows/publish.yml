@@ -4,11 +4,13 @@ name: Publish image
 # can pull a tag instead of compiling Next.js on your server.
 #
 # Pull requests build but do not push: that catches a broken Dockerfile or a
-# type error before it reaches `latest`.
+# type error before it reaches `latest`. Pushes to claude/* branches publish
+# a branch tag (slashes become dashes, e.g. claude-some-branch) so a work in
+# progress can be pulled onto a test server before it merges.
 
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -48,6 +50,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch,enable=${{ github.ref != 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
