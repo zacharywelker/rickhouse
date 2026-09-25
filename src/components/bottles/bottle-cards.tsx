@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
 import { Star } from "lucide-react";
+import { fillStateText } from "@/lib/bottles/fill-state";
 import { cn, formatMoney, formatNumeric } from "@/lib/utils";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
 import type { GridRow } from "@/lib/bottles/grid";
@@ -44,8 +45,8 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm text-muted-foreground">{row.brand}</p>
-              <p className="flex items-center gap-1 font-medium leading-tight">
-                <span className="truncate">{row.expressionName}</span>
+              <p className="flex items-start gap-1 font-medium leading-tight">
+                <span>{row.expressionName}</span>
                 {row.isFavorite ? (
                   <Star className="size-3.5 shrink-0 fill-accent text-accent" aria-label="Favorite" />
                 ) : null}
@@ -63,7 +64,7 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 <StatusMark status={row.status} className="text-muted-foreground" />
-                <span className="tabular-nums text-muted-foreground">{row.fillPct}% full</span>
+                <span className="text-muted-foreground">{fillStateText(row.fillPct)}</span>
                 {row.pricePaid ? <span className="tabular-nums">{formatMoney(row.pricePaid)}</span> : null}
                 {row.avgRating ? (
                   <span className="tabular-nums text-accent">{Number(row.avgRating)}/10</span>

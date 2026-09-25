@@ -137,6 +137,7 @@ export function AppNav({ signOut, username }: { signOut: React.ReactNode; userna
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={open ? "Close menu" : "Open menu"}
+            title={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((v) => !v)}
           >
             {open ? <X className="size-4" /> : <Menu className="size-4" />}

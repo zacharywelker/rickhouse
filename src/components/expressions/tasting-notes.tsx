@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Trash2 } from "lucide-react";
+import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -131,22 +132,21 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl">Tasting notes</h2>
         <Button type="button" variant="outline" size="sm" onClick={() => setEditing(null)}>
-          <Plus className="size-4" />
           Add note
         </Button>
       </div>
 
       {notes.length === 0 ? (
         <p className="border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Nothing tasted yet. Notes are attached to the bottle rather than the expression, so you can compare two
-          batches of the same thing.
+          Nothing tasted yet. Notes belong to this bottle, not the label, so two batches of the same thing can be
+          compared.
         </p>
       ) : (
         <ul className="flex flex-col divide-y divide-border border-t border-foreground">
           {notes.map((note) => (
             <li key={note.id} className="py-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-sm text-muted-foreground">{note.tastedOn}</span>
+                <span className="text-sm text-muted-foreground">{formatDate(note.tastedOn)}</span>
                 <div className="flex items-center gap-2">
                   {note.rating ? (
                     <span className="text-lg text-accent tabular-nums">
@@ -159,7 +159,8 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
                     variant="ghost"
                     size="sm"
                     onClick={() => setEditing(note)}
-                    aria-label={`Edit note from ${note.tastedOn}`}
+                    aria-label={`Edit note from ${formatDate(note.tastedOn)}`}
+                    title="Edit note"
                   >
                     <Pencil className="size-4" />
                   </Button>
@@ -168,7 +169,8 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
                     variant="ghost"
                     size="sm"
                     onClick={() => void deleteTastingNoteAction(bottleId, note.id).then(() => router.refresh())}
-                    aria-label={`Delete note from ${note.tastedOn}`}
+                    aria-label={`Delete note from ${formatDate(note.tastedOn)}`}
+                    title="Delete note"
                   >
                     <Trash2 className="size-4" />
                   </Button>

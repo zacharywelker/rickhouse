@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Rows3 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { LabelTable } from "@/components/expressions/label-table";
 import { LabelFilterBar } from "@/components/expressions/label-filter-bar";
@@ -34,13 +34,11 @@ export default async function ExpressionsPage({
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/expressions/bulk">
-              <Rows3 className="size-4" />
               Bulk add
             </Link>
           </Button>
           <Button asChild>
             <Link href="/expressions/new">
-              <Plus className="size-4" />
               New Label
             </Link>
           </Button>
@@ -60,7 +58,6 @@ export default async function ExpressionsPage({
           {!filtered ? (
             <Button className="mt-4" asChild>
               <Link href="/expressions/new">
-                <Plus className="size-4" />
                 New Label
               </Link>
             </Button>

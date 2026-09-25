@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Filter, LayoutGrid, Rows3, Search, SlidersHorizontal, X } from "lucide-react";
+import { Check, LayoutGrid, Rows3, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -234,8 +234,9 @@ export function FilterBar({
             size="sm"
             onClick={() => apply({ view: "table" })}
             aria-pressed={filters.view === "table"}
+            title="Table view"
           >
-            <Rows3 className="size-4" />
+            <Rows3 className="size-4 sm:hidden" aria-hidden="true" />
             <span className="sr-only sm:not-sr-only">Table</span>
           </Button>
           <Button
@@ -244,8 +245,9 @@ export function FilterBar({
             size="sm"
             onClick={() => apply({ view: "gallery" })}
             aria-pressed={filters.view === "gallery"}
+            title="Gallery view"
           >
-            <LayoutGrid className="size-4" />
+            <LayoutGrid className="size-4 sm:hidden" aria-hidden="true" />
             <span className="sr-only sm:not-sr-only">Gallery</span>
           </Button>
         </div>
@@ -255,7 +257,6 @@ export function FilterBar({
             <PopoverTrigger asChild>
               {/* Hidden on phones: it tunes the table, and the phone shows cards. */}
               <Button variant="outline" size="sm" className="hidden md:inline-flex">
-                <SlidersHorizontal className="size-4" />
                 Columns
               </Button>
             </PopoverTrigger>
@@ -298,7 +299,6 @@ export function FilterBar({
           onClick={() => setFiltersOpen((v) => !v)}
           className={cn(active > 0 && "border-primary/50 text-primary")}
         >
-          <Filter className="size-4" />
           Filters
           {active > 0 ? <Badge className="ml-1 border-primary/40 text-primary">{active}</Badge> : null}
         </Button>
@@ -312,7 +312,6 @@ export function FilterBar({
         className={cn("flex-wrap items-center gap-2 sm:flex", filtersOpen ? "flex" : "hidden")}
       >
         <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
-          <Filter className="size-3.5" />
           Filter
         </span>
 

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
-import { Check, Dices, Loader2, RotateCcw, Search } from "lucide-react";
+import { Check, Loader2, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -280,7 +280,6 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
           <RainbowRing glow />
           <RainbowRing />
           <span className="relative inline-flex h-10 items-center gap-2 rounded-[8px] bg-card px-4 text-sm font-semibold shadow-sm transition-transform group-hover:scale-[1.02] group-active:scale-[0.98]">
-            <Dices className="size-4 text-foreground" />
             <span
               className="animate-[rainbow-text-flow_4s_linear_infinite] bg-clip-text text-transparent [background-size:300%_100%]"
               style={{ backgroundImage: RAINBOW_TEXT_GRADIENT }}
@@ -344,7 +343,7 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
           {result === undefined ? (
             <div className="flex flex-col items-center gap-3">
               <Button size="lg" onClick={() => void spin(filters)} disabled={spinning}>
-                {spinning ? <Loader2 className="size-4 animate-spin" /> : <Dices className="size-4" />}
+                {spinning ? <Loader2 className="size-4 animate-spin" /> : null}
                 {spinning ? "Spinning…" : "Spin"}
               </Button>
               {!spinning ? (
@@ -364,7 +363,6 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
             <div className="flex flex-col items-center gap-3 text-center">
               <p className="text-sm text-muted-foreground">Nothing on the shelf matches those questions.</p>
               <Button variant="outline" onClick={() => setResult(undefined)}>
-                <RotateCcw className="size-4" />
                 Loosen up and try again
               </Button>
             </div>
@@ -381,7 +379,6 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
               </p>
               <div className="mt-1 flex gap-2">
                 <Button variant="outline" onClick={() => void spin(filters)} disabled={spinning}>
-                  <Dices className="size-4" />
                   Spin again
                 </Button>
                 <Button asChild>

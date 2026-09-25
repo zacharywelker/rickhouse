@@ -152,11 +152,11 @@ export async function saveExpressionAction(
     revalidatePath("/");
     return {
       ok: true,
-      message: id === null ? "Expression created." : "Expression saved.",
+      message: id === null ? "Label created." : "Label saved.",
       createdId: expressionId,
     };
   } catch (error: unknown) {
-    return mapDbError(error, { singular: "Expression" });
+    return mapDbError(error, { singular: "Label" });
   }
 }
 
@@ -282,9 +282,9 @@ export async function deleteExpressionAction(id: number): Promise<ActionResult> 
   try {
     await db.delete(expressions).where(eq(expressions.id, id));
     revalidatePath("/expressions");
-    return { ok: true, message: "Expression deleted." };
+    return { ok: true, message: "Label deleted." };
   } catch (error: unknown) {
-    return mapDbError(error, { singular: "Expression" });
+    return mapDbError(error, { singular: "Label" });
   }
 }
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { GroupBottleGrid } from "@/components/groups/group-bottle-grid";
 import { GroupCoverUpload } from "@/components/groups/group-cover-upload";
@@ -40,7 +40,6 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link href={`/groups/${groupId}/edit`}>
-              <Pencil className="size-4" />
               Edit
             </Link>
           </Button>

@@ -33,6 +33,7 @@ export function FavoriteToggle({ bottleId, isFavorite }: { bottleId: number; isF
       disabled={pending}
       aria-pressed={favorite}
       aria-label={favorite ? "Remove from favorites" : "Mark as favorite"}
+      title={favorite ? "Remove from favorites" : "Mark as favorite"}
       className="p-1 text-muted-foreground transition-colors hover:text-accent disabled:opacity-60"
     >
       <Heart className={cn("size-6", favorite && "fill-accent text-accent")} />

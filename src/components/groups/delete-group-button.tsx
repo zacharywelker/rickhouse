@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,7 +39,6 @@ export function DeleteGroupButton({ groupId, name }: { groupId: number; name: st
   return (
     <>
       <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-        <Trash2 className="size-4" />
         Delete
       </Button>
 
@@ -66,7 +65,7 @@ export function DeleteGroupButton({ groupId, name }: { groupId: number; name: st
               </Button>
             </DialogClose>
             <Button type="button" variant="destructive" onClick={() => void confirmDelete()} disabled={pending}>
-              {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {pending ? <Loader2 className="size-4 animate-spin" /> : null}
               Delete
             </Button>
           </DialogFooter>

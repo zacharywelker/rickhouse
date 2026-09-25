@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -24,12 +23,14 @@ import {
 } from "@/app/(app)/bottles/actions";
 import type { FieldGroup } from "@/db/schema";
 import { clampPct } from "@/lib/bottles/geometry";
+import { FILL_STATES, fillState, fillStateDescription } from "@/lib/bottles/fill-state";
+import { cn, formatDate } from "@/lib/utils";
 import { FillGauge } from "./fill-gauge";
 
 /**
- * The gauge plus everything that has to happen around it: a numeric input for
- * precision, the open/closed toggle, and the prompt that appears when a bottle
- * reaches empty.
+ * The gauge plus everything that has to happen around it: quick fill states
+ * (Full, ¾, ½, ¼, Almost gone, Empty), the open/closed toggle, and the prompt
+ * that appears when a bottle reaches empty.
  *
  * Writes are debounced, because dragging the gauge produces a value on every
  * pointer move and each one would otherwise be a round trip.
@@ -60,6 +61,7 @@ export function FillControl({
   const [killing, setKilling] = React.useState(false);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const killed = status === "killed";
+  const current = fillState(pct);
 
   React.useEffect(() => setPct(fillPct), [fillPct]);
   React.useEffect(() => setOpen(isOpen), [isOpen]);
@@ -126,9 +128,9 @@ export function FillControl({
               className="px-1 tabular-nums underline decoration-dotted underline-offset-2 hover:text-foreground"
               // Not "${label} …": that would collide with the Opened
               // checkbox's own accessible name and make both ambiguous.
-              aria-label={`Change the ${label.toLowerCase()} date, currently ${value}`}
+              aria-label={`Change the ${label.toLowerCase()} date, currently ${formatDate(value)}`}
             >
-              {value}
+              {formatDate(value)}
             </button>
           </dd>
         </div>
@@ -184,25 +186,42 @@ export function FillControl({
       <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={220} label="Fill level" />
 
       <div className="flex w-full flex-col gap-3">
-        <div className="flex items-end gap-2">
-          <div className="flex flex-1 flex-col gap-1.5">
-            <Label htmlFor="fill-pct">Exact level</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="fill-pct"
-                type="number"
-                min={0}
-                max={100}
-                step={1}
-                value={String(pct)}
-                onChange={(e) => change(Number(e.target.value))}
-                className="h-9 w-24 tabular-nums"
-              />
-              <span className="text-sm text-muted-foreground">%</span>
-              {saving ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : null}
-            </div>
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="mb-1.5 flex w-full items-center justify-between text-sm font-medium">
+            How much is left
+            {saving ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Saving" /> : null}
+          </legend>
+          {/*
+           * Quick states, not a percentage box (DESIGN.md §21): the level is
+           * visual, and nobody knows their bottle is at 63%. Native radios, so
+           * arrow keys move between states for free. Dragging the gauge still
+           * sets anything in between; the nearest state lights up.
+           */}
+          <div className="grid grid-cols-3 border-l border-t border-border">
+            {FILL_STATES.map((state) => (
+              <label key={state.key} className="relative">
+                <input
+                  type="radio"
+                  name="fill-state"
+                  value={state.key}
+                  checked={current.key === state.key}
+                  onChange={() => change(state.pct)}
+                  className="peer sr-only"
+                  aria-label={fillStateDescription(state.pct)}
+                />
+                <span
+                  className={cn(
+                    "flex h-10 cursor-pointer items-center justify-center border-b border-r border-border px-1 text-center text-sm peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-[-2px] peer-focus-visible:outline-ring hover:bg-muted peer-checked:hover:bg-foreground",
+                    // Fraction glyphs run small; set them a size up so ¾ reads as easily as "Full".
+                    state.label.length === 1 && "text-lg",
+                  )}
+                >
+                  {state.label}
+                </span>
+              </label>
+            ))}
           </div>
-        </div>
+        </fieldset>
 
         <div className="flex items-center gap-2">
           <Checkbox id="is-open" checked={open} onCheckedChange={(c) => void toggleOpen(c === true)} />
