@@ -123,7 +123,7 @@ export function BottleBulkGrid({ expressions, stores }: { expressions: Option[];
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <div className="overflow-x-auto border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -168,7 +168,7 @@ export function BottleBulkGrid({ expressions, stores }: { expressions: Option[];
                       value={row.acquisition}
                       onChange={(e) => update(row.key, "acquisition", e.target.value)}
                       onKeyDown={nav.handleEnter(rowIndex, "acquisition", rows.length)}
-                      className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
+                      className="h-9 w-full border border-input bg-card px-2 text-sm text-foreground"
                     >
                       {ACQUISITIONS.map((value) => (
                         <option key={value} value={value}>
@@ -183,7 +183,7 @@ export function BottleBulkGrid({ expressions, stores }: { expressions: Option[];
                       value={row.status}
                       onChange={(e) => update(row.key, "status", e.target.value)}
                       onKeyDown={nav.handleEnter(rowIndex, "status", rows.length)}
-                      className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
+                      className="h-9 w-full border border-input bg-card px-2 text-sm text-foreground"
                     >
                       {BOTTLE_STATUSES.map((value) => (
                         <option key={value} value={value}>

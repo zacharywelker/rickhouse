@@ -62,7 +62,7 @@ export function GridEditBar({
   if (selectedCount === 0 && dirtyCount === 0) return null;
 
   return (
-    <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-xl">
+    <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 border border-border bg-card px-4 py-3 shadow-xl">
       <div className="flex items-center gap-3 text-sm">
         {selectedCount > 0 ? (
           <>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Card, CardContent } from "@/components/ui/card";
+import { Section, SectionContent } from "@/components/ui/section";
 import { getBackupSettings } from "@/lib/backup/settings";
 import { listBackups } from "@/lib/backup/run";
 import { BackupSettingsForm } from "./settings-form";
@@ -27,22 +27,17 @@ export default async function BackupsPage() {
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Backups</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Each backup writes a full database dump, a plain-CSV export of every table, and a snapshot of uploaded
-          photos to the backups volume. Unchanged photos are hardlinked between backups rather than copied, so
-          keeping many backups doesn&rsquo;t cost many copies of the photo library.
-        </p>
       </div>
 
-      <Card className="max-w-2xl">
-        <CardContent className="flex flex-col gap-4 p-5">
+      <Section className="max-w-2xl">
+        <SectionContent className="flex flex-col gap-4 pb-2 pt-4">
           <h2 className="text-lg">Schedule</h2>
           <BackupSettingsForm enabled={settings.enabled} intervalHours={settings.intervalHours} keep={settings.keep} />
-        </CardContent>
-      </Card>
+        </SectionContent>
+      </Section>
 
-      <Card className="max-w-2xl">
-        <CardContent className="flex flex-col gap-4 p-5">
+      <Section className="max-w-2xl">
+        <SectionContent className="flex flex-col gap-4 pb-2 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg">Manual backup</h2>
             {settings.lastRunAt ? (
@@ -55,11 +50,11 @@ export default async function BackupsPage() {
             )}
           </div>
           <RunBackupButton />
-        </CardContent>
-      </Card>
+        </SectionContent>
+      </Section>
 
-      <Card>
-        <CardContent className="flex flex-col gap-4 p-5">
+      <Section>
+        <SectionContent className="flex flex-col gap-4 pb-2 pt-4">
           <h2 className="text-lg">Existing backups</h2>
           {backups.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -84,8 +79,8 @@ export default async function BackupsPage() {
             Excel, or similar, without Rickhouse), and <code>uploads/</code> (the photos). See{" "}
             <code>docs/UNRAID.md</code> for restore commands.
           </p>
-        </CardContent>
-      </Card>
+        </SectionContent>
+      </Section>
     </div>
   );
 }

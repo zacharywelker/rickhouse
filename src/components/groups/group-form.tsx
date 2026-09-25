@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Section, SectionContent } from "@/components/ui/section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,8 +36,8 @@ export function GroupForm({
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
 
   return (
-    <Card className="max-w-xl">
-      <CardContent className="p-5">
+    <Section className="max-w-xl">
+      <SectionContent className="py-4">
         <form action={formAction} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="name">Name</Label>
@@ -73,7 +73,7 @@ export function GroupForm({
           </div>
 
           {!state.ok && state.error ? (
-            <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p role="alert" className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {state.error}
             </p>
           ) : null}
@@ -90,7 +90,7 @@ export function GroupForm({
             ) : null}
           </div>
         </form>
-      </CardContent>
-    </Card>
+      </SectionContent>
+    </Section>
   );
 }

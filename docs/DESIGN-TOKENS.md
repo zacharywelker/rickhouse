@@ -525,53 +525,55 @@ Use responsive tokens rather than hard-coding page margins into individual scree
 
 # 19. Radius
 
-Rickhouse should not be built around rounded cards.
-
-Initial tokens:
+Rickhouse is square. Corners are a signal, not a default: nearly everything
+has none, so the few things that are rounded read as deliberate.
 
 ```css
 :root {
   --radius-none: 0;
   --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
   --radius-full: 9999px;
+
+  /* Deliberately flattened: nothing should reach for these, and if a stray
+     rounded-md / rounded-lg slips in, it renders square instead of soft. */
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
 }
 ```
 
 ### Default guidance
 
-**0–4px**
+**0 (square)** — the default for every surface and control
 
-* tables
-* rules
-* editorial blocks
-* physical labels
+* buttons, inputs, selects, textareas
+* dialogs, popovers, menus and their items, tooltips
+* tables and table cells
+* sections, rules, editorial blocks
+* images, thumbnails, gallery tiles
+* alerts, empty states, the sticky edit bar
 
-**6px**
+Consistency is the point: a square dialog holding square inputs and buttons,
+opened over a square popover-driven filter row. A rounded surface anywhere in
+that stack looks like a different product.
 
-* inputs
-* buttons
-* standard controls
+**4px (`--radius-sm`)** — physical labels only
 
-**10px**
+* badges (category / status)
+* the polaroid frame
+* chart legend swatches
 
-* images
-* dialogs
-* larger interactive surfaces
+**9999px (`--radius-full`)** — things that are inherently round
 
-**14px**
+* status and category dots
+* progress tracks (the grain-total bar)
+* the Spin the Bottle wheel
+* small overlay chips on photos (fill %, bottle count, "Hero")
+* circular icon buttons over images
 
-* special physical objects
-* major imagery
-* occasional expressive components
-
-**9999px**
-
-Reserved for things that are inherently pill-shaped.
-
-Do not make every component `rounded-full`.
+Do not make every component `rounded-full`, and do not introduce 6–14px
+radii. The one exception is the Spin the Bottle button, whose rainbow glow is
+an intentionally expressive, one-off component.
 
 ---
 
@@ -1311,13 +1313,15 @@ A physical intervention such as painter's tape may be used.
   --dialog-max-width-lg: 880px;
 
   --dialog-padding: 24px;
-  --dialog-radius: var(--radius-lg);
+  --dialog-radius: var(--radius-none);
 }
 ```
 
 Dialogs should not become giant floating glass panels.
 
-Use opaque surfaces.
+Use opaque surfaces. Dialogs are square, like the popovers, buttons and
+inputs they sit alongside (§19). A dialog genuinely floats above the page, so
+it keeps a border and a shadow; the corners stay square.
 
 ---
 

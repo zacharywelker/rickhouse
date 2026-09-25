@@ -465,16 +465,14 @@ Corners should be restrained.
 
 Do not use pills and giant rounded rectangles as the default language.
 
-Use radius primarily where it makes physical or interaction sense:
+Square is the default for surfaces and controls: buttons, inputs, dialogs,
+popovers, tables and imagery. Radius is kept for the few places it makes
+physical sense:
 
-* controls
-* thumbnails
-* bottle imagery
-* dialogs
-* selected elements
-* physical labels
+* physical labels (badges, the polaroid) at 4px
+* things that are inherently round (dots, the spin wheel, overlay chips)
 
-Sharp or lightly rounded geometry should coexist.
+See DESIGN-TOKENS.md §19 for the exact scale.
 
 The radius should support the object rather than define the brand.
 

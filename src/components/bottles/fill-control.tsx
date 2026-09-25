@@ -123,7 +123,7 @@ export function FillControl({
                 setDateError(null);
                 setEditing(true);
               }}
-              className="rounded px-1 tabular-nums underline decoration-dotted underline-offset-2 hover:text-foreground"
+              className="px-1 tabular-nums underline decoration-dotted underline-offset-2 hover:text-foreground"
               // Not "${label} …": that would collide with the Opened
               // checkbox's own accessible name and make both ambiguous.
               aria-label={`Change the ${label.toLowerCase()} date, currently ${value}`}
@@ -156,7 +156,7 @@ export function FillControl({
                 router.refresh();
               });
             }}
-            className="h-7 rounded-md border border-input bg-card px-2 text-xs tabular-nums"
+            className="h-7 border border-input bg-card px-2 text-xs tabular-nums"
           />
           <button
             type="button"
@@ -170,7 +170,7 @@ export function FillControl({
                 router.refresh();
               });
             }}
-            className="rounded px-1 text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+            className="px-1 text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
           >
             Clear
           </button>
@@ -180,7 +180,7 @@ export function FillControl({
   }
 
   return (
-    <div className="flex flex-col items-center gap-4 rounded-lg border border-border bg-card p-5">
+    <div className="flex flex-col items-center gap-4 border-t border-foreground pt-5">
       <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={220} label="Fill level" />
 
       <div className="flex w-full flex-col gap-3">

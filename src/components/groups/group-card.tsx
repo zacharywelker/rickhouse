@@ -16,7 +16,7 @@ function CoverCollage({ thumbs }: { thumbs: string[] }) {
         <div
           key={thumb}
           className={cn(
-            "absolute inset-6 overflow-hidden rounded-md border border-border bg-card shadow-md",
+            "absolute inset-6 overflow-hidden border border-border bg-card shadow-md",
             STACK_TILT[i % STACK_TILT.length],
           )}
           style={{ zIndex: i }}
@@ -32,7 +32,7 @@ export function GroupCard({ group }: { group: GroupSummary }) {
   return (
     <Link
       href={`/groups/${group.id}`}
-      className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-primary/50"
+      className="group flex flex-col"
     >
       <div className="relative flex aspect-[3/2] items-center justify-center overflow-hidden bg-muted/40">
         {group.coverImagePath ? (
@@ -41,7 +41,7 @@ export function GroupCard({ group }: { group: GroupSummary }) {
           <CoverCollage thumbs={group.memberThumbs} />
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-4">
+      <div className="flex flex-1 flex-col gap-1 pt-3">
         <p className="text-lg font-medium leading-tight group-hover:text-accent">{group.name}</p>
         {group.description ? <p className="line-clamp-2 text-sm text-muted-foreground">{group.description}</p> : null}
         <p className="mt-auto pt-2 text-xs uppercase tracking-wide text-muted-foreground">

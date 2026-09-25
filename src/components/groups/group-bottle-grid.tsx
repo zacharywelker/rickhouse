@@ -22,7 +22,7 @@ import type { BottlePickerOption } from "@/lib/groups/queries";
 
 function MemberTile({ row, onRemove }: { row: GridRow; onRemove: () => void }) {
   return (
-    <li className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <li className="group relative flex flex-col">
       <Link href={`/bottles/${row.id}`} className="flex flex-1 flex-col">
         <div className="relative flex aspect-square items-center justify-center bg-muted/40">
           {row.thumbPath ? (
@@ -44,7 +44,7 @@ function MemberTile({ row, onRemove }: { row: GridRow; onRemove: () => void }) {
             />
           )}
         </div>
-        <div className="flex flex-col gap-0.5 p-3">
+        <div className="flex flex-col gap-0.5 pt-2">
           <p className="text-xs text-muted-foreground">{row.brand}</p>
           <p className="text-sm font-medium leading-tight group-hover:text-accent">{row.expressionName}</p>
           <Badge className="mt-1 w-fit">{humanise(row.status)}</Badge>
@@ -122,9 +122,9 @@ function AddBottlesDialog({
                     onClick={() => void toggle(option.id, !active)}
                     disabled={pending === option.id}
                     aria-pressed={active}
-                    className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-60"
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-60"
                   >
-                    <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted/60">
+                    <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden bg-muted/60">
                       {option.thumbPath ? (
                         <Image src={`/api/images/${option.thumbPath}`} alt="" fill unoptimized className="object-cover" />
                       ) : null}
@@ -177,11 +177,11 @@ export function GroupBottleGrid({
       </div>
 
       {members.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        <p className="border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           An unfinished scrapbook page. Add a bottle to get this group started.
         </p>
       ) : (
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
           {members.map((row) => (
             <MemberTile key={row.id} row={row} onRemove={() => void remove(row.id)} />
           ))}

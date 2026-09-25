@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,12 +19,12 @@ export function ImportForm() {
   return (
     <div className="flex flex-col gap-6">
       <form action={formAction}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Your rows</CardTitle>
-            <CardDescription>Upload a file, or paste the rows straight in.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
+        <Section>
+          <SectionHeader>
+            <SectionTitle>Your rows</SectionTitle>
+            <SectionDescription>Upload a file, or paste the rows straight in.</SectionDescription>
+          </SectionHeader>
+          <SectionContent className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="file">CSV file</Label>
               <input
@@ -32,7 +32,7 @@ export function ImportForm() {
                 name="file"
                 type="file"
                 accept=".csv,text/csv"
-                className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-sm file:text-foreground hover:file:bg-muted/70"
+                className="block w-full text-sm text-muted-foreground file:mr-3 file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-sm file:text-foreground hover:file:bg-muted/70"
               />
             </div>
 
@@ -55,7 +55,7 @@ export function ImportForm() {
             {state.error ? (
               <p
                 role="alert"
-                className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
               >
                 {state.error}
               </p>
@@ -65,18 +65,18 @@ export function ImportForm() {
               {pending ? <Loader2 className="size-4 animate-spin" /> : null}
               Import
             </Button>
-          </CardContent>
-        </Card>
+          </SectionContent>
+        </Section>
       </form>
 
       {state.report ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>
+        <Section>
+          <SectionHeader>
+            <SectionTitle>
               {state.report.created} imported
               {state.report.failed > 0 ? `, ${state.report.failed} failed` : ""}
-            </CardTitle>
-            <CardDescription>
+            </SectionTitle>
+            <SectionDescription>
               {state.report.failed === 0 ? (
                 <>
                   All rows landed.{" "}
@@ -88,9 +88,9 @@ export function ImportForm() {
               ) : (
                 "Rows that worked were kept. Fix the rest and import them again — nothing is rolled back."
               )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </SectionDescription>
+          </SectionHeader>
+          <SectionContent>
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -120,8 +120,8 @@ export function ImportForm() {
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </SectionContent>
+        </Section>
       ) : null}
     </div>
   );

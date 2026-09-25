@@ -16,7 +16,7 @@ function BottleTile({ row }: { row: GridRow }) {
   return (
     <Link
       href={`/bottles/${row.id}`}
-      className="group flex h-full w-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-primary/50"
+      className="group flex h-full w-full flex-col"
     >
       <div className="relative flex aspect-square items-center justify-center bg-muted/40">
         {row.thumbPath ? (
@@ -46,7 +46,7 @@ function BottleTile({ row }: { row: GridRow }) {
           </span>
         ) : null}
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-3">
+      <div className="flex flex-1 flex-col gap-1 pt-2">
         <p className="text-xs text-muted-foreground">{row.brand}</p>
         <p className="font-medium leading-tight group-hover:text-accent">{row.expressionName}</p>
         <p className="text-xs text-muted-foreground">
@@ -75,25 +75,25 @@ function FamilyCluster({ rows, onExpand }: { rows: GridRow[]; onExpand: () => vo
     <button
       type="button"
       onClick={onExpand}
-      className="group flex h-full w-full flex-col overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-primary/50"
+      className="group flex h-full w-full flex-col text-left"
     >
       <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-muted/40 p-4">
         {behind.map((row, i) => (
           <div
             key={row.id}
             className={cn(
-              "absolute inset-4 rounded-md border border-border bg-card shadow-md",
+              "absolute inset-4 border border-border bg-card shadow-md",
               STACK_TILT[i % STACK_TILT.length],
             )}
           >
             {row.thumbPath ? (
-              <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="rounded-md object-cover" />
+              <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="object-cover" />
             ) : null}
           </div>
         ))}
-        <div className="absolute inset-4 rounded-md border border-border bg-card shadow-lg">
+        <div className="absolute inset-4 border border-border bg-card shadow-lg">
           {front.thumbPath ? (
-            <Image src={`/api/images/${front.thumbPath}`} alt="" fill unoptimized className="rounded-md object-cover" />
+            <Image src={`/api/images/${front.thumbPath}`} alt="" fill unoptimized className="object-cover" />
           ) : (
             <div className="flex size-full items-center justify-center">
               <FillGauge
@@ -110,7 +110,7 @@ function FamilyCluster({ rows, onExpand }: { rows: GridRow[]; onExpand: () => vo
           {rows.length} bottles
         </span>
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-3">
+      <div className="flex flex-1 flex-col gap-1 pt-2">
         <p className="text-xs text-muted-foreground">{front.brand}</p>
         <p className="font-medium leading-tight group-hover:text-accent">{front.expressionName}</p>
         <p className="text-xs text-muted-foreground">Tap to see all {rows.length}</p>
@@ -125,7 +125,7 @@ function CollapseTile({ brand, expressionName, onCollapse }: { brand: string; ex
     <button
       type="button"
       onClick={onCollapse}
-      className="group flex h-full w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-4 text-center text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+      className="group flex h-full w-full flex-col items-center justify-center gap-2 border border-dashed border-border p-4 text-center text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
     >
       <Layers className="size-6" />
       <span className="text-xs">
@@ -152,7 +152,7 @@ export function BottleGallery({ rows }: { rows: GridRow[] }) {
   const seen = new Set<number>();
 
   return (
-    <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
       {rows.map((row) => {
         if (seen.has(row.expressionId)) return null;
         seen.add(row.expressionId);

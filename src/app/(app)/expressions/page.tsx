@@ -30,10 +30,6 @@ export default async function ExpressionsPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <h1 className="text-3xl text-accent">Labels</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The products, separate from the bottles on your shelf. Batch and single-barrel detail belong to the
-            bottle, so six picks of one Weller 12 are six bottles of one label.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" asChild>
@@ -54,7 +50,7 @@ export default async function ExpressionsPage({
       <LabelFilterBar filters={filters} brands={brands} categories={categories} total={total} />
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
+        <div className="border border-dashed border-border p-10 text-center">
           <p className="text-lg">{filtered ? "Nothing matches those filters" : "No labels yet"}</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             {filtered

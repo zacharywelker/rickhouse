@@ -99,7 +99,7 @@ function NoteForm({
         {!state.ok && state.error ? (
           <p
             role="alert"
-            className="col-span-full rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            className="col-span-full border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
             {state.error}
           </p>
@@ -137,14 +137,14 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
       </div>
 
       {notes.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+        <p className="border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
           Nothing tasted yet. Notes are attached to the bottle rather than the expression, so you can compare two
           batches of the same thing.
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col divide-y divide-border border-t border-foreground">
           {notes.map((note) => (
-            <li key={note.id} className="rounded-lg border border-border bg-card p-4">
+            <li key={note.id} className="py-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-sm text-muted-foreground">{note.tastedOn}</span>
                 <div className="flex items-center gap-2">

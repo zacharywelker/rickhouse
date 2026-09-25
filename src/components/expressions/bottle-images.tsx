@@ -96,13 +96,13 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
       </div>
 
       {error ? (
-        <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p role="alert" className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       ) : null}
 
       {order.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+        <p className="border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
           No photos yet. The first one you add becomes the hero image.
         </p>
       ) : (
