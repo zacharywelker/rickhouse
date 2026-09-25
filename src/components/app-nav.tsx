@@ -31,9 +31,11 @@ function isCurrent(pathname: string, href: string) {
 }
 
 /**
- * The header nav. Five links do not fit on a phone, and letting them overflow
+ * The header nav. Six links do not fit on a phone, and letting them overflow
  * is what made every page 597px wide on a 390px screen — so under `md` they
  * collapse behind a disclosure rather than wrapping or scrolling sideways.
+ * The cut-off is `lg`, not `md`: the full row needs ~905px, so at `md`
+ * every iPad in portrait (768–834px) scrolled sideways.
  *
  * A disclosure, not a modal: Escape closes it, navigating closes it, and the
  * page behind stays readable and scrollable.
@@ -59,7 +61,7 @@ export function AppNav({ signOut, username }: { signOut: React.ReactNode; userna
 
   // A resize past the breakpoint leaves the panel stranded open otherwise.
   React.useEffect(() => {
-    const query = window.matchMedia("(min-width: 768px)");
+    const query = window.matchMedia("(min-width: 1024px)");
     const onChange = () => {
       if (query.matches) setOpen(false);
     };
@@ -103,12 +105,12 @@ export function AppNav({ signOut, username }: { signOut: React.ReactNode; userna
 
   return (
     <header className="border-b border-border">
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex w-full max-w-page items-center gap-6 px-4 py-3 sm:px-6">
         <Link href="/" className="text-lg font-bold uppercase tracking-wide text-foreground">
           Rickhouse
         </Link>
 
-        <nav aria-label="Main" className="hidden items-center gap-5 md:flex">
+        <nav aria-label="Main" className="hidden items-center gap-5 lg:flex">
           {LINKS.map((item) => desktopLink(item.href, item.label))}
         </nav>
 
@@ -118,7 +120,7 @@ export function AppNav({ signOut, username }: { signOut: React.ReactNode; userna
             href="/account"
             aria-current={isCurrent(pathname, "/account") ? "page" : undefined}
             className={cn(
-              "hidden border-b-2 px-1 py-1 text-sm transition-colors md:block",
+              "hidden border-b-2 px-1 py-1 text-sm transition-colors lg:block",
               isCurrent(pathname, "/account")
                 ? "border-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
@@ -126,12 +128,12 @@ export function AppNav({ signOut, username }: { signOut: React.ReactNode; userna
           >
             {username}
           </Link>
-          <div className="hidden md:block">{signOut}</div>
+          <div className="hidden lg:block">{signOut}</div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="md:hidden"
+            className="lg:hidden"
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={open ? "Close menu" : "Open menu"}
@@ -146,7 +148,7 @@ export function AppNav({ signOut, username }: { signOut: React.ReactNode; userna
         <nav
           id="mobile-nav"
           aria-label="Main"
-          className="mx-auto flex w-full max-w-6xl flex-col gap-1 border-t border-border px-4 py-3 md:hidden"
+          className="mx-auto flex w-full max-w-page flex-col gap-1 border-t border-border px-4 py-3 lg:hidden"
         >
           {LINKS.map((item) => mobileLink(item.href, item.label))}
           <div className="mt-2 flex flex-col gap-1 border-t border-border pt-3">

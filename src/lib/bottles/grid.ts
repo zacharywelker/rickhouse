@@ -4,6 +4,9 @@ import { db } from "@/db";
 import { bottleList } from "@/db/schema";
 import type { BottleFilters, SortKey } from "./filters";
 
+/** Opened and still on the shelf — killed, sold and traded bottles are history, not open. */
+export const isOpenNow = sql`(${bottleList.isOpen} AND ${bottleList.status} IN ('owned', 'open'))`;
+
 /**
  * The grid query: filtering, sorting and pagination, all in Postgres.
  *
@@ -104,7 +107,9 @@ function buildWhere(filters: BottleFilters): SQL | undefined {
     )`);
   }
 
-  if (filters.open === "open") clauses.push(eq(bottleList.isOpen, true));
+  // Open means opened *and still on the shelf*: a killed bottle keeps its
+  // is_open flag as history, but it is not open "right now".
+  if (filters.open === "open") clauses.push(isOpenNow);
   if (filters.open === "closed") clauses.push(eq(bottleList.isOpen, false));
   if (filters.favorite) clauses.push(eq(bottleList.isFavorite, true));
 
@@ -176,7 +181,7 @@ export async function summariseBottles(filters: BottleFilters): Promise<BottleSu
       // Only where a price was actually recorded, so the comparison is like
       // for like rather than counting gifts as a saving.
       msrp: sql<string>`coalesce(sum(${bottleList.msrp}) filter (where ${bottleList.pricePaid} is not null), 0)::text`,
-      open: sql<number>`count(*) filter (where ${bottleList.isOpen})::int`,
+      open: sql<number>`count(*) filter (where ${isOpenNow})::int`,
       avgProof: sql<string | null>`round(avg(${bottleList.proof}), 1)::text`,
       avgRating: sql<string | null>`round(avg(${bottleList.avgRating}), 1)::text`,
     })

@@ -116,7 +116,7 @@ function SortLink({ column, filters }: { column: (typeof COLUMNS)[number]; filte
       href={`/expressions?${query}` as Route}
       aria-label={`Sort by ${column.label}`}
       className={cn(
-        "-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-foreground",
+        "-mx-1 inline-flex items-center gap-1 px-1 py-0.5 hover:text-foreground",
         active && "text-primary",
       )}
     >

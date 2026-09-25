@@ -43,10 +43,6 @@ export default async function BottlesPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl text-accent">Collection</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Every physical bottle you own. Filtering by a distillery finds the blends it contributed to, not just the
-            bottles it made alone.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <SpinTheBottle categories={categories} finishes={finishes} />
@@ -89,7 +85,7 @@ export default async function BottlesPage({
       <FilterBar filters={filters} options={{ categories, brands, distilleries, mashbills, finishes, stores, tags }} columns={COLUMN_LABELS} total={total} />
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
+        <div className="border border-dashed border-border p-10 text-center">
           <p className="text-lg">{filtered ? "Nothing matches those filters" : "Nothing on the shelf"}</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             {filtered

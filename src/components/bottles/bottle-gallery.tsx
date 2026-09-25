@@ -16,7 +16,7 @@ function BottleTile({ row }: { row: GridRow }) {
   return (
     <Link
       href={`/bottles/${row.id}`}
-      className="group flex h-full flex-col"
+      className="group flex h-full w-full flex-col"
     >
       <div className="relative flex aspect-square items-center justify-center bg-muted/40">
         {row.thumbPath ? (
@@ -75,25 +75,25 @@ function FamilyCluster({ rows, onExpand }: { rows: GridRow[]; onExpand: () => vo
     <button
       type="button"
       onClick={onExpand}
-      className="group flex h-full flex-col text-left"
+      className="group flex h-full w-full flex-col text-left"
     >
       <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-muted/40 p-4">
         {behind.map((row, i) => (
           <div
             key={row.id}
             className={cn(
-              "absolute inset-4 rounded-md border border-border bg-card shadow-md",
+              "absolute inset-4 border border-border bg-card shadow-md",
               STACK_TILT[i % STACK_TILT.length],
             )}
           >
             {row.thumbPath ? (
-              <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="rounded-md object-cover" />
+              <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="object-cover" />
             ) : null}
           </div>
         ))}
-        <div className="absolute inset-4 rounded-md border border-border bg-card shadow-lg">
+        <div className="absolute inset-4 border border-border bg-card shadow-lg">
           {front.thumbPath ? (
-            <Image src={`/api/images/${front.thumbPath}`} alt="" fill unoptimized className="rounded-md object-cover" />
+            <Image src={`/api/images/${front.thumbPath}`} alt="" fill unoptimized className="object-cover" />
           ) : (
             <div className="flex size-full items-center justify-center">
               <FillGauge
@@ -125,7 +125,7 @@ function CollapseTile({ brand, expressionName, onCollapse }: { brand: string; ex
     <button
       type="button"
       onClick={onCollapse}
-      className="group flex h-full flex-col items-center justify-center gap-2 border border-dashed border-border p-4 text-center text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+      className="group flex h-full w-full flex-col items-center justify-center gap-2 border border-dashed border-border p-4 text-center text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
     >
       <Layers className="size-6" />
       <span className="text-xs">

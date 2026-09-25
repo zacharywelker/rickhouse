@@ -76,14 +76,14 @@ export function OrderedPicker({
   };
 
   return (
-    <fieldset className="col-span-full flex flex-col gap-3 rounded-lg border border-border p-4">
+    <fieldset className="col-span-full flex flex-col gap-3 border border-border p-4">
       <legend className="px-1 text-sm font-medium">{label}</legend>
       <p className="-mt-1 text-xs text-muted-foreground">{description}</p>
 
       {value.length > 0 ? (
         <ol className="flex flex-col gap-2">
           {value.map((row, index) => (
-            <li key={row.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 p-2">
+            <li key={row.id} className="flex flex-wrap items-center gap-2 border border-border bg-muted/30 p-2">
               <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
               <span className="min-w-0 flex-1 truncate text-sm">
                 {row.label}
@@ -107,7 +107,7 @@ export function OrderedPicker({
                         ),
                       )
                     }
-                    className="h-8 rounded-md border border-input bg-card px-2 text-xs"
+                    className="h-8 border border-input bg-card px-2 text-xs"
                   >
                     <option value="">Not set</option>
                     {distilleryChoices.map((d) => (

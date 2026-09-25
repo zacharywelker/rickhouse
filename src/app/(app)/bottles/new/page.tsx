@@ -25,13 +25,10 @@ export default async function NewBottlePage({
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Add a bottle</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pick the label it is a bottle of. If it does not exist yet, create the label first.
-        </p>
       </div>
 
       {expressions.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
+        <div className="border border-dashed border-border p-10 text-center">
           <p className="text-lg">No labels yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             A bottle has to be a bottle <em>of</em> something. Create the product first.

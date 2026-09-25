@@ -268,7 +268,7 @@ export function LabelTableBody({
                   <select
                     value={edit?.isChillFiltered ?? (row.isChillFiltered === null ? "" : String(row.isChillFiltered))}
                     onChange={(e) => updateEdit(row, "isChillFiltered", e.target.value)}
-                    className="h-8 w-24 rounded-md border border-input bg-card px-2 text-sm text-foreground"
+                    className="h-8 w-24 border border-input bg-card px-2 text-sm text-foreground"
                   >
                     {TRISTATE.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -281,7 +281,7 @@ export function LabelTableBody({
                   <select
                     value={edit?.colorAdded ?? (row.colorAdded === null ? "" : String(row.colorAdded))}
                     onChange={(e) => updateEdit(row, "colorAdded", e.target.value)}
-                    className="h-8 w-24 rounded-md border border-input bg-card px-2 text-sm text-foreground"
+                    className="h-8 w-24 border border-input bg-card px-2 text-sm text-foreground"
                   >
                     {TRISTATE.map((option) => (
                       <option key={option.value} value={option.value}>

@@ -23,7 +23,6 @@ type Props = {
   resourceKey: string;
   label: string;
   singular: string;
-  description: string;
   fields: FieldSpec[];
   columns: ColumnSpec[];
   rows: AdminRow[];
@@ -52,7 +51,6 @@ export function ResourceView({
   resourceKey,
   label,
   singular,
-  description,
   fields,
   columns,
   rows,
@@ -84,7 +82,6 @@ export function ResourceView({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <h1 className="text-3xl text-accent">{label}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
         <Button onClick={() => setEditing(null)}>
           <Plus className="size-4" />
@@ -93,7 +90,7 @@ export function ResourceView({
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
+        <div className="border border-dashed border-border p-10 text-center">
           <p className="text-lg">No {label.toLowerCase()} yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             Add the first one now, or let it appear here the moment you create one inline from a bottle form.
@@ -201,7 +198,7 @@ export function ResourceView({
           <div className="px-6 py-4">
             <p className="font-medium">{String(deleting?.cells.name ?? "")}</p>
             {deleteError ? (
-              <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p role="alert" className="mt-3 border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {deleteError}
               </p>
             ) : null}

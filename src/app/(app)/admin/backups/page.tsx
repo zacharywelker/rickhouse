@@ -30,11 +30,6 @@ export default async function BackupsPage() {
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Backups</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Each backup writes a full database dump, a plain-CSV export of every table, and a snapshot of uploaded
-          photos to the backups volume. Unchanged photos are hardlinked between backups rather than copied, so
-          keeping many backups doesn&rsquo;t cost many copies of the photo library.
-        </p>
       </div>
 
       <Section className="max-w-2xl">

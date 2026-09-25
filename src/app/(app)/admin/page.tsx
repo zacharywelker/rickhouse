@@ -17,11 +17,6 @@ export default async function AdminIndexPage() {
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Configuration</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The shared vocabulary behind every bottle. Everything here is a real record rather than free text, which is
-          what makes &ldquo;show me everything Bardstown distilled&rdquo; work even when the bottle is a three-way
-          blend.
-        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">

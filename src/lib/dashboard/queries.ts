@@ -201,7 +201,7 @@ export type Headline = {
 export async function headline(): Promise<Headline> {
   const rows = await db.execute<Headline>(sql`
     SELECT count(*)::int AS bottles,
-           count(*) FILTER (WHERE b.is_open)::int AS open,
+           count(*) FILTER (WHERE b.is_open AND b.status IN ('owned', 'open'))::int AS open,
            count(*) FILTER (WHERE b.status = 'killed')::int AS killed,
            coalesce(sum(b.price_paid), 0)::text AS spend,
            coalesce(sum(e.msrp) FILTER (WHERE b.price_paid IS NOT NULL), 0)::text AS msrp,

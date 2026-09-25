@@ -12,10 +12,6 @@ export default async function NewExpressionPage() {
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">New Label</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          A label is the product — the mashbill, proof and distillery. The bottle on your shelf comes next, and
-          buying a second one just adds another bottle to this same label.
-        </p>
       </div>
       <ExpressionForm
         expressionId={null}

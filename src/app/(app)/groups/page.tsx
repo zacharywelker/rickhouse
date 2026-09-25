@@ -16,10 +16,6 @@ export default async function GroupsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl text-accent">Groups</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Personal, curated collections — Japan 2026, Store Picks, Mara&apos;s Bottles. The database tells you what
-            you own; Groups tell you what it means.
-          </p>
         </div>
         <Button asChild>
           <Link href="/groups/new">
@@ -30,7 +26,7 @@ export default async function GroupsPage() {
       </div>
 
       {groups.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
+        <div className="border border-dashed border-border p-10 text-center">
           <p className="text-lg">No groups yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             An unfinished scrapbook page. Start one to pull bottles together around a story.

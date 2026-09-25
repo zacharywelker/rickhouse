@@ -33,7 +33,7 @@ export function GroupCoverUpload({ groupId, coverImagePath }: { groupId: number;
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="relative flex aspect-[3/2] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/40">
+      <div className="relative flex aspect-[3/2] w-full items-center justify-center overflow-hidden border border-border bg-muted/40">
         {coverImagePath ? (
           <Image src={`/api/images/${coverImagePath}`} alt="" fill unoptimized className="object-cover" />
         ) : (
@@ -69,7 +69,7 @@ export function GroupCoverUpload({ groupId, coverImagePath }: { groupId: number;
       </div>
 
       {error ? (
-        <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p role="alert" className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       ) : null}

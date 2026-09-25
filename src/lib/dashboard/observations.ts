@@ -23,7 +23,11 @@ function fromCategory(top: Slice | undefined): Observation | null {
   if (!top || top.categoryIds.length === 0) return null;
   return {
     id: "top-category",
-    text: `Most of the collection is ${top.label.toLowerCase()} — ${top.share}% of it.`,
+    // "Most" only when it is: a plurality is "more than anything else".
+    text:
+      top.share > 50
+        ? `Most of the collection is ${top.label.toLowerCase()} — ${top.share}% of it.`
+        : `There is more ${top.label.toLowerCase()} than anything else — ${top.share}% of the collection.`,
     detail: `${top.count} bottle${top.count === 1 ? "" : "s"}`,
     href: filterHref({ category: top.categoryIds.join(",") }),
   };
@@ -33,9 +37,14 @@ function fromProof(bins: Bin[]): Observation | null {
   if (bins.length === 0) return null;
   const mode = bins.reduce((best, bin) => (bin.count > best.count ? bin : best), bins[0]!);
   if (mode.count === 0) return null;
+  const total = bins.reduce((sum, bin) => sum + bin.count, 0);
   return {
     id: "proof-mode",
-    text: `Most of your bottles are ${mode.label} proof.`,
+    // "Most" only when it is: a plurality is "more than any other band".
+    text:
+      mode.count * 2 > total
+        ? `Most of your bottles are ${mode.label} proof.`
+        : `More of your bottles are ${mode.label} proof than any other band.`,
     detail: `${mode.count} bottle${mode.count === 1 ? "" : "s"}`,
     href: filterHref({ proofMin: String(mode.min), proofMax: String(mode.max) }),
   };

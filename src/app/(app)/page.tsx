@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { bottleList } from "@/db/schema";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { StatStrip } from "@/components/ui/stat-strip";
+import { isOpenNow } from "@/lib/bottles/grid";
 import { formatMoney, formatNumeric } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ async function loadSummary(): Promise<Summary> {
   const [row] = await db
     .select({
       bottles: sql<number>`count(*)::int`,
-      open: sql<number>`count(*) filter (where ${bottleList.isOpen})::int`,
+      open: sql<number>`count(*) filter (where ${isOpenNow})::int`,
       spend: sql<string | null>`coalesce(sum(${bottleList.pricePaid}), 0)::text`,
     })
     .from(bottleList);
@@ -45,7 +46,6 @@ export default async function HomePage() {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-3xl text-accent">Rickhouse</h1>
-        <p className="text-sm text-muted-foreground">Your shelf, catalogued.</p>
       </div>
 
       <StatStrip

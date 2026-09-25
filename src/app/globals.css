@@ -9,9 +9,7 @@
  * plus adds new tokens for work not yet started (category color, painter's
  * tape, status color, type scale). No component files change in this phase:
  * every component already consumes these tokens by name, so the reskin
- * lands for free. Known follow-ups this phase deliberately does not fix:
- *   - Badge uses `rounded-full` (a pill) for category/status; DESIGN.md 8 and
- *     45 want radius used sparingly, not pill-everything. Left for Phase 1/2.
+ * lands for free.
  *
  * Light and dark are equals (SPEC M6): every semantic token is declared once
  * with light-dark(), and `color-scheme` decides which half applies. The OS
@@ -43,12 +41,18 @@
   --leading-normal: 1.45;
   --leading-relaxed: 1.65;
 
-  /* Radius — DESIGN-TOKENS.md §19. Sharper than Tailwind's defaults on the
-     larger steps; small steps already coincided with Tailwind's own. */
+  /* Page width — DESIGN-TOKENS.md §17: the workbench gets --container-2xl,
+     not a narrow reading column (\`max-w-page\`). */
+  --container-page: 1440px;
+
+  /* Radius — DESIGN-TOKENS.md §19. Square by default: 4px is for physical
+     labels (badges, the polaroid) and rounded-full for inherently round
+     things. md/lg/xl are flattened to 0 so a stray rounded-md or rounded-lg
+     renders square instead of bringing soft corners back. */
   --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
 
   /* Shadows — DESIGN-TOKENS.md §20. Borders and spacing carry hierarchy;
      shadows stay this restrained on purpose. */

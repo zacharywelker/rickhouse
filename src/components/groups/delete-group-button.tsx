@@ -54,7 +54,7 @@ export function DeleteGroupButton({ groupId, name }: { groupId: number; name: st
           <div className="px-6 py-4">
             <p className="font-medium">{name}</p>
             {error ? (
-              <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p role="alert" className="mt-3 border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
               </p>
             ) : null}

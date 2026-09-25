@@ -55,6 +55,7 @@ export const COLUMN_LABELS: Array<{ id: string; label: string }> = [
   { id: "fill", label: "Fill" },
   { id: "brand", label: "Brand" },
   { id: "expression", label: "Label" },
+  { id: "status", label: "Status" },
   { id: "category", label: "Category" },
   { id: "distilleries", label: "Distilleries" },
   { id: "proof", label: "Proof" },
@@ -64,7 +65,6 @@ export const COLUMN_LABELS: Array<{ id: string; label: string }> = [
   { id: "store", label: "Store" },
   { id: "acquired", label: "Acquired" },
   { id: "rating", label: "Rating" },
-  { id: "status", label: "Status" },
 ];
 
 /**
@@ -223,10 +223,10 @@ export function BottleTable({
               width={40}
               height={40}
               unoptimized
-              className="size-10 rounded border border-border object-cover"
+              className="size-10 border border-border object-cover"
             />
           ) : (
-            <div className="size-10 rounded border border-dashed border-border" aria-hidden="true" />
+            <div className="size-10 border border-dashed border-border" aria-hidden="true" />
           ),
       }),
       helper.accessor("fillPct", {
@@ -248,13 +248,23 @@ export function BottleTable({
       helper.accessor("brand", {
         id: "brand",
         header: "Brand",
-        cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
+        cell: ({ getValue }) => (
+          <span className="block max-w-40 truncate" title={getValue()}>
+            {getValue()}
+          </span>
+        ),
       }),
       helper.accessor("expressionName", {
         id: "expression",
         header: "Label",
         cell: ({ row }) => (
-          <Link href={`/bottles/${row.original.id}`} className="whitespace-nowrap font-medium hover:text-accent">
+          <Link
+            href={`/bottles/${row.original.id}`}
+            // Truncated, not nowrap: one long name used to widen the whole
+            // table and push Proof, Paid and Status out of view.
+            title={row.original.batch ? `${row.original.expressionName} · ${row.original.batch}` : row.original.expressionName}
+            className="block max-w-64 truncate font-medium hover:text-accent"
+          >
             {row.original.expressionName}
             {row.original.batch ? <span className="text-muted-foreground"> · {row.original.batch}</span> : null}
             {row.original.isFavorite ? (
@@ -262,6 +272,26 @@ export function BottleTable({
             ) : null}
           </Link>
         ),
+      }),
+      helper.accessor("status", {
+        id: "status",
+        header: "Status",
+        cell: ({ getValue, row }) =>
+          unlocked ? (
+            <select
+              value={edits[row.original.id]?.status ?? editableFrom(row.original).status}
+              onChange={(e) => updateEdit(row.original, "status", e.target.value)}
+              className="h-8 w-full border border-input bg-card px-2 text-sm text-foreground"
+            >
+              {BOTTLE_STATUSES.map((value) => (
+                <option key={value} value={value}>
+                  {titleCase(value)}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <StatusMark status={getValue()} />
+          ),
       }),
       helper.accessor("category", {
         id: "category",
@@ -280,7 +310,9 @@ export function BottleTable({
         id: "distilleries",
         header: "Distilleries",
         cell: ({ getValue }) => (
-          <span className="block max-w-56 truncate text-muted-foreground">{getValue() ?? "—"}</span>
+          <span className="block max-w-40 truncate text-muted-foreground" title={getValue() ?? undefined}>
+            {getValue() ?? "—"}
+          </span>
         ),
       }),
       helper.accessor("proof", {
@@ -293,7 +325,7 @@ export function BottleTable({
         header: "Age",
         cell: ({ getValue, row }) => (
           <span
-            className="block max-w-32 truncate tabular-nums"
+            className="block max-w-20 truncate tabular-nums"
             title={row.original.ageStatement ?? undefined}
           >
             {getValue() ? `${formatNumeric(getValue())}y` : (row.original.ageStatement ?? "—")}
@@ -338,7 +370,7 @@ export function BottleTable({
               placeholder="Optional…"
             />
           ) : (
-            <span className="block max-w-36 truncate" title={getValue() ?? undefined}>
+            <span className="block max-w-28 truncate" title={getValue() ?? undefined}>
               {getValue() ?? "—"}
             </span>
           ),
@@ -363,26 +395,6 @@ export function BottleTable({
         header: "Rating",
         cell: ({ getValue }) =>
           getValue() ? <span className="tabular-nums text-accent">{Number(getValue())}</span> : "—",
-      }),
-      helper.accessor("status", {
-        id: "status",
-        header: "Status",
-        cell: ({ getValue, row }) =>
-          unlocked ? (
-            <select
-              value={edits[row.original.id]?.status ?? editableFrom(row.original).status}
-              onChange={(e) => updateEdit(row.original, "status", e.target.value)}
-              className="h-8 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground"
-            >
-              {BOTTLE_STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {titleCase(value)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <StatusMark status={getValue()} />
-          ),
       }),
       ...(unlocked
         ? [
@@ -480,7 +492,7 @@ export function BottleTable({
                         onClick={() => toggleSort(header.column.id)}
                         aria-label={`Sort by ${String(header.column.columnDef.header)}`}
                         className={cn(
-                          "-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-foreground",
+                          "-mx-1 inline-flex items-center gap-1 px-1 py-0.5 hover:text-foreground",
                           active && "text-primary",
                         )}
                       >
@@ -566,7 +578,7 @@ function MobileSort({
         id="mobile-sort"
         value={filters.sort}
         onChange={(event) => onSort({ sort: event.target.value as SortKey })}
-        className="h-9 flex-1 rounded-md border border-input bg-card px-2 text-sm"
+        className="h-9 flex-1 border border-input bg-card px-2 text-sm"
       >
         {MOBILE_SORTS.map((option) => (
           <option key={option.key} value={option.key}>

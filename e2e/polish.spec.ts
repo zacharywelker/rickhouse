@@ -72,6 +72,22 @@ test.describe("theme", () => {
   });
 });
 
+// iPad portrait: the width band where the desktop nav used to switch on
+// before it fit, scrolling every page sideways.
+test.describe("on a tablet", () => {
+  test.use({ viewport: { width: 820, height: 1180 } });
+
+  test("no page scrolls sideways", async ({ page }) => {
+    for (const path of ["/", "/bottles", "/numbers", "/admin"]) {
+      await page.goto(path);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `${path} overflows by ${overflow}px`).toBeLessThanOrEqual(0);
+    }
+  });
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: PHONE });
 
