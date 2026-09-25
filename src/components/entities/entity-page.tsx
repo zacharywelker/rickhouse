@@ -4,7 +4,7 @@ import { BottleGallery } from "@/components/bottles/bottle-gallery";
 import { BottleTable } from "@/components/bottles/bottle-table";
 import { GridPagination } from "@/components/bottles/grid-pagination";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Section, SectionContent } from "@/components/ui/section";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { parseFilters, type BottleFilters } from "@/lib/bottles/filters";
@@ -63,16 +63,16 @@ export async function EntityPage({
       </div>
 
       {meta && meta.length > 0 ? (
-        <Card>
-          <CardContent className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
+        <Section>
+          <SectionContent className="grid grid-cols-2 gap-4 py-4 sm:grid-cols-4">
             {meta.map((item) => (
               <div key={item.label}>
                 <dt className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</dt>
                 <dd className="text-sm">{item.value}</dd>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </SectionContent>
+        </Section>
       ) : null}
 
       {notes ? <p className="max-w-3xl text-sm text-muted-foreground">{notes}</p> : null}

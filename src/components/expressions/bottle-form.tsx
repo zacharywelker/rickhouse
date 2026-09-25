@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { saveBottleAction } from "@/app/(app)/bottles/actions";
 import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "@/lib/expressions/bottle-fields";
@@ -96,12 +96,12 @@ export function BottleForm({
         // way the label form reveals its per-spirit sections.
         if (!sectionVisible(section, null, values)) return null;
         return (
-        <Card key={section.id}>
-          <CardHeader>
-            <CardTitle>{section.id === "bottle" && !bottleId ? "Add a Bottle" : section.title}</CardTitle>
-            {section.description ? <CardDescription>{section.description}</CardDescription> : null}
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Section key={section.id}>
+          <SectionHeader>
+            <SectionTitle>{section.id === "bottle" && !bottleId ? "Add a Bottle" : section.title}</SectionTitle>
+            {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
+          </SectionHeader>
+          <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {section.fields.map((field) => {
             if (!fieldVisible(field, values)) return null;
             // Proof/ABV and the age triplet render as linked composites
@@ -159,8 +159,8 @@ export function BottleForm({
             );
           })}
             {section.id === "override" ? <DeriveAge values={values} set={set} /> : null}
-          </CardContent>
-        </Card>
+          </SectionContent>
+        </Section>
         );
       })}
 

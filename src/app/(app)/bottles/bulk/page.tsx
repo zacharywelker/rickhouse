@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Section, SectionContent } from "@/components/ui/section";
 import { BottleBulkGrid } from "@/components/bottles/bottle-bulk-grid";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { expressionOptions } from "@/lib/expressions/queries";
@@ -23,8 +23,8 @@ export default async function BulkBottlesPage() {
       </div>
 
       {expressions.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+        <Section>
+          <SectionContent className="flex flex-col items-center gap-3 py-10 text-center">
             <p className="text-lg">No labels yet</p>
             <p className="mx-auto max-w-md text-sm text-muted-foreground">
               A bottle has to be a bottle <em>of</em> something. Create at least one label first.
@@ -32,8 +32,8 @@ export default async function BulkBottlesPage() {
             <Button asChild>
               <Link href="/expressions/new">Create a label</Link>
             </Button>
-          </CardContent>
-        </Card>
+          </SectionContent>
+        </Section>
       ) : (
         <BottleBulkGrid expressions={expressions} stores={stores} />
       )}

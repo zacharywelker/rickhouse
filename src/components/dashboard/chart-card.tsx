@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 /**
@@ -32,11 +32,11 @@ export function ChartCard({
   const id = React.useId();
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+    <Section className="flex flex-col">
+      <SectionHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div>
-          <CardTitle>{title}</CardTitle>
-          {description ? <CardDescription>{description}</CardDescription> : null}
+          <SectionTitle>{title}</SectionTitle>
+          {description ? <SectionDescription>{description}</SectionDescription> : null}
         </div>
         {tableRows.length > 0 ? (
           <Button
@@ -51,8 +51,8 @@ export function ChartCard({
             <span className="sr-only sm:not-sr-only">{showTable ? "Chart" : "Table"}</span>
           </Button>
         ) : null}
-      </CardHeader>
-      <CardContent className="flex-1">
+      </SectionHeader>
+      <SectionContent className="flex-1">
         {tableRows.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{empty ?? "Not enough data yet."}</p>
         ) : showTable ? (
@@ -86,7 +86,7 @@ export function ChartCard({
         ) : (
           <div id={id}>{children}</div>
         )}
-      </CardContent>
-    </Card>
+      </SectionContent>
+    </Section>
   );
 }

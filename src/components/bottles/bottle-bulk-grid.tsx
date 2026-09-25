@@ -123,7 +123,7 @@ export function BottleBulkGrid({ expressions, stores }: { expressions: Option[];
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <div className="overflow-x-auto border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">

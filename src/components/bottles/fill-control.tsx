@@ -180,7 +180,7 @@ export function FillControl({
   }
 
   return (
-    <div className="flex flex-col items-center gap-4 rounded-lg border border-border bg-card p-5">
+    <div className="flex flex-col items-center gap-4 border-t border-foreground pt-5">
       <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={220} label="Fill level" />
 
       <div className="flex w-full flex-col gap-3">

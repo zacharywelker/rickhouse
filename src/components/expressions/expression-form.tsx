@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { saveExpressionAction } from "@/app/(app)/expressions/actions";
 import { EXPRESSION_SECTIONS, sectionVisible } from "@/lib/expressions/fields";
@@ -78,12 +78,12 @@ export function ExpressionForm({
       {EXPRESSION_SECTIONS.map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
         return (
-          <Card key={section.id}>
-            <CardHeader>
-              <CardTitle>{section.title}</CardTitle>
-              {section.description ? <CardDescription>{section.description}</CardDescription> : null}
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Section key={section.id}>
+            <SectionHeader>
+              <SectionTitle>{section.title}</SectionTitle>
+              {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
+            </SectionHeader>
+            <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {section.fields.map((field) => {
                 // Proof/ABV and the age triplet render as linked composites
                 // rather than the generic field, but stay in `fields` above
@@ -139,20 +139,20 @@ export function ExpressionForm({
                   />
                 );
               })}
-            </CardContent>
-          </Card>
+            </SectionContent>
+          </Section>
         );
       })}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Where it came from</CardTitle>
-          <CardDescription>
+      <Section>
+        <SectionHeader>
+          <SectionTitle>Where it came from</SectionTitle>
+          <SectionDescription>
             A blend has several of each, and the order matters. These are real links, so a distillery&rsquo;s page will
             list this expression among its contributions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4">
+          </SectionDescription>
+        </SectionHeader>
+        <SectionContent className="grid grid-cols-1 gap-4">
           <OrderedPicker
             name="distilleryLinks"
             label="Distilleries"
@@ -188,8 +188,8 @@ export function ExpressionForm({
             value={links.finishes}
             onChange={(rows) => setLinks((prev) => ({ ...prev, finishes: rows }))}
           />
-        </CardContent>
-      </Card>
+        </SectionContent>
+      </Section>
 
       {!state.ok && state.error ? (
         <p
