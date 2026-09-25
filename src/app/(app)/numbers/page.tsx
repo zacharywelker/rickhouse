@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { Section, SectionContent } from "@/components/ui/section";
 import { Acquisitions, CategoryShare, ProofDistribution, TopDistilleries } from "@/components/dashboard/charts";
 import {
   acquisitionsOverTime,
@@ -58,17 +58,17 @@ export default async function NumbersPage() {
       </div>
 
       {items.length > 0 ? (
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
             <ObservationCard key={item.id} item={item} />
           ))}
         </section>
       ) : null}
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-x-8 gap-y-8 lg:grid-cols-2">
         <CategoryShare data={categories} />
-        <Card>
-          <CardContent className="flex h-full flex-col justify-center gap-5 p-6">
+        <Section>
+          <SectionContent className="flex h-full flex-col justify-center gap-5 py-5">
             <Leader
               label="Most-used mashbill"
               value={mashbill?.label ?? null}
@@ -81,11 +81,11 @@ export default async function NumbersPage() {
               count={finish?.count}
               href={finish ? (`/finishes/${finish.slug}` as Route) : null}
             />
-          </CardContent>
-        </Card>
+          </SectionContent>
+        </Section>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-x-8 gap-y-8 lg:grid-cols-2">
         <ProofDistribution data={proof} />
         <Acquisitions data={acquisitions} />
       </section>
@@ -101,19 +101,19 @@ export default async function NumbersPage() {
  */
 function ObservationCard({ item }: { item: Observation }) {
   const body = (
-    <CardContent className="p-4">
+    <SectionContent className="pb-3 pt-3">
       <p className="text-sm text-foreground">{item.text}</p>
       {item.detail ? <p className="mt-1 text-2xl tabular-nums text-accent">{item.detail}</p> : null}
-    </CardContent>
+    </SectionContent>
   );
 
   if (!item.href) {
-    return <Card>{body}</Card>;
+    return <Section>{body}</Section>;
   }
 
   return (
     <Link href={item.href} className="block">
-      <Card className="h-full transition-colors hover:border-accent">{body}</Card>
+      <Section className="h-full transition-colors hover:border-accent">{body}</Section>
     </Link>
   );
 }

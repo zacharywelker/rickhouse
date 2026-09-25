@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Section, SectionContent } from "@/components/ui/section";
 import { RESOURCES, RESOURCE_KEYS } from "@/lib/admin/registry";
 
 export const metadata: Metadata = { title: "Configuration" };
@@ -24,13 +24,13 @@ export default async function AdminIndexPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
         {counts.map(({ key, count }) => {
           const config = RESOURCES[key];
           return (
             <Link key={key} href={`/admin/${key}` as Route} className="group">
-              <Card className="h-full rounded-none shadow-none transition-colors group-hover:border-primary/50">
-                <CardContent className="flex h-full flex-col gap-2 p-5">
+              <Section className="h-full transition-colors group-hover:border-primary">
+                <SectionContent className="flex h-full flex-col gap-2 pb-4 pt-3">
                   <div className="flex items-baseline justify-between gap-3">
                     <h2 className="text-lg">{config.label}</h2>
                     <span className="text-2xl tabular-nums text-accent">{count}</span>
@@ -40,8 +40,8 @@ export default async function AdminIndexPage() {
                     Manage
                     <ArrowRight className="size-3.5" />
                   </span>
-                </CardContent>
-              </Card>
+                </SectionContent>
+              </Section>
             </Link>
           );
         })}

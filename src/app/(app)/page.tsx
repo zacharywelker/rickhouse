@@ -2,7 +2,7 @@ import Link from "next/link";
 import { desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList } from "@/db/schema";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { formatMoney, formatNumeric } from "@/lib/utils";
 
@@ -56,15 +56,15 @@ export default async function HomePage() {
         ]}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recently acquired</CardTitle>
-          <CardDescription>
+      <Section>
+        <SectionHeader>
+          <SectionTitle>Recently acquired</SectionTitle>
+          <SectionDescription>
             Each bottle has its own page. The sortable, filterable grid and the fill gauge arrive in the next
             milestone.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </SectionDescription>
+        </SectionHeader>
+        <SectionContent>
           {recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Nothing on the shelf yet.{" "}
@@ -94,8 +94,8 @@ export default async function HomePage() {
               ))}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </SectionContent>
+      </Section>
 
       <footer className="mt-auto text-xs text-muted-foreground">
         <Link href="/api/health" className="hover:text-accent">
