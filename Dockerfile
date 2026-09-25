@@ -3,7 +3,7 @@
 # ---------- deps ----------
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 # ---------- build ----------
@@ -15,7 +15,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # The build only needs these to type-check and prerender; real values come
 # from the environment at run time.
 ENV DATABASE_URL=postgres://build:build@localhost:5432/build \
-    APP_PASSWORD=build-time-placeholder \
     SESSION_SECRET=build-time-placeholder-secret-not-used-at-runtime
 RUN npm run build && npm run build:scripts
 

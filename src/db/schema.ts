@@ -507,6 +507,113 @@ export const backupSettings = pgTable("backup_settings", {
 });
 
 // ------------------------------------------------------------
+// Accounts (Better Auth)
+// ------------------------------------------------------------
+
+export const USER_ROLES = ["admin", "member"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+/**
+ * Property names are Better Auth's field names (its Drizzle adapter looks
+ * columns up by them); the SQL names stay snake_case like the rest of the
+ * schema. Better Auth hands serial IDs to the app as strings.
+ */
+export const users = pgTable(
+  "users",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    email: citext("email").notNull().unique(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    image: text("image"),
+    username: citext("username").notNull().unique(),
+    displayUsername: text("display_username"),
+    role: text("role").notNull().default("member").$type<UserRole>(),
+    /** "Deactivated" in the UI. Better Auth revokes every session on ban. */
+    banned: boolean("banned").notNull().default(false),
+    banReason: text("ban_reason"),
+    banExpires: timestamp("ban_expires", { withTimezone: true }),
+    /** Set on generated passwords; the app routes to /account/setup until cleared. */
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [check("users_role_check", sql`${t.role} IN ('admin', 'member')`)],
+);
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Signed with SESSION_SECRET in the cookie, so a backup alone cannot be replayed. */
+    token: text("token").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    /** Admin plugin column. Impersonation is disabled, so this stays null. */
+    impersonatedBy: text("impersonated_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("sessions_user_idx").on(t.userId)],
+);
+
+/** One row per way to sign in: 'credential' holds the password hash; each linked SSO identity is another. */
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("accounts_user_idx").on(t.userId),
+    unique("accounts_provider_account_unique").on(t.providerId, t.accountId),
+  ],
+);
+
+/** Short-lived tokens: password reset links, email verification, SSO state. */
+export const verifications = pgTable(
+  "verifications",
+  {
+    id: serial("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index("verifications_identifier_idx").on(t.identifier)],
+);
+
+// ------------------------------------------------------------
 // Convenience view: the flat list for the grid page
 // ------------------------------------------------------------
 

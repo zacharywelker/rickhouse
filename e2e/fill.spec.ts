@@ -1,14 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
-
-const PASSWORD = process.env.E2E_APP_PASSWORD ?? "smoke-test-password";
-
-async function signIn(page: Page) {
-  await page.goto("/login");
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Unlock" }).click();
-  await expect(page).toHaveURL("/");
-}
 
 /** Opens the seeded Pursuit bottle. */
 async function openSeededBottle(page: Page) {

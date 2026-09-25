@@ -1,39 +1,56 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
+import { auth } from "@/lib/auth/server";
 
 /**
  * Node runtime, not Edge: the Edge bundler inlines `process.env` at build
  * time, and this image is built once and configured at run time on Unraid.
+ * It also lets the session check below read the database directly.
  */
 export const runtime = "nodejs";
 
-const PUBLIC_PATHS = new Set(["/login", "/api/health"]);
+const PUBLIC_PATHS = new Set(["/login", "/cut-off"]);
+const SETUP_PATH = "/account/setup";
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
-  const secret = process.env.SESSION_SECRET;
 
-  if (!secret) {
-    // Misconfiguration must not fail open.
-    return new NextResponse("SESSION_SECRET is not configured", { status: 500 });
-  }
+  // Better Auth's own endpoints do their own checks (and sign-in has to be
+  // reachable without a session). The health check stays a pure database
+  // probe for Docker, with no session lookup in front of it.
+  if (pathname.startsWith("/api/auth/") || pathname === "/api/health") return NextResponse.next();
 
-  const authed = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value, secret);
+  // A real database lookup, not just a signature check: a deactivated user
+  // or a revoked session is out on the very next request.
+  const { headers: sessionHeaders, response: session } = await auth.api.getSession({
+    headers: request.headers,
+    returnHeaders: true,
+  });
+
+  // getSession may slide the expiry forward or clear a dead cookie; pass
+  // those cookies on whatever we answer.
+  const respond = (response: NextResponse): NextResponse => {
+    for (const cookie of sessionHeaders.getSetCookie()) response.headers.append("set-cookie", cookie);
+    return response;
+  };
 
   if (PUBLIC_PATHS.has(pathname)) {
-    if (pathname === "/login" && authed) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-    return NextResponse.next();
+    if (pathname === "/login" && session) return respond(NextResponse.redirect(new URL("/", request.url)));
+    return respond(NextResponse.next());
   }
 
-  if (!authed) {
+  if (!session) {
     const login = new URL("/login", request.url);
     if (pathname !== "/") login.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(login);
+    return respond(NextResponse.redirect(login));
   }
 
-  return NextResponse.next();
+  // Generated passwords (first run, CLI reset, new accounts) are for one
+  // sign-in only.
+  if (session.user.mustChangePassword && pathname !== SETUP_PATH) {
+    return respond(NextResponse.redirect(new URL(SETUP_PATH, request.url)));
+  }
+
+  return respond(NextResponse.next());
 }
 
 export const config = {

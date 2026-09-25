@@ -1,17 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
-
-const PASSWORD = process.env.E2E_APP_PASSWORD ?? "smoke-test-password";
 
 /** Unique per run, so repeated runs against the same database do not collide. */
 const stamp = () => Math.random().toString(36).slice(2, 8);
-
-async function signIn(page: Page) {
-  await page.goto("/login");
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Unlock" }).click();
-  await expect(page).toHaveURL("/");
-}
 
 // Specs create real rows; start each file from the seeded baseline.
 test.beforeAll(resetDatabase);

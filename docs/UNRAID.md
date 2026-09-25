@@ -46,8 +46,8 @@ Create the stack's `.env` file:
 
 ```ini id="15rpb1"
 POSTGRES_PASSWORD=<something-long-and-random>
-APP_PASSWORD=<the-password-you-will-use-to-sign-in>
 SESSION_SECRET=<64-random-hex-characters>
+ADMIN_EMAIL=<your-email-address>
 
 POSTGRES_DATA_PATH=/mnt/user/appdata/rickhouse/postgres
 UPLOADS_PATH=/mnt/user/appdata/rickhouse/uploads
@@ -58,6 +58,10 @@ Generate a session secret with:
 ```bash id="udoyyb"
 openssl rand -hex 32
 ```
+
+There's no app password to choose. Rickhouse makes the first account for you
+(see Step 4). `ADMIN_EMAIL` is optional; leave it out and you'll be asked for
+it at first sign-in.
 
 ### Give the database somewhere permanent to live
 
@@ -108,8 +112,19 @@ On first startup, Rickhouse should:
 
 1. Connect to PostgreSQL
 2. Run any required migrations
-3. Start the application
-4. Begin listening on port `1964`
+3. Create the admin account and print its password
+4. Start the application
+5. Begin listening on port `1964`
+
+The password shows up in the log exactly once, in a box like this:
+
+```text
+rickhouse: ================================================================
+rickhouse:   First run: created the admin account.
+rickhouse:
+rickhouse:     username  admin
+rickhouse:     password  k7Qm2x-Hs9pRt-...
+```
 
 Once it's running, open:
 
@@ -117,7 +132,18 @@ Once it's running, open:
 http://YOUR-UNRAID-IP:1964
 ```
 
+Sign in with that username and password. Rickhouse will immediately ask you to
+choose your own password, which is the point: the one in the log was only ever
+meant to get you through the door.
+
 Welcome home.
+
+### Adding everyone else
+
+**Configuration → Users** creates accounts. Rickhouse makes up a temporary
+password for each one; hand it over, and they choose their own when they first
+sign in. The same page makes someone an admin, deactivates an account (which
+signs them out everywhere), resets a password, or deletes an account.
 
 ### Check the health endpoint
 
@@ -135,6 +161,31 @@ A healthy Rickhouse should respond:
 
 If Rickhouse says the database is up, the database is up. Beautiful. We can all go home.
 
+# Behind a reverse proxy
+
+Most people eventually put Rickhouse behind Caddy, Nginx Proxy Manager or
+Traefik, often with Cloudflare in front. Three settings matter:
+
+```ini
+APP_URL=https://rickhouse.example.com
+COOKIE_SECURE=true
+TRUSTED_PROXIES=
+```
+
+* **`APP_URL`** is the address people type. It's optional for now, but set it:
+  single sign-on and emailed links will need it, and some tunnels rewrite the
+  `Host` header, which makes sign-in fail with "invalid origin" until it's set.
+* **`COOKIE_SECURE=true`** once visitors reach you over HTTPS.
+* **`TRUSTED_PROXIES`** controls rate limiting. Sign-in allows 5 attempts a
+  minute per visitor, and the visitor's IP comes from the `X-Forwarded-For`
+  header your proxy adds. If Cloudflare sits in front of your proxy, list
+  [Cloudflare's IP ranges](https://www.cloudflare.com/ips/) here,
+  comma-separated. Otherwise every visitor looks like Cloudflare and they all
+  share one allowance.
+
+Rickhouse can still be reached directly on port `1964` from your LAN at the
+same time; that keeps working.
+
 # Updating Rickhouse
 
 When a new Rickhouse image is published, update the stack through Compose Manager.
@@ -146,6 +197,14 @@ The new image will be pulled and the containers recreated.
 Database migrations run automatically when required.
 
 No rebuilding. No cloning. No server-side development environment. Just the new bottle going on the shelf.
+
+### Upgrading from the shared password
+
+Older versions used one `APP_PASSWORD` for everyone. The first start after
+updating creates an `admin` account, prints its password to the log (see
+Step 4), and ignores `APP_PASSWORD` from then on. Sign in with the printed
+password, choose your own, then create accounts for everyone else. You can
+delete `APP_PASSWORD` from `.env` whenever you like.
 
 # Backups
 
@@ -261,7 +320,8 @@ Rick is not hiding the evidence. The logs are right there.
 
 Check:
 
-* `APP_PASSWORD`
+* the username or email and password (the first-run password is in the
+  application log; see Step 4)
 * `COOKIE_SECURE`
 * whether you're accessing Rickhouse over HTTP or HTTPS
 * application logs
@@ -277,6 +337,26 @@ If you're using HTTPS, make sure it's:
 ```ini id="t6mn7w"
 COOKIE_SECURE=true
 ```
+
+"Too many tries" means five wrong attempts in a minute; wait a minute. If it
+happens to everyone at once behind Cloudflare, see `TRUSTED_PROXIES` under
+**Behind a reverse proxy**.
+
+"Invalid origin" through a proxy or tunnel: set `APP_URL` to the address you
+type into the browser.
+
+### Forgot a password
+
+An admin can reset anyone's password from **Configuration → Users**. If the
+admin is the one locked out, use the Unraid terminal:
+
+```bash
+docker exec rickhouse-app node dist/reset-password.mjs admin
+```
+
+It prints a new temporary password, signs that account out everywhere, and
+asks for a new password at the next sign-in. It takes a username or an email.
+Add `--make-admin` to promote the account at the same time.
 
 ### Photos disappear after a restart
 

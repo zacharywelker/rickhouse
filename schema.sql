@@ -412,6 +412,84 @@ CREATE TABLE backup_settings (
 );
 
 -- ------------------------------------------------------------
+-- Accounts (Better Auth)
+-- ------------------------------------------------------------
+
+-- Shapes follow Better Auth's core schema plus its username and admin
+-- plugins (src/lib/auth/server.ts maps each table and column). IDs are
+-- serial like everything else here; Better Auth hands them to the app as
+-- strings, so convert with Number() before comparing to owner columns.
+CREATE TABLE users (
+    id                   serial PRIMARY KEY,
+    name                 text   NOT NULL,
+    email                citext NOT NULL UNIQUE,
+    email_verified       boolean NOT NULL DEFAULT false,
+    image                text,
+    -- Sign in with either this or the email. Better Auth lowercases it.
+    username             citext NOT NULL UNIQUE,
+    display_username     text,
+    role                 text   NOT NULL DEFAULT 'member'
+                         CHECK (role IN ('admin', 'member')),
+    -- "Deactivated" in the UI. Better Auth revokes every session on ban.
+    banned               boolean NOT NULL DEFAULT false,
+    ban_reason           text,
+    ban_expires          timestamptz,
+    -- Set on generated passwords (first run, CLI reset, admin-created
+    -- accounts). The app routes the user to /account/setup until cleared.
+    must_change_password boolean NOT NULL DEFAULT false,
+    created_at           timestamptz NOT NULL DEFAULT now(),
+    updated_at           timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE sessions (
+    id              serial PRIMARY KEY,
+    user_id         integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- The cookie carries this token signed with SESSION_SECRET, so a copy of
+    -- the database (a backup) alone cannot be replayed as a sign-in.
+    token           text NOT NULL UNIQUE,
+    expires_at      timestamptz NOT NULL,
+    ip_address      text,
+    user_agent      text,
+    -- Admin plugin column. Impersonation is disabled, so this stays NULL.
+    impersonated_by text,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    updated_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX sessions_user_idx ON sessions(user_id);
+
+-- One row per way to sign in: provider 'credential' holds the password
+-- hash; each linked SSO identity is another row.
+CREATE TABLE accounts (
+    id                       serial PRIMARY KEY,
+    user_id                  integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    account_id               text NOT NULL,
+    provider_id              text NOT NULL,
+    access_token             text,
+    refresh_token            text,
+    id_token                 text,
+    access_token_expires_at  timestamptz,
+    refresh_token_expires_at timestamptz,
+    scope                    text,
+    password                 text,
+    created_at               timestamptz NOT NULL DEFAULT now(),
+    updated_at               timestamptz NOT NULL DEFAULT now(),
+    -- An SSO identity belongs to exactly one Rickhouse account.
+    UNIQUE (provider_id, account_id)
+);
+CREATE INDEX accounts_user_idx ON accounts(user_id);
+
+-- Short-lived tokens: password reset links, email verification, SSO state.
+CREATE TABLE verifications (
+    id         serial PRIMARY KEY,
+    identifier text NOT NULL,
+    value      text NOT NULL,
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX verifications_identifier_idx ON verifications(identifier);
+
+-- ------------------------------------------------------------
 -- Convenience view: the flat list for the grid page
 -- ------------------------------------------------------------
 
