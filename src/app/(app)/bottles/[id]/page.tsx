@@ -10,13 +10,14 @@ import { MarginTag } from "@/components/ui/margin-tag";
 import { Polaroid } from "@/components/ui/polaroid";
 import { BottleImages } from "@/components/expressions/bottle-images";
 import { BottleGroups } from "@/components/bottles/bottle-groups";
+import { BottleStamps } from "@/components/bottles/bottle-stamp";
 import { DeleteBottleButton } from "@/components/bottles/delete-bottle-button";
 import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
 import { Tape } from "@/components/ui/tape";
-import { categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
+import { categoryColorVar, categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { hashSeed, seededRandom } from "@/lib/seeded-random";
@@ -176,7 +177,13 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   const handFont = TAPE_FONTS[Math.floor(seededRandom(bottleId)() * TAPE_FONTS.length)]?.className;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="relative flex flex-col gap-8">
+      <BottleStamps
+        expressionId={e.id}
+        color={categoryColorVar(group)}
+        isBottledInBond={e.isBottledInBond}
+        isStraight={e.isStraight}
+      />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">
@@ -200,8 +207,6 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
               <MarginTag seed={hashSeed(`private-selection-${bottleId}`)}>Private selection</MarginTag>
             ) : null}
             {e.isCaskStrength ? <MarginTag seed={hashSeed(`cask-strength-${e.id}`)}>Cask strength</MarginTag> : null}
-            {e.isBottledInBond ? <MarginTag seed={hashSeed(`bib-${e.id}`)}>Bottled in bond</MarginTag> : null}
-            {e.isStraight ? <MarginTag seed={hashSeed(`straight-${e.id}`)}>Straight</MarginTag> : null}
             {e.isNas ? <MarginTag seed={hashSeed(`nas-${e.id}`)}>NAS</MarginTag> : null}
           </div>
         </div>
