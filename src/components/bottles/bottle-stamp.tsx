@@ -340,18 +340,23 @@ export interface StampSpec {
   detail?: string;
 }
 
-// A loose, hand-spread grid of anchor points covering the page, rather than
-// a tidy rows-and-columns layout — enough slots that six designations at
-// once still don't crowd the same corner.
+// A loose, hand-spread grid of anchor points, rather than a tidy
+// rows-and-columns layout — enough slots that six designations at once
+// still don't crowd the same corner. Kept clear of the fixed-width photo
+// column (320px of the desktop grid, full width above it on narrow
+// screens) on purpose: unlike a run of body text, the Polaroid's paper and
+// its photo are fully opaque, so a stamp landing there is not just behind
+// something — it's invisible. Every slot instead sits in the specs
+// column, where the "behind" rule always still shows some of the mark.
 const SLOTS: Array<{ left: number; top: number }> = [
-  { left: 14, top: 12 },
-  { left: 50, top: 8 },
-  { left: 88, top: 16 },
-  { left: 10, top: 46 },
-  { left: 90, top: 50 },
-  { left: 16, top: 80 },
-  { left: 52, top: 88 },
-  { left: 86, top: 82 },
+  { left: 46, top: 10 },
+  { left: 70, top: 6 },
+  { left: 92, top: 14 },
+  { left: 48, top: 45 },
+  { left: 90, top: 46 },
+  { left: 50, top: 80 },
+  { left: 72, top: 90 },
+  { left: 92, top: 80 },
 ];
 
 // Fixed so slot assignment never depends on the order callers happen to
