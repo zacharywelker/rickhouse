@@ -6,11 +6,10 @@ import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MarginTag } from "@/components/ui/margin-tag";
 import { Polaroid } from "@/components/ui/polaroid";
 import { BottleImages } from "@/components/expressions/bottle-images";
 import { BottleGroups } from "@/components/bottles/bottle-groups";
-import { BottleStamps } from "@/components/bottles/bottle-stamp";
+import { BottleStamps, type StampSpec } from "@/components/bottles/bottle-stamp";
 import { DeleteBottleButton } from "@/components/bottles/delete-bottle-button";
 import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
@@ -20,7 +19,7 @@ import { Tape } from "@/components/ui/tape";
 import { categoryColorVar, categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
-import { hashSeed, seededRandom } from "@/lib/seeded-random";
+import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { cn, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 
@@ -176,14 +175,23 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   // whole page, not a different marker per field.
   const handFont = TAPE_FONTS[Math.floor(seededRandom(bottleId)() * TAPE_FONTS.length)]?.className;
 
+  const stamps: StampSpec[] = [
+    { kind: "bottled-in-bond", ownerId: e.id, active: e.isBottledInBond },
+    { kind: "cask-strength", ownerId: e.id, active: e.isCaskStrength, detail: e.proof ? `${formatNumeric(e.proof)}°` : undefined },
+    { kind: "straight", ownerId: e.id, active: e.isStraight },
+    { kind: "nas", ownerId: e.id, active: e.isNas },
+    { kind: "single-barrel", ownerId: bottleId, active: b.isSingleBarrel, detail: b.barrelNumber ? `No. ${b.barrelNumber}` : undefined },
+    {
+      kind: "private-selection",
+      ownerId: bottleId,
+      active: b.isSingleBarrelPick,
+      detail: b.pickedBy ? `Picked by ${b.pickedBy}` : undefined,
+    },
+  ];
+
   return (
     <div className="relative flex flex-col gap-8">
-      <BottleStamps
-        expressionId={e.id}
-        color={categoryColorVar(group)}
-        isBottledInBond={e.isBottledInBond}
-        isStraight={e.isStraight}
-      />
+      <BottleStamps color={categoryColorVar(group)} stamps={stamps} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">
@@ -200,15 +208,6 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <span className="text-accent">{e.name}</span>
             <FavoriteToggle bottleId={bottleId} isFavorite={row.bottle.isFavorite} />
           </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-            {b.batch ? <MarginTag seed={hashSeed(`batch-${bottleId}`)}>{b.batch}</MarginTag> : null}
-            {b.isSingleBarrel ? <MarginTag seed={hashSeed(`single-barrel-${bottleId}`)}>Single barrel</MarginTag> : null}
-            {b.isSingleBarrelPick ? (
-              <MarginTag seed={hashSeed(`private-selection-${bottleId}`)}>Private selection</MarginTag>
-            ) : null}
-            {e.isCaskStrength ? <MarginTag seed={hashSeed(`cask-strength-${e.id}`)}>Cask strength</MarginTag> : null}
-            {e.isNas ? <MarginTag seed={hashSeed(`nas-${e.id}`)}>NAS</MarginTag> : null}
-          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
@@ -297,6 +296,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="How" value={humanise(row.bottle.acquisition)} handFont={handFont} />
             <Spec label="Status" value={humanise(row.bottle.status)} handFont={handFont} />
             <Spec label="Where" value={row.bottle.location} handFont={handFont} />
+            <Spec label="Batch" value={b.batch} handFont={handFont} />
             <Spec label="UPC" value={e.upc} />
           </dl>
 
