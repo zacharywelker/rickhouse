@@ -162,7 +162,33 @@ function RingMark({
   );
 }
 
-/** A ledger-box stamp: a top line, one big center word, a bottom line. Straight, NAS, Private Selection. */
+/**
+ * Greedy word-wrap into at most two lines — the ledger box only has room
+ * for two rows of small caps below the center word. A picker's name
+ * ("Picked by ...") is the one piece of free text a ledger stamp shows, so
+ * unlike every other label here it can't be sized to fit in advance.
+ * Anything past two lines is folded into the second rather than dropped,
+ * since a slightly long second line beats truncating someone's name.
+ */
+function wrapBottomLine(text: string, maxChars: number): string[] {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (current && candidate.length > maxChars) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  if (lines.length > 2) return [lines[0]!, lines.slice(1).join(" ")];
+  return lines;
+}
+
+/** A ledger-box stamp: a top line, one big center word, a bottom line (or two, for a name that doesn't fit one). Straight, NAS, Private Selection. */
 function LedgerMark({
   id,
   color,
@@ -178,6 +204,8 @@ function LedgerMark({
   centerText: string;
   bottomText: string;
 }) {
+  const bottomLines = wrapBottomLine(bottomText, 16);
+  const wrapped = bottomLines.length > 1;
   return (
     <>
       <StampDefs id={id} rng={rng} />
@@ -194,9 +222,20 @@ function LedgerMark({
         <text x="80" y="84" textAnchor="middle" fill={color} fontSize="20" fontWeight="700" letterSpacing="1" fontFamily={SERIF}>
           {centerText}
         </text>
-        <text x="80" y="106" textAnchor="middle" fill={color} fontSize="9" fontWeight="700" letterSpacing="2">
-          {bottomText}
-        </text>
+        {bottomLines.map((line, i) => (
+          <text
+            key={i}
+            x="80"
+            y={wrapped ? 101 + i * 9 : 106}
+            textAnchor="middle"
+            fill={color}
+            fontSize={wrapped ? "7.5" : "9"}
+            fontWeight="700"
+            letterSpacing={wrapped ? "1" : "2"}
+          >
+            {line}
+          </text>
+        ))}
       </g>
       <DryPatches id={id} rng={rng} />
     </>
@@ -343,20 +382,26 @@ export interface StampSpec {
 // A loose, hand-spread grid of anchor points, rather than a tidy
 // rows-and-columns layout — enough slots that six designations at once
 // still don't crowd the same corner. Kept clear of the fixed-width photo
-// column (320px of the desktop grid, full width above it on narrow
-// screens) on purpose: unlike a run of body text, the Polaroid's paper and
-// its photo are fully opaque, so a stamp landing there is not just behind
-// something — it's invisible. Every slot instead sits in the specs
-// column, where the "behind" rule always still shows some of the mark.
+// column (320px of the desktop grid) on purpose: unlike a run of body
+// text, the Polaroid's paper and its photo are fully opaque, so a stamp
+// landing there is not just behind something — it's invisible. Every slot
+// instead sits in the specs column, where the "behind" rule always still
+// shows some of the mark.
+//
+// Each `top` is the stamp's TOP edge, not its center — the layer below
+// anchors vertically with `translate(-50%, 0)`, not `-50%, -50%` — so a
+// slot near the top of the page can never have half its (variable-sized)
+// mark clipped off above the page's own top edge; the smallest slot here
+// only has to stay >= 0 on its own, with no stamp height to subtract.
 const SLOTS: Array<{ left: number; top: number }> = [
-  { left: 46, top: 10 },
-  { left: 70, top: 6 },
-  { left: 92, top: 14 },
-  { left: 48, top: 45 },
-  { left: 90, top: 46 },
-  { left: 50, top: 80 },
-  { left: 72, top: 90 },
-  { left: 92, top: 80 },
+  { left: 46, top: 8 },
+  { left: 70, top: 4 },
+  { left: 92, top: 10 },
+  { left: 48, top: 42 },
+  { left: 90, top: 44 },
+  { left: 50, top: 74 },
+  { left: 72, top: 82 },
+  { left: 92, top: 72 },
 ];
 
 // Fixed so slot assignment never depends on the order callers happen to
@@ -365,12 +410,20 @@ const KIND_ORDER: StampKind[] = ["bottled-in-bond", "cask-strength", "straight",
 
 /**
  * The decorative layer for a bottle page: one stamp per true designation,
- * scattered into the page's empty space at a seeded angle and position,
- * always behind the page's real content (the caller stacks this as an
- * absolutely-positioned `-z-10` sibling — see bottles/[id]/page.tsx).
- * Each stamp's slot is picked from its own identity (kind + owner id) with
- * a deterministic collision scan, so adding or removing one designation
- * never reshuffles where the others already landed.
+ * always behind the page's real content (the caller stacks this as a
+ * `relative` sibling — see bottles/[id]/page.tsx). Two different layouts,
+ * shown by breakpoint rather than by screen-reading JS:
+ *
+ * - Desktop (`md:` and up) scatters them into the page's empty space at a
+ *   seeded angle and position. Each stamp's slot is picked from its own
+ *   identity (kind + owner id) with a deterministic collision scan, so
+ *   adding or removing one designation never reshuffles where the others
+ *   already landed.
+ * - Narrow screens stack the photo full-width above the specs, so there
+ *   is no side column of empty space left to scatter into — instead they
+ *   sit as a small row behind the bottle's title, where "behind real
+ *   content" still means something (the desktop layout would otherwise
+ *   frequently land squarely on the now-full-width, fully opaque photo).
  */
 export function BottleStamps({ color, stamps }: { color: string; stamps: StampSpec[] }) {
   const active = KIND_ORDER.map((kind) => stamps.find((s) => s.kind === kind && s.active)).filter(
@@ -381,36 +434,59 @@ export function BottleStamps({ color, stamps }: { color: string; stamps: StampSp
   const taken = new Set<number>();
 
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      {active.map((spec) => {
-        const placeKey = `stamp-place-${spec.kind}-${spec.ownerId}`;
-        let slotIndex = hashSeed(placeKey) % SLOTS.length;
-        while (taken.has(slotIndex)) slotIndex = (slotIndex + 1) % SLOTS.length;
-        taken.add(slotIndex);
-        const slot = SLOTS[slotIndex]!;
+    <>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 hidden overflow-hidden md:block">
+        {active.map((spec) => {
+          const placeKey = `stamp-place-${spec.kind}-${spec.ownerId}`;
+          let slotIndex = hashSeed(placeKey) % SLOTS.length;
+          while (taken.has(slotIndex)) slotIndex = (slotIndex + 1) % SLOTS.length;
+          taken.add(slotIndex);
+          const slot = SLOTS[slotIndex]!;
 
-        const placeRng = seededRandom(hashSeed(`${placeKey}-jitter`));
-        const left = slot.left + seededRange(placeRng, -5, 5);
-        const top = slot.top + seededRange(placeRng, -5, 5);
-        const rotate = seededRange(placeRng, -18, 18);
-        const scale = seededRange(placeRng, 0.8, 1.2);
+          const placeRng = seededRandom(hashSeed(`${placeKey}-jitter`));
+          const left = slot.left + seededRange(placeRng, -5, 5);
+          const top = Math.max(0, slot.top + seededRange(placeRng, -4, 4));
+          const rotate = seededRange(placeRng, -18, 18);
+          const scale = seededRange(placeRng, 0.8, 1.2);
 
-        const inkSeed = hashSeed(`stamp-ink-${spec.kind}-${spec.ownerId}`);
-        return (
-          <div
-            key={spec.kind}
-            className="absolute"
-            style={{
-              left: `${left}%`,
-              top: `${top}%`,
-              transform: `translate(-50%, -50%) rotate(${rotate.toFixed(1)}deg)`,
-              opacity: 0.55,
-            }}
-          >
-            <BottleStamp kind={spec.kind} seed={inkSeed} color={color} detail={spec.detail} size={Math.round(STAMP_BASE_SIZE * scale)} />
-          </div>
-        );
-      })}
-    </div>
+          const inkSeed = hashSeed(`stamp-ink-${spec.kind}-${spec.ownerId}`);
+          return (
+            <div
+              key={spec.kind}
+              className="absolute"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                transform: `translate(-50%, 0) rotate(${rotate.toFixed(1)}deg)`,
+                opacity: 0.55,
+              }}
+            >
+              <BottleStamp
+                kind={spec.kind}
+                seed={inkSeed}
+                color={color}
+                detail={spec.detail}
+                size={Math.round(STAMP_BASE_SIZE * scale)}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 flex flex-wrap justify-end gap-1 overflow-hidden pr-1 md:hidden"
+      >
+        {active.map((spec) => {
+          const inkSeed = hashSeed(`stamp-ink-${spec.kind}-${spec.ownerId}`);
+          const rotate = seededRange(seededRandom(hashSeed(`stamp-mobile-rotate-${spec.kind}-${spec.ownerId}`)), -10, 10);
+          return (
+            <div key={spec.kind} style={{ transform: `rotate(${rotate.toFixed(1)}deg)`, opacity: 0.55 }}>
+              <BottleStamp kind={spec.kind} seed={inkSeed} color={color} detail={spec.detail} size={92} />
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
