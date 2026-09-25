@@ -42,7 +42,7 @@ export default async function HomePage() {
   ]);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-3xl text-accent">Rickhouse</h1>
       </div>

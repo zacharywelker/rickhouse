@@ -13,7 +13,7 @@ export default async function BulkBottlesPage() {
   const [expressions, stores] = await Promise.all([expressionOptions(), REFERENCE_OPTION_LOADERS.stores()]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Bulk add bottles</h1>
       </div>

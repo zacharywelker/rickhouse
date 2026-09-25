@@ -49,7 +49,7 @@ export default async function NumbersPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Numbers</h1>
       </div>

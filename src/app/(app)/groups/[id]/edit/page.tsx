@@ -20,7 +20,7 @@ export default async function EditGroupPage({ params }: { params: Promise<{ id: 
   if (!group) notFound();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Edit {group.name}</h1>
       </div>

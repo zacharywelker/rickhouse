@@ -18,7 +18,7 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
   const { options, categoryGroups, links } = await expressionFormData(expressionId);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">
           {row.brand.name} {row.expression.name}
