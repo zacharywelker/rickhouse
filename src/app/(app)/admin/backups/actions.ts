@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { updateBackupSettings } from "@/lib/backup/settings";
 import { runBackup } from "@/lib/backup/run";
 import type { ActionResult } from "@/lib/admin/types";
 
 export async function saveBackupSettingsAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireSession();
+  await requireAdmin();
 
   const enabled = formData.get("enabled") === "on";
   const intervalHours = Number(formData.get("intervalHours"));
@@ -26,7 +26,7 @@ export async function saveBackupSettingsAction(_prev: ActionResult, formData: Fo
 }
 
 export async function runBackupNowAction(): Promise<ActionResult> {
-  await requireSession();
+  await requireAdmin();
 
   const result = await runBackup();
   revalidatePath("/admin/backups");

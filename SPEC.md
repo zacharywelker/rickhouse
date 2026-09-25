@@ -2,7 +2,8 @@
 
 A self-hosted web app for cataloguing a personal bourbon/rye/American whiskey
 collection, extending later to rum and other spirits. Runs on Unraid via Docker
-Compose. Single household user, LAN-only, no multi-tenancy.
+Compose. Individual accounts for a household, reached on the LAN or through a
+reverse proxy (see M10).
 
 Read `schema.sql` before writing any code. It is the source of truth for the
 data model and it encodes decisions that are not negotiable (see Non-Goals).
@@ -20,7 +21,7 @@ Locked. Do not substitute without asking.
 | Database | PostgreSQL 16 (separate container) |
 | Styling | Tailwind CSS v4 + shadcn/ui (tooling locked; the visual direction is not — see Design direction) |
 | Images | Local disk on a mounted volume, `sharp` for thumbnails. No S3, no MinIO. |
-| Auth | Single shared password from env var, signed httpOnly cookie session. No NextAuth, no OAuth, no user table. |
+| Auth | Better Auth (username + admin plugins, Drizzle adapter): individual accounts, `admin`/`member` roles, database sessions. See M10. |
 | Tables | TanStack Table for the grid view |
 | Validation | Zod schemas shared between server actions and forms |
 
@@ -377,6 +378,30 @@ With that in place, a **tastings timeline** becomes possible: everything you
 have tried, newest first, owned or not, with the ratings alongside. That is a
 different and more interesting page than a list of what is on the shelf.
 
+### M10 — Accounts ▶
+
+Replaces the single shared `APP_PASSWORD`. The plan and the decisions behind
+it live in issue #48; the phases, in order:
+
+1. ~~**Accounts.** Better Auth with database sessions and serial ids. Sign in
+   with username or email. Roles are `admin` and `member`; admins manage
+   accounts but cannot sign in as anyone or see their collections. First run
+   creates an admin with a generated password printed to the container log;
+   generated passwords (first run, `dist/reset-password.mjs`, new accounts)
+   must be replaced at first sign-in. Deactivation revokes every session.
+   Sign-in and password changes are rate limited per client IP.~~
+2. **Private collections.** `owner_id` on bottles, groups and every catalog
+   table except `categories`; uniqueness per owner; existing data goes to the
+   first admin; every query and ID-taking action scoped to the owner; photos
+   checked against their owner. Configuration splits into a per-user catalog
+   and admin-only system settings.
+3. **Email.** SMTP configured in the admin panel: password reset,
+   invitations, security notices. "Forgot password" appears only once it is set.
+4. **Single sign-on.** OIDC providers (Pocket ID, Authentik, Google, …)
+   configured in the admin panel, linked from a signed-in account; never
+   matched by email, never creating accounts.
+5. **2FA and passkeys.**
+
 ---
 
 ## Deployment
@@ -457,7 +482,8 @@ than a compromise. See docs/DESIGN.md.
 
 Do not build these, and do not restructure the schema to accommodate them:
 
-- Multi-user accounts, roles, sharing, or social features.
+- Sharing collections between accounts, or social features. (Accounts and
+  roles are M10.)
 - Price scraping, market valuation, or any third-party API integration.
   M7 drops `bottles.estimated_value` for the same reason: this is a collection,
   not a portfolio.

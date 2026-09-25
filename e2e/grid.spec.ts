@@ -1,17 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
 
-const PASSWORD = process.env.E2E_APP_PASSWORD ?? "smoke-test-password";
 const stamp = () => Math.random().toString(36).slice(2, 8);
 
 const EXISTING_OPTION = '[cmdk-item]:not([data-value="__create__"])';
-
-async function signIn(page: Page) {
-  await page.goto("/login");
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Unlock" }).click();
-  await expect(page).toHaveURL("/");
-}
 
 async function pick(page: Page, comboboxLabel: string, search: string, optionLabel?: string) {
   const target = optionLabel ?? search;

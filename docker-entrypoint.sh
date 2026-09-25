@@ -45,6 +45,10 @@ if [ "${RUN_SEED:-true}" = "true" ]; then
   run node /app/dist/seed.mjs
 fi
 
+# Creates the first admin, printing its generated password to this log,
+# while no admin exists; a no-op after that.
+run node /app/dist/bootstrap.mjs
+
 echo "rickhouse: starting on port ${PORT:-1964}"
 exec_cmd="$*"
 if [ -z "$exec_cmd" ]; then

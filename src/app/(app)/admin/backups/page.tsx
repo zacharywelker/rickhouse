@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Section, SectionContent } from "@/components/ui/section";
+import { requireAdmin } from "@/lib/auth";
 import { getBackupSettings } from "@/lib/backup/settings";
 import { listBackups } from "@/lib/backup/run";
 import { BackupSettingsForm } from "./settings-form";
@@ -21,6 +22,8 @@ function formatBytes(bytes: number): string {
 }
 
 export default async function BackupsPage() {
+  // A backup holds every account's data, so only admins run or schedule one.
+  await requireAdmin();
   const [settings, backups] = await Promise.all([getBackupSettings(), listBackups()]);
 
   return (

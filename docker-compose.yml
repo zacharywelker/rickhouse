@@ -30,10 +30,13 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-rickhouse}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rickhouse}
-      APP_PASSWORD: ${APP_PASSWORD:?set APP_PASSWORD in .env}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
       SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      APP_URL: ${APP_URL:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       UPLOAD_DIR: /data/uploads
       BACKUP_DIR: /data/backups
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}

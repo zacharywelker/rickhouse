@@ -43,7 +43,7 @@ function isCurrent(pathname: string, href: string) {
  * from a rule, not a background fill — Rickhouse leans on rules and spacing
  * for hierarchy rather than card/pill chrome (DESIGN.md §7).
  */
-export function AppNav({ signOut }: { signOut: React.ReactNode }) {
+export function AppNav({ signOut, username }: { signOut: React.ReactNode; username: string }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
@@ -114,6 +114,18 @@ export function AppNav({ signOut }: { signOut: React.ReactNode }) {
 
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
+          <Link
+            href="/account"
+            aria-current={isCurrent(pathname, "/account") ? "page" : undefined}
+            className={cn(
+              "hidden border-b-2 px-1 py-1 text-sm transition-colors md:block",
+              isCurrent(pathname, "/account")
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
+            )}
+          >
+            {username}
+          </Link>
           <div className="hidden md:block">{signOut}</div>
           <Button
             type="button"
@@ -137,7 +149,10 @@ export function AppNav({ signOut }: { signOut: React.ReactNode }) {
           className="mx-auto flex w-full max-w-6xl flex-col gap-1 border-t border-border px-4 py-3 md:hidden"
         >
           {LINKS.map((item) => mobileLink(item.href, item.label))}
-          <div className="mt-2 border-t border-border pt-3">{signOut}</div>
+          <div className="mt-2 flex flex-col gap-1 border-t border-border pt-3">
+            {mobileLink("/account", `Account · ${username}`)}
+            {signOut}
+          </div>
         </nav>
       ) : null}
     </header>

@@ -12,7 +12,7 @@ import { requireSession } from "@/lib/auth";
  * rather than the (client) nav importing it.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  await requireSession();
+  const user = await requireSession();
 
   const signOut = (
     <form action={logout}>
@@ -25,7 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-dvh flex-col">
       <KeyboardShortcuts />
-      <AppNav signOut={signOut} />
+      <AppNav signOut={signOut} username={user.username} />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
   );

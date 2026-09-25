@@ -1,19 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
 
 /**
  * M6: the theme, the phone layout, the shortcuts and full-text search.
  */
 
-const PASSWORD = process.env.E2E_APP_PASSWORD ?? "smoke-test-password";
 const PHONE = { width: 390, height: 844 };
-
-async function signIn(page: Page) {
-  await page.goto("/login");
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Unlock" }).click();
-  await expect(page).toHaveURL("/");
-}
 
 const background = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.body).backgroundColor);
