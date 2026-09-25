@@ -215,12 +215,13 @@ export type BottleGridEditInput = z.infer<typeof bottleGridEditSchema>;
 /**
  * The subset of `expressionSchema` editable inline from the labels grid's
  * unlocked "edit" mode — the fields requested for bulk correction, matching
- * the same shape the bottle grid's edit mode already uses. Relational fields
- * (mashbills, finishes, distilleries) stay off the grid: a spreadsheet cell
- * is the wrong shape for an ordered multi-row relationship, same reasoning
- * `ExpressionBulkGrid` already documents for excluding them there.
+ * the same shape the bottle grid's edit mode already uses. Mashbills,
+ * finishes and distilleries are edited alongside this (see
+ * `updateExpressionsBulkAction`), but through `linkRowSchema` rather than
+ * this schema, since they are link rows, not plain columns.
  */
 export const expressionGridEditSchema = z.object({
+  name: requiredText(160),
   brandId: requiredRef,
   categoryId: requiredRef,
   proof: optionalDecimal(0, 200),

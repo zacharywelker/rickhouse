@@ -75,7 +75,10 @@ export const DEFAULT_FILTERS: BottleFilters = {
   page: 1,
   pageSize: DEFAULT_PAGE_SIZE,
   view: "table",
-  hidden: [],
+  // Opt-in columns: valuable but rarely needed at a glance, so they start
+  // hidden until picked from the Columns control rather than crowding the
+  // default table every time.
+  hidden: ["mashbills", "finishes", "ageStatement", "singleBarrel", "privateSelection", "pickedBy", "batch", "releaseYear"],
 };
 
 type Params = Record<string, string | string[] | undefined>;
@@ -151,7 +154,13 @@ export function parseFilters(params: Params): BottleFilters {
     page: Number.isInteger(page) && page > 0 ? page : 1,
     pageSize: (PAGE_SIZES as readonly number[]).includes(pageSizeRaw) ? pageSizeRaw : DEFAULT_PAGE_SIZE,
     view: (VIEW_MODES as readonly string[]).includes(viewRaw ?? "") ? (viewRaw as ViewMode) : "table",
-    hidden: (first(params, "hide") ?? "").split(",").filter((s) => s !== ""),
+    // No "hide" param at all (a fresh, never-customised URL) falls back to
+    // the opt-in defaults; an explicit "hide=" (even empty, meaning "show
+    // everything") always wins once the Columns control has been touched.
+    hidden:
+      params.hide === undefined
+        ? DEFAULT_FILTERS.hidden
+        : (first(params, "hide") ?? "").split(",").filter((s) => s !== ""),
   };
 }
 

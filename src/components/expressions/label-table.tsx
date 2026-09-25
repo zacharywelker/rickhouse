@@ -10,7 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { GridEditBar } from "@/components/ui/grid-edit-bar";
 import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LabelTableBody } from "@/components/expressions/label-table-body";
-import { deleteExpressionsBulkAction, updateExpressionsBulkAction } from "@/app/(app)/expressions/actions";
+import type { LinkedRow } from "@/components/expressions/ordered-picker";
+import { deleteExpressionsBulkAction, getExpressionLinksAction, updateExpressionsBulkAction } from "@/app/(app)/expressions/actions";
 import { serialiseLabelFilters, type LabelFilters } from "@/lib/expressions/filters";
 import type { ExpressionRow, LabelSort } from "@/lib/expressions/queries";
 import type { Option } from "@/lib/admin/types";
@@ -26,7 +27,7 @@ const COLUMNS: Array<{ key: LabelSort; label: string; className?: string; numeri
 ];
 
 /** Extra columns shown only once the grid is unlocked — matching the bottle
- * grid's Release Year column, which also only appears in edit mode. */
+ * grid's edit-only columns. */
 const EXTRA_COLUMNS = [
   "Age Statement",
   "Age (y / m / d)",
@@ -40,13 +41,22 @@ const EXTRA_COLUMNS = [
   "BiB",
   "Chill Filt.",
   "Colour Added",
+  "Distilleries",
+  "Mashbills",
+  "Finishes",
 ];
+
+export type LinkFields = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
 
 /**
  * The fields the unlocked grid can edit inline — the labels counterpart to
- * `GridEdit` in `bottle-table.tsx` (see `expressionGridEditSchema`).
+ * `GridEdit` in `bottle-table.tsx` (see `expressionGridEditSchema`). Link
+ * fields (distilleries, mashbills, finishes) are tracked separately in
+ * `LabelTable` since they come from a fetch rather than the page's own row
+ * data — see `linkEdits`/`originalLinks` below.
  */
 export type LabelGridEdit = {
+  name: string;
   brandId: number;
   categoryId: number;
   proof: string;
@@ -69,6 +79,7 @@ export type LabelGridEdit = {
 
 function editableFrom(row: ExpressionRow): LabelGridEdit {
   return {
+    name: row.name,
     brandId: row.brandId,
     categoryId: row.categoryId,
     proof: row.proof ?? "",
@@ -93,6 +104,18 @@ function editableFrom(row: ExpressionRow): LabelGridEdit {
 function isDirty(row: ExpressionRow, edit: LabelGridEdit): boolean {
   const original = editableFrom(row);
   return (Object.keys(edit) as Array<keyof LabelGridEdit>).some((key) => edit[key] !== original[key]);
+}
+
+/** Order-and-amount is what the picker edits; slug/hint are display-only, so
+ * they drop out of the comparison used to decide whether links changed. */
+function linksKey(links: LinkedRow[]): string {
+  return JSON.stringify(links.map((row) => ({ id: row.id, amount: row.amount, distilleryId: row.distilleryId ?? null })));
+}
+
+function linksDirty(a: LinkFields, b: LinkFields): boolean {
+  return linksKey(a.distilleries) !== linksKey(b.distilleries) ||
+    linksKey(a.mashbills) !== linksKey(b.mashbills) ||
+    linksKey(a.finishes) !== linksKey(b.finishes);
 }
 
 /**
@@ -136,31 +159,75 @@ function SortLink({ column, filters }: { column: (typeof COLUMNS)[number]; filte
  * checkbox column, dirty-row tracking and `GridEditBar` so the two grids look
  * and behave the same way.
  *
- * Bulk editing covers the scalar fields listed in `expressionGridEditSchema`.
- * The relational fields (mashbills, finishes, distilleries) don't fit a
- * spreadsheet cell — same reasoning `ExpressionBulkGrid` already documents —
- * so every row keeps its pencil link straight to the full edit page.
+ * Bulk editing covers the scalar fields in `expressionGridEditSchema` plus
+ * distilleries, mashbills and finishes, edited with the same `OrderedPicker`
+ * the single-record edit page uses — reused as-is rather than built into a
+ * more compact cell, since these are ordered, per-item-amount relations, not
+ * a plain multi-select.
  */
 export function LabelTable({
   rows,
   filters,
   brands,
   categories,
+  distilleries,
+  mashbills,
+  finishes,
 }: {
   rows: ExpressionRow[];
   filters: LabelFilters;
   brands: Option[];
   categories: Option[];
+  distilleries: Option[];
+  mashbills: Option[];
+  finishes: Option[];
 }) {
   const router = useRouter();
   const [unlocked, setUnlocked] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<ReadonlySet<number>>(new Set());
   const [edits, setEdits] = React.useState<Record<number, LabelGridEdit>>({});
+  const [linkEdits, setLinkEdits] = React.useState<Record<number, LinkFields>>({});
+  const [originalLinks, setOriginalLinks] = React.useState<Record<number, LinkFields>>({});
+  const [linksLoaded, setLinksLoaded] = React.useState(false);
 
   React.useEffect(() => {
     setSelectedIds(new Set());
     setEdits({});
+    setLinkEdits({});
+    setOriginalLinks({});
+    setLinksLoaded(false);
   }, [rows]);
+
+  // Links aren't part of the page's own row data (they'd cost three extra
+  // joins on every locked page view for a feature most visits never touch),
+  // so they're fetched once, lazily, the moment the grid unlocks.
+  React.useEffect(() => {
+    if (!unlocked || linksLoaded || rows.length === 0) return;
+    let cancelled = false;
+    void getExpressionLinksAction(rows.map((row) => row.id)).then((results) => {
+      if (cancelled) return;
+      const next: Record<number, LinkFields> = {};
+      for (const row of results) {
+        next[row.id] = {
+          distilleries: row.distilleries.map((d) => ({ id: d.id, label: d.name, amount: d.amount ?? "" })),
+          mashbills: row.mashbills.map((m) => ({
+            id: m.id,
+            label: m.name,
+            hint: m.attribution ? `from ${m.attribution}` : undefined,
+            amount: m.amount ?? "",
+            distilleryId: m.distilleryId ?? null,
+          })),
+          finishes: row.finishes.map((f) => ({ id: f.id, label: f.name, amount: f.amount ?? "" })),
+        };
+      }
+      setOriginalLinks(next);
+      setLinkEdits(next);
+      setLinksLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [unlocked, linksLoaded, rows]);
 
   function toggle(id: number, selected: boolean) {
     setSelectedIds((prev) => {
@@ -178,21 +245,54 @@ export function LabelTable({
     }));
   }
 
-  const dirtyIds = React.useMemo(
-    () => rows.filter((row) => edits[row.id] && isDirty(row, edits[row.id]!)).map((row) => row.id),
-    [rows, edits],
-  );
+  function updateLinks<K extends keyof LinkFields>(row: ExpressionRow, field: K, value: LinkFields[K]) {
+    setLinkEdits((prev) => ({
+      ...prev,
+      [row.id]: { ...(prev[row.id] ?? originalLinks[row.id] ?? { distilleries: [], mashbills: [], finishes: [] }), [field]: value },
+    }));
+  }
+
+  const dirtyIds = React.useMemo(() => {
+    const scalarDirty = rows.filter((row) => edits[row.id] && isDirty(row, edits[row.id]!)).map((row) => row.id);
+    const linkDirty = rows
+      .filter((row) => {
+        const current = linkEdits[row.id];
+        const original = originalLinks[row.id];
+        return current && original && linksDirty(current, original);
+      })
+      .map((row) => row.id);
+    return Array.from(new Set([...scalarDirty, ...linkDirty]));
+  }, [rows, edits, linkEdits, originalLinks]);
 
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
   const someSelected = rows.some((row) => selectedIds.has(row.id));
 
+  function linksPayloadFor(id: number) {
+    const links = linkEdits[id] ?? originalLinks[id] ?? { distilleries: [], mashbills: [], finishes: [] };
+    const toLinkRows = (rows: LinkedRow[]) =>
+      rows.map((row) => ({ id: row.id, amount: row.amount === "" ? "" : row.amount, distilleryId: row.distilleryId ?? null }));
+    return {
+      distilleries: toLinkRows(links.distilleries),
+      mashbills: toLinkRows(links.mashbills),
+      finishes: toLinkRows(links.finishes),
+    };
+  }
+
   async function handleSaveChanges() {
-    const payload = dirtyIds.map((id) => ({ id, ...edits[id]! }));
+    const payload = dirtyIds.map((id) => {
+      const row = rows.find((r) => r.id === id)!;
+      return { id, ...(edits[id] ?? editableFrom(row)), ...linksPayloadFor(id) };
+    });
     const result = await updateExpressionsBulkAction(payload);
     const savedIds = new Set(result.results.filter((r) => r.ok).map((r) => r.id));
     setEdits((prev) => {
       const next = { ...prev };
       for (const id of savedIds) delete next[id];
+      return next;
+    });
+    setOriginalLinks((prev) => {
+      const next = { ...prev };
+      for (const id of savedIds) if (linkEdits[id]) next[id] = linkEdits[id]!;
       return next;
     });
     if (savedIds.size > 0) router.refresh();
@@ -266,8 +366,14 @@ export function LabelTable({
             onToggle={toggle}
             brands={brands}
             categories={categories}
+            distilleries={distilleries}
+            mashbills={mashbills}
+            finishes={finishes}
             edits={edits}
             updateEdit={updateEdit}
+            linkEdits={linkEdits}
+            updateLinks={updateLinks}
+            linksLoaded={linksLoaded}
           />
         </Table>
       </div>

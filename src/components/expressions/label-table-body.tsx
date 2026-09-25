@@ -11,10 +11,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
+import { OrderedPicker } from "@/components/expressions/ordered-picker";
 import { formatMoney, formatNumeric } from "@/lib/utils";
 import type { Option } from "@/lib/admin/types";
 import type { ExpressionRow } from "@/lib/expressions/queries";
-import type { LabelGridEdit } from "./label-table";
+import type { LabelGridEdit, LinkFields } from "./label-table";
 
 const TRISTATE = [
   { value: "", label: "Unknown" },
@@ -42,8 +43,14 @@ export function LabelTableBody({
   onToggle,
   brands,
   categories,
+  distilleries,
+  mashbills,
+  finishes,
   edits,
   updateEdit,
+  linkEdits,
+  updateLinks,
+  linksLoaded,
 }: {
   rows: ExpressionRow[];
   unlocked: boolean;
@@ -51,8 +58,14 @@ export function LabelTableBody({
   onToggle: (id: number, selected: boolean) => void;
   brands: Option[];
   categories: Option[];
+  distilleries: Option[];
+  mashbills: Option[];
+  finishes: Option[];
   edits: Record<number, LabelGridEdit>;
   updateEdit: <K extends keyof LabelGridEdit>(row: ExpressionRow, field: K, value: LabelGridEdit[K]) => void;
+  linkEdits: Record<number, LinkFields>;
+  updateLinks: <K extends keyof LinkFields>(row: ExpressionRow, field: K, value: LinkFields[K]) => void;
+  linksLoaded: boolean;
 }) {
   const router = useRouter();
 
@@ -97,7 +110,15 @@ export function LabelTableBody({
               {/* Brand folds in here on a phone; the edit link is the only
                   way into a label, so it must never be squeezed off. */}
               <span className="block text-xs text-muted-foreground sm:hidden">{row.brand}</span>
-              <span className="text-accent">{row.name}</span>
+              {unlocked ? (
+                <Input
+                  value={edit?.name ?? row.name}
+                  onChange={(e) => updateEdit(row, "name", e.target.value)}
+                  className="h-8 w-40"
+                />
+              ) : (
+                <span className="text-accent">{row.name}</span>
+              )}
               {row.pickCount > 0 ? (
                 <Badge className="ml-2 border-primary/40 text-primary">
                   {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}
@@ -290,6 +311,59 @@ export function LabelTableBody({
                     ))}
                   </select>
                 </TableCell>
+
+                {linksLoaded ? (
+                  <>
+                    <TableCell className="min-w-72 align-top">
+                      <OrderedPicker
+                        name={`grid-distilleries-${row.id}`}
+                        label="Distilleries"
+                        description=""
+                        resource="distilleries"
+                        options={distilleries}
+                        amountLabel="Share"
+                        amountSuffix="%"
+                        value={linkEdits[row.id]?.distilleries ?? []}
+                        onChange={(next) => updateLinks(row, "distilleries", next)}
+                      />
+                    </TableCell>
+                    <TableCell className="min-w-72 align-top">
+                      <OrderedPicker
+                        name={`grid-mashbills-${row.id}`}
+                        label="Mashbills"
+                        description=""
+                        resource={null}
+                        emptyHint="Mashbills are made on the Numbers page."
+                        options={mashbills}
+                        amountLabel="Share"
+                        amountSuffix="%"
+                        value={linkEdits[row.id]?.mashbills ?? []}
+                        onChange={(next) => updateLinks(row, "mashbills", next)}
+                        distilleryChoices={(linkEdits[row.id]?.distilleries ?? []).map((d) => ({
+                          id: d.id,
+                          name: d.label,
+                        }))}
+                      />
+                    </TableCell>
+                    <TableCell className="min-w-72 align-top">
+                      <OrderedPicker
+                        name={`grid-finishes-${row.id}`}
+                        label="Finishes"
+                        description=""
+                        resource="finishes"
+                        options={finishes}
+                        amountLabel="Months"
+                        amountSuffix="mo"
+                        value={linkEdits[row.id]?.finishes ?? []}
+                        onChange={(next) => updateLinks(row, "finishes", next)}
+                      />
+                    </TableCell>
+                  </>
+                ) : (
+                  <TableCell colSpan={3} className="align-top text-sm text-muted-foreground">
+                    Loading…
+                  </TableCell>
+                )}
               </>
             ) : null}
 
