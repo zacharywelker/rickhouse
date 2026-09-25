@@ -200,11 +200,25 @@ export async function queryExpressions(filters: LabelFilters): Promise<{
       id: expressions.id,
       name: expressions.name,
       brand: brands.name,
+      brandId: expressions.brandId,
       category: categories.name,
+      categoryId: expressions.categoryId,
       proof: expressions.proof,
       ageStatement: expressions.ageStatement,
+      ageYears: expressions.ageYears,
+      ageMonths: expressions.ageMonths,
+      ageDays: expressions.ageDays,
       msrp: expressions.msrp,
+      sizeMl: expressions.sizeMl,
       upc: expressions.upc,
+      entryProof: expressions.entryProof,
+      charLevel: expressions.charLevel,
+      isCaskStrength: expressions.isCaskStrength,
+      isStraight: expressions.isStraight,
+      isNas: expressions.isNas,
+      isBottledInBond: expressions.isBottledInBond,
+      isChillFiltered: expressions.isChillFiltered,
+      colorAdded: expressions.colorAdded,
       bottleCount,
       pickCount,
     })
@@ -224,11 +238,25 @@ export type ExpressionRow = {
   id: number;
   name: string;
   brand: string;
+  brandId: number;
   category: string;
+  categoryId: number;
   proof: string | null;
   ageStatement: string | null;
+  ageYears: string | null;
+  ageMonths: number | null;
+  ageDays: number | null;
   msrp: string | null;
+  sizeMl: number;
   upc: string | null;
+  entryProof: string | null;
+  charLevel: string | null;
+  isCaskStrength: boolean;
+  isStraight: boolean;
+  isNas: boolean;
+  isBottledInBond: boolean;
+  isChillFiltered: boolean | null;
+  colorAdded: boolean | null;
   bottleCount: number;
   pickCount: number;
 };

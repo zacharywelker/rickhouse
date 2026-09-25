@@ -108,7 +108,7 @@ export default async function BottlesPage({
       ) : filters.view === "gallery" ? (
         <BottleGallery rows={rows} />
       ) : (
-        <BottleTable rows={rows} filters={filters} />
+        <BottleTable rows={rows} filters={filters} stores={stores} />
       )}
 
       {rows.length > 0 ? (

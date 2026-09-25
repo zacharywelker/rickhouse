@@ -16,7 +16,7 @@ import { slugify } from "@/lib/utils";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
 import { writableFields } from "@/lib/expressions/fields";
-import { expressionSchema, parseLinks, type ExpressionInput } from "@/lib/expressions/schema";
+import { expressionGridEditSchema, expressionSchema, parseLinks, type ExpressionInput } from "@/lib/expressions/schema";
 import { fieldGroupForCategory } from "@/lib/expressions/queries";
 
 /**
@@ -226,6 +226,57 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
   return { savedCount: results.filter((r) => r.ok).length, results };
 }
 
+/** Bulk save from the labels grid's unlocked edit mode (issue: bulk delete
+ * and edit for bottles and labels). Same per-row independent save as
+ * `saveExpressionsBulkAction` — a bad row should not roll back the good ones
+ * next to it — but updates an existing row rather than inserting one, and
+ * only ever touches the grid-editable columns (`expressionGridEditSchema`),
+ * never the hidden field-group sections a full edit-page save protects. */
+export async function updateExpressionsBulkAction(
+  rows: Array<{ id: number } & Record<string, unknown>>,
+): Promise<BulkSaveResult> {
+  await requireSession();
+  const results: BulkSaveResult["results"] = [];
+
+  for (const [index, { id, ...fields }] of rows.entries()) {
+    const parsed = expressionGridEditSchema.safeParse(fields);
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0];
+        if (typeof key === "string" && !(key in fieldErrors)) fieldErrors[key] = issue.message;
+      }
+      results.push({
+        index,
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Please check the highlighted fields.",
+        fieldErrors,
+      });
+      continue;
+    }
+    try {
+      await db.update(expressions).set(parsed.data).where(eq(expressions.id, id));
+      results.push({ index, ok: true, id });
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Label" });
+      results.push({
+        index,
+        ok: false,
+        error: shaped.ok ? "Could not save this row." : shaped.error,
+        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
+      });
+    }
+  }
+
+  if (results.some((r) => r.ok)) {
+    revalidatePath("/expressions");
+    revalidatePath("/bottles");
+    revalidatePath("/");
+  }
+
+  return { savedCount: results.filter((r) => r.ok).length, results };
+}
+
 export async function deleteExpressionAction(id: number): Promise<ActionResult> {
   await requireSession();
   try {
@@ -235,6 +286,37 @@ export async function deleteExpressionAction(id: number): Promise<ActionResult> 
   } catch (error: unknown) {
     return mapDbError(error, { singular: "Expression" });
   }
+}
+
+/** Bulk delete from the labels grid's unlocked edit mode. A label with
+ * bottles still on it is expected to fail here (restrict FK) while the rest
+ * of the batch succeeds, so each id is deleted independently. */
+export async function deleteExpressionsBulkAction(ids: number[]): Promise<BulkSaveResult> {
+  await requireSession();
+  const results: BulkSaveResult["results"] = [];
+
+  for (const [index, id] of ids.entries()) {
+    try {
+      await db.delete(expressions).where(eq(expressions.id, id));
+      results.push({ index, ok: true, id });
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Label" });
+      results.push({
+        index,
+        ok: false,
+        error: shaped.ok ? "Could not delete this label." : shaped.error,
+        fieldErrors: {},
+      });
+    }
+  }
+
+  if (results.some((r) => r.ok)) {
+    revalidatePath("/expressions");
+    revalidatePath("/bottles");
+    revalidatePath("/");
+  }
+
+  return { savedCount: results.filter((r) => r.ok).length, results };
 }
 
 /** Suggests a slug in the form as you type, so the field is never a surprise. */
