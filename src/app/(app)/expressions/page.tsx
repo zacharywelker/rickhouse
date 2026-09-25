@@ -18,10 +18,13 @@ export default async function ExpressionsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const filters = parseLabelFilters(await searchParams);
-  const [{ rows, total, pageCount, page }, brands, categories] = await Promise.all([
+  const [{ rows, total, pageCount, page }, brands, categories, distilleries, mashbills, finishes] = await Promise.all([
     queryExpressions(filters),
     REFERENCE_OPTION_LOADERS.brands(),
     REFERENCE_OPTION_LOADERS.categories(),
+    REFERENCE_OPTION_LOADERS.distilleries(),
+    REFERENCE_OPTION_LOADERS.mashbills(),
+    REFERENCE_OPTION_LOADERS.finishes(),
   ]);
   const filtered = activeLabelFilterCount(filters) > 0;
 
@@ -72,7 +75,15 @@ export default async function ExpressionsPage({
         </div>
       ) : (
         <>
-          <LabelTable rows={rows} filters={filters} brands={brands} categories={categories} />
+          <LabelTable
+            rows={rows}
+            filters={filters}
+            brands={brands}
+            categories={categories}
+            distilleries={distilleries}
+            mashbills={mashbills}
+            finishes={finishes}
+          />
           <LabelPagination filters={filters} page={page} pageCount={pageCount} total={total} />
         </>
       )}

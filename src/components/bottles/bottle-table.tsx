@@ -57,14 +57,22 @@ export const COLUMN_LABELS: Array<{ id: string; label: string }> = [
   { id: "expression", label: "Label" },
   { id: "category", label: "Category" },
   { id: "distilleries", label: "Distilleries" },
+  { id: "mashbills", label: "Mashbill" },
+  { id: "finishes", label: "Finishes" },
   { id: "proof", label: "Proof" },
   { id: "age", label: "Age" },
+  { id: "ageStatement", label: "Age Statement" },
   { id: "price", label: "Paid" },
   { id: "msrp", label: "MSRP" },
   { id: "store", label: "Store" },
   { id: "acquired", label: "Acquired" },
   { id: "rating", label: "Rating" },
   { id: "status", label: "Status" },
+  { id: "batch", label: "Batch" },
+  { id: "releaseYear", label: "Release Year" },
+  { id: "singleBarrel", label: "Single Barrel" },
+  { id: "privateSelection", label: "Private Selection" },
+  { id: "pickedBy", label: "Private Selection Pickers" },
 ];
 
 /**
@@ -283,6 +291,20 @@ export function BottleTable({
           <span className="block max-w-56 truncate text-muted-foreground">{getValue() ?? "—"}</span>
         ),
       }),
+      helper.accessor("mashbills", {
+        id: "mashbills",
+        header: "Mashbill",
+        cell: ({ getValue }) => (
+          <span className="block max-w-56 truncate text-muted-foreground">{getValue() ?? "—"}</span>
+        ),
+      }),
+      helper.accessor("finishes", {
+        id: "finishes",
+        header: "Finishes",
+        cell: ({ getValue }) => (
+          <span className="block max-w-56 truncate text-muted-foreground">{getValue() ?? "—"}</span>
+        ),
+      }),
       helper.accessor("proof", {
         id: "proof",
         header: "Proof",
@@ -299,6 +321,11 @@ export function BottleTable({
             {getValue() ? `${formatNumeric(getValue())}y` : (row.original.ageStatement ?? "—")}
           </span>
         ),
+      }),
+      helper.accessor("ageStatement", {
+        id: "ageStatement",
+        header: "Age Statement",
+        cell: ({ getValue }) => <span className="block max-w-40 truncate">{getValue() ?? "—"}</span>,
       }),
       helper.accessor("pricePaid", {
         id: "price",
@@ -384,25 +411,44 @@ export function BottleTable({
             <StatusMark status={getValue()} />
           ),
       }),
-      ...(unlocked
-        ? [
-            helper.display({
-              id: "releaseYear",
-              header: "Release Year",
-              cell: ({ row }: { row: { original: GridRow } }) => (
-                <Input
-                  type="number"
-                  min={1700}
-                  max={2200}
-                  step={1}
-                  value={edits[row.original.id]?.releaseYear ?? editableFrom(row.original).releaseYear}
-                  onChange={(e) => updateEdit(row.original, "releaseYear", e.target.value)}
-                  className="h-8 w-24"
-                />
-              ),
-            }),
-          ]
-        : []),
+      helper.accessor("batch", {
+        id: "batch",
+        header: "Batch",
+        cell: ({ getValue }) => <span className="block max-w-32 truncate">{getValue() ?? "—"}</span>,
+      }),
+      helper.accessor("releaseYear", {
+        id: "releaseYear",
+        header: "Release Year",
+        cell: ({ getValue, row }) =>
+          unlocked ? (
+            <Input
+              type="number"
+              min={1700}
+              max={2200}
+              step={1}
+              value={edits[row.original.id]?.releaseYear ?? editableFrom(row.original).releaseYear}
+              onChange={(e) => updateEdit(row.original, "releaseYear", e.target.value)}
+              className="h-8 w-24"
+            />
+          ) : (
+            <span className="tabular-nums">{getValue() ?? "—"}</span>
+          ),
+      }),
+      helper.accessor("isSingleBarrel", {
+        id: "singleBarrel",
+        header: "Single Barrel",
+        cell: ({ getValue }) => (getValue() ? "Yes" : "—"),
+      }),
+      helper.accessor("isSingleBarrelPick", {
+        id: "privateSelection",
+        header: "Private Selection",
+        cell: ({ getValue }) => (getValue() ? "Yes" : "—"),
+      }),
+      helper.accessor("pickedBy", {
+        id: "pickedBy",
+        header: "Private Selection Pickers",
+        cell: ({ getValue }) => <span className="block max-w-40 truncate">{getValue() ?? "—"}</span>,
+      }),
     ],
     [unlocked, edits, stores],
   );

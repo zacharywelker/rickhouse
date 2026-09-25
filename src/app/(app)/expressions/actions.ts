@@ -16,8 +16,16 @@ import { slugify } from "@/lib/utils";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
 import { writableFields } from "@/lib/expressions/fields";
-import { expressionGridEditSchema, expressionSchema, parseLinks, type ExpressionInput } from "@/lib/expressions/schema";
-import { fieldGroupForCategory } from "@/lib/expressions/queries";
+import {
+  expressionGridEditSchema,
+  expressionSchema,
+  linkRowSchema,
+  parseLinks,
+  type ExpressionInput,
+  type LinkRow,
+} from "@/lib/expressions/schema";
+import { expressionLinksBulk, fieldGroupForCategory, type LinkedEntity, type LinkedMashbill } from "@/lib/expressions/queries";
+import { z } from "zod";
 
 /**
  * Fields every category writes, whatever its field group. Anything outside
@@ -40,6 +48,65 @@ function valuesForGroup(input: ExpressionInput, allowed: Set<string>, slug: stri
     if (key === "slug" || COMMON_FIELDS.has(key) || allowed.has(key)) values[key] = value;
   }
   return values;
+}
+
+/**
+ * Replace rather than diff: the lists are short and ordering matters, so
+ * rewriting them is both simpler and correct. Shared by the single-record
+ * save and the labels grid's bulk save (issue: bulk edit for bottles and
+ * labels), which both submit a full ordered list per relation rather than
+ * a delta.
+ */
+async function replaceExpressionLinks(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  target: number,
+  linkedDistilleries: LinkRow[],
+  linkedMashbills: LinkRow[],
+  linkedFinishes: LinkRow[],
+) {
+  await tx.delete(expressionDistilleries).where(eq(expressionDistilleries.expressionId, target));
+  await tx.delete(expressionMashbills).where(eq(expressionMashbills.expressionId, target));
+  await tx.delete(expressionFinishes).where(eq(expressionFinishes.expressionId, target));
+
+  if (linkedDistilleries.length > 0) {
+    await tx.insert(expressionDistilleries).values(
+      linkedDistilleries.map((row, position) => ({
+        expressionId: target,
+        distilleryId: row.id,
+        position,
+        sharePct: row.amount === null ? null : String(row.amount),
+      })),
+    );
+  }
+  if (linkedMashbills.length > 0) {
+    // With exactly one distillery, it is the automatic answer for every
+    // mashbill regardless of what the form sent; with more than one, only
+    // a choice that is actually one of them is kept (issue #13).
+    const soloDistilleryId = linkedDistilleries.length === 1 ? linkedDistilleries[0]!.id : null;
+    const validDistilleryIds = new Set(linkedDistilleries.map((row) => row.id));
+    const distilleryIdFor = (row: (typeof linkedMashbills)[number]) =>
+      soloDistilleryId ?? (row.distilleryId && validDistilleryIds.has(row.distilleryId) ? row.distilleryId : null);
+
+    await tx.insert(expressionMashbills).values(
+      linkedMashbills.map((row, position) => ({
+        expressionId: target,
+        mashbillId: row.id,
+        position,
+        sharePct: row.amount === null ? null : String(row.amount),
+        distilleryId: distilleryIdFor(row),
+      })),
+    );
+  }
+  if (linkedFinishes.length > 0) {
+    await tx.insert(expressionFinishes).values(
+      linkedFinishes.map((row, position) => ({
+        expressionId: target,
+        finishId: row.id,
+        position,
+        months: row.amount === null ? null : Math.round(row.amount),
+      })),
+    );
+  }
 }
 
 export async function saveExpressionAction(
@@ -98,51 +165,7 @@ export async function saveExpressionAction(
           .where(eq(expressions.id, target));
       }
 
-      // Replace rather than diff: the lists are short and ordering matters,
-      // so rewriting them is both simpler and correct.
-      await tx.delete(expressionDistilleries).where(eq(expressionDistilleries.expressionId, target));
-      await tx.delete(expressionMashbills).where(eq(expressionMashbills.expressionId, target));
-      await tx.delete(expressionFinishes).where(eq(expressionFinishes.expressionId, target));
-
-      if (linkedDistilleries.length > 0) {
-        await tx.insert(expressionDistilleries).values(
-          linkedDistilleries.map((row, position) => ({
-            expressionId: target,
-            distilleryId: row.id,
-            position,
-            sharePct: row.amount === null ? null : String(row.amount),
-          })),
-        );
-      }
-      if (linkedMashbills.length > 0) {
-        // With exactly one distillery, it is the automatic answer for every
-        // mashbill regardless of what the form sent; with more than one, only
-        // a choice that is actually one of them is kept (issue #13).
-        const soloDistilleryId = linkedDistilleries.length === 1 ? linkedDistilleries[0]!.id : null;
-        const validDistilleryIds = new Set(linkedDistilleries.map((row) => row.id));
-        const distilleryIdFor = (row: (typeof linkedMashbills)[number]) =>
-          soloDistilleryId ?? (row.distilleryId && validDistilleryIds.has(row.distilleryId) ? row.distilleryId : null);
-
-        await tx.insert(expressionMashbills).values(
-          linkedMashbills.map((row, position) => ({
-            expressionId: target,
-            mashbillId: row.id,
-            position,
-            sharePct: row.amount === null ? null : String(row.amount),
-            distilleryId: distilleryIdFor(row),
-          })),
-        );
-      }
-      if (linkedFinishes.length > 0) {
-        await tx.insert(expressionFinishes).values(
-          linkedFinishes.map((row, position) => ({
-            expressionId: target,
-            finishId: row.id,
-            position,
-            months: row.amount === null ? null : Math.round(row.amount),
-          })),
-        );
-      }
+      await replaceExpressionLinks(tx, target, linkedDistilleries, linkedMashbills, linkedFinishes);
 
       return target;
     });
@@ -226,36 +249,58 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
   return { savedCount: results.filter((r) => r.ok).length, results };
 }
 
+const linkRowsArray = z.array(linkRowSchema).max(50);
+
 /** Bulk save from the labels grid's unlocked edit mode (issue: bulk delete
  * and edit for bottles and labels). Same per-row independent save as
  * `saveExpressionsBulkAction` — a bad row should not roll back the good ones
  * next to it — but updates an existing row rather than inserting one, and
- * only ever touches the grid-editable columns (`expressionGridEditSchema`),
- * never the hidden field-group sections a full edit-page save protects. */
+ * only ever touches the grid-editable columns (`expressionGridEditSchema`)
+ * plus the three link relations, never the hidden field-group sections a
+ * full edit-page save protects.
+ *
+ * Each row always carries its full current distilleries/mashbills/finishes
+ * lists (the grid loads them up front to render the pickers), so — same as
+ * the single-record save — they are replaced wholesale rather than diffed,
+ * even for a row whose links did not actually change; that is idempotent
+ * and far simpler than tracking a link-level dirty flag.
+ */
 export async function updateExpressionsBulkAction(
-  rows: Array<{ id: number } & Record<string, unknown>>,
+  rows: Array<
+    { id: number; distilleries: unknown; mashbills: unknown; finishes: unknown } & Record<string, unknown>
+  >,
 ): Promise<BulkSaveResult> {
   await requireSession();
   const results: BulkSaveResult["results"] = [];
 
-  for (const [index, { id, ...fields }] of rows.entries()) {
+  for (const [index, { id, distilleries, mashbills, finishes, ...fields }] of rows.entries()) {
     const parsed = expressionGridEditSchema.safeParse(fields);
-    if (!parsed.success) {
+    const parsedDistilleries = linkRowsArray.safeParse(distilleries);
+    const parsedMashbills = linkRowsArray.safeParse(mashbills);
+    const parsedFinishes = linkRowsArray.safeParse(finishes);
+
+    if (!parsed.success || !parsedDistilleries.success || !parsedMashbills.success || !parsedFinishes.success) {
       const fieldErrors: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
+      for (const issue of parsed.success ? [] : parsed.error.issues) {
         const key = issue.path[0];
         if (typeof key === "string" && !(key in fieldErrors)) fieldErrors[key] = issue.message;
       }
       results.push({
         index,
         ok: false,
-        error: parsed.error.issues[0]?.message ?? "Please check the highlighted fields.",
+        error: parsed.success
+          ? "Could not save the linked distilleries, mashbills or finishes."
+          : (parsed.error.issues[0]?.message ?? "Please check the highlighted fields."),
         fieldErrors,
       });
       continue;
     }
+
     try {
-      await db.update(expressions).set(parsed.data).where(eq(expressions.id, id));
+      await db.transaction(async (tx) => {
+        await tx.update(expressions).set(parsed.data).where(eq(expressions.id, id));
+        await replaceExpressionLinks(tx, id, parsedDistilleries.data, parsedMashbills.data, parsedFinishes.data);
+      });
       results.push({ index, ok: true, id });
     } catch (error: unknown) {
       const shaped = mapDbError(error, { singular: "Label" });
@@ -275,6 +320,17 @@ export async function updateExpressionsBulkAction(
   }
 
   return { savedCount: results.filter((r) => r.ok).length, results };
+}
+
+/** Feeds the labels grid's distillery/mashbill/finish pickers once it
+ * unlocks — not loaded on every page view, since most visits never touch
+ * edit mode. */
+export async function getExpressionLinksAction(
+  ids: number[],
+): Promise<Array<{ id: number; distilleries: LinkedEntity[]; mashbills: LinkedMashbill[]; finishes: LinkedEntity[] }>> {
+  await requireSession();
+  const links = await expressionLinksBulk(ids);
+  return ids.map((id) => ({ id, ...(links.get(id) ?? { distilleries: [], mashbills: [], finishes: [] }) }));
 }
 
 export async function deleteExpressionAction(id: number): Promise<ActionResult> {

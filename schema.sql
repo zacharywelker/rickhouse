@@ -443,6 +443,7 @@ SELECT
     b.is_single_barrel,
     b.is_single_barrel_pick,
     b.pick_name,
+    b.picked_by,
     b.barrel_filled_on,
     b.bottled_on,
     e.id   AS expression_id,
@@ -470,6 +471,10 @@ SELECT
        FROM expression_distilleries ed
        JOIN distilleries d ON d.id = ed.distillery_id
       WHERE ed.expression_id = e.id) AS distilleries,
+    (SELECT string_agg(coalesce(m.name::text, 'Untitled mashbill'), ', ' ORDER BY em.position)
+       FROM expression_mashbills em
+       JOIN mashbills m ON m.id = em.mashbill_id
+      WHERE em.expression_id = e.id) AS mashbills,
     (SELECT string_agg(f.name, ', ' ORDER BY ef.position)
        FROM expression_finishes ef
        JOIN finishes f ON f.id = ef.finish_id

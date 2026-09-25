@@ -115,6 +115,94 @@ export async function expressionLinks(expressionId: number): Promise<{
   };
 }
 
+/**
+ * The same three link lists as `expressionLinks`, batched over a page of
+ * labels at once (issue: bulk edit for the labels grid's unlocked mode) —
+ * one round trip per relation instead of three times the row count.
+ */
+export async function expressionLinksBulk(expressionIds: number[]): Promise<
+  Map<number, { distilleries: LinkedEntity[]; mashbills: LinkedMashbill[]; finishes: LinkedEntity[] }>
+> {
+  const result = new Map<number, { distilleries: LinkedEntity[]; mashbills: LinkedMashbill[]; finishes: LinkedEntity[] }>();
+  if (expressionIds.length === 0) return result;
+  for (const id of expressionIds) result.set(id, { distilleries: [], mashbills: [], finishes: [] });
+
+  const [d, m, f] = await Promise.all([
+    db
+      .select({
+        expressionId: expressionDistilleries.expressionId,
+        id: distilleries.id,
+        name: distilleries.name,
+        slug: distilleries.slug,
+        amount: expressionDistilleries.sharePct,
+      })
+      .from(expressionDistilleries)
+      .innerJoin(distilleries, eq(expressionDistilleries.distilleryId, distilleries.id))
+      .where(inArray(expressionDistilleries.expressionId, expressionIds))
+      .orderBy(asc(expressionDistilleries.position)),
+    db
+      .select({
+        expressionId: expressionMashbills.expressionId,
+        id: mashbills.id,
+        name: mashbills.name,
+        amount: expressionMashbills.sharePct,
+        distilleryId: expressionMashbills.distilleryId,
+        distillery: distilleries.name,
+        distillerySlug: distilleries.slug,
+        recipe: sql<string | null>`(
+          select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
+            from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
+        )`,
+      })
+      .from(expressionMashbills)
+      .innerJoin(mashbills, eq(expressionMashbills.mashbillId, mashbills.id))
+      .leftJoin(distilleries, eq(expressionMashbills.distilleryId, distilleries.id))
+      .where(inArray(expressionMashbills.expressionId, expressionIds))
+      .orderBy(asc(expressionMashbills.position)),
+    db
+      .select({
+        expressionId: expressionFinishes.expressionId,
+        id: finishes.id,
+        name: finishes.name,
+        slug: finishes.slug,
+        amount: sql<string | null>`${expressionFinishes.months}::text`,
+      })
+      .from(expressionFinishes)
+      .innerJoin(finishes, eq(expressionFinishes.finishId, finishes.id))
+      .where(inArray(expressionFinishes.expressionId, expressionIds))
+      .orderBy(asc(expressionFinishes.position)),
+  ]);
+
+  for (const id of expressionIds) {
+    const dRows = d.filter((row) => row.expressionId === id);
+    const mRows = m.filter((row) => row.expressionId === id);
+    const fRows = f.filter((row) => row.expressionId === id);
+
+    const solo = dRows.length === 1 ? dRows[0]! : null;
+    const blended = dRows.length > 1;
+
+    result.set(id, {
+      distilleries: dRows,
+      mashbills: mRows.map((row) => ({
+        id: row.id,
+        name: row.name ?? describeRecipe(row.recipe),
+        slug: null,
+        amount: row.amount,
+        recipe: describeRecipe(row.recipe),
+        distilleryId: solo ? solo.id : blended ? row.distilleryId : null,
+        ...(solo
+          ? { attribution: solo.name, attributionSlug: solo.slug }
+          : blended && row.distillery
+            ? { attribution: row.distillery, attributionSlug: row.distillerySlug }
+            : {}),
+      })),
+      finishes: fRows,
+    });
+  }
+
+  return result;
+}
+
 /** Unpacks the "Corn:70|Wheat:16" aggregate the queries above build. */
 export function describeRecipe(packed: string | null): string {
   const grains = (packed ?? "")
