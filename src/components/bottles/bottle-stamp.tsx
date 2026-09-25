@@ -388,20 +388,30 @@ export interface StampSpec {
 // instead sits in the specs column, where the "behind" rule always still
 // shows some of the mark.
 //
-// Each `top` is the stamp's TOP edge, not its center — the layer below
-// anchors vertically with `translate(-50%, 0)`, not `-50%, -50%` — so a
-// slot near the top of the page can never have half its (variable-sized)
-// mark clipped off above the page's own top edge; the smallest slot here
-// only has to stay >= 0 on its own, with no stamp height to subtract.
-const SLOTS: Array<{ left: number; top: number }> = [
-  { left: 46, top: 8 },
-  { left: 70, top: 4 },
-  { left: 92, top: 10 },
-  { left: 48, top: 42 },
-  { left: 90, top: 44 },
-  { left: 50, top: 74 },
-  { left: 72, top: 82 },
-  { left: 92, top: 72 },
+// Each slot is anchored from whichever page edge it sits closer to — `top`
+// for the handful up near the header, `bottom` for the rest — with the
+// layer below placing it via that same CSS property (`top: X%` or
+// `bottom: X%`) rather than always centering on a `top` percentage. That
+// makes clipping on that edge impossible by construction, at any stamp
+// size or page height: a `top` offset can't go negative, and a `bottom`
+// offset held to the container's own bottom edge can't overshoot it either.
+//
+// The two edges also aren't an even split. The header (breadcrumb, title)
+// is dense text on every page, and the specs grid right under it is the
+// one block guaranteed to be full — so only a couple of slots sit up
+// there. Most live in the lower band instead: groups, chip rows, and the
+// rum/agave/pick-only fields below the grid are each absent as often as
+// not, so that stretch of the page is the one most likely to still be
+// visually quiet by the time real content has filled in around it.
+const SLOTS: Array<{ left: number; from: number; edge: "top" | "bottom" }> = [
+  { left: 88, from: 18, edge: "top" },
+  { left: 50, from: 36, edge: "top" },
+  { left: 50, from: 4, edge: "bottom" },
+  { left: 70, from: 12, edge: "bottom" },
+  { left: 90, from: 6, edge: "bottom" },
+  { left: 46, from: 20, edge: "bottom" },
+  { left: 88, from: 26, edge: "bottom" },
+  { left: 64, from: 34, edge: "bottom" },
 ];
 
 // Fixed so slot assignment never depends on the order callers happen to
@@ -445,7 +455,11 @@ export function BottleStamps({ color, stamps }: { color: string; stamps: StampSp
 
           const placeRng = seededRandom(hashSeed(`${placeKey}-jitter`));
           const left = slot.left + seededRange(placeRng, -5, 5);
-          const top = Math.max(0, slot.top + seededRange(placeRng, -4, 4));
+          // Held to >= 0 regardless of edge: a `top` offset below zero
+          // pulls the stamp up above the page, and a `bottom` offset below
+          // zero pushes it down past the page — either way the same clip
+          // this slot system exists to rule out.
+          const offset = Math.max(0, slot.from + seededRange(placeRng, -4, 4));
           const rotate = seededRange(placeRng, -18, 18);
           const scale = seededRange(placeRng, 0.8, 1.2);
 
@@ -456,7 +470,7 @@ export function BottleStamps({ color, stamps }: { color: string; stamps: StampSp
               className="absolute"
               style={{
                 left: `${left}%`,
-                top: `${top}%`,
+                [slot.edge]: `${offset}%`,
                 transform: `translate(-50%, 0) rotate(${rotate.toFixed(1)}deg)`,
                 opacity: 0.55,
               }}
