@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
+import { categoryColorVar } from "@/lib/bottles/category-color";
 import { hashSeed, seededRandom, seededRange } from "@/lib/seeded-random";
 
 /**
  * A designation printed like a customs stamp pressed onto the page itself
- * — outline ink in the bottle's own category color, worn rather than a
- * clean vector: broken dashes where the rubber didn't quite seat, a soft
+ * — outline ink in a color fixed per designation (see `STAMP_COLORS`
+ * below), worn rather than a clean vector: broken dashes where the rubber
+ * didn't quite seat, a soft
  * directional fade for uneven hand pressure, and one or two blots where
  * the pad ran dry. Replaces every designation that used to be a plain-text
  * / handwritten-margin-note badge (Bottled in Bond, Straight, Cask
@@ -292,24 +294,42 @@ function DomeMark({
   );
 }
 
+/**
+ * One fixed ink per designation, not the bottle's own category color —
+ * six stamps sharing a single hue (every whiskey bottle's marks all in
+ * the same orange, say) would read as one repeated badge rather than six
+ * distinct kinds of mark, especially once several land on the same page.
+ * Spread around the wheel on purpose (ink, red, brown, blue, purple,
+ * green) so no two are a shade of the same color; pulled from tokens the
+ * app already uses elsewhere (category colors, the ink/primary token)
+ * rather than new one-off hexes.
+ */
+const STAMP_COLORS: Record<StampKind, string> = {
+  "bottled-in-bond": "var(--foreground)",
+  "cask-strength": categoryColorVar("rum"),
+  straight: categoryColorVar("brandy"),
+  nas: categoryColorVar("vodka"),
+  "single-barrel": categoryColorVar("liqueur"),
+  "private-selection": categoryColorVar("gin"),
+};
+
 /** The graphic alone, unpositioned — `size` is the rendered square in px. `detail` overrides the piece of the design that carries real per-bottle data (a proof, a barrel number, a picker's name). */
 export function BottleStamp({
   kind,
   seed,
-  color,
   detail,
   size = 200,
   className,
 }: {
   kind: StampKind;
   seed: number;
-  color: string;
   /** Real per-bottle data shown in place of the stamp's generic center/caption text, where it has one (proof for Cask Strength, barrel number for Single Barrel, picker for Private Selection). */
   detail?: string;
   size?: number;
   className?: string;
 }) {
   const id = `stamp-${kind}-${seed}`;
+  const color = STAMP_COLORS[kind];
   const rng = seededRandom(seed);
   let mark: ReactNode;
   switch (kind) {
@@ -530,7 +550,7 @@ function placeStamps(active: StampSpec[]): Placement[] {
  *   content" still means something (the desktop layout would otherwise
  *   frequently land squarely on the now-full-width, fully opaque photo).
  */
-export function BottleStamps({ color, stamps }: { color: string; stamps: StampSpec[] }) {
+export function BottleStamps({ stamps }: { stamps: StampSpec[] }) {
   const active = KIND_ORDER.map((kind) => stamps.find((s) => s.kind === kind && s.active)).filter(
     (s): s is StampSpec => s !== undefined,
   );
@@ -554,13 +574,7 @@ export function BottleStamps({ color, stamps }: { color: string; stamps: StampSp
                 opacity: 0.55,
               }}
             >
-              <BottleStamp
-                kind={spec.kind}
-                seed={inkSeed}
-                color={color}
-                detail={spec.detail}
-                size={Math.round(STAMP_BASE_SIZE * scale)}
-              />
+              <BottleStamp kind={spec.kind} seed={inkSeed} detail={spec.detail} size={Math.round(STAMP_BASE_SIZE * scale)} />
             </div>
           );
         })}
@@ -575,7 +589,7 @@ export function BottleStamps({ color, stamps }: { color: string; stamps: StampSp
           const rotate = seededRange(seededRandom(hashSeed(`stamp-mobile-rotate-${spec.kind}-${spec.ownerId}`)), -10, 10);
           return (
             <div key={spec.kind} style={{ transform: `rotate(${rotate.toFixed(1)}deg)`, opacity: 0.55 }}>
-              <BottleStamp kind={spec.kind} seed={inkSeed} color={color} detail={spec.detail} size={92} />
+              <BottleStamp kind={spec.kind} seed={inkSeed} detail={spec.detail} size={92} />
             </div>
           );
         })}

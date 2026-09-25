@@ -16,7 +16,7 @@ import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
 import { Tape } from "@/components/ui/tape";
-import { categoryColorVar, categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
+import { categoryTextClass, categoryTintClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { seededRandom } from "@/lib/seeded-random";
@@ -176,7 +176,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="relative flex flex-col gap-8">
-      <BottleStamps color={categoryColorVar(group)} stamps={stamps} />
+      <BottleStamps stamps={stamps} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">
