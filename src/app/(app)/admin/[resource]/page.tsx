@@ -32,7 +32,6 @@ export default async function ResourcePage({ params }: { params: Promise<{ resou
       resourceKey={config.key}
       label={config.label}
       singular={config.singular}
-      description={config.description}
       fields={config.fields}
       columns={config.columns}
       rows={rows}

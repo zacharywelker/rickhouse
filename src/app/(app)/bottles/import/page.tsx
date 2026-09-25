@@ -13,10 +13,6 @@ export default function ImportPage() {
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Import bottles</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          One row per bottle. Brands, distilleries, finishes and stores are created as they are encountered;
-          categories are not, because guessing where a spirit belongs in the tree is how a taxonomy rots.
-        </p>
       </div>
 
       <Section>

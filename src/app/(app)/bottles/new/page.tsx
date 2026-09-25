@@ -25,9 +25,6 @@ export default async function NewBottlePage({
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Add a bottle</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pick the label it is a bottle of. If it does not exist yet, create the label first.
-        </p>
       </div>
 
       {expressions.length === 0 ? (

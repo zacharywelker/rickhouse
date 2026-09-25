@@ -45,7 +45,6 @@ export default async function HomePage() {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-3xl text-accent">Rickhouse</h1>
-        <p className="text-sm text-muted-foreground">Your shelf, catalogued.</p>
       </div>
 
       <StatStrip

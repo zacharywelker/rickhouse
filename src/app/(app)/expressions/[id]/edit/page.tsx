@@ -23,9 +23,6 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
         <h1 className="text-3xl text-accent">
           {row.brand.name} {row.expression.name}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Changes here apply to every bottle of this label.
-        </p>
       </div>
       <ExpressionForm
         expressionId={expressionId}

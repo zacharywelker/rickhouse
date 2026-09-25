@@ -16,10 +16,6 @@ export default async function BulkBottlesPage() {
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Bulk add bottles</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Add several bottles at once. Tab moves across a row, Enter moves down a column. Rows save independently —
-          fixing one bad row never loses the others.
-        </p>
       </div>
 
       {expressions.length === 0 ? (

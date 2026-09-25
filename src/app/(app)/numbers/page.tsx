@@ -52,9 +52,6 @@ export default async function NumbersPage() {
     <div className="flex flex-col gap-6">
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">Numbers</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          What the collection actually looks like, rather than what you remember buying.
-        </p>
       </div>
 
       {items.length > 0 ? (

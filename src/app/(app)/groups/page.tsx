@@ -16,10 +16,6 @@ export default async function GroupsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl text-accent">Groups</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Personal, curated collections — Japan 2026, Store Picks, Mara&apos;s Bottles. The database tells you what
-            you own; Groups tell you what it means.
-          </p>
         </div>
         <Button asChild>
           <Link href="/groups/new">

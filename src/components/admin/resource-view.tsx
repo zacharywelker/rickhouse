@@ -23,7 +23,6 @@ type Props = {
   resourceKey: string;
   label: string;
   singular: string;
-  description: string;
   fields: FieldSpec[];
   columns: ColumnSpec[];
   rows: AdminRow[];
@@ -52,7 +51,6 @@ export function ResourceView({
   resourceKey,
   label,
   singular,
-  description,
   fields,
   columns,
   rows,
@@ -84,7 +82,6 @@ export function ResourceView({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <h1 className="text-3xl text-accent">{label}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
         <Button onClick={() => setEditing(null)}>
           <Plus className="size-4" />
