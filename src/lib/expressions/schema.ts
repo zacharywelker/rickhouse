@@ -195,6 +195,23 @@ export const bottleSchema = z.object({
 
 export type BottleInput = z.infer<typeof bottleSchema>;
 
+/**
+ * The subset of `bottleSchema` editable inline from the collection grid's
+ * unlocked "edit" mode (issue: bulk delete and edit). Deliberately smaller
+ * than the single-record form — just the columns already surfaced in
+ * `bottle_list`, so no extra query work is needed to show current values.
+ */
+export const bottleGridEditSchema = z.object({
+  expressionId: requiredRef,
+  storeId: optionalRef,
+  status: z.enum(BOTTLE_STATUSES),
+  pricePaid: optionalDecimal(0, 99_999_999),
+  dateAcquired: optionalDate,
+  releaseYear: optionalInt(1700, 2200),
+});
+
+export type BottleGridEditInput = z.infer<typeof bottleGridEditSchema>;
+
 export const tastingNoteSchema = z.object({
   tastedOn: blankIfAbsent(
     trimmed

@@ -10,7 +10,7 @@ import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
 import { z } from "zod";
-import { bottleSchema, tastingNoteSchema } from "@/lib/expressions/schema";
+import { bottleGridEditSchema, bottleSchema, tastingNoteSchema } from "@/lib/expressions/schema";
 
 function invalid(issues: { path: PropertyKey[]; message: string }[]): ActionResult {
   const fieldErrors: Record<string, string> = {};
@@ -110,6 +110,81 @@ export async function deleteBottleAction(id: number): Promise<ActionResult> {
   } catch (error: unknown) {
     return mapDbError(error, { singular: "Bottle" });
   }
+}
+
+/** Bulk delete from the collection grid's unlocked edit mode. Each bottle is
+ * removed independently — one restrict-FK or already-gone id should not
+ * abort the rest of the batch. */
+export async function deleteBottlesBulkAction(ids: number[]): Promise<BulkSaveResult> {
+  await requireSession();
+  const results: BulkSaveResult["results"] = [];
+
+  for (const [index, id] of ids.entries()) {
+    try {
+      const images = await db.select().from(bottleImages).where(eq(bottleImages.bottleId, id));
+      await db.delete(bottles).where(eq(bottles.id, id));
+      await Promise.all(images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)));
+      results.push({ index, ok: true, id });
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Bottle" });
+      results.push({
+        index,
+        ok: false,
+        error: shaped.ok ? "Could not delete this bottle." : shaped.error,
+        fieldErrors: {},
+      });
+    }
+  }
+
+  if (results.some((r) => r.ok)) {
+    revalidatePath("/bottles");
+    revalidatePath("/");
+  }
+
+  return { savedCount: results.filter((r) => r.ok).length, results };
+}
+
+/** Bulk save from the collection grid's unlocked edit mode (issue: bulk edit).
+ * Each row is validated and saved on its own, same reasoning as
+ * `saveBottlesBulkAction`: a bad row should not roll back the good ones. */
+export async function updateBottlesBulkAction(
+  rows: Array<{ id: number } & Record<string, unknown>>,
+): Promise<BulkSaveResult> {
+  await requireSession();
+  const results: BulkSaveResult["results"] = [];
+
+  for (const [index, { id, ...fields }] of rows.entries()) {
+    const parsed = bottleGridEditSchema.safeParse(fields);
+    if (!parsed.success) {
+      const shaped = invalid(parsed.error.issues);
+      results.push({
+        index,
+        ok: false,
+        error: shaped.ok ? "Could not save this row." : shaped.error,
+        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
+      });
+      continue;
+    }
+    try {
+      await db.update(bottles).set(parsed.data).where(eq(bottles.id, id));
+      results.push({ index, ok: true, id });
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Bottle" });
+      results.push({
+        index,
+        ok: false,
+        error: shaped.ok ? "Could not save this row." : shaped.error,
+        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
+      });
+    }
+  }
+
+  if (results.some((r) => r.ok)) {
+    revalidatePath("/bottles");
+    revalidatePath("/");
+  }
+
+  return { savedCount: results.filter((r) => r.ok).length, results };
 }
 
 // ------------------------------------------------------------

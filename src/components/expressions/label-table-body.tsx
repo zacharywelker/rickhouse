@@ -7,6 +7,7 @@ import type { Route } from "next";
 import { Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { formatMoney, formatNumeric } from "@/lib/utils";
 import type { ExpressionRow } from "@/lib/expressions/queries";
@@ -24,7 +25,17 @@ function openOnDoubleClick(event: React.MouseEvent, router: ReturnType<typeof us
   router.push(`/expressions/${id}/edit` as Route);
 }
 
-export function LabelTableBody({ rows }: { rows: ExpressionRow[] }) {
+export function LabelTableBody({
+  rows,
+  unlocked,
+  selectedIds,
+  onToggle,
+}: {
+  rows: ExpressionRow[];
+  unlocked: boolean;
+  selectedIds: ReadonlySet<number>;
+  onToggle: (id: number, selected: boolean) => void;
+}) {
   const router = useRouter();
 
   return (
@@ -32,9 +43,18 @@ export function LabelTableBody({ rows }: { rows: ExpressionRow[] }) {
       {rows.map((row) => (
         <TableRow
           key={row.id}
-          onDoubleClick={(event) => openOnDoubleClick(event, router, row.id)}
-          className="cursor-pointer"
+          onDoubleClick={(event) => !unlocked && openOnDoubleClick(event, router, row.id)}
+          className={unlocked ? undefined : "cursor-pointer"}
         >
+          {unlocked ? (
+            <TableCell>
+              <Checkbox
+                checked={selectedIds.has(row.id)}
+                onCheckedChange={(value) => onToggle(row.id, Boolean(value))}
+                aria-label={`Select ${row.brand} ${row.name}`}
+              />
+            </TableCell>
+          ) : null}
           <TableCell className="hidden font-medium sm:table-cell">{row.brand}</TableCell>
           <TableCell>
             {/* Brand folds in here on a phone; the edit link is the only

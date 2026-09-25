@@ -237,6 +237,37 @@ export async function deleteExpressionAction(id: number): Promise<ActionResult> 
   }
 }
 
+/** Bulk delete from the labels grid's unlocked edit mode. A label with
+ * bottles still on it is expected to fail here (restrict FK) while the rest
+ * of the batch succeeds, so each id is deleted independently. */
+export async function deleteExpressionsBulkAction(ids: number[]): Promise<BulkSaveResult> {
+  await requireSession();
+  const results: BulkSaveResult["results"] = [];
+
+  for (const [index, id] of ids.entries()) {
+    try {
+      await db.delete(expressions).where(eq(expressions.id, id));
+      results.push({ index, ok: true, id });
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Label" });
+      results.push({
+        index,
+        ok: false,
+        error: shaped.ok ? "Could not delete this label." : shaped.error,
+        fieldErrors: {},
+      });
+    }
+  }
+
+  if (results.some((r) => r.ok)) {
+    revalidatePath("/expressions");
+    revalidatePath("/bottles");
+    revalidatePath("/");
+  }
+
+  return { savedCount: results.filter((r) => r.ok).length, results };
+}
+
 /** Suggests a slug in the form as you type, so the field is never a surprise. */
 export async function previewSlugAction(name: string, batch: string): Promise<string> {
   await requireSession();
