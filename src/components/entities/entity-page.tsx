@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Section, SectionContent } from "@/components/ui/section";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
+import { requireSession } from "@/lib/auth";
 import { parseFilters, type BottleFilters } from "@/lib/bottles/filters";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { formatMoney, formatNumeric } from "@/lib/utils";
@@ -45,11 +46,12 @@ export async function EntityPage({
   // The URL still drives sorting, paging and the view toggle; the preset is
   // merged over the top so it cannot be filtered away.
   const filters: BottleFilters = { ...parseFilters(searchParams), ...preset };
+  const user = await requireSession();
 
   const [{ rows, total, pageCount, page }, summary, stores] = await Promise.all([
-    queryBottles(filters),
-    summariseBottles(filters),
-    REFERENCE_OPTION_LOADERS.stores(),
+    queryBottles(filters, user.id),
+    summariseBottles(filters, user.id),
+    REFERENCE_OPTION_LOADERS.stores(user.id),
   ]);
 
   return (

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ResourceView } from "@/components/admin/resource-view";
 import { RESOURCES, isResourceKey } from "@/lib/admin/registry";
+import { requireSession } from "@/lib/auth";
 
 /**
  * One route for all eight lookup entities; the registry supplies the rest.
@@ -24,8 +25,9 @@ export default async function ResourcePage({ params }: { params: Promise<{ resou
   const { resource } = await params;
   if (!isResourceKey(resource)) notFound();
 
+  const user = await requireSession();
   const config = RESOURCES[resource];
-  const [rows, options] = await Promise.all([config.list(), config.optionsFor()]);
+  const [rows, options] = await Promise.all([config.list(user.id), config.optionsFor(user.id)]);
 
   return (
     <ResourceView
@@ -36,6 +38,7 @@ export default async function ResourcePage({ params }: { params: Promise<{ resou
       columns={config.columns}
       rows={rows}
       options={options}
+      readOnly={resource === "categories" && user.role !== "admin"}
     />
   );
 }

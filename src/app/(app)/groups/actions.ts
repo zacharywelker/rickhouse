@@ -11,6 +11,15 @@ import { resolveSlug } from "@/lib/slug";
 import { groupSchema } from "@/lib/groups/schemas";
 import type { ActionResult } from "@/lib/admin/types";
 
+/**
+ * Groups are per account. Every lookup goes through ownedGroup, so another
+ * account's group id reads as gone; bottles added to a group must share its
+ * owner, which a trigger in Postgres enforces.
+ */
+function ownedGroup(id: number, ownerId: number) {
+  return and(eq(groups.id, id), eq(groups.ownerId, ownerId));
+}
+
 function invalid(issues: { path: PropertyKey[]; message: string }[]): ActionResult {
   const fieldErrors: Record<string, string> = {};
   for (const issue of issues) {
@@ -21,7 +30,7 @@ function invalid(issues: { path: PropertyKey[]; message: string }[]): ActionResu
 }
 
 export async function saveGroupAction(id: number | null, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
 
   const parsed = groupSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return invalid(parsed.error.issues);
@@ -35,15 +44,17 @@ export async function saveGroupAction(id: number | null, _prev: ActionResult, fo
         table: groups,
         column: groups.slug,
         idColumn: groups.id,
+        scope: { column: groups.ownerId, value: user.id },
         requested: null,
         fallbackFrom: input.name,
       });
-      const [row] = await db.insert(groups).values({ ...input, slug }).returning({ id: groups.id });
+      const [row] = await db.insert(groups).values({ ...input, slug, ownerId: user.id }).returning({ id: groups.id });
       revalidatePath("/groups");
       return { ok: true, message: "Group created.", createdId: row!.id };
     }
 
-    await db.update(groups).set(input).where(eq(groups.id, id));
+    const updated = await db.update(groups).set(input).where(ownedGroup(id, user.id)).returning({ id: groups.id });
+    if (updated.length === 0) return { ok: false, error: "That group is gone." };
     revalidatePath("/groups");
     revalidatePath(`/groups/${id}`);
     return { ok: true, message: "Group saved.", createdId: id };
@@ -53,13 +64,13 @@ export async function saveGroupAction(id: number | null, _prev: ActionResult, fo
 }
 
 export async function deleteGroupAction(id: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
-    const [group] = await db.select().from(groups).where(eq(groups.id, id)).limit(1);
+    const [group] = await db.select().from(groups).where(ownedGroup(id, user.id)).limit(1);
     if (!group) return { ok: false, error: "That group is already gone." };
 
     // Bottles cascade in the database; the cover image file does not.
-    await db.delete(groups).where(eq(groups.id, id));
+    await db.delete(groups).where(ownedGroup(id, user.id));
     if (group.coverImagePath) await deleteStoredImage(group.coverImagePath, null);
 
     revalidatePath("/groups");
@@ -70,12 +81,12 @@ export async function deleteGroupAction(id: number): Promise<ActionResult> {
 }
 
 export async function removeGroupCoverAction(id: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
-    const [group] = await db.select().from(groups).where(eq(groups.id, id)).limit(1);
+    const [group] = await db.select().from(groups).where(ownedGroup(id, user.id)).limit(1);
     if (!group) return { ok: false, error: "That group is already gone." };
 
-    await db.update(groups).set({ coverImagePath: null }).where(eq(groups.id, id));
+    await db.update(groups).set({ coverImagePath: null }).where(ownedGroup(id, user.id));
     if (group.coverImagePath) await deleteStoredImage(group.coverImagePath, null);
 
     revalidatePath("/groups");
@@ -96,9 +107,9 @@ export async function setBottleGroupMembershipAction(
   groupId: number,
   member: boolean,
 ): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
-    const [group] = await db.select({ id: groups.id }).from(groups).where(eq(groups.id, groupId)).limit(1);
+    const [group] = await db.select({ id: groups.id }).from(groups).where(ownedGroup(groupId, user.id)).limit(1);
     if (!group) return { ok: false, error: "That group is gone." };
 
     if (member) {

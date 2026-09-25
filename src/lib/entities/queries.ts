@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   brands,
@@ -19,7 +19,7 @@ import { describeRecipe } from "@/lib/expressions/queries";
  * a preset filter, so entity pages inherit sorting and paging for free.
  */
 
-export async function getDistillery(slug: string) {
+export async function getDistillery(slug: string, ownerId: number) {
   const [row] = await db
     .select({
       id: distilleries.id,
@@ -35,12 +35,12 @@ export async function getDistillery(slug: string) {
     })
     .from(distilleries)
     .leftJoin(companies, eq(distilleries.companyId, companies.id))
-    .where(eq(distilleries.slug, slug))
+    .where(and(eq(distilleries.ownerId, ownerId), eq(distilleries.slug, slug)))
     .limit(1);
   return row ?? null;
 }
 
-export async function getBrand(slug: string) {
+export async function getBrand(slug: string, ownerId: number) {
   const [row] = await db
     .select({
       id: brands.id,
@@ -53,22 +53,30 @@ export async function getBrand(slug: string) {
     })
     .from(brands)
     .leftJoin(companies, eq(brands.companyId, companies.id))
-    .where(eq(brands.slug, slug))
+    .where(and(eq(brands.ownerId, ownerId), eq(brands.slug, slug)))
     .limit(1);
   return row ?? null;
 }
 
-export async function getFinish(slug: string) {
-  const [row] = await db.select().from(finishes).where(eq(finishes.slug, slug)).limit(1);
+export async function getFinish(slug: string, ownerId: number) {
+  const [row] = await db
+    .select()
+    .from(finishes)
+    .where(and(eq(finishes.ownerId, ownerId), eq(finishes.slug, slug)))
+    .limit(1);
   return row ?? null;
 }
 
-export async function getStore(slug: string) {
-  const [row] = await db.select().from(stores).where(eq(stores.slug, slug)).limit(1);
+export async function getStore(slug: string, ownerId: number) {
+  const [row] = await db
+    .select()
+    .from(stores)
+    .where(and(eq(stores.ownerId, ownerId), eq(stores.slug, slug)))
+    .limit(1);
   return row ?? null;
 }
 
-export async function getMashbill(id: number) {
+export async function getMashbill(id: number, ownerId: number) {
   const [row] = await db
     .select({
       id: mashbills.id,
@@ -80,13 +88,13 @@ export async function getMashbill(id: number) {
       notes: mashbills.notes,
     })
     .from(mashbills)
-    .where(eq(mashbills.id, id))
+    .where(and(eq(mashbills.id, id), eq(mashbills.ownerId, ownerId)))
     .limit(1);
   if (!row) return null;
   return { ...row, recipe: describeRecipe(row.recipe) };
 }
 
-/** Every grain split this mashbill is used in, for its own page. */
+/** Every grain split this mashbill is used in; check ownership with getMashbill first. */
 export async function mashbillUse(id: number): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -95,7 +103,7 @@ export async function mashbillUse(id: number): Promise<number> {
   return row?.count ?? 0;
 }
 
-export async function allDistilleries() {
+export async function allDistilleries(ownerId: number) {
   return db
     .select({
       id: distilleries.id,
@@ -105,5 +113,6 @@ export async function allDistilleries() {
       country: distilleries.country,
     })
     .from(distilleries)
+    .where(eq(distilleries.ownerId, ownerId))
     .orderBy(asc(distilleries.name));
 }

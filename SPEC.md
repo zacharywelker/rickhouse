@@ -390,11 +390,14 @@ it live in issue #48; the phases, in order:
    generated passwords (first run, `dist/reset-password.mjs`, new accounts)
    must be replaced at first sign-in. Deactivation revokes every session.
    Sign-in and password changes are rate limited per client IP.~~
-2. **Private collections.** `owner_id` on bottles, groups and every catalog
-   table except `categories`; uniqueness per owner; existing data goes to the
-   first admin; every query and ID-taking action scoped to the owner; photos
-   checked against their owner. Configuration splits into a per-user catalog
-   and admin-only system settings.
+2. ~~**Private collections.** `owner_id` on bottles, groups and every catalog
+   table except `categories`; names and slugs unique per owner; existing data
+   goes to the first admin; new accounts start empty. Postgres keeps owners
+   apart (composite foreign keys, and a trigger on the link tables), and every
+   query, ID-taking action, upload and photo is scoped to the signed-in
+   account. Categories stay shared and admin-edited. Account settings (name,
+   username, password) and the admin pages (Users, Backups) live in the menu
+   under your first name, top right.~~
 3. **Email.** SMTP configured in the admin panel: password reset,
    invitations, security notices. "Forgot password" appears only once it is set.
 4. **Single sign-on.** OIDC providers (Pocket ID, Authentik, Google, …)

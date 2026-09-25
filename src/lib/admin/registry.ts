@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import { db } from "@/db";
@@ -64,11 +64,15 @@ export type ResourceConfig = {
   description: string;
   fields: FieldSpec[];
   columns: ColumnSpec[];
-  list: () => Promise<AdminRow[]>;
+  /**
+   * Every method takes the signed-in account: rows are listed, changed and
+   * deleted only when they belong to it. Categories ignore it (shared).
+   */
+  list: (ownerId: number) => Promise<AdminRow[]>;
   /** Options for every `reference` field on this resource, keyed by field name. */
-  optionsFor: () => Promise<Record<string, Option[]>>;
-  save: (raw: Record<string, unknown>, id: number | null) => Promise<SaveOutcome>;
-  remove: (id: number) => Promise<void>;
+  optionsFor: (ownerId: number) => Promise<Record<string, Option[]>>;
+  save: (raw: Record<string, unknown>, id: number | null, ownerId: number) => Promise<SaveOutcome>;
+  remove: (id: number, ownerId: number) => Promise<void>;
 };
 
 // ------------------------------------------------------------
@@ -152,7 +156,7 @@ const categoriesConfig: ResourceConfig = {
       span: "half",
     },
   ],
-  list: async () => {
+  list: async (ownerId) => {
     const rows = await db
       .select({
         id: categories.id,
@@ -162,7 +166,9 @@ const categoriesConfig: ResourceConfig = {
         parent: categoryParent.name,
         fieldGroup: categories.fieldGroup,
         sortOrder: categories.sortOrder,
-        uses: sql<number>`(select count(*)::int from ${expressions} where ${expressions.categoryId} = ${categories.id})`,
+        uses: sql<number>`(select count(*)::int from ${expressions} where ${expressions.categoryId} = ${categories.id} and ${expressions.ownerId} = ${ownerId})`,
+        // Shared rows: deleting one has to consider everyone's labels.
+        usesAnywhere: sql<number>`(select count(*)::int from ${expressions} where ${expressions.categoryId} = ${categories.id})`,
       })
       .from(categories)
       .leftJoin(categoryParent, eq(categories.parentId, categoryParent.id))
@@ -178,11 +184,13 @@ const categoriesConfig: ResourceConfig = {
         fieldGroup: r.fieldGroup,
         sortOrder: r.sortOrder,
       },
-      ...(r.uses > 0 ? { deleteBlockedBy: `${r.uses} label${r.uses === 1 ? " uses" : "s use"} this category` } : {}),
+      ...(r.usesAnywhere > 0
+        ? { deleteBlockedBy: `${r.usesAnywhere} label${r.usesAnywhere === 1 ? " uses" : "s use"} this category` }
+        : {}),
     }));
   },
   optionsFor: async () => ({ parentId: await categoryOptions() }),
-  save: async (raw, id) => {
+  save: async (raw, id, ownerId) => {
     const parsed = categorySchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
@@ -218,12 +226,13 @@ const categoriesConfig: ResourceConfig = {
     await db.update(categories).set(values).where(eq(categories.id, id));
     return { ok: true, id };
   },
-  remove: async (id) => {
+  remove: async (id, ownerId) => {
     await db.delete(categories).where(eq(categories.id, id));
   },
 };
 
-async function categoryOptions(): Promise<Option[]> {
+/** Shared by every account; the parameter keeps the loader signatures alike. */
+async function categoryOptions(_ownerId?: number): Promise<Option[]> {
   const rows = await db
     .select({ value: categories.id, label: categories.name, parentId: categories.parentId, parent: categoryParent.name })
     .from(categories)
@@ -272,7 +281,7 @@ const companiesConfig: ResourceConfig = {
     { kind: "text", name: "website", label: "Website", placeholder: "https://", span: "full" },
     notesField,
   ],
-  list: async () => {
+  list: async (ownerId) => {
     const rows = await db
       .select({
         id: companies.id,
@@ -288,6 +297,7 @@ const companiesConfig: ResourceConfig = {
       })
       .from(companies)
       .leftJoin(companyParent, eq(companies.parentId, companyParent.id))
+      .where(eq(companies.ownerId, ownerId))
       .orderBy(asc(companies.name));
 
     return rows.map((r) => ({
@@ -309,14 +319,17 @@ const companiesConfig: ResourceConfig = {
       },
     }));
   },
-  optionsFor: async () => ({ parentId: await companyOptions() }),
-  save: async (raw, id) => {
+  optionsFor: async (ownerId) => ({ parentId: await companyOptions(ownerId) }),
+  save: async (raw, id, ownerId) => {
     const parsed = companySchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
 
     if (id !== null && input.parentId !== null) {
-      const pairs = await db.select({ id: companies.id, parentId: companies.parentId }).from(companies);
+      const pairs = await db
+        .select({ id: companies.id, parentId: companies.parentId })
+        .from(companies)
+        .where(eq(companies.ownerId, ownerId));
       if (createsCycle(pairs, id, input.parentId)) {
         return { ok: false, error: "A company cannot own itself, directly or through a chain.", fieldErrors: { parentId: "Creates a loop." } };
       }
@@ -326,6 +339,7 @@ const companiesConfig: ResourceConfig = {
       table: companies,
       column: companies.slug,
       idColumn: companies.id,
+      scope: { column: companies.ownerId, value: ownerId },
       requested: input.slug,
       fallbackFrom: input.name,
       ...(id !== null ? { excludeId: id } : {}),
@@ -341,21 +355,26 @@ const companiesConfig: ResourceConfig = {
     };
 
     if (id === null) {
-      const [row] = await db.insert(companies).values(values).returning({ id: companies.id });
+      const [row] = await db.insert(companies).values({ ...values, ownerId }).returning({ id: companies.id });
       return { ok: true, id: row!.id };
     }
-    await db.update(companies).set(values).where(eq(companies.id, id));
-    return { ok: true, id };
+    const updated = await db
+      .update(companies)
+      .set(values)
+      .where(and(eq(companies.id, id), eq(companies.ownerId, ownerId)))
+      .returning({ id: companies.id });
+    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
   },
-  remove: async (id) => {
-    await db.delete(companies).where(eq(companies.id, id));
+  remove: async (id, ownerId) => {
+    await db.delete(companies).where(and(eq(companies.id, id), eq(companies.ownerId, ownerId)));
   },
 };
 
-async function companyOptions(): Promise<Option[]> {
+async function companyOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
     .select({ value: companies.id, label: companies.name, parentId: companies.parentId, hint: companies.country })
     .from(companies)
+    .where(eq(companies.ownerId, ownerId))
     .orderBy(asc(companies.name));
   return rows.map((r) => ({
     value: r.value,
@@ -394,7 +413,7 @@ const brandsConfig: ResourceConfig = {
     },
     notesField,
   ],
-  list: async () => {
+  list: async (ownerId) => {
     const rows = await db
       .select({
         id: brands.id,
@@ -408,6 +427,7 @@ const brandsConfig: ResourceConfig = {
       })
       .from(brands)
       .leftJoin(companies, eq(brands.companyId, companies.id))
+      .where(eq(brands.ownerId, ownerId))
       .orderBy(asc(brands.name));
 
     return rows.map((r) => ({
@@ -417,8 +437,8 @@ const brandsConfig: ResourceConfig = {
       ...(r.uses > 0 ? { deleteBlockedBy: `${r.uses} label${r.uses === 1 ? " uses" : "s use"} this brand` } : {}),
     }));
   },
-  optionsFor: async () => ({ companyId: await companyOptions() }),
-  save: async (raw, id) => {
+  optionsFor: async (ownerId) => ({ companyId: await companyOptions(ownerId) }),
+  save: async (raw, id, ownerId) => {
     const parsed = brandSchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
@@ -427,6 +447,7 @@ const brandsConfig: ResourceConfig = {
       table: brands,
       column: brands.slug,
       idColumn: brands.id,
+      scope: { column: brands.ownerId, value: ownerId },
       requested: input.slug,
       fallbackFrom: input.name,
       ...(id !== null ? { excludeId: id } : {}),
@@ -435,14 +456,18 @@ const brandsConfig: ResourceConfig = {
     const values = { name: input.name, slug, companyId: input.companyId, isNdp: input.isNdp, notes: input.notes };
 
     if (id === null) {
-      const [row] = await db.insert(brands).values(values).returning({ id: brands.id });
+      const [row] = await db.insert(brands).values({ ...values, ownerId }).returning({ id: brands.id });
       return { ok: true, id: row!.id };
     }
-    await db.update(brands).set(values).where(eq(brands.id, id));
-    return { ok: true, id };
+    const updated = await db
+      .update(brands)
+      .set(values)
+      .where(and(eq(brands.id, id), eq(brands.ownerId, ownerId)))
+      .returning({ id: brands.id });
+    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
   },
-  remove: async (id) => {
-    await db.delete(brands).where(eq(brands.id, id));
+  remove: async (id, ownerId) => {
+    await db.delete(brands).where(and(eq(brands.id, id), eq(brands.ownerId, ownerId)));
   },
 };
 
@@ -474,7 +499,7 @@ const distilleriesConfig: ResourceConfig = {
     { kind: "number", name: "founded", label: "Founded", min: 1600, max: 2200, step: 1, span: "half" },
     notesField,
   ],
-  list: async () => {
+  list: async (ownerId) => {
     const rows = await db
       .select({
         id: distilleries.id,
@@ -492,6 +517,7 @@ const distilleriesConfig: ResourceConfig = {
       })
       .from(distilleries)
       .leftJoin(companies, eq(distilleries.companyId, companies.id))
+      .where(eq(distilleries.ownerId, ownerId))
       .orderBy(asc(distilleries.name));
 
     return rows.map((r) => ({
@@ -516,8 +542,8 @@ const distilleriesConfig: ResourceConfig = {
       },
     }));
   },
-  optionsFor: async () => ({ companyId: await companyOptions() }),
-  save: async (raw, id) => {
+  optionsFor: async (ownerId) => ({ companyId: await companyOptions(ownerId) }),
+  save: async (raw, id, ownerId) => {
     const parsed = distillerySchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
@@ -526,6 +552,7 @@ const distilleriesConfig: ResourceConfig = {
       table: distilleries,
       column: distilleries.slug,
       idColumn: distilleries.id,
+      scope: { column: distilleries.ownerId, value: ownerId },
       requested: input.slug,
       fallbackFrom: input.name,
       ...(id !== null ? { excludeId: id } : {}),
@@ -544,21 +571,26 @@ const distilleriesConfig: ResourceConfig = {
     };
 
     if (id === null) {
-      const [row] = await db.insert(distilleries).values(values).returning({ id: distilleries.id });
+      const [row] = await db.insert(distilleries).values({ ...values, ownerId }).returning({ id: distilleries.id });
       return { ok: true, id: row!.id };
     }
-    await db.update(distilleries).set(values).where(eq(distilleries.id, id));
-    return { ok: true, id };
+    const updated = await db
+      .update(distilleries)
+      .set(values)
+      .where(and(eq(distilleries.id, id), eq(distilleries.ownerId, ownerId)))
+      .returning({ id: distilleries.id });
+    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
   },
-  remove: async (id) => {
-    await db.delete(distilleries).where(eq(distilleries.id, id));
+  remove: async (id, ownerId) => {
+    await db.delete(distilleries).where(and(eq(distilleries.id, id), eq(distilleries.ownerId, ownerId)));
   },
 };
 
-async function distilleryOptions(): Promise<Option[]> {
+async function distilleryOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
     .select({ value: distilleries.id, label: distilleries.name, state: distilleries.state })
     .from(distilleries)
+    .where(eq(distilleries.ownerId, ownerId))
     .orderBy(asc(distilleries.name));
   return rows.map((r) => ({ value: r.value, label: r.label, ...(r.state ? { hint: r.state } : {}) }));
 }
@@ -584,7 +616,7 @@ const mashbillsConfig: ResourceConfig = {
     { kind: "text", name: "name", label: "Name", placeholder: "BBC High Rye", span: "half" },
     notesField,
   ],
-  list: async () => {
+  list: async (ownerId) => {
     const rows = await db
       .select({
         id: mashbills.id,
@@ -593,6 +625,7 @@ const mashbillsConfig: ResourceConfig = {
         uses: sql<number>`(select count(*)::int from ${expressionMashbills} where ${expressionMashbills.mashbillId} = ${mashbills.id})`,
       })
       .from(mashbills)
+      .where(eq(mashbills.ownerId, ownerId))
       .orderBy(asc(mashbills.name), asc(mashbills.id));
 
     const grains = await db
@@ -603,6 +636,8 @@ const mashbillsConfig: ResourceConfig = {
         position: mashbillGrains.position,
       })
       .from(mashbillGrains)
+      .innerJoin(mashbills, eq(mashbills.id, mashbillGrains.mashbillId))
+      .where(eq(mashbills.ownerId, ownerId))
       .orderBy(asc(mashbillGrains.mashbillId), asc(mashbillGrains.position));
 
     const byMashbill = new Map<number, Array<{ grain: string; percent: string; position: number }>>();
@@ -627,7 +662,7 @@ const mashbillsConfig: ResourceConfig = {
     });
   },
   optionsFor: async () => ({}),
-  save: async (raw, id) => {
+  save: async (raw, id, ownerId) => {
     const parsed = mashbillSchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
@@ -640,10 +675,16 @@ const mashbillsConfig: ResourceConfig = {
      * only judged at commit — which is exactly why it is deferrable.
      */
     return db.transaction(async (tx) => {
-      const mashbillId =
+      const [row] =
         id === null
-          ? (await tx.insert(mashbills).values(values).returning({ id: mashbills.id }))[0]!.id
-          : (await tx.update(mashbills).set(values).where(eq(mashbills.id, id)).returning({ id: mashbills.id }))[0]!.id;
+          ? await tx.insert(mashbills).values({ ...values, ownerId }).returning({ id: mashbills.id })
+          : await tx
+              .update(mashbills)
+              .set(values)
+              .where(and(eq(mashbills.id, id), eq(mashbills.ownerId, ownerId)))
+              .returning({ id: mashbills.id });
+      if (!row) return { ok: false, error: "That no longer exists." };
+      const mashbillId = row.id;
 
       await tx.delete(mashbillGrains).where(eq(mashbillGrains.mashbillId, mashbillId));
       if (input.grains.length > 0) {
@@ -659,8 +700,8 @@ const mashbillsConfig: ResourceConfig = {
       return { ok: true as const, id: mashbillId };
     });
   },
-  remove: async (id) => {
-    await db.delete(mashbills).where(eq(mashbills.id, id));
+  remove: async (id, ownerId) => {
+    await db.delete(mashbills).where(and(eq(mashbills.id, id), eq(mashbills.ownerId, ownerId)));
   },
 };
 
@@ -691,7 +732,7 @@ const finishesConfig: ResourceConfig = {
     },
     notesField,
   ],
-  list: async () => {
+  list: async (ownerId) => {
     const rows = await db
       .select({
         id: finishes.id,
@@ -702,6 +743,7 @@ const finishesConfig: ResourceConfig = {
         uses: sql<number>`(select count(*)::int from ${expressionFinishes} where ${expressionFinishes.finishId} = ${finishes.id})`,
       })
       .from(finishes)
+      .where(eq(finishes.ownerId, ownerId))
       .orderBy(asc(finishes.name));
 
     return rows.map((r) => ({
@@ -711,7 +753,7 @@ const finishesConfig: ResourceConfig = {
     }));
   },
   optionsFor: async () => ({}),
-  save: async (raw, id) => {
+  save: async (raw, id, ownerId) => {
     const parsed = finishSchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
@@ -720,6 +762,7 @@ const finishesConfig: ResourceConfig = {
       table: finishes,
       column: finishes.slug,
       idColumn: finishes.id,
+      scope: { column: finishes.ownerId, value: ownerId },
       requested: input.slug,
       fallbackFrom: input.name,
       ...(id !== null ? { excludeId: id } : {}),
@@ -728,14 +771,18 @@ const finishesConfig: ResourceConfig = {
     const values = { name: input.name, slug, finishType: input.finishType, notes: input.notes };
 
     if (id === null) {
-      const [row] = await db.insert(finishes).values(values).returning({ id: finishes.id });
+      const [row] = await db.insert(finishes).values({ ...values, ownerId }).returning({ id: finishes.id });
       return { ok: true, id: row!.id };
     }
-    await db.update(finishes).set(values).where(eq(finishes.id, id));
-    return { ok: true, id };
+    const updated = await db
+      .update(finishes)
+      .set(values)
+      .where(and(eq(finishes.id, id), eq(finishes.ownerId, ownerId)))
+      .returning({ id: finishes.id });
+    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
   },
-  remove: async (id) => {
-    await db.delete(finishes).where(eq(finishes.id, id));
+  remove: async (id, ownerId) => {
+    await db.delete(finishes).where(and(eq(finishes.id, id), eq(finishes.ownerId, ownerId)));
   },
 };
 
@@ -762,7 +809,7 @@ const storesConfig: ResourceConfig = {
     { kind: "text", name: "url", label: "Website", placeholder: "https://", span: "full" },
     notesField,
   ],
-  list: async () => {
+  list: async (ownerId) => {
     const rows = await db
       .select({
         id: stores.id,
@@ -775,6 +822,7 @@ const storesConfig: ResourceConfig = {
         uses: sql<number>`(select count(*)::int from ${bottles} where ${bottles.storeId} = ${stores.id})`,
       })
       .from(stores)
+      .where(eq(stores.ownerId, ownerId))
       .orderBy(asc(stores.name));
 
     return rows.map((r) => ({
@@ -791,7 +839,7 @@ const storesConfig: ResourceConfig = {
     }));
   },
   optionsFor: async () => ({}),
-  save: async (raw, id) => {
+  save: async (raw, id, ownerId) => {
     const parsed = storeSchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
@@ -800,6 +848,7 @@ const storesConfig: ResourceConfig = {
       table: stores,
       column: stores.slug,
       idColumn: stores.id,
+      scope: { column: stores.ownerId, value: ownerId },
       requested: input.slug,
       fallbackFrom: input.name,
       ...(id !== null ? { excludeId: id } : {}),
@@ -815,14 +864,18 @@ const storesConfig: ResourceConfig = {
     };
 
     if (id === null) {
-      const [row] = await db.insert(stores).values(values).returning({ id: stores.id });
+      const [row] = await db.insert(stores).values({ ...values, ownerId }).returning({ id: stores.id });
       return { ok: true, id: row!.id };
     }
-    await db.update(stores).set(values).where(eq(stores.id, id));
-    return { ok: true, id };
+    const updated = await db
+      .update(stores)
+      .set(values)
+      .where(and(eq(stores.id, id), eq(stores.ownerId, ownerId)))
+      .returning({ id: stores.id });
+    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
   },
-  remove: async (id) => {
-    await db.delete(stores).where(eq(stores.id, id));
+  remove: async (id, ownerId) => {
+    await db.delete(stores).where(and(eq(stores.id, id), eq(stores.ownerId, ownerId)));
   },
 };
 
@@ -841,7 +894,7 @@ const tagsConfig: ResourceConfig = {
     slugField,
     { kind: "text", name: "color", label: "Colour", placeholder: "#b5651d", help: "A hex colour, or leave blank.", span: "half" },
   ],
-  list: async () => {
+  list: async (ownerId) => {
     const rows = await db
       .select({
         id: tags.id,
@@ -851,6 +904,7 @@ const tagsConfig: ResourceConfig = {
         uses: sql<number>`(select count(*)::int from ${bottleTags} where ${bottleTags.tagId} = ${tags.id})`,
       })
       .from(tags)
+      .where(eq(tags.ownerId, ownerId))
       .orderBy(asc(tags.name));
 
     return rows.map((r) => ({
@@ -860,7 +914,7 @@ const tagsConfig: ResourceConfig = {
     }));
   },
   optionsFor: async () => ({}),
-  save: async (raw, id) => {
+  save: async (raw, id, ownerId) => {
     const parsed = tagSchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
@@ -869,6 +923,7 @@ const tagsConfig: ResourceConfig = {
       table: tags,
       column: tags.slug,
       idColumn: tags.id,
+      scope: { column: tags.ownerId, value: ownerId },
       requested: input.slug,
       fallbackFrom: input.name,
       ...(id !== null ? { excludeId: id } : {}),
@@ -877,14 +932,18 @@ const tagsConfig: ResourceConfig = {
     const values = { name: input.name, slug, color: input.color };
 
     if (id === null) {
-      const [row] = await db.insert(tags).values(values).returning({ id: tags.id });
+      const [row] = await db.insert(tags).values({ ...values, ownerId }).returning({ id: tags.id });
       return { ok: true, id: row!.id };
     }
-    await db.update(tags).set(values).where(eq(tags.id, id));
-    return { ok: true, id };
+    const updated = await db
+      .update(tags)
+      .set(values)
+      .where(and(eq(tags.id, id), eq(tags.ownerId, ownerId)))
+      .returning({ id: tags.id });
+    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
   },
-  remove: async (id) => {
-    await db.delete(tags).where(eq(tags.id, id));
+  remove: async (id, ownerId) => {
+    await db.delete(tags).where(and(eq(tags.id, id), eq(tags.ownerId, ownerId)));
   },
 };
 
@@ -901,27 +960,30 @@ export const RESOURCES: Record<ResourceKey, ResourceConfig> = {
   tags: tagsConfig,
 };
 
-async function brandOptions(): Promise<Option[]> {
+async function brandOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
     .select({ value: brands.id, label: brands.name, hint: companies.name })
     .from(brands)
     .leftJoin(companies, eq(brands.companyId, companies.id))
+    .where(eq(brands.ownerId, ownerId))
     .orderBy(asc(brands.name));
   return rows.map((r) => ({ value: r.value, label: r.label, ...(r.hint ? { hint: r.hint } : {}) }));
 }
 
-async function finishOptions(): Promise<Option[]> {
+async function finishOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
     .select({ value: finishes.id, label: finishes.name, hint: finishes.finishType })
     .from(finishes)
+    .where(eq(finishes.ownerId, ownerId))
     .orderBy(asc(finishes.name));
   return rows.map((r) => ({ value: r.value, label: r.label, hint: r.hint }));
 }
 
-async function storeOptions(): Promise<Option[]> {
+async function storeOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
     .select({ value: stores.id, label: stores.name, hint: stores.location })
     .from(stores)
+    .where(eq(stores.ownerId, ownerId))
     .orderBy(asc(stores.name));
   return rows.map((r) => ({ value: r.value, label: r.label, ...(r.hint ? { hint: r.hint } : {}) }));
 }
@@ -932,7 +994,7 @@ async function storeOptions(): Promise<Option[]> {
  * across producers — so no distillery shows up here; that correlation is
  * per-label (issue #13), picked in the expression form instead.
  */
-async function mashbillOptions(): Promise<Option[]> {
+async function mashbillOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
     .select({
       value: mashbills.id,
@@ -944,6 +1006,7 @@ async function mashbillOptions(): Promise<Option[]> {
       )`,
     })
     .from(mashbills)
+    .where(eq(mashbills.ownerId, ownerId))
     .orderBy(asc(mashbills.name), asc(mashbills.id));
 
   return rows.map((r) => {
@@ -963,8 +1026,12 @@ async function mashbillOptions(): Promise<Option[]> {
   });
 }
 
-async function tagOptions(): Promise<Option[]> {
-  const rows = await db.select({ value: tags.id, label: tags.name }).from(tags).orderBy(asc(tags.name));
+async function tagOptions(ownerId: number): Promise<Option[]> {
+  const rows = await db
+    .select({ value: tags.id, label: tags.name })
+    .from(tags)
+    .where(eq(tags.ownerId, ownerId))
+    .orderBy(asc(tags.name));
   return rows;
 }
 

@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
-import { sql } from "drizzle-orm";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleImages } from "@/db/schema";
+import { bottleImages, bottles } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { ImageError, storeBottleImage } from "@/lib/images";
@@ -18,7 +17,7 @@ import type { ActionResult } from "@/lib/admin/types";
  * route handler reads the body directly and doesn't hit that path.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse<ActionResult>> {
-  await requireSession();
+  const user = await requireSession();
 
   const { id } = await params;
   const bottleId = Number(id);
@@ -33,6 +32,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
+    // Checked before any file is written, so a stranger's bottle id stores nothing.
+    const owned = await db.$count(bottles, and(eq(bottles.id, bottleId), eq(bottles.ownerId, user.id)));
+    if (owned === 0) return NextResponse.json({ ok: false, error: "That bottle is gone." }, { status: 404 });
+
     const [existing] = await db
       .select({ count: sql<number>`count(*)::int`, maxOrder: sql<number>`coalesce(max(${bottleImages.sortOrder}), -1)::int` })
       .from(bottleImages)

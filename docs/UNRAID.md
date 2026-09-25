@@ -140,10 +140,20 @@ Welcome home.
 
 ### Adding everyone else
 
-**Configuration → Users** creates accounts. Rickhouse makes up a temporary
+**Users**, in the menu under your name at the top right, creates accounts. Rickhouse makes up a temporary
 password for each one; hand it over, and they choose their own when they first
 sign in. The same page makes someone an admin, deactivates an account (which
 signs them out everywhere), resets a password, or deletes an account.
+
+Every account has its own private collection: bottles, labels, brands,
+distilleries, stores, tags and groups, plus the photos that go with them.
+New accounts start empty. Nobody, admins included, can see into anyone
+else's collection; the spirit categories (Whiskey › Bourbon…) are the one
+thing everyone shares, and only admins can change them. Deleting an account
+deletes its collection too, so deactivate instead if you might want it back.
+
+People change their own name, username and password from **Account settings**
+in that same menu.
 
 ### Check the health endpoint
 
@@ -202,7 +212,8 @@ No rebuilding. No cloning. No server-side development environment. Just the new 
 
 Older versions used one `APP_PASSWORD` for everyone. The first start after
 updating creates an `admin` account, prints its password to the log (see
-Step 4), and ignores `APP_PASSWORD` from then on. Sign in with the printed
+Step 4), and ignores `APP_PASSWORD` from then on. Your existing collection
+becomes that admin account's. Sign in with the printed
 password, choose your own, then create accounts for everyone else. You can
 delete `APP_PASSWORD` from `.env` whenever you like.
 
@@ -233,7 +244,7 @@ references it anymore.
 
 ## Automatic backups (recommended)
 
-**Admin → Backups** in the app itself schedules and runs backups — no host
+**Backups**, in the admin menu under your name, in the app itself schedules and runs backups — no host
 script, no cron. Turn it on, set how often (in hours) and how many to keep,
 and Rickhouse dumps the database and snapshots `UPLOAD_DIR` on its own from
 inside the container. The same page also has a **Run backup now** button and
@@ -347,7 +358,7 @@ type into the browser.
 
 ### Forgot a password
 
-An admin can reset anyone's password from **Configuration → Users**. If the
+An admin can reset anyone's password from **Users** in the menu under their name. If the
 admin is the one locked out, use the Unraid terminal:
 
 ```bash

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, getViewSelectedFields, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
+import { and, eq, getViewSelectedFields, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList } from "@/db/schema";
 import type { GridRow } from "./grid";
@@ -37,8 +37,9 @@ function categorySubtree(ids: number[]): SQL {
   )`;
 }
 
-function buildWhere(filters: RouletteFilters): SQL {
+function buildWhere(filters: RouletteFilters, ownerId: number): SQL {
   const clauses: SQL[] = [
+    eq(bottleList.ownerId, ownerId),
     // Only bottles still on the shelf — a wishlist entry or a bottle you
     // killed, sold, or traded away isn't something you can pour tonight.
     inArray(bottleList.status, ["owned", "open"]),
@@ -60,11 +61,11 @@ function buildWhere(filters: RouletteFilters): SQL {
 
 const { search: _search, searchText: _searchText, ...ROULETTE_COLUMNS } = getViewSelectedFields(bottleList);
 
-export async function spinBottle(filters: RouletteFilters): Promise<GridRow | null> {
+export async function spinBottle(filters: RouletteFilters, ownerId: number): Promise<GridRow | null> {
   const [row] = await db
     .select(ROULETTE_COLUMNS)
     .from(bottleList)
-    .where(buildWhere(filters))
+    .where(buildWhere(filters, ownerId))
     .orderBy(sql`random()`)
     .limit(1);
   return row ?? null;

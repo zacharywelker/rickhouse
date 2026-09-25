@@ -9,6 +9,7 @@ import { FilterBar } from "@/components/bottles/filter-bar";
 import { GridPagination } from "@/components/bottles/grid-pagination";
 import { SpinTheBottle } from "@/components/bottles/spin-the-bottle";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
+import { requireSession } from "@/lib/auth";
 import { activeFilterCount, parseFilters } from "@/lib/bottles/filters";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { formatMoney, formatNumeric } from "@/lib/utils";
@@ -21,19 +22,19 @@ export default async function BottlesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const filters = parseFilters(await searchParams);
+  const [user, filters] = await Promise.all([requireSession(), searchParams.then(parseFilters)]);
 
   const [{ rows, total, pageCount, page }, summary, categories, brands, distilleries, mashbills, finishes, stores, tags] =
     await Promise.all([
-      queryBottles(filters),
-      summariseBottles(filters),
-      REFERENCE_OPTION_LOADERS.categories(),
-      REFERENCE_OPTION_LOADERS.brands(),
-      REFERENCE_OPTION_LOADERS.distilleries(),
-      REFERENCE_OPTION_LOADERS.mashbills(),
-      REFERENCE_OPTION_LOADERS.finishes(),
-      REFERENCE_OPTION_LOADERS.stores(),
-      REFERENCE_OPTION_LOADERS.tags(),
+      queryBottles(filters, user.id),
+      summariseBottles(filters, user.id),
+      REFERENCE_OPTION_LOADERS.categories(user.id),
+      REFERENCE_OPTION_LOADERS.brands(user.id),
+      REFERENCE_OPTION_LOADERS.distilleries(user.id),
+      REFERENCE_OPTION_LOADERS.mashbills(user.id),
+      REFERENCE_OPTION_LOADERS.finishes(user.id),
+      REFERENCE_OPTION_LOADERS.stores(user.id),
+      REFERENCE_OPTION_LOADERS.tags(user.id),
     ]);
 
   const filtered = activeFilterCount(filters) > 0;

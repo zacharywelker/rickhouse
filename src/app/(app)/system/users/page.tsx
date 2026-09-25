@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { asc } from "drizzle-orm";
-import { CreateUserForm } from "@/components/admin/users/create-user-form";
-import { UserActions } from "@/components/admin/users/user-actions";
+import { CreateUserForm } from "@/components/system/users/create-user-form";
+import { UserActions } from "@/components/system/users/user-actions";
 import { Badge } from "@/components/ui/badge";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

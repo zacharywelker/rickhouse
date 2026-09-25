@@ -8,6 +8,7 @@ import { LabelPagination } from "@/components/expressions/label-pagination";
 import { queryExpressions } from "@/lib/expressions/queries";
 import { activeLabelFilterCount, parseLabelFilters } from "@/lib/expressions/filters";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Labels" };
 export const dynamic = "force-dynamic";
@@ -17,11 +18,12 @@ export default async function ExpressionsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const user = await requireSession();
   const filters = parseLabelFilters(await searchParams);
   const [{ rows, total, pageCount, page }, brands, categories] = await Promise.all([
-    queryExpressions(filters),
-    REFERENCE_OPTION_LOADERS.brands(),
-    REFERENCE_OPTION_LOADERS.categories(),
+    queryExpressions(filters, user.id),
+    REFERENCE_OPTION_LOADERS.brands(user.id),
+    REFERENCE_OPTION_LOADERS.categories(user.id),
   ]);
   const filtered = activeLabelFilterCount(filters) > 0;
 

@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ADMIN_NAV } from "@/lib/admin/nav";
 
-export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
+export function AdminNav() {
   const pathname = usePathname();
 
   return (
     <nav aria-label="Configuration sections" className="flex flex-wrap gap-1.5">
-      {ADMIN_NAV.filter((item) => isAdmin || !item.adminOnly).map((item) => {
+      {ADMIN_NAV.map((item) => {
         const active = pathname === item.href;
         return (
           <Link
