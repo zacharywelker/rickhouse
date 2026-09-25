@@ -72,7 +72,7 @@ export default async function ExpressionsPage({
         </div>
       ) : (
         <>
-          <LabelTable rows={rows} filters={filters} />
+          <LabelTable rows={rows} filters={filters} brands={brands} categories={categories} />
           <LabelPagination filters={filters} page={page} pageCount={pageCount} total={total} />
         </>
       )}

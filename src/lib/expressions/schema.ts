@@ -212,6 +212,44 @@ export const bottleGridEditSchema = z.object({
 
 export type BottleGridEditInput = z.infer<typeof bottleGridEditSchema>;
 
+/**
+ * The subset of `expressionSchema` editable inline from the labels grid's
+ * unlocked "edit" mode — the fields requested for bulk correction, matching
+ * the same shape the bottle grid's edit mode already uses. Relational fields
+ * (mashbills, finishes, distilleries) stay off the grid: a spreadsheet cell
+ * is the wrong shape for an ordered multi-row relationship, same reasoning
+ * `ExpressionBulkGrid` already documents for excluding them there.
+ */
+export const expressionGridEditSchema = z.object({
+  brandId: requiredRef,
+  categoryId: requiredRef,
+  proof: optionalDecimal(0, 200),
+  msrp: optionalDecimal(0, 99_999_999),
+  sizeMl: blankIfAbsent(
+    z.union([z.literal(""), z.coerce.number().int().min(1).max(20000)]).transform((v) => (v === "" ? 750 : v)),
+  ),
+  upc: blankIfAbsent(
+    trimmed
+      .max(32)
+      .refine((v) => v === "" || /^[0-9]{6,32}$/.test(v), "A barcode is 6–32 digits.")
+      .transform((v) => (v === "" ? null : v)),
+  ),
+  ageStatement: optionalText(200),
+  ageYears: optionalDecimal(0, 100),
+  ageMonths: optionalInt(0, 1200),
+  ageDays: optionalInt(0, 40000),
+  entryProof: optionalDecimal(0, 200),
+  charLevel: optionalText(80),
+  isCaskStrength: checkbox,
+  isStraight: checkbox,
+  isNas: checkbox,
+  isBottledInBond: checkbox,
+  isChillFiltered: tristate,
+  colorAdded: tristate,
+});
+
+export type ExpressionGridEditInput = z.infer<typeof expressionGridEditSchema>;
+
 export const tastingNoteSchema = z.object({
   tastedOn: blankIfAbsent(
     trimmed

@@ -464,7 +464,7 @@ export function BottleTable({
         <BottleCards rows={rows} />
       </div>
 
-      <div className="hidden border border-border bg-card md:block">
+      <div className={cn("hidden border border-border bg-card md:block", unlocked && "overflow-x-auto")}>
         <Table>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (

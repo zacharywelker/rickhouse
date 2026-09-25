@@ -10,9 +10,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { GridEditBar } from "@/components/ui/grid-edit-bar";
 import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LabelTableBody } from "@/components/expressions/label-table-body";
-import { deleteExpressionsBulkAction } from "@/app/(app)/expressions/actions";
+import { deleteExpressionsBulkAction, updateExpressionsBulkAction } from "@/app/(app)/expressions/actions";
 import { serialiseLabelFilters, type LabelFilters } from "@/lib/expressions/filters";
 import type { ExpressionRow, LabelSort } from "@/lib/expressions/queries";
+import type { Option } from "@/lib/admin/types";
 import { cn } from "@/lib/utils";
 
 const COLUMNS: Array<{ key: LabelSort; label: string; className?: string; numeric?: boolean }> = [
@@ -23,6 +24,76 @@ const COLUMNS: Array<{ key: LabelSort; label: string; className?: string; numeri
   { key: "msrp", label: "MSRP", className: "hidden sm:table-cell", numeric: true },
   { key: "bottles", label: "Bottles", numeric: true },
 ];
+
+/** Extra columns shown only once the grid is unlocked — matching the bottle
+ * grid's Release Year column, which also only appears in edit mode. */
+const EXTRA_COLUMNS = [
+  "Age Statement",
+  "Age (y / m / d)",
+  "Entry Proof",
+  "Char Level",
+  "Size (mL)",
+  "Barcode",
+  "Cask Str.",
+  "Straight",
+  "NAS",
+  "BiB",
+  "Chill Filt.",
+  "Colour Added",
+];
+
+/**
+ * The fields the unlocked grid can edit inline — the labels counterpart to
+ * `GridEdit` in `bottle-table.tsx` (see `expressionGridEditSchema`).
+ */
+export type LabelGridEdit = {
+  brandId: number;
+  categoryId: number;
+  proof: string;
+  msrp: string;
+  sizeMl: string;
+  upc: string;
+  ageStatement: string;
+  ageYears: string;
+  ageMonths: string;
+  ageDays: string;
+  entryProof: string;
+  charLevel: string;
+  isCaskStrength: boolean;
+  isStraight: boolean;
+  isNas: boolean;
+  isBottledInBond: boolean;
+  isChillFiltered: string;
+  colorAdded: string;
+};
+
+function editableFrom(row: ExpressionRow): LabelGridEdit {
+  return {
+    brandId: row.brandId,
+    categoryId: row.categoryId,
+    proof: row.proof ?? "",
+    msrp: row.msrp ?? "",
+    sizeMl: String(row.sizeMl),
+    upc: row.upc ?? "",
+    ageStatement: row.ageStatement ?? "",
+    ageYears: row.ageYears ?? "",
+    ageMonths: row.ageMonths === null ? "" : String(row.ageMonths),
+    ageDays: row.ageDays === null ? "" : String(row.ageDays),
+    entryProof: row.entryProof ?? "",
+    charLevel: row.charLevel ?? "",
+    isCaskStrength: row.isCaskStrength,
+    isStraight: row.isStraight,
+    isNas: row.isNas,
+    isBottledInBond: row.isBottledInBond,
+    isChillFiltered: row.isChillFiltered === null ? "" : String(row.isChillFiltered),
+    colorAdded: row.colorAdded === null ? "" : String(row.colorAdded),
+  };
+}
+
+function isDirty(row: ExpressionRow, edit: LabelGridEdit): boolean {
+  const original = editableFrom(row);
+  return (Object.keys(edit) as Array<keyof LabelGridEdit>).some((key) => edit[key] !== original[key]);
+}
 
 /**
  * Sorting is server-side and lives in the URL, exactly like the bottle grid —
@@ -61,22 +132,34 @@ function SortLink({ column, filters }: { column: (typeof COLUMNS)[number]; filte
 
 /**
  * Wraps the labels table with an unlockable "edit" mode (issue: bulk delete
- * for bottles and labels). Selection and lock state have to live above both
- * the header (select-all checkbox) and the body (row checkboxes), which is
- * why this — not the server page — owns the whole `<Table>`.
+ * and edit for bottles and labels), mirroring `BottleTable`'s lock toggle,
+ * checkbox column, dirty-row tracking and `GridEditBar` so the two grids look
+ * and behave the same way.
  *
- * Bulk *editing* label fields is not wired up yet: only bulk delete. The
- * relational fields (mashbills, finishes, distilleries) don't fit a
+ * Bulk editing covers the scalar fields listed in `expressionGridEditSchema`.
+ * The relational fields (mashbills, finishes, distilleries) don't fit a
  * spreadsheet cell — same reasoning `ExpressionBulkGrid` already documents —
  * so every row keeps its pencil link straight to the full edit page.
  */
-export function LabelTable({ rows, filters }: { rows: ExpressionRow[]; filters: LabelFilters }) {
+export function LabelTable({
+  rows,
+  filters,
+  brands,
+  categories,
+}: {
+  rows: ExpressionRow[];
+  filters: LabelFilters;
+  brands: Option[];
+  categories: Option[];
+}) {
   const router = useRouter();
   const [unlocked, setUnlocked] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<ReadonlySet<number>>(new Set());
+  const [edits, setEdits] = React.useState<Record<number, LabelGridEdit>>({});
 
   React.useEffect(() => {
     setSelectedIds(new Set());
+    setEdits({});
   }, [rows]);
 
   function toggle(id: number, selected: boolean) {
@@ -88,8 +171,33 @@ export function LabelTable({ rows, filters }: { rows: ExpressionRow[]; filters: 
     });
   }
 
+  function updateEdit<K extends keyof LabelGridEdit>(row: ExpressionRow, field: K, value: LabelGridEdit[K]) {
+    setEdits((prev) => ({
+      ...prev,
+      [row.id]: { ...(prev[row.id] ?? editableFrom(row)), [field]: value },
+    }));
+  }
+
+  const dirtyIds = React.useMemo(
+    () => rows.filter((row) => edits[row.id] && isDirty(row, edits[row.id]!)).map((row) => row.id),
+    [rows, edits],
+  );
+
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
   const someSelected = rows.some((row) => selectedIds.has(row.id));
+
+  async function handleSaveChanges() {
+    const payload = dirtyIds.map((id) => ({ id, ...edits[id]! }));
+    const result = await updateExpressionsBulkAction(payload);
+    const savedIds = new Set(result.results.filter((r) => r.ok).map((r) => r.id));
+    setEdits((prev) => {
+      const next = { ...prev };
+      for (const id of savedIds) delete next[id];
+      return next;
+    });
+    if (savedIds.size > 0) router.refresh();
+    return result;
+  }
 
   async function handleDeleteSelected() {
     const ids = Array.from(selectedIds);
@@ -108,8 +216,10 @@ export function LabelTable({ rows, filters }: { rows: ExpressionRow[]; filters: 
           variant="outline"
           size="sm"
           onClick={() => {
+            if (unlocked && dirtyIds.length > 0 && !window.confirm("Discard unsaved changes?")) return;
             setUnlocked((prev) => !prev);
             setSelectedIds(new Set());
+            setEdits({});
           }}
         >
           {unlocked ? <LockOpen className="size-4" /> : <Lock className="size-4" />}
@@ -117,7 +227,7 @@ export function LabelTable({ rows, filters }: { rows: ExpressionRow[]; filters: 
         </Button>
       </div>
 
-      <div className="border border-border bg-card">
+      <div className={cn("border border-border bg-card", unlocked && "overflow-x-auto")}>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -137,12 +247,28 @@ export function LabelTable({ rows, filters }: { rows: ExpressionRow[]; filters: 
                   <SortLink column={column} filters={filters} />
                 </TableHead>
               ))}
+              {unlocked
+                ? EXTRA_COLUMNS.map((label) => (
+                    <TableHead key={label} className="whitespace-nowrap">
+                      {label}
+                    </TableHead>
+                  ))
+                : null}
               <TableHead className="w-12 text-right">
                 <span className="sr-only">Actions</span>
               </TableHead>
             </TableRow>
           </TableHeader>
-          <LabelTableBody rows={rows} unlocked={unlocked} selectedIds={selectedIds} onToggle={toggle} />
+          <LabelTableBody
+            rows={rows}
+            unlocked={unlocked}
+            selectedIds={selectedIds}
+            onToggle={toggle}
+            brands={brands}
+            categories={categories}
+            edits={edits}
+            updateEdit={updateEdit}
+          />
         </Table>
       </div>
 
@@ -152,8 +278,8 @@ export function LabelTable({ rows, filters }: { rows: ExpressionRow[]; filters: 
           selectedCount={selectedIds.size}
           onClearSelection={() => setSelectedIds(new Set())}
           onDeleteSelected={handleDeleteSelected}
-          dirtyCount={0}
-          onSaveChanges={async () => ({ savedCount: 0, results: [] })}
+          dirtyCount={dirtyIds.length}
+          onSaveChanges={handleSaveChanges}
         />
       ) : null}
     </>
