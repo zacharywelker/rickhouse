@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { ImportForm } from "@/components/bottles/import-form";
@@ -37,7 +36,6 @@ export default function ImportPage() {
           </p>
           <Button variant="outline" size="sm" className="w-fit" asChild>
             <a href="/api/bottles/export" download>
-              <Download className="size-4" />
               Download current collection
             </a>
           </Button>

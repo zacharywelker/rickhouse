@@ -23,7 +23,7 @@ test("the gauge is a real slider, not just a picture", async ({ page }) => {
   await expect(gauge).toHaveAttribute("aria-valuemin", "0");
   await expect(gauge).toHaveAttribute("aria-valuemax", "100");
   await expect(gauge).toHaveAttribute("aria-orientation", "vertical");
-  await expect(gauge).toHaveAttribute("aria-valuetext", /percent full/);
+  await expect(gauge).toHaveAttribute("aria-valuetext", "Full");
 });
 
 test("the gauge can be poured with the keyboard and the level sticks", async ({ page }) => {
@@ -45,7 +45,20 @@ test("the gauge can be poured with the keyboard and the level sticks", async ({ 
   await page.waitForTimeout(1200);
   await page.reload();
   await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuenow", "79");
-  await expect(page.getByLabel("Exact level")).toHaveValue("79");
+  // 79% reads as the nearest quick state.
+  await expect(page.getByRole("radio", { name: "Three quarters full" })).toBeChecked();
+});
+
+test("a quick state sets the level in one tap", async ({ page }) => {
+  await openSeededBottle(page);
+  await page.getByText("½", { exact: true }).click();
+  const gauge = page.getByRole("slider", { name: "Fill level" });
+  await expect(gauge).toHaveAttribute("aria-valuenow", "50");
+  await expect(gauge).toHaveAttribute("aria-valuetext", "Half full");
+
+  await page.waitForTimeout(1200);
+  await page.reload();
+  await expect(page.getByRole("radio", { name: "Half full" })).toBeChecked();
 });
 
 test("opening a bottle stamps the date", async ({ page }) => {
@@ -55,11 +68,11 @@ test("opening a bottle stamps the date", async ({ page }) => {
   // Wait for the stamped date, not for the word "Opened" — the label carries
   // that text whether or not the write landed, so asserting on it would let
   // the reload below race an in-flight server action.
-  await expect(page.getByRole("definition").first()).toHaveText(/\d{4}-\d{2}-\d{2}/);
+  await expect(page.getByRole("definition").first()).toHaveText(/[A-Z][a-z]{2} \d{1,2}, \d{4}/);
 
   await page.reload();
   await expect(page.getByLabel("Opened", { exact: true })).toBeChecked();
-  await expect(page.getByRole("definition").first()).toHaveText(/\d{4}-\d{2}-\d{2}/);
+  await expect(page.getByRole("definition").first()).toHaveText(/[A-Z][a-z]{2} \d{1,2}, \d{4}/);
 });
 
 test("emptying a bottle offers to mark it killed", async ({ page }) => {

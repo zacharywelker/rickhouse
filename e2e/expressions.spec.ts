@@ -64,10 +64,10 @@ test("single barrel reveals the pick detail on the bottle, not the label", async
   await expect(page.getByLabel("Single Barrel", { exact: true })).toBeHidden();
 
   await page.goto("/bottles/new");
-  await expect(page.getByRole("heading", { name: "Single Barrel Detail" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Single-barrel detail" })).toBeHidden();
 
   await page.getByLabel("Single Barrel", { exact: true }).check();
-  await expect(page.getByRole("heading", { name: "Single Barrel Detail" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Single-barrel detail" })).toBeVisible();
   await expect(page.getByLabel("Picked By")).toBeVisible();
   await expect(page.getByLabel("Warehouse")).toBeVisible();
 });

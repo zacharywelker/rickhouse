@@ -64,10 +64,13 @@ export function LabelTableBody({
           <TableRow
             key={row.id}
             onDoubleClick={(event) => !unlocked && openOnDoubleClick(event, router, row.id)}
-            className={unlocked ? undefined : "cursor-pointer"}
+            // Top-aligned only while editing, where inputs of different
+            // heights share a row; read-only rows centre, so the text lines up
+            // with the edit button beside it.
+            className={unlocked ? "[&>td]:align-top" : "cursor-pointer"}
           >
             {unlocked ? (
-              <TableCell className="align-top">
+              <TableCell>
                 <Checkbox
                   checked={selectedIds.has(row.id)}
                   onCheckedChange={(value) => onToggle(row.id, Boolean(value))}
@@ -76,7 +79,7 @@ export function LabelTableBody({
               </TableCell>
             ) : null}
 
-            <TableCell className="hidden align-top font-medium sm:table-cell">
+            <TableCell className="hidden font-medium sm:table-cell">
               {unlocked ? (
                 <ReferenceCombobox
                   id={`grid-brand-${row.id}`}
@@ -93,7 +96,7 @@ export function LabelTableBody({
               )}
             </TableCell>
 
-            <TableCell className="align-top">
+            <TableCell>
               {/* Brand folds in here on a phone; the edit link is the only
                   way into a label, so it must never be squeezed off. */}
               <span className="block text-xs text-muted-foreground sm:hidden">{row.brand}</span>
@@ -105,7 +108,7 @@ export function LabelTableBody({
               ) : null}
             </TableCell>
 
-            <TableCell className="hidden align-top sm:table-cell">
+            <TableCell className="hidden sm:table-cell">
               {unlocked ? (
                 <ReferenceCombobox
                   id={`grid-category-${row.id}`}
@@ -122,7 +125,7 @@ export function LabelTableBody({
               )}
             </TableCell>
 
-            <TableCell className="align-top text-right tabular-nums">
+            <TableCell className="text-right tabular-nums">
               {unlocked ? (
                 <Input
                   type="number"
@@ -138,7 +141,7 @@ export function LabelTableBody({
               )}
             </TableCell>
 
-            <TableCell className="hidden align-top text-right tabular-nums sm:table-cell">
+            <TableCell className="hidden text-right tabular-nums sm:table-cell">
               {unlocked ? (
                 <Input
                   type="number"
@@ -153,11 +156,11 @@ export function LabelTableBody({
               )}
             </TableCell>
 
-            <TableCell className="align-top text-right tabular-nums">{row.bottleCount}</TableCell>
+            <TableCell className="text-right tabular-nums">{row.bottleCount}</TableCell>
 
             {unlocked ? (
               <>
-                <TableCell className="align-top">
+                <TableCell>
                   <Input
                     value={edit?.ageStatement ?? row.ageStatement ?? ""}
                     placeholder="e.g. 7 Year"
@@ -165,7 +168,7 @@ export function LabelTableBody({
                     className="h-8 w-28"
                   />
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell>
                   <div className="flex items-center gap-1">
                     <Input
                       type="number"
@@ -199,7 +202,7 @@ export function LabelTableBody({
                     />
                   </div>
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell>
                   <Input
                     type="number"
                     min={0}
@@ -210,7 +213,7 @@ export function LabelTableBody({
                     className="h-8 w-20"
                   />
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell>
                   <Input
                     value={edit?.charLevel ?? row.charLevel ?? ""}
                     placeholder="#4 alligator char"
@@ -218,7 +221,7 @@ export function LabelTableBody({
                     className="h-8 w-32"
                   />
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell>
                   <Input
                     type="number"
                     min={1}
@@ -229,42 +232,42 @@ export function LabelTableBody({
                     className="h-8 w-20"
                   />
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell>
                   <Input
                     value={edit?.upc ?? row.upc ?? ""}
                     onChange={(e) => updateEdit(row, "upc", e.target.value)}
                     className="h-8 w-32"
                   />
                 </TableCell>
-                <TableCell className="align-top text-center">
+                <TableCell className="text-center">
                   <Checkbox
                     checked={edit?.isCaskStrength ?? row.isCaskStrength}
                     onCheckedChange={(value) => updateEdit(row, "isCaskStrength", Boolean(value))}
                     aria-label="Cask strength"
                   />
                 </TableCell>
-                <TableCell className="align-top text-center">
+                <TableCell className="text-center">
                   <Checkbox
                     checked={edit?.isStraight ?? row.isStraight}
                     onCheckedChange={(value) => updateEdit(row, "isStraight", Boolean(value))}
                     aria-label="Straight"
                   />
                 </TableCell>
-                <TableCell className="align-top text-center">
+                <TableCell className="text-center">
                   <Checkbox
                     checked={edit?.isNas ?? row.isNas}
                     onCheckedChange={(value) => updateEdit(row, "isNas", Boolean(value))}
                     aria-label="NAS"
                   />
                 </TableCell>
-                <TableCell className="align-top text-center">
+                <TableCell className="text-center">
                   <Checkbox
                     checked={edit?.isBottledInBond ?? row.isBottledInBond}
                     onCheckedChange={(value) => updateEdit(row, "isBottledInBond", Boolean(value))}
                     aria-label="Bottled in bond"
                   />
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell>
                   <select
                     value={edit?.isChillFiltered ?? (row.isChillFiltered === null ? "" : String(row.isChillFiltered))}
                     onChange={(e) => updateEdit(row, "isChillFiltered", e.target.value)}
@@ -277,7 +280,7 @@ export function LabelTableBody({
                     ))}
                   </select>
                 </TableCell>
-                <TableCell className="align-top">
+                <TableCell>
                   <select
                     value={edit?.colorAdded ?? (row.colorAdded === null ? "" : String(row.colorAdded))}
                     onChange={(e) => updateEdit(row, "colorAdded", e.target.value)}
@@ -293,9 +296,13 @@ export function LabelTableBody({
               </>
             ) : null}
 
-            <TableCell className="align-top text-right">
+            <TableCell className="text-right">
               <Button variant="ghost" size="sm" asChild>
-                <Link href={`/expressions/${row.id}/edit`} aria-label={`Edit ${row.brand} ${row.name}`}>
+                <Link
+                  href={`/expressions/${row.id}/edit`}
+                  aria-label={`Edit ${row.brand} ${row.name}`}
+                  title={`Edit ${row.brand} ${row.name}`}
+                >
                   <Pencil className="size-4" />
                 </Link>
               </Button>

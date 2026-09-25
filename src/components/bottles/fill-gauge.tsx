@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { FieldGroup } from "@/db/schema";
 import { categoryColorVar } from "@/lib/bottles/category-color";
+import { fillStateDescription } from "@/lib/bottles/fill-state";
 import { LIQUID_BOTTOM, clampPct, pctFromY, surfaceY } from "@/lib/bottles/geometry";
 import { cn } from "@/lib/utils";
 
@@ -143,7 +144,7 @@ export function FillGauge({
             "aria-valuemin": 0,
             "aria-valuemax": 100,
             "aria-valuenow": pct,
-            "aria-valuetext": `${pct} percent full`,
+            "aria-valuetext": fillStateDescription(pct),
             "aria-orientation": "vertical" as const,
             onKeyDown,
             onPointerDown: (event: React.PointerEvent) => {
@@ -155,7 +156,7 @@ export function FillGauge({
           }
         : decorative
         ? { "aria-hidden": true, role: undefined }
-        : { "aria-label": `${label}: ${pct} percent full` })}
+        : { "aria-label": `${label}: ${fillStateDescription(pct)}` })}
     >
       <defs>
         <clipPath id={clipId}>

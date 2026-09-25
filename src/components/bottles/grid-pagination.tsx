@@ -54,6 +54,7 @@ export function GridPagination({
             disabled={page <= 1 || pending}
             onClick={() => apply({ page: page - 1 })}
             aria-label="Previous page"
+            title="Previous page"
           >
             <ChevronLeft className="size-4" />
           </Button>
@@ -67,6 +68,7 @@ export function GridPagination({
             disabled={page >= pageCount || pending}
             onClick={() => apply({ page: page + 1 })}
             aria-label="Next page"
+            title="Next page"
           >
             <ChevronRight className="size-4" />
           </Button>

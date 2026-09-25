@@ -98,7 +98,7 @@ export function BottleForm({
         return (
         <Section key={section.id}>
           <SectionHeader>
-            <SectionTitle>{section.id === "bottle" && !bottleId ? "Add a Bottle" : section.title}</SectionTitle>
+            <SectionTitle>{section.title}</SectionTitle>
             {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
           </SectionHeader>
           <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -2,11 +2,11 @@ import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList } from "@/db/schema";
-import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
+import { Section, SectionContent, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { requireSession } from "@/lib/auth";
 import { isOpenNow } from "@/lib/bottles/grid";
-import { formatMoney, formatNumeric } from "@/lib/utils";
+import { formatMoney, formatNumeric, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -63,10 +63,6 @@ export default async function HomePage() {
       <Section>
         <SectionHeader>
           <SectionTitle>Recently acquired</SectionTitle>
-          <SectionDescription>
-            Each bottle has its own page. The sortable, filterable grid and the fill gauge arrive in the next
-            milestone.
-          </SectionDescription>
         </SectionHeader>
         <SectionContent>
           {recent.length === 0 ? (
@@ -90,6 +86,7 @@ export default async function HomePage() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">
+                    {bottle.dateAcquired ? `${formatDate(bottle.dateAcquired)} · ` : ""}
                     {bottle.category}
                     {bottle.distilleries ? ` · ${bottle.distilleries}` : ""}
                     {bottle.finishes ? ` · finished in ${bottle.finishes}` : ""}
@@ -100,12 +97,6 @@ export default async function HomePage() {
           )}
         </SectionContent>
       </Section>
-
-      <footer className="mt-auto text-xs text-muted-foreground">
-        <Link href="/api/health" className="hover:text-accent">
-          Health check
-        </Link>
-      </footer>
     </div>
   );
 }

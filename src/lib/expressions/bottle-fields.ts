@@ -18,7 +18,7 @@ const titleCase = (value: string) => value[0]!.toUpperCase() + value.slice(1);
 export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
   {
     id: "bottle",
-    title: "This Bottle",
+    title: "This bottle",
     description: "What is true of this particular bottle. The recipe, distillery and MSRP live on the label.",
     fields: [
       {
@@ -75,7 +75,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
   },
   {
     id: "pick",
-    title: "Single Barrel Detail",
+    title: "Single-barrel detail",
     description: "Fill and bottling dates give the exact age without you having to work it out.",
     showWhenAny: ["isSingleBarrel", "isSingleBarrelPick"],
     fields: [
@@ -105,7 +105,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
   },
   {
     id: "override",
-    title: "This Bottle's Own Proof And Age",
+    title: "This bottle's own proof and age",
     description:
       "Leave these blank to use the label's. A single barrel almost always differs on exactly these two, " +
       "which is why they are here at all.",

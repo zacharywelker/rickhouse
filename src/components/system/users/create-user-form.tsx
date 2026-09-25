@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState } from "react";
-import { UserPlus } from "lucide-react";
 import { createUserAction, type UserActionResult } from "@/app/(app)/system/users/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +41,6 @@ export function CreateUserForm() {
         </div>
         <div className="sm:col-span-2">
           <Button type="submit" disabled={pending}>
-            <UserPlus className="size-4" />
             {pending ? "Creating…" : "Create account"}
           </Button>
         </div>

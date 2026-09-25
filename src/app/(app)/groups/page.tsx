@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { GroupCard } from "@/components/groups/group-card";
 import { listGroups } from "@/lib/groups/queries";
@@ -21,7 +21,6 @@ export default async function GroupsPage() {
         </div>
         <Button asChild>
           <Link href="/groups/new">
-            <Plus className="size-4" />
             New group
           </Link>
         </Button>

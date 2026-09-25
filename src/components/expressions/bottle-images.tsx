@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { GripVertical, ImagePlus, Loader2, Star, Trash2 } from "lucide-react";
+import { GripVertical, Loader2, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Grain } from "@/components/ui/grain";
 import { cn } from "@/lib/utils";
@@ -81,7 +81,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl">Photos</h2>
         <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={busy}>
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
+          {busy ? <Loader2 className="size-4 animate-spin" /> : null}
           Add photos
         </Button>
         <input
@@ -210,6 +210,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                       onClick={() => void setPrimaryImageAction(image.id).then(() => router.refresh())}
                       disabled={image.isPrimary}
                       aria-label="Make hero image"
+                      title="Make hero image"
                     >
                       <Star className={cn("size-4", image.isPrimary && "fill-current")} />
                     </Button>
@@ -220,6 +221,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                       className="size-7 p-0 text-white hover:bg-white/20"
                       onClick={() => void deleteBottleImageAction(image.id).then(() => router.refresh())}
                       aria-label="Delete photo"
+                      title="Delete photo"
                     >
                       <Trash2 className="size-4" />
                     </Button>

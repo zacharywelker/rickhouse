@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Layers, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { fillStateText } from "@/lib/bottles/fill-state";
 import { cn, formatNumeric, humanise } from "@/lib/utils";
 import type { GridRow } from "@/lib/bottles/grid";
 import { FillGauge } from "./fill-gauge";
@@ -41,8 +42,8 @@ function BottleTile({ row }: { row: GridRow }) {
           <Star className="absolute right-2 top-2 size-4 fill-accent text-accent" aria-label="Favorite" />
         ) : null}
         {row.thumbPath ? (
-          <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-xs tabular-nums text-white">
-            {row.fillPct}%
+          <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
+            {fillStateText(row.fillPct)}
           </span>
         ) : null}
       </div>
@@ -113,7 +114,7 @@ function FamilyCluster({ rows, onExpand }: { rows: GridRow[]; onExpand: () => vo
       <div className="flex flex-1 flex-col gap-1 pt-2">
         <p className="text-xs text-muted-foreground">{front.brand}</p>
         <p className="font-medium leading-tight group-hover:text-accent">{front.expressionName}</p>
-        <p className="text-xs text-muted-foreground">Tap to see all {rows.length}</p>
+        <p className="text-xs text-muted-foreground">See all {rows.length}</p>
       </div>
     </button>
   );

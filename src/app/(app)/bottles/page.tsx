@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Download, Plus, Rows3, Upload } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { BottleGallery } from "@/components/bottles/bottle-gallery";
@@ -49,25 +49,21 @@ export default async function BottlesPage({
           <SpinTheBottle categories={categories} finishes={finishes} />
           <Button variant="outline" asChild>
             <a href="/api/bottles/export" download>
-              <Download className="size-4" />
               Export
             </a>
           </Button>
           <Button variant="outline" asChild>
             <Link href="/bottles/import">
-              <Upload className="size-4" />
               Import
             </Link>
           </Button>
           <Button variant="outline" asChild>
             <Link href="/bottles/bulk">
-              <Rows3 className="size-4" />
               Bulk add
             </Link>
           </Button>
           <Button asChild>
             <Link href="/bottles/new">
-              <Plus className="size-4" />
               Add bottle
             </Link>
           </Button>
@@ -96,7 +92,6 @@ export default async function BottlesPage({
           {!filtered ? (
             <Button className="mt-4" asChild>
               <Link href="/bottles/new">
-                <Plus className="size-4" />
                 Add bottle
               </Link>
             </Button>
