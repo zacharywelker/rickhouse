@@ -21,7 +21,7 @@ export async function saveBackupSettingsAction(_prev: ActionResult, formData: Fo
   }
 
   await updateBackupSettings({ enabled, intervalHours, keep });
-  revalidatePath("/admin/backups");
+  revalidatePath("/system/backups");
   return { ok: true, message: "Backup settings saved." };
 }
 
@@ -29,7 +29,7 @@ export async function runBackupNowAction(): Promise<ActionResult> {
   await requireAdmin();
 
   const result = await runBackup();
-  revalidatePath("/admin/backups");
+  revalidatePath("/system/backups");
   if (!result.ok) return { ok: false, error: result.error };
   return { ok: true, message: `Backup written to ${result.dir}.` };
 }

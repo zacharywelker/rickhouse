@@ -1,14 +1,15 @@
 /**
  * Idempotent seed. Runs on every container start.
  *
- *  - The category tree is always ensured, so a fresh install is navigable.
- *  - The Pursuit Double Oak Spirit example is inserted only while the
- *    collection is empty, so it never reappears after you delete it.
+ *  - The category tree (shared by every account) is always ensured.
+ *  - Accounts start with an empty catalog and collection. The Pursuit
+ *    Double Oak Spirit example is only added for SEED_EXAMPLE_FOR=<username>,
+ *    which `npm run db:reset` sets for its test admin.
  *
  * Run directly with `npm run db:seed`.
  */
 import { drizzle } from "drizzle-orm/postgres-js";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import postgres from "postgres";
 import * as schema from "../src/db/schema";
 
@@ -80,9 +81,15 @@ async function seedCategories(db: Db): Promise<void> {
   }
 }
 
-/** The reference bottle from SPEC.md, end to end, as a smoke test. */
-async function seedPursuitExample(db: Db): Promise<void> {
-  const [existing] = await db.select({ count: sql<number>`count(*)::int` }).from(bottles);
+/**
+ * The reference bottle from SPEC.md, end to end, for one account. New
+ * accounts start empty, so this only runs when asked (see main).
+ */
+async function seedPursuitExample(db: Db, ownerId: number): Promise<void> {
+  const [existing] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(bottles)
+    .where(eq(bottles.ownerId, ownerId));
   if ((existing?.count ?? 0) > 0) {
     console.log("seed: collection is not empty, skipping the example bottle");
     return;
@@ -90,36 +97,36 @@ async function seedPursuitExample(db: Db): Promise<void> {
 
   const [company] = await db
     .insert(companies)
-    .values({ name: "Pursuit Spirits", slug: "pursuit-spirits", country: "USA" })
-    .onConflictDoNothing({ target: companies.slug })
+    .values({ ownerId, name: "Pursuit Spirits", slug: "pursuit-spirits", country: "USA" })
+    .onConflictDoNothing({ target: [companies.ownerId, companies.slug] })
     .returning({ id: companies.id });
   const companyId =
     company?.id ??
-    (await db.select({ id: companies.id }).from(companies).where(eq(companies.slug, "pursuit-spirits")).limit(1))[0]!
+    (await db.select({ id: companies.id }).from(companies).where(and(eq(companies.ownerId, ownerId), eq(companies.slug, "pursuit-spirits"))).limit(1))[0]!
       .id;
 
   const [brand] = await db
     .insert(brands)
-    .values({ name: "Pursuit Spirits", slug: "pursuit-spirits-brand", companyId, isNdp: true })
-    .onConflictDoNothing({ target: brands.slug })
+    .values({ ownerId, name: "Pursuit Spirits", slug: "pursuit-spirits-brand", companyId, isNdp: true })
+    .onConflictDoNothing({ target: [brands.ownerId, brands.slug] })
     .returning({ id: brands.id });
   const brandId =
     brand?.id ??
-    (await db.select({ id: brands.id }).from(brands).where(eq(brands.slug, "pursuit-spirits-brand")).limit(1))[0]!.id;
+    (await db.select({ id: brands.id }).from(brands).where(and(eq(brands.ownerId, ownerId), eq(brands.slug, "pursuit-spirits-brand"))).limit(1))[0]!.id;
 
   const distilleryRows = await db
     .insert(distilleries)
     .values([
-      { name: "Bardstown Bourbon Company", slug: "bardstown-bourbon-company", state: "KY", country: "USA" },
-      { name: "Tennessee Distilling Ltd.", slug: "tennessee-distilling", state: "TN", country: "USA" },
-      { name: "Finger Lakes Distilling", slug: "finger-lakes-distilling", state: "NY", country: "USA" },
+      { ownerId, name: "Bardstown Bourbon Company", slug: "bardstown-bourbon-company", state: "KY", country: "USA" },
+      { ownerId, name: "Tennessee Distilling Ltd.", slug: "tennessee-distilling", state: "TN", country: "USA" },
+      { ownerId, name: "Finger Lakes Distilling", slug: "finger-lakes-distilling", state: "NY", country: "USA" },
     ])
-    .onConflictDoNothing({ target: distilleries.slug })
+    .onConflictDoNothing({ target: [distilleries.ownerId, distilleries.slug] })
     .returning({ id: distilleries.id, slug: distilleries.slug });
 
   const distilleryId = async (slug: string): Promise<number> =>
     distilleryRows.find((d) => d.slug === slug)?.id ??
-    (await db.select({ id: distilleries.id }).from(distilleries).where(eq(distilleries.slug, slug)).limit(1))[0]!.id;
+    (await db.select({ id: distilleries.id }).from(distilleries).where(and(eq(distilleries.ownerId, ownerId), eq(distilleries.slug, slug))).limit(1))[0]!.id;
 
   // Blend of 3: one mashbill per contributing distillery.
   const bbcId = await distilleryId("bardstown-bourbon-company");
@@ -128,7 +135,11 @@ async function seedPursuitExample(db: Db): Promise<void> {
 
   const mashbillRows = await db
     .insert(mashbills)
-    .values([{ name: "BBC 78/10/12" }, { name: "TDL 80/10/10" }, { name: "FLD 70/20/10" }])
+    .values([
+      { ownerId, name: "BBC 78/10/12" },
+      { ownerId, name: "TDL 80/10/10" },
+      { ownerId, name: "FLD 70/20/10" },
+    ])
     .returning({ id: mashbills.id, name: mashbills.name });
 
   // Which distillery made each recipe — a property of this blend, not of the
@@ -158,20 +169,20 @@ async function seedPursuitExample(db: Db): Promise<void> {
 
   const [finish] = await db
     .insert(finishes)
-    .values({ name: "French Oak", slug: "french-oak", finishType: "wood" })
-    .onConflictDoNothing({ target: finishes.slug })
+    .values({ ownerId, name: "French Oak", slug: "french-oak", finishType: "wood" })
+    .onConflictDoNothing({ target: [finishes.ownerId, finishes.slug] })
     .returning({ id: finishes.id });
   const finishId =
     finish?.id ??
-    (await db.select({ id: finishes.id }).from(finishes).where(eq(finishes.slug, "french-oak")).limit(1))[0]!.id;
+    (await db.select({ id: finishes.id }).from(finishes).where(and(eq(finishes.ownerId, ownerId), eq(finishes.slug, "french-oak"))).limit(1))[0]!.id;
 
   const [store] = await db
     .insert(stores)
-    .values({ name: "P.Club by Pursuit Spirits", slug: "p-club", location: "Online", isOnline: true })
-    .onConflictDoNothing({ target: stores.slug })
+    .values({ ownerId, name: "P.Club by Pursuit Spirits", slug: "p-club", location: "Online", isOnline: true })
+    .onConflictDoNothing({ target: [stores.ownerId, stores.slug] })
     .returning({ id: stores.id });
   const storeId =
-    store?.id ?? (await db.select({ id: stores.id }).from(stores).where(eq(stores.slug, "p-club")).limit(1))[0]!.id;
+    store?.id ?? (await db.select({ id: stores.id }).from(stores).where(and(eq(stores.ownerId, ownerId), eq(stores.slug, "p-club"))).limit(1))[0]!.id;
 
   const [bourbon] = await db
     .select({ id: categories.id })
@@ -183,6 +194,7 @@ async function seedPursuitExample(db: Db): Promise<void> {
   const [expression] = await db
     .insert(expressions)
     .values({
+      ownerId,
       brandId,
       categoryId: bourbon.id,
       name: "Double Oak Spirit",
@@ -213,6 +225,7 @@ async function seedPursuitExample(db: Db): Promise<void> {
   await db.insert(expressionFinishes).values({ expressionId: expression.id, finishId, position: 0 });
 
   await db.insert(bottles).values({
+    ownerId,
     expressionId: expression.id,
     pricePaid: "69.99",
     storeId,
@@ -230,7 +243,18 @@ async function main(): Promise<void> {
   const db = drizzle(client, { schema, casing: "snake_case" });
   try {
     await seedCategories(db);
-    await seedPursuitExample(db);
+    // Dev and test databases only (npm run db:reset): give this account the
+    // example bottle. Real installs start every account empty.
+    const exampleOwner = process.env.SEED_EXAMPLE_FOR;
+    if (exampleOwner) {
+      const [owner] = await db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.username, exampleOwner))
+        .limit(1);
+      if (!owner) throw new Error(`SEED_EXAMPLE_FOR: no account named ${exampleOwner}`);
+      await seedPursuitExample(db, owner.id);
+    }
     console.log("seed complete");
   } finally {
     await client.end();

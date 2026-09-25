@@ -16,6 +16,7 @@ import {
   topMashbill,
 } from "@/lib/dashboard/queries";
 import { buildObservations, type Observation } from "@/lib/dashboard/observations";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Numbers" };
 export const dynamic = "force-dynamic";
@@ -23,18 +24,19 @@ export const dynamic = "force-dynamic";
 const LONG_HELD_YEARS = 5;
 
 export default async function NumbersPage() {
+  const user = await requireSession();
   const [stats, categories, proof, acquisitions, distilleries, mashbill, finish, expensive, longestHeld, longHeld] =
     await Promise.all([
-      headline(),
-      categoryShare(),
-      proofDistribution(),
-      acquisitionsOverTime(),
-      topDistilleries(),
-      topMashbill(),
-      topFinish(),
-      mostExpensiveBottle(),
-      longestHeldBottle(),
-      longHeldCount(LONG_HELD_YEARS),
+      headline(user.id),
+      categoryShare(user.id),
+      proofDistribution(user.id),
+      acquisitionsOverTime(user.id),
+      topDistilleries(user.id),
+      topMashbill(user.id),
+      topFinish(user.id),
+      mostExpensiveBottle(user.id),
+      longestHeldBottle(user.id),
+      longHeldCount(user.id, LONG_HELD_YEARS),
     ]);
 
   const items = buildObservations({

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { requireSession } from "@/lib/auth";
 import { ChangePasswordForm } from "./change-password-form";
+import { ProfileForm } from "./profile-form";
 
 export const metadata: Metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
@@ -19,19 +20,12 @@ export default async function AccountPage() {
       <Section>
         <SectionHeader>
           <SectionTitle>Profile</SectionTitle>
-          <SectionDescription>An admin can change these from Configuration → Users.</SectionDescription>
+          <SectionDescription>
+            Signed in as {user.email} ({user.role}). Email changes arrive with email support.
+          </SectionDescription>
         </SectionHeader>
         <SectionContent>
-          <dl className="grid max-w-md grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt className="text-muted-foreground">Name</dt>
-            <dd>{user.name}</dd>
-            <dt className="text-muted-foreground">Username</dt>
-            <dd>{user.username}</dd>
-            <dt className="text-muted-foreground">Email</dt>
-            <dd>{user.email}</dd>
-            <dt className="text-muted-foreground">Role</dt>
-            <dd className="capitalize">{user.role}</dd>
-          </dl>
+          <ProfileForm name={user.name} username={user.username} />
         </SectionContent>
       </Section>
 

@@ -67,36 +67,58 @@ export const companies = pgTable(
   "companies",
   {
     id: serial("id").primaryKey(),
-    name: citext("name").notNull().unique(),
-    slug: text("slug").notNull().unique(),
+    /** The account this belongs to. Everything but categories is per-user. */
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+    name: citext("name").notNull(),
+    slug: text("slug").notNull(),
     parentId: integer("parent_id").references((): AnyPgColumn => companies.id, { onDelete: "set null" }),
     country: text("country"),
     website: text("website"),
     notes: text("notes"),
   },
-  (t) => [index("companies_parent_idx").on(t.parentId)],
+  (t) => [
+    index("companies_parent_idx").on(t.parentId),
+    index("companies_owner_idx").on(t.ownerId),
+    unique("companies_owner_name_unique").on(t.ownerId, t.name),
+    unique("companies_owner_slug_unique").on(t.ownerId, t.slug),
+  ],
 );
 
 export const brands = pgTable(
   "brands",
   {
     id: serial("id").primaryKey(),
-    name: citext("name").notNull().unique(),
-    slug: text("slug").notNull().unique(),
+    /** The account this belongs to. Everything but categories is per-user. */
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+    name: citext("name").notNull(),
+    slug: text("slug").notNull(),
     companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
     /** Non-distiller producer: sources whiskey rather than distilling it. */
     isNdp: boolean("is_ndp").notNull().default(false),
     notes: text("notes"),
   },
-  (t) => [index("brands_company_idx").on(t.companyId)],
+  (t) => [
+    index("brands_company_idx").on(t.companyId),
+    index("brands_owner_idx").on(t.ownerId),
+    unique("brands_owner_name_unique").on(t.ownerId, t.name),
+    unique("brands_owner_slug_unique").on(t.ownerId, t.slug),
+  ],
 );
 
 export const distilleries = pgTable(
   "distilleries",
   {
     id: serial("id").primaryKey(),
-    name: citext("name").notNull().unique(),
-    slug: text("slug").notNull().unique(),
+    /** The account this belongs to. Everything but categories is per-user. */
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+    name: citext("name").notNull(),
+    slug: text("slug").notNull(),
     companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
     city: text("city"),
     state: text("state"),
@@ -105,7 +127,12 @@ export const distilleries = pgTable(
     founded: integer("founded"),
     notes: text("notes"),
   },
-  (t) => [index("distilleries_company_idx").on(t.companyId)],
+  (t) => [
+    index("distilleries_company_idx").on(t.companyId),
+    index("distilleries_owner_idx").on(t.ownerId),
+    unique("distilleries_owner_name_unique").on(t.ownerId, t.name),
+    unique("distilleries_owner_slug_unique").on(t.ownerId, t.slug),
+  ],
 );
 
 /**
@@ -117,9 +144,15 @@ export const distilleries = pgTable(
  */
 export const mashbills = pgTable("mashbills", {
   id: serial("id").primaryKey(),
+  /** The account this belongs to. Everything but categories is per-user. */
+  ownerId: integer("owner_id")
+    .notNull()
+    .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
   name: citext("name"),
   notes: text("notes"),
-});
+}, (t) => [
+  index("mashbills_owner_idx").on(t.ownerId),
+]);
 
 /**
  * Grains as rows (M7). The old fixed columns handled exactly one unusual
@@ -151,24 +184,40 @@ export const mashbillGrains = pgTable(
 
 export const finishes = pgTable("finishes", {
   id: serial("id").primaryKey(),
-  name: citext("name").notNull().unique(),
-  slug: text("slug").notNull().unique(),
+  /** The account this belongs to. Everything but categories is per-user. */
+  ownerId: integer("owner_id")
+    .notNull()
+    .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+  name: citext("name").notNull(),
+  slug: text("slug").notNull(),
   finishType: text("finish_type").notNull().default("other").$type<FinishType>(),
   notes: text("notes"),
-});
+}, (t) => [
+  index("finishes_owner_idx").on(t.ownerId),
+  unique("finishes_owner_name_unique").on(t.ownerId, t.name),
+  unique("finishes_owner_slug_unique").on(t.ownerId, t.slug),
+]);
 
 export const stores = pgTable(
   "stores",
   {
     id: serial("id").primaryKey(),
+    /** The account this belongs to. Everything but categories is per-user. */
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
     name: citext("name").notNull(),
-    slug: text("slug").notNull().unique(),
+    slug: text("slug").notNull(),
     location: text("location"),
     isOnline: boolean("is_online").notNull().default(false),
     url: text("url"),
     notes: text("notes"),
   },
-  (t) => [unique().on(t.name, t.location)],
+  (t) => [
+    index("stores_owner_idx").on(t.ownerId),
+    unique("stores_owner_name_location_unique").on(t.ownerId, t.name, t.location),
+    unique("stores_owner_slug_unique").on(t.ownerId, t.slug),
+  ],
 );
 
 // ------------------------------------------------------------
@@ -179,6 +228,10 @@ export const expressions = pgTable(
   "expressions",
   {
     id: serial("id").primaryKey(),
+    /** The account this belongs to. Everything but categories is per-user. */
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
     brandId: integer("brand_id")
       .notNull()
       .references(() => brands.id, { onDelete: "restrict" }),
@@ -186,7 +239,7 @@ export const expressions = pgTable(
       .notNull()
       .references(() => categories.id, { onDelete: "restrict" }),
     name: citext("name").notNull(),
-    slug: text("slug").notNull().unique(),
+    slug: text("slug").notNull(),
 
     // Strength, as the product is normally sold. A bottle may override it.
     proof: pct("proof"),
@@ -250,6 +303,8 @@ export const expressions = pgTable(
     // Barcode lookup. Not unique: relabels and regional variants share codes.
     index("expressions_upc_idx").on(t.upc).where(sql`${t.upc} IS NOT NULL`),
     unique().on(t.brandId, t.name),
+    index("expressions_owner_idx").on(t.ownerId),
+    unique("expressions_owner_slug_unique").on(t.ownerId, t.slug),
   ],
 );
 
@@ -312,6 +367,10 @@ export const bottles = pgTable(
   "bottles",
   {
     id: serial("id").primaryKey(),
+    /** The account this belongs to. Everything but categories is per-user. */
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
     expressionId: integer("expression_id")
       .notNull()
       .references(() => expressions.id, { onDelete: "restrict" }),
@@ -369,6 +428,7 @@ export const bottles = pgTable(
     index("bottles_expression_idx").on(t.expressionId),
     index("bottles_store_idx").on(t.storeId),
     index("bottles_status_idx").on(t.status),
+    index("bottles_owner_idx").on(t.ownerId),
     check("bottles_fill_pct_check", sql`${t.fillPct} BETWEEN 0 AND 100`),
   ],
 );
@@ -434,10 +494,18 @@ export const pours = pgTable(
 
 export const tags = pgTable("tags", {
   id: serial("id").primaryKey(),
-  name: citext("name").notNull().unique(),
-  slug: text("slug").notNull().unique(),
+  /** The account this belongs to. Everything but categories is per-user. */
+  ownerId: integer("owner_id")
+    .notNull()
+    .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+  name: citext("name").notNull(),
+  slug: text("slug").notNull(),
   color: text("color"),
-});
+}, (t) => [
+  index("tags_owner_idx").on(t.ownerId),
+  unique("tags_owner_name_unique").on(t.ownerId, t.name),
+  unique("tags_owner_slug_unique").on(t.ownerId, t.slug),
+]);
 
 export const bottleTags = pgTable(
   "bottle_tags",
@@ -459,8 +527,12 @@ export const bottleTags = pgTable(
 
 export const groups = pgTable("groups", {
   id: serial("id").primaryKey(),
-  name: citext("name").notNull().unique(),
-  slug: text("slug").notNull().unique(),
+  /** The account this belongs to. Everything but categories is per-user. */
+  ownerId: integer("owner_id")
+    .notNull()
+    .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+  name: citext("name").notNull(),
+  slug: text("slug").notNull(),
   description: text("description"),
   coverImagePath: text("cover_image_path"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -468,7 +540,11 @@ export const groups = pgTable("groups", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("groups_owner_idx").on(t.ownerId),
+  unique("groups_owner_name_unique").on(t.ownerId, t.name),
+  unique("groups_owner_slug_unique").on(t.ownerId, t.slug),
+]);
 
 export const groupBottles = pgTable(
   "group_bottles",
@@ -624,6 +700,7 @@ export const verifications = pgTable(
  */
 export const bottleList = pgView("bottle_list", {
   id: integer("id").notNull(),
+  ownerId: integer("owner_id").notNull(),
   status: text("status").notNull().$type<BottleStatus>(),
   isOpen: boolean("is_open").notNull(),
   fillPct: smallint("fill_pct").notNull(),

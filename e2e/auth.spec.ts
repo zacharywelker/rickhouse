@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 
 /** Creates a member from the Users page and returns its temporary password. */
 async function createMember(page: Page, username: string): Promise<string> {
-  await page.goto("/admin/users");
+  await page.goto("/system/users");
   await page.getByLabel("Name", { exact: true }).fill(`Test ${username}`);
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Email").fill(`${username}@example.com`);
@@ -97,16 +97,56 @@ test("sign-in attempts are rate limited per client", async ({ page }) => {
 
 test("members don't see or reach the admin-only sections", async ({ page }) => {
   await signIn(page, MEMBER.username);
-  await page.goto("/admin");
-  const sections = page.getByRole("navigation", { name: "Configuration sections" });
-  await expect(sections.getByRole("link", { name: "Categories" })).toBeVisible();
-  await expect(sections.getByRole("link", { name: "Users" })).toHaveCount(0);
-  await expect(sections.getByRole("link", { name: "Backups" })).toHaveCount(0);
+  await page.getByRole("button", { name: /Account menu/ }).click();
+  await expect(page.getByRole("navigation", { name: "Account" }).getByRole("link", { name: "Account settings" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Admin" })).toHaveCount(0);
 
-  for (const path of ["/admin/users", "/admin/backups"]) {
+  for (const path of ["/system/users", "/system/backups"]) {
     const response = await page.goto(path);
     expect(response?.status()).toBe(404);
   }
+});
+
+test("admins reach Users and Backups from the menu under their name", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("button", { name: /Account menu/ }).click();
+  const admin = page.getByRole("navigation", { name: "Admin" });
+  await expect(admin.getByRole("link", { name: "Backups" })).toBeVisible();
+  await admin.getByRole("link", { name: "Users" }).click();
+  await expect(page).toHaveURL("/system/users");
+  await expect(page.getByRole("heading", { name: "Users", level: 1 })).toBeVisible();
+});
+
+test("the header shows only the first name, and profile edits show up there", async ({ page }) => {
+  await signIn(page, MEMBER.username);
+  await page.goto("/account");
+  await page.getByLabel("Name", { exact: true }).fill("Morgan Member-Smith");
+  await page.getByLabel("Username", { exact: true }).fill("morgan");
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Account menu/ })).toHaveText("Morgan");
+
+  // The new username signs in; the old one no longer does.
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await fillSignIn(page, MEMBER.username, PASSWORD);
+  await expect(page.locator("#login-error")).toBeVisible();
+  await fillSignIn(page, "morgan", PASSWORD);
+  await expect(page).toHaveURL("/");
+
+  // Put it back for the tests after this one.
+  await page.goto("/account");
+  await page.getByLabel("Name", { exact: true }).fill("Member");
+  await page.getByLabel("Username", { exact: true }).fill(MEMBER.username);
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+});
+
+test("a username someone else has is refused", async ({ page }) => {
+  await signIn(page, MEMBER.username);
+  await page.goto("/account");
+  await page.getByLabel("Username", { exact: true }).fill(ADMIN.username);
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "already uses that username" })).toBeVisible();
 });
 
 test("Better Auth's own admin endpoints are closed to the browser", async ({ page }) => {
@@ -170,7 +210,7 @@ test("deactivating an account signs it out and shuts the door", async ({ page, b
 
 test("an admin cannot demote, deactivate or delete themselves", async ({ page }) => {
   await signIn(page);
-  await page.goto("/admin/users");
+  await page.goto("/system/users");
   const me = page.locator(`tr[data-username='${ADMIN.username}']`);
   await expect(me.getByText("You")).toBeVisible();
   await expect(me.getByRole("button")).toHaveCount(0);
