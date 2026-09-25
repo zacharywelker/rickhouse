@@ -147,7 +147,7 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                         filter:
                           // Light from 315° (upper-left) casts the shadow
                           // toward the opposite corner — equal x/y offset.
-                          "drop-shadow(1.5px 1.5px 1px rgb(23 23 23 / 0.32))",
+                          "drop-shadow(1px 1px 0.5px rgb(23 23 23 / 0.18))",
                       }),
                 }}
               >

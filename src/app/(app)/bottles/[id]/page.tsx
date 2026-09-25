@@ -31,27 +31,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: row ? `${row.brand.name} ${row.expression.name}` : "Bottle" };
 }
 
-/**
- * Label facts (proof, ABV, size — printed on the bottle itself) and
- * bottle facts (what you paid, where, when — true of this one copy) get
- * two different inks: the label facts stay in the app's normal type, the
- * bottle facts render like they were filled in by hand after the fact.
- */
-function Spec({
-  label,
-  value,
-  handFont,
-}: {
-  label: string;
-  value: React.ReactNode;
-  /** A TAPE_FONTS className: renders the value like it was filled in by hand. */
-  handFont?: string;
-}) {
+function Spec({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === null || value === undefined || value === "" || value === "—") return null;
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className={cn("text-sm", handFont && cn("text-lg leading-tight text-accent", handFont))}>{value}</dd>
+      <dd className="text-base">{value}</dd>
     </div>
   );
 }
@@ -271,16 +256,14 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
           <BottleImages bottleId={bottleId} images={images} />
         </div>
 
-        <div className="flex flex-col gap-6">
-          <dl
-            className="grid grid-cols-2 gap-x-4 gap-y-4 bg-[repeating-linear-gradient(to_bottom,transparent,transparent_1.6rem,var(--color-border)_1.6rem,var(--color-border)_calc(1.6rem+1px))] py-2 sm:grid-cols-3"
-          >
+        <div className="flex flex-col gap-6 pb-6">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-4 py-2 sm:grid-cols-3">
             <Spec label="Proof" value={formatNumeric(e.proof)} />
             <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
             <Spec label="Age" value={age} />
             <Spec label="Size" value={`${e.sizeMl} ml`} />
             <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp) : null} />
-            <Spec label="Paid" value={row.bottle.pricePaid ? formatMoney(row.bottle.pricePaid) : null} handFont={handFont} />
+            <Spec label="Paid" value={row.bottle.pricePaid ? formatMoney(row.bottle.pricePaid) : null} />
             <Spec
               label="Store"
               value={
@@ -290,13 +273,12 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
                   </Link>
                 ) : null
               }
-              handFont={handFont}
             />
-            <Spec label="Acquired" value={row.bottle.dateAcquired} handFont={handFont} />
-            <Spec label="How" value={humanise(row.bottle.acquisition)} handFont={handFont} />
-            <Spec label="Status" value={humanise(row.bottle.status)} handFont={handFont} />
-            <Spec label="Where" value={row.bottle.location} handFont={handFont} />
-            <Spec label="Batch" value={b.batch} handFont={handFont} />
+            <Spec label="Acquired" value={row.bottle.dateAcquired} />
+            <Spec label="How" value={humanise(row.bottle.acquisition)} />
+            <Spec label="Status" value={humanise(row.bottle.status)} />
+            <Spec label="Where" value={row.bottle.location} />
+            <Spec label="Batch" value={b.batch} />
             <Spec label="UPC" value={e.upc} />
           </dl>
 

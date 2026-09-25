@@ -5,7 +5,16 @@ import { ArrowDown, ArrowUp, ChevronsUpDown, Plus, Rows3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LabelTableBody } from "@/components/expressions/label-table-body";
-import { listExpressions, parseLabelSort, type LabelSort } from "@/lib/expressions/queries";
+import { LabelFilterBar } from "@/components/expressions/label-filter-bar";
+import { LabelPagination } from "@/components/expressions/label-pagination";
+import { queryExpressions, type LabelSort } from "@/lib/expressions/queries";
+import {
+  activeLabelFilterCount,
+  parseLabelFilters,
+  serialiseLabelFilters,
+  type LabelFilters,
+} from "@/lib/expressions/filters";
+import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Labels" };
@@ -22,24 +31,29 @@ const COLUMNS: Array<{ key: LabelSort; label: string; className?: string; numeri
 
 /**
  * Sorting is server-side and lives in the URL, exactly like the bottle grid —
- * so a sorted view is a bookmark and the back button behaves (SPEC M8).
+ * so a sorted, filtered, paged view is a bookmark and the back button
+ * behaves (SPEC M8).
  */
 function SortLink({
   column,
-  sort,
-  desc,
+  filters,
 }: {
   column: (typeof COLUMNS)[number];
-  sort: LabelSort;
-  desc: boolean;
+  filters: LabelFilters;
 }) {
-  const active = sort === column.key;
-  // Clicking the active column flips it; a new column starts ascending.
-  const params = new URLSearchParams({ sort: column.key });
-  if (active && !desc) params.set("dir", "desc");
+  const active = filters.sort === column.key;
+  const desc = filters.desc;
+  // Clicking the active column flips it; a new column starts ascending. Any
+  // active search or filter carries over — sorting shouldn't reset them.
+  const query = serialiseLabelFilters({
+    ...filters,
+    sort: column.key,
+    desc: active ? !desc : false,
+    page: 1,
+  });
   return (
     <Link
-      href={`/expressions?${params.toString()}` as Route}
+      href={`/expressions?${query}` as Route}
       aria-label={`Sort by ${column.label}`}
       className={cn(
         "-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-foreground",
@@ -61,11 +75,13 @@ export default async function ExpressionsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const params = await searchParams;
-  const raw = Array.isArray(params.sort) ? params.sort[0] : params.sort;
-  const sort = parseLabelSort(raw);
-  const desc = (Array.isArray(params.dir) ? params.dir[0] : params.dir) === "desc";
-  const rows = await listExpressions(sort, desc);
+  const filters = parseLabelFilters(await searchParams);
+  const [{ rows, total, pageCount, page }, brands, categories] = await Promise.all([
+    queryExpressions(filters),
+    REFERENCE_OPTION_LOADERS.brands(),
+    REFERENCE_OPTION_LOADERS.categories(),
+  ]);
+  const filtered = activeLabelFilterCount(filters) > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -93,40 +109,49 @@ export default async function ExpressionsPage({
         </div>
       </div>
 
+      <LabelFilterBar filters={filters} brands={brands} categories={categories} total={total} />
+
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
-          <p className="text-lg">No labels yet</p>
+          <p className="text-lg">{filtered ? "Nothing matches those filters" : "No labels yet"}</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Start with the product — brand, mashbill, proof — then add the bottle you actually own.
+            {filtered
+              ? "Loosen a filter, or clear them all and start again."
+              : "Start with the product — brand, mashbill, proof — then add the bottle you actually own."}
           </p>
-          <Button className="mt-4" asChild>
-            <Link href="/expressions/new">
-              <Plus className="size-4" />
-              New Label
-            </Link>
-          </Button>
+          {!filtered ? (
+            <Button className="mt-4" asChild>
+              <Link href="/expressions/new">
+                <Plus className="size-4" />
+                New Label
+              </Link>
+            </Button>
+          ) : null}
         </div>
       ) : (
-        <div className="border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                {COLUMNS.map((column) => (
-                  <TableHead
-                    key={column.key}
-                    className={cn(column.className, column.numeric && "text-right")}
-                  >
-                    <SortLink column={column} sort={sort} desc={desc} />
+        <>
+          <div className="border border-border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  {COLUMNS.map((column) => (
+                    <TableHead
+                      key={column.key}
+                      className={cn(column.className, column.numeric && "text-right")}
+                    >
+                      <SortLink column={column} filters={filters} />
+                    </TableHead>
+                  ))}
+                  <TableHead className="w-12 text-right">
+                    <span className="sr-only">Actions</span>
                   </TableHead>
-                ))}
-                <TableHead className="w-12 text-right">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <LabelTableBody rows={rows} />
-          </Table>
-        </div>
+                </TableRow>
+              </TableHeader>
+              <LabelTableBody rows={rows} />
+            </Table>
+          </div>
+          <LabelPagination filters={filters} page={page} pageCount={pageCount} total={total} />
+        </>
       )}
     </div>
   );

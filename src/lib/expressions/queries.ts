@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, asc as sqlAsc, desc, desc as sqlDesc, eq, sql } from "drizzle-orm";
+import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { describeMashbill } from "@/lib/mashbills";
 import {
@@ -19,6 +19,7 @@ import {
   tastingNotes,
   type FieldGroup,
 } from "@/db/schema";
+import type { LabelFilters } from "@/lib/expressions/filters";
 
 export type LinkedEntity = { id: number; name: string; slug: string | null; amount: string | null };
 
@@ -141,23 +142,25 @@ export async function getExpression(id: number) {
   return row ?? null;
 }
 
-/** Sortable columns on the labels list (SPEC M8). */
-export const LABEL_SORTS = ["brand", "name", "category", "proof", "age", "msrp", "bottles"] as const;
-export type LabelSort = (typeof LABEL_SORTS)[number];
-
-export function parseLabelSort(raw: string | null | undefined): LabelSort {
-  return (LABEL_SORTS as readonly string[]).includes(raw ?? "") ? (raw as LabelSort) : "brand";
-}
+export { LABEL_SORTS, parseLabelSort, type LabelSort } from "@/lib/expressions/filters";
 
 /**
- * The labels list, sorted in Postgres like the bottle grid is.
+ * The labels list: filtered, sorted and paged in Postgres like the bottle
+ * grid is (src/lib/bottles/grid.ts). With hundreds of labels, an unpaged
+ * table shipping every row every load stops scaling long before the row
+ * count actually gets large.
  *
  * Batch and the single-barrel flags moved to the bottle in M7, so a label no
  * longer knows whether it is a pick — its bottles do. "Picks" counts them,
  * which is the question worth answering here anyway: how many of these did I
  * buy as store picks.
  */
-export async function listExpressions(sort: LabelSort = "brand", desc = false) {
+export async function queryExpressions(filters: LabelFilters): Promise<{
+  rows: ExpressionRow[];
+  total: number;
+  pageCount: number;
+  page: number;
+}> {
   const bottleCount = sql<number>`(select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id})`;
   const pickCount = sql<number>`(select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id} and (${bottles.isSingleBarrel} or ${bottles.isSingleBarrelPick}))`;
 
@@ -171,9 +174,28 @@ export async function listExpressions(sort: LabelSort = "brand", desc = false) {
     bottles: bottleCount,
   } as const;
 
-  const direction = desc ? sqlDesc(columns[sort]) : sqlAsc(columns[sort]);
+  const direction = filters.desc ? sqlDesc(columns[filters.sort]) : sqlAsc(columns[filters.sort]);
 
-  return db
+  const clauses = [];
+  if (filters.q) {
+    const match = or(ilike(expressions.name, `%${filters.q}%`), ilike(brands.name, `%${filters.q}%`));
+    if (match) clauses.push(match);
+  }
+  if (filters.brandIds.length > 0) clauses.push(inArray(expressions.brandId, filters.brandIds));
+  if (filters.categoryIds.length > 0) clauses.push(inArray(expressions.categoryId, filters.categoryIds));
+  const where = clauses.length === 0 ? undefined : and(...clauses);
+
+  const [{ total } = { total: 0 }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(expressions)
+    .innerJoin(brands, eq(expressions.brandId, brands.id))
+    .innerJoin(categories, eq(expressions.categoryId, categories.id))
+    .where(where);
+
+  const pageCount = Math.max(1, Math.ceil(total / filters.pageSize));
+  const page = Math.min(filters.page, pageCount);
+
+  const rows = await db
     .select({
       id: expressions.id,
       name: expressions.name,
@@ -189,11 +211,27 @@ export async function listExpressions(sort: LabelSort = "brand", desc = false) {
     .from(expressions)
     .innerJoin(brands, eq(expressions.brandId, brands.id))
     .innerJoin(categories, eq(expressions.categoryId, categories.id))
+    .where(where)
     // NULLS LAST both ways, and a stable tiebreak so paging never reshuffles.
-    .orderBy(sql`${direction} NULLS LAST`, asc(brands.name), asc(expressions.name));
+    .orderBy(sql`${direction} NULLS LAST`, asc(brands.name), asc(expressions.name))
+    .limit(filters.pageSize)
+    .offset((page - 1) * filters.pageSize);
+
+  return { rows, total, pageCount, page };
 }
 
-export type ExpressionRow = Awaited<ReturnType<typeof listExpressions>>[number];
+export type ExpressionRow = {
+  id: number;
+  name: string;
+  brand: string;
+  category: string;
+  proof: string | null;
+  ageStatement: string | null;
+  msrp: string | null;
+  upc: string | null;
+  bottleCount: number;
+  pickCount: number;
+};
 
 /** Options for the bottle form's expression picker. */
 export async function expressionOptions() {
