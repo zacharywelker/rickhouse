@@ -38,6 +38,22 @@ export function categoryTintClass(fieldGroup: FieldGroup): string {
   return CATEGORY_TINT[fieldGroup];
 }
 
+/** A stronger category wash for a backdrop that should read as that color, not just hint at it. */
+const CATEGORY_BACKDROP: Record<FieldGroup, string> = {
+  whiskey: "bg-category-whiskey/25",
+  rum: "bg-category-rum/25",
+  agave: "bg-category-agave/25",
+  brandy: "bg-category-brandy/25",
+  gin: "bg-category-gin/25",
+  vodka: "bg-category-vodka/25",
+  liqueur: "bg-category-liqueur/25",
+  other: "bg-category-other/25",
+};
+
+export function categoryBackdropClass(fieldGroup: FieldGroup): string {
+  return CATEGORY_BACKDROP[fieldGroup];
+}
+
 const CATEGORY_TEXT: Record<FieldGroup, string> = {
   whiskey: "text-category-whiskey",
   rum: "text-category-rum",
