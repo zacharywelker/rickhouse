@@ -19,6 +19,7 @@ import { Tape } from "@/components/ui/tape";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
+import { requireSession } from "@/lib/auth";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
@@ -26,8 +27,8 @@ import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
-  const row = Number.isInteger(Number(id)) ? await getBottle(Number(id)) : null;
+  const [{ id }, user] = await Promise.all([params, requireSession()]);
+  const row = Number.isInteger(Number(id)) ? await getBottle(Number(id), user.id) : null;
   return { title: row ? `${row.brand.name} ${row.expression.name}` : "Bottle" };
 }
 
@@ -133,7 +134,9 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   const bottleId = Number(id);
   if (!Number.isInteger(bottleId)) notFound();
 
-  const row = await getBottle(bottleId);
+  const user = await requireSession();
+  // Someone else's bottle is simply not found.
+  const row = await getBottle(bottleId, user.id);
   if (!row) notFound();
 
   const [images, notes, links, memberOf, allGroups] = await Promise.all([
@@ -141,7 +144,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
     tastingNotesFor(bottleId),
     expressionLinks(row.expression.id),
     groupsForBottle(bottleId),
-    allGroupOptions(),
+    allGroupOptions(user.id),
   ]);
 
   const hero = images.find((image) => image.isPrimary) ?? images[0] ?? null;

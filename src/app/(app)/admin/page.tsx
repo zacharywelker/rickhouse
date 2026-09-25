@@ -4,13 +4,15 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Section, SectionContent } from "@/components/ui/section";
 import { RESOURCES, RESOURCE_KEYS } from "@/lib/admin/registry";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Configuration" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminIndexPage() {
+  const user = await requireSession();
   const counts = await Promise.all(
-    RESOURCE_KEYS.map(async (key) => ({ key, count: (await RESOURCES[key].list()).length })),
+    RESOURCE_KEYS.map(async (key) => ({ key, count: (await RESOURCES[key].list(user.id)).length })),
   );
 
   return (

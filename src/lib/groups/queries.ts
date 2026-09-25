@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq, getViewSelectedFields, sql } from "drizzle-orm";
+import { and, asc, eq, getViewSelectedFields, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList, groupBottles, groups, type Group } from "@/db/schema";
 import type { GridRow } from "@/lib/bottles/grid";
@@ -16,7 +16,7 @@ export type GroupSummary = Group & {
 const MAX_COLLAGE_THUMBS = 3;
 
 /** The Groups list page: every group, with enough to render a cover. */
-export async function listGroups(): Promise<GroupSummary[]> {
+export async function listGroups(ownerId: number): Promise<GroupSummary[]> {
   const rows = await db
     .select({
       group: groups,
@@ -31,6 +31,7 @@ export async function listGroups(): Promise<GroupSummary[]> {
     .from(groups)
     .leftJoin(groupBottles, eq(groupBottles.groupId, groups.id))
     .leftJoin(bottleList, eq(bottleList.id, groupBottles.bottleId))
+    .where(eq(groups.ownerId, ownerId))
     .groupBy(groups.id)
     .orderBy(asc(groups.name));
 
@@ -44,8 +45,8 @@ export async function listGroups(): Promise<GroupSummary[]> {
 export type GroupDetail = { group: Group; members: GridRow[] };
 
 /** A single group and its bottles, in the order they were arranged. */
-export async function getGroupDetail(id: number): Promise<GroupDetail | null> {
-  const [group] = await db.select().from(groups).where(eq(groups.id, id)).limit(1);
+export async function getGroupDetail(id: number, ownerId: number): Promise<GroupDetail | null> {
+  const group = await getGroup(id, ownerId);
   if (!group) return null;
 
   const memberRows = await db
@@ -58,19 +59,31 @@ export async function getGroupDetail(id: number): Promise<GroupDetail | null> {
   return { group, members: memberRows.map((row) => row.bottle) };
 }
 
-export async function getGroup(id: number): Promise<Group | null> {
-  const [group] = await db.select().from(groups).where(eq(groups.id, id)).limit(1);
+/** Null unless the group belongs to `ownerId`. */
+export async function getGroup(id: number, ownerId: number): Promise<Group | null> {
+  const [group] = await db
+    .select()
+    .from(groups)
+    .where(and(eq(groups.id, id), eq(groups.ownerId, ownerId)))
+    .limit(1);
   return group ?? null;
 }
 
 export type GroupOption = { id: number; name: string };
 
 /** Every group, for the "add to group" picker on a bottle. */
-export async function allGroupOptions(): Promise<GroupOption[]> {
-  return db.select({ id: groups.id, name: groups.name }).from(groups).orderBy(asc(groups.name));
+export async function allGroupOptions(ownerId: number): Promise<GroupOption[]> {
+  return db
+    .select({ id: groups.id, name: groups.name })
+    .from(groups)
+    .where(eq(groups.ownerId, ownerId))
+    .orderBy(asc(groups.name));
 }
 
-/** The groups a given bottle already belongs to, with names for chips/links. */
+/**
+ * The groups a given bottle already belongs to, with names for chips/links.
+ * A group and its bottles always share an owner (enforced in Postgres).
+ */
 export async function groupsForBottle(bottleId: number): Promise<GroupOption[]> {
   return db
     .select({ id: groups.id, name: groups.name })
@@ -89,7 +102,7 @@ export type BottlePickerOption = {
 };
 
 /** Every bottle, lightweight, for the "add bottles to this group" picker. */
-export async function allBottleOptions(): Promise<BottlePickerOption[]> {
+export async function allBottleOptions(ownerId: number): Promise<BottlePickerOption[]> {
   return db
     .select({
       id: bottleList.id,
@@ -99,5 +112,6 @@ export async function allBottleOptions(): Promise<BottlePickerOption[]> {
       thumbPath: bottleList.thumbPath,
     })
     .from(bottleList)
+    .where(eq(bottleList.ownerId, ownerId))
     .orderBy(asc(bottleList.brand), asc(bottleList.expressionName));
 }

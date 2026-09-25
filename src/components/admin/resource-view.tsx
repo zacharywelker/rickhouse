@@ -27,6 +27,8 @@ type Props = {
   columns: ColumnSpec[];
   rows: AdminRow[];
   options: Record<string, Option[]>;
+  /** Shown but not editable: categories, for anyone but an admin. */
+  readOnly?: boolean;
 };
 
 function Cell({ value }: { value: CellValue }) {
@@ -55,6 +57,7 @@ export function ResourceView({
   columns,
   rows,
   options,
+  readOnly = false,
 }: Props) {
   // `null` means the create form; a row means edit. `undefined` means closed.
   const [editing, setEditing] = React.useState<AdminRow | null | undefined>(undefined);
@@ -83,9 +86,13 @@ export function ResourceView({
         <div className="max-w-2xl">
           <h1 className="text-3xl text-accent">{label}</h1>
         </div>
-        <Button onClick={() => setEditing(null)}>
-          Add {singular.toLowerCase()}
-        </Button>
+        {readOnly ? (
+          <p className="max-w-xs text-sm text-muted-foreground">Shared by everyone here; an admin looks after these.</p>
+        ) : (
+          <Button onClick={() => setEditing(null)}>
+            Add {singular.toLowerCase()}
+          </Button>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -94,9 +101,11 @@ export function ResourceView({
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             Add the first one now, or let it appear here the moment you create one inline from a bottle form.
           </p>
-          <Button className="mt-4" onClick={() => setEditing(null)}>
-            Add {singular.toLowerCase()}
-          </Button>
+          {readOnly ? null : (
+            <Button className="mt-4" onClick={() => setEditing(null)}>
+                Add {singular.toLowerCase()}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="border border-border bg-card">
@@ -132,7 +141,7 @@ export function ResourceView({
                     </TableCell>
                   ))}
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
+                    <div className={cn("flex justify-end gap-1", readOnly && "hidden")}>
                       <Button variant="ghost" size="sm" onClick={() => setEditing(row)} aria-label={`Edit ${String(row.cells.name ?? "")}`} title={`Edit ${String(row.cells.name ?? "")}`}>
                         <Pencil className="size-4" />
                       </Button>

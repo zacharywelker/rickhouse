@@ -45,7 +45,7 @@ function isCurrent(pathname: string, href: string) {
  * from a rule, not a background fill — Rickhouse leans on rules and spacing
  * for hierarchy rather than card/pill chrome (DESIGN.md §7).
  */
-export function AppNav({ signOut, username }: { signOut: React.ReactNode; username: string }) {
+export function AppNav({ signOut, userMenu }: { signOut: React.ReactNode; userMenu: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
@@ -115,20 +115,13 @@ export function AppNav({ signOut, username }: { signOut: React.ReactNode; userna
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <ThemeToggle />
-          <Link
-            href="/account"
-            aria-current={isCurrent(pathname, "/account") ? "page" : undefined}
-            className={cn(
-              "hidden border-b-2 px-1 py-1 text-sm transition-colors lg:block",
-              isCurrent(pathname, "/account")
-                ? "border-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
-            )}
-          >
-            {username}
-          </Link>
-          <div className="hidden lg:block">{signOut}</div>
+          {/* On a phone the three-way toggle moves into the menu panel, so the
+              name and sign-out still fit beside the logo at 390px. */}
+          <div className="hidden sm:block">
+            <ThemeToggle />
+          </div>
+          {userMenu}
+          {signOut}
           <Button
             type="button"
             variant="outline"
@@ -152,9 +145,8 @@ export function AppNav({ signOut, username }: { signOut: React.ReactNode; userna
           className="mx-auto flex w-full max-w-page flex-col gap-1 border-t border-border px-4 py-3 lg:hidden"
         >
           {LINKS.map((item) => mobileLink(item.href, item.label))}
-          <div className="mt-2 flex flex-col gap-1 border-t border-border pt-3">
-            {mobileLink("/account", `Account · ${username}`)}
-            {signOut}
+          <div className="mt-2 border-t border-border pt-3 sm:hidden">
+            <ThemeToggle />
           </div>
         </nav>
       ) : null}

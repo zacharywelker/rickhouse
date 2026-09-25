@@ -22,14 +22,14 @@ function proofBound(raw: string | null): number | null {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  await requireSession();
+  const user = await requireSession();
   const params = request.nextUrl.searchParams;
 
   const bottle = await spinBottle({
     categoryIds: idList(params.get("category")),
     finishIds: idList(params.get("finish")),
     proof: { min: proofBound(params.get("proofMin")), max: proofBound(params.get("proofMax")) },
-  });
+  }, user.id);
 
   return NextResponse.json({ bottle });
 }

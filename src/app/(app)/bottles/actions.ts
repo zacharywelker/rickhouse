@@ -12,6 +12,31 @@ import type { BulkSaveResult } from "@/lib/bulk/types";
 import { z } from "zod";
 import { bottleGridEditSchema, bottleSchema, tastingNoteSchema } from "@/lib/expressions/schema";
 
+/**
+ * Every write below is scoped to the signed-in account. A bottle id that is
+ * someone else's matches nothing, so it reads as "gone" — the same answer a
+ * deleted bottle gets, which gives nothing away. Label and store ids on a
+ * bottle are held to the same owner by composite foreign keys in Postgres.
+ */
+function ownedBottle(id: number, ownerId: number) {
+  return and(eq(bottles.id, id), eq(bottles.ownerId, ownerId));
+}
+
+/** The image, provided its bottle belongs to `ownerId`. */
+async function ownedImage(imageId: number, ownerId: number) {
+  const [row] = await db
+    .select({ image: bottleImages })
+    .from(bottleImages)
+    .innerJoin(bottles, eq(bottles.id, bottleImages.bottleId))
+    .where(and(eq(bottleImages.id, imageId), eq(bottles.ownerId, ownerId)))
+    .limit(1);
+  return row?.image ?? null;
+}
+
+async function ownsBottle(bottleId: number, ownerId: number): Promise<boolean> {
+  return (await db.$count(bottles, ownedBottle(bottleId, ownerId))) > 0;
+}
+
 function invalid(issues: { path: PropertyKey[]; message: string }[]): ActionResult {
   const fieldErrors: Record<string, string> = {};
   for (const issue of issues) {
@@ -30,7 +55,7 @@ export async function saveBottleAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
 
   const parsed = bottleSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return invalid(parsed.error.issues);
@@ -38,12 +63,16 @@ export async function saveBottleAction(
 
   try {
     if (id === null) {
-      const [row] = await db.insert(bottles).values(input).returning({ id: bottles.id });
+      const [row] = await db
+        .insert(bottles)
+        .values({ ...input, ownerId: user.id })
+        .returning({ id: bottles.id });
       revalidatePath("/bottles");
       revalidatePath("/");
       return { ok: true, message: "Bottle added.", createdId: row!.id };
     }
-    await db.update(bottles).set(input).where(eq(bottles.id, id));
+    const updated = await db.update(bottles).set(input).where(ownedBottle(id, user.id)).returning({ id: bottles.id });
+    if (updated.length === 0) return { ok: false, error: "That bottle is gone." };
     revalidatePath("/bottles");
     revalidatePath(`/bottles/${id}`);
     revalidatePath("/");
@@ -60,7 +89,7 @@ export async function saveBottleAction(
  * the good ones next to it.
  */
 export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Promise<BulkSaveResult> {
-  await requireSession();
+  const user = await requireSession();
   const results: BulkSaveResult["results"] = [];
 
   for (const [index, row] of rows.entries()) {
@@ -76,7 +105,10 @@ export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Pr
       continue;
     }
     try {
-      const [inserted] = await db.insert(bottles).values(parsed.data).returning({ id: bottles.id });
+      const [inserted] = await db
+        .insert(bottles)
+        .values({ ...parsed.data, ownerId: user.id })
+        .returning({ id: bottles.id });
       results.push({ index, ok: true, id: inserted!.id });
     } catch (error: unknown) {
       const shaped = mapDbError(error, { singular: "Bottle" });
@@ -98,11 +130,12 @@ export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Pr
 }
 
 export async function deleteBottleAction(id: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
+    if (!(await ownsBottle(id, user.id))) return { ok: false, error: "That bottle is gone." };
     // Images cascade in the database; the files on disk do not.
     const images = await db.select().from(bottleImages).where(eq(bottleImages.bottleId, id));
-    await db.delete(bottles).where(eq(bottles.id, id));
+    await db.delete(bottles).where(ownedBottle(id, user.id));
     await Promise.all(images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)));
     revalidatePath("/bottles");
     revalidatePath("/");
@@ -116,13 +149,18 @@ export async function deleteBottleAction(id: number): Promise<ActionResult> {
  * removed independently — one restrict-FK or already-gone id should not
  * abort the rest of the batch. */
 export async function deleteBottlesBulkAction(ids: number[]): Promise<BulkSaveResult> {
-  await requireSession();
+  const user = await requireSession();
   const results: BulkSaveResult["results"] = [];
 
   for (const [index, id] of ids.entries()) {
     try {
+      // Checked first so another account's photos are never touched on disk.
+      if (!(await ownsBottle(id, user.id))) {
+        results.push({ index, ok: false, error: "That bottle is gone.", fieldErrors: {} });
+        continue;
+      }
       const images = await db.select().from(bottleImages).where(eq(bottleImages.bottleId, id));
-      await db.delete(bottles).where(eq(bottles.id, id));
+      await db.delete(bottles).where(ownedBottle(id, user.id));
       await Promise.all(images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)));
       results.push({ index, ok: true, id });
     } catch (error: unknown) {
@@ -150,7 +188,7 @@ export async function deleteBottlesBulkAction(ids: number[]): Promise<BulkSaveRe
 export async function updateBottlesBulkAction(
   rows: Array<{ id: number } & Record<string, unknown>>,
 ): Promise<BulkSaveResult> {
-  await requireSession();
+  const user = await requireSession();
   const results: BulkSaveResult["results"] = [];
 
   for (const [index, { id, ...fields }] of rows.entries()) {
@@ -166,8 +204,14 @@ export async function updateBottlesBulkAction(
       continue;
     }
     try {
-      await db.update(bottles).set(parsed.data).where(eq(bottles.id, id));
-      results.push({ index, ok: true, id });
+      const updated = await db
+        .update(bottles)
+        .set(parsed.data)
+        .where(ownedBottle(id, user.id))
+        .returning({ id: bottles.id });
+      results.push(
+        updated.length > 0 ? { index, ok: true, id } : { index, ok: false, error: "That bottle is gone.", fieldErrors: {} },
+      );
     } catch (error: unknown) {
       const shaped = mapDbError(error, { singular: "Bottle" });
       results.push({
@@ -192,9 +236,9 @@ export async function updateBottlesBulkAction(
 // ------------------------------------------------------------
 
 export async function deleteBottleImageAction(imageId: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
-    const [image] = await db.select().from(bottleImages).where(eq(bottleImages.id, imageId)).limit(1);
+    const image = await ownedImage(imageId, user.id);
     if (!image) return { ok: false, error: "That image is already gone." };
 
     await db.delete(bottleImages).where(eq(bottleImages.id, imageId));
@@ -220,9 +264,9 @@ export async function deleteBottleImageAction(imageId: number): Promise<ActionRe
 }
 
 export async function setPrimaryImageAction(imageId: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
-    const [image] = await db.select().from(bottleImages).where(eq(bottleImages.id, imageId)).limit(1);
+    const image = await ownedImage(imageId, user.id);
     if (!image) return { ok: false, error: "That image is already gone." };
 
     // A partial unique index enforces one primary per bottle, so the old one
@@ -245,8 +289,9 @@ export async function setPrimaryImageAction(imageId: number): Promise<ActionResu
 }
 
 export async function reorderBottleImagesAction(bottleId: number, orderedIds: number[]): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
+    if (!(await ownsBottle(bottleId, user.id))) return { ok: false, error: "That bottle is gone." };
     await db.transaction(async (tx) => {
       for (const [index, imageId] of orderedIds.entries()) {
         await tx
@@ -272,16 +317,20 @@ export async function saveTastingNoteAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
 
   const parsed = tastingNoteSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return invalid(parsed.error.issues);
 
   try {
+    if (!(await ownsBottle(bottleId, user.id))) return { ok: false, error: "That bottle is gone." };
     if (noteId === null) {
       await db.insert(tastingNotes).values({ bottleId, ...parsed.data });
     } else {
-      await db.update(tastingNotes).set(parsed.data).where(eq(tastingNotes.id, noteId));
+      await db
+        .update(tastingNotes)
+        .set(parsed.data)
+        .where(and(eq(tastingNotes.id, noteId), eq(tastingNotes.bottleId, bottleId)));
     }
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
@@ -292,9 +341,10 @@ export async function saveTastingNoteAction(
 }
 
 export async function deleteTastingNoteAction(bottleId: number, noteId: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
-    await db.delete(tastingNotes).where(eq(tastingNotes.id, noteId));
+    if (!(await ownsBottle(bottleId, user.id))) return { ok: false, error: "That bottle is gone." };
+    await db.delete(tastingNotes).where(and(eq(tastingNotes.id, noteId), eq(tastingNotes.bottleId, bottleId)));
     revalidatePath(`/bottles/${bottleId}`);
     return { ok: true, message: "Note deleted." };
   } catch (error: unknown) {
@@ -314,12 +364,17 @@ const fillSchema = z.coerce.number().int().min(0).max(100);
  * (SPEC M4).
  */
 export async function setBottleFillAction(bottleId: number, fillPct: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   const parsed = fillSchema.safeParse(fillPct);
   if (!parsed.success) return { ok: false, error: "A fill level is 0 to 100." };
 
   try {
-    await db.update(bottles).set({ fillPct: parsed.data }).where(eq(bottles.id, bottleId));
+    const updated = await db
+      .update(bottles)
+      .set({ fillPct: parsed.data })
+      .where(ownedBottle(bottleId, user.id))
+      .returning({ id: bottles.id });
+    if (updated.length === 0) return { ok: false, error: "That bottle is gone." };
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
     return { ok: true, message: `Set to ${parsed.data}%.` };
@@ -330,9 +385,14 @@ export async function setBottleFillAction(bottleId: number, fillPct: number): Pr
 
 /** Toggled from the heart next to the bottle's name — not a form field. */
 export async function setBottleFavoriteAction(bottleId: number, isFavorite: boolean): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
-    await db.update(bottles).set({ isFavorite }).where(eq(bottles.id, bottleId));
+    const updated = await db
+      .update(bottles)
+      .set({ isFavorite })
+      .where(ownedBottle(bottleId, user.id))
+      .returning({ id: bottles.id });
+    if (updated.length === 0) return { ok: false, error: "That bottle is gone." };
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
     return { ok: true, message: isFavorite ? "Favorited." : "Unfavorited." };
@@ -347,12 +407,12 @@ export async function setBottleFavoriteAction(bottleId: number, isFavorite: bool
  * opened on that date, and the status is not a lie once it is true.
  */
 export async function setBottleOpenAction(bottleId: number, isOpen: boolean): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
     const [current] = await db
       .select({ dateOpened: bottles.dateOpened, status: bottles.status })
       .from(bottles)
-      .where(eq(bottles.id, bottleId))
+      .where(ownedBottle(bottleId, user.id))
       .limit(1);
     if (!current) return { ok: false, error: "That bottle is gone." };
 
@@ -364,7 +424,7 @@ export async function setBottleOpenAction(bottleId: number, isOpen: boolean): Pr
         ...(isOpen && current.dateOpened === null ? { dateOpened: today } : {}),
         ...(isOpen && current.status === "owned" ? { status: "open" as const } : {}),
       })
-      .where(eq(bottles.id, bottleId));
+      .where(ownedBottle(bottleId, user.id));
 
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
@@ -386,7 +446,7 @@ export async function setBottleDateAction(
   field: "dateOpened" | "dateKilled",
   value: string | null,
 ): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
 
   const date = (value ?? "").trim();
   if (date !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -403,7 +463,7 @@ export async function setBottleDateAction(
     const [current] = await db
       .select({ dateOpened: bottles.dateOpened, dateKilled: bottles.dateKilled })
       .from(bottles)
-      .where(eq(bottles.id, bottleId))
+      .where(ownedBottle(bottleId, user.id))
       .limit(1);
     if (!current) return { ok: false, error: "That bottle is gone." };
 
@@ -424,7 +484,7 @@ export async function setBottleDateAction(
         [field]: next,
         ...(field === "dateOpened" && next === null ? { isOpen: false } : {}),
       })
-      .where(eq(bottles.id, bottleId));
+      .where(ownedBottle(bottleId, user.id));
 
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
@@ -436,9 +496,9 @@ export async function setBottleDateAction(
 
 /** Empty and done: status killed, level zero, dated today. */
 export async function killBottleAction(bottleId: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
-    await db
+    const updated = await db
       .update(bottles)
       .set({
         fillPct: 0,
@@ -446,7 +506,9 @@ export async function killBottleAction(bottleId: number): Promise<ActionResult> 
         isOpen: true,
         dateKilled: new Date().toISOString().slice(0, 10),
       })
-      .where(eq(bottles.id, bottleId));
+      .where(ownedBottle(bottleId, user.id))
+      .returning({ id: bottles.id });
+    if (updated.length === 0) return { ok: false, error: "That bottle is gone." };
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
     return { ok: true, message: "Marked as killed." };

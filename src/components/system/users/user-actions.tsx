@@ -9,7 +9,7 @@ import {
   setActiveAction,
   setRoleAction,
   type UserActionResult,
-} from "@/app/(app)/admin/users/actions";
+} from "@/app/(app)/system/users/actions";
 import type { UserRole } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,8 +91,8 @@ export function UserActions({ userId, username, role, active }: Props) {
           <DialogHeader>
             <DialogTitle>Delete {username}?</DialogTitle>
             <DialogDescription>
-              Their account and sign-in methods are removed for good. To keep the account but lock them out, deactivate it
-              instead.
+              Their account and their entire collection — bottles, labels, groups and photos — are removed for good. To
+              keep everything but lock them out, deactivate the account instead.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
