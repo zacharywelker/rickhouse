@@ -21,6 +21,7 @@ export function useHiddenColumns(storageKey: string) {
     try {
       const raw = window.localStorage.getItem(storageKey);
       const parsed: unknown = raw ? JSON.parse(raw) : [];
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
       if (Array.isArray(parsed)) setHidden(new Set(parsed.filter((id): id is string => typeof id === "string")));
     } catch {
       // Unreadable or unavailable: keep everything shown.

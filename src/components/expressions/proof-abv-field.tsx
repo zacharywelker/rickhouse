@@ -29,13 +29,12 @@ export function ProofAbvFields({
 }) {
   const proofValue = String(value ?? "");
   const [source, setSource] = React.useState<"proof" | "abv" | null>(proofValue === "" ? null : "proof");
-  const [abvText, setAbvText] = React.useState(() => proofToAbv(proofValue));
+  const [typedAbv, setTypedAbv] = React.useState("");
 
-  // The proof value can change from outside this component too (form reset,
-  // loading a different bottle). Follow it, unless ABV is the one driving.
-  React.useEffect(() => {
-    if (source !== "abv") setAbvText(proofToAbv(proofValue));
-  }, [proofValue, source]);
+  // ABV shows what was typed into it while it is the one driving. Otherwise
+  // it follows proof, which can also change from outside this component
+  // (form reset, loading a different bottle).
+  const abvText = source === "abv" ? typedAbv : proofToAbv(proofValue);
 
   const proofId = `${idPrefix}-proof`;
   const abvId = `${idPrefix}-abv`;
@@ -83,7 +82,7 @@ export function ProofAbvFields({
           onChange={(e) => {
             const next = e.target.value;
             setSource(next === "" ? null : "abv");
-            setAbvText(next);
+            setTypedAbv(next);
             onChange(abvToProof(next));
           }}
         />

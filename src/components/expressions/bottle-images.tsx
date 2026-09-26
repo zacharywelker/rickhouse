@@ -37,7 +37,13 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
   const [dragging, setDragging] = React.useState<number | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => setOrder(images), [images]);
+  // Reordering shows at once; a refresh (an upload, a delete) brings a new
+  // `images` and that wins.
+  const [prevImages, setPrevImages] = React.useState(images);
+  if (images !== prevImages) {
+    setPrevImages(images);
+    setOrder(images);
+  }
 
   async function upload(files: FileList | null) {
     if (!files || files.length === 0) return;
