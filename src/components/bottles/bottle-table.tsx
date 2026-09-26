@@ -442,7 +442,8 @@ export function BottleTable({
 
   return (
     <>
-      <div className="mb-3 flex justify-end">
+      {/* Desktop only: the phone cards have no edit mode, so the toggle would do nothing there. */}
+      <div className="mb-3 hidden justify-end md:flex">
         <Button
           type="button"
           variant="outline"
