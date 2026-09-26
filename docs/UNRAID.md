@@ -1,180 +1,44 @@
-# Deploying Rickhouse on Unraid
+# Installing Rickhouse on Unraid
 
-Get Rickhouse onto your server without turning your server into a development machine.
+GitHub Actions publishes the image to GHCR, and Unraid pulls and runs it. The server doesn't need Node.js or a copy of the repo.
 
-The normal journey is:
+**Requires:** Unraid 6.12+ with Community Applications.
 
-**GitHub → GitHub Actions → GHCR → Unraid → Rickhouse**
+## Install
 
-GitHub builds the bottle. GHCR stores it. Unraid puts it on the shelf.
+1. In **Apps**, install **Compose Manager Plus**.
+2. In **Compose Manager**, create a stack named `rickhouse` and paste in [`docker-compose.yml`](../docker-compose.yml).
+3. Set the stack's `.env`:
 
-You don't need to clone the repo, install Node.js, or build Next.js on the server. That's development work. Your server has better things to do.
+   ```ini
+   POSTGRES_PASSWORD=<long random string>
+   SESSION_SECRET=<output of: openssl rand -hex 32>
+   POSTGRES_DATA_PATH=/mnt/user/appdata/rickhouse/postgres
+   UPLOADS_PATH=/mnt/user/appdata/rickhouse/uploads
+   BACKUP_PATH=/mnt/user/backups/rickhouse
+   # true only if you reach Rickhouse over HTTPS
+   COOKIE_SECURE=false
+   ```
 
-## Before you start
+   Keep all three paths on the array, not the USB boot drive. Every other setting is optional and documented in [`.env.example`](../.env.example).
 
-You need:
+4. Click **Compose Up**, then read the admin password from the log. It's printed once, on first start:
 
-* Unraid 6.12+
-* Community Applications installed
-* Access to the Rickhouse container image in GHCR
+   ```sh
+   docker logs rickhouse-app
+   ```
 
-That's about it. Let's put some liquor on the server.
+5. Open `http://<unraid-ip>:1964`, sign in as `admin` with that password, and choose your own.
 
-## Step 1: Install Compose Manager Plus
+## Users
 
-In **Apps**, search for **Compose Manager** and install **Compose Manager Plus**.
+Admins manage accounts under **Users** in the menu under their name (top right). From there they can create accounts, reset passwords, make someone an admin, deactivate an account or delete it. New accounts get a temporary password and pick their own at first sign-in.
 
-This is how we'll manage the Rickhouse stack without spending our afternoon arguing with Docker.
+Each collection is private, including from admins. Spirit categories are the only shared data, and only admins can edit them. Deleting an account deletes its collection. If you might want the account back, deactivate it instead.
 
-## Step 2: Create the Rickhouse stack
+## HTTPS and reverse proxies
 
-Open **Compose Manager** and create a new stack named:
-
-```text id="lb47tn"
-rickhouse
-```
-
-Paste the Rickhouse `docker-compose.yml` into the stack.
-
-The Compose file takes care of the boring but important stuff: containers, networking, ports, volumes, and environment variables.
-
-You get to worry about the fun stuff.
-
-## Step 3: Create the environment file
-
-Create the stack's `.env` file:
-
-```ini id="15rpb1"
-POSTGRES_PASSWORD=<something-long-and-random>
-SESSION_SECRET=<64-random-hex-characters>
-ADMIN_EMAIL=<your-email-address>
-
-POSTGRES_DATA_PATH=/mnt/user/appdata/rickhouse/postgres
-UPLOADS_PATH=/mnt/user/appdata/rickhouse/uploads
-```
-
-Generate a session secret with:
-
-```bash id="udoyyb"
-openssl rand -hex 32
-```
-
-There's no app password to choose. Rickhouse makes the first account for you
-(see Step 4). `ADMIN_EMAIL` is optional; leave it out and you'll be asked for
-it at first sign-in.
-
-### Give the database somewhere permanent to live
-
-The PostgreSQL and uploads paths should point to persistent storage on the Unraid array.
-
-Do **not** put the PostgreSQL database on the USB boot drive.
-
-Your database contains the collection. The collection contains the important stuff. The boot drive does not need that kind of responsibility.
-
-The container also runs with:
-
-```ini id="uuockr"
-PUID=99
-PGID=100
-```
-
-These correspond to Unraid's standard `nobody:users` permissions.
-
-### If you're using HTTP vs HTTPS
-
-For plain HTTP:
-
-```ini id="kgsmum"
-COOKIE_SECURE=false
-```
-
-For HTTPS:
-
-```ini id="t6mn7w"
-COOKIE_SECURE=true
-```
-
-Get this wrong and you may successfully sign in only to immediately discover that Rickhouse has forgotten who you are.
-
-A deeply unnecessary betrayal.
-
-## Step 4: Start Rickhouse
-
-In Compose Manager, select the `rickhouse` stack and choose **Compose Up**.
-
-Then check the application logs:
-
-```bash id="ev3cy8"
-docker logs -f rickhouse-app
-```
-
-On first startup, Rickhouse should:
-
-1. Connect to PostgreSQL
-2. Run any required migrations
-3. Create the admin account and print its password
-4. Start the application
-5. Begin listening on port `1964`
-
-The password shows up in the log exactly once, in a box like this:
-
-```text
-rickhouse: ================================================================
-rickhouse:   First run: created the admin account.
-rickhouse:
-rickhouse:     username  admin
-rickhouse:     password  k7Qm2x-Hs9pRt-...
-```
-
-Once it's running, open:
-
-```text id="7odiaj"
-http://YOUR-UNRAID-IP:1964
-```
-
-Sign in with that username and password. Rickhouse will immediately ask you to
-choose your own password, which is the point: the one in the log was only ever
-meant to get you through the door.
-
-Welcome home.
-
-### Adding everyone else
-
-**Users**, in the menu under your name at the top right, creates accounts. Rickhouse makes up a temporary
-password for each one; hand it over, and they choose their own when they first
-sign in. The same page makes someone an admin, deactivates an account (which
-signs them out everywhere), resets a password, or deletes an account.
-
-Every account has its own private collection: bottles, labels, brands,
-distilleries, stores, tags and groups, plus the photos that go with them.
-New accounts start empty. Nobody, admins included, can see into anyone
-else's collection; the spirit categories (Whiskey › Bourbon…) are the one
-thing everyone shares, and only admins can change them. Deleting an account
-deletes its collection too, so deactivate instead if you might want it back.
-
-People change their own name, username and password from **Account settings**
-in that same menu.
-
-### Check the health endpoint
-
-From the Unraid terminal:
-
-```bash id="d6o0en"
-curl http://localhost:1964/api/health
-```
-
-A healthy Rickhouse should respond:
-
-```json id="tybxxy"
-{"status":"ok","database":"up"}
-```
-
-If Rickhouse says the database is up, the database is up. Beautiful. We can all go home.
-
-# Behind a reverse proxy
-
-Most people eventually put Rickhouse behind Caddy, Nginx Proxy Manager or
-Traefik, often with Cloudflare in front. Three settings matter:
+Behind Caddy, Nginx Proxy Manager, Traefik or Cloudflare, set:
 
 ```ini
 APP_URL=https://rickhouse.example.com
@@ -182,19 +46,10 @@ COOKIE_SECURE=true
 TRUSTED_PROXIES=
 ```
 
-* **`APP_URL`** is the address people type. It's optional for now, but set it:
-  single sign-on and emailed links will need it, and some tunnels rewrite the
-  `Host` header, which makes sign-in fail with "invalid origin" until it's set.
-* **`COOKIE_SECURE=true`** once visitors reach you over HTTPS.
-* **`TRUSTED_PROXIES`** controls rate limiting. Sign-in allows 5 attempts a
-  minute per visitor, and the visitor's IP comes from the `X-Forwarded-For`
-  header your proxy adds. If Cloudflare sits in front of your proxy, list
-  [Cloudflare's IP ranges](https://www.cloudflare.com/ips/) here,
-  comma-separated. Otherwise every visitor looks like Cloudflare and they all
-  share one allowance.
+- **`APP_URL`** is the address people type. Email, single sign-on and passkeys need it. It also fixes "invalid origin" errors behind tunnels that rewrite the `Host` header.
+- **`TRUSTED_PROXIES`**: Rickhouse allows 5 sign-in attempts a minute per visitor IP, read from `X-Forwarded-For`. If Cloudflare sits in front of your proxy, list [Cloudflare's IP ranges](https://www.cloudflare.com/ips/) here, comma-separated. Otherwise every visitor shares one limit.
 
-Rickhouse can still be reached directly on port `1964` from your LAN at the
-same time; that keeps working.
+Direct LAN access on port `1964` keeps working.
 
 ## Bot check and password rules
 
@@ -204,279 +59,88 @@ TURNSTILE_SECRET_KEY=
 PASSWORD_BREACH_CHECK=true
 ```
 
-* **Cloudflare Turnstile** (optional): create a widget in the Cloudflare
-  dashboard under *Turnstile* for your `APP_URL` hostname, and paste both
-  keys. Sign-in and "forgot password" then show a bot check first; passkey
-  sign-in skips it. Leave both empty to turn it off. If a bad key locks you
-  out, clear them here and recreate the container.
-* **Breached passwords:** new passwords are checked against
-  [Have I Been Pwned](https://haveibeenpwned.com/Passwords). Only the first 5
-  characters of a hash are sent. If your server has no internet access, set
-  `PASSWORD_BREACH_CHECK=false`, or password changes will fail.
-* **No reusing passwords:** a change, reset or first-time setup can't pick
-  the current password or any of the 4 before it. Nothing to configure.
+- **Cloudflare Turnstile** (optional): create a Turnstile widget in the Cloudflare dashboard for your `APP_URL` hostname and paste in both keys. Sign-in and "forgot password" then show a bot check. Passkey sign-in skips it. Password sign-in then only works through `APP_URL`, not the LAN address. Leave both keys empty to turn it off.
+- **Breached passwords:** new passwords are checked against [Have I Been Pwned](https://haveibeenpwned.com/Passwords). Only the first 5 characters of the password's hash are sent. If the server has no internet access, set `PASSWORD_BREACH_CHECK=false`, or choosing a password will fail, including at first sign-in.
+- **No reuse:** a new password can't match the current one or any of the 4 before it. There's nothing to configure.
 
-# Email, single sign-on, two-step sign-in and passkeys
+## Email, single sign-on, two-step sign-in and passkeys
 
-All four need `APP_URL` set to the address people type (see **Behind a
-reverse proxy**): every email carries a link, SSO providers send people back
-to a fixed callback, and a passkey is tied to one domain.
+All four need `APP_URL`.
 
-### Email
+**Email:** enter your SMTP server under **Email** in the admin menu, then click **Send me a test email**. This turns on forgot-password links, emailed invites and resets, password-change notices and emailed two-step codes. The SMTP password is encrypted with `SESSION_SECRET`, so re-enter it if you rotate the secret.
 
-**Email** in the admin menu takes your mail server (Fastmail, Gmail with an
-app password, your ISP, a relay…). Save, then **Send me a test email**. Once
-it works:
+**Single sign-on** (Pocket ID, Authentik, Authelia, Google…):
 
-* **Forgot password?** appears on the sign-in page (links last 24 hours).
-* **Users** can email an invitation, so new people pick their own password,
-  and email anyone a reset link.
-* Everyone gets a notice when their password changes or a sign-in is linked.
-* Two-step sign-in can email a code as a fallback.
+1. In your provider, create an OIDC client with the redirect URL `<APP_URL>/api/auth/callback/<id>`, where `<id>` is a short ID you pick, e.g. `pocket-id`.
+2. In Rickhouse, open **Single sign-on** in the admin menu and add the provider with the same ID, a button name, its issuer URL, and the client ID and secret. For Google, choose the **Google** type. Google only accepts HTTPS callback URLs.
+3. Each person links their identity under **Account settings → Linked sign-ins**.
 
-The SMTP password is stored encrypted with `SESSION_SECRET`; if you ever
-rotate that, re-enter it.
+Single sign-on never creates accounts or matches people by email. Password sign-in keeps working.
 
-### Single sign-on (Pocket ID, Authentik, Authelia, Google…)
+**Two-step sign-in and passkeys:** each person sets these up under **Account settings**. Passkeys need HTTPS on the `APP_URL` domain. Browsers that support it offer saved passkeys when you click the username field on the sign-in page.
 
-1. In your provider, create an OIDC client. Set its callback / redirect URL to
-   `https://<your APP_URL>/api/auth/callback/<id>`, where `<id>` is the short
-   ID you'll give it in Rickhouse, e.g. `pocket-id`.
-2. In Rickhouse, **Single sign-on** in the admin menu: pick the type, a button
-   name, the same ID, the provider's issuer URL (e.g.
-   `https://id.example.com` for Pocket ID), and the client ID and secret.
-3. Each person then opens **Account settings → Linked sign-ins → Link**, signs
-   in at the provider once, and from then on can use the button on the sign-in
-   page.
+## Updating
 
-Single sign-on never creates accounts and never matches people by email: an
-identity only works once someone who is already signed in has linked it.
-Password sign-in keeps working, so the command-line reset is always a way in.
+In **Docker → Compose**, choose **Update Stack** on `rickhouse`. The new image is pulled and migrations run automatically.
 
-For Google, choose **Google** as the type and create an OAuth client in the
-Google Cloud console. Google only accepts callback URLs on a real HTTPS domain.
+**Coming from a version with `APP_PASSWORD`?** On the first start after updating, Rickhouse creates an `admin` account, gives it your existing collection and prints its password to the log. From then on `APP_PASSWORD` is ignored, and you can delete it from `.env`.
 
-### Two-step sign-in and passkeys
+## Backups
 
-Both are per person, under **Account settings**:
+Under **Backups** in the admin menu, turn on scheduled backups and choose how often they run and how many to keep. **Run backup now** takes one immediately. Backups are written to `BACKUP_PATH`, so put that on a share your parity or offsite backup covers.
 
-* **Two-step sign-in**: scan the QR code with an authenticator app and keep
-  the backup codes. Signing in with a password then also asks for a code.
-* **Passkeys**: sign in with a fingerprint, face or device PIN. They need
-  HTTPS on the `APP_URL` domain (browsers refuse them on plain http, except
-  on `localhost`).
+Each backup is a folder:
 
-# Updating Rickhouse
-
-When a new Rickhouse image is published, update the stack through Compose Manager.
-
-In **Docker → Compose → Rickhouse**, use **Update Stack**.
-
-The new image will be pulled and the containers recreated.
-
-Database migrations run automatically when required.
-
-No rebuilding. No cloning. No server-side development environment. Just the new bottle going on the shelf.
-
-### Upgrading from the shared password
-
-Older versions used one `APP_PASSWORD` for everyone. The first start after
-updating creates an `admin` account, prints its password to the log (see
-Step 4), and ignores `APP_PASSWORD` from then on. Your existing collection
-becomes that admin account's. Sign in with the printed
-password, choose your own, then create accounts for everyone else. You can
-delete `APP_PASSWORD` from `.env` whenever you like.
-
-# Backups
-
-Rickhouse has two things you really don't want to lose:
-
-* PostgreSQL data
-* Uploaded photos/files
-
-Every backup, however it's triggered, writes the same layout:
-
-```
+```text
 rickhouse-<timestamp>/
-├── database.sql.gz   full pg_dump of the database
-├── csv.tar.gz         every table as plain CSV
-├── uploads/            uploaded photos/files
-└── manifest.txt        what this backup is, and how to use it
+├── database.sql.gz   full pg_dump
+├── csv.tar.gz        every table as CSV, readable without Rickhouse
+├── uploads/          photos (unchanged files are hardlinked to the previous backup)
+└── manifest.txt
 ```
 
-`uploads/` is a full, independent snapshot every time, but a photo that
-hasn't changed since the previous backup is hardlinked to that backup's copy
-rather than copied again. As a photo collection grows into the hundreds of
-bottles, this keeps many backups from costing many copies of the photo
-library on disk — only new or changed photos use new space. Deleting an old
-backup is still safe, since a hardlink is only actually freed once nothing
-references it anymore.
+Old backups are safe to delete. A hardlinked photo is only freed once no backup uses it.
 
-## Automatic backups (recommended)
+To run backups from the host instead, [`scripts/backup.sh`](../scripts/backup.sh) writes the same layout from a checkout of this repo. Usage is in the comments at the top of the script.
 
-**Backups**, in the admin menu under your name, in the app itself schedules and runs backups — no host
-script, no cron. Turn it on, set how often (in hours) and how many to keep,
-and Rickhouse dumps the database and snapshots `UPLOAD_DIR` on its own from
-inside the container. The same page also has a **Run backup now** button and
-lists existing backups with their size.
+### Restore
 
-This needs the `BACKUP_PATH` volume from `docker-compose.yml` (defaults to
-`./data/backups`) to be mounted somewhere durable — point it at a share that
-is actually part of your parity/backup plan, the same as you would for
-`UPLOADS_PATH`:
+The dump replaces whatever is in the database, so check that you're restoring the right backup into the right stack.
 
-```bash
-BACKUP_PATH=/mnt/user/backups/rickhouse docker compose up -d
+```sh
+gunzip -c rickhouse-<timestamp>/database.sql.gz | docker exec -i rickhouse-db psql -U rickhouse -d rickhouse
+rsync -a --delete rickhouse-<timestamp>/uploads/ /mnt/user/appdata/rickhouse/uploads/
+docker restart rickhouse-app
 ```
 
-And occasionally make sure you can actually restore one — a backup you have
-never tested is less of a backup and more of a very reassuring bedtime story.
+To read the data without Rickhouse, extract `csv.tar.gz` and open the CSVs in a spreadsheet, Baserow, NocoDB or similar. The CSVs aren't restorable. Use `database.sql.gz` to restore.
 
-## `scripts/backup.sh` (manual / host-side alternative)
+## Troubleshooting
 
-The host-side script still works, and writes the identical layout above via
-`docker compose exec`. Use it if you'd rather trigger backups from outside
-the app (e.g. Unraid's **User Scripts** plugin) or don't want to grant the
-app container a backups volume:
+**Keeps restarting:** check `docker logs rickhouse-app` and `docker logs rickhouse-db`. It's usually a missing `.env` value or a bad data path.
 
-```bash id="4k3z4p"
-BACKUP_DIR=/mnt/user/backups/rickhouse ./scripts/backup.sh
-```
+**Health check:** `curl http://localhost:1964/api/health` should return `{"status":"ok","database":"up"}`.
 
-By default, the script keeps 14 backups. It's independent of the in-app
-scheduler — running both against different directories is fine, but there's
-usually no reason to.
+**Sign-in does nothing, or you're signed straight back out:** `COOKIE_SECURE` must be `false` over plain HTTP and `true` over HTTPS.
 
-## Restoring Rickhouse
+**"Too many tries":** wait a minute. If everyone sees it at once behind Cloudflare, set `TRUSTED_PROXIES`.
 
-To put a backup back into a running stack:
+**"Invalid origin":** set `APP_URL` to the address in your browser's address bar.
 
-```bash
-gunzip -c rickhouse-<timestamp>/database.sql.gz | docker compose exec -T db psql -U rickhouse -d rickhouse
-rsync -a --delete rickhouse-<timestamp>/uploads/ ./data/uploads/
-docker compose restart app
-```
+**Bot check fails or never loads:** check that the Turnstile widget's hostname matches `APP_URL`. To turn the check off, clear both `TURNSTILE_*` keys and recreate the container. It's read from `.env`, so this works even when nobody can sign in.
 
-(The exact command, with your actual user/db names, is printed at the end of
-every `backup.sh` run.) The dump is `--clean --if-exists`, so it drops
-whatever it replaces — make sure you're restoring into the database you mean to.
+**"Couldn't check that password":** the server can't reach Have I Been Pwned. Restore internet access, or set `PASSWORD_BREACH_CHECK=false`.
 
-## Reading the data without Rickhouse
+**Locked out:** an admin can reset anyone's password under **Users**. If no admin can sign in, run the following from the Unraid terminal:
 
-If Rickhouse itself is down, gone, or you just want to look at the data in
-something else — Baserow, NocoDB, Excel, Google Sheets, a spreadsheet, `grep`
-— every backup includes `csv.tar.gz`: one plain CSV file per table, no
-Postgres required to read it.
-
-```bash
-tar -xzf rickhouse-<timestamp>/csv.tar.gz -C /tmp
-```
-
-That gives you `/tmp/csv/*.csv`, ready to open or import directly. This export
-is a snapshot for reading, not a restorable database — it drops foreign keys
-and column types, so use `database.sql.gz` (above) to actually bring
-Rickhouse back.
-
-# Troubleshooting
-
-### Rickhouse keeps restarting
-
-Check the application logs:
-
-```bash id="lalcgs"
-docker logs rickhouse-app
-```
-
-Then check PostgreSQL:
-
-```bash id="0882xr"
-docker logs rickhouse-db
-```
-
-The usual suspects are incorrect environment variables, database permissions, or PostgreSQL failing to start.
-
-Rick is not hiding the evidence. The logs are right there.
-
-### Sign-in doesn't work
-
-Check:
-
-* the username or email and password (the first-run password is in the
-  application log; see Step 4)
-* `COOKIE_SECURE`
-* whether you're accessing Rickhouse over HTTP or HTTPS
-* application logs
-
-If you're using HTTP, make sure:
-
-```ini id="xqowrb"
-COOKIE_SECURE=false
-```
-
-If you're using HTTPS, make sure it's:
-
-```ini id="t6mn7w"
-COOKIE_SECURE=true
-```
-
-"Too many tries" means five wrong attempts in a minute; wait a minute. If it
-happens to everyone at once behind Cloudflare, see `TRUSTED_PROXIES` under
-**Behind a reverse proxy**.
-
-"Invalid origin" through a proxy or tunnel: set `APP_URL` to the address you
-type into the browser.
-
-### Forgot a password
-
-An admin can reset anyone's password from **Users** in the menu under their name. If the
-admin is the one locked out, use the Unraid terminal:
-
-```bash
+```sh
 docker exec rickhouse-app node dist/reset-password.mjs admin
 ```
 
-It prints a new temporary password, signs that account out everywhere, and
-asks for a new password at the next sign-in. It takes a username or an email.
-Add `--make-admin` to promote the account at the same time.
+It accepts a username or an email, prints a temporary password and signs that account out everywhere. Add `--make-admin` to promote the account at the same time.
 
-### Photos disappear after a restart
+**Photos vanish after a restart:** make sure `UPLOADS_PATH` points at a directory on the array.
 
-Check that:
+**Changed `POSTGRES_PASSWORD` and the app can't connect:** the password is only used when the database is first created. Change it inside PostgreSQL with `ALTER USER`, or put back the old value.
 
-```ini id="ap80s7"
-UPLOADS_PATH=/mnt/user/appdata/rickhouse/uploads
-```
-
-points to persistent Unraid storage.
-
-If uploads are stored only inside the container, they're temporary.
-
-Containers are disposable.
-
-Your photos of that bottle you bought in Kentucky because you were “definitely not buying any more bourbon” are not.
-
-### PostgreSQL password problems
-
-`POSTGRES_PASSWORD` is used when PostgreSQL initializes its database.
-
-Changing the value in `.env` **after the database already exists does not change PostgreSQL's existing password**.
-
-If you need to change the database password, handle that as a PostgreSQL credential change rather than simply editing `.env`.
-
-This is one of those places where Docker politely lets you make a change that looks like it should work.
-
-It doesn't.
-
-## Starting completely over
-
-If you intentionally want to destroy the Rickhouse installation and its data, stop the stack and remove the persistent PostgreSQL data and uploads directories.
-
-**This is destructive. Make sure you have a backup first.**
-
-The PostgreSQL directory contains your collection data.
-
-The uploads directory contains your photos.
-
-Deleting them is not an uninstall.
-
-It's a small digital fire.
+**Starting over:** stop the stack and delete the `POSTGRES_DATA_PATH` and `UPLOADS_PATH` directories. This erases your collection and photos, so take a backup first.
