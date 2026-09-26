@@ -18,7 +18,15 @@ export function initialFieldValues(
     if (spec.kind === "checkbox") {
       values[spec.name] = current === true;
     } else if (spec.kind === "select") {
-      values[spec.name] = typeof current === "string" ? current : (spec.options[0]?.value ?? "");
+      // Nullable booleans (Chill Filtered, Solera) come back as true / false,
+      // but their options are the strings "true" / "false". Without this a
+      // stored Yes reads as Unknown, and saving the form clears it.
+      values[spec.name] =
+        typeof current === "string"
+          ? current
+          : typeof current === "boolean"
+            ? String(current)
+            : (spec.options[0]?.value ?? "");
     } else if (current === null || current === undefined) {
       const hasDefault = spec.kind === "text" || spec.kind === "date" || spec.kind === "number";
       values[spec.name] = existing === null && hasDefault ? (spec.defaultValue ?? "") : "";

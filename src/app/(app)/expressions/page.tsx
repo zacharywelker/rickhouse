@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-
 import { Button } from "@/components/ui/button";
 import { LabelTable } from "@/components/expressions/label-table";
 import { LabelFilterBar } from "@/components/expressions/label-filter-bar";
 import { LabelPagination } from "@/components/expressions/label-pagination";
 import { queryExpressions } from "@/lib/expressions/queries";
 import { activeLabelFilterCount, parseLabelFilters } from "@/lib/expressions/filters";
-import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
+import { expressionFormData } from "@/lib/expressions/form-data";
 import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Labels" };
@@ -20,10 +19,10 @@ export default async function ExpressionsPage({
 }) {
   const user = await requireSession();
   const filters = parseLabelFilters(await searchParams);
-  const [{ rows, total, pageCount, page }, brands, categories] = await Promise.all([
+  // The form's own pickers and category rules, for the unlocked grid.
+  const [{ rows, total, pageCount, page }, { options, categoryGroups }] = await Promise.all([
     queryExpressions(filters, user.id),
-    REFERENCE_OPTION_LOADERS.brands(user.id),
-    REFERENCE_OPTION_LOADERS.categories(user.id),
+    expressionFormData(null, user.id),
   ]);
   const filtered = activeLabelFilterCount(filters) > 0;
 
@@ -47,7 +46,12 @@ export default async function ExpressionsPage({
         </div>
       </div>
 
-      <LabelFilterBar filters={filters} brands={brands} categories={categories} total={total} />
+      <LabelFilterBar
+        filters={filters}
+        brands={options.brandId ?? []}
+        categories={options.categoryId ?? []}
+        total={total}
+      />
 
       {rows.length === 0 ? (
         <div className="border border-dashed border-border p-10 text-center">
@@ -67,7 +71,7 @@ export default async function ExpressionsPage({
         </div>
       ) : (
         <>
-          <LabelTable rows={rows} filters={filters} brands={brands} categories={categories} />
+          <LabelTable rows={rows} filters={filters} options={options} categoryGroups={categoryGroups} />
           <LabelPagination filters={filters} page={page} pageCount={pageCount} total={total} />
         </>
       )}
