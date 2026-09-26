@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Polaroid } from "@/components/ui/polaroid";
 import { BottleImages } from "@/components/expressions/bottle-images";
 import { BottleGroups } from "@/components/bottles/bottle-groups";
-import { BottleStamps, type StampSpec } from "@/components/bottles/bottle-stamp";
+import { BottleStamps, StampDesignations, type StampSpec } from "@/components/bottles/bottle-stamp";
 import { DeleteBottleButton } from "@/components/bottles/delete-bottle-button";
 import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
@@ -299,6 +299,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="Batch" value={b.batch} />
             <Spec label="UPC" value={e.upc} />
           </dl>
+          <StampDesignations stamps={stamps} />
 
           <div className="border-t border-border pt-6">
             <BottleGroups bottleId={bottleId} memberOf={memberOf} allGroups={allGroups} />

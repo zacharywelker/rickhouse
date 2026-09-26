@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { BottleGallery } from "@/components/bottles/bottle-gallery";
 import { BottleTable, COLUMN_LABELS } from "@/components/bottles/bottle-table";
@@ -12,7 +12,14 @@ import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
 import { activeFilterCount, parseFilters } from "@/lib/bottles/filters";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
-import { formatMoney, formatNumeric } from "@/lib/utils";
+import { cn, formatMoney, formatNumeric } from "@/lib/utils";
+
+/** Workbench jobs: inline on desktop, folded into "More" on a phone. */
+const WORKBENCH_LINKS = [
+  { href: "/api/bottles/export", label: "Export", download: true },
+  { href: "/bottles/import", label: "Import", download: false },
+  { href: "/bottles/bulk", label: "Bulk add", download: false },
+] as const;
 
 export const metadata: Metadata = { title: "Collection" };
 export const dynamic = "force-dynamic";
@@ -45,39 +52,66 @@ export default async function BottlesPage({
         <div>
           <h1 className="text-3xl text-accent">Collection</h1>
         </div>
+        {/*
+         * Phones are the field companion (DESIGN.md §29): adding a bottle and
+         * picking tonight's pour stay in reach, while export, import and bulk
+         * add — workbench jobs — fold into "More" so the bottles themselves
+         * start above the fold.
+         */}
         <div className="flex flex-wrap items-center gap-2">
+          <Button asChild className="order-first md:order-last">
+            <Link href="/bottles/new">Add bottle</Link>
+          </Button>
           <SpinTheBottle categories={categories} finishes={finishes} />
-          <Button variant="outline" asChild>
-            <a href="/api/bottles/export" download>
-              Export
-            </a>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/bottles/import">
-              Import
-            </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/bottles/bulk">
-              Bulk add
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href="/bottles/new">
-              Add bottle
-            </Link>
-          </Button>
+          <div className="hidden items-center gap-2 md:flex">
+            {WORKBENCH_LINKS.map((item) => (
+              <Button key={item.href} variant="outline" asChild>
+                {item.download ? (
+                  <a href={item.href} download>
+                    {item.label}
+                  </a>
+                ) : (
+                  <Link href={item.href}>{item.label}</Link>
+                )}
+              </Button>
+            ))}
+          </div>
+          <details className="relative md:hidden">
+            <summary className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer list-none [&::-webkit-details-marker]:hidden")}>
+              More
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 flex w-44 flex-col border border-border bg-card py-1 shadow-md">
+              {WORKBENCH_LINKS.map((item) =>
+                item.download ? (
+                  <a key={item.href} href={item.href} download className="px-3 py-2.5 text-sm hover:bg-muted">
+                    {item.label}
+                  </a>
+                ) : (
+                  <Link key={item.href} href={item.href} className="px-3 py-2.5 text-sm hover:bg-muted">
+                    {item.label}
+                  </Link>
+                ),
+              )}
+            </div>
+          </details>
         </div>
       </div>
 
-      <StatStrip
-        items={[
-          { label: filtered ? "Matching" : "Bottles", value: total },
-          { label: "Open", value: summary.open },
-          { label: filtered ? "Spend, filtered" : "Total spend", value: formatMoney(summary.spend) },
-          { label: "Average proof", value: formatNumeric(summary.avgProof) },
-        ]}
-      />
+      {/* The full ruled strip from sm: up; on a phone the same numbers as one line. */}
+      <div className="hidden sm:block">
+        <StatStrip
+          items={[
+            { label: filtered ? "Matching" : "Bottles", value: total },
+            { label: "Open", value: summary.open },
+            { label: filtered ? "Spend, filtered" : "Total spend", value: formatMoney(summary.spend) },
+            { label: "Average proof", value: formatNumeric(summary.avgProof) },
+          ]}
+        />
+      </div>
+      <p className="-mt-2 border-t-2 border-foreground pt-2 text-sm text-muted-foreground sm:hidden">
+        {summary.open} open · {formatMoney(summary.spend)} {filtered ? "spent, filtered" : "spent"} ·{" "}
+        {formatNumeric(summary.avgProof)} average proof
+      </p>
 
       <FilterBar filters={filters} options={{ categories, brands, distilleries, mashbills, finishes, stores, tags }} columns={COLUMN_LABELS} total={total} />
 

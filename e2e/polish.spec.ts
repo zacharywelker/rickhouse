@@ -91,6 +91,19 @@ test.describe("on a tablet", () => {
 test.describe("on a phone", () => {
   test.use({ viewport: PHONE });
 
+  test("workbench actions fold into More, and the grid's Edit toggle is desktop-only", async ({ page }) => {
+    await page.goto("/bottles");
+    await expect(page.getByRole("link", { name: "Add bottle" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Export" })).toBeHidden();
+    // The phone cards have no edit mode, so the toggle is not offered.
+    await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeHidden();
+
+    await page.getByText("More", { exact: true }).click();
+    await expect(page.getByRole("link", { name: "Export" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Import" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Bulk add" })).toBeVisible();
+  });
+
   test("no page scrolls sideways, and the nav collapses behind a menu", async ({ page }) => {
     for (const path of ["/", "/bottles", "/numbers", "/admin"]) {
       await page.goto(path);

@@ -98,29 +98,27 @@ test("a recipe can carry two grains the old fixed columns had no room for", asyn
   ).toBeVisible();
 });
 
-test("creates a distillery inline from the mashbill picker", async ({ page }) => {
-  const name = `Inline Distillery ${stamp()}`;
-  await page.goto("/admin/mashbills");
-  await page.getByRole("button", { name: "Add mashbill" }).first().click();
-
-  // The point of this: the distillery does not exist, and we never leave.
-  await page.getByRole("combobox", { name: "Distillery" }).click();
-  await page.getByPlaceholder("Search or create").fill(name);
-  await page.getByRole("option", { name: `Create ${name}` }).click();
-
-  await expect(page.getByRole("combobox", { name: "Distillery" })).toContainText(name);
-
-  const recipe = `Inline Recipe ${stamp()}`;
-  await page.getByLabel("Name", { exact: true }).fill(recipe);
-  await addGrain(page, "Corn", "100", 0);
-  await page.getByRole("button", { name: "Add mashbill" }).last().click();
-  await expect(
-    page.getByRole("row").filter({ hasText: recipe }).getByRole("cell", { name: "100% Corn", exact: true }),
-  ).toBeVisible();
-
-  // And it is a real row, not just a form-local value.
+// Mashbills lost their distillery field in 1daaf55 (the link is per label
+// now), so the inline-create path is exercised from the distillery form's
+// company picker instead.
+test("creates a company inline from the distillery picker", async ({ page }) => {
+  const company = `Inline Company ${stamp()}`;
   await page.goto("/admin/distilleries");
-  await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Add distillery" }).first().click();
+
+  // The point of this: the company does not exist, and we never leave.
+  await page.getByRole("combobox", { name: "Company" }).click();
+  await page.getByPlaceholder("Search or create").fill(company);
+  await page.getByRole("option", { name: `Create ${company}` }).click();
+
+  await expect(page.getByRole("combobox", { name: "Company" })).toContainText(company);
+
+  const name = `Inline Distillery ${stamp()}`;
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await page.getByRole("button", { name: "Add distillery" }).last().click();
+  await expect(
+    page.getByRole("row").filter({ hasText: name }).getByRole("cell", { name: company, exact: true }),
+  ).toBeVisible();
 });
 
 test("a category cannot be parented to its own descendant", async ({ page }) => {

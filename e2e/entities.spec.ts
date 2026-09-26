@@ -84,7 +84,8 @@ test("the dashboard renders its charts and can show the numbers instead", async 
   const card = page.locator("div").filter({ hasText: /^What the collection is/ }).first();
   await card.getByRole("button", { name: "Table" }).click();
   await expect(page.getByRole("columnheader", { name: "Share" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Bourbon", exact: true })).toBeVisible();
+  // The chart groups by spirit family, so the seeded bourbon counts as Whiskey.
+  await expect(page.getByRole("cell", { name: "Whiskey", exact: true })).toBeVisible();
 });
 
 test("the collection exports as CSV", async ({ page }) => {
