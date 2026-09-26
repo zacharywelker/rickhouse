@@ -5,18 +5,25 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useTurnstile } from "@/components/turnstile";
 import { authClient, isRateLimited } from "@/lib/auth/client";
 
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
   const [status, setStatus] = useState<"idle" | "sent" | "limited" | "failed">("idle");
   const [pending, setPending] = useState(false);
+  const turnstile = useTurnstile(turnstileSiteKey);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const email = String(new FormData(event.currentTarget).get("email") ?? "").trim();
     if (!email) return;
     setPending(true);
-    const { error } = await authClient.requestPasswordReset({ email, redirectTo: "/reset-password" });
+    const { error } = await authClient.requestPasswordReset({
+      email,
+      redirectTo: "/reset-password",
+      fetchOptions: { headers: turnstile.headers },
+    });
+    turnstile.reset();
     setPending(false);
     // Same answer whether or not the address has an account.
     setStatus(!error ? "sent" : isRateLimited(error) ? "limited" : "failed");
@@ -50,7 +57,8 @@ export function ForgotPasswordForm() {
           Couldn&rsquo;t send the email. Try again, or ask an admin.
         </p>
       ) : null}
-      <Button type="submit" className="w-full" disabled={pending}>
+      {turnstile.widget}
+      <Button type="submit" className="w-full" disabled={pending || !turnstile.ready}>
         {pending ? "Sending…" : "Send reset link"}
       </Button>
       <Link href="/login" className="text-sm text-muted-foreground underline-offset-4 hover:underline">

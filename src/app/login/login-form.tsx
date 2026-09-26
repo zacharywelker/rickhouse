@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useTurnstile } from "@/components/turnstile";
 import { authClient, isRateLimited } from "@/lib/auth/client";
 
 type Props = {
@@ -15,17 +16,38 @@ type Props = {
   passkeys: boolean;
   canReset: boolean;
   ssoError: string | null;
+  turnstileSiteKey: string | null;
 };
 
-export function LoginForm({ next, sso, passkeys, canReset, ssoError }: Props) {
+export function LoginForm({ next, sso, passkeys, canReset, ssoError, turnstileSiteKey }: Props) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(ssoError);
   const [pending, setPending] = useState(false);
+  const turnstile = useTurnstile(turnstileSiteKey);
+
+  // Passkey first: browsers that support it list saved passkeys in the
+  // username field's autofill, so picking one signs in with no button.
+  useEffect(() => {
+    if (!passkeys || typeof PublicKeyCredential === "undefined") return;
+    let active = true;
+    void (async () => {
+      const supported = await PublicKeyCredential.isConditionalMediationAvailable?.().catch(() => false);
+      if (!supported || !active) return;
+      const { error: failure } = await authClient.signIn.passkey({ autoFill: true });
+      // Aborted (the button, or leaving the page) or dismissed: stay quiet.
+      if (!failure && active) window.location.assign(next);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [passkeys, next]);
 
   function explain(failure: { code?: string; status?: number }) {
     setPending(false);
     if (failure.code === "BANNED_USER") router.push("/cut-off");
     else if (isRateLimited(failure)) setError("Too many tries. Give it a minute and try again.");
+    else if (["MISSING_RESPONSE", "VERIFICATION_FAILED", "UNKNOWN_ERROR"].includes(failure.code ?? ""))
+      setError("The bot check didn't go through. Try it again.");
     else setError("That username or password is not right.");
   }
 
@@ -41,9 +63,12 @@ export function LoginForm({ next, sso, passkeys, canReset, ssoError }: Props) {
 
     setPending(true);
     setError(null);
+    const fetchOptions = { headers: turnstile.headers };
     const { data, error: failure } = login.includes("@")
-      ? await authClient.signIn.email({ email: login, password })
-      : await authClient.signIn.username({ username: login, password });
+      ? await authClient.signIn.email({ email: login, password, fetchOptions })
+      : await authClient.signIn.username({ username: login, password, fetchOptions });
+    // Each Turnstile token works once.
+    turnstile.reset();
 
     if (failure) return explain(failure);
     // Password was right; two-factor accounts still owe a code.
@@ -121,7 +146,8 @@ export function LoginForm({ next, sso, passkeys, canReset, ssoError }: Props) {
             {error}
           </p>
         ) : null}
-        <Button type="submit" className="w-full" disabled={pending}>
+        {turnstile.widget}
+        <Button type="submit" className="w-full" disabled={pending || !turnstile.ready}>
           {pending ? "Checking…" : "Unlock"}
         </Button>
       </form>

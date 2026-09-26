@@ -1,9 +1,9 @@
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
-import { createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { admin, genericOAuth, twoFactor, username } from "better-auth/plugins";
+import { admin, captcha, genericOAuth, haveIBeenPwned, twoFactor, username } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/admin/access";
 import { sql } from "drizzle-orm";
@@ -16,6 +16,7 @@ import { env } from "@/lib/env";
 import { enabledSsoConfigs } from "@/lib/sso/providers";
 import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from "./accounts";
 import { CLIENT_IP_HEADER } from "./client-ip";
+import { PASSWORD_COMPROMISED_MESSAGE, PASSWORD_REUSED_CODE, PASSWORD_REUSED_MESSAGE, reusesRecentPassword } from "./password-checks";
 import { sameHostOrigins } from "./origins";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./passwords";
 
@@ -41,6 +42,9 @@ export const RESET_LINK_HOURS = 24;
 
 /** Marks a reset link as an invitation, so the email says so. */
 export const INVITE_MARKER = "invite=1";
+
+/** Where a Turnstile check is required when it is configured. */
+const TURNSTILE_ENDPOINTS = ["/sign-in/username", "/sign-in/email", "/request-password-reset"];
 
 type RuntimeSettings = {
   email: boolean;
@@ -131,19 +135,28 @@ function buildAuth(settings: RuntimeSettings) {
           },
         }
       : undefined,
-    hooks: settings.email
-      ? {
-          after: createAuthMiddleware(async (ctx) => {
-            // Admin resets and the CLI write the password directly and say
-            // so themselves; this covers someone changing their own.
-            if (ctx.path !== "/change-password") return;
-            const user = ctx.context.session?.user;
-            if (user && !(ctx.context.returned instanceof Error)) {
-              await sendMailQuietly(securityNoticeMail(user, "Your Rickhouse password was changed."));
-            }
-          }),
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/change-password" && ctx.path !== "/reset-password") return;
+        const newPassword: unknown = ctx.body?.newPassword;
+        if (typeof newPassword !== "string" || !newPassword) return;
+        const userId = await passwordOwner(ctx);
+        // No session or a dead token: the endpoint itself says so.
+        if (userId === null) return;
+        if (await reusesRecentPassword(userId, newPassword)) {
+          throw new APIError("BAD_REQUEST", { message: PASSWORD_REUSED_MESSAGE, code: PASSWORD_REUSED_CODE });
         }
-      : undefined,
+      }),
+      after: createAuthMiddleware(async (ctx) => {
+        // Admin resets and the CLI write the password directly and say so
+        // themselves; this covers someone changing their own.
+        if (!settings.email || ctx.path !== "/change-password") return;
+        const user = ctx.context.session?.user;
+        if (user && !(ctx.context.returned instanceof Error)) {
+          await sendMailQuietly(securityNoticeMail(user, "Your Rickhouse password was changed."));
+        }
+      }),
+    },
     rateLimit: {
       // Better Auth only enables this in production by default.
       enabled: true,
@@ -187,6 +200,26 @@ function buildAuth(settings: RuntimeSettings) {
           ? { otpOptions: { sendOTP: async ({ user, otp }) => sendMail(otpMail(user, otp)) } }
           : {}),
       }),
+      // Passwords people choose themselves; generated ones are random.
+      ...(config.PASSWORD_BREACH_CHECK
+        ? [
+            haveIBeenPwned({
+              paths: ["/change-password", "/reset-password"],
+              customPasswordCompromisedMessage: PASSWORD_COMPROMISED_MESSAGE,
+            }),
+          ]
+        : []),
+      // Passkey sign-in is left out: it has no password to guess.
+      ...(config.TURNSTILE_SITE_KEY && config.TURNSTILE_SECRET_KEY
+        ? [
+            captcha({
+              provider: "cloudflare-turnstile",
+              secretKey: config.TURNSTILE_SECRET_KEY,
+              endpoints: TURNSTILE_ENDPOINTS,
+              ...(appUrl ? { allowedHostnames: [new URL(appUrl).hostname] } : {}),
+            }),
+          ]
+        : []),
       // A passkey is bound to one domain, so it needs APP_URL.
       ...(appUrl ? [passkey({ rpID: new URL(appUrl).hostname, rpName: "Rickhouse", origin: appUrl })] : []),
       // Sign-in only for identities someone already linked while signed in.
@@ -207,6 +240,21 @@ function buildAuth(settings: RuntimeSettings) {
       nextCookies(),
     ],
   });
+}
+
+type HookContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
+
+/** Whose password a change or reset request is about, or null if unknown. */
+async function passwordOwner(ctx: HookContext): Promise<number | null> {
+  if (ctx.path === "/change-password") {
+    const session = await getSessionFromCtx(ctx);
+    return session ? Number(session.user.id) : null;
+  }
+  const token: unknown = ctx.body?.token ?? ctx.query?.token;
+  if (typeof token !== "string" || !token) return null;
+  const verification = await ctx.context.internalAdapter.findVerificationValue(`reset-password:${token}`);
+  if (!verification || verification.expiresAt < new Date()) return null;
+  return Number(verification.value);
 }
 
 async function userById(id: string | number) {
