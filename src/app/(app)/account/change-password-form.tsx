@@ -39,6 +39,9 @@ export function ChangePasswordForm() {
       setStatus({ kind: "error", message: "Too many tries. Give it a minute and try again." });
     } else if (error.code === "INVALID_PASSWORD") {
       setStatus({ kind: "error", message: "Your current password is not right." });
+    } else if ((error.status ?? 0) >= 500) {
+      // Usually the breach check couldn't reach Have I Been Pwned.
+      setStatus({ kind: "error", message: "Couldn't check that password right now. Try again in a moment." });
     } else {
       setStatus({ kind: "error", message: error.message ?? "Could not change the password." });
     }

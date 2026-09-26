@@ -196,6 +196,26 @@ TRUSTED_PROXIES=
 Rickhouse can still be reached directly on port `1964` from your LAN at the
 same time; that keeps working.
 
+## Bot check and password rules
+
+```ini
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
+PASSWORD_BREACH_CHECK=true
+```
+
+* **Cloudflare Turnstile** (optional): create a widget in the Cloudflare
+  dashboard under *Turnstile* for your `APP_URL` hostname, and paste both
+  keys. Sign-in and "forgot password" then show a bot check first; passkey
+  sign-in skips it. Leave both empty to turn it off. If a bad key locks you
+  out, clear them here and recreate the container.
+* **Breached passwords:** new passwords are checked against
+  [Have I Been Pwned](https://haveibeenpwned.com/Passwords). Only the first 5
+  characters of a hash are sent. If your server has no internet access, set
+  `PASSWORD_BREACH_CHECK=false`, or password changes will fail.
+* **No reusing passwords:** a change, reset or first-time setup can't pick
+  the current password or any of the 4 before it. Nothing to configure.
+
 # Email, single sign-on, two-step sign-in and passkeys
 
 All four need `APP_URL` set to the address people type (see **Behind a

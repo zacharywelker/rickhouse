@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthCard } from "@/components/auth-card";
 import { emailEnabled } from "@/lib/email/settings";
+import { turnstileSiteKey } from "@/lib/env";
 import { ForgotPasswordForm } from "./forgot-password-form";
 
 export const metadata: Metadata = { title: "Forgot password" };
@@ -20,7 +21,7 @@ export default async function ForgotPasswordPage() {
   }
   return (
     <AuthCard title="Forgot password" description="We'll email you a link to choose a new one.">
-      <ForgotPasswordForm />
+      <ForgotPasswordForm turnstileSiteKey={turnstileSiteKey()} />
     </AuthCard>
   );
 }

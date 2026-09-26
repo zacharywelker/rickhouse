@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import { authClient, isRateLimited } from "@/lib/auth/client";
 import { PASSWORD_MIN_LENGTH, passwordProblem } from "@/lib/auth/passwords";
 
+/** Refusals about the password itself, whose message says what to do. */
+const PASSWORD_REJECTIONS = new Set(["PASSWORD_REUSED", "PASSWORD_COMPROMISED", "PASSWORD_TOO_SHORT", "PASSWORD_TOO_LONG"]);
+
 export function ResetPasswordForm({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -30,7 +33,11 @@ export function ResetPasswordForm({ token }: { token: string }) {
     setError(
       isRateLimited(failure)
         ? "Too many tries. Give it a minute."
-        : "This link has expired or was already used. Ask for a new one.",
+        : failure.code && PASSWORD_REJECTIONS.has(failure.code)
+          ? (failure.message ?? "Pick a different password.")
+          : (failure.status ?? 0) >= 500
+            ? "Couldn't check that password right now. Try again in a moment."
+            : "This link has expired or was already used. Ask for a new one.",
     );
   }
 
