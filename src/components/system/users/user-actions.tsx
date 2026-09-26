@@ -9,7 +9,7 @@ import {
   setActiveAction,
   setRoleAction,
   type UserActionResult,
-} from "@/app/(app)/admin/users/actions";
+} from "@/app/(app)/system/users/actions";
 import type { UserRole } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,6 +72,7 @@ export function UserActions({ userId, username, role, active }: Props) {
           variant="outline"
           disabled={pending}
           aria-label={`Delete ${username}`}
+          title={`Delete ${username}`}
           onClick={() => setConfirmDelete(true)}
         >
           <Trash2 className="size-4" />
@@ -90,8 +91,8 @@ export function UserActions({ userId, username, role, active }: Props) {
           <DialogHeader>
             <DialogTitle>Delete {username}?</DialogTitle>
             <DialogDescription>
-              Their account and sign-in methods are removed for good. To keep the account but lock them out, deactivate it
-              instead.
+              Their account and their entire collection — bottles, labels, groups and photos — are removed for good. To
+              keep everything but lock them out, deactivate the account instead.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -106,7 +107,7 @@ export function UserActions({ userId, username, role, active }: Props) {
               disabled={pending}
               onClick={() => run(() => deleteUserAction(userId), () => setConfirmDelete(false))}
             >
-              {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {pending ? <Loader2 className="size-4 animate-spin" /> : null}
               Delete
             </Button>
           </DialogFooter>

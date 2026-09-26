@@ -138,7 +138,7 @@ export function ExpressionForm({
           <SectionTitle>Where it came from</SectionTitle>
           <SectionDescription>
             A blend has several of each, and the order matters. These are real links, so a distillery&rsquo;s page will
-            list this expression among its contributions.
+            list this label among its contributions.
           </SectionDescription>
         </SectionHeader>
         <SectionContent className="grid grid-cols-1 gap-4">

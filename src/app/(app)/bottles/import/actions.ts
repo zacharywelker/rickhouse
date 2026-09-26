@@ -9,7 +9,7 @@ export type ImportState = { report: ImportReport | null; error: string | null };
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
 
 export async function importAction(_prev: ImportState, formData: FormData): Promise<ImportState> {
-  await requireSession();
+  const user = await requireSession();
 
   const file = formData.get("file");
   const pasted = String(formData.get("pasted") ?? "").trim();
@@ -27,7 +27,7 @@ export async function importAction(_prev: ImportState, formData: FormData): Prom
   }
 
   try {
-    const report = await importBottlesCsv(text);
+    const report = await importBottlesCsv(text, user.id);
     revalidatePath("/bottles");
     revalidatePath("/expressions");
     revalidatePath("/numbers");

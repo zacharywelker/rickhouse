@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { removeGroupCoverAction } from "@/app/(app)/groups/actions";
 import type { ActionResult } from "@/lib/admin/types";
@@ -43,7 +43,7 @@ export function GroupCoverUpload({ groupId, coverImagePath }: { groupId: number;
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={busy}>
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
+          {busy ? <Loader2 className="size-4 animate-spin" /> : null}
           {coverImagePath ? "Replace cover" : "Add cover image"}
         </Button>
         {coverImagePath ? (
@@ -54,7 +54,6 @@ export function GroupCoverUpload({ groupId, coverImagePath }: { groupId: number;
             onClick={() => void removeGroupCoverAction(groupId).then(() => router.refresh())}
             disabled={busy}
           >
-            <Trash2 className="size-4" />
             Remove
           </Button>
         ) : null}

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -118,7 +118,6 @@ export function GrainEditor({
           className="w-fit"
           onClick={() => onChange([...rows, { grain: "", percent: "" }])}
         >
-          <Plus className="size-4" />
           Add a grain
         </Button>
       </div>

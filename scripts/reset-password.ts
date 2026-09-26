@@ -53,7 +53,7 @@ async function main(): Promise<number> {
     console.log("asks for a new one straight away.");
     if (user.banned) {
       console.log("");
-      console.log("Note: this account is deactivated. Reactivate it from Configuration → Users.");
+      console.log("Note: this account is deactivated. Reactivate it from Users, in the admin menu under your name.");
     }
     return 0;
   } finally {

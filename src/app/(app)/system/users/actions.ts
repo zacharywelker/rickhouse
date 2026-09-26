@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createPasswordUser, normalizeUsername, replacePassword, usernameProblem } from "@/lib/auth/accounts";
 import { generatePassword, isPlaceholderEmail } from "@/lib/auth/passwords";
 import { mapDbError } from "@/lib/db-errors";
+import { deleteStoredImage } from "@/lib/images";
 
 /**
  * Account management for admins. These write the database directly instead
@@ -25,7 +26,7 @@ export type UserActionResult =
   | { ok: true; message: string; password?: string }
   | { ok: false; error: string };
 
-const PATH = "/admin/users";
+const PATH = "/system/users";
 
 const newUserSchema = z.object({
   name: z.string().trim().min(1, "Enter a name.").max(100),
@@ -118,7 +119,23 @@ export async function deleteUserAction(userId: number): Promise<UserActionResult
   const target = await otherUser(userId, "delete");
   if (typeof target === "string") return { ok: false, error: target };
 
+  // Their whole collection cascades away in the database; the photo files on
+  // disk do not, so note them first and remove them once the rows are gone.
+  const photos = await db
+    .select({ filePath: schema.bottleImages.filePath, thumbPath: schema.bottleImages.thumbPath })
+    .from(schema.bottleImages)
+    .innerJoin(schema.bottles, eq(schema.bottles.id, schema.bottleImages.bottleId))
+    .where(eq(schema.bottles.ownerId, userId));
+  const covers = await db
+    .select({ path: schema.groups.coverImagePath })
+    .from(schema.groups)
+    .where(and(eq(schema.groups.ownerId, userId), isNotNull(schema.groups.coverImagePath)));
+
   await db.delete(schema.users).where(eq(schema.users.id, userId));
+  await Promise.allSettled([
+    ...photos.map((photo) => deleteStoredImage(photo.filePath, photo.thumbPath)),
+    ...covers.map((cover) => deleteStoredImage(cover.path as string, null)),
+  ]);
   revalidatePath(PATH);
-  return { ok: true, message: `Deleted ${target.username}.` };
+  return { ok: true, message: `Deleted ${target.username} and their collection.` };
 }

@@ -216,10 +216,13 @@ export function LabelTableBody({
           <TableRow
             key={row.id}
             onDoubleClick={(event) => !unlocked && openOnDoubleClick(event, router, row.id)}
-            className={unlocked ? undefined : "cursor-pointer"}
+            // Top-aligned only while editing, where inputs of different
+            // heights share a row; read-only rows centre, so the text lines up
+            // with the edit button beside it.
+            className={unlocked ? "[&>td]:align-top" : "cursor-pointer"}
           >
             {unlocked ? (
-              <TableCell className="align-top">
+              <TableCell>
                 <Checkbox
                   checked={selectedIds.has(row.id)}
                   onCheckedChange={(value) => onToggle(row.id, Boolean(value))}
@@ -234,7 +237,6 @@ export function LabelTableBody({
                 <TableCell
                   key={column.id}
                   className={cn(
-                    "align-top",
                     !PHONE_COLUMNS.has(column.id) && "hidden sm:table-cell",
                     column.numeric && "text-right tabular-nums",
                     unlocked && applies && column.specs.length === 1 && CELL_WIDTH[column.specs[0]!.kind],
@@ -259,9 +261,13 @@ export function LabelTableBody({
               );
             })}
 
-            <TableCell className="align-top text-right">
+            <TableCell className="text-right">
               <Button variant="ghost" size="sm" asChild>
-                <Link href={`/expressions/${row.id}/edit`} aria-label={`Edit ${row.brand} ${row.name}`}>
+                <Link
+                  href={`/expressions/${row.id}/edit`}
+                  aria-label={`Edit ${row.brand} ${row.name}`}
+                  title={`Edit ${row.brand} ${row.name}`}
+                >
                   <Pencil className="size-4" />
                 </Link>
               </Button>

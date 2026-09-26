@@ -128,7 +128,8 @@ export function describeRecipe(packed: string | null): string {
   return describeMashbill(grains) || "No recipe recorded";
 }
 
-export async function getExpression(id: number) {
+/** Null unless the label belongs to `ownerId`. */
+export async function getExpression(id: number, ownerId: number) {
   const [row] = await db
     .select({
       expression: expressions,
@@ -138,7 +139,7 @@ export async function getExpression(id: number) {
     .from(expressions)
     .innerJoin(brands, eq(expressions.brandId, brands.id))
     .innerJoin(categories, eq(expressions.categoryId, categories.id))
-    .where(eq(expressions.id, id))
+    .where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)))
     .limit(1);
   return row ?? null;
 }
@@ -156,7 +157,7 @@ export { LABEL_SORTS, parseLabelSort, type LabelSort } from "@/lib/expressions/f
  * which is the question worth answering here anyway: how many of these did I
  * buy as store picks.
  */
-export async function queryExpressions(filters: LabelFilters): Promise<{
+export async function queryExpressions(filters: LabelFilters, ownerId: number): Promise<{
   rows: ExpressionRow[];
   total: number;
   pageCount: number;
@@ -177,14 +178,14 @@ export async function queryExpressions(filters: LabelFilters): Promise<{
 
   const direction = filters.desc ? sqlDesc(columns[filters.sort]) : sqlAsc(columns[filters.sort]);
 
-  const clauses = [];
+  const clauses = [eq(expressions.ownerId, ownerId)];
   if (filters.q) {
     const match = or(ilike(expressions.name, `%${filters.q}%`), ilike(brands.name, `%${filters.q}%`));
     if (match) clauses.push(match);
   }
   if (filters.brandIds.length > 0) clauses.push(inArray(expressions.brandId, filters.brandIds));
   if (filters.categoryIds.length > 0) clauses.push(inArray(expressions.categoryId, filters.categoryIds));
-  const where = clauses.length === 0 ? undefined : and(...clauses);
+  const where = and(...clauses);
 
   const [{ total } = { total: 0 }] = await db
     .select({ total: sql<number>`count(*)::int` })
@@ -379,7 +380,7 @@ export type ExpressionRow = {
 };
 
 /** Options for the bottle form's expression picker. */
-export async function expressionOptions() {
+export async function expressionOptions(ownerId: number) {
   const rows = await db
     .select({
       value: expressions.id,
@@ -389,6 +390,7 @@ export async function expressionOptions() {
     })
     .from(expressions)
     .innerJoin(brands, eq(expressions.brandId, brands.id))
+    .where(eq(expressions.ownerId, ownerId))
     .orderBy(asc(brands.name), asc(expressions.name));
   return rows.map((r) => ({
     value: r.value,
@@ -412,7 +414,11 @@ export async function fieldGroupForCategory(categoryId: number): Promise<FieldGr
   return row?.fieldGroup ?? "other";
 }
 
-export async function getBottle(id: number) {
+/**
+ * Null unless the bottle belongs to `ownerId`. Callers use this as the
+ * ownership check before loading its photos, notes or label links.
+ */
+export async function getBottle(id: number, ownerId: number) {
   const [row] = await db
     .select({
       bottle: bottles,
@@ -426,7 +432,7 @@ export async function getBottle(id: number) {
     .innerJoin(brands, eq(expressions.brandId, brands.id))
     .innerJoin(categories, eq(expressions.categoryId, categories.id))
     .leftJoin(stores, eq(bottles.storeId, stores.id))
-    .where(eq(bottles.id, id))
+    .where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId)))
     .limit(1);
   return row ?? null;
 }

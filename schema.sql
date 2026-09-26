@@ -41,8 +41,8 @@ CREATE INDEX categories_parent_idx ON categories(parent_id);
 -- Brown-Forman -> Old Forester. Pursuit Spirits is its own parent.
 CREATE TABLE companies (
     id          serial PRIMARY KEY,
-    name        citext NOT NULL UNIQUE,
-    slug        text   NOT NULL UNIQUE,
+    name        citext NOT NULL,
+    slug        text   NOT NULL,
     parent_id   integer REFERENCES companies(id) ON DELETE SET NULL,
     country     text,
     website     text,
@@ -52,8 +52,8 @@ CREATE INDEX companies_parent_idx ON companies(parent_id);
 
 CREATE TABLE brands (
     id          serial PRIMARY KEY,
-    name        citext NOT NULL UNIQUE,
-    slug        text   NOT NULL UNIQUE,
+    name        citext NOT NULL,
+    slug        text   NOT NULL,
     company_id  integer REFERENCES companies(id) ON DELETE SET NULL,
     -- Non-distiller producer: sources whiskey rather than distilling it.
     is_ndp      boolean NOT NULL DEFAULT false,
@@ -63,8 +63,8 @@ CREATE INDEX brands_company_idx ON brands(company_id);
 
 CREATE TABLE distilleries (
     id          serial PRIMARY KEY,
-    name        citext NOT NULL UNIQUE,
-    slug        text   NOT NULL UNIQUE,
+    name        citext NOT NULL,
+    slug        text   NOT NULL,
     company_id  integer REFERENCES companies(id) ON DELETE SET NULL,
     city        text,
     state       text,
@@ -84,12 +84,12 @@ CREATE TABLE mashbills (
     id              serial PRIMARY KEY,
     name            citext,                    -- "BBC High Rye", optional
     notes           text
-)
+);
 
 CREATE TABLE finishes (
     id          serial PRIMARY KEY,
-    name        citext NOT NULL UNIQUE,   -- French Oak, PX Sherry, Maple, Toasted
-    slug        text   NOT NULL UNIQUE,
+    name        citext NOT NULL,   -- French Oak, PX Sherry, Maple, Toasted
+    slug        text   NOT NULL,
     -- 'wood' | 'wine' | 'fortified' | 'beer' | 'spirit' | 'other'
     finish_type text   NOT NULL DEFAULT 'other',
     notes       text
@@ -98,12 +98,12 @@ CREATE TABLE finishes (
 CREATE TABLE stores (
     id          serial PRIMARY KEY,
     name        citext NOT NULL,
-    slug        text   NOT NULL UNIQUE,
+    slug        text   NOT NULL,
     location    text,                      -- "Online", "Louisville, KY"
     is_online   boolean NOT NULL DEFAULT false,
     url         text,
-    notes       text,
-    UNIQUE (name, location)
+    notes       text
+    -- (owner_id, name, location) is unique; see Private collections below.
 );
 
 -- ------------------------------------------------------------
@@ -159,7 +159,7 @@ CREATE TABLE expressions (
     brand_id        integer NOT NULL REFERENCES brands(id) ON DELETE RESTRICT,
     category_id     integer NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
     name            citext  NOT NULL,          -- "Double Oak Spirit"
-    slug            text    NOT NULL UNIQUE,
+    slug            text    NOT NULL,
 
     -- Strength, as the product is normally sold. A bottle may override it.
     proof           numeric(5,2),
@@ -356,8 +356,8 @@ CREATE INDEX pours_bottle_idx ON pours(bottle_id);
 -- Free-form tags, because there will always be a field you didn't anticipate.
 CREATE TABLE tags (
     id    serial PRIMARY KEY,
-    name  citext NOT NULL UNIQUE,
-    slug  text   NOT NULL UNIQUE,
+    name  citext NOT NULL,
+    slug  text   NOT NULL,
     color text
 );
 
@@ -377,8 +377,8 @@ CREATE TABLE bottle_tags (
 -- position column for the order bottles were arranged in.
 CREATE TABLE groups (
     id               serial PRIMARY KEY,
-    name             citext NOT NULL UNIQUE,
-    slug             text   NOT NULL UNIQUE,
+    name             citext NOT NULL,
+    slug             text   NOT NULL,
     description      text,
     cover_image_path text,
     created_at       timestamptz NOT NULL DEFAULT now(),
@@ -488,6 +488,113 @@ CREATE TABLE verifications (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX verifications_identifier_idx ON verifications(identifier);
+
+-- ------------------------------------------------------------
+-- Private collections (M10 phase 2)
+-- ------------------------------------------------------------
+
+-- Everything above except categories belongs to one account. Names and slugs
+-- are unique per owner, and the database refuses to link one owner's rows to
+-- another's: composite foreign keys on (ref, owner_id) for direct
+-- references, and a trigger on the pure link tables. Deleting a user
+-- cascades through their whole collection.
+
+ALTER TABLE companies ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX companies_owner_idx ON companies(owner_id);
+ALTER TABLE companies ADD CONSTRAINT companies_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE brands ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX brands_owner_idx ON brands(owner_id);
+ALTER TABLE brands ADD CONSTRAINT brands_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE distilleries ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX distilleries_owner_idx ON distilleries(owner_id);
+ALTER TABLE distilleries ADD CONSTRAINT distilleries_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE mashbills ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX mashbills_owner_idx ON mashbills(owner_id);
+ALTER TABLE mashbills ADD CONSTRAINT mashbills_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE finishes ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX finishes_owner_idx ON finishes(owner_id);
+ALTER TABLE finishes ADD CONSTRAINT finishes_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE stores ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX stores_owner_idx ON stores(owner_id);
+ALTER TABLE stores ADD CONSTRAINT stores_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE tags ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX tags_owner_idx ON tags(owner_id);
+ALTER TABLE tags ADD CONSTRAINT tags_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE expressions ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX expressions_owner_idx ON expressions(owner_id);
+ALTER TABLE expressions ADD CONSTRAINT expressions_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE bottles ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX bottles_owner_idx ON bottles(owner_id);
+ALTER TABLE bottles ADD CONSTRAINT bottles_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE groups ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX groups_owner_idx ON groups(owner_id);
+ALTER TABLE groups ADD CONSTRAINT groups_id_owner_unique UNIQUE (id, owner_id);
+
+ALTER TABLE companies ADD CONSTRAINT companies_owner_name_unique UNIQUE (owner_id, name);
+ALTER TABLE companies ADD CONSTRAINT companies_owner_slug_unique UNIQUE (owner_id, slug);
+ALTER TABLE brands ADD CONSTRAINT brands_owner_name_unique UNIQUE (owner_id, name);
+ALTER TABLE brands ADD CONSTRAINT brands_owner_slug_unique UNIQUE (owner_id, slug);
+ALTER TABLE distilleries ADD CONSTRAINT distilleries_owner_name_unique UNIQUE (owner_id, name);
+ALTER TABLE distilleries ADD CONSTRAINT distilleries_owner_slug_unique UNIQUE (owner_id, slug);
+ALTER TABLE finishes ADD CONSTRAINT finishes_owner_name_unique UNIQUE (owner_id, name);
+ALTER TABLE finishes ADD CONSTRAINT finishes_owner_slug_unique UNIQUE (owner_id, slug);
+ALTER TABLE tags ADD CONSTRAINT tags_owner_name_unique UNIQUE (owner_id, name);
+ALTER TABLE tags ADD CONSTRAINT tags_owner_slug_unique UNIQUE (owner_id, slug);
+ALTER TABLE groups ADD CONSTRAINT groups_owner_name_unique UNIQUE (owner_id, name);
+ALTER TABLE groups ADD CONSTRAINT groups_owner_slug_unique UNIQUE (owner_id, slug);
+ALTER TABLE stores ADD CONSTRAINT stores_owner_slug_unique UNIQUE (owner_id, slug);
+ALTER TABLE expressions ADD CONSTRAINT expressions_owner_slug_unique UNIQUE (owner_id, slug);
+ALTER TABLE stores ADD CONSTRAINT stores_owner_name_location_unique UNIQUE (owner_id, name, location);
+
+-- Direct references stay within one owner. NO ACTION where these used to be
+-- RESTRICT: checked at statement end, so a user's delete can cascade through
+-- labels and bottles together.
+ALTER TABLE companies DROP CONSTRAINT companies_parent_id_fkey,
+    ADD FOREIGN KEY (parent_id, owner_id) REFERENCES companies(id, owner_id) ON DELETE SET NULL (parent_id);
+ALTER TABLE brands DROP CONSTRAINT brands_company_id_fkey,
+    ADD FOREIGN KEY (company_id, owner_id) REFERENCES companies(id, owner_id) ON DELETE SET NULL (company_id);
+ALTER TABLE distilleries DROP CONSTRAINT distilleries_company_id_fkey,
+    ADD FOREIGN KEY (company_id, owner_id) REFERENCES companies(id, owner_id) ON DELETE SET NULL (company_id);
+ALTER TABLE expressions DROP CONSTRAINT expressions_brand_id_fkey,
+    ADD FOREIGN KEY (brand_id, owner_id) REFERENCES brands(id, owner_id) ON DELETE NO ACTION;
+ALTER TABLE bottles DROP CONSTRAINT bottles_expression_id_fkey,
+    ADD FOREIGN KEY (expression_id, owner_id) REFERENCES expressions(id, owner_id) ON DELETE NO ACTION;
+ALTER TABLE bottles DROP CONSTRAINT bottles_store_id_fkey,
+    ADD FOREIGN KEY (store_id, owner_id) REFERENCES stores(id, owner_id) ON DELETE SET NULL (store_id);
+
+-- Link tables have no owner of their own; every row they point at must share
+-- one. Arguments are (column, table) pairs; NULL references are skipped.
+CREATE FUNCTION assert_same_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  i integer;
+  ref_id integer;
+  ref_owner integer;
+  first_owner integer;
+BEGIN
+  FOR i IN 0 .. TG_NARGS - 1 BY 2 LOOP
+    ref_id := (to_jsonb(NEW) ->> TG_ARGV[i])::integer;
+    CONTINUE WHEN ref_id IS NULL;
+    EXECUTE format('SELECT owner_id FROM %I WHERE id = $1', TG_ARGV[i + 1]) INTO ref_owner USING ref_id;
+    IF first_owner IS NULL THEN
+      first_owner := ref_owner;
+    ELSIF ref_owner IS DISTINCT FROM first_owner THEN
+      RAISE EXCEPTION '% links rows that belong to different accounts', TG_TABLE_NAME
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END LOOP;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER expression_distilleries_same_owner BEFORE INSERT OR UPDATE ON expression_distilleries
+    FOR EACH ROW EXECUTE FUNCTION assert_same_owner('expression_id', 'expressions', 'distillery_id', 'distilleries');
+CREATE TRIGGER expression_mashbills_same_owner BEFORE INSERT OR UPDATE ON expression_mashbills
+    FOR EACH ROW EXECUTE FUNCTION assert_same_owner('expression_id', 'expressions', 'mashbill_id', 'mashbills', 'distillery_id', 'distilleries');
+CREATE TRIGGER expression_finishes_same_owner BEFORE INSERT OR UPDATE ON expression_finishes
+    FOR EACH ROW EXECUTE FUNCTION assert_same_owner('expression_id', 'expressions', 'finish_id', 'finishes');
+CREATE TRIGGER bottle_tags_same_owner BEFORE INSERT OR UPDATE ON bottle_tags
+    FOR EACH ROW EXECUTE FUNCTION assert_same_owner('bottle_id', 'bottles', 'tag_id', 'tags');
+CREATE TRIGGER group_bottles_same_owner BEFORE INSERT OR UPDATE ON group_bottles
+    FOR EACH ROW EXECUTE FUNCTION assert_same_owner('group_id', 'groups', 'bottle_id', 'bottles');
 
 -- ------------------------------------------------------------
 -- Convenience view: the flat list for the grid page
@@ -613,7 +720,8 @@ SELECT
       e.description, b.notes,
       (SELECT string_agg(concat_ws(' ', tn.nose, tn.palate, tn.finish, tn.overall), ' ')
          FROM tasting_notes tn WHERE tn.bottle_id = b.id)
-    ) AS search_text
+    ) AS search_text,
+    b.owner_id
 FROM bottles b
 JOIN expressions  e  ON e.id  = b.expression_id
 JOIN brands       br ON br.id = e.brand_id
@@ -649,6 +757,22 @@ FROM (VALUES
     ('Single Malt',      'american-single-malt', 4),
     ('Light Whiskey',    'light-whiskey',    5)
 ) AS v(name, slug, ord);
+
+-- The example below belongs to an account, as all collection data does.
+-- A temporary owner_id default keeps the inserts readable; it is dropped
+-- again after the last one.
+INSERT INTO users (name, email, username, role)
+VALUES ('Example', 'example@rickhouse.invalid', 'example', 'admin');
+
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['companies','brands','distilleries','mashbills','finishes','stores','tags','expressions','bottles','groups'] LOOP
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN owner_id SET DEFAULT %s', t,
+                   (SELECT id FROM users WHERE username = 'example'));
+  END LOOP;
+END
+$$;
 
 INSERT INTO companies (name, slug, country)
 VALUES ('Pursuit Spirits', 'pursuit-spirits', 'USA');
@@ -700,3 +824,13 @@ INSERT INTO bottles (expression_id, price_paid, store_id, date_acquired,
 SELECT e.id, 69.99, s.id, DATE '2025-03-27', false, 100, 'owned'
 FROM expressions e, stores s
 WHERE e.slug = 'pursuit-double-oak-spirit' AND s.slug = 'p-club';
+
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['companies','brands','distilleries','mashbills','finishes','stores','tags','expressions','bottles','groups'] LOOP
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN owner_id DROP DEFAULT', t);
+  END LOOP;
+END
+$$;
+

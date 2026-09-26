@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Loader2, Plus, Trash2 } from "lucide-react";
+import { Copy, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fieldVisible, sectionVisible, type FormSection } from "@/lib/expressions/fields";
@@ -383,6 +383,7 @@ export function BulkGrid({
                           className="w-8 px-0"
                           onClick={() => duplicateRow(row.key)}
                           aria-label="Duplicate row"
+                          title="Duplicate row"
                         >
                           <Copy className="size-4" />
                         </Button>
@@ -393,6 +394,7 @@ export function BulkGrid({
                           className="w-8 px-0"
                           onClick={() => removeRow(row.key)}
                           aria-label="Delete row"
+                          title="Delete row"
                           disabled={rows.length === 1}
                         >
                           <Trash2 className="size-4" />
@@ -424,7 +426,6 @@ export function BulkGrid({
 
       <div className="flex items-center gap-2">
         <Button type="button" variant="outline" onClick={addRow}>
-          <Plus className="size-4" />
           Add row
         </Button>
         <Button type="button" onClick={saveAll} disabled={saving}>

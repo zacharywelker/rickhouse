@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GroupForm } from "@/components/groups/group-form";
 import { getGroup } from "@/lib/groups/queries";
+import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
-  const group = Number.isInteger(Number(id)) ? await getGroup(Number(id)) : null;
+  const [{ id }, user] = await Promise.all([params, requireSession()]);
+  const group = Number.isInteger(Number(id)) ? await getGroup(Number(id), user.id) : null;
   return { title: group ? `Edit ${group.name}` : "Edit group" };
 }
 
@@ -15,8 +16,9 @@ export default async function EditGroupPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const groupId = Number(id);
   if (!Number.isInteger(groupId)) notFound();
+  const user = await requireSession();
 
-  const group = await getGroup(groupId);
+  const group = await getGroup(groupId, user.id);
   if (!group) notFound();
 
   return (

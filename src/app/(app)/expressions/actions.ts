@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   expressionDistilleries,
@@ -130,12 +130,20 @@ async function insertLinks(tx: Tx, expressionId: number, links: Links) {
   }
 }
 
+/** Thrown inside a transaction to roll it back when the label isn't the caller's. */
+class NotOwned extends Error {}
+
+/**
+ * Scoped to the signed-in account throughout: another account's label id
+ * matches nothing and reads as gone. Links to distilleries, mashbills and
+ * finishes are held to the label's owner by a trigger in Postgres.
+ */
 export async function saveExpressionAction(
   id: number | null,
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
 
   const parsed = expressionSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
@@ -161,6 +169,7 @@ export async function saveExpressionAction(
       table: expressions,
       column: expressions.slug,
       idColumn: expressions.id,
+      scope: { column: expressions.ownerId, value: user.id },
       requested: input.slug,
       fallbackFrom: `${input.name}${input.batch ? ` ${input.batch}` : ""}`,
       ...(id !== null ? { excludeId: id } : {}),
@@ -173,14 +182,17 @@ export async function saveExpressionAction(
       if (target === null) {
         const [row] = await tx
           .insert(expressions)
-          .values(values as typeof expressions.$inferInsert)
+          .values({ ...(values as typeof expressions.$inferInsert), ownerId: user.id })
           .returning({ id: expressions.id });
         target = row!.id;
       } else {
-        await tx
+        const updated = await tx
           .update(expressions)
           .set(values as Partial<typeof expressions.$inferInsert>)
-          .where(eq(expressions.id, target));
+          .where(and(eq(expressions.id, target), eq(expressions.ownerId, user.id)))
+          .returning({ id: expressions.id });
+        // Stop before the link rows below are rewritten for someone else's label.
+        if (updated.length === 0) throw new NotOwned();
       }
       await replaceLinks(tx, target, links);
       return target;
@@ -191,11 +203,12 @@ export async function saveExpressionAction(
     revalidatePath("/");
     return {
       ok: true,
-      message: id === null ? "Expression created." : "Expression saved.",
+      message: id === null ? "Label created." : "Label saved.",
       createdId: expressionId,
     };
   } catch (error: unknown) {
-    return mapDbError(error, { singular: "Expression" });
+    if (error instanceof NotOwned) return { ok: false, error: "That label is gone." };
+    return mapDbError(error, { singular: "Label" });
   }
 }
 
@@ -211,7 +224,7 @@ export async function saveExpressionAction(
  * ones next to it. Within a row, the label and its lists are one transaction.
  */
 export async function saveExpressionsBulkAction(rows: Record<string, unknown>[]): Promise<BulkSaveResult> {
-  await requireSession();
+  const user = await requireSession();
   const results: BulkSaveResult["results"] = [];
 
   for (const [index, row] of rows.entries()) {
@@ -233,13 +246,14 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
         table: expressions,
         column: expressions.slug,
         idColumn: expressions.id,
+        scope: { column: expressions.ownerId, value: user.id },
         requested: input.slug,
         fallbackFrom: input.name,
       });
       const id = await db.transaction(async (tx) => {
         const [inserted] = await tx
           .insert(expressions)
-          .values(valuesForGroup(input, allowed, slug) as typeof expressions.$inferInsert)
+          .values({ ...(valuesForGroup(input, allowed, slug) as typeof expressions.$inferInsert), ownerId: user.id })
           .returning({ id: expressions.id });
         await insertLinks(tx, inserted!.id, linksFrom(row));
         return inserted!.id;
@@ -279,7 +293,7 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
 export async function updateExpressionsBulkAction(
   rows: Array<{ id: number } & Record<string, unknown>>,
 ): Promise<BulkSaveResult> {
-  await requireSession();
+  const user = await requireSession();
   const results: BulkSaveResult["results"] = [];
 
   for (const [index, { id, distilleryLinks, mashbillLinks, finishLinks, ...fields }] of rows.entries()) {
@@ -297,8 +311,9 @@ export async function updateExpressionsBulkAction(
       const [current] = await db
         .select({ categoryId: expressions.categoryId, name: expressions.name })
         .from(expressions)
-        .where(eq(expressions.id, id))
+        .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
         .limit(1);
+      // Another account's label reads as gone, exactly like a deleted one.
       if (!current) {
         results.push({ index, ok: false, error: "That label is gone.", fieldErrors: {} });
         continue;
@@ -313,6 +328,7 @@ export async function updateExpressionsBulkAction(
           table: expressions,
           column: expressions.slug,
           idColumn: expressions.id,
+          scope: { column: expressions.ownerId, value: user.id },
           requested: null,
           fallbackFrom: parsed.data.name ?? current.name,
           excludeId: id,
@@ -325,7 +341,7 @@ export async function updateExpressionsBulkAction(
           await tx
             .update(expressions)
             .set(values as Partial<typeof expressions.$inferInsert>)
-            .where(eq(expressions.id, id));
+            .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)));
         }
         if (relink) await replaceLinks(tx, id, linksFrom({ distilleryLinks, mashbillLinks, finishLinks }));
       });
@@ -351,13 +367,17 @@ export async function updateExpressionsBulkAction(
 }
 
 export async function deleteExpressionAction(id: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   try {
-    await db.delete(expressions).where(eq(expressions.id, id));
+    const deleted = await db
+      .delete(expressions)
+      .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
+      .returning({ id: expressions.id });
+    if (deleted.length === 0) return { ok: false, error: "That label is gone." };
     revalidatePath("/expressions");
-    return { ok: true, message: "Expression deleted." };
+    return { ok: true, message: "Label deleted." };
   } catch (error: unknown) {
-    return mapDbError(error, { singular: "Expression" });
+    return mapDbError(error, { singular: "Label" });
   }
 }
 
@@ -365,13 +385,18 @@ export async function deleteExpressionAction(id: number): Promise<ActionResult> 
  * bottles still on it is expected to fail here (restrict FK) while the rest
  * of the batch succeeds, so each id is deleted independently. */
 export async function deleteExpressionsBulkAction(ids: number[]): Promise<BulkSaveResult> {
-  await requireSession();
+  const user = await requireSession();
   const results: BulkSaveResult["results"] = [];
 
   for (const [index, id] of ids.entries()) {
     try {
-      await db.delete(expressions).where(eq(expressions.id, id));
-      results.push({ index, ok: true, id });
+      const deleted = await db
+        .delete(expressions)
+        .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
+        .returning({ id: expressions.id });
+      results.push(
+        deleted.length > 0 ? { index, ok: true, id } : { index, ok: false, error: "That label is gone.", fieldErrors: {} },
+      );
     } catch (error: unknown) {
       const shaped = mapDbError(error, { singular: "Label" });
       results.push({

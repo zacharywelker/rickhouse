@@ -47,8 +47,12 @@ function categorySubtree(ids: number[]): SQL {
   )`;
 }
 
-function buildWhere(filters: BottleFilters): SQL | undefined {
-  const clauses: SQL[] = [];
+/**
+ * Always the signed-in account's bottles first; every filter narrows within
+ * them, so an id from someone else's catalog just matches nothing.
+ */
+function buildWhere(filters: BottleFilters, ownerId: number): SQL | undefined {
+  const clauses: SQL[] = [eq(bottleList.ownerId, ownerId)];
 
   if (filters.q) {
     /*
@@ -120,7 +124,7 @@ function buildWhere(filters: BottleFilters): SQL | undefined {
   if (filters.price.min !== null) clauses.push(gte(bottleList.pricePaid, String(filters.price.min)));
   if (filters.price.max !== null) clauses.push(lte(bottleList.pricePaid, String(filters.price.max)));
 
-  return clauses.length === 0 ? undefined : and(...clauses);
+  return and(...clauses);
 }
 
 /*
@@ -132,13 +136,13 @@ const { search: _search, searchText: _searchText, ...GRID_COLUMNS } = getViewSel
 
 export type GridRow = Omit<typeof bottleList.$inferSelect, "search" | "searchText">;
 
-export async function queryBottles(filters: BottleFilters): Promise<{
+export async function queryBottles(filters: BottleFilters, ownerId: number): Promise<{
   rows: GridRow[];
   total: number;
   pageCount: number;
   page: number;
 }> {
-  const where = buildWhere(filters);
+  const where = buildWhere(filters, ownerId);
   const column = SORT_COLUMNS[filters.sort];
   // NULLS LAST both ways: a bottle with no price should not head the list.
   const direction = filters.desc ? desc(column) : asc(column);
@@ -172,8 +176,8 @@ export type BottleSummary = {
 };
 
 /** Totals for the summary strip, over the filtered set rather than the page. */
-export async function summariseBottles(filters: BottleFilters): Promise<BottleSummary> {
-  const where = buildWhere(filters);
+export async function summariseBottles(filters: BottleFilters, ownerId: number): Promise<BottleSummary> {
+  const where = buildWhere(filters, ownerId);
   const [row] = await db
     .select({
       count: sql<number>`count(*)::int`,

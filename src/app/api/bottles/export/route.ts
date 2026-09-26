@@ -6,8 +6,8 @@ import { exportBottlesCsv } from "@/lib/bottles/transfer";
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse> {
-  await requireSession();
-  const csv = await exportBottlesCsv();
+  const user = await requireSession();
+  const csv = await exportBottlesCsv(user.id);
   const stamp = new Date().toISOString().slice(0, 10);
 
   return new NextResponse(csv, {

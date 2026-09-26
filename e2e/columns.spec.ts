@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { signIn } from "./support/auth";
+import { MEMBER, signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
 
 const stamp = () => Math.random().toString(36).slice(2, 8);
@@ -119,16 +119,54 @@ test("bulk add bottles records state and single-barrel detail", async ({ page })
   await pick(page, /Label/, "Double Oak", "Pursuit Spirits Double Oak Spirit");
   await page.getByRole("checkbox", { name: "Private Selection" }).click();
   await page.getByRole("textbox", { name: "Pick Name" }).fill("Barrel #24 — Bulk Club");
-  await page.getByRole("spinbutton", { name: "Fill %" }).fill("40");
+  await page.getByRole("combobox", { name: "Fill", exact: true }).selectOption({ label: "½" });
   await page.getByRole("checkbox", { name: "Opened" }).click();
 
   await page.getByRole("button", { name: "Save all" }).click();
   await expect(page.getByText("Added 1 bottle.")).toBeVisible();
 
   await page.goto("/bottles");
-  const row = page.getByRole("row").filter({ has: page.getByRole("img", { name: /fill: 40 percent full/ }) });
+  const row = page.getByRole("row").filter({ has: page.getByRole("img", { name: /fill: Half full/ }) });
   await row.getByRole("link", { name: /Double Oak Spirit/ }).click();
   await expect(page.getByText("Barrel #24 — Bulk Club")).toBeVisible();
+});
+
+test("bulk add and the labels table only ever see your own collection", async ({ browser }) => {
+  const brand = `Member Brand ${stamp()}`;
+  const member = await browser.newPage();
+  await signIn(member, MEMBER.username);
+  await member.goto("/expressions/bulk");
+
+  // The admin's brand is not offered; the member makes their own inline.
+  await member.getByRole("combobox", { name: /Brand/ }).click();
+  await member.locator("[cmdk-input]").fill("Pursuit");
+  await expect(member.locator(EXISTING_OPTION)).toHaveCount(0);
+  await member.locator("[cmdk-input]").fill(brand);
+  await member.locator('[cmdk-item][data-value="__create__"]').click();
+  await expect(member.getByRole("combobox", { name: /Brand/ })).toContainText(brand);
+
+  // Categories are shared; names only have to be unique per account.
+  await pick(member, /Category/, "Bourbon");
+  await member.getByRole("textbox", { name: "Label Name" }).fill("Double Oak Spirit");
+  await member.getByRole("button", { name: /^Distilleries/ }).click();
+  await member.getByRole("combobox", { name: "Add distilleries" }).click();
+  await member.locator("[cmdk-input]").fill("Bardstown");
+  await expect(member.locator(EXISTING_OPTION)).toHaveCount(0);
+  await member.keyboard.press("Escape");
+  await member.keyboard.press("Escape");
+  await member.getByRole("button", { name: "Save all" }).click();
+  await expect(member.getByText("Added 1 label.")).toBeVisible();
+
+  await member.goto("/expressions?cols=brand,name,distilleries");
+  await expect(member.getByText("1 label", { exact: true })).toBeVisible();
+  await expect(member.getByRole("cell", { name: brand, exact: true })).toBeVisible();
+  await expect(member.getByRole("cell", { name: /Bardstown/ })).toHaveCount(0);
+
+  const admin = await browser.newPage();
+  await signIn(admin);
+  await admin.goto("/expressions?cols=brand,name");
+  await expect(admin.getByRole("cell", { name: "Pursuit Spirits" }).first()).toBeVisible();
+  await expect(admin.getByRole("cell", { name: brand })).toHaveCount(0);
 });
 
 test("wide grids scroll inside themselves, not the page", async ({ page }) => {

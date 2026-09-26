@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { GroupCard } from "@/components/groups/group-card";
 import { listGroups } from "@/lib/groups/queries";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Groups" };
 export const dynamic = "force-dynamic";
 
 export default async function GroupsPage() {
-  const groups = await listGroups();
+  const user = await requireSession();
+  const groups = await listGroups(user.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -19,7 +21,6 @@ export default async function GroupsPage() {
         </div>
         <Button asChild>
           <Link href="/groups/new">
-            <Plus className="size-4" />
             New group
           </Link>
         </Button>

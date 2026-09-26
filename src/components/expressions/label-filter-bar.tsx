@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Filter, Search, X } from "lucide-react";
+import { Check, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,7 +121,6 @@ export function LabelFilterBar({
       </form>
 
       <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
-        <Filter className="size-3.5" />
         Filter
       </span>
 

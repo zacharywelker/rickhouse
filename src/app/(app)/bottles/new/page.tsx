@@ -4,6 +4,7 @@ import { BottleForm } from "@/components/expressions/bottle-form";
 import { Button } from "@/components/ui/button";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { expressionOptions } from "@/lib/expressions/queries";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Add a bottle" };
 export const dynamic = "force-dynamic";
@@ -13,10 +14,11 @@ export default async function NewBottlePage({
 }: {
   searchParams: Promise<{ expression?: string }>;
 }) {
+  const user = await requireSession();
   const [{ expression }, expressions, stores] = await Promise.all([
     searchParams,
-    expressionOptions(),
-    REFERENCE_OPTION_LOADERS.stores(),
+    expressionOptions(user.id),
+    REFERENCE_OPTION_LOADERS.stores(user.id),
   ]);
 
   const preselected = expression && /^\d+$/.test(expression) ? Number(expression) : null;

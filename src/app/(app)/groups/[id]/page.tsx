@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { GroupBottleGrid } from "@/components/groups/group-bottle-grid";
 import { GroupCoverUpload } from "@/components/groups/group-cover-upload";
 import { DeleteGroupButton } from "@/components/groups/delete-group-button";
 import { allBottleOptions, getGroupDetail } from "@/lib/groups/queries";
+import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
-  const detail = Number.isInteger(Number(id)) ? await getGroupDetail(Number(id)) : null;
+  const [{ id }, user] = await Promise.all([params, requireSession()]);
+  const detail = Number.isInteger(Number(id)) ? await getGroupDetail(Number(id), user.id) : null;
   return { title: detail ? detail.group.name : "Group" };
 }
 
@@ -20,8 +21,9 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const groupId = Number(id);
   if (!Number.isInteger(groupId)) notFound();
+  const user = await requireSession();
 
-  const [detail, bottleOptions] = await Promise.all([getGroupDetail(groupId), allBottleOptions()]);
+  const [detail, bottleOptions] = await Promise.all([getGroupDetail(groupId, user.id), allBottleOptions(user.id)]);
   if (!detail) notFound();
   const { group, members } = detail;
 
@@ -40,7 +42,6 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link href={`/groups/${groupId}/edit`}>
-              <Pencil className="size-4" />
               Edit
             </Link>
           </Button>

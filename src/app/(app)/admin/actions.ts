@@ -7,6 +7,9 @@ import { RESOURCES, isResourceKey } from "@/lib/admin/registry";
 import { quickCreateSchema } from "@/lib/admin/schemas";
 import { REFERENCE_RESOURCES, type ActionResult, type QuickCreateResult, type ReferenceResource } from "@/lib/admin/types";
 
+/** Categories are one tree shared by every account, so only admins change it. */
+const SHARED_ONLY_ADMIN_EDITS = "Categories are shared by everyone here, so only an admin can change them.";
+
 function unknownResource(key: string): ActionResult {
   console.warn("[rickhouse] rejected admin action for unknown resource", key);
   return { ok: false, error: "That is not something this app manages." };
@@ -23,14 +26,15 @@ export async function saveResourceAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   if (!isResourceKey(key)) return unknownResource(key);
+  if (key === "categories" && user.role !== "admin") return { ok: false, error: SHARED_ONLY_ADMIN_EDITS };
 
   const config = RESOURCES[key];
   const raw = Object.fromEntries(formData.entries());
 
   try {
-    const outcome = await config.save(raw, id);
+    const outcome = await config.save(raw, id, user.id);
     if (!outcome.ok) {
       return { ok: false, error: outcome.error, ...(outcome.fieldErrors ? { fieldErrors: outcome.fieldErrors } : {}) };
     }
@@ -47,12 +51,13 @@ export async function saveResourceAction(
 }
 
 export async function deleteResourceAction(key: string, id: number): Promise<ActionResult> {
-  await requireSession();
+  const user = await requireSession();
   if (!isResourceKey(key)) return unknownResource(key);
+  if (key === "categories" && user.role !== "admin") return { ok: false, error: SHARED_ONLY_ADMIN_EDITS };
 
   const config = RESOURCES[key];
   try {
-    await config.remove(id);
+    await config.remove(id, user.id);
     revalidatePath(`/admin/${key}`);
     revalidatePath("/");
     return { ok: true, message: `${config.singular} deleted.` };
@@ -82,8 +87,9 @@ function isReferenceResource(value: string): value is ReferenceResource {
 
 /** Creates a lookup row from just a name, without leaving the form you are on. */
 export async function quickCreateAction(resource: string, name: string): Promise<QuickCreateResult> {
-  await requireSession();
+  const user = await requireSession();
   if (!isReferenceResource(resource)) return { ok: false, error: "That is not something this app manages." };
+  if (resource === "categories" && user.role !== "admin") return { ok: false, error: SHARED_ONLY_ADMIN_EDITS };
 
   const parsed = quickCreateSchema.safeParse({ name });
   if (!parsed.success) {
@@ -92,7 +98,7 @@ export async function quickCreateAction(resource: string, name: string): Promise
 
   const config = RESOURCES[resource];
   try {
-    const outcome = await config.save({ name: parsed.data.name, ...QUICK_CREATE_DEFAULTS[resource] }, null);
+    const outcome = await config.save({ name: parsed.data.name, ...QUICK_CREATE_DEFAULTS[resource] }, null, user.id);
     if (!outcome.ok) return { ok: false, error: outcome.error };
     revalidatePath(`/admin/${resource}`);
     return { ok: true, option: { value: outcome.id, label: parsed.data.name } };

@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { EntityPage } from "@/components/entities/entity-page";
+import { requireSession } from "@/lib/auth";
 import { getStore } from "@/lib/entities/queries";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
-  const row = await getStore(slug);
+  const [{ slug }, user] = await Promise.all([params, requireSession()]);
+  const row = await getStore(slug, user.id);
   return { title: row?.name ?? "Store" };
 }
 
@@ -19,8 +20,8 @@ export default async function StorePage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [{ slug }, query] = await Promise.all([params, searchParams]);
-  const row = await getStore(slug);
+  const [{ slug }, query, user] = await Promise.all([params, searchParams, requireSession()]);
+  const row = await getStore(slug, user.id);
   if (!row) notFound();
 
   return (

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Rows3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LabelTable } from "@/components/expressions/label-table";
 import { LabelFilterBar } from "@/components/expressions/label-filter-bar";
@@ -8,6 +7,7 @@ import { LabelPagination } from "@/components/expressions/label-pagination";
 import { queryExpressions } from "@/lib/expressions/queries";
 import { activeLabelFilterCount, parseLabelFilters } from "@/lib/expressions/filters";
 import { expressionFormData } from "@/lib/expressions/form-data";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Labels" };
 export const dynamic = "force-dynamic";
@@ -17,11 +17,12 @@ export default async function ExpressionsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const user = await requireSession();
   const filters = parseLabelFilters(await searchParams);
   // The form's own pickers and category rules, for the unlocked grid.
   const [{ rows, total, pageCount, page }, { options, categoryGroups }] = await Promise.all([
-    queryExpressions(filters),
-    expressionFormData(null),
+    queryExpressions(filters, user.id),
+    expressionFormData(null, user.id),
   ]);
   const filtered = activeLabelFilterCount(filters) > 0;
 
@@ -34,13 +35,11 @@ export default async function ExpressionsPage({
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/expressions/bulk">
-              <Rows3 className="size-4" />
               Bulk add
             </Link>
           </Button>
           <Button asChild>
             <Link href="/expressions/new">
-              <Plus className="size-4" />
               New Label
             </Link>
           </Button>
@@ -65,7 +64,6 @@ export default async function ExpressionsPage({
           {!filtered ? (
             <Button className="mt-4" asChild>
               <Link href="/expressions/new">
-                <Plus className="size-4" />
                 New Label
               </Link>
             </Button>

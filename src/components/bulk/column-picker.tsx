@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,7 +52,6 @@ export function ColumnPicker({
     <Popover>
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" size="sm" className={className}>
-          <SlidersHorizontal className="size-4" />
           {label}
           <Badge className="ml-1 tabular-nums">
             {shown}/{columns.length}
