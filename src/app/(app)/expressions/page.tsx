@@ -7,7 +7,7 @@ import { LabelFilterBar } from "@/components/expressions/label-filter-bar";
 import { LabelPagination } from "@/components/expressions/label-pagination";
 import { queryExpressions } from "@/lib/expressions/queries";
 import { activeLabelFilterCount, parseLabelFilters } from "@/lib/expressions/filters";
-import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
+import { expressionFormData } from "@/lib/expressions/form-data";
 
 export const metadata: Metadata = { title: "Labels" };
 export const dynamic = "force-dynamic";
@@ -18,10 +18,10 @@ export default async function ExpressionsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const filters = parseLabelFilters(await searchParams);
-  const [{ rows, total, pageCount, page }, brands, categories] = await Promise.all([
+  // The form's own pickers and category rules, for the unlocked grid.
+  const [{ rows, total, pageCount, page }, { options, categoryGroups }] = await Promise.all([
     queryExpressions(filters),
-    REFERENCE_OPTION_LOADERS.brands(),
-    REFERENCE_OPTION_LOADERS.categories(),
+    expressionFormData(null),
   ]);
   const filtered = activeLabelFilterCount(filters) > 0;
 
@@ -47,7 +47,12 @@ export default async function ExpressionsPage({
         </div>
       </div>
 
-      <LabelFilterBar filters={filters} brands={brands} categories={categories} total={total} />
+      <LabelFilterBar
+        filters={filters}
+        brands={options.brandId ?? []}
+        categories={options.categoryId ?? []}
+        total={total}
+      />
 
       {rows.length === 0 ? (
         <div className="border border-dashed border-border p-10 text-center">
@@ -68,7 +73,7 @@ export default async function ExpressionsPage({
         </div>
       ) : (
         <>
-          <LabelTable rows={rows} filters={filters} brands={brands} categories={categories} />
+          <LabelTable rows={rows} filters={filters} options={options} categoryGroups={categoryGroups} />
           <LabelPagination filters={filters} page={page} pageCount={pageCount} total={total} />
         </>
       )}

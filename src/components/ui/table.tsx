@@ -3,7 +3,9 @@ import { cn } from "@/lib/utils";
 
 export function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="w-full overflow-x-auto">
+    // Relative so absolutely positioned bits (screen-reader-only text in a
+    // far column) scroll with the table instead of widening the whole page.
+    <div className="relative w-full overflow-x-auto">
       <table className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   );

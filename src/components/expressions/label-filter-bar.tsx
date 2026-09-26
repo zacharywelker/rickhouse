@@ -138,7 +138,16 @@ export function LabelFilterBar({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => apply({ ...DEFAULT_FILTERS, sort: filters.sort, desc: filters.desc, pageSize: filters.pageSize })}
+          onClick={() =>
+            apply({
+              ...DEFAULT_FILTERS,
+              // Clearing filters is not the same as resetting the view.
+              sort: filters.sort,
+              desc: filters.desc,
+              pageSize: filters.pageSize,
+              columns: filters.columns,
+            })
+          }
         >
           <X className="size-4" />
           Clear {active} filter{active === 1 ? "" : "s"}

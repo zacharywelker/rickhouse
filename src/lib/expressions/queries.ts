@@ -20,6 +20,7 @@ import {
   type FieldGroup,
 } from "@/db/schema";
 import type { LabelFilters } from "@/lib/expressions/filters";
+import type { LinkedRow } from "@/components/expressions/ordered-picker";
 
 export type LinkedEntity = { id: number; name: string; slug: string | null; amount: string | null };
 
@@ -199,26 +200,46 @@ export async function queryExpressions(filters: LabelFilters): Promise<{
     .select({
       id: expressions.id,
       name: expressions.name,
+      slug: expressions.slug,
+      description: expressions.description,
       brand: brands.name,
       brandId: expressions.brandId,
       category: categories.name,
       categoryId: expressions.categoryId,
+      fieldGroup: categories.fieldGroup,
       proof: expressions.proof,
+      abv: expressions.abv,
       ageStatement: expressions.ageStatement,
       ageYears: expressions.ageYears,
       ageMonths: expressions.ageMonths,
       ageDays: expressions.ageDays,
-      msrp: expressions.msrp,
-      sizeMl: expressions.sizeMl,
-      upc: expressions.upc,
-      entryProof: expressions.entryProof,
-      charLevel: expressions.charLevel,
       isCaskStrength: expressions.isCaskStrength,
       isStraight: expressions.isStraight,
       isNas: expressions.isNas,
       isBottledInBond: expressions.isBottledInBond,
+      entryProof: expressions.entryProof,
       isChillFiltered: expressions.isChillFiltered,
       colorAdded: expressions.colorAdded,
+      charLevel: expressions.charLevel,
+      stillType: expressions.stillType,
+      estate: expressions.estate,
+      marque: expressions.marque,
+      molassesOrCane: expressions.molassesOrCane,
+      esterGl: expressions.esterGl,
+      sugarGPerL: expressions.sugarGPerL,
+      tropicalYears: expressions.tropicalYears,
+      continentalYears: expressions.continentalYears,
+      isSolera: expressions.isSolera,
+      soleraRange: expressions.soleraRange,
+      agaveType: expressions.agaveType,
+      agaveRegion: expressions.agaveRegion,
+      cookingMethod: expressions.cookingMethod,
+      extraction: expressions.extraction,
+      isAdditiveFree: expressions.isAdditiveFree,
+      msrp: expressions.msrp,
+      sizeMl: expressions.sizeMl,
+      upc: expressions.upc,
+      labelNotes: expressions.labelNotes,
       bottleCount,
       pickCount,
     })
@@ -231,34 +252,130 @@ export async function queryExpressions(filters: LabelFilters): Promise<{
     .limit(filters.pageSize)
     .offset((page - 1) * filters.pageSize);
 
-  return { rows, total, pageCount, page };
+  const links = await linksFor(rows.map((row) => row.id));
+  return { rows: rows.map((row) => ({ ...row, links: links.get(row.id)! })), total, pageCount, page };
+}
+
+export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
+
+/**
+ * The ordered links for a page of labels, in three queries rather than three
+ * per row — shaped exactly as the form's pickers take them, so the unlocked
+ * grid can edit them in place.
+ */
+async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
+  const byId = new Map<number, LabelLinks>(ids.map((id) => [id, { distilleries: [], mashbills: [], finishes: [] }]));
+  if (ids.length === 0) return byId;
+
+  const amount = (value: string | null) => (value === null ? "" : String(Number(value)));
+  const [d, m, f] = await Promise.all([
+    db
+      .select({
+        expressionId: expressionDistilleries.expressionId,
+        id: distilleries.id,
+        name: distilleries.name,
+        amount: expressionDistilleries.sharePct,
+      })
+      .from(expressionDistilleries)
+      .innerJoin(distilleries, eq(expressionDistilleries.distilleryId, distilleries.id))
+      .where(inArray(expressionDistilleries.expressionId, ids))
+      .orderBy(asc(expressionDistilleries.position)),
+    db
+      .select({
+        expressionId: expressionMashbills.expressionId,
+        id: mashbills.id,
+        name: mashbills.name,
+        amount: expressionMashbills.sharePct,
+        distilleryId: expressionMashbills.distilleryId,
+        recipe: sql<string | null>`(
+          select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
+            from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
+        )`,
+      })
+      .from(expressionMashbills)
+      .innerJoin(mashbills, eq(expressionMashbills.mashbillId, mashbills.id))
+      .where(inArray(expressionMashbills.expressionId, ids))
+      .orderBy(asc(expressionMashbills.position)),
+    db
+      .select({
+        expressionId: expressionFinishes.expressionId,
+        id: finishes.id,
+        name: finishes.name,
+        months: expressionFinishes.months,
+      })
+      .from(expressionFinishes)
+      .innerJoin(finishes, eq(expressionFinishes.finishId, finishes.id))
+      .where(inArray(expressionFinishes.expressionId, ids))
+      .orderBy(asc(expressionFinishes.position)),
+  ]);
+
+  for (const row of d) {
+    byId.get(row.expressionId)?.distilleries.push({ id: row.id, label: row.name, amount: amount(row.amount) });
+  }
+  for (const row of m) {
+    byId.get(row.expressionId)?.mashbills.push({
+      id: row.id,
+      label: row.name ?? describeRecipe(row.recipe),
+      amount: amount(row.amount),
+      distilleryId: row.distilleryId,
+    });
+  }
+  for (const row of f) {
+    byId.get(row.expressionId)?.finishes.push({
+      id: row.id,
+      label: row.name,
+      amount: row.months === null ? "" : String(row.months),
+    });
+  }
+  return byId;
 }
 
 export type ExpressionRow = {
   id: number;
   name: string;
+  slug: string;
+  description: string | null;
   brand: string;
   brandId: number;
   category: string;
   categoryId: number;
+  fieldGroup: FieldGroup;
   proof: string | null;
+  abv: string | null;
   ageStatement: string | null;
   ageYears: string | null;
   ageMonths: number | null;
   ageDays: number | null;
-  msrp: string | null;
-  sizeMl: number;
-  upc: string | null;
-  entryProof: string | null;
-  charLevel: string | null;
   isCaskStrength: boolean;
   isStraight: boolean;
   isNas: boolean;
   isBottledInBond: boolean;
+  entryProof: string | null;
   isChillFiltered: boolean | null;
   colorAdded: boolean | null;
+  charLevel: string | null;
+  stillType: string | null;
+  estate: string | null;
+  marque: string | null;
+  molassesOrCane: string | null;
+  esterGl: string | null;
+  sugarGPerL: string | null;
+  tropicalYears: string | null;
+  continentalYears: string | null;
+  isSolera: boolean | null;
+  soleraRange: string | null;
+  agaveType: string | null;
+  agaveRegion: string | null;
+  cookingMethod: string | null;
+  extraction: string | null;
+  isAdditiveFree: boolean | null;
+  msrp: string | null;
+  sizeMl: number;
+  upc: string | null;
+  labelNotes: string | null;
   bottleCount: number;
   pickCount: number;
+  links: LabelLinks;
 };
 
 /** Options for the bottle form's expression picker. */
@@ -278,6 +395,12 @@ export async function expressionOptions() {
     label: `${r.brand} ${r.name}`,
     ...(r.proof ? { hint: `${Number(r.proof)} proof` } : {}),
   }));
+}
+
+/** categoryId -> field group, so a grid can tell which sections apply to a row without a round trip. */
+export async function categoryFieldGroups(): Promise<Record<number, FieldGroup>> {
+  const rows = await db.select({ id: categories.id, fieldGroup: categories.fieldGroup }).from(categories);
+  return Object.fromEntries(rows.map((row) => [row.id, row.fieldGroup]));
 }
 
 export async function fieldGroupForCategory(categoryId: number): Promise<FieldGroup> {

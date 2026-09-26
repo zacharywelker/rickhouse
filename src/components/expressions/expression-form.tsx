@@ -12,14 +12,11 @@ import { saveExpressionAction } from "@/app/(app)/expressions/actions";
 import { EXPRESSION_SECTIONS, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type FieldSpec, type Option } from "@/lib/admin/types";
 import type { FieldGroup } from "@/db/schema";
-import { defaultAgeStatement } from "@/lib/bottles/age";
+import { offeredAgeStatement } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
 import { OrderedPicker, type LinkedRow } from "./ordered-picker";
 import { DeleteExpressionButton } from "./delete-expression-button";
-
-/** Fields whose checkbox, when switched on, offers a default age statement. */
-const AGE_DESIGNATION_FIELDS = new Set(["isStraight", "isBottledInBond", "isNas"]);
 
 const ALL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
 
@@ -56,16 +53,8 @@ export function ExpressionForm({
   const set = (name: string, value: FieldValue) =>
     setValues((prev) => {
       const next = { ...prev, [name]: value };
-      // Turning on Straight, Bottled In Bond or NAS offers a default age
-      // statement, but only into a blank field — Old Grand Dad 7 is
-      // bottled-in-bond and still reads "7 Year", not the BiB default.
-      if (AGE_DESIGNATION_FIELDS.has(name) && value === true && String(prev.ageStatement ?? "").trim() === "") {
-        next.ageStatement = defaultAgeStatement({
-          isStraight: next.isStraight === true,
-          isBottledInBond: next.isBottledInBond === true,
-          isNas: next.isNas === true,
-        });
-      }
+      const offered = offeredAgeStatement(prev, next, name);
+      if (offered !== null) next.ageStatement = offered;
       return next;
     });
 

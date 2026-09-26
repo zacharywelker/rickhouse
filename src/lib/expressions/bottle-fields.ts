@@ -146,3 +146,20 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
 
 /** Flat list, for seeding form state and for the server's allow-list. */
 export const BOTTLE_FIELDS = BOTTLE_SECTIONS.flatMap((section) => section.fields);
+
+/**
+ * Where the bottle is in its life. Bulk grid only (`bottleStateSchema`): the
+ * bottle page sets these with its own controls, but entering a collection
+ * that already exists means entering bottles that are already open.
+ */
+export const BOTTLE_STATE_SECTION: FormSection = {
+  id: "state",
+  title: "State",
+  fields: [
+    { kind: "number", name: "fillPct", label: "Fill %", min: 0, max: 100, step: 1, defaultValue: "100" },
+    { kind: "checkbox", name: "isOpen", label: "Opened" },
+    { kind: "date", name: "dateOpened", label: "Date Opened" },
+    { kind: "date", name: "dateKilled", label: "Date Killed" },
+    { kind: "checkbox", name: "isFavorite", label: "Favorite" },
+  ],
+};

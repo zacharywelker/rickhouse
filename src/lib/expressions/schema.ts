@@ -139,8 +139,8 @@ export const linkRowSchema = z.object({
 
 export type LinkRow = z.infer<typeof linkRowSchema>;
 
-/** Parses the JSON the ordered pickers submit in a hidden input. */
-export function parseLinks(raw: FormDataEntryValue | null): LinkRow[] {
+/** Parses the JSON the ordered pickers submit (a hidden input, or a grid row). */
+export function parseLinks(raw: unknown): LinkRow[] {
   if (typeof raw !== "string" || raw.trim() === "") return [];
   try {
     const parsed = z.array(linkRowSchema).max(50).safeParse(JSON.parse(raw));
@@ -195,6 +195,42 @@ export const bottleSchema = z.object({
 
 export type BottleInput = z.infer<typeof bottleSchema>;
 
+const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Where a bottle is in its life, for the bulk grid only. The bottle form has
+ * no such fields — the bottle page has its own controls (the gauge, open,
+ * kill) — but the bulk grid is how an existing collection gets entered in one
+ * sitting, and half of it is already open. Same date rules as those controls.
+ */
+export const bottleStateSchema = z
+  .object({
+    fillPct: blankIfAbsent(
+      z
+        .union([z.literal(""), z.coerce.number().int().min(0, "Must be at least 0.").max(100, "Must be at most 100.")])
+        .transform((v) => (v === "" ? 100 : v)),
+    ),
+    isOpen: checkbox,
+    dateOpened: optionalDate,
+    dateKilled: optionalDate,
+    isFavorite: checkbox,
+  })
+  .superRefine((value, ctx) => {
+    for (const key of ["dateOpened", "dateKilled"] as const) {
+      const date = value[key];
+      if (date && date > today()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: "That date is in the future." });
+      }
+    }
+    if (value.dateOpened && value.dateKilled && value.dateKilled < value.dateOpened) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["dateKilled"],
+        message: "Killed before it was opened — check these dates.",
+      });
+    }
+  });
+
 /**
  * The subset of `bottleSchema` editable inline from the collection grid's
  * unlocked "edit" mode (issue: bulk delete and edit). Deliberately smaller
@@ -213,40 +249,16 @@ export const bottleGridEditSchema = z.object({
 export type BottleGridEditInput = z.infer<typeof bottleGridEditSchema>;
 
 /**
- * The subset of `expressionSchema` editable inline from the labels grid's
- * unlocked "edit" mode — the fields requested for bulk correction, matching
- * the same shape the bottle grid's edit mode already uses. Relational fields
- * (mashbills, finishes, distilleries) stay off the grid: a spreadsheet cell
- * is the wrong shape for an ordered multi-row relationship, same reasoning
- * `ExpressionBulkGrid` already documents for excluding them there.
+ * What the labels grid's unlocked "edit" mode can change: any field on the
+ * label form, each one optional so a row sends only what was edited. The
+ * rest of the label is left exactly as it was — the grid never writes a
+ * field you did not touch. Batch and release year are not label columns any
+ * more (they moved to the bottle in M7), so they are not here either.
+ *
+ * Distilleries, mashbills and finishes are edited in the grid too, but as the
+ * same ordered lists the form submits (`parseLinks`), not through this schema.
  */
-export const expressionGridEditSchema = z.object({
-  brandId: requiredRef,
-  categoryId: requiredRef,
-  proof: optionalDecimal(0, 200),
-  msrp: optionalDecimal(0, 99_999_999),
-  sizeMl: blankIfAbsent(
-    z.union([z.literal(""), z.coerce.number().int().min(1).max(20000)]).transform((v) => (v === "" ? 750 : v)),
-  ),
-  upc: blankIfAbsent(
-    trimmed
-      .max(32)
-      .refine((v) => v === "" || /^[0-9]{6,32}$/.test(v), "A barcode is 6–32 digits.")
-      .transform((v) => (v === "" ? null : v)),
-  ),
-  ageStatement: optionalText(200),
-  ageYears: optionalDecimal(0, 100),
-  ageMonths: optionalInt(0, 1200),
-  ageDays: optionalInt(0, 40000),
-  entryProof: optionalDecimal(0, 200),
-  charLevel: optionalText(80),
-  isCaskStrength: checkbox,
-  isStraight: checkbox,
-  isNas: checkbox,
-  isBottledInBond: checkbox,
-  isChillFiltered: tristate,
-  colorAdded: tristate,
-});
+export const expressionGridEditSchema = expressionSchema.omit({ batch: true, releaseYear: true }).partial();
 
 export type ExpressionGridEditInput = z.infer<typeof expressionGridEditSchema>;
 
