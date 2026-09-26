@@ -262,7 +262,6 @@ See the project scripts and Compose files for the development setup.
 | [`scripts/`](scripts/)                                           | Migrations, seeding and backups             |
 | [`docker-compose.yml`](docker-compose.yml)                       | Production container stack                  |
 | [`.github/workflows/publish.yml`](.github/workflows/publish.yml) | Container publishing                        |
-| [`.github/workflows/check.yml`](.github/workflows/check.yml)     | Lint, typecheck and unit tests on PRs       |
 
 ---
 

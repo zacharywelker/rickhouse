@@ -226,6 +226,7 @@ function EditableDate({
   field: "dateOpened" | "dateKilled";
   label: string;
   value: string;
+  /** Reports a failed save, or null to clear it; FillControl shows the message. */
   onError: (error: string | null) => void;
 }) {
   const router = useRouter();
