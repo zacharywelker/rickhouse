@@ -1,0 +1,47 @@
+name: CI
+
+# publish.yml only builds the image, which proves the app compiles but never
+# runs the developer scripts. This does, so a dependency bump that breaks
+# typecheck, lint, or the unit tests fails its pull request instead of
+# landing on main unnoticed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Match the node:22-alpine base in the Dockerfile.
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
