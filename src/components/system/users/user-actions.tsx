@@ -78,6 +78,7 @@ export function UserActions({ userId, username, role, active, canEmail }: Props)
           variant="outline"
           disabled={pending}
           aria-label={`Delete ${username}`}
+          title={`Delete ${username}`}
           onClick={() => setConfirmDelete(true)}
         >
           <Trash2 className="size-4" />
@@ -117,7 +118,7 @@ export function UserActions({ userId, username, role, active, canEmail }: Props)
               disabled={pending}
               onClick={() => run(() => deleteUserAction(userId), () => setConfirmDelete(false))}
             >
-              {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {pending ? <Loader2 className="size-4 animate-spin" /> : null}
               Delete
             </Button>
           </DialogFooter>

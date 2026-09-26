@@ -164,12 +164,12 @@ export async function saveExpressionAction(
     revalidatePath("/");
     return {
       ok: true,
-      message: id === null ? "Expression created." : "Expression saved.",
+      message: id === null ? "Label created." : "Label saved.",
       createdId: expressionId,
     };
   } catch (error: unknown) {
     if (error instanceof NotOwned) return { ok: false, error: "That label is gone." };
-    return mapDbError(error, { singular: "Expression" });
+    return mapDbError(error, { singular: "Label" });
   }
 }
 
@@ -306,9 +306,9 @@ export async function deleteExpressionAction(id: number): Promise<ActionResult> 
       .returning({ id: expressions.id });
     if (deleted.length === 0) return { ok: false, error: "That label is gone." };
     revalidatePath("/expressions");
-    return { ok: true, message: "Expression deleted." };
+    return { ok: true, message: "Label deleted." };
   } catch (error: unknown) {
-    return mapDbError(error, { singular: "Expression" });
+    return mapDbError(error, { singular: "Label" });
   }
 }
 

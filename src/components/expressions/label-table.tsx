@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Lock, LockOpen } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GridEditBar } from "@/components/ui/grid-edit-bar";
@@ -222,7 +222,6 @@ export function LabelTable({
             setEdits({});
           }}
         >
-          {unlocked ? <LockOpen className="size-4" /> : <Lock className="size-4" />}
           {unlocked ? "Done editing" : "Edit"}
         </Button>
       </div>

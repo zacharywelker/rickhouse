@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, formatNumeric, humanise, slugify } from "../utils";
+import { formatDate, formatMoney, formatNumeric, humanise, slugify, timeSince } from "../utils";
 
 describe("formatMoney", () => {
   it("formats Postgres numeric strings without touching floats", () => {
@@ -60,5 +60,43 @@ describe("humanise", () => {
   it("returns a dash for nothing", () => {
     expect(humanise(null)).toBe("—");
     expect(humanise("")).toBe("—");
+  });
+});
+
+describe("formatDate", () => {
+  it("reads a Postgres date the way a person writes it", () => {
+    expect(formatDate("2024-04-20")).toBe("Apr 20, 2024");
+    expect(formatDate("2019-12-01")).toBe("Dec 1, 2019");
+  });
+
+  it("never shifts the day for the timezone", () => {
+    expect(formatDate("2024-01-01")).toBe("Jan 1, 2024");
+  });
+
+  it("returns a dash for nothing, and leaves junk alone", () => {
+    expect(formatDate(null)).toBe("—");
+    expect(formatDate("")).toBe("—");
+    expect(formatDate("soon")).toBe("soon");
+  });
+});
+
+describe("timeSince", () => {
+  const today = new Date(2026, 8, 25); // Sep 25, 2026, local time
+
+  it("uses one unit, rounded down", () => {
+    expect(timeSince("2026-09-25", today)).toBe("today");
+    expect(timeSince("2026-09-24", today)).toBe("yesterday");
+    expect(timeSince("2026-09-20", today)).toBe("5 days ago");
+    expect(timeSince("2026-09-01", today)).toBe("3 weeks ago");
+    expect(timeSince("2026-08-25", today)).toBe("a month ago");
+    expect(timeSince("2026-03-26", today)).toBe("5 months ago");
+    expect(timeSince("2025-09-25", today)).toBe("a year ago");
+    expect(timeSince("2024-10-01", today)).toBe("a year ago");
+    expect(timeSince("2019-04-04", today)).toBe("7 years ago");
+  });
+
+  it("says nothing about the future or nothing at all", () => {
+    expect(timeSince("2027-01-01", today)).toBeNull();
+    expect(timeSince(null, today)).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { Check, Plus, Search, X } from "lucide-react";
+import { Check, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -65,7 +65,6 @@ export function BottleGroups({
         <Popover>
           <PopoverTrigger asChild>
             <Button type="button" variant="outline" size="sm" className="h-6 gap-1 px-2 text-xs">
-              <Plus className="size-3" />
               Add to group
             </Button>
           </PopoverTrigger>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -90,7 +90,6 @@ export function ResourceView({
           <p className="max-w-xs text-sm text-muted-foreground">Shared by everyone here; an admin looks after these.</p>
         ) : (
           <Button onClick={() => setEditing(null)}>
-            <Plus className="size-4" />
             Add {singular.toLowerCase()}
           </Button>
         )}
@@ -104,8 +103,7 @@ export function ResourceView({
           </p>
           {readOnly ? null : (
             <Button className="mt-4" onClick={() => setEditing(null)}>
-              <Plus className="size-4" />
-              Add {singular.toLowerCase()}
+                Add {singular.toLowerCase()}
             </Button>
           )}
         </div>
@@ -144,7 +142,7 @@ export function ResourceView({
                   ))}
                   <TableCell className="text-right">
                     <div className={cn("flex justify-end gap-1", readOnly && "hidden")}>
-                      <Button variant="ghost" size="sm" onClick={() => setEditing(row)} aria-label={`Edit ${String(row.cells.name ?? "")}`}>
+                      <Button variant="ghost" size="sm" onClick={() => setEditing(row)} aria-label={`Edit ${String(row.cells.name ?? "")}`} title={`Edit ${String(row.cells.name ?? "")}`}>
                         <Pencil className="size-4" />
                       </Button>
                       <Button
@@ -155,6 +153,7 @@ export function ResourceView({
                           setDeleting(row);
                         }}
                         aria-label={`Delete ${String(row.cells.name ?? "")}`}
+                        title={`Delete ${String(row.cells.name ?? "")}`}
                       >
                         <Trash2 className="size-4" />
                       </Button>
@@ -224,7 +223,7 @@ export function ResourceView({
               onClick={confirmDelete}
               disabled={deletePending || deleting?.deleteBlockedBy !== undefined}
             >
-              {deletePending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {deletePending ? <Loader2 className="size-4 animate-spin" /> : null}
               Delete
             </Button>
           </DialogFooter>
