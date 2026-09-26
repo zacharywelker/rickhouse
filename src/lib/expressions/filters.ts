@@ -4,6 +4,7 @@
  * back button behaves. Pure: no database, no React — parse in, search string
  * out.
  */
+import { DEFAULT_LABEL_COLUMNS, LABEL_COLUMN_IDS, normaliseLabelColumns } from "./columns";
 
 export const LABEL_SORTS = ["brand", "name", "category", "proof", "age", "msrp", "bottles"] as const;
 export type LabelSort = (typeof LABEL_SORTS)[number];
@@ -19,6 +20,8 @@ export type LabelFilters = {
   desc: boolean;
   page: number;
   pageSize: number;
+  /** Visible column ids, in table order (see `normaliseLabelColumns`). */
+  columns: string[];
 };
 
 export const DEFAULT_FILTERS: LabelFilters = {
@@ -29,6 +32,7 @@ export const DEFAULT_FILTERS: LabelFilters = {
   desc: false,
   page: 1,
   pageSize: DEFAULT_PAGE_SIZE,
+  columns: normaliseLabelColumns(DEFAULT_LABEL_COLUMNS),
 };
 
 type Params = Record<string, string | string[] | undefined>;
@@ -51,6 +55,19 @@ function idList(params: Params, key: string): number[] {
   return [...seen].slice(0, 50);
 }
 
+/**
+ * "brand,name,upc" -> the visible columns. Absent, or naming nothing this
+ * table has (an old bookmark, a typo), is the default set rather than a table
+ * of one column.
+ */
+function columnList(params: Params): string[] {
+  const known = (first(params, "cols") ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => LABEL_COLUMN_IDS.has(id));
+  return known.length === 0 ? DEFAULT_FILTERS.columns : normaliseLabelColumns(known);
+}
+
 export function parseLabelFilters(params: Params): LabelFilters {
   const sortRaw = first(params, "sort");
   const pageSizeRaw = Number(first(params, "size"));
@@ -64,6 +81,7 @@ export function parseLabelFilters(params: Params): LabelFilters {
     desc: first(params, "dir") === "desc",
     page: Number.isInteger(page) && page > 0 ? page : 1,
     pageSize: (PAGE_SIZES as readonly number[]).includes(pageSizeRaw) ? pageSizeRaw : DEFAULT_PAGE_SIZE,
+    columns: columnList(params),
   };
 }
 
@@ -89,6 +107,8 @@ export function serialiseLabelFilters(filters: LabelFilters): string {
   if (filters.desc) params.set("dir", "desc");
   if (filters.page !== 1) params.set("page", String(filters.page));
   if (filters.pageSize !== DEFAULT_PAGE_SIZE) params.set("size", String(filters.pageSize));
+  const columns = normaliseLabelColumns(filters.columns);
+  if (columns.join(",") !== DEFAULT_FILTERS.columns.join(",")) params.set("cols", columns.join(","));
 
   return params.toString();
 }

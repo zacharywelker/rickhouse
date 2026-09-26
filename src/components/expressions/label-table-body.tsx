@@ -4,23 +4,45 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { Pencil } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { ReferenceCombobox } from "@/components/admin/reference-combobox";
-import { formatMoney, formatNumeric } from "@/lib/utils";
-import type { Option } from "@/lib/admin/types";
+import { CELL_WIDTH, GridCell } from "@/components/bulk/grid-cell";
+import { cn, formatMoney, formatNumeric } from "@/lib/utils";
+import type { FieldSpec, Option } from "@/lib/admin/types";
+import type { FieldValue } from "@/lib/forms/values";
+import { LABEL_COLUMNS, type LabelColumn, type LabelColumnGroup } from "@/lib/expressions/columns";
+import { describeAgeParts, fieldGroupOf, groupApplies, type LabelEdit } from "@/lib/expressions/label-edits";
+import { describeLinks, LINK_KINDS, type LinkKind } from "@/lib/expressions/links";
 import type { ExpressionRow } from "@/lib/expressions/queries";
-import type { LabelGridEdit } from "./label-table";
+import type { FieldGroup } from "@/db/schema";
+import type { LinkedRow } from "./ordered-picker";
+import { LinksCell } from "./links-cell";
+import type { RowErrors } from "./label-table";
 
-const TRISTATE = [
-  { value: "", label: "Unknown" },
-  { value: "true", label: "Yes" },
-  { value: "false", label: "No" },
-] as const;
+export type ShownColumn = { column: LabelColumn; group: LabelColumnGroup };
+
+/** What still fits on a phone. Brand folds into the label cell there. */
+export const PHONE_COLUMNS: ReadonlySet<string> = new Set(["name", "proof", "bottles"]);
+
+const LINK_COLUMNS: ReadonlySet<string> = new Set<LinkKind>(["distilleries", "mashbills", "finishes"]);
+
+const DASH = <span className="text-muted-foreground">—</span>;
+
+/** "upc" -> "UPC / Barcode", for an error on a column that may not be shown. */
+const FIELD_LABELS = new Map(LABEL_COLUMNS.flatMap((column) => column.specs.map((spec) => [spec.name, spec.label])));
+
+/**
+ * A failed save's message, on the label cell (the one column always shown):
+ * the fields it names, or — for a database constraint that names no form
+ * field — the row's own error.
+ */
+function errorText(errors: RowErrors): string {
+  const known = Object.entries(errors.fields).filter(([name]) => FIELD_LABELS.has(name));
+  return known.length > 0 ? known.map(([name, message]) => `${FIELD_LABELS.get(name)}: ${message}`).join(" ") : errors.error;
+}
 
 /**
  * Mirrors the bottle grid's double-click-to-open (SPEC M8): the row opens
@@ -35,31 +57,161 @@ function openOnDoubleClick(event: React.MouseEvent, router: ReturnType<typeof us
   router.push(`/expressions/${id}/edit` as Route);
 }
 
+/** A stored value as the table shows it, by the kind of field it is. */
+function display(spec: FieldSpec, value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") return DASH;
+  switch (spec.kind) {
+    case "checkbox":
+      return value === true ? <Check role="img" aria-label="Yes" className="inline size-4 text-primary" /> : DASH;
+    case "select": {
+      const option = spec.options.find((o) => o.value === String(value));
+      return option && option.value !== "" ? option.label : DASH;
+    }
+    case "number":
+      return spec.name === "msrp" ? formatMoney(String(value)) : formatNumeric(String(value));
+    default:
+      return (
+        <span className="block max-w-56 truncate" title={String(value)}>
+          {String(value)}
+        </span>
+      );
+  }
+}
+
 export function LabelTableBody({
   rows,
+  shown,
   unlocked,
   selectedIds,
   onToggle,
-  brands,
-  categories,
+  options,
+  categoryGroups,
+  originals,
   edits,
   updateEdit,
+  saveErrors,
 }: {
   rows: ExpressionRow[];
+  shown: ShownColumn[];
   unlocked: boolean;
   selectedIds: ReadonlySet<number>;
   onToggle: (id: number, selected: boolean) => void;
-  brands: Option[];
-  categories: Option[];
-  edits: Record<number, LabelGridEdit>;
-  updateEdit: <K extends keyof LabelGridEdit>(row: ExpressionRow, field: K, value: LabelGridEdit[K]) => void;
+  options: Record<string, Option[]>;
+  categoryGroups: Record<number, FieldGroup>;
+  originals: ReadonlyMap<number, LabelEdit>;
+  edits: Record<number, LabelEdit>;
+  updateEdit: (row: ExpressionRow, name: string, value: LabelEdit[string]) => void;
+  saveErrors: Record<number, RowErrors>;
 }) {
   const router = useRouter();
+  // A brand created from a cell should be pickable in every other row too.
+  const [optionsByField, setOptionsByField] = React.useState(options);
+
+  function editCell(row: ExpressionRow, column: LabelColumn, values: LabelEdit, errors: Record<string, string>) {
+    const cellId = (name: string) => `label-${row.id}-${name}`;
+    const labelledBy = `label-col-${column.id}`;
+
+    if (LINK_COLUMNS.has(column.id)) {
+      const kind = column.id as LinkKind;
+      const field = LINK_KINDS[kind].field;
+      return (
+        <LinksCell
+          kind={kind}
+          id={cellId(field)}
+          labelledBy={labelledBy}
+          value={values[field] as LinkedRow[]}
+          onChange={(next) => updateEdit(row, field, next)}
+          options={optionsByField[field] ?? []}
+          className="h-8"
+          {...(kind === "mashbills"
+            ? {
+                distilleryChoices: (values.distilleryLinks as LinkedRow[]).map((d) => ({ id: d.id, name: d.label })),
+              }
+            : {})}
+        />
+      );
+    }
+    if (column.id === "abv") {
+      const proof = String(values.proof ?? "");
+      return proof === "" || Number.isNaN(Number(proof)) ? DASH : `${formatNumeric(String(Number(proof) / 2))}%`;
+    }
+    return (
+      <div className="flex items-start gap-1">
+        {column.specs.map((spec) => (
+          <GridCell
+            key={spec.name}
+            spec={spec}
+            id={cellId(spec.name)}
+            labelledBy={labelledBy}
+            value={values[spec.name] as FieldValue}
+            onChange={(next) => updateEdit(row, spec.name, next)}
+            invalid={errors[spec.name] !== undefined}
+            options={optionsByField[spec.name] ?? []}
+            onOptionCreated={(option) =>
+              setOptionsByField((prev) => ({
+                ...prev,
+                [spec.name]: [...(prev[spec.name] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)),
+              }))
+            }
+            className={cn("h-8", column.specs.length > 1 && "w-16")}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  function viewCell(row: ExpressionRow, column: LabelColumn) {
+    switch (column.id) {
+      case "name":
+        return (
+          <>
+            {/* Brand folds in here on a phone; the edit link is the only
+                way into a label, so it must never be squeezed off. */}
+            <span className="block text-xs text-muted-foreground sm:hidden">{row.brand}</span>
+            <span className="text-accent">{row.name}</span>
+            {row.pickCount > 0 ? (
+              <Badge className="ml-2 border-primary/40 text-primary">
+                {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}
+              </Badge>
+            ) : null}
+          </>
+        );
+      case "brand":
+        return <span className="font-medium">{row.brand}</span>;
+      case "category":
+        return row.category;
+      case "abv":
+        return row.abv === null ? DASH : `${formatNumeric(row.abv)}%`;
+      case "age":
+        return describeAgeParts(row.ageYears, row.ageMonths, row.ageDays) ?? DASH;
+      case "bottles":
+        return row.bottleCount;
+      case "distilleries":
+      case "mashbills":
+      case "finishes": {
+        const text = describeLinks(column.id, row.links[column.id]);
+        return text === "" ? (
+          DASH
+        ) : (
+          <span className="block max-w-56 truncate" title={text}>
+            {text}
+          </span>
+        );
+      }
+      default: {
+        const spec = column.specs[0]!;
+        return display(spec, (row as unknown as Record<string, unknown>)[spec.name]);
+      }
+    }
+  }
 
   return (
     <TableBody>
       {rows.map((row) => {
         const edit = edits[row.id];
+        const values = edit ?? originals.get(row.id)!;
+        const fieldGroup = unlocked ? fieldGroupOf(row, edit, categoryGroups) : row.fieldGroup;
+        const rowErrors = saveErrors[row.id];
         return (
           <TableRow
             key={row.id}
@@ -79,222 +231,35 @@ export function LabelTableBody({
               </TableCell>
             ) : null}
 
-            <TableCell className="hidden font-medium sm:table-cell">
-              {unlocked ? (
-                <ReferenceCombobox
-                  id={`grid-brand-${row.id}`}
-                  labelledBy={`grid-brand-${row.id}`}
-                  resource="brands"
-                  options={brands}
-                  value={edit?.brandId ?? row.brandId}
-                  onChange={(next) => next !== null && updateEdit(row, "brandId", next)}
-                  onOptionCreated={() => undefined}
-                  placeholder="Brand…"
-                />
-              ) : (
-                row.brand
-              )}
-            </TableCell>
-
-            <TableCell>
-              {/* Brand folds in here on a phone; the edit link is the only
-                  way into a label, so it must never be squeezed off. */}
-              <span className="block text-xs text-muted-foreground sm:hidden">{row.brand}</span>
-              <span className="text-accent">{row.name}</span>
-              {row.pickCount > 0 ? (
-                <Badge className="ml-2 border-primary/40 text-primary">
-                  {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}
-                </Badge>
-              ) : null}
-            </TableCell>
-
-            <TableCell className="hidden sm:table-cell">
-              {unlocked ? (
-                <ReferenceCombobox
-                  id={`grid-category-${row.id}`}
-                  labelledBy={`grid-category-${row.id}`}
-                  resource={null}
-                  options={categories}
-                  value={edit?.categoryId ?? row.categoryId}
-                  onChange={(next) => next !== null && updateEdit(row, "categoryId", next)}
-                  onOptionCreated={() => undefined}
-                  placeholder="Category…"
-                />
-              ) : (
-                row.category
-              )}
-            </TableCell>
-
-            <TableCell className="text-right tabular-nums">
-              {unlocked ? (
-                <Input
-                  type="number"
-                  min={0}
-                  max={200}
-                  step={0.01}
-                  value={edit?.proof ?? row.proof ?? ""}
-                  onChange={(e) => updateEdit(row, "proof", e.target.value)}
-                  className="h-8 w-20"
-                />
-              ) : (
-                formatNumeric(row.proof)
-              )}
-            </TableCell>
-
-            <TableCell className="hidden text-right tabular-nums sm:table-cell">
-              {unlocked ? (
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={edit?.msrp ?? row.msrp ?? ""}
-                  onChange={(e) => updateEdit(row, "msrp", e.target.value)}
-                  className="h-8 w-24"
-                />
-              ) : (
-                formatMoney(row.msrp)
-              )}
-            </TableCell>
-
-            <TableCell className="text-right tabular-nums">{row.bottleCount}</TableCell>
-
-            {unlocked ? (
-              <>
-                <TableCell>
-                  <Input
-                    value={edit?.ageStatement ?? row.ageStatement ?? ""}
-                    placeholder="e.g. 7 Year"
-                    onChange={(e) => updateEdit(row, "ageStatement", e.target.value)}
-                    className="h-8 w-28"
-                  />
+            {shown.map(({ column, group }) => {
+              const applies = groupApplies(group, fieldGroup);
+              return (
+                <TableCell
+                  key={column.id}
+                  className={cn(
+                    !PHONE_COLUMNS.has(column.id) && "hidden sm:table-cell",
+                    column.numeric && "text-right tabular-nums",
+                    unlocked && applies && column.specs.length === 1 && CELL_WIDTH[column.specs[0]!.kind],
+                    unlocked && applies && LINK_COLUMNS.has(column.id) && "min-w-44",
+                  )}
+                >
+                  {!applies ? (
+                    <span className="text-muted-foreground/60" title="Not used for this category">
+                      —
+                    </span>
+                  ) : unlocked && column.id !== "bottles" ? (
+                    editCell(row, column, values, rowErrors?.fields ?? {})
+                  ) : (
+                    viewCell(row, column)
+                  )}
+                  {column.locked && rowErrors ? (
+                    <p role="alert" className="mt-1 text-xs text-destructive">
+                      {errorText(rowErrors)}
+                    </p>
+                  ) : null}
                 </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.1}
-                      aria-label="Age, years"
-                      value={edit?.ageYears ?? row.ageYears ?? ""}
-                      onChange={(e) => updateEdit(row, "ageYears", e.target.value)}
-                      className="h-8 w-16"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={1200}
-                      step={1}
-                      aria-label="Age, months"
-                      value={edit?.ageMonths ?? (row.ageMonths ?? "")}
-                      onChange={(e) => updateEdit(row, "ageMonths", e.target.value)}
-                      className="h-8 w-16"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={40000}
-                      step={1}
-                      aria-label="Age, days"
-                      value={edit?.ageDays ?? (row.ageDays ?? "")}
-                      onChange={(e) => updateEdit(row, "ageDays", e.target.value)}
-                      className="h-8 w-16"
-                    />
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={200}
-                    step={0.01}
-                    value={edit?.entryProof ?? row.entryProof ?? ""}
-                    onChange={(e) => updateEdit(row, "entryProof", e.target.value)}
-                    className="h-8 w-20"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    value={edit?.charLevel ?? row.charLevel ?? ""}
-                    placeholder="#4 alligator char"
-                    onChange={(e) => updateEdit(row, "charLevel", e.target.value)}
-                    className="h-8 w-32"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={20000}
-                    step={1}
-                    value={edit?.sizeMl ?? row.sizeMl}
-                    onChange={(e) => updateEdit(row, "sizeMl", e.target.value)}
-                    className="h-8 w-20"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
-                    value={edit?.upc ?? row.upc ?? ""}
-                    onChange={(e) => updateEdit(row, "upc", e.target.value)}
-                    className="h-8 w-32"
-                  />
-                </TableCell>
-                <TableCell className="text-center">
-                  <Checkbox
-                    checked={edit?.isCaskStrength ?? row.isCaskStrength}
-                    onCheckedChange={(value) => updateEdit(row, "isCaskStrength", Boolean(value))}
-                    aria-label="Cask strength"
-                  />
-                </TableCell>
-                <TableCell className="text-center">
-                  <Checkbox
-                    checked={edit?.isStraight ?? row.isStraight}
-                    onCheckedChange={(value) => updateEdit(row, "isStraight", Boolean(value))}
-                    aria-label="Straight"
-                  />
-                </TableCell>
-                <TableCell className="text-center">
-                  <Checkbox
-                    checked={edit?.isNas ?? row.isNas}
-                    onCheckedChange={(value) => updateEdit(row, "isNas", Boolean(value))}
-                    aria-label="NAS"
-                  />
-                </TableCell>
-                <TableCell className="text-center">
-                  <Checkbox
-                    checked={edit?.isBottledInBond ?? row.isBottledInBond}
-                    onCheckedChange={(value) => updateEdit(row, "isBottledInBond", Boolean(value))}
-                    aria-label="Bottled in bond"
-                  />
-                </TableCell>
-                <TableCell>
-                  <select
-                    value={edit?.isChillFiltered ?? (row.isChillFiltered === null ? "" : String(row.isChillFiltered))}
-                    onChange={(e) => updateEdit(row, "isChillFiltered", e.target.value)}
-                    className="h-8 w-24 border border-input bg-card px-2 text-sm text-foreground"
-                  >
-                    {TRISTATE.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </TableCell>
-                <TableCell>
-                  <select
-                    value={edit?.colorAdded ?? (row.colorAdded === null ? "" : String(row.colorAdded))}
-                    onChange={(e) => updateEdit(row, "colorAdded", e.target.value)}
-                    className="h-8 w-24 border border-input bg-card px-2 text-sm text-foreground"
-                  >
-                    {TRISTATE.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </TableCell>
-              </>
-            ) : null}
+              );
+            })}
 
             <TableCell className="text-right">
               <Button variant="ghost" size="sm" asChild>

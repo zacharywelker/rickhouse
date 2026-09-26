@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import {
   deleteUserAction,
+  emailResetLinkAction,
   resetPasswordAction,
   setActiveAction,
   setRoleAction,
@@ -23,9 +24,9 @@ import {
 } from "@/components/ui/dialog";
 import { TemporaryPassword } from "./temporary-password";
 
-type Props = { userId: number; username: string; role: UserRole; active: boolean };
+type Props = { userId: number; username: string; role: UserRole; active: boolean; canEmail: boolean };
 
-export function UserActions({ userId, username, role, active }: Props) {
+export function UserActions({ userId, username, role, active, canEmail }: Props) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [result, setResult] = React.useState<UserActionResult | null>(null);
@@ -66,6 +67,11 @@ export function UserActions({ userId, username, role, active }: Props) {
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(() => resetPasswordAction(userId))}>
           Reset password
         </Button>
+        {canEmail ? (
+          <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(() => emailResetLinkAction(userId))}>
+            Email reset link
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
@@ -85,6 +91,11 @@ export function UserActions({ userId, username, role, active }: Props) {
         </p>
       ) : null}
       {result?.ok && result.password ? <TemporaryPassword label={result.message} password={result.password} /> : null}
+      {result?.ok && !result.password ? (
+        <p role="status" className="text-sm">
+          {result.message}
+        </p>
+      ) : null}
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="max-w-md">
