@@ -490,6 +490,69 @@ CREATE TABLE verifications (
 CREATE INDEX verifications_identifier_idx ON verifications(identifier);
 
 -- ------------------------------------------------------------
+-- Email, single sign-on, two-factor and passkeys (M10 phases 3-5)
+-- ------------------------------------------------------------
+
+-- SMTP and SSO are configured from the admin pages, so they live here
+-- rather than in .env. Their secrets are encrypted with SESSION_SECRET.
+CREATE TABLE smtp_settings (
+    id                 integer PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    host               text    NOT NULL,
+    port               integer NOT NULL DEFAULT 587,
+    secure             boolean NOT NULL DEFAULT false,
+    username           text,
+    password_encrypted text,
+    from_address       text    NOT NULL,
+    updated_at         timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE sso_providers (
+    id                      serial PRIMARY KEY,
+    -- Also the callback URL's last segment, so it never changes once set.
+    provider_id             text NOT NULL UNIQUE
+                            CHECK (provider_id ~ '^[a-z0-9][a-z0-9-]{0,39}$' AND provider_id <> 'credential'),
+    name                    text NOT NULL,
+    kind                    text NOT NULL DEFAULT 'oidc' CHECK (kind IN ('oidc', 'google')),
+    discovery_url           text NOT NULL,
+    client_id               text NOT NULL,
+    client_secret_encrypted text NOT NULL,
+    enabled                 boolean NOT NULL DEFAULT true,
+    created_at              timestamptz NOT NULL DEFAULT now(),
+    updated_at              timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE users ADD COLUMN two_factor_enabled boolean NOT NULL DEFAULT false;
+
+-- Better Auth's two-factor plugin: TOTP secret and hashed backup codes.
+CREATE TABLE two_factors (
+    id                        serial PRIMARY KEY,
+    user_id                   integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    secret                    text NOT NULL,
+    backup_codes              text NOT NULL,
+    verified                  boolean NOT NULL DEFAULT true,
+    failed_verification_count integer NOT NULL DEFAULT 0,
+    locked_until              timestamptz
+);
+CREATE INDEX two_factors_user_idx ON two_factors(user_id);
+CREATE INDEX two_factors_secret_idx ON two_factors(secret);
+
+-- Better Auth's passkey plugin: one row per WebAuthn credential.
+CREATE TABLE passkeys (
+    id            serial PRIMARY KEY,
+    user_id       integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name          text,
+    public_key    text NOT NULL,
+    credential_id text NOT NULL UNIQUE,
+    counter       integer NOT NULL,
+    device_type   text NOT NULL,
+    backed_up     boolean NOT NULL,
+    transports    text,
+    aaguid        text,
+    created_at    timestamptz DEFAULT now()
+);
+CREATE INDEX passkeys_user_idx ON passkeys(user_id);
+
+-- ------------------------------------------------------------
 -- Private collections (M10 phase 2)
 -- ------------------------------------------------------------
 

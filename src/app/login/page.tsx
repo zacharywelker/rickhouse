@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { and, eq } from "drizzle-orm";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { db, schema } from "@/db";
+import { emailEnabled } from "@/lib/email/settings";
+import { env } from "@/lib/env";
+import { enabledSsoButtons } from "@/lib/sso/providers";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -37,14 +40,28 @@ function safeNextPath(next: string | undefined): string {
   }
 }
 
+/** Better Auth sends SSO failures back here as ?error=<code>. */
+function ssoErrorMessage(code: string): string {
+  if (/sign.?up|not.?found|unable_to_link|account_not_linked/i.test(code)) {
+    return "That sign-in isn't linked to an account here. Sign in with your password, then link it from Account settings.";
+  }
+  return "Single sign-on didn't work. Try again, or sign in with your password.";
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, error } = await searchParams;
   const safeNext = safeNextPath(next);
-  const firstRun = await awaitingFirstAdmin();
+  // SSO and passkeys both need the public address (APP_URL) to work.
+  const appUrl = env().APP_URL;
+  const [firstRun, canReset, sso] = await Promise.all([
+    awaitingFirstAdmin(),
+    emailEnabled(),
+    appUrl ? enabledSsoButtons() : Promise.resolve([]),
+  ]);
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-6">
@@ -60,7 +77,13 @@ export default async function LoginPage({
               its password to the container log when it started.
             </p>
           ) : null}
-          <LoginForm next={safeNext} />
+          <LoginForm
+            next={safeNext}
+            sso={sso}
+            passkeys={Boolean(appUrl)}
+            canReset={canReset}
+            ssoError={error ? ssoErrorMessage(error) : null}
+          />
         </SectionContent>
       </Section>
     </main>
