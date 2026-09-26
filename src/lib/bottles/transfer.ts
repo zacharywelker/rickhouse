@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq, sql, type Table } from "drizzle-orm";
+import { and, asc, eq, sql, type Table } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
@@ -50,7 +50,8 @@ export const TRANSFER_HEADERS = [
   "notes",
 ] as const;
 
-export async function exportBottlesCsv(): Promise<string> {
+/** One account's collection. */
+export async function exportBottlesCsv(ownerId: number): Promise<string> {
   const rows = await db
     .select({
       brand: brands.name,
@@ -88,6 +89,7 @@ export async function exportBottlesCsv(): Promise<string> {
     .innerJoin(brands, eq(expressions.brandId, brands.id))
     .innerJoin(categories, eq(expressions.categoryId, categories.id))
     .leftJoin(stores, eq(bottles.storeId, stores.id))
+    .where(eq(bottles.ownerId, ownerId))
     .orderBy(asc(brands.name), asc(expressions.name), asc(bottles.id));
 
   return toCsv(
@@ -142,17 +144,18 @@ const numberOrNull = (value: string): string | null => {
   return Number.isFinite(n) ? String(n) : null;
 };
 
-/** Finds a row by case-insensitive name, creating it if it is missing. */
+/** Finds one of the owner's rows by case-insensitive name, creating it if it is missing. */
 async function findOrCreate(
   kind: "brand" | "distillery" | "store" | "finish",
   name: string,
+  ownerId: number,
 ): Promise<number> {
   if (kind === "brand") {
-    const [found] = await db.select({ id: brands.id }).from(brands).where(eq(brands.name, name)).limit(1);
+    const [found] = await db.select({ id: brands.id }).from(brands).where(and(eq(brands.ownerId, ownerId), eq(brands.name, name))).limit(1);
     if (found) return found.id;
     const [row] = await db
       .insert(brands)
-      .values({ name, slug: await freeSlug(brands, brands.slug, name) })
+      .values({ ownerId, name, slug: await freeSlug(brands, brands.ownerId, brands.slug, name, ownerId) })
       .returning({ id: brands.id });
     return row!.id;
   }
@@ -160,44 +163,51 @@ async function findOrCreate(
     const [found] = await db
       .select({ id: distilleries.id })
       .from(distilleries)
-      .where(eq(distilleries.name, name))
+      .where(and(eq(distilleries.ownerId, ownerId), eq(distilleries.name, name)))
       .limit(1);
     if (found) return found.id;
     const [row] = await db
       .insert(distilleries)
-      .values({ name, slug: await freeSlug(distilleries, distilleries.slug, name), country: "USA" })
+      .values({ ownerId, name, slug: await freeSlug(distilleries, distilleries.ownerId, distilleries.slug, name, ownerId), country: "USA" })
       .returning({ id: distilleries.id });
     return row!.id;
   }
   if (kind === "finish") {
-    const [found] = await db.select({ id: finishes.id }).from(finishes).where(eq(finishes.name, name)).limit(1);
+    const [found] = await db.select({ id: finishes.id }).from(finishes).where(and(eq(finishes.ownerId, ownerId), eq(finishes.name, name))).limit(1);
     if (found) return found.id;
     const [row] = await db
       .insert(finishes)
-      .values({ name, slug: await freeSlug(finishes, finishes.slug, name), finishType: "other" })
+      .values({ ownerId, name, slug: await freeSlug(finishes, finishes.ownerId, finishes.slug, name, ownerId), finishType: "other" })
       .returning({ id: finishes.id });
     return row!.id;
   }
-  const [found] = await db.select({ id: stores.id }).from(stores).where(eq(stores.name, name)).limit(1);
+  const [found] = await db.select({ id: stores.id }).from(stores).where(and(eq(stores.ownerId, ownerId), eq(stores.name, name))).limit(1);
   if (found) return found.id;
   const [row] = await db
     .insert(stores)
-    .values({ name, slug: await freeSlug(stores, stores.slug, name) })
+    .values({ ownerId, name, slug: await freeSlug(stores, stores.ownerId, stores.slug, name, ownerId) })
     .returning({ id: stores.id });
   return row!.id;
 }
 
-/** A slug not already taken in `table`, suffixed until it is free. */
-async function freeSlug(table: Table, column: PgColumn, from: string): Promise<string> {
+/** A slug the owner hasn't already used in `table`, suffixed until it is free. */
+async function freeSlug(
+  table: Table,
+  ownerColumn: PgColumn,
+  column: PgColumn,
+  from: string,
+  ownerId: number,
+): Promise<string> {
   const base = slugify(from) || "item";
   for (let suffix = 0; suffix < 200; suffix += 1) {
     const candidate = suffix === 0 ? base : `${base}-${suffix + 1}`;
-    if ((await db.$count(table, eq(column, candidate))) === 0) return candidate;
+    if ((await db.$count(table, and(eq(ownerColumn, ownerId), eq(column, candidate)))) === 0) return candidate;
   }
   return `${base}-${Date.now()}`;
 }
 
-export async function importBottlesCsv(text: string): Promise<ImportReport> {
+/** Imports into one account's collection, creating catalog rows it lacks. */
+export async function importBottlesCsv(text: string, ownerId: number): Promise<ImportReport> {
   const { rows } = parseCsvRows(text);
   const outcomes: ImportOutcome[] = [];
 
@@ -230,7 +240,7 @@ export async function importBottlesCsv(text: string): Promise<ImportReport> {
         continue;
       }
 
-      const brandId = await findOrCreate("brand", brandName);
+      const brandId = await findOrCreate("brand", brandName, ownerId);
       const batch = (row.batch ?? "").trim() || null;
 
       // Match an existing label on brand + name, which is the key the table
@@ -239,7 +249,13 @@ export async function importBottlesCsv(text: string): Promise<ImportReport> {
       const existing = await db
         .select({ id: expressions.id })
         .from(expressions)
-        .where(sql`${expressions.brandId} = ${brandId} AND ${expressions.name} = ${expressionName}`)
+        .where(
+          and(
+            eq(expressions.ownerId, ownerId),
+            eq(expressions.brandId, brandId),
+            eq(expressions.name, expressionName),
+          ),
+        )
         .limit(1);
 
       let expressionId = existing[0]?.id;
@@ -247,10 +263,11 @@ export async function importBottlesCsv(text: string): Promise<ImportReport> {
         const [created] = await db
           .insert(expressions)
           .values({
+            ownerId,
             brandId,
             categoryId: category.id,
             name: expressionName,
-            slug: await freeSlug(expressions, expressions.slug, expressionName),
+            slug: await freeSlug(expressions, expressions.ownerId, expressions.slug, expressionName, ownerId),
             proof: numberOrNull(row.proof ?? ""),
             ageStatement: (row.age_statement ?? "").trim() || null,
             msrp: numberOrNull(row.msrp ?? ""),
@@ -262,13 +279,13 @@ export async function importBottlesCsv(text: string): Promise<ImportReport> {
         for (const [position, name] of list(row.distilleries ?? "").entries()) {
           await db
             .insert(expressionDistilleries)
-            .values({ expressionId, distilleryId: await findOrCreate("distillery", name), position })
+            .values({ expressionId, distilleryId: await findOrCreate("distillery", name, ownerId), position })
             .onConflictDoNothing();
         }
         for (const [position, name] of list(row.finishes ?? "").entries()) {
           await db
             .insert(expressionFinishes)
-            .values({ expressionId, finishId: await findOrCreate("finish", name), position })
+            .values({ expressionId, finishId: await findOrCreate("finish", name, ownerId), position })
             .onConflictDoNothing();
         }
       }
@@ -279,11 +296,12 @@ export async function importBottlesCsv(text: string): Promise<ImportReport> {
       const fill = Number(row.fill_pct ?? "");
 
       await db.insert(bottles).values({
+        ownerId,
         expressionId,
         // Release identity belongs to the bottle since M7.
         batch,
         pricePaid: numberOrNull(row.price_paid ?? ""),
-        storeId: storeName ? await findOrCreate("store", storeName) : null,
+        storeId: storeName ? await findOrCreate("store", storeName, ownerId) : null,
         dateAcquired: /^\d{4}-\d{2}-\d{2}$/.test(row.date_acquired ?? "") ? row.date_acquired! : null,
         acquisition: (ACQUISITIONS as readonly string[]).includes(acquisition)
           ? (acquisition as Acquisition)

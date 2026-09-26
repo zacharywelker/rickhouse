@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Loader2, Plus, Trash2 } from "lucide-react";
+import { Copy, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -265,6 +265,7 @@ export function BottleBulkGrid({ expressions, stores }: { expressions: Option[];
                         className="w-8 px-0"
                         onClick={() => duplicateRow(row.key)}
                         aria-label="Duplicate row"
+                        title="Duplicate row"
                       >
                         <Copy className="size-4" />
                       </Button>
@@ -275,6 +276,7 @@ export function BottleBulkGrid({ expressions, stores }: { expressions: Option[];
                         className="w-8 px-0"
                         onClick={() => removeRow(row.key)}
                         aria-label="Delete row"
+                        title="Delete row"
                         disabled={rows.length === 1}
                       >
                         <Trash2 className="size-4" />
@@ -292,7 +294,6 @@ export function BottleBulkGrid({ expressions, stores }: { expressions: Option[];
 
       <div className="flex items-center gap-2">
         <Button type="button" variant="outline" onClick={addRow}>
-          <Plus className="size-4" />
           Add row
         </Button>
         <Button type="button" onClick={saveAll} disabled={saving}>

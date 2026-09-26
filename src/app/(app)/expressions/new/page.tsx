@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { ExpressionForm } from "@/components/expressions/expression-form";
 import { expressionFormData } from "@/lib/expressions/form-data";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "New Label" };
 export const dynamic = "force-dynamic";
 
 export default async function NewExpressionPage() {
-  const { options, categoryGroups, links } = await expressionFormData(null);
+  const user = await requireSession();
+  const { options, categoryGroups, links } = await expressionFormData(null, user.id);
 
   return (
     <div className="flex flex-col gap-6">

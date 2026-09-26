@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { groups } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
@@ -15,7 +15,7 @@ import type { ActionResult } from "@/lib/admin/types";
  * middleware matches every route.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse<ActionResult>> {
-  await requireSession();
+  const user = await requireSession();
 
   const { id } = await params;
   const groupId = Number(id);
@@ -30,11 +30,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    const [existing] = await db.select().from(groups).where(eq(groups.id, groupId)).limit(1);
+    const [existing] = await db
+      .select()
+      .from(groups)
+      .where(and(eq(groups.id, groupId), eq(groups.ownerId, user.id)))
+      .limit(1);
     if (!existing) return NextResponse.json({ ok: false, error: "That group is gone." }, { status: 404 });
 
     const stored = await storeGroupCoverImage(file);
-    await db.update(groups).set({ coverImagePath: stored.filePath }).where(eq(groups.id, groupId));
+    await db
+      .update(groups)
+      .set({ coverImagePath: stored.filePath })
+      .where(and(eq(groups.id, groupId), eq(groups.ownerId, user.id)));
 
     if (existing.coverImagePath) await deleteStoredImage(existing.coverImagePath, null);
 

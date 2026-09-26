@@ -3,19 +3,21 @@ import { notFound } from "next/navigation";
 import { ExpressionForm } from "@/components/expressions/expression-form";
 import { expressionFormData } from "@/lib/expressions/form-data";
 import { getExpression } from "@/lib/expressions/queries";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Edit Label" };
 export const dynamic = "force-dynamic";
 
 export default async function EditExpressionPage({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireSession();
   const { id } = await params;
   const expressionId = Number(id);
   if (!Number.isInteger(expressionId)) notFound();
 
-  const row = await getExpression(expressionId);
+  const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
 
-  const { options, categoryGroups, links } = await expressionFormData(expressionId);
+  const { options, categoryGroups, links } = await expressionFormData(expressionId, user.id);
 
   return (
     <div className="flex flex-col gap-6">

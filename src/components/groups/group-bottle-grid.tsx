@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Plus, Search, X } from "lucide-react";
+import { Check, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,7 +171,6 @@ export function GroupBottleGrid({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl">Bottles</h2>
         <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
-          <Plus className="size-4" />
           Add bottles
         </Button>
       </div>

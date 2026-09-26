@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Save, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -74,7 +74,6 @@ export function GridEditBar({
               Clear
             </Button>
             <Button type="button" variant="destructive" size="sm" onClick={() => setConfirmOpen(true)}>
-              <Trash2 className="size-4" />
               Delete selected
             </Button>
           </>
@@ -83,7 +82,7 @@ export function GridEditBar({
 
       {dirtyCount > 0 ? (
         <Button type="button" size="sm" onClick={() => void saveChanges()} disabled={saving}>
-          {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+          {saving ? <Loader2 className="size-4 animate-spin" /> : null}
           Save changes ({dirtyCount})
         </Button>
       ) : null}
@@ -123,7 +122,7 @@ export function GridEditBar({
               </Button>
             </DialogClose>
             <Button type="button" variant="destructive" onClick={() => void confirmDelete()} disabled={deleting}>
-              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {deleting ? <Loader2 className="size-4 animate-spin" /> : null}
               Delete
             </Button>
           </DialogFooter>

@@ -14,10 +14,16 @@
  * Run directly with `npm run auth:bootstrap`.
  */
 import { drizzle } from "drizzle-orm/postgres-js";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import postgres from "postgres";
 import * as schema from "../src/db/schema";
-import { createPasswordUser, normalizeUsername, usernameProblem } from "../src/lib/auth/accounts";
+import {
+  CREDENTIAL_PROVIDER,
+  createPasswordUser,
+  normalizeUsername,
+  replacePassword,
+  usernameProblem,
+} from "../src/lib/auth/accounts";
 import { PLACEHOLDER_EMAIL_DOMAIN, generatePassword } from "../src/lib/auth/passwords";
 
 const url = process.env.DATABASE_URL;
@@ -30,21 +36,47 @@ function banner(lines: string[]): void {
   console.log(`rickhouse: ${rule}`);
 }
 
+function firstRunLines(username: string, password: string): string[] {
+  return [
+    "First run: created the admin account.",
+    "",
+    `  username  ${username}`,
+    `  password  ${password}`,
+    "",
+    "Sign in with these; you'll be asked to choose your own password.",
+    "This is the only time the password is shown. If you lose it:",
+    `  docker exec <container> node dist/reset-password.mjs ${username}`,
+  ];
+}
+
 async function main(): Promise<void> {
   const sql = postgres(url as string, { max: 1, onnotice: () => {} });
   const db = drizzle(sql, { schema, casing: "snake_case" });
   try {
-    const [admin] = await db
-      .select({ id: schema.users.id })
+    const admins = await db
+      .select({ id: schema.users.id, username: schema.users.username, password: schema.accounts.password })
       .from(schema.users)
-      .where(eq(schema.users.role, "admin"))
-      .limit(1);
+      .leftJoin(
+        schema.accounts,
+        and(eq(schema.accounts.userId, schema.users.id), eq(schema.accounts.providerId, CREDENTIAL_PROVIDER)),
+      )
+      .where(eq(schema.users.role, "admin"));
 
-    if (admin) {
+    if (admins.some((admin) => admin.password)) {
       console.log("bootstrap: an admin account exists");
       if (process.env.APP_PASSWORD) {
         console.log("bootstrap: APP_PASSWORD is no longer used and can be removed from your .env");
       }
+      return;
+    }
+
+    // The private-collections migration creates a password-less admin to own
+    // an existing collection when it finds no users; give it its password.
+    const placeholder = admins[0];
+    if (placeholder) {
+      const password = generatePassword();
+      await replacePassword(db, placeholder.id, password, { mustChangePassword: true });
+      banner(firstRunLines(placeholder.username, password));
       return;
     }
 
@@ -77,16 +109,7 @@ async function main(): Promise<void> {
       mustChangePassword: true,
     });
 
-    banner([
-      "First run: created the admin account.",
-      "",
-      `  username  ${username}`,
-      `  password  ${password}`,
-      "",
-      "Sign in with these; you'll be asked to choose your own password.",
-      "This is the only time the password is shown. If you lose it:",
-      `  docker exec <container> node dist/reset-password.mjs ${username}`,
-    ]);
+    banner(firstRunLines(username, password));
   } catch (error: unknown) {
     // RUN_MIGRATIONS=false on a database nobody has migrated yet: say so and
     // let the app start, rather than crash-looping the container.

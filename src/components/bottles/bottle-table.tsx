@@ -13,14 +13,15 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Lock, LockOpen, Star } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GridEditBar } from "@/components/ui/grid-edit-bar";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
-import { cn, formatMoney, formatNumeric } from "@/lib/utils";
+import { cn, formatDate, formatMoney, formatNumeric } from "@/lib/utils";
+import { fillState, fillStateDescription } from "@/lib/bottles/fill-state";
 import type { BottleFilters, SortKey } from "@/lib/bottles/filters";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
 import type { GridRow } from "@/lib/bottles/grid";
@@ -220,13 +221,13 @@ export function BottleTable({
             <Image
               src={`/api/images/${row.original.thumbPath}`}
               alt=""
-              width={40}
-              height={40}
+              width={32}
+              height={32}
               unoptimized
-              className="size-10 border border-border object-cover"
+              className="size-8 border border-border object-cover"
             />
           ) : (
-            <div className="size-10 border border-dashed border-border" aria-hidden="true" />
+            <div className="size-8 border border-dashed border-border" aria-hidden="true" />
           ),
       }),
       helper.accessor("fillPct", {
@@ -238,10 +239,12 @@ export function BottleTable({
               value={getValue()}
               readOnly
               fieldGroup={row.original.fieldGroup}
-              height={34}
+              height={28}
               label={`${row.original.expressionName} fill`}
             />
-            <span className="whitespace-nowrap tabular-nums text-muted-foreground">{getValue()}%</span>
+            <span className="whitespace-nowrap text-muted-foreground" title={fillStateDescription(getValue())}>
+              {fillState(getValue()).label}
+            </span>
           </div>
         ),
       }),
@@ -249,9 +252,7 @@ export function BottleTable({
         id: "brand",
         header: "Brand",
         cell: ({ getValue }) => (
-          <span className="block max-w-40 truncate" title={getValue()}>
-            {getValue()}
-          </span>
+          <span className="block min-w-24 max-w-40">{getValue()}</span>
         ),
       }),
       helper.accessor("expressionName", {
@@ -260,10 +261,10 @@ export function BottleTable({
         cell: ({ row }) => (
           <Link
             href={`/bottles/${row.original.id}`}
-            // Truncated, not nowrap: one long name used to widen the whole
-            // table and push Proof, Paid and Status out of view.
-            title={row.original.batch ? `${row.original.expressionName} · ${row.original.batch}` : row.original.expressionName}
-            className="block max-w-64 truncate font-medium hover:text-accent"
+            // Wraps inside a bounded width rather than running on (one long
+            // name used to push Proof, Paid and Status out of view) or being
+            // cut off (a truncated name is a name you cannot read).
+            className="block min-w-36 max-w-64 font-medium hover:text-accent"
           >
             {row.original.expressionName}
             {row.original.batch ? <span className="text-muted-foreground"> · {row.original.batch}</span> : null}
@@ -310,9 +311,7 @@ export function BottleTable({
         id: "distilleries",
         header: "Distilleries",
         cell: ({ getValue }) => (
-          <span className="block max-w-40 truncate text-muted-foreground" title={getValue() ?? undefined}>
-            {getValue() ?? "—"}
-          </span>
+          <span className="block min-w-32 max-w-56 text-muted-foreground">{getValue() ?? "—"}</span>
         ),
       }),
       helper.accessor("proof", {
@@ -324,10 +323,7 @@ export function BottleTable({
         id: "age",
         header: "Age",
         cell: ({ getValue, row }) => (
-          <span
-            className="block max-w-20 truncate tabular-nums"
-            title={row.original.ageStatement ?? undefined}
-          >
+          <span className="block min-w-16 max-w-40 tabular-nums">
             {getValue() ? `${formatNumeric(getValue())}y` : (row.original.ageStatement ?? "—")}
           </span>
         ),
@@ -370,9 +366,7 @@ export function BottleTable({
               placeholder="Optional…"
             />
           ) : (
-            <span className="block max-w-28 truncate" title={getValue() ?? undefined}>
-              {getValue() ?? "—"}
-            </span>
+            <span className="block min-w-20 max-w-32">{getValue() ?? "—"}</span>
           ),
       }),
       helper.accessor("dateAcquired", {
@@ -387,7 +381,7 @@ export function BottleTable({
               className="h-8 w-36"
             />
           ) : (
-            <span className="whitespace-nowrap tabular-nums">{getValue() ?? "—"}</span>
+            <span className="whitespace-nowrap tabular-nums">{formatDate(getValue())}</span>
           ),
       }),
       helper.accessor("avgRating", {
@@ -460,7 +454,6 @@ export function BottleTable({
             setEdits({});
           }}
         >
-          {unlocked ? <LockOpen className="size-4" /> : <Lock className="size-4" />}
           {unlocked ? "Done editing" : "Edit"}
         </Button>
       </div>
@@ -491,8 +484,10 @@ export function BottleTable({
                         type="button"
                         onClick={() => toggleSort(header.column.id)}
                         aria-label={`Sort by ${String(header.column.columnDef.header)}`}
+                        // Buttons reset text-transform, so the header's uppercase is
+                        // restated here or sortable headers read in mixed case.
                         className={cn(
-                          "-mx-1 inline-flex items-center gap-1 px-1 py-0.5 hover:text-foreground",
+                          "-mx-1 inline-flex items-center gap-1 px-1 py-0.5 uppercase tracking-wide hover:text-foreground",
                           active && "text-primary",
                         )}
                       >
@@ -592,6 +587,7 @@ function MobileSort({
         size="sm"
         onClick={() => onSort({ desc: !filters.desc })}
         aria-label={filters.desc ? "Sorted descending. Sort ascending." : "Sorted ascending. Sort descending."}
+        title={filters.desc ? "Sorted descending. Sort ascending." : "Sorted ascending. Sort descending."}
       >
         {filters.desc ? <ArrowDown className="size-4" /> : <ArrowUp className="size-4" />}
       </Button>

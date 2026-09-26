@@ -20,8 +20,10 @@ export async function resolveSlug(options: {
   requested: string | null;
   fallbackFrom: string;
   excludeId?: number;
+  /** Per-owner tables: only this owner's slugs count as taken. */
+  scope?: { column: PgColumn; value: number };
 }): Promise<string> {
-  const { table, column, idColumn, requested, fallbackFrom, excludeId } = options;
+  const { table, column, idColumn, requested, fallbackFrom, excludeId, scope } = options;
 
   if (requested !== null) return requested;
 
@@ -30,6 +32,7 @@ export async function resolveSlug(options: {
   const taken = async (candidate: string): Promise<boolean> => {
     const filters: SQL[] = [eq(column, candidate)];
     if (excludeId !== undefined) filters.push(ne(idColumn, excludeId));
+    if (scope) filters.push(eq(scope.column, scope.value));
     const count = await db.$count(table, filters.length === 1 ? filters[0] : and(...filters));
     return count > 0;
   };

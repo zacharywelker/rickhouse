@@ -147,6 +147,7 @@ export function OrderedPicker({
                   onClick={() => move(index, -1)}
                   disabled={index === 0}
                   aria-label={`Move ${row.label} up`}
+                  title={`Move ${row.label} up`}
                 >
                   <ChevronUp className="size-4" />
                 </Button>
@@ -157,6 +158,7 @@ export function OrderedPicker({
                   onClick={() => move(index, 1)}
                   disabled={index === value.length - 1}
                   aria-label={`Move ${row.label} down`}
+                  title={`Move ${row.label} down`}
                 >
                   <ChevronDown className="size-4" />
                 </Button>

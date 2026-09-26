@@ -3,19 +3,21 @@ import { notFound } from "next/navigation";
 import { BottleForm } from "@/components/expressions/bottle-form";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { expressionOptions, getBottle } from "@/lib/expressions/queries";
+import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Edit bottle" };
 export const dynamic = "force-dynamic";
 
 export default async function EditBottlePage({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireSession();
   const { id } = await params;
   const bottleId = Number(id);
   if (!Number.isInteger(bottleId)) notFound();
 
-  const row = await getBottle(bottleId);
+  const row = await getBottle(bottleId, user.id);
   if (!row) notFound();
 
-  const [expressions, stores] = await Promise.all([expressionOptions(), REFERENCE_OPTION_LOADERS.stores()]);
+  const [expressions, stores] = await Promise.all([expressionOptions(user.id), REFERENCE_OPTION_LOADERS.stores(user.id)]);
 
   return (
     <div className="flex flex-col gap-6">
