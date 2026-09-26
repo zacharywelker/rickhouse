@@ -35,7 +35,11 @@ export function UserMenu({ name, username, isAdmin }: { name: string; username: 
   const [open, setOpen] = React.useState(false);
 
   // Navigating closes it, like the mobile nav.
-  React.useEffect(() => setOpen(false), [pathname]);
+  const [prevPathname, setPrevPathname] = React.useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setOpen(false);
+  }
 
   const item = ({ href, label }: MenuLink) => (
     <Link

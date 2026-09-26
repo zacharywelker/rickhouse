@@ -93,7 +93,12 @@ export function LabelFilterBar({
   const [search, setSearch] = React.useState(filters.q ?? "");
   const active = activeLabelFilterCount(filters);
 
-  React.useEffect(() => setSearch(filters.q ?? ""), [filters.q]);
+  // Back/forward or a cleared filter changes `q` under the box; follow it.
+  const [prevQ, setPrevQ] = React.useState(filters.q);
+  if (filters.q !== prevQ) {
+    setPrevQ(filters.q);
+    setSearch(filters.q ?? "");
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">

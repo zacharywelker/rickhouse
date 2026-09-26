@@ -61,10 +61,20 @@ export function FillControl({
   const [killing, setKilling] = React.useState(false);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const killed = status === "killed";
-  const current = fillState(pct);
 
-  React.useEffect(() => setPct(fillPct), [fillPct]);
-  React.useEffect(() => setOpen(isOpen), [isOpen]);
+  // The local copies move at once while a save is in flight; a refresh that
+  // brings new props wins.
+  const [prevFillPct, setPrevFillPct] = React.useState(fillPct);
+  if (fillPct !== prevFillPct) {
+    setPrevFillPct(fillPct);
+    setPct(fillPct);
+  }
+  const [prevIsOpen, setPrevIsOpen] = React.useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    setOpen(isOpen);
+  }
+  const current = fillState(pct);
 
   const commit = React.useCallback(
     (next: number) => {

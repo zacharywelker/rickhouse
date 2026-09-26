@@ -100,17 +100,23 @@ export function LabelTable({
   // this, a second click before the first navigation finished would undo it.
   const [visible, setVisible] = React.useState<ReadonlySet<string>>(() => new Set(filters.columns));
   const columnsKey = filters.columns.join(",");
-  React.useEffect(() => setVisible(new Set(columnsKey.split(","))), [columnsKey]);
+  const [prevColumnsKey, setPrevColumnsKey] = React.useState(columnsKey);
+  if (columnsKey !== prevColumnsKey) {
+    setPrevColumnsKey(columnsKey);
+    setVisible(new Set(filters.columns));
+  }
 
   // Off-screen rows shouldn't stay silently selected or dirty once the page
   // or filters change under them. Keyed on which rows, not the array itself,
   // so showing a column (which re-renders the page) keeps unsaved edits.
   const rowsKey = rows.map((row) => row.id).join(",");
-  React.useEffect(() => {
+  const [prevRowsKey, setPrevRowsKey] = React.useState(rowsKey);
+  if (rowsKey !== prevRowsKey) {
+    setPrevRowsKey(rowsKey);
     setSelectedIds(new Set());
     setEdits({});
     setSaveErrors({});
-  }, [rowsKey]);
+  }
 
   const originals = React.useMemo(() => new Map(rows.map((row) => [row.id, editableFrom(row)])), [rows]);
 
