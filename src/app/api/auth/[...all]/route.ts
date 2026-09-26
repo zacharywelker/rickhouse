@@ -1,14 +1,15 @@
 import { toNextJsHandler } from "better-auth/next-js";
 import { CLIENT_IP_HEADER, buildBlockList, clientIpFromForwardedFor } from "@/lib/auth/client-ip";
-import { auth } from "@/lib/auth/server";
+import { getAuth } from "@/lib/auth/server";
 import { env } from "@/lib/env";
 
 /**
  * Better Auth's HTTP endpoints: sign-in, sign-out, session, change-password.
  * Its rate limiter only sees requests that come through here, so anything
  * that checks a password must be called over HTTP, not through `auth.api`.
+ * The instance is fetched per request because SSO providers and email can
+ * change at run time (see getAuth).
  */
-const handler = toNextJsHandler(auth);
 const trustedProxies = buildBlockList(env().TRUSTED_PROXIES);
 
 /**
@@ -33,10 +34,10 @@ function withClientIp(request: Request): Request {
 
 export async function GET(request: Request): Promise<Response> {
   if (blocked(request)) return new Response("Not found", { status: 404 });
-  return handler.GET(withClientIp(request));
+  return toNextJsHandler(await getAuth()).GET(withClientIp(request));
 }
 
 export async function POST(request: Request): Promise<Response> {
   if (blocked(request)) return new Response("Not found", { status: 404 });
-  return handler.POST(withClientIp(request));
+  return toNextJsHandler(await getAuth()).POST(withClientIp(request));
 }

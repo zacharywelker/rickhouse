@@ -611,6 +611,7 @@ export const users = pgTable(
     banExpires: timestamp("ban_expires", { withTimezone: true }),
     /** Set on generated passwords; the app routes to /account/setup until cleared. */
     mustChangePassword: boolean("must_change_password").notNull().default(false),
+    twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -688,6 +689,84 @@ export const verifications = pgTable(
   },
   (t) => [index("verifications_identifier_idx").on(t.identifier)],
 );
+
+/** Better Auth's two-factor plugin: the TOTP secret and hashed backup codes. */
+export const twoFactors = pgTable(
+  "two_factors",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    verified: boolean("verified").notNull().default(true),
+    failedVerificationCount: integer("failed_verification_count").notNull().default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  },
+  (t) => [index("two_factors_user_idx").on(t.userId), index("two_factors_secret_idx").on(t.secret)],
+);
+
+/** Better Auth's passkey plugin: one row per registered WebAuthn credential. */
+export const passkeys = pgTable(
+  "passkeys",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name"),
+    publicKey: text("public_key").notNull(),
+    credentialID: text("credential_id").notNull().unique(),
+    counter: integer("counter").notNull(),
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").notNull(),
+    transports: text("transports"),
+    aaguid: text("aaguid"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("passkeys_user_idx").on(t.userId)],
+);
+
+// ------------------------------------------------------------
+// Email and single sign-on (configured from the admin pages)
+// ------------------------------------------------------------
+
+/** Single row. The password is encrypted with SESSION_SECRET. */
+export const smtpSettings = pgTable("smtp_settings", {
+  id: integer("id").primaryKey().default(1),
+  host: text("host").notNull(),
+  port: integer("port").notNull().default(587),
+  secure: boolean("secure").notNull().default(false),
+  username: text("username"),
+  passwordEncrypted: text("password_encrypted"),
+  fromAddress: text("from_address").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const SSO_KINDS = ["oidc", "google"] as const;
+export type SsoKind = (typeof SSO_KINDS)[number];
+
+/** OIDC providers people can link and sign in with. The secret is encrypted with SESSION_SECRET. */
+export const ssoProviders = pgTable("sso_providers", {
+  id: serial("id").primaryKey(),
+  /** Also the callback URL's last segment, so it never changes once set. */
+  providerId: text("provider_id").notNull().unique(),
+  name: text("name").notNull(),
+  kind: text("kind").notNull().default("oidc").$type<SsoKind>(),
+  discoveryUrl: text("discovery_url").notNull(),
+  clientId: text("client_id").notNull(),
+  clientSecretEncrypted: text("client_secret_encrypted").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
 
 // ------------------------------------------------------------
 // Convenience view: the flat list for the grid page

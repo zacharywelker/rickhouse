@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TemporaryPassword } from "./temporary-password";
 
-export function CreateUserForm() {
+export function CreateUserForm({ canInvite }: { canInvite: boolean }) {
   const [state, formAction, pending] = useActionState<UserActionResult | null, FormData>(createUserAction, null);
   // Remount the fields after a success so the next account starts blank.
   const formKey = state?.ok ? state.password : "form";
@@ -39,6 +39,12 @@ export function CreateUserForm() {
             <option value="admin">Admin</option>
           </select>
         </div>
+        {canInvite ? (
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <input type="checkbox" name="invite" defaultChecked />
+            Email them an invitation to choose their own password (instead of a temporary one)
+          </label>
+        ) : null}
         <div className="sm:col-span-2">
           <Button type="submit" disabled={pending}>
             {pending ? "Creating…" : "Create account"}
@@ -48,6 +54,11 @@ export function CreateUserForm() {
       {state && !state.ok ? (
         <p role="alert" className="text-sm text-destructive">
           {state.error}
+        </p>
+      ) : null}
+      {state?.ok && !state.password ? (
+        <p role="status" className="text-sm">
+          {state.message}
         </p>
       ) : null}
       {state?.ok && state.password ? (

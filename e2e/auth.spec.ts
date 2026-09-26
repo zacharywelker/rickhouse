@@ -196,7 +196,7 @@ test("deactivating an account signs it out and shuts the door", async ({ page, b
 
   const row = page.locator("tr[data-username='leaver']");
   await row.getByRole("button", { name: "Deactivate" }).click();
-  await expect(row.getByText("Deactivated")).toBeVisible();
+  await expect(row.getByText("Deactivated", { exact: true })).toBeVisible();
 
   // Their open session is gone...
   await other.reload();

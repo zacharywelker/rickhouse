@@ -196,6 +196,56 @@ TRUSTED_PROXIES=
 Rickhouse can still be reached directly on port `1964` from your LAN at the
 same time; that keeps working.
 
+# Email, single sign-on, two-step sign-in and passkeys
+
+All four need `APP_URL` set to the address people type (see **Behind a
+reverse proxy**): every email carries a link, SSO providers send people back
+to a fixed callback, and a passkey is tied to one domain.
+
+### Email
+
+**Email** in the admin menu takes your mail server (Fastmail, Gmail with an
+app password, your ISP, a relay…). Save, then **Send me a test email**. Once
+it works:
+
+* **Forgot password?** appears on the sign-in page (links last 24 hours).
+* **Users** can email an invitation, so new people pick their own password,
+  and email anyone a reset link.
+* Everyone gets a notice when their password changes or a sign-in is linked.
+* Two-step sign-in can email a code as a fallback.
+
+The SMTP password is stored encrypted with `SESSION_SECRET`; if you ever
+rotate that, re-enter it.
+
+### Single sign-on (Pocket ID, Authentik, Authelia, Google…)
+
+1. In your provider, create an OIDC client. Set its callback / redirect URL to
+   `https://<your APP_URL>/api/auth/callback/<id>`, where `<id>` is the short
+   ID you'll give it in Rickhouse, e.g. `pocket-id`.
+2. In Rickhouse, **Single sign-on** in the admin menu: pick the type, a button
+   name, the same ID, the provider's issuer URL (e.g.
+   `https://id.example.com` for Pocket ID), and the client ID and secret.
+3. Each person then opens **Account settings → Linked sign-ins → Link**, signs
+   in at the provider once, and from then on can use the button on the sign-in
+   page.
+
+Single sign-on never creates accounts and never matches people by email: an
+identity only works once someone who is already signed in has linked it.
+Password sign-in keeps working, so the command-line reset is always a way in.
+
+For Google, choose **Google** as the type and create an OAuth client in the
+Google Cloud console. Google only accepts callback URLs on a real HTTPS domain.
+
+### Two-step sign-in and passkeys
+
+Both are per person, under **Account settings**:
+
+* **Two-step sign-in**: scan the QR code with an authenticator app and keep
+  the backup codes. Signing in with a password then also asks for a code.
+* **Passkeys**: sign in with a fingerprint, face or device PIN. They need
+  HTTPS on the `APP_URL` domain (browsers refuse them on plain http, except
+  on `localhost`).
+
 # Updating Rickhouse
 
 When a new Rickhouse image is published, update the stack through Compose Manager.
