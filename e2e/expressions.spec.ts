@@ -68,8 +68,12 @@ test("single barrel reveals the pick detail on the bottle, not the label", async
 
   await page.getByLabel("Single Barrel", { exact: true }).check();
   await expect(page.getByRole("heading", { name: "Single-barrel detail" })).toBeVisible();
-  await expect(page.getByLabel("Picked By")).toBeVisible();
   await expect(page.getByLabel("Warehouse")).toBeVisible();
+  // A plain single barrel has no pick behind it; only a private selection does.
+  await expect(page.getByLabel("Picked By")).toBeHidden();
+
+  await page.getByLabel("Private Selection", { exact: true }).check();
+  await expect(page.getByLabel("Picked By")).toBeVisible();
 });
 
 test("rejects a bottling date before the fill date", async ({ page }) => {
@@ -93,7 +97,7 @@ test("creates a blended expression with ordered distilleries, then a bottle, the
   await pick(page, "Category", "Bourbon");
   await page.getByLabel("Label Name").fill(name);
   await page.getByLabel("Proof", { exact: true }).fill("108");
-  await page.getByLabel("Age statement").fill("NAS (labeled Straight, so at least 2 years)");
+  await page.getByLabel("Age Statement", { exact: true }).fill("NAS (labeled Straight, so at least 2 years)");
   await page.getByLabel("MSRP").fill("69.99");
   await page.getByLabel("UPC / barcode").fill("081234567890");
 
