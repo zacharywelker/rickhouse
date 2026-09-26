@@ -10,7 +10,7 @@ import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
 import { z } from "zod";
-import { bottleGridEditSchema, bottleSchema, tastingNoteSchema } from "@/lib/expressions/schema";
+import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
 
 /**
  * Every write below is scoped to the signed-in account. A bottle id that is
@@ -87,6 +87,12 @@ export async function saveBottleAction(
  * not wrapped in one shared transaction — because the rows are independent
  * bottles with no cross-row constraint, and a bad row should never roll back
  * the good ones next to it.
+ *
+ * Rows carry everything on the bottle form plus where the bottle is in its
+ * life (`bottleStateSchema`), which the grid needs for entering a collection
+ * that already exists. Opening follows the bottle page's own toggle: an
+ * opened bottle stops being merely owned, and gets an opened date if it has
+ * none — "open, opened on no date" is not a state the rest of the app means.
  */
 export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Promise<BulkSaveResult> {
   const user = await requireSession();
@@ -94,8 +100,12 @@ export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Pr
 
   for (const [index, row] of rows.entries()) {
     const parsed = bottleSchema.safeParse(row);
-    if (!parsed.success) {
-      const shaped = invalid(parsed.error.issues);
+    const state = bottleStateSchema.safeParse(row);
+    if (!parsed.success || !state.success) {
+      const shaped = invalid([
+        ...(parsed.success ? [] : parsed.error.issues),
+        ...(state.success ? [] : state.error.issues),
+      ]);
       results.push({
         index,
         ok: false,
@@ -104,10 +114,18 @@ export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Pr
       });
       continue;
     }
+
+    const values = { ...parsed.data, ...state.data };
+    if (values.status === "open") values.isOpen = true;
+    if (values.isOpen) {
+      if (values.status === "owned") values.status = "open";
+      values.dateOpened ??= new Date().toISOString().slice(0, 10);
+    }
+
     try {
       const [inserted] = await db
         .insert(bottles)
-        .values({ ...parsed.data, ownerId: user.id })
+        .values({ ...values, ownerId: user.id })
         .returning({ id: bottles.id });
       results.push({ index, ok: true, id: inserted!.id });
     } catch (error: unknown) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageBetween, defaultAgeStatement, describeAge } from "../age";
+import { ageBetween, defaultAgeStatement, describeAge, offeredAgeStatement } from "../age";
 
 describe("ageBetween", () => {
   it("counts whole years by the calendar, not by dividing days", () => {
@@ -65,5 +65,25 @@ describe("defaultAgeStatement", () => {
     expect(defaultAgeStatement({ isStraight: true, isBottledInBond: true, isNas: false })).toBe(
       "Bottled-in-Bond (at least 4 years)",
     );
+  });
+});
+
+describe("offeredAgeStatement", () => {
+  it("offers the designation's statement when one is switched on and the statement is blank", () => {
+    const prev = { isBottledInBond: false, ageStatement: "" };
+    expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: true }, "isBottledInBond")).toBe(
+      "Bottled-in-Bond (at least 4 years)",
+    );
+  });
+
+  it("never overwrites a statement someone typed", () => {
+    const prev = { isBottledInBond: false, ageStatement: "7 Year" };
+    expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: true }, "isBottledInBond")).toBeNull();
+  });
+
+  it("offers nothing when switching one off, or for other fields", () => {
+    const prev = { isStraight: true, ageStatement: "" };
+    expect(offeredAgeStatement(prev, { ...prev, isStraight: false }, "isStraight")).toBeNull();
+    expect(offeredAgeStatement(prev, { ...prev, proof: "100" }, "proof")).toBeNull();
   });
 });

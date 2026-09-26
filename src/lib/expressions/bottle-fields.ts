@@ -1,4 +1,5 @@
 import { ACQUISITIONS, BOTTLE_STATUSES } from "@/db/schema";
+import { FILL_STATES } from "@/lib/bottles/fill-state";
 import type { FormSection } from "./fields";
 
 const titleCase = (value: string) => value[0]!.toUpperCase() + value.slice(1);
@@ -146,3 +147,27 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
 
 /** Flat list, for seeding form state and for the server's allow-list. */
 export const BOTTLE_FIELDS = BOTTLE_SECTIONS.flatMap((section) => section.fields);
+
+/**
+ * Where the bottle is in its life. Bulk grid only (`bottleStateSchema`): the
+ * bottle page sets these with its own controls, but entering a collection
+ * that already exists means entering bottles that are already open. Fill is
+ * the same quick states the bottle page offers (DESIGN.md §21) — nobody
+ * knows their bottle is at 63%, but everyone knows it is about half.
+ */
+export const BOTTLE_STATE_SECTION: FormSection = {
+  id: "state",
+  title: "State",
+  fields: [
+    {
+      kind: "select",
+      name: "fillPct",
+      label: "Fill",
+      options: FILL_STATES.map((state) => ({ value: String(state.pct), label: state.label })),
+    },
+    { kind: "checkbox", name: "isOpen", label: "Opened" },
+    { kind: "date", name: "dateOpened", label: "Date Opened" },
+    { kind: "date", name: "dateKilled", label: "Date Killed" },
+    { kind: "checkbox", name: "isFavorite", label: "Favorite" },
+  ],
+};
