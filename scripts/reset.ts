@@ -52,6 +52,7 @@ const TABLES = [
   "smtp_settings",
   "sso_providers",
   "passkeys",
+  "password_history",
   "two_factors",
   "verifications",
   "sessions",

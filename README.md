@@ -10,7 +10,7 @@ It keeps the **label** (the product: brand, distillery, mashbill, proof, MSRP) s
 - **Labels**: the product reference behind each bottle
 - **Groups**: hand-picked sets like trips, gifts or favorites
 - **Numbers**: what you buy, what you spend and what you keep coming back to, each linked to its bottles
-- **Accounts**: a private collection per person, with optional single sign-on, two-step sign-in and passkeys
+- **Accounts**: a private collection per person, with optional single sign-on, two-step sign-in, passkeys and a Cloudflare Turnstile bot check
 - **Backups**: scheduled from inside the app, with a plain-CSV copy you can read without Rickhouse
 
 ## Install

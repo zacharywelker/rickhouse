@@ -232,3 +232,43 @@ test("changing your password keeps you signed in and retires the old one", async
   await fillSignIn(page, MEMBER.username, PASSWORD);
   await expect(page.locator("#login-error")).toBeVisible();
 });
+
+test("an earlier password can't be chosen again", async ({ page, browser }) => {
+  await signIn(page);
+  const temporary = await createMember(page, "repeater");
+
+  const other = await browser.newPage();
+  await asFreshClient(other);
+  await other.goto("/login");
+  await fillSignIn(other, "repeater", temporary);
+  await expect(other).toHaveURL("/account/setup");
+
+  // Not even the generated one: it has been in a message.
+  await other.getByLabel("New password", { exact: true }).fill(temporary);
+  await other.getByLabel("Confirm new password").fill(temporary);
+  await other.getByRole("button", { name: "Save and continue" }).click();
+  await expect(other.getByText(/haven't used here before/)).toBeVisible();
+
+  await other.getByLabel("New password", { exact: true }).fill("the first chosen one");
+  await other.getByLabel("Confirm new password").fill("the first chosen one");
+  await other.getByRole("button", { name: "Save and continue" }).click();
+  await expect(other).toHaveURL("/");
+
+  const change = async (current: string, next: string) => {
+    await other.goto("/account");
+    await other.getByLabel("Current password").fill(current);
+    await other.getByLabel("New password", { exact: true }).fill(next);
+    await other.getByLabel("Confirm new password").fill(next);
+    await other.getByRole("button", { name: "Change password" }).click();
+  };
+
+  await change("the first chosen one", "the first chosen one");
+  await expect(other.getByText(/haven't used here before/)).toBeVisible();
+
+  await change("the first chosen one", "the second chosen one");
+  await expect(other.getByText("Password changed.", { exact: false })).toBeVisible();
+
+  await change("the second chosen one", "the first chosen one");
+  await expect(other.getByText(/haven't used here before/)).toBeVisible();
+  await other.close();
+});

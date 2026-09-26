@@ -57,6 +57,21 @@ const envSchema = z.object({
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: (error as Error).message });
       }
     }),
+  /**
+   * Refuse new passwords found in Have I Been Pwned's breach corpus. Only a
+   * 5-character hash prefix is sent. Turn off for a server with no internet.
+   */
+  PASSWORD_BREACH_CHECK: z
+    .enum(["true", "false", ""])
+    .default("true")
+    .transform((v) => v !== "false"),
+  /**
+   * Cloudflare Turnstile keys. With both set, sign-in and "forgot password"
+   * ask for a Turnstile check first. Kept here rather than in the admin
+   * pages so a bad key can be undone without signing in.
+   */
+  TURNSTILE_SITE_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+  TURNSTILE_SECRET_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
   /** Absolute path to the uploads volume inside the container. */
   UPLOAD_DIR: z.string().min(1).default("/data/uploads"),
   /** Absolute path to the backups volume inside the container. */
@@ -65,6 +80,12 @@ const envSchema = z.object({
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+/** The Turnstile site key for the browser, only when the check is fully set up. */
+export function turnstileSiteKey(): string | null {
+  const { TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY } = env();
+  return TURNSTILE_SITE_KEY && TURNSTILE_SECRET_KEY ? TURNSTILE_SITE_KEY : null;
+}
 
 let cached: Env | undefined;
 

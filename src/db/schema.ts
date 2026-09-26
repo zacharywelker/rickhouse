@@ -728,6 +728,23 @@ export const passkeys = pgTable(
   (t) => [index("passkeys_user_idx").on(t.userId)],
 );
 
+/**
+ * Earlier password hashes, written by a trigger on accounts (migration 0017)
+ * whenever a password changes, so an old one cannot be chosen again.
+ */
+export const passwordHistory = pgTable(
+  "password_history",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    passwordHash: text("password_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("password_history_user_idx").on(t.userId, t.id.desc())],
+);
+
 // ------------------------------------------------------------
 // Email and single sign-on (configured from the admin pages)
 // ------------------------------------------------------------

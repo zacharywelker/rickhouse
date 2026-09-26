@@ -51,6 +51,18 @@ TRUSTED_PROXIES=
 
 Direct LAN access on port `1964` keeps working.
 
+## Bot check and password rules
+
+```ini
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
+PASSWORD_BREACH_CHECK=true
+```
+
+- **Cloudflare Turnstile** (optional): create a Turnstile widget in the Cloudflare dashboard for your `APP_URL` hostname and paste in both keys. Sign-in and "forgot password" then show a bot check. Passkey sign-in skips it. Password sign-in then only works through `APP_URL`, not the LAN address. Leave both keys empty to turn it off.
+- **Breached passwords:** new passwords are checked against [Have I Been Pwned](https://haveibeenpwned.com/Passwords). Only the first 5 characters of the password's hash are sent. If the server has no internet access, set `PASSWORD_BREACH_CHECK=false`, or choosing a password will fail, including at first sign-in.
+- **No reuse:** a new password can't match the current one or any of the 4 before it. There's nothing to configure.
+
 ## Email, single sign-on, two-step sign-in and passkeys
 
 All four need `APP_URL`.
@@ -65,7 +77,7 @@ All four need `APP_URL`.
 
 Single sign-on never creates accounts or matches people by email. Password sign-in keeps working.
 
-**Two-step sign-in and passkeys:** each person sets these up under **Account settings**. Passkeys need HTTPS on the `APP_URL` domain.
+**Two-step sign-in and passkeys:** each person sets these up under **Account settings**. Passkeys need HTTPS on the `APP_URL` domain. Browsers that support it offer saved passkeys when you click the username field on the sign-in page.
 
 ## Updating
 
@@ -114,6 +126,10 @@ To read the data without Rickhouse, extract `csv.tar.gz` and open the CSVs in a 
 **"Too many tries":** wait a minute. If everyone sees it at once behind Cloudflare, set `TRUSTED_PROXIES`.
 
 **"Invalid origin":** set `APP_URL` to the address in your browser's address bar.
+
+**Bot check fails or never loads:** check that the Turnstile widget's hostname matches `APP_URL`. To turn the check off, clear both `TURNSTILE_*` keys and recreate the container. It's read from `.env`, so this works even when nobody can sign in.
+
+**"Couldn't check that password":** the server can't reach Have I Been Pwned. Restore internet access, or set `PASSWORD_BREACH_CHECK=false`.
 
 **Locked out:** an admin can reset anyone's password under **Users**. If no admin can sign in, run the following from the Unraid terminal:
 

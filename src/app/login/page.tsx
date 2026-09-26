@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { db, schema } from "@/db";
 import { emailEnabled } from "@/lib/email/settings";
-import { env } from "@/lib/env";
+import { env, turnstileSiteKey } from "@/lib/env";
 import { enabledSsoButtons } from "@/lib/sso/providers";
 import { LoginForm } from "./login-form";
 
@@ -83,6 +83,7 @@ export default async function LoginPage({
             passkeys={Boolean(appUrl)}
             canReset={canReset}
             ssoError={error ? ssoErrorMessage(error) : null}
+            turnstileSiteKey={turnstileSiteKey()}
           />
         </SectionContent>
       </Section>

@@ -6,6 +6,12 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { requireSession } from "@/lib/auth";
 import { replacePassword } from "@/lib/auth/accounts";
+import {
+  PASSWORD_COMPROMISED_MESSAGE,
+  PASSWORD_REUSED_MESSAGE,
+  isBreachedPassword,
+  reusesRecentPassword,
+} from "@/lib/auth/password-checks";
 import { isPlaceholderEmail, passwordProblem } from "@/lib/auth/passwords";
 import { mapDbError } from "@/lib/db-errors";
 
@@ -38,6 +44,13 @@ export async function completeSetup(_prev: SetupState, formData: FormData): Prom
   const problem = passwordProblem(password);
   if (problem) return { error: problem };
   if (password !== confirm) return { error: "The two passwords don't match." };
+  // The generated password counts too: it has been in a log or a message.
+  if (await reusesRecentPassword(user.id, password)) return { error: PASSWORD_REUSED_MESSAGE };
+  try {
+    if (await isBreachedPassword(password)) return { error: PASSWORD_COMPROMISED_MESSAGE };
+  } catch {
+    return { error: "Couldn't check that password against known breaches. Try again in a moment." };
+  }
 
   if (needsEmail && email) {
     if (isPlaceholderEmail(email)) return { error: "Enter a real email address." };

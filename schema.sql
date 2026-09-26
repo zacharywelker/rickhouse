@@ -552,6 +552,30 @@ CREATE TABLE passkeys (
 );
 CREATE INDEX passkeys_user_idx ON passkeys(user_id);
 
+-- Earlier password hashes, so a change or reset cannot bring one back. A
+-- trigger fills it, covering every way a password gets set.
+CREATE TABLE password_history (
+    id            serial PRIMARY KEY,
+    user_id       integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    password_hash text NOT NULL,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX password_history_user_idx ON password_history(user_id, id DESC);
+
+CREATE FUNCTION remember_old_password() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.password IS NOT NULL AND NEW.password IS DISTINCT FROM OLD.password THEN
+    INSERT INTO password_history (user_id, password_hash) VALUES (OLD.user_id, OLD.password);
+    DELETE FROM password_history
+      WHERE user_id = OLD.user_id
+        AND id NOT IN (SELECT id FROM password_history WHERE user_id = OLD.user_id ORDER BY id DESC LIMIT 10);
+  END IF;
+  RETURN NEW;
+END
+$$;
+CREATE TRIGGER accounts_remember_old_password AFTER UPDATE OF password ON accounts
+    FOR EACH ROW EXECUTE FUNCTION remember_old_password();
+
 -- ------------------------------------------------------------
 -- Private collections (M10 phase 2)
 -- ------------------------------------------------------------
