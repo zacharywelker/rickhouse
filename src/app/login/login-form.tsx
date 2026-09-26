@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,12 +18,13 @@ type Props = {
 };
 
 export function LoginForm({ next, sso, passkeys, canReset, ssoError }: Props) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(ssoError);
   const [pending, setPending] = useState(false);
 
   function explain(failure: { code?: string; status?: number }) {
     setPending(false);
-    if (failure.code === "BANNED_USER") window.location.assign("/cut-off");
+    if (failure.code === "BANNED_USER") router.push("/cut-off");
     else if (isRateLimited(failure)) setError("Too many tries. Give it a minute and try again.");
     else setError("That username or password is not right.");
   }

@@ -57,16 +57,6 @@ const optionalSortOrder = blankIfAbsent(
 /** Unchecked boxes are simply absent from FormData, which means false. */
 const checkbox = z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean());
 
-/**
- * A grain percentage. Stored as Postgres numeric, so it leaves here as a
- * string — never a float (SPEC: Conventions).
- */
-const percent = blankIfAbsent(
-  z
-    .union([z.literal(""), z.coerce.number().min(0, "Cannot be negative.").max(100, "Cannot exceed 100.")])
-    .transform((v) => (v === "" ? 0 : v)),
-);
-
 const hexColor = blankIfAbsent(
   trimmed
     .transform((v) => (v === "" ? null : v))

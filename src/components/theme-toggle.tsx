@@ -27,6 +27,7 @@ export function ThemeToggle() {
   React.useEffect(() => {
     try {
       const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
       if (isTheme(stored)) setTheme(stored);
     } catch {
       // Private mode, or storage blocked. The OS preference is a fine answer.

@@ -190,7 +190,7 @@ const categoriesConfig: ResourceConfig = {
     }));
   },
   optionsFor: async () => ({ parentId: await categoryOptions() }),
-  save: async (raw, id, ownerId) => {
+  save: async (raw, id, _ownerId) => {
     const parsed = categorySchema.safeParse(raw);
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
@@ -226,7 +226,7 @@ const categoriesConfig: ResourceConfig = {
     await db.update(categories).set(values).where(eq(categories.id, id));
     return { ok: true, id };
   },
-  remove: async (id, ownerId) => {
+  remove: async (id, _ownerId) => {
     await db.delete(categories).where(eq(categories.id, id));
   },
 };

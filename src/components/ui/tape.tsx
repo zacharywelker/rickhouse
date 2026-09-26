@@ -97,6 +97,7 @@ export function Tape({ color = "neutral", swatch, rotate, className, style, chil
   const [look, setLook] = React.useState<TapeLook>(DEFAULT_LOOK);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration reroll, see DEFAULT_LOOK
     setLook(randomLook());
   }, []);
 

@@ -15,6 +15,16 @@ export default defineConfig([
       "react-hooks/set-state-in-effect": "warn",
     },
   },
+  {
+    rules: {
+      // A leading underscore marks a binding that is unused on purpose, e.g.
+      // `const { search: _search, ...rest }` to drop a key.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+    },
+  },
   globalIgnores([
     ".next/**",
     "out/**",
