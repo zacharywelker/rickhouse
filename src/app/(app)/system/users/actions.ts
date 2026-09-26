@@ -9,6 +9,8 @@ import { requireAdmin } from "@/lib/auth";
 import { createPasswordUser, normalizeUsername, replacePassword, usernameProblem } from "@/lib/auth/accounts";
 import { generatePassword, isPlaceholderEmail } from "@/lib/auth/passwords";
 import { mapDbError } from "@/lib/db-errors";
+import { getAuth, INVITE_MARKER } from "@/lib/auth/server";
+import { emailEnabled } from "@/lib/email/settings";
 import { deleteStoredImage } from "@/lib/images";
 
 /**
@@ -56,14 +58,23 @@ export async function createUserAction(_prev: UserActionResult | null, formData:
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form." };
 
+  // An invitation sets a password nobody sees; the person picks their own
+  // from the emailed link instead of being handed a temporary one.
+  const invite = formData.get("invite") === "on" && (await emailEnabled());
   const password = generatePassword();
   try {
-    await createPasswordUser(db, { ...parsed.data, password, mustChangePassword: true });
+    await createPasswordUser(db, { ...parsed.data, password, mustChangePassword: !invite });
   } catch (error) {
     const mapped = mapDbError(error, { singular: "account" });
     return { ok: false, error: mapped.ok ? "Could not create the account." : mapped.error };
   }
   revalidatePath(PATH);
+  if (invite) {
+    const sent = await emailLink(parsed.data.email, `/reset-password?${INVITE_MARKER}`);
+    return sent
+      ? { ok: true, message: `Created ${parsed.data.username} and emailed an invitation to ${parsed.data.email}.` }
+      : { ok: true, message: `Created ${parsed.data.username}, but the invitation email failed. Use Reset password to hand over a temporary one.` };
+  }
   return { ok: true, message: `Created ${parsed.data.username}.`, password };
 }
 
@@ -113,6 +124,30 @@ export async function resetPasswordAction(userId: number): Promise<UserActionRes
   await replacePassword(db, userId, password, { mustChangePassword: true });
   revalidatePath(PATH);
   return { ok: true, message: `New temporary password for ${target.username}.`, password };
+}
+
+/** Sends Better Auth's reset link (or an invitation, by the redirect's marker). */
+async function emailLink(email: string, redirectTo: string): Promise<boolean> {
+  try {
+    const auth = await getAuth();
+    await auth.api.requestPasswordReset({ body: { email, redirectTo } });
+    return true;
+  } catch (error: unknown) {
+    console.error("[rickhouse] could not email a reset link", error);
+    return false;
+  }
+}
+
+/** Only offered while email works. The person picks the new password themselves. */
+export async function emailResetLinkAction(userId: number): Promise<UserActionResult> {
+  const target = await otherUser(userId, "reset the password of");
+  if (typeof target === "string") return { ok: false, error: `${target} Use the Account page instead.` };
+  if (!(await emailEnabled())) return { ok: false, error: "Email isn't set up." };
+  const [row] = await db.select({ email: schema.users.email }).from(schema.users).where(eq(schema.users.id, userId));
+  if (!row) return { ok: false, error: "That account no longer exists." };
+  return (await emailLink(row.email, "/reset-password"))
+    ? { ok: true, message: `Emailed a reset link to ${row.email}.` }
+    : { ok: false, error: "The email didn't send. Check the settings under Email." };
 }
 
 export async function deleteUserAction(userId: number): Promise<UserActionResult> {

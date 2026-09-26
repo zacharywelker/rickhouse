@@ -53,4 +53,20 @@ describe("initialFieldValues", () => {
     expect(initialFieldValues([spec], null).status).toBe("owned");
     expect(initialFieldValues([spec], { status: "open" }).status).toBe("open");
   });
+
+  it("reads a stored yes/no as its option, so editing does not clear it", () => {
+    const spec: FieldSpec = {
+      kind: "select",
+      name: "isChillFiltered",
+      label: "Chill Filtered",
+      options: [
+        { value: "", label: "Unknown" },
+        { value: "true", label: "Yes" },
+        { value: "false", label: "No" },
+      ],
+    };
+    expect(initialFieldValues([spec], { isChillFiltered: true }).isChillFiltered).toBe("true");
+    expect(initialFieldValues([spec], { isChillFiltered: false }).isChillFiltered).toBe("false");
+    expect(initialFieldValues([spec], { isChillFiltered: null }).isChillFiltered).toBe("");
+  });
 });

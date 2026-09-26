@@ -7,12 +7,14 @@ import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitl
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { db, schema } from "@/db";
 import { requireAdmin } from "@/lib/auth";
+import { emailEnabled } from "@/lib/email/settings";
 
 export const metadata: Metadata = { title: "Users" };
 export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
   const me = await requireAdmin();
+  const canEmail = await emailEnabled();
   const users = await db
     .select({
       id: schema.users.id,
@@ -71,7 +73,13 @@ export default async function UsersPage() {
                     {user.id === me.id ? (
                       <span className="text-xs text-muted-foreground">You</span>
                     ) : (
-                      <UserActions userId={user.id} username={user.username} role={user.role} active={!user.banned} />
+                      <UserActions
+                        userId={user.id}
+                        username={user.username}
+                        role={user.role}
+                        active={!user.banned}
+                        canEmail={canEmail}
+                      />
                     )}
                   </TableCell>
                 </TableRow>
@@ -85,12 +93,12 @@ export default async function UsersPage() {
         <SectionHeader>
           <SectionTitle>New account</SectionTitle>
           <SectionDescription>
-            Rickhouse makes up a temporary password for you to hand over. Until email is set up, that&rsquo;s the only
-            way in.
+            Rickhouse can email an invitation, once email is set up. Otherwise it makes up a temporary password for you
+            to hand over.
           </SectionDescription>
         </SectionHeader>
         <SectionContent>
-          <CreateUserForm />
+          <CreateUserForm canInvite={canEmail} />
         </SectionContent>
       </Section>
     </div>
