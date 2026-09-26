@@ -179,7 +179,6 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="relative flex flex-col gap-8">
-      <BottleStamps stamps={stamps} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">
@@ -299,6 +298,8 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="Batch" value={b.batch} />
             <Spec label="UPC" value={e.upc} />
           </dl>
+
+          <BottleStamps stamps={stamps} />
 
           <div className="border-t border-border pt-6">
             <BottleGroups bottleId={bottleId} memberOf={memberOf} allGroups={allGroups} />

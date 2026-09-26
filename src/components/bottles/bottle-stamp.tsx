@@ -389,9 +389,7 @@ export function BottleStamp({
   );
 }
 
-const STAMP_BASE_SIZE = 210;
-
-/** One designation flag, and who it belongs to (an expression id for a label-level fact, a bottle id for a per-copy one) — placement and ink are both seeded off that owner so a fact shared by every bottle of an expression prints identically on each of their pages. */
+/** One designation flag, and who it belongs to (an expression id for a label-level fact, a bottle id for a per-copy one) — ink and tilt are both seeded off that owner so a fact shared by every bottle of an expression prints identically on each of their pages. */
 export interface StampSpec {
   kind: StampKind;
   ownerId: number;
@@ -399,156 +397,34 @@ export interface StampSpec {
   detail?: string;
 }
 
-// A loose, hand-spread grid of anchor points, rather than a tidy
-// rows-and-columns layout — enough slots that six designations at once
-// still don't crowd the same corner. Kept clear of the fixed-width photo
-// column (320px of the desktop grid) on purpose: unlike a run of body
-// text, the Polaroid's paper and its photo are fully opaque, so a stamp
-// landing there is not just behind something — it's invisible. Every slot
-// instead sits in the specs column, where the "behind" rule always still
-// shows some of the mark.
-//
-// Each slot is anchored from whichever page edge it sits closer to — `top`
-// for the handful up near the header, `bottom` for the rest — with the
-// layer below placing it via that same CSS property (`top: X%` or
-// `bottom: X%`) rather than always centering on a `top` percentage. That
-// makes clipping on that edge impossible by construction, at any stamp
-// size or page height: a `top` offset can't go negative, and a `bottom`
-// offset held to the container's own bottom edge can't overshoot it either.
-//
-// The two edges also aren't an even split. The header (breadcrumb, title)
-// is dense text on every page, and the specs grid right under it is the
-// one block guaranteed to be full — so only a couple of slots sit up
-// there. Most live in the lower band instead: groups, chip rows, and the
-// rum/agave/pick-only fields below the grid are each absent as often as
-// not, so that stretch of the page is the one most likely to still be
-// visually quiet by the time real content has filled in around it.
-const SLOTS: Array<{ left: number; from: number; edge: "top" | "bottom" }> = [
-  { left: 88, from: 18, edge: "top" },
-  { left: 50, from: 36, edge: "top" },
-  { left: 50, from: 4, edge: "bottom" },
-  { left: 70, from: 12, edge: "bottom" },
-  { left: 90, from: 6, edge: "bottom" },
-  { left: 46, from: 20, edge: "bottom" },
-  { left: 88, from: 26, edge: "bottom" },
-  { left: 64, from: 34, edge: "bottom" },
-];
-
-// Fixed so slot assignment never depends on the order callers happen to
-// list flags in — only on which ones are active.
+// Fixed so the strip reads in the same order on every page, whatever order
+// callers happen to list flags in.
 const KIND_ORDER: StampKind[] = ["bottled-in-bond", "cask-strength", "straight", "nas", "single-barrel", "private-selection"];
 
-interface Placement {
-  spec: StampSpec;
-  left: number;
-  edge: "top" | "bottom";
-  offset: number;
-  rotate: number;
-  scale: number;
-}
-
-// Purely for the overlap check below — a rough stand-in for the specs
-// column's own box, not a real measurement (there is no DOM to measure at
-// render time). Close enough to the column's real proportions that two
-// stamps whose boxes would clash noticeably still read as clashing here.
-const REF_W = 700;
-const REF_H = 640;
-
-function boxFor({ edge, offset, left, scale }: Placement) {
-  const size = STAMP_BASE_SIZE * scale;
-  const w = (size / REF_W) * 100;
-  const h = (size / REF_H) * 100;
-  const top = edge === "top" ? offset : 100 - offset - h;
-  return { left: left - w / 2, right: left + w / 2, top, bottom: top + h, area: w * h };
-}
-
-/** Fraction of the smaller stamp's own area that the two boxes share — the basis for the ~15% cap, not a raw pixel count, so a big stamp and a small one are judged by the small one's footprint. */
-function overlapFraction(a: Placement, b: Placement): number {
-  const boxA = boxFor(a);
-  const boxB = boxFor(b);
-  const x = Math.max(0, Math.min(boxA.right, boxB.right) - Math.max(boxA.left, boxB.left));
-  const y = Math.max(0, Math.min(boxA.bottom, boxB.bottom) - Math.max(boxA.top, boxB.top));
-  const minArea = Math.min(boxA.area, boxB.area);
-  return minArea > 0 ? (x * y) / minArea : 0;
-}
-
-// A passport page's real stamps sometimes catch each other's edge, but
-// never stack — this is that "sometimes catches an edge" amount, not a
-// hard wall.
-const MAX_OVERLAP = 0.15;
-const PLACEMENT_ATTEMPTS = 8;
+/** What each stamp says, in words — the stamps are drawings, so this is their readable equivalent. */
+const KIND_LABEL: Record<StampKind, string> = {
+  "bottled-in-bond": "Bottled in Bond",
+  "cask-strength": "Cask strength",
+  straight: "Straight",
+  nas: "No age statement",
+  "single-barrel": "Single barrel",
+  "private-selection": "Private selection",
+};
 
 /**
- * One placement per active stamp, each drawn from its own seeded stream —
- * so an attempt at reducing overlap with an earlier stamp never touches
- * that earlier stamp's own result — and checked in turn against every
- * placement chosen before it. A slot that still clashes past the retry
- * budget keeps its least-bad draw rather than blowing past the page edge
- * chasing a perfect fit.
- */
-function placeStamps(active: StampSpec[]): Placement[] {
-  const taken = new Set<number>();
-  const placements: Placement[] = [];
-
-  for (const spec of active) {
-    const placeKey = `stamp-place-${spec.kind}-${spec.ownerId}`;
-    let slotIndex = hashSeed(placeKey) % SLOTS.length;
-    while (taken.has(slotIndex)) slotIndex = (slotIndex + 1) % SLOTS.length;
-    taken.add(slotIndex);
-    const slot = SLOTS[slotIndex]!;
-    const placeRng = seededRandom(hashSeed(`${placeKey}-jitter`));
-
-    let best: Placement | null = null;
-    let bestOverlap = Infinity;
-    for (let attempt = 0; attempt < PLACEMENT_ATTEMPTS; attempt++) {
-      const candidate: Placement = {
-        spec,
-        left: slot.left + seededRange(placeRng, -5, 5),
-        edge: slot.edge,
-        // Held to >= 0 regardless of edge: a `top` offset below zero pulls
-        // the stamp up above the page, and a `bottom` offset below zero
-        // pushes it down past the page — either way the same clip the
-        // edge anchoring above exists to rule out.
-        offset: Math.max(0, slot.from + seededRange(placeRng, -4, 4)),
-        rotate: seededRange(placeRng, -18, 18),
-        // The retry ceiling shrinks a little each attempt, so a crowded
-        // slot resolves by the stamp getting smaller rather than by
-        // drifting away from the spot its identity hashed to.
-        scale: seededRange(placeRng, 0.8, Math.max(0.8, 1.2 - attempt * 0.05)),
-      };
-      const worstOverlap = placements.reduce((max, other) => Math.max(max, overlapFraction(candidate, other)), 0);
-      if (worstOverlap <= MAX_OVERLAP) {
-        best = candidate;
-        break;
-      }
-      if (worstOverlap < bestOverlap) {
-        bestOverlap = worstOverlap;
-        best = candidate;
-      }
-    }
-    placements.push(best!);
-  }
-
-  return placements;
-}
-
-/**
- * The decorative layer for a bottle page: one stamp per true designation,
- * always behind the page's real content (the caller stacks this as a
- * `relative` sibling — see bottles/[id]/page.tsx). Two different layouts,
- * shown by breakpoint rather than by screen-reading JS:
+ * The bottle's designations as a strip of inked stamps: one per true flag,
+ * each at its own seeded tilt, catching a neighbour's edge the way stamps
+ * crowd a passport page.
  *
- * - Desktop (`md:` and up) scatters them into the page's empty space at a
- *   seeded angle and position. Each stamp's slot is picked from its own
- *   identity (kind + owner id) with a deterministic collision scan, so
- *   adding or removing one designation never reshuffles where the others
- *   already landed; positions are then nudged to keep any two stamps from
- *   overlapping by more than about 15% of the smaller one's own footprint.
- * - Narrow screens stack the photo full-width above the specs, so there
- *   is no side column of empty space left to scatter into — instead they
- *   sit as a small row behind the bottle's title, where "behind real
- *   content" still means something (the desktop layout would otherwise
- *   frequently land squarely on the now-full-width, fully opaque photo).
+ * In the page flow, not scattered behind it. They used to be placed at
+ * seeded percentages of the whole page, which could not know where the
+ * content ended up — so they landed on buttons and text, the one thing
+ * DESIGN.md §41 says a physical intervention must never do. A strip of its
+ * own keeps the ink and the tilt and gives every stamp somewhere it cannot
+ * cover anything.
+ *
+ * The drawings are aria-hidden; the list beside them says the same thing
+ * in words, so a screen reader hears "Bottled in Bond" rather than nothing.
  */
 export function BottleStamps({ stamps }: { stamps: StampSpec[] }) {
   const active = KIND_ORDER.map((kind) => stamps.find((s) => s.kind === kind && s.active)).filter(
@@ -556,44 +432,27 @@ export function BottleStamps({ stamps }: { stamps: StampSpec[] }) {
   );
   if (active.length === 0) return null;
 
-  const placements = placeStamps(active);
-
   return (
-    <>
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 hidden overflow-hidden md:block">
-        {placements.map(({ spec, left, edge, offset, rotate, scale }) => {
-          const inkSeed = hashSeed(`stamp-ink-${spec.kind}-${spec.ownerId}`);
-          return (
-            <div
-              key={spec.kind}
-              className="absolute"
-              style={{
-                left: `${left}%`,
-                [edge]: `${offset}%`,
-                transform: `translate(-50%, 0) rotate(${rotate.toFixed(1)}deg)`,
-                opacity: 0.55,
-              }}
-            >
-              <BottleStamp kind={spec.kind} seed={inkSeed} detail={spec.detail} size={Math.round(STAMP_BASE_SIZE * scale)} />
-            </div>
-          );
-        })}
-      </div>
-
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 flex flex-wrap justify-end gap-1 overflow-hidden pr-1 md:hidden"
-      >
-        {active.map((spec) => {
-          const inkSeed = hashSeed(`stamp-ink-${spec.kind}-${spec.ownerId}`);
-          const rotate = seededRange(seededRandom(hashSeed(`stamp-mobile-rotate-${spec.kind}-${spec.ownerId}`)), -10, 10);
-          return (
-            <div key={spec.kind} style={{ transform: `rotate(${rotate.toFixed(1)}deg)`, opacity: 0.55 }}>
-              <BottleStamp kind={spec.kind} seed={inkSeed} detail={spec.detail} size={92} />
-            </div>
-          );
-        })}
-      </div>
-    </>
+    <div className="flex flex-wrap items-center py-1">
+      <p className="sr-only">
+        Designations:{" "}
+        {active.map((spec) => (spec.detail ? `${KIND_LABEL[spec.kind]} (${spec.detail})` : KIND_LABEL[spec.kind])).join(", ")}
+      </p>
+      {active.map((spec, index) => {
+        const inkSeed = hashSeed(`stamp-ink-${spec.kind}-${spec.ownerId}`);
+        const rotate = seededRange(seededRandom(hashSeed(`stamp-rotate-${spec.kind}-${spec.ownerId}`)), -12, 12);
+        return (
+          <div
+            key={spec.kind}
+            aria-hidden="true"
+            // A slight overlap with the previous stamp, never a stack.
+            className={index > 0 ? "-ml-3 size-24 md:-ml-4 md:size-32" : "size-24 md:size-32"}
+            style={{ transform: `rotate(${rotate.toFixed(1)}deg)`, opacity: 0.8 }}
+          >
+            <BottleStamp kind={spec.kind} seed={inkSeed} detail={spec.detail} size={128} className="size-full" />
+          </div>
+        );
+      })}
+    </div>
   );
 }
