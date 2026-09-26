@@ -1,6 +1,10 @@
+"use client";
+
+import * as React from "react";
 import type { ReactNode } from "react";
 import { categoryColorVar } from "@/lib/bottles/category-color";
 import { hashSeed, seededRandom, seededRange } from "@/lib/seeded-random";
+import { OBSTACLE_WEIGHT, placeStamps, type Obstacle } from "@/lib/bottles/stamp-placement";
 
 /**
  * A designation printed like a customs stamp pressed onto the page itself
@@ -411,48 +415,182 @@ const KIND_LABEL: Record<StampKind, string> = {
   "private-selection": "Private selection",
 };
 
-/**
- * The bottle's designations as a strip of inked stamps: one per true flag,
- * each at its own seeded tilt, catching a neighbour's edge the way stamps
- * crowd a passport page.
- *
- * In the page flow, not scattered behind it. They used to be placed at
- * seeded percentages of the whole page, which could not know where the
- * content ended up — so they landed on buttons and text, the one thing
- * DESIGN.md §41 says a physical intervention must never do. A strip of its
- * own keeps the ink and the tilt and gives every stamp somewhere it cannot
- * cover anything.
- *
- * The drawings are aria-hidden; the list beside them says the same thing
- * in words, so a screen reader hears "Bottled in Bond" rather than nothing.
- */
-export function BottleStamps({ stamps }: { stamps: StampSpec[] }) {
-  const active = KIND_ORDER.map((kind) => stamps.find((s) => s.kind === kind && s.active)).filter(
+function designationText(spec: StampSpec): string {
+  return spec.detail ? `${KIND_LABEL[spec.kind]} (${spec.detail})` : KIND_LABEL[spec.kind];
+}
+
+function activeStamps(stamps: StampSpec[]): StampSpec[] {
+  return KIND_ORDER.map((kind) => stamps.find((s) => s.kind === kind && s.active)).filter(
     (s): s is StampSpec => s !== undefined,
   );
+}
+
+/**
+ * The stamps say something a screen reader should hear too. The drawings are
+ * aria-hidden (and live in a background layer read out of order), so this
+ * sits in the page where the fact belongs and says it in words.
+ */
+export function StampDesignations({ stamps }: { stamps: StampSpec[] }) {
+  const active = activeStamps(stamps);
+  if (active.length === 0) return null;
+  return <p className="sr-only">Designations: {active.map(designationText).join(", ")}</p>;
+}
+
+const CONTROL_SELECTOR =
+  "a, button, input, select, textarea, label, summary, [role=button], [role=slider], [role=radio], [role=checkbox]";
+const MEDIA_SELECTOR = "img, svg, video, canvas";
+
+/** Zero alpha in either syntax a browser reports: legacy `rgba(…, 0)` or modern `… / 0)`. */
+function isTransparent(color: string): boolean {
+  return color === "transparent" || /^rgba\([^)]*,\s*0\)$/.test(color) || /\/\s*0\)$/.test(color);
+}
+
+/**
+ * Everything on the page a stamp should keep clear of, relative to
+ * `container`. Text is measured line by line rather than by its element,
+ * so a short value in a wide grid cell leaves the rest of the cell free.
+ * Controls, photos and anything with a surface of its own (a card, the
+ * Polaroid, a chip, a boxed empty state) count whole — a stamp behind an
+ * opaque surface disappears, and behind a control it reads as part of it.
+ * Thin rules don't count: a stamp crossing a divider is exactly the look.
+ */
+function measureObstacles(container: HTMLElement, layer: HTMLElement): Obstacle[] {
+  const origin = container.getBoundingClientRect();
+  const obstacles: Obstacle[] = [];
+  const add = (rect: DOMRect, weight: number) => {
+    if (rect.width < 1 || rect.height < 1) return;
+    obstacles.push({ x: rect.left - origin.left, y: rect.top - origin.top, w: rect.width, h: rect.height, weight });
+  };
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const parent = node.parentElement;
+    if (!parent || !node.textContent?.trim() || layer.contains(parent) || parent.closest(".sr-only")) continue;
+    range.selectNodeContents(node);
+    for (const rect of range.getClientRects()) add(rect, OBSTACLE_WEIGHT.text);
+  }
+
+  for (const el of container.querySelectorAll<HTMLElement>("*")) {
+    if (el === layer || layer.contains(el)) continue;
+    if (el.matches(CONTROL_SELECTOR)) {
+      add(el.getBoundingClientRect(), OBSTACLE_WEIGHT.control);
+      continue;
+    }
+    // An icon inside a control is already covered by the control.
+    if (el.matches(MEDIA_SELECTOR) && !el.parentElement?.closest(CONTROL_SELECTOR)) {
+      add(el.getBoundingClientRect(), OBSTACLE_WEIGHT.surface);
+      continue;
+    }
+    const style = getComputedStyle(el);
+    const boxed = ["Top", "Right", "Bottom", "Left"].every(
+      (side) => parseFloat(style.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0,
+    );
+    if (!isTransparent(style.backgroundColor) || style.backgroundImage !== "none" || boxed) {
+      add(el.getBoundingClientRect(), OBSTACLE_WEIGHT.surface);
+    }
+  }
+  return obstacles;
+}
+
+type Placed = { spec: StampSpec; x: number; y: number; size: number; rotate: number };
+
+/**
+ * The decorative layer for a bottle page: one stamp per true designation,
+ * pressed into the page's background — always behind the real content, and
+ * placed where the page is actually blank.
+ *
+ * Placement is measured, not guessed. It used to be seeded percentages of
+ * the page, which could not know where the content ended up, so stamps
+ * landed on buttons and text (DESIGN.md §41: a physical intervention never
+ * obscures information). Now, once the page has laid out, the layer
+ * measures what is on it and puts each stamp in the emptiest spot that
+ * fits (src/lib/bottles/stamp-placement.ts). A seeded anchor per stamp
+ * breaks ties between equally empty places, so every bottle still gets its
+ * own arrangement, and it is re-measured whenever the page changes size or
+ * content — a photo loading, a note added, a phone turned sideways.
+ *
+ * Render as the first child of a `relative` wrapper around the page; the
+ * wrapper is what gets measured.
+ */
+export function BottleStamps({ stamps }: { stamps: StampSpec[] }) {
+  const layerRef = React.useRef<HTMLDivElement>(null);
+  const [placed, setPlaced] = React.useState<Placed[]>([]);
+  const active = activeStamps(stamps);
+  const signature = active.map((s) => `${s.kind}:${s.ownerId}:${s.detail ?? ""}`).join("|");
+
+  React.useEffect(() => {
+    const layer = layerRef.current;
+    const container = layer?.parentElement;
+    if (!layer || !container || active.length === 0) return;
+
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const { width, height } = container.getBoundingClientRect();
+        // Smaller on a phone, where a 200px stamp would be half the screen.
+        const base = width < 640 ? 112 : 190;
+        const requests = active.map((spec) => {
+          const rng = seededRandom(hashSeed(`stamp-place-${spec.kind}-${spec.ownerId}`));
+          return { size: base * seededRange(rng, 0.85, 1.1), anchor: { x: rng(), y: rng() } };
+        });
+        const spots = placeStamps(width, height, measureObstacles(container, layer), requests);
+        setPlaced(
+          spots.map((spot, i) => ({
+            spec: active[i]!,
+            ...spot,
+            rotate: seededRange(seededRandom(hashSeed(`stamp-rotate-${active[i]!.kind}-${active[i]!.ownerId}`)), -18, 18),
+          })),
+        );
+      });
+    };
+
+    measure();
+    const resize = new ResizeObserver(measure);
+    resize.observe(container);
+    // Content can change without the page changing size (a chip added, a
+    // note edited). Mutations inside this layer are its own re-render.
+    const mutation = new MutationObserver((records) => {
+      if (records.some((record) => !layer.contains(record.target))) measure();
+    });
+    mutation.observe(container, { childList: true, subtree: true, characterData: true });
+    void document.fonts?.ready.then(measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      resize.disconnect();
+      mutation.disconnect();
+    };
+    // `signature` stands in for `active`, which is a fresh array every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+
   if (active.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center py-1">
-      <p className="sr-only">
-        Designations:{" "}
-        {active.map((spec) => (spec.detail ? `${KIND_LABEL[spec.kind]} (${spec.detail})` : KIND_LABEL[spec.kind])).join(", ")}
-      </p>
-      {active.map((spec, index) => {
-        const inkSeed = hashSeed(`stamp-ink-${spec.kind}-${spec.ownerId}`);
-        const rotate = seededRange(seededRandom(hashSeed(`stamp-rotate-${spec.kind}-${spec.ownerId}`)), -12, 12);
-        return (
-          <div
-            key={spec.kind}
-            aria-hidden="true"
-            // A slight overlap with the previous stamp, never a stack.
-            className={index > 0 ? "-ml-3 size-24 md:-ml-4 md:size-32" : "size-24 md:size-32"}
-            style={{ transform: `rotate(${rotate.toFixed(1)}deg)`, opacity: 0.8 }}
-          >
-            <BottleStamp kind={spec.kind} seed={inkSeed} detail={spec.detail} size={128} className="size-full" />
-          </div>
-        );
-      })}
+    <div ref={layerRef} aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      {placed.map(({ spec, x, y, size, rotate }) => (
+        <div
+          key={spec.kind}
+          className="absolute"
+          style={{
+            left: x,
+            top: y,
+            width: size,
+            height: size,
+            transform: `rotate(${rotate.toFixed(1)}deg)`,
+            opacity: 0.55,
+          }}
+        >
+          <BottleStamp
+            kind={spec.kind}
+            seed={hashSeed(`stamp-ink-${spec.kind}-${spec.ownerId}`)}
+            detail={spec.detail}
+            size={Math.round(size)}
+            className="size-full"
+          />
+        </div>
+      ))}
     </div>
   );
 }
