@@ -53,7 +53,6 @@ export function ExpressionBulkGrid({ brands, categories }: { brands: Option[]; c
   const [rows, setRows] = React.useState<Row[]>(() => [blankRow()]);
   const [errors, setErrors] = React.useState<Record<string, Record<string, string>>>({});
   const [brandOptions, setBrandOptions] = React.useState(brands);
-  const [categoryOptions, setCategoryOptions] = React.useState(categories);
   const [saving, setSaving] = React.useState(false);
   const [summary, setSummary] = React.useState<string | null>(null);
 
@@ -171,7 +170,7 @@ export function ExpressionBulkGrid({ brands, categories }: { brands: Option[]; c
                       id={`bulk-category-${row.key}`}
                       labelledBy={`bulk-category-${row.key}`}
                       resource={null}
-                      options={categoryOptions}
+                      options={categories}
                       value={row.categoryId === "" ? null : Number(row.categoryId)}
                       onChange={(next) => update(row.key, "categoryId", next === null ? "" : String(next))}
                       onOptionCreated={() => undefined}

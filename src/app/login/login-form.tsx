@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient, isRateLimited } from "@/lib/auth/client";
 
 export function LoginForm({ next }: { next: string }) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -35,7 +37,7 @@ export function LoginForm({ next }: { next: string }) {
 
     setPending(false);
     if (failure.code === "BANNED_USER") {
-      window.location.assign("/cut-off");
+      router.push("/cut-off");
     } else if (isRateLimited(failure)) {
       setError("Too many tries. Give it a minute and try again.");
     } else {
