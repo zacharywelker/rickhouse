@@ -178,7 +178,12 @@ export function FilterBar({
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const active = activeFilterCount(filters);
 
-  React.useEffect(() => setSearch(filters.q ?? ""), [filters.q]);
+  // Back/forward or a cleared filter changes `q` under the box; follow it.
+  const [prevQ, setPrevQ] = React.useState(filters.q);
+  if (filters.q !== prevQ) {
+    setPrevQ(filters.q);
+    setSearch(filters.q ?? "");
+  }
 
   // Escape closes the mobile filter panel, like every other dismissable
   // surface here. Radix handles its own popovers; this disclosure is ours.

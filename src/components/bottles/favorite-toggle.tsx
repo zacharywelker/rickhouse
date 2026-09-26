@@ -15,7 +15,12 @@ export function FavoriteToggle({ bottleId, isFavorite }: { bottleId: number; isF
   const [favorite, setFavorite] = React.useState(isFavorite);
   const [pending, setPending] = React.useState(false);
 
-  React.useEffect(() => setFavorite(isFavorite), [isFavorite]);
+  // Flips at once on click; a refresh that brings a new `isFavorite` wins.
+  const [prevIsFavorite, setPrevIsFavorite] = React.useState(isFavorite);
+  if (isFavorite !== prevIsFavorite) {
+    setPrevIsFavorite(isFavorite);
+    setFavorite(isFavorite);
+  }
 
   async function toggle() {
     const next = !favorite;
