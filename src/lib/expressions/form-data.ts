@@ -1,21 +1,19 @@
 import "server-only";
-import { db } from "@/db";
-import { categories, type FieldGroup } from "@/db/schema";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import type { Option } from "@/lib/admin/types";
-import { expressionLinks } from "./queries";
+import { categoryFieldGroups, expressionLinks } from "./queries";
 import type { LinkedRow } from "@/components/expressions/ordered-picker";
 
 /** Everything the expression form needs to render, in one round of queries. */
 /** `expressionId`, when given, must already be checked to belong to `ownerId`. */
 export async function expressionFormData(expressionId: number | null, ownerId: number) {
-  const [brands, cats, distilleries, mashbills, finishes, categoryRows] = await Promise.all([
+  const [brands, cats, distilleries, mashbills, finishes, categoryGroups] = await Promise.all([
     REFERENCE_OPTION_LOADERS.brands(ownerId),
     REFERENCE_OPTION_LOADERS.categories(ownerId),
     REFERENCE_OPTION_LOADERS.distilleries(ownerId),
     REFERENCE_OPTION_LOADERS.mashbills(ownerId),
     REFERENCE_OPTION_LOADERS.finishes(ownerId),
-    db.select({ id: categories.id, fieldGroup: categories.fieldGroup }).from(categories),
+    categoryFieldGroups(),
   ]);
 
   const options: Record<string, Option[]> = {
@@ -25,9 +23,6 @@ export async function expressionFormData(expressionId: number | null, ownerId: n
     mashbillLinks: mashbills,
     finishLinks: finishes,
   };
-
-  const categoryGroups: Record<number, FieldGroup> = {};
-  for (const row of categoryRows) categoryGroups[row.id] = row.fieldGroup;
 
   const links =
     expressionId === null

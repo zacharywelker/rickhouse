@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/lib/auth/server";
+import { getAuth } from "@/lib/auth/server";
 
 /**
  * Node runtime, not Edge: the Edge bundler inlines `process.env` at build
@@ -8,7 +8,7 @@ import { auth } from "@/lib/auth/server";
  */
 export const runtime = "nodejs";
 
-const PUBLIC_PATHS = new Set(["/login", "/cut-off"]);
+const PUBLIC_PATHS = new Set(["/login", "/login/two-factor", "/cut-off", "/forgot-password", "/reset-password"]);
 const SETUP_PATH = "/account/setup";
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   // A real database lookup, not just a signature check: a deactivated user
   // or a revoked session is out on the very next request.
-  const { headers: sessionHeaders, response: session } = await auth.api.getSession({
+  const { headers: sessionHeaders, response: session } = await (await getAuth()).api.getSession({
     headers: request.headers,
     returnHeaders: true,
   });

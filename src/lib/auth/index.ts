@@ -3,7 +3,7 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { UserRole } from "@/db/schema";
-import { auth } from "./server";
+import { getAuth } from "./server";
 
 /** The signed-in user, with Better Auth's string id turned back into ours. */
 export type CurrentUser = {
@@ -13,13 +13,17 @@ export type CurrentUser = {
   email: string;
   role: UserRole;
   mustChangePassword: boolean;
+  twoFactorEnabled: boolean;
   /** Identifies this browser's session, e.g. to keep it when revoking others. */
   sessionToken: string;
 };
 
 /** One session lookup per request, however many components ask. */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
-  const session = await auth.api.getSession({ headers: await headers() });
+  // headers() first: it is what marks the page dynamic, so nothing below
+  // (getAuth reads the database) runs while Next prerenders at build time.
+  const requestHeaders = await headers();
+  const session = await (await getAuth()).api.getSession({ headers: requestHeaders });
   if (!session) return null;
   const { user } = session;
   return {
@@ -29,6 +33,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     email: user.email,
     role: user.role === "admin" ? "admin" : "member",
     mustChangePassword: user.mustChangePassword === true,
+    twoFactorEnabled: user.twoFactorEnabled === true,
     sessionToken: session.session.token,
   };
 });

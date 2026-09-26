@@ -15,6 +15,8 @@ const ACCOUNT_LINKS: MenuLink[] = [{ href: "/account" as Route, label: "Account 
 /** Admin-only pages live here rather than in the main nav. */
 const ADMIN_LINKS: MenuLink[] = [
   { href: "/system/users" as Route, label: "Users" },
+  { href: "/system/email" as Route, label: "Email" },
+  { href: "/system/sso" as Route, label: "Single sign-on" },
   { href: "/system/backups" as Route, label: "Backups" },
 ];
 

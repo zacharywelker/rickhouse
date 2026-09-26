@@ -204,13 +204,14 @@ export const GROUPS_WITH_SECTIONS = new Set<FieldGroup>(
 );
 
 /**
- * Shared by the label form and the bottle form. `fieldGroup` is null on the
- * bottle, which has no per-spirit sections — only the checkbox-revealed ones.
+ * Shared by the label form, the bottle form and the bulk grids (where it
+ * decides which cells of a row apply). `fieldGroup` is null on the bottle,
+ * which has no per-spirit sections — only the checkbox-revealed ones.
  */
 export function sectionVisible(
-  section: FormSection,
+  section: Pick<FormSection, "fieldGroups" | "showWhenAny">,
   fieldGroup: FieldGroup | null,
-  values: Record<string, string | boolean>,
+  values: Record<string, unknown>,
 ): boolean {
   if (section.fieldGroups && (fieldGroup === null || !section.fieldGroups.includes(fieldGroup))) return false;
   if (section.showWhenAny && !section.showWhenAny.some((name) => values[name] === true)) return false;
@@ -218,7 +219,7 @@ export function sectionVisible(
 }
 
 /** Same rule as `sectionVisible`, for a single field within a visible section. */
-export function fieldVisible(field: FieldSpec, values: Record<string, string | boolean>): boolean {
+export function fieldVisible(field: FieldSpec, values: Record<string, unknown>): boolean {
   if (field.showWhenAny && !field.showWhenAny.some((name) => values[name] === true)) return false;
   return true;
 }

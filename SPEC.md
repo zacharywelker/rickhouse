@@ -378,7 +378,7 @@ With that in place, a **tastings timeline** becomes possible: everything you
 have tried, newest first, owned or not, with the ratings alongside. That is a
 different and more interesting page than a list of what is on the shelf.
 
-### M10 — Accounts ▶
+### ~~M10 — Accounts~~ ✅
 
 Replaces the single shared `APP_PASSWORD`. The plan and the decisions behind
 it live in issue #48; the phases, in order:
@@ -398,12 +398,17 @@ it live in issue #48; the phases, in order:
    account. Categories stay shared and admin-edited. Account settings (name,
    username, password) and the admin pages (Users, Backups) live in the menu
    under your first name, top right.~~
-3. **Email.** SMTP configured in the admin panel: password reset,
-   invitations, security notices. "Forgot password" appears only once it is set.
-4. **Single sign-on.** OIDC providers (Pocket ID, Authentik, Google, …)
-   configured in the admin panel, linked from a signed-in account; never
-   matched by email, never creating accounts.
-5. **2FA and passkeys.**
+3. ~~**Email.** SMTP set in the admin panel (password encrypted with
+   SESSION_SECRET); password reset, email invitations, security notices, and
+   emailed two-factor codes. "Forgot password" appears only once it is set.~~
+4. ~~**Single sign-on.** OIDC providers (Pocket ID, Authentik, Google, …) set
+   in the admin panel; linked from a signed-in account under Account
+   settings; never matched by email, never creating accounts.~~
+5. ~~**2FA and passkeys.** Authenticator-app codes with backup codes (email
+   codes too, when email is set); passkeys on the APP_URL domain.~~
+
+Email, SSO and passkeys all need APP_URL. The auth instance is rebuilt from
+the database within seconds of an admin changing SMTP or SSO settings.
 
 ---
 

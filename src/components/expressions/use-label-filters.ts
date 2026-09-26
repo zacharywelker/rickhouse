@@ -20,7 +20,8 @@ export function useLabelFilters(filters: LabelFilters) {
     (patch: Partial<LabelFilters>) => {
       // Any change to what is being shown sends you back to page one;
       // staying on page 7 of a list that now has two pages is a dead end.
-      const resetsPage = Object.keys(patch).some((key) => key !== "page");
+      // Showing another column changes no rows, so it keeps your place.
+      const resetsPage = Object.keys(patch).some((key) => key !== "page" && key !== "columns");
       const next: LabelFilters = { ...filters, ...patch, ...(resetsPage ? { page: 1 } : {}) };
       const query = serialiseLabelFilters(next);
       startTransition(() => {
