@@ -72,12 +72,17 @@ test("an entity page keeps the grid's sorting and view controls", async ({ page 
   await expect(page.getByRole("cell", { name: "Double Oak Spirit", exact: true })).toBeVisible();
 });
 
-test("the dashboard renders its charts and can show the numbers instead", async ({ page }) => {
+test("Numbers reads as chapters, and every chart can show its numbers instead", async ({ page }) => {
   await page.goto("/numbers");
-  await expect(page.getByRole("heading", { name: "Numbers" })).toBeVisible();
-  await expect(page.getByText("What the collection is")).toBeVisible();
-  await expect(page.getByText("Proof distribution")).toBeVisible();
-  await expect(page.getByText("Most represented distilleries")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Numbers", level: 1 })).toBeVisible();
+
+  // A lead finding, then four chapters reachable from the index.
+  await expect(page.getByRole("region", { name: "Lead finding" })).toBeVisible();
+  const index = page.getByRole("navigation", { name: "Chapters" });
+  for (const title of ["Stockpile", "Money", "Acquiring", "Shelf"]) {
+    await expect(index.getByRole("link", { name: new RegExp(title) })).toBeVisible();
+    await expect(page.getByRole("heading", { name: new RegExp(title), level: 2 })).toBeVisible();
+  }
 
   // Every chart ships with the numbers behind it, for screen readers and for
   // anyone who cannot read the colours.
@@ -86,6 +91,19 @@ test("the dashboard renders its charts and can show the numbers instead", async 
   await expect(page.getByRole("columnheader", { name: "Share" })).toBeVisible();
   // The chart groups by spirit family, so the seeded bourbon counts as Whiskey.
   await expect(page.getByRole("cell", { name: "Whiskey", exact: true })).toBeVisible();
+});
+
+test("a Numbers finding opens the bottles behind it, with the reason on show", async ({ page }) => {
+  await page.goto("/numbers");
+  await page.getByRole("region", { name: "Lead finding" }).getByRole("link").click();
+  await expect(page).toHaveURL(/\/bottles(\/\d+|\?.+)$/);
+
+  // The sealed-bottles finding lands on a list that says why it is narrowed.
+  await page.goto("/bottles?open=closed");
+  const chip = page.getByRole("list", { name: "Active filters" }).getByRole("button", { name: /Sealed only/ });
+  await expect(chip).toBeVisible();
+  await chip.click();
+  await expect(page).toHaveURL(/\/bottles$/);
 });
 
 test("the collection exports as CSV", async ({ page }) => {

@@ -4,12 +4,9 @@ import * as React from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -18,8 +15,13 @@ import {
 import { useMediaQuery } from "@/lib/use-media-query";
 import { categoryColorVar } from "@/lib/bottles/category-color";
 import { ChartCard } from "./chart-card";
-import type { Bin, Point, Ranked, Slice } from "@/lib/dashboard/queries";
-import { formatMoney } from "@/lib/utils";
+import type { Point, Slice } from "@/lib/dashboard/queries";
+import type { YearCount } from "@/lib/dashboard/numbers";
+import { BOTTLE_STATUSES } from "@/db/schema";
+import { formatMoney, humanise } from "@/lib/utils";
+
+/** Money and acquisition charts count everything ever acquired, so their links do too. */
+const EVER_ACQUIRED = BOTTLE_STATUSES.filter((s) => s !== "wishlist").join(",");
 
 const ACCENT = "var(--viz-accent)";
 
@@ -146,152 +148,135 @@ export function CategoryShare({ data }: { data: Slice[] }) {
   );
 }
 
-/** One measure, so one hue. Magnitude is the bar height, not the colour. */
-export function ProofDistribution({ data }: { data: Bin[] }) {
+/** Bars share one ink: magnitude is the length, not the colour. Square ends, like every other edge here. */
+function InkBars<T extends Record<string, unknown>>({
+  data,
+  x,
+  y,
+  label,
+  format = String,
+  onPick,
+  layout = "horizontal",
+}: {
+  data: T[];
+  x: string;
+  y: string;
+  label: (row: T) => string;
+  format?: (value: number) => string;
+  onPick: (row: T) => void;
+  layout?: "horizontal" | "vertical";
+}) {
+  const narrow = useMediaQuery("(max-width: 640px)");
+  const vertical = layout === "vertical";
+  return (
+    <ResponsiveContainer width="100%" height={vertical ? Math.max(120, data.length * 34) : 220}>
+      <BarChart
+        data={data}
+        layout={vertical ? "vertical" : "horizontal"}
+        margin={{ top: 8, right: 16, bottom: 0, left: vertical ? 0 : -12 }}
+      >
+        <CartesianGrid vertical={vertical} horizontal={!vertical} stroke="var(--viz-grid)" />
+        {vertical ? (
+          <>
+            <XAxis type="number" allowDecimals={false} {...axis} tickFormatter={format} />
+            <YAxis type="category" dataKey={x} width={narrow ? 84 : 110} {...axis} />
+          </>
+        ) : (
+          <>
+            <XAxis dataKey={x} {...axis} minTickGap={16} />
+            <YAxis allowDecimals={false} {...axis} tickFormatter={format} />
+          </>
+        )}
+        <Tooltip
+          cursor={{ fill: "var(--muted)" }}
+          content={({ active, payload }) => {
+            const row = payload?.[0]?.payload as T | undefined;
+            return row ? <Hint active={active} rows={[{ name: label(row), value: format(Number((row as Record<string, unknown>)[y])) }]} /> : null;
+          }}
+        />
+        <Bar dataKey={y} fill={ACCENT} maxBarSize={vertical ? 22 : 44} cursor="pointer" onClick={(bar) => onPick(bar.payload as T)} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
+
+/** Sealed bottles by the year they came home: how old the unopened pile is. */
+export function SealedByYear({ data }: { data: YearCount[] }) {
   const router = useRouter();
   return (
     <ChartCard
-      title="Proof distribution"
-      description="Bottles grouped into ten-proof bands. Click a band to see its bottles."
-      tableHeaders={["Proof", "Bottles"]}
-      tableRows={data.map((d) => [d.label, d.count])}
+      title="Sealed bottles, by year acquired"
+      description="Click a year to see its bottles."
+      tableHeaders={["Year", "Sealed"]}
+      tableRows={data.map((d) => [d.year, d.count])}
     >
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-          <CartesianGrid vertical={false} stroke="var(--viz-grid)" />
-          <XAxis dataKey="label" {...axis} />
-          <YAxis allowDecimals={false} {...axis} />
-          <Tooltip
-            cursor={{ fill: "var(--muted)" }}
-            content={({ active, payload, label }) => (
-              <Hint
-                active={active}
-                label={`${label} proof`}
-                rows={[{ name: "Bottles", value: String(payload?.[0]?.value ?? 0) }]}
-              />
-            )}
-          />
-          <Bar
-            dataKey="count"
-            fill={ACCENT}
-            radius={[4, 4, 0, 0]}
-            maxBarSize={44}
-            cursor="pointer"
-            onClick={(bar) => {
-              const bin = bar.payload as Bin;
-              router.push(filterHref({ proofMin: String(bin.min), proofMax: String(bin.max) }));
-            }}
-          />
-        </BarChart>
-      </ResponsiveContainer>
+      <InkBars
+        data={data}
+        x="year"
+        y="count"
+        label={(row) => `${row.year}: ${plural(row.count, "sealed bottle")}`}
+        onPick={(row) =>
+          router.push(filterHref({ open: "closed", acquiredFrom: `${row.year}-01-01`, acquiredTo: `${row.year}-12-31` }))
+        }
+      />
     </ChartCard>
   );
 }
 
-export function Acquisitions({ data }: { data: Point[] }) {
+/** Spend per month over the last two years, gaps kept so quiet months show as quiet. */
+export function SpendByMonth({ data }: { data: Point[] }) {
+  const router = useRouter();
+  const money = (value: number) => formatMoney(String(Math.round(value)));
   return (
     <ChartCard
-      title="Acquisitions over time"
-      description="Bottles added each month, and what they cost."
+      title="Spend by month"
+      description="What was paid for bottles acquired each month. Click a month to see them."
       tableHeaders={["Month", "Bottles", "Spend"]}
       tableRows={data.map((d) => [d.month, d.count, formatMoney(String(d.spend))])}
     >
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-          <defs>
-            <linearGradient id="acq" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={ACCENT} stopOpacity={0.45} />
-              <stop offset="100%" stopColor={ACCENT} stopOpacity={0.04} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid vertical={false} stroke="var(--viz-grid)" />
-          <XAxis dataKey="month" {...axis} minTickGap={24} />
-          <YAxis allowDecimals={false} {...axis} />
-          <Tooltip
-            cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1 }}
-            content={({ active, payload, label }) => {
-              const point = payload?.[0]?.payload as Point | undefined;
-              return (
-                <Hint
-                  active={active}
-                  label={String(label)}
-                  rows={[
-                    { name: "Bottles", value: String(point?.count ?? 0) },
-                    { name: "Spend", value: formatMoney(String(point?.spend ?? 0)) },
-                  ]}
-                />
-              );
-            }}
-          />
-          {/* Stepped, not smoothed: a month's count is a discrete value, and a curve
-              between two months would draw bottles that were never bought. */}
-          <Area type="stepAfter" dataKey="count" stroke={ACCENT} strokeWidth={2} fill="url(#acq)" />
-        </AreaChart>
-      </ResponsiveContainer>
+      <InkBars
+        data={data}
+        x="month"
+        y="spend"
+        format={money}
+        label={(row) => `${row.month}, ${plural(row.count, "bottle")}`}
+        onPick={(row) => {
+          const [year, month] = row.month.split("-").map(Number) as [number, number];
+          const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+          router.push(
+            filterHref({
+              status: EVER_ACQUIRED,
+              acquiredFrom: `${row.month}-01`,
+              acquiredTo: `${row.month}-${String(last).padStart(2, "0")}`,
+            }),
+          );
+        }}
+      />
     </ChartCard>
   );
 }
 
-/** Horizontal, because distillery names are long. One hue; length is the data. */
-/*
- * Ellipsis rather than a clipped word: "Bardstown Bourbo…" beats "ardstown".
- * The character budget is set so the text always renders narrower than the
- * axis gutter — Recharts wraps a tick that does not fit and then clips the
- * second line, which is worse than either.
- */
-function truncate(label: string, max: number) {
-  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
-}
-
-export function TopDistilleries({ data }: { data: Ranked[] }) {
+/** How bottles arrived. Horizontal, because the kinds are words. */
+export function AcquisitionMix({ data }: { data: Array<{ kind: string; count: number }> }) {
   const router = useRouter();
-  // A 150px label gutter eats half a phone screen, so the axis narrows and the
-  // names truncate instead of overflowing the card.
-  const narrow = useMediaQuery("(max-width: 640px)");
+  const rows = data.map((d) => ({ ...d, label: humanise(d.kind) }));
   return (
     <ChartCard
-      title="Most represented distilleries"
-      description="Counting every blend a distillery contributed to, not only the bottles it made alone. Click a bar to see its bottles."
-      tableHeaders={["Distillery", "Bottles"]}
-      tableRows={data.map((d) => [d.label, d.count])}
+      title="How bottles arrived"
+      description="Every bottle ever acquired, by how it came. Click a bar to see them."
+      tableHeaders={["Acquired as", "Bottles"]}
+      tableRows={rows.map((d) => [d.label, d.count])}
     >
-      <ResponsiveContainer width="100%" height={Math.max(160, data.length * 34)}>
-        <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
-          <CartesianGrid horizontal={false} stroke="var(--viz-grid)" />
-          <XAxis type="number" allowDecimals={false} {...axis} />
-          <YAxis
-            type="category"
-            dataKey="label"
-            width={narrow ? 96 : 190}
-            tickFormatter={(label: string) => truncate(label, narrow ? 13 : 26)}
-            {...axis}
-          />
-          <Tooltip
-            cursor={{ fill: "var(--muted)" }}
-            content={({ active, payload, label }) => (
-              <Hint
-                active={active}
-                label={String(label)}
-                rows={[{ name: "Bottles", value: String(payload?.[0]?.value ?? 0) }]}
-              />
-            )}
-          />
-          <Bar
-            dataKey="count"
-            radius={[0, 4, 4, 0]}
-            maxBarSize={22}
-            cursor="pointer"
-            onClick={(bar) => {
-              const row = bar.payload as Ranked;
-              router.push(filterHref({ distillery: String(row.id) }));
-            }}
-          >
-            {data.map((row) => (
-              <Cell key={row.label} fill={ACCENT} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      <InkBars
+        data={rows}
+        x="label"
+        y="count"
+        layout="vertical"
+        label={(row) => `${row.label}: ${plural(row.count, "bottle")}`}
+        onPick={(row) => router.push(filterHref({ status: EVER_ACQUIRED, acq: row.kind }))}
+      />
     </ChartCard>
   );
 }

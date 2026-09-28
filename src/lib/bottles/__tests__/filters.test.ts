@@ -51,6 +51,18 @@ describe("parseFilters", () => {
     expect(parse("size=7").pageSize).toBe(DEFAULT_PAGE_SIZE);
   });
 
+  it("keeps only known acquisition kinds and real dates", () => {
+    expect(parse("acq=gift,stolen,gift,lottery").acquisitions).toEqual(["gift", "lottery"]);
+    expect(parse("acquiredFrom=2024-02-30x&acquiredTo=2024-06-01").acquired).toEqual({ from: null, to: "2024-06-01" });
+    expect(parse("acquiredFrom=1999-13-45").acquired.from).toBeNull();
+    expect(parse("acquiredFrom=2024-02-30").acquired.from).toBeNull();
+    expect(parse("acquiredFrom=2024-02-29").acquired.from).toBe("2024-02-29");
+  });
+
+  it("clamps fill to a percentage", () => {
+    expect(parse("fillMin=-5&fillMax=250").fill).toEqual({ min: 0, max: 100 });
+  });
+
   it("refuses a page number that is not a positive integer", () => {
     expect(parse("page=3").page).toBe(3);
     expect(parse("page=0").page).toBe(1);
@@ -80,6 +92,13 @@ describe("serialiseFilters", () => {
       proof: { min: 90, max: 120 },
       age: { min: null, max: 12 },
       price: { min: 20, max: null },
+      acquisitions: ["gift", "allocation"],
+      acquired: { from: "2024-01-01", to: "2024-12-31" },
+      fill: { min: null, max: 10 },
+      caskStrength: true,
+      bottledInBond: true,
+      pick: true,
+      overMsrp: true,
       sort: "proof",
       desc: false,
       page: 3,
@@ -135,6 +154,19 @@ describe("activeFilterCount", () => {
   it("counts a range once whether one end or both are set", () => {
     expect(activeFilterCount({ ...DEFAULT_FILTERS, proof: { min: 100, max: null } })).toBe(1);
     expect(activeFilterCount({ ...DEFAULT_FILTERS, proof: { min: 100, max: 120 } })).toBe(1);
+  });
+
+  it("counts each Numbers drill-down filter once", () => {
+    expect(
+      activeFilterCount({
+        ...DEFAULT_FILTERS,
+        acquisitions: ["gift", "trade"],
+        acquired: { from: "2024-01-01", to: null },
+        fill: { min: null, max: 10 },
+        caskStrength: true,
+        overMsrp: true,
+      }),
+    ).toBe(5);
   });
 
   it("ignores sorting, paging and view mode", () => {

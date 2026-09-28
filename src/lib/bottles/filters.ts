@@ -1,4 +1,4 @@
-import { BOTTLE_STATUSES, type BottleStatus } from "@/db/schema";
+import { ACQUISITIONS, BOTTLE_STATUSES, type Acquisition, type BottleStatus } from "@/db/schema";
 
 /**
  * Grid state, serialised to the URL so a view can be bookmarked and shared
@@ -30,6 +30,9 @@ export const PAGE_SIZES = [25, 50, 100] as const;
 export const DEFAULT_PAGE_SIZE = 25;
 
 export type Range = { min: number | null; max: number | null };
+
+/** Inclusive ISO dates (YYYY-MM-DD), either end open. */
+export type DateRange = { from: string | null; to: string | null };
 
 /**
  * What the Collection shows until you ask for more: what's on the shelf.
@@ -71,6 +74,14 @@ export type BottleFilters = {
   proof: Range;
   age: Range;
   price: Range;
+  /* The filters below are where Numbers findings land (the bottles behind a claim). */
+  acquisitions: Acquisition[];
+  acquired: DateRange;
+  fill: Range;
+  caskStrength: boolean;
+  bottledInBond: boolean;
+  pick: boolean;
+  overMsrp: boolean;
   sort: SortKey;
   desc: boolean;
   page: number;
@@ -95,6 +106,13 @@ export const DEFAULT_FILTERS: BottleFilters = {
   proof: { min: null, max: null },
   age: { min: null, max: null },
   price: { min: null, max: null },
+  acquisitions: [],
+  acquired: { from: null, to: null },
+  fill: { min: null, max: null },
+  caskStrength: false,
+  bottledInBond: false,
+  pick: false,
+  overMsrp: false,
   sort: "acquired",
   desc: true,
   page: 1,
@@ -137,6 +155,23 @@ function range(params: Params, key: string, min: number, max: number): Range {
   };
 }
 
+function isoDate(raw: string | null): string | null {
+  if (raw === null || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  // Round-trip, because Date rolls 2024-02-30 over to March where Postgres would throw.
+  const date = new Date(`${raw}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === raw ? raw : null;
+}
+
+function acquisitionList(raw: string | null): Acquisition[] {
+  if (raw === null) return [];
+  const seen = new Set<Acquisition>();
+  for (const part of raw.split(",")) {
+    const value = part.trim() as Acquisition;
+    if (ACQUISITIONS.includes(value)) seen.add(value);
+  }
+  return [...seen];
+}
+
 export function parseFilters(params: Params): BottleFilters {
   const sortRaw = first(params, "sort");
   const viewRaw = first(params, "view");
@@ -159,6 +194,13 @@ export function parseFilters(params: Params): BottleFilters {
     proof: range(params, "proof", 0, 200),
     age: range(params, "age", 0, 100),
     price: range(params, "price", 0, 100000),
+    acquisitions: acquisitionList(first(params, "acq")),
+    acquired: { from: isoDate(first(params, "acquiredFrom")), to: isoDate(first(params, "acquiredTo")) },
+    fill: range(params, "fill", 0, 100),
+    caskStrength: first(params, "cs") === "1",
+    bottledInBond: first(params, "bib") === "1",
+    pick: first(params, "pick") === "1",
+    overMsrp: first(params, "overMsrp") === "1",
     sort: (SORTABLE as readonly string[]).includes(sortRaw ?? "") ? (sortRaw as SortKey) : DEFAULT_FILTERS.sort,
     // Ascending is the explicit opt-in; the default view is newest first.
     desc: first(params, "dir") !== "asc",
@@ -195,10 +237,18 @@ export function serialiseFilters(filters: BottleFilters): string {
     ["proof", filters.proof],
     ["age", filters.age],
     ["price", filters.price],
+    ["fill", filters.fill],
   ] as const) {
     if (value.min !== null) params.set(`${key}Min`, String(value.min));
     if (value.max !== null) params.set(`${key}Max`, String(value.max));
   }
+  if (filters.acquisitions.length > 0) params.set("acq", filters.acquisitions.join(","));
+  if (filters.acquired.from) params.set("acquiredFrom", filters.acquired.from);
+  if (filters.acquired.to) params.set("acquiredTo", filters.acquired.to);
+  if (filters.caskStrength) params.set("cs", "1");
+  if (filters.bottledInBond) params.set("bib", "1");
+  if (filters.pick) params.set("pick", "1");
+  if (filters.overMsrp) params.set("overMsrp", "1");
 
   if (filters.sort !== DEFAULT_FILTERS.sort) params.set("sort", filters.sort);
   if (!filters.desc) params.set("dir", "asc");
@@ -224,8 +274,13 @@ export function activeFilterCount(filters: BottleFilters): number {
   count += isDefaultStatuses(filters.statuses) ? 0 : 1;
   count += filters.open !== "any" ? 1 : 0;
   count += filters.favorite ? 1 : 0;
-  for (const r of [filters.proof, filters.age, filters.price]) {
+  for (const r of [filters.proof, filters.age, filters.price, filters.fill]) {
     if (r.min !== null || r.max !== null) count += 1;
+  }
+  count += filters.acquisitions.length > 0 ? 1 : 0;
+  count += filters.acquired.from !== null || filters.acquired.to !== null ? 1 : 0;
+  for (const flag of [filters.caskStrength, filters.bottledInBond, filters.pick, filters.overMsrp]) {
+    count += flag ? 1 : 0;
   }
   return count;
 }

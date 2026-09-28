@@ -14,6 +14,7 @@ import { DEFAULT_FILTERS, activeFilterCount, isDefaultStatuses, type BottleFilte
 import type { Option } from "@/lib/admin/types";
 import { SEARCH_INPUT_ID } from "@/components/keyboard-shortcuts";
 import { useGridFilters } from "./use-grid-filters";
+import { DetailFilterChips, DetailFilters } from "./detail-filters";
 
 export type FilterOptions = {
   categories: Option[];
@@ -411,6 +412,8 @@ export function FilterBar({
           Favorites
         </Button>
 
+        <DetailFilters filters={filters} apply={apply} />
+
         {active > 0 ? (
           <Button
             type="button"
@@ -437,6 +440,8 @@ export function FilterBar({
           {total} bottle{total === 1 ? "" : "s"}
         </span>
       </div>
+
+      <DetailFilterChips filters={filters} apply={apply} />
     </div>
   );
 }
