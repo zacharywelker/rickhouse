@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, getViewSelectedFields, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleList, groupBottles, groups, type Group } from "@/db/schema";
+import { bottleList, groupBottles, groups, type FieldGroup, type Group } from "@/db/schema";
 import type { GridRow } from "@/lib/bottles/grid";
 
 /** Every bottle_list column except the two search-only ones (see lib/bottles/grid.ts). */
@@ -11,6 +11,8 @@ export type GroupSummary = Group & {
   bottleCount: number;
   /** Up to three member thumbnails, for a cover collage when there's no cover image. */
   memberThumbs: string[];
+  /** The first few members' fill and spirit family, drawn as bottles when nobody has a photo yet. */
+  memberBottles: Array<{ fillPct: number; fieldGroup: FieldGroup }>;
 };
 
 const MAX_COLLAGE_THUMBS = 3;
@@ -27,6 +29,15 @@ export async function listGroups(ownerId: number): Promise<GroupSummary[]> {
           '{}'
         )
       `,
+      memberBottles: sql<Array<{ fillPct: number; fieldGroup: FieldGroup }>>`
+        coalesce(
+          json_agg(
+            json_build_object('fillPct', ${bottleList.fillPct}, 'fieldGroup', ${bottleList.fieldGroup})
+            order by ${groupBottles.position}
+          ) filter (where ${bottleList.id} is not null),
+          '[]'
+        )
+      `,
     })
     .from(groups)
     .leftJoin(groupBottles, eq(groupBottles.groupId, groups.id))
@@ -35,10 +46,11 @@ export async function listGroups(ownerId: number): Promise<GroupSummary[]> {
     .groupBy(groups.id)
     .orderBy(asc(groups.name));
 
-  return rows.map(({ group, bottleCount, memberThumbs }) => ({
+  return rows.map(({ group, bottleCount, memberThumbs, memberBottles }) => ({
     ...group,
     bottleCount,
     memberThumbs: memberThumbs.slice(0, MAX_COLLAGE_THUMBS),
+    memberBottles: memberBottles.slice(0, MAX_COLLAGE_THUMBS),
   }));
 }
 
