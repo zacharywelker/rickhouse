@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { BOTTLE_STATUSES } from "@/db/schema";
-import { DEFAULT_FILTERS, activeFilterCount, type BottleFilters, type Range } from "@/lib/bottles/filters";
+import { DEFAULT_FILTERS, activeFilterCount, isDefaultStatuses, type BottleFilters, type Range } from "@/lib/bottles/filters";
 import type { Option } from "@/lib/admin/types";
 import { SEARCH_INPUT_ID } from "@/components/keyboard-shortcuts";
 import { useGridFilters } from "./use-grid-filters";
@@ -340,30 +340,31 @@ export function FilterBar({
               variant="outline"
               size="sm"
               aria-label="Filter by status"
-              className={cn(filters.statuses.length > 0 && "border-primary/50 text-primary")}
+              className={cn(!isDefaultStatuses(filters.statuses) && "border-primary/50 text-primary")}
             >
               Status
-              {filters.statuses.length > 0 ? (
-                <Badge className="ml-1 border-primary/40 text-primary">{filters.statuses.length}</Badge>
+              {!isDefaultStatuses(filters.statuses) ? (
+                <Badge className="ml-1 border-primary/40 text-primary">
+                  {filters.statuses.length > 0 ? filters.statuses.length : "All"}
+                </Badge>
               ) : null}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-44 p-2">
             <ul className="flex flex-col">
               {BOTTLE_STATUSES.map((status) => {
-                const on = filters.statuses.includes(status);
+                // An empty list is every status, so every box reads as ticked.
+                const current = filters.statuses.length > 0 ? filters.statuses : [...BOTTLE_STATUSES];
+                const on = current.includes(status);
                 return (
                   <li key={status} className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted">
                     <Checkbox
                       id={`status-${status}`}
                       checked={on}
-                      onCheckedChange={() =>
-                        apply({
-                          statuses: on
-                            ? filters.statuses.filter((s) => s !== status)
-                            : [...filters.statuses, status],
-                        })
-                      }
+                      onCheckedChange={() => {
+                        const next = on ? current.filter((s) => s !== status) : [...current, status];
+                        apply({ statuses: next.length === BOTTLE_STATUSES.length ? [] : next });
+                      }}
                     />
                     <Label htmlFor={`status-${status}`} className="flex-1 cursor-pointer capitalize text-foreground">
                       {status}
@@ -372,6 +373,20 @@ export function FilterBar({
                 );
               })}
             </ul>
+            <div className="mt-1 flex gap-1 border-t border-border pt-2">
+              <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={() => apply({ statuses: [] })}>
+                Show all
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="flex-1"
+                onClick={() => apply({ statuses: DEFAULT_FILTERS.statuses })}
+              >
+                On shelf
+              </Button>
+            </div>
           </PopoverContent>
         </Popover>
 

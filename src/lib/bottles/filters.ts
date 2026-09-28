@@ -31,6 +31,31 @@ export const DEFAULT_PAGE_SIZE = 25;
 
 export type Range = { min: number | null; max: number | null };
 
+/**
+ * What the Collection shows until you ask for more: what's on the shelf.
+ * "Collection is ownership" (DESIGN.md §15) — wishlist, killed, sold and
+ * traded bottles are one Status click away. An empty list means every status,
+ * which the URL spells as `status=all`.
+ */
+export const DEFAULT_STATUSES: BottleStatus[] = ["owned", "open"];
+
+/** Order-insensitive, so ticking open then owned still counts as the default. */
+export function isDefaultStatuses(statuses: BottleStatus[]): boolean {
+  return statuses.length === DEFAULT_STATUSES.length && DEFAULT_STATUSES.every((s) => statuses.includes(s));
+}
+
+function parseStatuses(raw: string | null): BottleStatus[] {
+  if (raw === null) return [...DEFAULT_STATUSES];
+  if (raw === "all") return [];
+  const seen = new Set<BottleStatus>();
+  for (const part of raw.split(",")) {
+    const value = part.trim() as BottleStatus;
+    if (BOTTLE_STATUSES.includes(value)) seen.add(value);
+  }
+  // Nothing recognisable is the same as asking for nothing in particular.
+  return seen.size > 0 ? [...seen] : [...DEFAULT_STATUSES];
+}
+
 export type BottleFilters = {
   q: string | null;
   categoryIds: number[];
@@ -64,7 +89,7 @@ export const DEFAULT_FILTERS: BottleFilters = {
   finishIds: [],
   storeIds: [],
   tagIds: [],
-  statuses: [],
+  statuses: DEFAULT_STATUSES,
   open: "any",
   favorite: false,
   proof: { min: null, max: null },
@@ -98,17 +123,6 @@ function idList(params: Params, key: string): number[] {
   return [...seen].slice(0, 50);
 }
 
-function stringList<T extends string>(params: Params, key: string, allowed: readonly T[]): T[] {
-  const raw = first(params, key);
-  if (raw === null) return [];
-  const seen = new Set<T>();
-  for (const part of raw.split(",")) {
-    const value = part.trim() as T;
-    if (allowed.includes(value)) seen.add(value);
-  }
-  return [...seen];
-}
-
 function numberOrNull(raw: string | null, min: number, max: number): number | null {
   if (raw === null) return null;
   const n = Number(raw);
@@ -139,7 +153,7 @@ export function parseFilters(params: Params): BottleFilters {
     finishIds: idList(params, "finish"),
     storeIds: idList(params, "store"),
     tagIds: idList(params, "tag"),
-    statuses: stringList(params, "status", BOTTLE_STATUSES),
+    statuses: parseStatuses(first(params, "status")),
     open: (OPEN_STATES as readonly string[]).includes(openRaw ?? "") ? (openRaw as OpenState) : "any",
     favorite: first(params, "fav") === "1",
     proof: range(params, "proof", 0, 200),
@@ -173,7 +187,7 @@ export function serialiseFilters(filters: BottleFilters): string {
   ids("finish", filters.finishIds);
   ids("store", filters.storeIds);
   ids("tag", filters.tagIds);
-  if (filters.statuses.length > 0) params.set("status", filters.statuses.join(","));
+  if (!isDefaultStatuses(filters.statuses)) params.set("status", filters.statuses.length > 0 ? filters.statuses.join(",") : "all");
   if (filters.open !== "any") params.set("open", filters.open);
   if (filters.favorite) params.set("fav", "1");
 
@@ -207,7 +221,7 @@ export function activeFilterCount(filters: BottleFilters): number {
   count += filters.finishIds.length > 0 ? 1 : 0;
   count += filters.storeIds.length > 0 ? 1 : 0;
   count += filters.tagIds.length > 0 ? 1 : 0;
-  count += filters.statuses.length > 0 ? 1 : 0;
+  count += isDefaultStatuses(filters.statuses) ? 0 : 1;
   count += filters.open !== "any" ? 1 : 0;
   count += filters.favorite ? 1 : 0;
   for (const r of [filters.proof, filters.age, filters.price]) {
