@@ -101,7 +101,7 @@ export default async function BottlesPage({
       <div className="hidden sm:block">
         <StatStrip
           items={[
-            { label: filtered ? "Matching" : "Bottles", value: total },
+            { label: filtered ? "Matching" : "Bottles", value: filtered ? total : summary.count },
             { label: "Open", value: summary.open },
             { label: filtered ? "Spend, filtered" : "Total spend", value: formatMoney(summary.spend) },
             { label: "Average proof", value: formatNumeric(summary.avgProof) },

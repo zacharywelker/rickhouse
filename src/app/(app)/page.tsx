@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList } from "@/db/schema";
 import { Section, SectionContent, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { requireSession } from "@/lib/auth";
-import { isOpenNow } from "@/lib/bottles/grid";
+import { isOpenNow, isOwnedNow, wasBought } from "@/lib/bottles/grid";
 import { formatMoney, formatNumeric, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +15,9 @@ type Summary = { bottles: number; open: number; spend: string | null };
 async function loadSummary(ownerId: number): Promise<Summary> {
   const [row] = await db
     .select({
-      bottles: sql<number>`count(*)::int`,
+      bottles: sql<number>`count(*) filter (where ${isOwnedNow})::int`,
       open: sql<number>`count(*) filter (where ${isOpenNow})::int`,
-      spend: sql<string | null>`coalesce(sum(${bottleList.pricePaid}), 0)::text`,
+      spend: sql<string | null>`coalesce(sum(${bottleList.pricePaid}) filter (where ${wasBought}), 0)::text`,
     })
     .from(bottleList)
     .where(eq(bottleList.ownerId, ownerId));
@@ -41,7 +41,7 @@ export default async function HomePage() {
         dateAcquired: bottleList.dateAcquired,
       })
       .from(bottleList)
-      .where(eq(bottleList.ownerId, user.id))
+      .where(and(eq(bottleList.ownerId, user.id), wasBought))
       .orderBy(desc(bottleList.dateAcquired))
       .limit(10),
   ]);

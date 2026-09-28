@@ -96,6 +96,33 @@ describe("serialiseFilters", () => {
   });
 });
 
+describe("status default", () => {
+  it("shows what's on the shelf until asked for more", () => {
+    expect(parse("").statuses).toEqual(["owned", "open"]);
+  });
+
+  it("spells every status as status=all and reads it back", () => {
+    const query = serialiseFilters({ ...DEFAULT_FILTERS, statuses: [] });
+    expect(query).toBe("status=all");
+    expect(parse(query).statuses).toEqual([]);
+  });
+
+  it("treats the default in any order as the default", () => {
+    const filters = { ...DEFAULT_FILTERS, statuses: ["open", "owned"] as BottleFilters["statuses"] };
+    expect(serialiseFilters(filters)).toBe("");
+    expect(activeFilterCount(filters)).toBe(0);
+  });
+
+  it("falls back to the default when nothing in the URL is a status", () => {
+    expect(parse("status=bogus").statuses).toEqual(["owned", "open"]);
+  });
+
+  it("counts showing history as an active filter", () => {
+    expect(activeFilterCount({ ...DEFAULT_FILTERS, statuses: [] })).toBe(1);
+    expect(activeFilterCount({ ...DEFAULT_FILTERS, statuses: ["killed"] })).toBe(1);
+  });
+});
+
 describe("activeFilterCount", () => {
   it("is zero for a default view", () => {
     expect(activeFilterCount(DEFAULT_FILTERS)).toBe(0);

@@ -21,6 +21,8 @@ export type Ranked = { id: number; label: string; slug: string | null; count: nu
  * and its legend always match the color a bottle wears everywhere else.
  *
  * Every query here takes the signed-in account and counts only its bottles.
+ * "What the collection is" counts what's on the shelf (owned or open); money
+ * and acquisition history count everything actually bought (not wishlist).
  */
 export async function categoryShare(ownerId: number): Promise<Slice[]> {
   const [counts, groups] = await Promise.all([
@@ -30,6 +32,7 @@ export async function categoryShare(ownerId: number): Promise<Slice[]> {
         JOIN expressions e ON e.id = b.expression_id
         JOIN categories  c ON c.id = e.category_id
        WHERE b.owner_id = ${ownerId}
+         AND b.status IN ('owned', 'open')
        GROUP BY c.field_group
        ORDER BY count DESC, c.field_group
     `),
@@ -65,6 +68,7 @@ export async function proofDistribution(ownerId: number): Promise<Bin[]> {
       JOIN expressions e ON e.id = b.expression_id
      WHERE e.proof IS NOT NULL
        AND b.owner_id = ${ownerId}
+       AND b.status IN ('owned', 'open')
      GROUP BY bucket
      ORDER BY bucket
   `);
@@ -88,7 +92,7 @@ export async function acquisitionsOverTime(ownerId: number, months = 24): Promis
   const rows = await db.execute<{ month: string; count: number; spend: string }>(sql`
     WITH span AS (
       SELECT date_trunc('month', min(date_acquired))::date AS first_month
-        FROM bottles WHERE date_acquired IS NOT NULL AND owner_id = ${ownerId}
+        FROM bottles WHERE date_acquired IS NOT NULL AND owner_id = ${ownerId} AND status <> 'wishlist'
     ),
     series AS (
       SELECT generate_series(
@@ -104,7 +108,7 @@ export async function acquisitionsOverTime(ownerId: number, months = 24): Promis
            count(b.id)::int AS count,
            coalesce(sum(b.price_paid), 0)::text AS spend
       FROM series s
-      LEFT JOIN bottles b ON date_trunc('month', b.date_acquired)::date = s.month AND b.owner_id = ${ownerId}
+      LEFT JOIN bottles b ON date_trunc('month', b.date_acquired)::date = s.month AND b.owner_id = ${ownerId} AND b.status <> 'wishlist'
      GROUP BY s.month
      ORDER BY s.month
   `);
@@ -119,6 +123,7 @@ export async function topDistilleries(ownerId: number, limit = 8): Promise<Ranke
       JOIN distilleries d ON d.id = ed.distillery_id
       JOIN bottles b ON b.expression_id = ed.expression_id
      WHERE b.owner_id = ${ownerId}
+       AND b.status IN ('owned', 'open')
      GROUP BY d.id, d.name, d.slug
      ORDER BY count DESC, d.name
      LIMIT ${limit}
@@ -133,6 +138,7 @@ export async function topMashbill(ownerId: number): Promise<{ label: string; id:
       JOIN mashbills m ON m.id = em.mashbill_id
       JOIN bottles b ON b.expression_id = em.expression_id
      WHERE b.owner_id = ${ownerId}
+       AND b.status IN ('owned', 'open')
      GROUP BY m.name, m.id
      ORDER BY count DESC, m.id
      LIMIT 1
@@ -147,6 +153,7 @@ export async function topFinish(ownerId: number): Promise<{ label: string; slug:
       JOIN finishes f ON f.id = ef.finish_id
       JOIN bottles b ON b.expression_id = ef.expression_id
      WHERE b.owner_id = ${ownerId}
+       AND b.status IN ('owned', 'open')
      GROUP BY f.name, f.slug
      ORDER BY count DESC, f.name
      LIMIT 1
@@ -163,6 +170,7 @@ export async function mostExpensiveBottle(ownerId: number): Promise<(BottleHighl
       FROM bottle_list
      WHERE price_paid IS NOT NULL
        AND owner_id = ${ownerId}
+       AND status IN ('owned', 'open')
      ORDER BY price_paid DESC
      LIMIT 1
   `);
@@ -178,6 +186,7 @@ export async function longestHeldBottle(ownerId: number): Promise<(BottleHighlig
       FROM bottle_list
      WHERE date_acquired IS NOT NULL
        AND owner_id = ${ownerId}
+       AND status IN ('owned', 'open')
      ORDER BY date_acquired ASC
      LIMIT 1
   `);
@@ -193,6 +202,7 @@ export async function longHeldCount(ownerId: number, years = 5): Promise<number>
      WHERE date_acquired IS NOT NULL
        AND date_acquired <= (current_date - make_interval(years => ${years}))
        AND owner_id = ${ownerId}
+       AND status IN ('owned', 'open')
   `);
   return [...rows][0]?.count ?? 0;
 }
@@ -210,16 +220,16 @@ export type Headline = {
 
 export async function headline(ownerId: number): Promise<Headline> {
   const rows = await db.execute<Headline>(sql`
-    SELECT count(*)::int AS bottles,
+    SELECT count(*) FILTER (WHERE b.status IN ('owned', 'open'))::int AS bottles,
            count(*) FILTER (WHERE b.is_open AND b.status IN ('owned', 'open'))::int AS open,
            count(*) FILTER (WHERE b.status = 'killed')::int AS killed,
-           coalesce(sum(b.price_paid), 0)::text AS spend,
-           coalesce(sum(e.msrp) FILTER (WHERE b.price_paid IS NOT NULL), 0)::text AS msrp,
-           round(avg(e.proof), 1)::text AS "avgProof",
+           coalesce(sum(b.price_paid) FILTER (WHERE b.status <> 'wishlist'), 0)::text AS spend,
+           coalesce(sum(e.msrp) FILTER (WHERE b.price_paid IS NOT NULL AND b.status <> 'wishlist'), 0)::text AS msrp,
+           round(avg(e.proof) FILTER (WHERE b.status IN ('owned', 'open')), 1)::text AS "avgProof",
            (SELECT round(avg(tn.rating), 1)::text
               FROM tasting_notes tn JOIN bottles tb ON tb.id = tn.bottle_id
              WHERE tb.owner_id = ${ownerId}) AS "avgRating",
-           (SELECT count(*)::int FROM expressions WHERE owner_id = ${ownerId}) AS expressions
+           count(DISTINCT b.expression_id) FILTER (WHERE b.status IN ('owned', 'open'))::int AS expressions
       FROM bottles b
       JOIN expressions e ON e.id = b.expression_id
      WHERE b.owner_id = ${ownerId}
