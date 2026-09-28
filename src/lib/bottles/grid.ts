@@ -130,6 +130,28 @@ function buildWhere(filters: BottleFilters, ownerId: number): SQL | undefined {
   if (filters.price.min !== null) clauses.push(gte(bottleList.pricePaid, String(filters.price.min)));
   if (filters.price.max !== null) clauses.push(lte(bottleList.pricePaid, String(filters.price.max)));
 
+  if (filters.fill.min !== null) clauses.push(gte(bottleList.fillPct, filters.fill.min));
+  if (filters.fill.max !== null) clauses.push(lte(bottleList.fillPct, filters.fill.max));
+  if (filters.acquired.from) clauses.push(gte(bottleList.dateAcquired, filters.acquired.from));
+  if (filters.acquired.to) clauses.push(lte(bottleList.dateAcquired, filters.acquired.to));
+  if (filters.pick) clauses.push(eq(bottleList.isSingleBarrelPick, true));
+  if (filters.overMsrp) clauses.push(sql`${bottleList.pricePaid} > ${bottleList.msrp}`);
+
+  // Not in the view, so matched against the base tables like the entity filters above.
+  if (filters.acquisitions.length > 0) {
+    clauses.push(sql`EXISTS (
+      SELECT 1 FROM bottles ab WHERE ab.id = ${bottleList.id}
+         AND ab.acquisition IN (${sql.join(filters.acquisitions.map((a) => sql`${a}`), sql`, `)})
+    )`);
+  }
+  if (filters.caskStrength || filters.bottledInBond) {
+    clauses.push(sql`EXISTS (
+      SELECT 1 FROM expressions fe WHERE fe.id = ${bottleList.expressionId}
+         ${filters.caskStrength ? sql`AND fe.is_cask_strength` : sql``}
+         ${filters.bottledInBond ? sql`AND fe.is_bottled_in_bond` : sql``}
+    )`);
+  }
+
   return and(...clauses);
 }
 

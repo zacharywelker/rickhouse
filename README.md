@@ -52,7 +52,7 @@ Before a PR: `npm run typecheck && npm run lint && npm test`.
 | --- | --- |
 | [`docs/UNRAID.md`](docs/UNRAID.md) | Installing, updating, backups and troubleshooting |
 | [`SPEC.md`](SPEC.md) | Product spec, data model rules and milestones |
-| [`docs/DESIGN.md`](docs/DESIGN.md) | Visual and interaction design system |
+| [`DESIGN.md`](DESIGN.md) | Visual and interaction design system |
 | [`docs/DESIGN-TOKENS.md`](docs/DESIGN-TOKENS.md) | Implementation-level design tokens |
 | [`schema.sql`](schema.sql) | Annotated database schema (source of truth) |
 | [`SECURITY.md`](SECURITY.md) | Reporting vulnerabilities |

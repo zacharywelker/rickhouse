@@ -131,119 +131,19 @@ export async function topDistilleries(ownerId: number, limit = 8): Promise<Ranke
   return [...rows];
 }
 
-export async function topMashbill(ownerId: number): Promise<{ label: string; id: number; count: number } | null> {
-  const rows = await db.execute<{ label: string; id: number; count: number }>(sql`
-    SELECT coalesce(m.name::text, 'Unnamed recipe') AS label, m.id AS id, count(DISTINCT b.id)::int AS count
-      FROM expression_mashbills em
-      JOIN mashbills m ON m.id = em.mashbill_id
-      JOIN bottles b ON b.expression_id = em.expression_id
-     WHERE b.owner_id = ${ownerId}
-       AND b.status IN ('owned', 'open')
-     GROUP BY m.name, m.id
-     ORDER BY count DESC, m.id
-     LIMIT 1
-  `);
-  return [...rows][0] ?? null;
-}
-
-export async function topFinish(ownerId: number): Promise<{ label: string; slug: string; count: number } | null> {
-  const rows = await db.execute<{ label: string; slug: string; count: number }>(sql`
-    SELECT f.name::text AS label, f.slug AS slug, count(DISTINCT b.id)::int AS count
-      FROM expression_finishes ef
-      JOIN finishes f ON f.id = ef.finish_id
-      JOIN bottles b ON b.expression_id = ef.expression_id
-     WHERE b.owner_id = ${ownerId}
-       AND b.status IN ('owned', 'open')
-     GROUP BY f.name, f.slug
-     ORDER BY count DESC, f.name
-     LIMIT 1
-  `);
-  return [...rows][0] ?? null;
-}
-
 export type BottleHighlight = { id: number; name: string };
 
-/** The single priciest bottle, for a headline that points at one object. */
+/** The most ever paid for one bottle, finished or not; a wishlist price was never paid. */
 export async function mostExpensiveBottle(ownerId: number): Promise<(BottleHighlight & { price: string }) | null> {
   const rows = await db.execute<{ id: number; brand: string; expressionName: string; pricePaid: string }>(sql`
     SELECT id, brand::text AS brand, expression_name::text AS "expressionName", price_paid AS "pricePaid"
       FROM bottle_list
      WHERE price_paid IS NOT NULL
        AND owner_id = ${ownerId}
-       AND status IN ('owned', 'open')
+       AND status <> 'wishlist'
      ORDER BY price_paid DESC
      LIMIT 1
   `);
   const row = [...rows][0];
   return row ? { id: row.id, name: `${row.brand} ${row.expressionName}`, price: row.pricePaid } : null;
-}
-
-/** The bottle that has sat in the collection the longest, by acquisition date. */
-export async function longestHeldBottle(ownerId: number): Promise<(BottleHighlight & { years: number }) | null> {
-  const rows = await db.execute<{ id: number; brand: string; expressionName: string; years: number }>(sql`
-    SELECT id, brand::text AS brand, expression_name::text AS "expressionName",
-           extract(year FROM age(current_date, date_acquired))::int AS years
-      FROM bottle_list
-     WHERE date_acquired IS NOT NULL
-       AND owner_id = ${ownerId}
-       AND status IN ('owned', 'open')
-     ORDER BY date_acquired ASC
-     LIMIT 1
-  `);
-  const row = [...rows][0];
-  return row ? { id: row.id, name: `${row.brand} ${row.expressionName}`, years: row.years } : null;
-}
-
-/** How many bottles have been owned for at least this many years. */
-export async function longHeldCount(ownerId: number, years = 5): Promise<number> {
-  const rows = await db.execute<{ count: number }>(sql`
-    SELECT count(*)::int AS count
-      FROM bottle_list
-     WHERE date_acquired IS NOT NULL
-       AND date_acquired <= (current_date - make_interval(years => ${years}))
-       AND owner_id = ${ownerId}
-       AND status IN ('owned', 'open')
-  `);
-  return [...rows][0]?.count ?? 0;
-}
-
-export type Headline = {
-  bottles: number;
-  open: number;
-  killed: number;
-  spend: string;
-  msrp: string;
-  avgProof: string | null;
-  avgRating: string | null;
-  expressions: number;
-};
-
-export async function headline(ownerId: number): Promise<Headline> {
-  const rows = await db.execute<Headline>(sql`
-    SELECT count(*) FILTER (WHERE b.status IN ('owned', 'open'))::int AS bottles,
-           count(*) FILTER (WHERE b.is_open AND b.status IN ('owned', 'open'))::int AS open,
-           count(*) FILTER (WHERE b.status = 'killed')::int AS killed,
-           coalesce(sum(b.price_paid) FILTER (WHERE b.status <> 'wishlist'), 0)::text AS spend,
-           coalesce(sum(e.msrp) FILTER (WHERE b.price_paid IS NOT NULL AND b.status <> 'wishlist'), 0)::text AS msrp,
-           round(avg(e.proof) FILTER (WHERE b.status IN ('owned', 'open')), 1)::text AS "avgProof",
-           (SELECT round(avg(tn.rating), 1)::text
-              FROM tasting_notes tn JOIN bottles tb ON tb.id = tn.bottle_id
-             WHERE tb.owner_id = ${ownerId}) AS "avgRating",
-           count(DISTINCT b.expression_id) FILTER (WHERE b.status IN ('owned', 'open'))::int AS expressions
-      FROM bottles b
-      JOIN expressions e ON e.id = b.expression_id
-     WHERE b.owner_id = ${ownerId}
-  `);
-  return (
-    [...rows][0] ?? {
-      bottles: 0,
-      open: 0,
-      killed: 0,
-      spend: "0",
-      msrp: "0",
-      avgProof: null,
-      avgRating: null,
-      expressions: 0,
-    }
-  );
 }
