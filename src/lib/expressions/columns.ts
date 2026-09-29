@@ -66,6 +66,7 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
       field("brandId", { id: "brand", sort: "brand" }),
       field("name", { label: "Label", sort: "name", locked: true }),
       field("categoryId", { id: "category", sort: "category" }),
+      field("bottledById", { id: "bottledBy" }),
       field("slug"),
       field("description"),
     ],

@@ -11,6 +11,8 @@ const row: ExpressionRow = {
   brandId: 3,
   category: "Bourbon",
   categoryId: 11,
+  bottledBy: null,
+  bottledById: null,
   fieldGroup: "whiskey",
   proof: "108.00",
   abv: "54.00",

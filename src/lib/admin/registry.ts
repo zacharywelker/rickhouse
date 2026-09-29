@@ -7,6 +7,7 @@ import { describeMashbill, orderGrains } from "@/lib/mashbills";
 import {
   FIELD_GROUPS,
   FINISH_TYPES,
+  type DistilleryDisclosure,
   brands,
   bottleTags,
   bottles,
@@ -485,6 +486,7 @@ const distilleriesConfig: ResourceConfig = {
     nameColumn,
     { key: "company", label: "Company", secondary: true },
     { key: "where", label: "Location" },
+    { key: "disclosure", label: "Known As", secondary: true },
     { key: "dspNumber", label: "DSP", secondary: true },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
@@ -497,6 +499,19 @@ const distilleriesConfig: ResourceConfig = {
     { kind: "text", name: "state", label: "State", placeholder: "KY", span: "half" },
     { kind: "text", name: "dspNumber", label: "DSP Number", placeholder: "DSP-KY-95", span: "half" },
     { kind: "number", name: "founded", label: "Founded", min: 1600, max: 2200, step: 1, span: "half" },
+    {
+      kind: "select",
+      name: "disclosure",
+      label: "How Known",
+      required: true,
+      options: [
+        { value: "named", label: "Named on the label" },
+        { value: "undisclosed", label: "Undisclosed — only a place is given" },
+        { value: "inferred", label: "Inferred — identified from outside the label" },
+      ],
+      help: "For a bottle that says only \"Distilled in Indiana\", add \"Undisclosed (Indiana)\" and set the state. If you know who really made it, add them as Inferred so a guess never reads as fact.",
+      span: "full",
+    },
     notesField,
   ],
   list: async (ownerId) => {
@@ -512,6 +527,7 @@ const distilleriesConfig: ResourceConfig = {
         country: distilleries.country,
         dspNumber: distilleries.dspNumber,
         founded: distilleries.founded,
+        disclosure: distilleries.disclosure,
         notes: distilleries.notes,
         uses: sql<number>`(select count(*)::int from ${expressionDistilleries} where ${expressionDistilleries.distilleryId} = ${distilleries.id})`,
       })
@@ -528,6 +544,7 @@ const distilleriesConfig: ResourceConfig = {
         where: [r.city, r.state, r.country].filter(Boolean).join(", "),
         dspNumber: r.dspNumber,
         uses: r.uses,
+        disclosure: DISCLOSURE_LABELS[r.disclosure],
       },
       values: {
         name: r.name,
@@ -538,6 +555,7 @@ const distilleriesConfig: ResourceConfig = {
         country: r.country,
         dspNumber: r.dspNumber,
         founded: r.founded,
+        disclosure: r.disclosure,
         notes: r.notes,
       },
     }));
@@ -567,6 +585,7 @@ const distilleriesConfig: ResourceConfig = {
       country: input.country,
       dspNumber: input.dspNumber,
       founded: input.founded,
+      disclosure: input.disclosure,
       notes: input.notes,
     };
 
@@ -586,13 +605,28 @@ const distilleriesConfig: ResourceConfig = {
   },
 };
 
+const DISCLOSURE_LABELS: Record<DistilleryDisclosure, string> = {
+  named: "Named",
+  undisclosed: "Undisclosed",
+  inferred: "Inferred",
+};
+
 async function distilleryOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
-    .select({ value: distilleries.id, label: distilleries.name, state: distilleries.state })
+    .select({
+      value: distilleries.id,
+      label: distilleries.name,
+      state: distilleries.state,
+      disclosure: distilleries.disclosure,
+    })
     .from(distilleries)
     .where(eq(distilleries.ownerId, ownerId))
     .orderBy(asc(distilleries.name));
-  return rows.map((r) => ({ value: r.value, label: r.label, ...(r.state ? { hint: r.state } : {}) }));
+  // A named distillery's hint stays its state; the others say how sure we are.
+  return rows.map((r) => {
+    const hint = r.disclosure === "named" ? r.state : [DISCLOSURE_LABELS[r.disclosure], r.state].filter(Boolean).join(" · ");
+    return { value: r.value, label: r.label, ...(hint ? { hint } : {}) };
+  });
 }
 
 // ------------------------------------------------------------

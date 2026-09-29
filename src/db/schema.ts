@@ -109,6 +109,15 @@ export const brands = pgTable(
   ],
 );
 
+/**
+ * How much is known about a distillery:
+ *   named       identified, and the label says so (every row before this existed)
+ *   undisclosed a placeholder for a place the label admits to and nothing more
+ *   inferred    identified from outside the label, so never presented as fact
+ */
+export const DISTILLERY_DISCLOSURES = ["named", "undisclosed", "inferred"] as const;
+export type DistilleryDisclosure = (typeof DISTILLERY_DISCLOSURES)[number];
+
 export const distilleries = pgTable(
   "distilleries",
   {
@@ -125,6 +134,8 @@ export const distilleries = pgTable(
     country: text("country").notNull().default("USA"),
     dspNumber: text("dsp_number"),
     founded: integer("founded"),
+    /** How much the label told us; see DISTILLERY_DISCLOSURES. */
+    disclosure: text("disclosure", { enum: DISTILLERY_DISCLOSURES }).notNull().default("named"),
     notes: text("notes"),
   },
   (t) => [
@@ -238,6 +249,8 @@ export const expressions = pgTable(
     categoryId: integer("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "restrict" }),
+    /** Who bottled it: a different claim from who distilled it. Same account as the label. */
+    bottledById: integer("bottled_by_id").references(() => companies.id, { onDelete: "set null" }),
     name: citext("name").notNull(),
     slug: text("slug").notNull(),
 

@@ -122,6 +122,21 @@ describe("distillerySchema", () => {
     notes: "",
   };
 
+  it("reads an absent or blank disclosure as named, the inline create path", () => {
+    const parsed = distillerySchema.safeParse({ name: "Bardstown", country: "USA" });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.disclosure).toBe("named");
+  });
+
+  it("accepts the undisclosed and inferred tiers, and nothing else", () => {
+    for (const disclosure of ["undisclosed", "inferred"]) {
+      const parsed = distillerySchema.safeParse({ ...base, name: "Undisclosed (Indiana)", state: "IN", disclosure });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) expect(parsed.data.disclosure).toBe(disclosure);
+    }
+    expect(distillerySchema.safeParse({ ...base, disclosure: "rumored" }).success).toBe(false);
+  });
+
   it("accepts a distillery with no founding year", () => {
     const parsed = distillerySchema.safeParse(base);
     expect(parsed.success).toBe(true);

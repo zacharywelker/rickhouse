@@ -68,6 +68,7 @@ export const expressionSchema = z
     // Identity
     brandId: requiredRef,
     categoryId: requiredRef,
+    bottledById: optionalRef,
     name: requiredText(160),
     slug: optionalSlug,
     batch: optionalText(80),

@@ -7,7 +7,7 @@
  * should be parsing form values by hand.
  */
 import { z } from "zod";
-import { FIELD_GROUPS, FINISH_TYPES } from "@/db/schema";
+import { DISTILLERY_DISCLOSURES, FIELD_GROUPS, FINISH_TYPES } from "@/db/schema";
 
 const trimmed = z.string().trim();
 
@@ -97,6 +97,8 @@ export const distillerySchema = z.object({
   country: requiredText(80),
   dspNumber: optionalText(40),
   founded: optionalYear,
+  // Absent means named, so the inline "create new" path (a name and nothing else) still works.
+  disclosure: blankIfAbsent(z.enum(["", ...DISTILLERY_DISCLOSURES]).transform((v) => (v === "" ? "named" : v))),
   notes: optionalText(),
 });
 

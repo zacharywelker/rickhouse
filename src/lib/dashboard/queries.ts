@@ -115,7 +115,11 @@ export async function acquisitionsOverTime(ownerId: number, months = 24): Promis
   return [...rows].map((row) => ({ month: row.month, count: row.count, spend: Number(row.spend) }));
 }
 
-/** Distilleries by how many bottles they contributed to, blends included. */
+/**
+ * Distilleries by how many bottles they contributed to, blends included.
+ * Placeholders for undisclosed sources are left out: "Undisclosed (Indiana)"
+ * is not a distillery, and would top the list without saying anything.
+ */
 export async function topDistilleries(ownerId: number, limit = 8): Promise<Ranked[]> {
   const rows = await db.execute<{ id: number; label: string; slug: string; count: number }>(sql`
     SELECT d.id AS id, d.name::text AS label, d.slug AS slug, count(DISTINCT b.id)::int AS count
@@ -124,6 +128,7 @@ export async function topDistilleries(ownerId: number, limit = 8): Promise<Ranke
       JOIN bottles b ON b.expression_id = ed.expression_id
      WHERE b.owner_id = ${ownerId}
        AND b.status IN ('owned', 'open')
+       AND d.disclosure <> 'undisclosed'
      GROUP BY d.id, d.name, d.slug
      ORDER BY count DESC, d.name
      LIMIT ${limit}

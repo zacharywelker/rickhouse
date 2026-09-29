@@ -180,6 +180,8 @@ export function LabelTableBody({
         return <span className="font-medium">{row.brand}</span>;
       case "category":
         return row.category;
+      case "bottledBy":
+        return row.bottledBy ?? DASH;
       case "abv":
         return row.abv === null ? DASH : `${formatNumeric(row.abv)}%`;
       case "age":

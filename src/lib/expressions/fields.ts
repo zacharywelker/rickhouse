@@ -40,6 +40,14 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     fields: [
       { kind: "reference", name: "brandId", label: "Brand", resource: "brands", required: true, span: "half" },
       { kind: "reference", name: "categoryId", label: "Category", resource: "categories", required: true, span: "half" },
+      {
+        kind: "reference",
+        name: "bottledById",
+        label: "Bottled By",
+        resource: "companies",
+        help: "Who bottled it, when the label says. Not the same as who distilled it, which goes under Distilleries below.",
+        span: "half",
+      },
       { kind: "text", name: "name", label: "Label Name", required: true, placeholder: "Double Oak Spirit", span: "half" },
       {
         kind: "text",
