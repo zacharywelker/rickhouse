@@ -9,9 +9,12 @@ async function loadTurnstile(vars: Record<string, string>) {
   return import("../turnstile");
 }
 
-const keys = { TURNSTILE_SITE_KEY: "site", TURNSTILE_SECRET_KEY: "secret" };
+const keys = { TURNSTILE_SITE_KEY: "site", TURNSTILE_SECRET_KEY: "secret", APP_URL: "https://rickhouse.example.com" };
 const lan = { ...keys, TURNSTILE_SKIP_NETWORKS: "192.168.1.0/24" };
-const forwarded = (chain: string) => new Headers({ "x-forwarded-for": chain });
+/** A request as the app sees it; by default sent to the server's LAN address. */
+const forwarded = (chain: string, extra: Record<string, string> = {}) =>
+  new Headers({ host: "192.168.1.10:1964", "x-forwarded-for": chain, ...extra });
+const publicHost = { host: "rickhouse.example.com" };
 
 describe("turnstileSiteKeyFor", () => {
   beforeEach(() => vi.unstubAllEnvs());
@@ -40,6 +43,22 @@ describe("turnstileSiteKeyFor", () => {
     expect(turnstileSiteKeyFor(forwarded("192.168.1.50, 203.0.113.9"))).toBe("site");
   });
 
+  it("still asks a listed network at the public address", async () => {
+    const { turnstileSiteKeyFor } = await loadTurnstile(lan);
+    // Split DNS, or a proxy that forwards an address the visitor chose.
+    expect(turnstileSiteKeyFor(forwarded("192.168.1.50", publicHost))).toBe("site");
+    const withPort = { host: "RickHouse.example.com:443" };
+    expect(turnstileSiteKeyFor(forwarded("203.0.113.9, 192.168.1.50", withPort))).toBe("site");
+    // A tunnel that rewrites Host passes the public name on as X-Forwarded-Host.
+    const rewritten = { "x-forwarded-host": "rickhouse.example.com" };
+    expect(turnstileSiteKeyFor(forwarded("192.168.1.50", rewritten))).toBe("site");
+  });
+
+  it("skips nobody without APP_URL, since it can't tell the public address apart", async () => {
+    const { turnstileSiteKeyFor } = await loadTurnstile({ ...lan, APP_URL: "" });
+    expect(turnstileSiteKeyFor(forwarded("192.168.1.50"))).toBe("site");
+  });
+
   it("uses TRUSTED_PROXIES to find the visitor behind Cloudflare", async () => {
     const { turnstileSiteKeyFor } = await loadTurnstile({ ...lan, TRUSTED_PROXIES: "173.245.48.0/20" });
     expect(turnstileSiteKeyFor(forwarded("203.0.113.9, 173.245.48.10"))).toBe("site");
@@ -56,11 +75,11 @@ describe("skippingNetworks", () => {
     const blocked = new Response("captcha required", { status: 400 });
     const onRequest = vi.fn(async () => ({ response: blocked }));
     const plugin = skippingNetworks({ id: "captcha", onRequest } as never);
-    const call = (ip?: string) =>
+    const call = (ip?: string, host = "192.168.1.10:1964") =>
       plugin.onRequest!(
-        new Request("http://rickhouse.test/api/auth/sign-in/username", {
+        new Request(`http://${host}/api/auth/sign-in/username`, {
           method: "POST",
-          headers: ip ? { [CLIENT_IP_HEADER]: ip } : {},
+          headers: { host, ...(ip ? { [CLIENT_IP_HEADER]: ip } : {}) },
         }),
         {} as never,
       );
@@ -77,6 +96,7 @@ describe("skippingNetworks", () => {
     const { call, onRequest } = await wrapped();
     expect(await call("203.0.113.9")).toHaveProperty("response");
     expect(await call()).toHaveProperty("response");
-    expect(onRequest).toHaveBeenCalledTimes(2);
+    expect(await call("192.168.1.50", "rickhouse.example.com")).toHaveProperty("response");
+    expect(onRequest).toHaveBeenCalledTimes(3);
   });
 });

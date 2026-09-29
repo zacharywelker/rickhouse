@@ -47,9 +47,117 @@ TRUSTED_PROXIES=
 ```
 
 - **`APP_URL`** is the address people type. Email, single sign-on and passkeys need it. It also fixes "invalid origin" errors behind tunnels that rewrite the `Host` header.
-- **`TRUSTED_PROXIES`**: Rickhouse allows 5 sign-in attempts a minute per visitor IP, read from `X-Forwarded-For`. If Cloudflare sits in front of your proxy, list [Cloudflare's IP ranges](https://www.cloudflare.com/ips/) here, comma-separated. Otherwise every visitor shares one limit.
+- **`TRUSTED_PROXIES`**: Rickhouse allows 5 sign-in attempts a minute per visitor IP. It takes the visitor to be the last address in `X-Forwarded-For`, the one your proxy added. When something else sits in front of that proxy, such as Cloudflare, the last address is Cloudflare's, so list those addresses here and Rickhouse looks past them. Otherwise every visitor shares one limit. The sections below say what each setup needs.
 
-Direct LAN access on port `1964` keeps working.
+Direct LAN access on port `1964` keeps working. In the examples, `192.168.1.10` stands for your Unraid server's LAN address.
+
+### Cloudflare Tunnel
+
+In Cloudflare Zero Trust, add a public hostname to your tunnel: `rickhouse.example.com`, service type **HTTP**, URL `192.168.1.10:1964`.
+
+```ini
+TRUSTED_PROXIES=
+```
+
+Cloudflare adds the visitor's IP to the end of `X-Forwarded-For`, and `cloudflared` passes it on unchanged, so there's nothing to list. Point the tunnel straight at Rickhouse rather than through another proxy. If you do route it through Caddy, Nginx Proxy Manager or Traefik, that proxy sees every visitor as `cloudflared`: follow its "Behind Cloudflare" steps below, using `cloudflared`'s address instead of Cloudflare's ranges.
+
+### Caddy
+
+```caddyfile
+rickhouse.example.com {
+	reverse_proxy 192.168.1.10:1964
+}
+```
+
+```ini
+TRUSTED_PROXIES=
+```
+
+Caddy replaces any `X-Forwarded-For` a visitor sends with the address it sees, so nothing more is needed.
+
+**Behind Cloudflare** (the DNS record's proxy status is orange): Caddy would see every visitor as a Cloudflare server. Tell Caddy to keep Cloudflare's `X-Forwarded-For`, and tell Rickhouse to look past Cloudflare. Use the ranges listed at [cloudflare.com/ips](https://www.cloudflare.com/ips/), separated by spaces for Caddy and by commas for Rickhouse:
+
+```caddyfile
+{
+	servers {
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 ...
+	}
+}
+```
+
+```ini
+TRUSTED_PROXIES=173.245.48.0/20,103.21.244.0/22,...
+```
+
+### Nginx Proxy Manager
+
+Add a proxy host: domain `rickhouse.example.com`, scheme `http`, forward hostname/IP `192.168.1.10`, port `1964`. On the **SSL** tab, request a certificate and turn on **Force SSL**. Then, on the **Advanced** tab, paste:
+
+```nginx
+real_ip_header proxy_protocol;
+```
+
+```ini
+TRUSTED_PROXIES=
+```
+
+NPM adds the address it sees to the end of `X-Forwarded-For`. Without the Advanced line, though, NPM lets any request arriving from a Cloudflare, AWS CloudFront or private address (a `cloudflared` container, for one) replace that address with whatever its `X-Real-IP` header says. Visitors could then dodge the sign-in limit by making up addresses. The Advanced line turns that off for this host only.
+
+**Behind Cloudflare** (orange proxy status): keep the Advanced line and list Cloudflare's ranges from [cloudflare.com/ips](https://www.cloudflare.com/ips/):
+
+```ini
+TRUSTED_PROXIES=173.245.48.0/20,103.21.244.0/22,...
+```
+
+### Traefik
+
+With the file provider (put your own entry point and certificate resolver names in):
+
+```yaml
+http:
+  routers:
+    rickhouse:
+      rule: Host(`rickhouse.example.com`)
+      entryPoints: [websecure]
+      service: rickhouse
+      tls:
+        certResolver: letsencrypt
+  services:
+    rickhouse:
+      loadBalancer:
+        servers:
+          - url: http://192.168.1.10:1964
+```
+
+```ini
+TRUSTED_PROXIES=
+```
+
+Traefik drops any `X-Forwarded-For` or `X-Real-IP` a visitor sends and adds the address it sees, so nothing more is needed.
+
+**Behind Cloudflare** (orange proxy status): trust Cloudflare's ranges on the entry point in Traefik's static configuration, and list the same ranges in Rickhouse:
+
+```yaml
+entryPoints:
+  websecure:
+    address: ":443"
+    forwardedHeaders:
+      trustedIPs: ["173.245.48.0/20", "103.21.244.0/22", ...]
+```
+
+```ini
+TRUSTED_PROXIES=173.245.48.0/20,103.21.244.0/22,...
+```
+
+### Check what Rickhouse sees
+
+Sign in through your domain from a phone on mobile data, then run:
+
+```sh
+docker exec rickhouse-db psql -U rickhouse -c "SELECT ip_address, user_agent, created_at FROM sessions ORDER BY created_at DESC LIMIT 5;"
+```
+
+The newest row should show the phone's public IP. If it shows a Cloudflare address, your proxy's address or a `172.x` Docker address, recheck the steps for your setup.
 
 ## Bot check and password rules
 
@@ -61,7 +169,11 @@ PASSWORD_BREACH_CHECK=true
 ```
 
 - **Cloudflare Turnstile** (optional): create a Turnstile widget in the Cloudflare dashboard for your `APP_URL` hostname and paste in both keys. Sign-in and "forgot password" then show a bot check. Passkey sign-in skips it. Password sign-in then only works through `APP_URL`, not the LAN address, unless you set `TURNSTILE_SKIP_NETWORKS`. Leave both keys empty to turn it off.
-- **`TURNSTILE_SKIP_NETWORKS`** (optional): visitors from these IPs or CIDR ranges sign in without the bot check, so the LAN address works again. List your home network, e.g. `192.168.1.0/24`. Rickhouse judges each visitor by the same address it rate-limits (see `TRUSTED_PROXIES`), so someone reaching you through Cloudflare or your reverse proxy still gets the check even when the tunnel or proxy itself runs on your LAN. Two conditions: your proxy must send `X-Forwarded-For` (Cloudflare, Caddy, Nginx Proxy Manager and Traefik do by default), and port `1964` must not be port-forwarded to the internet, since a direct connection can claim any address.
+- **`TURNSTILE_SKIP_NETWORKS`** (optional): lets your LAN sign in without the bot check. List your home network, e.g. `192.168.1.0/24`. A visitor skips the check only when both of these hold:
+  - Their IP is in the list. This is the same visitor IP the sign-in limit uses, so set up your proxy as described under [HTTPS and reverse proxies](#https-and-reverse-proxies) first.
+  - They opened Rickhouse at an address other than `APP_URL`, e.g. `http://192.168.1.10:1964`. At `APP_URL` everyone gets the check, including LAN devices that reach it through local DNS; the check works there. Anyone coming in through Cloudflare or your reverse proxy arrives at `APP_URL`, so they're always checked. That way a proxy that lets visitors choose their own address can't switch it off.
+
+  This needs `APP_URL`; without it, nobody skips. List only your LAN, not Docker's `172.16.0.0/12` or every private range. And don't port-forward `1964` to the internet: a direct connection can claim any address.
 - **Breached passwords:** new passwords are checked against [Have I Been Pwned](https://haveibeenpwned.com/Passwords). Only the first 5 characters of the password's hash are sent. If the server has no internet access, set `PASSWORD_BREACH_CHECK=false`, or choosing a password will fail, including at first sign-in.
 - **No reuse:** a new password can't match the current one or any of the 4 before it. There's nothing to configure.
 
@@ -131,7 +243,7 @@ To read the data without Rickhouse, extract `csv.tar.gz` and open the CSVs in a 
 
 **Bot check fails or never loads:** check that the Turnstile widget's hostname matches `APP_URL`. To turn the check off, clear `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` and recreate the container. It's read from `.env`, so this works even when nobody can sign in.
 
-**Bot check still shows on the LAN:** `TURNSTILE_SKIP_NETWORKS` must cover the address of the device you're signing in from, and you must open Rickhouse at the server's LAN address. Going through your public domain sends you out via Cloudflare or your router, so you arrive from your public IP.
+**Bot check still shows on the LAN:** open Rickhouse at the server's LAN address (`http://192.168.1.10:1964`), not your domain; at `APP_URL` everyone gets the check. `TURNSTILE_SKIP_NETWORKS` must cover the device you're signing in from, and `APP_URL` must be set.
 
 **"Couldn't check that password":** the server can't reach Have I Been Pwned. Restore internet access, or set `PASSWORD_BREACH_CHECK=false`.
 

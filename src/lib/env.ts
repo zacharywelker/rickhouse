@@ -79,10 +79,9 @@ const envSchema = z.object({
   TURNSTILE_SECRET_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
   /**
    * Visitors from these IPs or CIDR ranges — typically your LAN, e.g.
-   * 192.168.1.0/24 — sign in without the Turnstile check. The visitor is
-   * the same address rate limiting uses (see TRUSTED_PROXIES), so someone
-   * coming in through a tunnel or reverse proxy is judged by their own
-   * address, not the proxy's.
+   * 192.168.1.0/24 — sign in without the Turnstile check when they open
+   * Rickhouse at an address other than APP_URL. The visitor is the same
+   * address rate limiting uses (see TRUSTED_PROXIES).
    */
   TURNSTILE_SKIP_NETWORKS: ipList(),
   /** Absolute path to the uploads volume inside the container. */
