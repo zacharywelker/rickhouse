@@ -24,6 +24,8 @@ import {
   type LinkRow,
 } from "@/lib/expressions/schema";
 import { fieldGroupForCategory } from "@/lib/expressions/queries";
+import { normalizeTtbId } from "@/lib/cola/ids";
+import { attachCola, colaFilesForExpression, colaLookupEnabled, deleteColaFiles, refreshCola } from "@/lib/cola/store";
 
 /**
  * Fields every category writes, whatever its field group. Anything outside
@@ -198,12 +200,25 @@ export async function saveExpressionAction(
       return target;
     });
 
+    // "Start from a TTB ID": attach the COLA to the new label and fetch its
+    // label images. Best effort — the label is saved either way, and the
+    // COLA can be added or fetched again from the label's page.
+    let colaNote = "";
+    const ttbId = id === null ? normalizeTtbId(String(formData.get("ttbId") ?? "")) : null;
+    if (ttbId) {
+      const cola = await attachCola(expressionId, user.id, ttbId).catch(() => null);
+      if (cola && typeof cola === "object" && colaLookupEnabled()) {
+        const fetched = await refreshCola(cola.id, user.id).catch(() => null);
+        if (!fetched?.ok) colaNote = ` Its COLA was added, but the lookup failed; fetch it from the label's page.`;
+      }
+    }
+
     revalidatePath("/expressions");
     revalidatePath("/bottles");
     revalidatePath("/");
     return {
       ok: true,
-      message: id === null ? "Label created." : "Label saved.",
+      message: id === null ? `Label created.${colaNote}` : "Label saved.",
       createdId: expressionId,
     };
   } catch (error: unknown) {
@@ -369,11 +384,14 @@ export async function updateExpressionsBulkAction(
 export async function deleteExpressionAction(id: number): Promise<ActionResult> {
   const user = await requireSession();
   try {
+    // COLA label images cascade in the database; the files on disk do not.
+    const colaFiles = await colaFilesForExpression(id);
     const deleted = await db
       .delete(expressions)
       .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
       .returning({ id: expressions.id });
     if (deleted.length === 0) return { ok: false, error: "That label is gone." };
+    await deleteColaFiles(colaFiles);
     revalidatePath("/expressions");
     return { ok: true, message: "Label deleted." };
   } catch (error: unknown) {
@@ -390,10 +408,12 @@ export async function deleteExpressionsBulkAction(ids: number[]): Promise<BulkSa
 
   for (const [index, id] of ids.entries()) {
     try {
+      const colaFiles = await colaFilesForExpression(id);
       const deleted = await db
         .delete(expressions)
         .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
         .returning({ id: expressions.id });
+      if (deleted.length > 0) await deleteColaFiles(colaFiles);
       results.push(
         deleted.length > 0 ? { index, ok: true, id } : { index, ok: false, error: "That label is gone.", fieldErrors: {} },
       );

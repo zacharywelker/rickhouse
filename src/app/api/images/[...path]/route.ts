@@ -2,7 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleImages, bottles, groups } from "@/db/schema";
+import { bottleImages, bottles, colaImages, expressionColas, groups } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { ImageError, contentTypeFor, resolveUpload } from "@/lib/images";
 
@@ -16,7 +16,7 @@ import { ImageError, contentTypeFor, resolveUpload } from "@/lib/images";
  */
 export const dynamic = "force-dynamic";
 
-/** True when `relative` is one of `ownerId`'s bottle photos (or thumbnails) or group covers. */
+/** True when `relative` is one of `ownerId`'s bottle photos (or thumbnails), group covers or COLA label images. */
 async function ownsUpload(relative: string, ownerId: number): Promise<boolean> {
   const [photo] = await db
     .select({ id: bottleImages.id })
@@ -27,6 +27,15 @@ async function ownsUpload(relative: string, ownerId: number): Promise<boolean> {
     )
     .limit(1);
   if (photo) return true;
+  const [label] = await db
+    .select({ id: colaImages.id })
+    .from(colaImages)
+    .innerJoin(expressionColas, eq(expressionColas.id, colaImages.colaId))
+    .where(
+      and(eq(expressionColas.ownerId, ownerId), or(eq(colaImages.filePath, relative), eq(colaImages.thumbPath, relative))),
+    )
+    .limit(1);
+  if (label) return true;
   return (await db.$count(groups, and(eq(groups.ownerId, ownerId), eq(groups.coverImagePath, relative)))) > 0;
 }
 

@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { env } from "./env";
@@ -18,6 +18,8 @@ const ORIGINALS = "bottles";
 const THUMBS = "bottles/thumbs";
 const GROUP_ORIGINALS = "groups";
 const GROUP_THUMBS = "groups/thumbs";
+const COLA_ORIGINALS = "colas";
+const COLA_THUMBS = "colas/thumbs";
 
 /** Formats sharp can read that a browser can display. */
 const ACCEPTED = new Map<string, string>([
@@ -27,6 +29,9 @@ const ACCEPTED = new Map<string, string>([
   ["image/avif", "avif"],
   ["image/heic", "heic"],
   ["image/heif", "heif"],
+  // TTB's label scans (SPEC M11) are mostly JPEG, but older ones are GIF or TIFF.
+  ["image/gif", "gif"],
+  ["image/tiff", "tiff"],
 ]);
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -54,11 +59,20 @@ export function resolveUpload(relative: string): string {
 }
 
 async function storeImage(file: File, originalsDir: string, thumbsDir: string): Promise<StoredImage> {
-  const extension = ACCEPTED.get(file.type);
+  return storeImageBytes(Buffer.from(await file.arrayBuffer()), file.type, originalsDir, thumbsDir);
+}
+
+async function storeImageBytes(
+  buffer: Buffer,
+  type: string,
+  originalsDir: string,
+  thumbsDir: string,
+): Promise<StoredImage> {
+  const extension = ACCEPTED.get(type);
   if (!extension) {
-    throw new ImageError(`${file.type || "That file type"} is not an image this app can store.`);
+    throw new ImageError(`${type || "That file type"} is not an image this app can store.`);
   }
-  if (file.size > MAX_UPLOAD_BYTES) {
+  if (buffer.byteLength > MAX_UPLOAD_BYTES) {
     throw new ImageError(`Images have to be under ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)}MB.`);
   }
 
@@ -66,7 +80,6 @@ async function storeImage(file: File, originalsDir: string, thumbsDir: string): 
   await mkdir(path.join(root, thumbsDir), { recursive: true });
 
   const id = randomUUID();
-  const buffer = Buffer.from(await file.arrayBuffer());
 
   // Re-encode rather than trusting the upload: this normalises HEIC from an
   // iPhone, strips EXIF (including GPS), and applies the orientation tag so
@@ -107,9 +120,22 @@ export async function storeBottleImage(file: File): Promise<StoredImage> {
   return storeImage(file, ORIGINALS, THUMBS);
 }
 
+/**
+ * A new bottle photo copied from another stored image (a COLA label panel).
+ * A copy, not a shared path, so deleting either never breaks the other.
+ */
+export async function copyToBottleImage(relative: string): Promise<StoredImage> {
+  return storeImageBytes(await readFile(resolveUpload(relative)), contentTypeFor(relative), ORIGINALS, THUMBS);
+}
+
 /** A Group's cover image (DESIGN.md §23). Same pipeline, a separate directory. */
 export async function storeGroupCoverImage(file: File): Promise<StoredImage> {
   return storeImage(file, GROUP_ORIGINALS, GROUP_THUMBS);
+}
+
+/** An approved label panel from the COLA registry (SPEC M11). Same pipeline, its own directory. */
+export async function storeColaImage(bytes: Buffer, contentType: string): Promise<StoredImage> {
+  return storeImageBytes(bytes, contentType, COLA_ORIGINALS, COLA_THUMBS);
 }
 
 /**

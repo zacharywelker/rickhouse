@@ -73,6 +73,7 @@ at the end of every milestone.
 | M7 | Model revisions | ✅ Done |
 | M8 | Interaction and wording | ✅ Done — except the t8ke wording, below |
 | M9 | Tastings beyond the shelf | ▶ Next |
+| M11 | TTB label approvals | ✅ Done |
 
 Finished milestones are struck through below. They stay in the document
 because the revisions in M7 only make sense against what was actually built.
@@ -414,6 +415,39 @@ it live in issue #48; the phases, in order:
 Email, SSO and passkeys all need APP_URL. The auth instance is rebuilt from
 the database within seconds of an admin changing SMTP or SSO settings.
 
+### M11 — TTB label approvals ✅
+
+Every spirit sold in the US carries a label TTB approved, and each approval
+(a COLA) has a public record in TTB's COLA registry: a 14-digit TTB ID, the
+brand and fanciful name, the class/type, the origin, the permit holder that
+bottled or imported it, the approval date, and the approved label artwork.
+That is the closest thing to an authoritative record of what a label is, so
+a label can carry its COLAs.
+
+- **Many per label.** Each proof, size, relabel and pick is approved
+  separately, so `expression_colas` hangs off the label with a `position`,
+  and `cola_images` holds each approval's label panels on the uploads volume.
+  Both are private to the owner like the rest of the catalog.
+- **Look up by TTB ID.** Pasting a TTB ID (or the registry link) on a
+  label's page fetches the record and its label images; "Start from a TTB
+  ID" on New Label fills in the brand, name and category first. A brand is
+  only matched, never created. Refresh fetches again; a failed lookup keeps
+  the previous copy and says why.
+- **Label art as photos.** On a bottle's page, a label panel can be copied
+  into the bottle's photos as a catalog shot.
+- **No API.** The registry has none, so the two public pages are read as
+  HTML (`src/lib/cola/parse.ts`), tested against saved pages. A markup change
+  fails loudly rather than filling labels with blanks; re-save the fixtures
+  and fix the parser. Name search stays on TTB's site: it needs a date
+  window of at most 15 years and a session, and people search it better
+  than a scraper does.
+- **Narrow on the wire.** Only TTB's hosts (redirects and image links
+  checked hop by hop), one request a second from the server, size caps and
+  timeouts. TTB's server omits its intermediate certificate, so the app
+  ships that one certificate for these requests rather than loosening TLS.
+- **Off switch.** `COLA_LOOKUP=false` stops all fetching; TTB IDs and links
+  to the registry still work.
+
 ---
 
 ## Deployment
@@ -498,7 +532,8 @@ Do not build these, and do not restructure the schema to accommodate them:
   roles are M10.)
 - Price scraping, market valuation, or any third-party API integration.
   M7 drops `bottles.estimated_value` for the same reason: this is a collection,
-  not a portfolio.
+  not a portfolio. The one exception is TTB's public COLA registry (M11): it
+  describes the label, not its price, and it can be switched off.
 - Mobile native apps.
 - Merging `expressions` and `bottles` "for simplicity".
 - Replacing the join tables with text columns.

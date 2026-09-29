@@ -15,11 +15,13 @@ import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
+import { ColaApprovals } from "@/components/expressions/cola-approvals";
 import { Tape } from "@/components/ui/tape";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
+import { colaLookupEnabled, colasForExpression } from "@/lib/cola/store";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
@@ -139,12 +141,13 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   const row = await getBottle(bottleId, user.id);
   if (!row) notFound();
 
-  const [images, notes, links, memberOf, allGroups] = await Promise.all([
+  const [images, notes, links, memberOf, allGroups, colas] = await Promise.all([
     bottleImagesFor(bottleId),
     tastingNotesFor(bottleId),
     expressionLinks(row.expression.id),
     groupsForBottle(bottleId),
     allGroupOptions(user.id),
+    colasForExpression(row.expression.id, user.id),
   ]);
 
   const hero = images.find((image) => image.isPrimary) ?? images[0] ?? null;
@@ -359,6 +362,13 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <div className="flex flex-col gap-3 border-t border-border pt-6">
               {e.description ? <p className="text-sm">{e.description}</p> : null}
               {row.bottle.notes ? <p className={cn("text-lg text-accent", handFont)}>{row.bottle.notes}</p> : null}
+            </div>
+          ) : null}
+
+          {colas.length > 0 ? (
+            <div className="flex flex-col gap-3 border-t border-border pt-6">
+              <h2 className="text-xl">Label approvals</h2>
+              <ColaApprovals mode="bottle" bottleId={bottleId} colas={colas} lookupEnabled={colaLookupEnabled()} />
             </div>
           ) : null}
 

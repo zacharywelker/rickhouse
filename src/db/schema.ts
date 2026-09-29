@@ -359,6 +359,70 @@ export const expressionFinishes = pgTable(
   (t) => [primaryKey({ columns: [t.expressionId, t.finishId] })],
 );
 
+/**
+ * TTB label approvals (COLAs) behind a label (SPEC M11). Several per label:
+ * each proof, size, relabel and pick is approved separately. The fetched
+ * columns copy the public registry record and are refreshed on demand.
+ */
+export const expressionColas = pgTable(
+  "expression_colas",
+  {
+    id: serial("id").primaryKey(),
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+    /** Held to the owner by a composite FK to expressions(id, owner_id) in the migration. */
+    expressionId: integer("expression_id").notNull(),
+    ttbId: text("ttb_id").notNull(),
+    position: integer("position").notNull().default(0),
+    note: text("note"),
+
+    status: text("status"),
+    brandName: text("brand_name"),
+    fancifulName: text("fanciful_name"),
+    classTypeCode: text("class_type_code"),
+    classType: text("class_type"),
+    originCode: text("origin_code"),
+    origin: text("origin"),
+    isImported: boolean("is_imported"),
+    applicantName: text("applicant_name"),
+    applicantAddress: text("applicant_address"),
+    permitNumber: text("permit_number"),
+    serialNumber: text("serial_number"),
+    approvedOn: date("approved_on"),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+    fetchError: text("fetch_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("expression_colas_ttb_id_check", sql`${t.ttbId} ~ '^[0-9]{14}$'`),
+    unique("expression_colas_expression_ttb_unique").on(t.expressionId, t.ttbId),
+    unique("expression_colas_id_owner_unique").on(t.id, t.ownerId),
+    index("expression_colas_owner_idx").on(t.ownerId),
+    index("expression_colas_ttb_idx").on(t.ttbId),
+  ],
+);
+
+/** The approved label panels of one COLA, on the uploads volume like bottle photos. */
+export const colaImages = pgTable(
+  "cola_images",
+  {
+    id: serial("id").primaryKey(),
+    colaId: integer("cola_id")
+      .notNull()
+      .references(() => expressionColas.id, { onDelete: "cascade" }),
+    filePath: text("file_path").notNull(),
+    thumbPath: text("thumb_path"),
+    /** TTB's image type: "Brand (front) or keg collar", "Back", "Other"… */
+    panel: text("panel"),
+    width: integer("width"),
+    height: integer("height"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("cola_images_cola_idx").on(t.colaId)],
+);
+
 // ------------------------------------------------------------
 // Bottles (the physical unit)
 // ------------------------------------------------------------
