@@ -50,13 +50,14 @@ and three mashbills. `expression_distilleries`, `expression_mashbills` and
 `expression_finishes` are join tables with a `position` column. Never render or
 store these as comma-separated text.
 
-A distillery row says how much is known about it (`disclosure`): `named` (the
-label states it), `undisclosed` (a placeholder such as "Undisclosed (Indiana)"
-for labels that give only a place) or `inferred` (identified from outside the
-label). Placeholders are ordinary rows in the same join, so blends, shares and
-per-mashbill attribution work unchanged; rankings leave `undisclosed` out. Who
-bottled a label is a separate claim, `expressions.bottled_by_id`, a link to
-`companies`.
+A distillery row is either `named` or `undisclosed` (`disclosure`): a placeholder
+such as "Undisclosed (Indiana)" for labels that give only a place. Placeholders
+are ordinary rows in the same join, so blends, shares and per-mashbill
+attribution work unchanged; rankings leave them out. Whether a link is a guess
+is per label, not per distillery: `expression_distilleries.is_inferred` marks a
+distillery identified from outside the label, so the same MGP can be stated on
+one label and inferred on another. Who bottled a label is a separate claim,
+`expressions.bottled_by_id`, a link to `companies`.
 
 **3. Category-specific fields are sparse nullable columns.** Rum fields
 (`still_type`, `estate`, `ester_gl`, …) live on `expressions` and are shown or

@@ -110,12 +110,15 @@ export const brands = pgTable(
 );
 
 /**
- * How much is known about a distillery:
- *   named       identified, and the label says so (every row before this existed)
- *   undisclosed a placeholder for a place the label admits to and nothing more
- *   inferred    identified from outside the label, so never presented as fact
+ * What a distillery row stands for:
+ *   named       a real distillery
+ *   undisclosed a placeholder for a place a label admits to and nothing more
+ *
+ * Whether a label's link to a real distillery is a guess is not recorded here:
+ * that is per label (`expression_distilleries.is_inferred`), because the same
+ * distillery is stated on one bottle and only inferred on another.
  */
-export const DISTILLERY_DISCLOSURES = ["named", "undisclosed", "inferred"] as const;
+export const DISTILLERY_DISCLOSURES = ["named", "undisclosed"] as const;
 export type DistilleryDisclosure = (typeof DISTILLERY_DISCLOSURES)[number];
 
 export const distilleries = pgTable(
@@ -332,6 +335,8 @@ export const expressionDistilleries = pgTable(
       .references(() => distilleries.id, { onDelete: "cascade" }),
     position: integer("position").notNull().default(0),
     sharePct: pct("share_pct"),
+    /** Identified from outside the label, so never presented as fact. */
+    isInferred: boolean("is_inferred").notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.expressionId, t.distilleryId] })],
 );

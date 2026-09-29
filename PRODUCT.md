@@ -19,7 +19,7 @@ Rickhouse is "a field guide to your liquor collection": a self-hosted bottle tra
 ## Positioning
 
 - **Label vs. bottle.** The label (expression: brand, distillery, mashbill, proof, MSRP) is kept separate from the physical bottle (price paid, store, date, batch or barrel, fill level, photos). A second purchase is a second bottle on the same label.
-- **Blends are modelled honestly.** Distilleries, mashbills and finishes are linked many-to-many, so a three-distillery blend shows up under all three. When a label names no distillery, that is recorded too: an undisclosed source is a placeholder for the place it admits to, and one identified from outside the label is marked inferred, so a guess never reads as fact.
+- **Blends are modelled honestly.** Distilleries, mashbills and finishes are linked many-to-many, so a three-distillery blend shows up under all three. When a label names no distillery, that is recorded too: an undisclosed source is a placeholder for the place it admits to, and a link to a distillery the label never names can be ticked inferred, per label, so a guess never reads as fact.
 - **Self-hosted and private.** Your data stays on your hardware. Backups run from inside the app, with a plain-CSV copy you can read without Rickhouse.
 - **A collection, not a portfolio.** No market valuation or price scraping.
 

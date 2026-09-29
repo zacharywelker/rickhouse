@@ -43,7 +43,12 @@ async function loadLinks(expressionId: number) {
       amount: row.amount === null ? "" : String(Number(row.amount)),
     }));
   return {
-    distilleries: toRows(linked.distilleries),
+    distilleries: linked.distilleries.map((row) => ({
+      id: row.id,
+      label: row.name,
+      amount: row.amount === null ? "" : String(Number(row.amount)),
+      inferred: row.inferred === true,
+    })),
     mashbills: linked.mashbills.map((row) => ({
       id: row.id,
       label: row.name,

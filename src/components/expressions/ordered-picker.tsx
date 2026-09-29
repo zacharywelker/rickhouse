@@ -15,6 +15,8 @@ export type LinkedRow = {
   hint?: string;
   /** Mashbills only: which of the label's distilleries made this recipe. */
   distilleryId?: number | null;
+  /** Distilleries only: identified from outside the label, not stated on it. */
+  inferred?: boolean;
 };
 
 /**
@@ -37,6 +39,7 @@ export function OrderedPicker({
   onChange,
   emptyHint,
   distilleryChoices,
+  inferable = false,
 }: {
   name: string;
   label: string;
@@ -55,6 +58,8 @@ export function OrderedPicker({
    * to choose. With none, there is nothing to attribute to yet.
    */
   distilleryChoices?: Array<{ id: number; name: string }>;
+  /** Distilleries only: each row gets an "Inferred" tick, for a source the label never names. */
+  inferable?: boolean;
 }) {
   const [available, setAvailable] = React.useState(options);
   const chosen = new Set(value.map((row) => row.id));
@@ -119,6 +124,24 @@ export function OrderedPicker({
                 </div>
               ) : soloDistillery ? (
                 <span className="text-xs text-muted-foreground">from {soloDistillery.name}</span>
+              ) : null}
+
+              {inferable ? (
+                <label
+                  htmlFor={`${name}-inferred-${row.id}`}
+                  className="flex items-center gap-1 text-xs"
+                  title="Not stated on the label; identified from outside it"
+                >
+                  <input
+                    id={`${name}-inferred-${row.id}`}
+                    type="checkbox"
+                    checked={row.inferred === true}
+                    onChange={(e) =>
+                      onChange(value.map((r) => (r.id === row.id ? { ...r, inferred: e.target.checked } : r)))
+                    }
+                  />
+                  Inferred
+                </label>
               ) : null}
 
               <div className="flex items-center gap-1">
@@ -206,7 +229,12 @@ export function OrderedPicker({
         type="hidden"
         name={name}
         value={JSON.stringify(
-          value.map((row) => ({ id: row.id, amount: row.amount, distilleryId: row.distilleryId ?? null })),
+          value.map((row) => ({
+            id: row.id,
+            amount: row.amount,
+            distilleryId: row.distilleryId ?? null,
+            inferred: row.inferred === true,
+          })),
         )}
       />
     </fieldset>

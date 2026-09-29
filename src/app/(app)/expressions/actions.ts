@@ -96,6 +96,7 @@ async function insertLinks(tx: Tx, expressionId: number, links: Links) {
         distilleryId: row.id,
         position,
         sharePct: row.amount === null ? null : String(row.amount),
+        isInferred: row.inferred === true,
       })),
     );
   }

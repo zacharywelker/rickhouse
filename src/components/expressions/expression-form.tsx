@@ -19,6 +19,7 @@ import { OrderedPicker, type LinkedRow } from "./ordered-picker";
 import { DeleteExpressionButton } from "./delete-expression-button";
 
 const ALL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
+const bottledBy = ALL_FIELDS.find((field) => field.name === "bottledById");
 
 export function ExpressionForm({
   expressionId,
@@ -64,7 +65,7 @@ export function ExpressionForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      {EXPRESSION_SECTIONS.map((section) => {
+      {EXPRESSION_SECTIONS.filter((section) => section.id !== "source").map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
         return (
           <Section key={section.id}>
@@ -145,14 +146,31 @@ export function ExpressionForm({
           <OrderedPicker
             name="distilleryLinks"
             label="Distilleries"
-            description="Every distillery that contributed, in the order you would list them."
+            description="Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere."
             resource="distilleries"
             options={optionsByField.distilleryLinks ?? []}
             amountLabel="Share"
             amountSuffix="%"
+            inferable
             value={links.distilleries}
             onChange={(rows) => setLinks((prev) => ({ ...prev, distilleries: rows }))}
           />
+          {bottledBy ? (
+            <Field
+              spec={bottledBy}
+              idPrefix="expression"
+              value={values.bottledById ?? ""}
+              onChange={(next) => set("bottledById", next)}
+              error={fieldErrors.bottledById}
+              options={optionsByField.bottledById ?? []}
+              onOptionCreated={(option) =>
+                setOptionsByField((prev) => ({
+                  ...prev,
+                  bottledById: [...(prev.bottledById ?? []), option].sort((a, b) => a.label.localeCompare(b.label)),
+                }))
+              }
+            />
+          ) : null}
           <OrderedPicker
             name="mashbillLinks"
             label="Mashbills"

@@ -68,6 +68,7 @@ export function LinksCell({
           amountSuffix={config.amountSuffix}
           value={value}
           onChange={onChange}
+          inferable={config.inferable === true}
           {...(config.emptyHint ? { emptyHint: config.emptyHint } : {})}
           {...(distilleryChoices ? { distilleryChoices } : {})}
         />

@@ -40,14 +40,6 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     fields: [
       { kind: "reference", name: "brandId", label: "Brand", resource: "brands", required: true, span: "half" },
       { kind: "reference", name: "categoryId", label: "Category", resource: "categories", required: true, span: "half" },
-      {
-        kind: "reference",
-        name: "bottledById",
-        label: "Bottled By",
-        resource: "companies",
-        help: "Who bottled it, when the label says. Not the same as who distilled it, which goes under Distilleries below.",
-        span: "half",
-      },
       { kind: "text", name: "name", label: "Label Name", required: true, placeholder: "Double Oak Spirit", span: "half" },
       {
         kind: "text",
@@ -58,6 +50,22 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         span: "half",
       },
       { kind: "textarea", name: "description", label: "Description" },
+    ],
+  },
+  {
+    // Rendered by the form inside "Where it came from", under Distilleries;
+    // it is a section here so the field is validated and written like the rest.
+    id: "source",
+    title: "Bottler",
+    fields: [
+      {
+        kind: "reference",
+        name: "bottledById",
+        label: "Bottled By",
+        resource: "companies",
+        help: "Who bottled it, when the label says. Not the same as who distilled it: a bottle can be distilled in Indiana and bottled in Kentucky.",
+        span: "full",
+      },
     ],
   },
   {

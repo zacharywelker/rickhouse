@@ -507,9 +507,8 @@ const distilleriesConfig: ResourceConfig = {
       options: [
         { value: "named", label: "Named on the label" },
         { value: "undisclosed", label: "Undisclosed — only a place is given" },
-        { value: "inferred", label: "Inferred — identified from outside the label" },
       ],
-      help: "For a bottle that says only \"Distilled in Indiana\", add \"Undisclosed (Indiana)\" and set the state. If you know who really made it, add them as Inferred so a guess never reads as fact.",
+      help: "For a bottle that says only \"Distilled in Indiana\", add \"Undisclosed (Indiana)\" and set the state. Guessing who really made it is marked on each label, next to the distillery, not here.",
       span: "full",
     },
     notesField,
@@ -608,7 +607,6 @@ const distilleriesConfig: ResourceConfig = {
 const DISCLOSURE_LABELS: Record<DistilleryDisclosure, string> = {
   named: "Named",
   undisclosed: "Undisclosed",
-  inferred: "Inferred",
 };
 
 async function distilleryOptions(ownerId: number): Promise<Option[]> {
@@ -622,7 +620,7 @@ async function distilleryOptions(ownerId: number): Promise<Option[]> {
     .from(distilleries)
     .where(eq(distilleries.ownerId, ownerId))
     .orderBy(asc(distilleries.name));
-  // A named distillery's hint stays its state; the others say how sure we are.
+  // A named distillery's hint stays its state; a placeholder says what it is.
   return rows.map((r) => {
     const hint = r.disclosure === "named" ? r.state : [DISCLOSURE_LABELS[r.disclosure], r.state].filter(Boolean).join(" · ");
     return { value: r.value, label: r.label, ...(hint ? { hint } : {}) };

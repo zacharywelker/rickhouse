@@ -11,6 +11,8 @@ export const LINK_KINDS: Record<
     label: string;
     description: string;
     resource: ReferenceResource | null;
+    /** Each row can be marked as identified from outside the label. */
+    inferable?: boolean;
     emptyHint?: string;
     amountLabel: string;
     amountSuffix: string;
@@ -19,8 +21,10 @@ export const LINK_KINDS: Record<
   distilleries: {
     field: "distilleryLinks",
     label: "Distilleries",
-    description: "Every distillery that contributed, in the order you would list them.",
+    description:
+      "Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere.",
     resource: "distilleries",
+    inferable: true,
     amountLabel: "Share",
     amountSuffix: "%",
   },
@@ -49,11 +53,16 @@ export const LINK_FIELDS = (Object.keys(LINK_KINDS) as LinkKind[]).map((kind) =>
 export function describeLinks(kind: LinkKind, rows: ReadonlyArray<LinkedRow>): string {
   const suffix = LINK_KINDS[kind].amountSuffix;
   return rows
-    .map((row) => (row.amount === "" ? row.label : `${row.label} (${row.amount}${suffix === "%" ? "%" : ` ${suffix}`})`))
+    .map((row) => {
+      const amount = row.amount === "" ? "" : ` (${row.amount}${suffix === "%" ? "%" : ` ${suffix}`})`;
+      return `${row.label}${amount}${row.inferred ? " (inferred)" : ""}`;
+    })
     .join(", ");
 }
 
 /** The JSON the server's `parseLinks` reads — the same shape the form submits. */
 export function linksPayload(rows: ReadonlyArray<LinkedRow>): string {
-  return JSON.stringify(rows.map((row) => ({ id: row.id, amount: row.amount, distilleryId: row.distilleryId ?? null })));
+  return JSON.stringify(
+    rows.map((row) => ({ id: row.id, amount: row.amount, distilleryId: row.distilleryId ?? null, inferred: row.inferred === true })),
+  );
 }

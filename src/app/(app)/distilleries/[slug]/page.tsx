@@ -33,7 +33,6 @@ export default async function DistilleryPage({
       badges={
         <>
           {row.disclosure === "undisclosed" ? <Badge>Undisclosed</Badge> : null}
-          {row.disclosure === "inferred" ? <Badge>Inferred, not on the label</Badge> : null}
           {row.company ? <Badge>{row.company}</Badge> : null}
         </>
       }
