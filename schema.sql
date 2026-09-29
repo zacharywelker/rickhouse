@@ -166,6 +166,8 @@ CREATE TABLE expressions (
     -- Who bottled it. A different claim from who distilled it, and often the
     -- only name on a sourced bottle.
     bottled_by_id   integer REFERENCES companies(id) ON DELETE SET NULL,
+    -- Where it was bottled, for labels that say where but not by whom.
+    bottled_in      text,
     name            citext  NOT NULL,          -- "Double Oak Spirit"
     slug            text    NOT NULL,
 

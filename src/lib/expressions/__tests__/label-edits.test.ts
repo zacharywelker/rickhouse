@@ -13,6 +13,7 @@ const row: ExpressionRow = {
   categoryId: 11,
   bottledBy: null,
   bottledById: null,
+  bottledIn: null,
   fieldGroup: "whiskey",
   proof: "108.00",
   abv: "54.00",

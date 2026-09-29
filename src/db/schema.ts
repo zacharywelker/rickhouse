@@ -254,6 +254,8 @@ export const expressions = pgTable(
       .references(() => categories.id, { onDelete: "restrict" }),
     /** Who bottled it: a different claim from who distilled it. Same account as the label. */
     bottledById: integer("bottled_by_id").references(() => companies.id, { onDelete: "set null" }),
+    /** Where it was bottled, for labels that say where but not by whom ("Kentucky"). */
+    bottledIn: text("bottled_in"),
     name: citext("name").notNull(),
     slug: text("slug").notNull(),
 

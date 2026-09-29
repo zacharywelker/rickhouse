@@ -218,6 +218,7 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       categoryId: expressions.categoryId,
       bottledBy: companies.name,
       bottledById: expressions.bottledById,
+      bottledIn: expressions.bottledIn,
       fieldGroup: categories.fieldGroup,
       proof: expressions.proof,
       abv: expressions.abv,
@@ -358,6 +359,8 @@ export type ExpressionRow = {
   /** Who bottled it; null when the label does not say. */
   bottledBy: string | null;
   bottledById: number | null;
+  /** Where it was bottled, when the label says a place and no bottler. */
+  bottledIn: string | null;
   fieldGroup: FieldGroup;
   proof: string | null;
   abv: string | null;

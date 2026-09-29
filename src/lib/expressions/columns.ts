@@ -100,6 +100,7 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
     columns: [
       { id: "distilleries", label: "Distilleries", specs: [] },
       field("bottledById", { id: "bottledBy" }),
+      field("bottledIn"),
       { id: "mashbills", label: "Mashbills", specs: [] },
       { id: "finishes", label: "Finishes", specs: [] },
     ],

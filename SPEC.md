@@ -57,7 +57,8 @@ attribution work unchanged; rankings leave them out. Whether a link is a guess
 is per label, not per distillery: `expression_distilleries.is_inferred` marks a
 distillery identified from outside the label, so the same MGP can be stated on
 one label and inferred on another. Who bottled a label is a separate claim,
-`expressions.bottled_by_id`, a link to `companies`.
+`expressions.bottled_by_id`, a link to `companies`, with `bottled_in` (a place) for
+labels that say where it was bottled but not by whom.
 
 **3. Category-specific fields are sparse nullable columns.** Rum fields
 (`still_type`, `estate`, `ester_gl`, …) live on `expressions` and are shown or
