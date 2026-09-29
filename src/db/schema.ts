@@ -15,6 +15,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   pgView,
@@ -847,6 +848,8 @@ export const bottleList = pgView("bottle_list", {
   fieldGroup: text("field_group").notNull().$type<FieldGroup>(),
   store: citext("store"),
   distilleries: text("distilleries"),
+  /** The same distilleries with each one's per-label flag, for tables that colour an inferred one. */
+  distilleryLinks: jsonb("distillery_links").$type<Array<{ name: string; inferred: boolean }> | null>(),
   finishes: text("finishes"),
   avgRating: numeric("avg_rating", { precision: 3, scale: 1 }),
   thumbPath: text("thumb_path"),

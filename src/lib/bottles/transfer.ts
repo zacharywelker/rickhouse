@@ -38,6 +38,9 @@ export const TRANSFER_HEADERS = [
   "msrp",
   "upc",
   "distilleries",
+  // The subset of `distilleries` identified from outside the label, not stated
+  // on it. Its own column so a distillery's name stays exactly its name.
+  "inferred_distilleries",
   "finishes",
   "price_paid",
   "store",
@@ -78,6 +81,11 @@ export async function exportBottlesCsv(ownerId: number): Promise<string> {
           FROM expression_distilleries ed
           JOIN distilleries d ON d.id = ed.distillery_id
          WHERE ed.expression_id = ${expressions.id})`,
+      inferredDistilleries: sql<string | null>`(
+        SELECT string_agg(d.name, '; ' ORDER BY ed.position)
+          FROM expression_distilleries ed
+          JOIN distilleries d ON d.id = ed.distillery_id
+         WHERE ed.expression_id = ${expressions.id} AND ed.is_inferred)`,
       finishes: sql<string | null>`(
         SELECT string_agg(f.name, '; ' ORDER BY ef.position)
           FROM expression_finishes ef
@@ -104,6 +112,7 @@ export async function exportBottlesCsv(ownerId: number): Promise<string> {
       row.msrp,
       row.upc,
       row.distilleries,
+      row.inferredDistilleries,
       row.finishes,
       row.pricePaid,
       row.store,
@@ -276,10 +285,16 @@ export async function importBottlesCsv(text: string, ownerId: number): Promise<I
           .returning({ id: expressions.id });
         expressionId = created!.id;
 
+        const inferred = new Set(list(row.inferred_distilleries ?? "").map((name) => name.toLowerCase()));
         for (const [position, name] of list(row.distilleries ?? "").entries()) {
           await db
             .insert(expressionDistilleries)
-            .values({ expressionId, distilleryId: await findOrCreate("distillery", name, ownerId), position })
+            .values({
+              expressionId,
+              distilleryId: await findOrCreate("distillery", name, ownerId),
+              position,
+              isInferred: inferred.has(name.toLowerCase()),
+            })
             .onConflictDoNothing();
         }
         for (const [position, name] of list(row.finishes ?? "").entries()) {

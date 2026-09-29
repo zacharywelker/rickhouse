@@ -53,10 +53,7 @@ export const LINK_FIELDS = (Object.keys(LINK_KINDS) as LinkKind[]).map((kind) =>
 export function describeLinks(kind: LinkKind, rows: ReadonlyArray<LinkedRow>): string {
   const suffix = LINK_KINDS[kind].amountSuffix;
   return rows
-    .map((row) => {
-      const amount = row.amount === "" ? "" : ` (${row.amount}${suffix === "%" ? "%" : ` ${suffix}`})`;
-      return `${row.label}${amount}${row.inferred ? " (inferred)" : ""}`;
-    })
+    .map((row) => (row.amount === "" ? row.label : `${row.label} (${row.amount}${suffix === "%" ? "%" : ` ${suffix}`})`))
     .join(", ");
 }
 

@@ -20,8 +20,8 @@ describe("inferred distillery links", () => {
     expect(parseLinks(JSON.stringify([{ id: 5, amount: "" }]))[0]?.inferred).toBeUndefined();
   });
 
-  it("says so in the one-line description", () => {
-    expect(describeLinks("distilleries", rows)).toBe("MGP of Indiana (inferred), Bardstown (40%)");
+  it("leaves the flag out of the one-line description, which the labels table shows", () => {
+    expect(describeLinks("distilleries", rows)).toBe("MGP of Indiana, Bardstown (40%)");
   });
 
   it("makes flipping the flag count as a change", () => {

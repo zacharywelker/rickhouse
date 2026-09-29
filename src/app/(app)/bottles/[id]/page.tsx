@@ -99,7 +99,7 @@ function Chips({
   hrefFor,
 }: {
   label: string;
-  items: Array<{ id: number; name: string; slug: string | null; amount: string | null }>;
+  items: Array<{ id: number; name: string; slug: string | null; amount: string | null; inferred?: boolean }>;
   hrefFor: (item: { id: number; slug: string | null }) => Route | null;
 }) {
   if (items.length === 0) return null;
@@ -113,6 +113,7 @@ function Chips({
             <Badge
               className={cn(
                 "border-border bg-muted text-foreground",
+                item.inferred && "border-info/50 text-info",
                 href && "transition-colors hover:border-primary/50 hover:text-primary",
               )}
             >
@@ -120,6 +121,7 @@ function Chips({
               {item.amount !== null ? (
                 <span className="ml-1 text-muted-foreground">{Number(item.amount)}%</span>
               ) : null}
+              {item.inferred ? <span className="ml-1 text-info">inferred</span> : null}
             </Badge>
           );
           return <li key={item.id}>{href ? <Link href={href}>{chip}</Link> : chip}</li>;
