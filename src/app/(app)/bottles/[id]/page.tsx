@@ -21,7 +21,7 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
-import { colaLookupEnabled, colasForExpression } from "@/lib/cola/store";
+import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
@@ -149,6 +149,11 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
     allGroupOptions(user.id),
     colasForExpression(row.expression.id, user.id),
   ]);
+
+  const distilleryMatches = await distilleriesByPermit(
+    user.id,
+    colas.map((cola) => cola.permitNumber),
+  );
 
   const hero = images.find((image) => image.isPrimary) ?? images[0] ?? null;
   const e = row.expression;
@@ -368,7 +373,13 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
           {colas.length > 0 ? (
             <div className="flex flex-col gap-3 border-t border-border pt-6">
               <h2 className="text-xl">Label approvals</h2>
-              <ColaApprovals mode="bottle" bottleId={bottleId} colas={colas} lookupEnabled={colaLookupEnabled()} />
+              <ColaApprovals
+                mode="bottle"
+                bottleId={bottleId}
+                colas={colas}
+                lookupEnabled={colaLookupEnabled()}
+                distilleryMatches={distilleryMatches}
+              />
             </div>
           ) : null}
 

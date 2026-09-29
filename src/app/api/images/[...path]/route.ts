@@ -32,7 +32,10 @@ async function ownsUpload(relative: string, ownerId: number): Promise<boolean> {
     .from(colaImages)
     .innerJoin(expressionColas, eq(expressionColas.id, colaImages.colaId))
     .where(
-      and(eq(expressionColas.ownerId, ownerId), or(eq(colaImages.filePath, relative), eq(colaImages.thumbPath, relative))),
+      and(
+        eq(expressionColas.ownerId, ownerId),
+        or(eq(colaImages.filePath, relative), eq(colaImages.thumbPath, relative), eq(colaImages.displayPath, relative)),
+      ),
     )
     .limit(1);
   if (label) return true;

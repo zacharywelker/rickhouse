@@ -3,21 +3,34 @@
 import * as React from "react";
 import { useActionState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { ExternalLink, ImagePlus, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowUpToLine, ExternalLink, ImagePlus, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   addColaAction,
+  copyColaImageToBottleAction,
+  featureColaAction,
   refreshColaAction,
   removeColaAction,
-  copyColaImageToBottleAction,
 } from "@/app/(app)/expressions/cola-actions";
 import { IDLE_RESULT, type ActionResult } from "@/lib/admin/types";
-import { colaDetailUrl } from "@/lib/cola/ids";
-import { registryCase } from "@/lib/cola/map";
+import { colaDetailUrl, colaFormUrl } from "@/lib/cola/ids";
+import { registryCase } from "@/lib/cola/format";
 import { cn, formatDate } from "@/lib/utils";
+import { ColaSearchDialog } from "./cola-search-dialog";
+
+export type ColaImageView = {
+  id: number;
+  filePath: string;
+  thumbPath: string | null;
+  displayPath: string | null;
+  panel: string | null;
+  width: number | null;
+  height: number | null;
+};
 
 export type ColaView = {
   id: number;
@@ -35,184 +48,323 @@ export type ColaView = {
   approvedOn: string | null;
   fetchedAt: Date | null;
   fetchError: string | null;
-  images: { id: number; filePath: string; thumbPath: string | null; panel: string | null }[];
+  images: ColaImageView[];
 };
 
+type Props = {
+  colas: ColaView[];
+  lookupEnabled: boolean;
+  /** The owner's distilleries whose DSP number matches a COLA's permit, keyed by that permit. */
+  distilleryMatches: Record<string, { name: string; slug: string }>;
+} & ({ mode: "label"; expressionId: number; brandName: string } | { mode: "bottle"; bottleId: number });
+
 /**
- * A label's TTB approvals (SPEC M11). On the label form ("label") they are
- * managed: added by TTB ID, looked up again, removed. On a bottle's page
- * ("bottle") they are shown, and a label panel can be copied into the
- * bottle's own photos.
+ * A label's TTB approvals (SPEC M11). They add to a label rather than define
+ * it: the approved label art, and what the approval says about who bottled
+ * it and where. The first is featured; the rest are one line each.
+ *
+ * On the label's page ("label") they are found on TTB, added, refreshed,
+ * reordered and removed. On a bottle's page ("bottle") they are shown, and a
+ * label panel can be copied into the bottle's photos.
  */
-export function ColaApprovals(
-  props: { colas: ColaView[]; lookupEnabled: boolean } & (
-    | { mode: "label"; expressionId: number }
-    | { mode: "bottle"; bottleId: number }
-  ),
-) {
-  const { colas, lookupEnabled } = props;
+export function ColaApprovals(props: Props) {
+  const { colas, lookupEnabled, distilleryMatches } = props;
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<ActionResult>(IDLE_RESULT);
 
-  function run(key: string, action: () => Promise<ActionResult>) {
-    setBusyKey(key);
-    startTransition(async () => {
-      setNotice(await action());
-      setBusyKey(null);
-      router.refresh();
-    });
-  }
+  const run = React.useCallback(
+    (key: string, action: () => Promise<ActionResult>) => {
+      setBusyKey(key);
+      startTransition(async () => {
+        setNotice(await action());
+        setBusyKey(null);
+        router.refresh();
+      });
+    },
+    [router],
+  );
 
   if (props.mode === "bottle" && colas.length === 0) return null;
+  const [featured, ...others] = colas;
+
+  const actionsFor = (cola: ColaView, isFeatured: boolean): Actions => ({
+    busyKey,
+    pending,
+    lookupEnabled,
+    ...(props.mode === "label"
+      ? {
+          onRefresh: () => run(`refresh-${cola.id}`, () => refreshColaAction(cola.id)),
+          onRemove: () => run(`remove-${cola.id}`, () => removeColaAction(cola.id)),
+          ...(isFeatured ? {} : { onFeature: () => run(`feature-${cola.id}`, () => featureColaAction(cola.id)) }),
+        }
+      : {
+          onUsePanel: (imageId: number) =>
+            run(`photo-${imageId}`, () => copyColaImageToBottleAction(imageId, props.bottleId)),
+        }),
+  });
 
   return (
     <div className="flex flex-col gap-4">
       {props.mode === "label" ? (
-        <AddCola expressionId={props.expressionId} lookupEnabled={lookupEnabled} onDone={setNotice} />
+        <div className="flex flex-wrap items-end gap-2">
+          {lookupEnabled ? (
+            <ColaSearchDialog expressionId={props.expressionId} brandName={props.brandName} onDone={setNotice} />
+          ) : null}
+          <AddById expressionId={props.expressionId} lookupEnabled={lookupEnabled} onDone={setNotice} />
+        </div>
       ) : null}
 
       <Notice result={notice} />
 
-      {colas.length === 0 ? (
-        <p className="border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          No label approvals yet. Every spirit sold in the US has one; find it by brand in{" "}
-          <a
-            href="https://www.ttbonline.gov/colasonline/publicSearchColasBasic.do"
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary hover:underline"
-          >
-            TTB&rsquo;s public registry
-          </a>{" "}
-          and paste its TTB ID here.
+      {featured === undefined ? (
+        <p className="text-sm text-muted-foreground">
+          No label approvals yet.{" "}
+          {lookupEnabled
+            ? "Find this label on TTB to add its approved label art and who bottled it."
+            : "Paste a TTB ID to link this label to its record on TTB."}
         </p>
       ) : (
-        <ul className="flex flex-col gap-6">
-          {colas.map((cola) => (
-            <li key={cola.id} className="flex flex-col gap-3 border-t border-border pt-4 first:border-t-0 first:pt-0">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <div className="flex flex-col">
-                  <span className="font-medium">
-                    {cola.brandName ? registryCase(cola.brandName) : `TTB ID ${cola.ttbId}`}
-                    {cola.fancifulName ? <span className="text-accent"> {registryCase(cola.fancifulName)}</span> : null}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    TTB ID {cola.ttbId}
-                    {cola.approvedOn ? ` · approved ${formatDate(cola.approvedOn)}` : null}
-                    {cola.status && cola.status !== "APPROVED" ? ` · ${registryCase(cola.status)}` : null}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={colaDetailUrl(cola.ttbId)} target="_blank" rel="noreferrer">
-                      <ExternalLink className="size-3.5" />
-                      View on TTB
-                    </a>
-                  </Button>
-                  {props.mode === "label" && lookupEnabled ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={pending}
-                      onClick={() => run(`refresh-${cola.id}`, () => refreshColaAction(cola.id))}
-                    >
-                      {busyKey === `refresh-${cola.id}` ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="size-3.5" />
-                      )}
-                      {cola.fetchedAt ? "Refresh" : "Fetch"}
-                    </Button>
-                  ) : null}
-                  {props.mode === "label" ? (
+        <>
+          <ColaCard cola={featured} match={matchFor(featured, distilleryMatches)} actions={actionsFor(featured, true)} />
+          {others.length > 0 ? (
+            <ul className="flex flex-col border-t border-border">
+              {others.map((cola) => (
+                <li key={cola.id} className="border-b border-border">
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none flex-wrap items-baseline gap-x-2 py-2.5 text-sm hover:text-accent">
+                      <span className="text-muted-foreground transition-transform group-open:rotate-90">▸</span>
+                      <span className="font-medium">{summaryName(cola)}</span>
+                      <span className="text-muted-foreground">
+                        {[cola.approvedOn ? formatDate(cola.approvedOn) : null, cola.applicantName, cola.ttbId]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </summary>
+                    <div className="pb-4 pt-2">
+                      <ColaCard cola={cola} match={matchFor(cola, distilleryMatches)} actions={actionsFor(cola, false)} />
+                    </div>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+type Actions = {
+  busyKey: string | null;
+  pending: boolean;
+  lookupEnabled: boolean;
+  onRefresh?: () => void;
+  onRemove?: () => void;
+  onFeature?: () => void;
+  onUsePanel?: (imageId: number) => void;
+};
+
+function matchFor(cola: ColaView, matches: Props["distilleryMatches"]) {
+  return cola.permitNumber ? (matches[cola.permitNumber] ?? null) : null;
+}
+
+function summaryName(cola: ColaView): string {
+  const brand = cola.brandName ? registryCase(cola.brandName) : `TTB ID ${cola.ttbId}`;
+  return cola.fancifulName ? `${brand} ${registryCase(cola.fancifulName)}` : brand;
+}
+
+/** The front label if there is one: TTB calls it "Brand (front) or keg collar". */
+function frontIndex(images: ColaImageView[]): number {
+  const index = images.findIndex((image) => /^brand\b/i.test(image.panel ?? ""));
+  return index === -1 ? 0 : index;
+}
+
+function Spinner({ on, icon }: { on: boolean; icon: React.ReactNode }) {
+  return on ? <Loader2 className="size-3.5 animate-spin" /> : <>{icon}</>;
+}
+
+function ColaCard({
+  cola,
+  match,
+  actions,
+}: {
+  cola: ColaView;
+  match: { name: string; slug: string } | null;
+  actions: Actions;
+}) {
+  const [shown, setShown] = React.useState(() => frontIndex(cola.images));
+  const image = cola.images[shown] ?? cola.images[0];
+  const busy = (key: string) => actions.busyKey === key;
+
+  return (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,26rem)_1fr]">
+      <div className="flex flex-col gap-3">
+        {image ? (
+          <>
+            {/* The full file is the scan at TTB's own resolution; the page shows a 1200px rendition. */}
+            <a
+              href={`/api/images/${image.filePath}`}
+              target="_blank"
+              rel="noreferrer"
+              title="Open the full-resolution label"
+              className="flex items-center justify-center border border-border bg-muted/40 p-3"
+            >
+              <Image
+                src={`/api/images/${image.displayPath ?? image.filePath}`}
+                alt={`${image.panel ?? "Label"}, ${summaryName(cola)}`}
+                width={image.width ?? 1200}
+                height={image.height ?? 800}
+                unoptimized
+                className="max-h-[26rem] w-auto object-contain"
+              />
+            </a>
+            <div className="flex flex-wrap items-end gap-2">
+              {cola.images.map((panel, index) => (
+                <div key={panel.id} className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShown(index)}
+                    aria-pressed={index === shown}
+                    aria-label={`Show ${panel.panel ?? "label"}`}
+                    className={cn(
+                      "flex h-16 items-center border p-1",
+                      index === shown ? "border-foreground" : "border-border opacity-70 hover:opacity-100",
+                    )}
+                  >
+                    <Image
+                      src={`/api/images/${panel.thumbPath ?? panel.filePath}`}
+                      alt=""
+                      width={96}
+                      height={56}
+                      unoptimized
+                      className="h-full w-auto object-contain"
+                    />
+                  </button>
+                  {actions.onUsePanel ? (
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={pending}
-                      aria-label={`Remove ${cola.ttbId}`}
-                      onClick={() => run(`remove-${cola.id}`, () => removeColaAction(cola.id))}
+                      className="h-7 px-1.5"
+                      disabled={actions.pending}
+                      title={`Add the ${panel.panel ?? "label"} to this bottle's photos`}
+                      onClick={() => actions.onUsePanel!(panel.id)}
                     >
-                      {busyKey === `remove-${cola.id}` ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-3.5" />
-                      )}
+                      <Spinner on={busy(`photo-${panel.id}`)} icon={<ImagePlus className="size-3.5" />} />
+                      Use
                     </Button>
                   ) : null}
                 </div>
-              </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {image.panel ?? "Label"}
+              {image.width && image.height ? ` · ${image.width}×${image.height}px` : ""} · click to open full size
+            </p>
+          </>
+        ) : (
+          <div className="flex min-h-40 items-center justify-center border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            {cola.fetchedAt
+              ? "TTB has no label images for this approval."
+              : actions.lookupEnabled
+                ? "Not fetched yet."
+                : "Lookups are off on this server; the record is on TTB."}
+          </div>
+        )}
+      </div>
 
-              {cola.fetchedAt ? (
-                <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
-                  <Fact label="Class / type">
-                    {cola.classType ? registryCase(cola.classType) : null}
-                    {cola.classTypeCode ? <span className="text-muted-foreground"> ({cola.classTypeCode})</span> : null}
-                  </Fact>
-                  <Fact label="Origin">
-                    {cola.origin ? registryCase(cola.origin) : null}
-                    {cola.isImported !== null ? (
-                      <span className="text-muted-foreground"> · {cola.isImported ? "imported" : "domestic"}</span>
-                    ) : null}
-                  </Fact>
-                  <Fact label={cola.isImported ? "Importer" : "Bottler"}>
-                    {cola.applicantName}
-                    {cola.permitNumber ? <span className="block text-muted-foreground">{cola.permitNumber}</span> : null}
-                    {cola.applicantAddress ? (
-                      <span className="block text-xs text-muted-foreground">{cola.applicantAddress}</span>
-                    ) : null}
-                  </Fact>
-                </dl>
-              ) : lookupEnabled ? null : (
-                <p className="text-sm text-muted-foreground">Lookups are off on this server; the link above opens the record.</p>
-              )}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-lg leading-tight">{summaryName(cola)}</p>
+            <p className="text-sm text-muted-foreground">
+              {cola.approvedOn ? `Approved ${formatDate(cola.approvedOn)}` : "Label approval"}
+              {cola.status && cola.status !== "APPROVED" ? ` · ${registryCase(cola.status)}` : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {actions.onFeature ? (
+              <Button variant="outline" size="sm" disabled={actions.pending} onClick={actions.onFeature}>
+                <Spinner on={busy(`feature-${cola.id}`)} icon={<ArrowUpToLine className="size-3.5" />} />
+                Show first
+              </Button>
+            ) : null}
+            {actions.onRefresh && actions.lookupEnabled ? (
+              <Button variant="outline" size="sm" disabled={actions.pending} onClick={actions.onRefresh}>
+                <Spinner on={busy(`refresh-${cola.id}`)} icon={<RefreshCw className="size-3.5" />} />
+                {cola.fetchedAt ? "Refresh" : "Fetch"}
+              </Button>
+            ) : null}
+            {actions.onRemove ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={actions.pending}
+                aria-label={`Remove ${cola.ttbId}`}
+                onClick={actions.onRemove}
+              >
+                <Spinner on={busy(`remove-${cola.id}`)} icon={<Trash2 className="size-3.5" />} />
+              </Button>
+            ) : null}
+          </div>
+        </div>
 
-              {cola.fetchError ? (
-                <p className="text-sm text-destructive">{cola.fetchError}</p>
-              ) : null}
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+          <Fact label="TTB ID">
+            <a
+              href={colaDetailUrl(cola.ttbId)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              {cola.ttbId}
+              <ExternalLink className="size-3" />
+            </a>
+            <a
+              href={colaFormUrl(cola.ttbId)}
+              target="_blank"
+              rel="noreferrer"
+              className="block text-xs text-muted-foreground hover:text-primary hover:underline"
+            >
+              Printable application
+            </a>
+          </Fact>
+          <Fact label="Class / type">
+            {cola.classType ? registryCase(cola.classType) : null}
+            {cola.classTypeCode ? <span className="text-muted-foreground"> ({cola.classTypeCode})</span> : null}
+          </Fact>
+          <Fact label="Origin">
+            {cola.origin ? registryCase(cola.origin) : null}
+            {cola.isImported !== null ? (
+              <span className="text-muted-foreground"> · {cola.isImported ? "imported" : "domestic"}</span>
+            ) : null}
+          </Fact>
+          <Fact label={cola.isImported ? "Importer" : "Bottler"}>
+            {cola.applicantName}
+            {cola.permitNumber ? <span className="block font-mono text-xs">{cola.permitNumber}</span> : null}
+            {cola.applicantAddress ? (
+              <span className="block text-xs text-muted-foreground">{cola.applicantAddress}</span>
+            ) : null}
+            {match ? (
+              <span className="block text-xs">
+                Your distillery:{" "}
+                <Link href={`/distilleries/${match.slug}` as Route} className="text-primary hover:underline">
+                  {match.name}
+                </Link>
+              </span>
+            ) : null}
+          </Fact>
+        </dl>
+        {cola.applicantName ? (
+          <p className="text-xs text-muted-foreground">
+            The {cola.isImported ? "importer" : "bottler"} is the permit holder that filed this label, which is not
+            always who distilled what is in the bottle.
+          </p>
+        ) : null}
 
-              {cola.images.length > 0 ? (
-                <ul className="flex flex-wrap items-end gap-4">
-                  {cola.images.map((image) => (
-                    <li key={image.id} className="flex max-w-56 flex-col gap-1.5">
-                      <a href={`/api/images/${image.filePath}`} target="_blank" rel="noreferrer" className="block">
-                        <Image
-                          src={`/api/images/${image.thumbPath ?? image.filePath}`}
-                          alt={`${image.panel ?? "Label"} — TTB ID ${cola.ttbId}`}
-                          width={224}
-                          height={224}
-                          unoptimized
-                          className="max-h-40 w-auto border border-border object-contain"
-                        />
-                      </a>
-                      <span className="text-xs text-muted-foreground">{image.panel ?? "Label"}</span>
-                      {props.mode === "bottle" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="self-start"
-                          disabled={pending}
-                          onClick={() =>
-                            run(`photo-${image.id}`, () => copyColaImageToBottleAction(image.id, props.bottleId))
-                          }
-                        >
-                          {busyKey === `photo-${image.id}` ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <ImagePlus className="size-3.5" />
-                          )}
-                          Use as photo
-                        </Button>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
+        {cola.fetchError ? <p className="text-sm text-destructive">{cola.fetchError}</p> : null}
+      </div>
     </div>
   );
 }
@@ -241,7 +393,8 @@ function Notice({ result }: { result: ActionResult }) {
   );
 }
 
-function AddCola({
+/** The fallback to searching: paste a TTB ID or a registry link. */
+function AddById({
   expressionId,
   lookupEnabled,
   onDone,
@@ -267,23 +420,20 @@ function AddCola({
   }, [state, onDone, router]);
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-col gap-1.5">
-      <Label htmlFor="cola-ttb-id">Add a TTB ID</Label>
-      <div className="flex flex-wrap gap-2">
-        <Input
-          id="cola-ttb-id"
-          name="ttbId"
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder="21132001000620, or the registry link"
-          className="max-w-sm"
-          aria-invalid={!state.ok && Boolean(state.fieldErrors?.ttbId)}
-        />
-        <Button type="submit" variant="outline" disabled={pending}>
-          {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-          {lookupEnabled ? "Add and fetch" : "Add"}
-        </Button>
-      </div>
+    <form ref={formRef} action={formAction} className="flex flex-wrap gap-2">
+      <Input
+        name="ttbId"
+        aria-label="TTB ID"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder={lookupEnabled ? "Or paste a TTB ID or registry link" : "Paste a TTB ID or registry link"}
+        className="w-72"
+        aria-invalid={!state.ok && Boolean(state.fieldErrors?.ttbId)}
+      />
+      <Button type="submit" variant="ghost" disabled={pending}>
+        {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+        Add
+      </Button>
     </form>
   );
 }

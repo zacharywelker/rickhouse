@@ -20,6 +20,7 @@ const GROUP_ORIGINALS = "groups";
 const GROUP_THUMBS = "groups/thumbs";
 const COLA_ORIGINALS = "colas";
 const COLA_THUMBS = "colas/thumbs";
+const COLA_DISPLAY = "colas/display";
 
 /** Formats sharp can read that a browser can display. */
 const ACCEPTED = new Map<string, string>([
@@ -36,7 +37,20 @@ const ACCEPTED = new Map<string, string>([
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-export type StoredImage = { filePath: string; thumbPath: string; width: number; height: number };
+export type StoredImage = {
+  filePath: string;
+  thumbPath: string;
+  /** A mid-size rendition, for encodings that ask for one. */
+  displayPath?: string;
+  width: number;
+  height: number;
+};
+
+/** How the full-size file is encoded, and whether a mid-size rendition is kept too. */
+type Encoding = { fullMax: number; fullQuality: number; display?: { dir: string; max: number } };
+
+/** Photos: plenty for a screen, small enough for a phone upload's worth of them. */
+const PHOTO: Encoding = { fullMax: 2000, fullQuality: 86 };
 
 export class ImageError extends Error {}
 
@@ -67,6 +81,7 @@ async function storeImageBytes(
   type: string,
   originalsDir: string,
   thumbsDir: string,
+  encoding: Encoding = PHOTO,
 ): Promise<StoredImage> {
   const extension = ACCEPTED.get(type);
   if (!extension) {
@@ -78,6 +93,7 @@ async function storeImageBytes(
 
   const root = uploadRoot();
   await mkdir(path.join(root, thumbsDir), { recursive: true });
+  if (encoding.display) await mkdir(path.join(root, encoding.display.dir), { recursive: true });
 
   const id = randomUUID();
 
@@ -95,8 +111,8 @@ async function storeImageBytes(
 
   const full = await pipeline
     .clone()
-    .resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true })
-    .webp({ quality: 86 })
+    .resize({ width: encoding.fullMax, height: encoding.fullMax, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: encoding.fullQuality })
     .toBuffer({ resolveWithObject: true });
 
   const thumb = await pipeline
@@ -108,9 +124,22 @@ async function storeImageBytes(
   await writeFile(resolveUpload(fileRelative), full.data);
   await writeFile(resolveUpload(thumbRelative), thumb);
 
+  let displayRelative: string | undefined;
+  if (encoding.display) {
+    displayRelative = path.posix.join(encoding.display.dir, `${id}.webp`);
+    const { max } = encoding.display;
+    const display = await pipeline
+      .clone()
+      .resize({ width: max, height: max, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 86 })
+      .toBuffer();
+    await writeFile(resolveUpload(displayRelative), display);
+  }
+
   return {
     filePath: fileRelative,
     thumbPath: thumbRelative,
+    ...(displayRelative ? { displayPath: displayRelative } : {}),
     width: full.info.width,
     height: full.info.height,
   };
@@ -133,18 +162,31 @@ export async function storeGroupCoverImage(file: File): Promise<StoredImage> {
   return storeImage(file, GROUP_ORIGINALS, GROUP_THUMBS);
 }
 
-/** An approved label panel from the COLA registry (SPEC M11). Same pipeline, its own directory. */
+/**
+ * An approved label panel from the COLA registry (SPEC M11). Label art is the
+ * point, so the full file keeps the scan's own resolution (up to 6000px) at
+ * a higher quality than photos get, with a 1200px rendition for showing it
+ * large on a page without sending the whole scan.
+ */
 export async function storeColaImage(bytes: Buffer, contentType: string): Promise<StoredImage> {
-  return storeImageBytes(bytes, contentType, COLA_ORIGINALS, COLA_THUMBS);
+  return storeImageBytes(bytes, contentType, COLA_ORIGINALS, COLA_THUMBS, {
+    fullMax: 6000,
+    fullQuality: 92,
+    display: { dir: COLA_DISPLAY, max: 1200 },
+  });
 }
 
 /**
  * Best effort: a missing file must not stop the database row being removed.
- * Generic over both bottle photos and Group cover images — both are just a
- * full-size file plus a thumbnail under the uploads volume.
+ * Generic over bottle photos, Group cover images and COLA label art — each a
+ * full-size file plus a thumbnail (and, for label art, a display rendition).
  */
-export async function deleteStoredImage(filePath: string, thumbPath: string | null): Promise<void> {
-  for (const relative of [filePath, thumbPath]) {
+export async function deleteStoredImage(
+  filePath: string,
+  thumbPath: string | null,
+  displayPath: string | null = null,
+): Promise<void> {
+  for (const relative of [filePath, thumbPath, displayPath]) {
     if (!relative) continue;
     try {
       await unlink(resolveUpload(relative));

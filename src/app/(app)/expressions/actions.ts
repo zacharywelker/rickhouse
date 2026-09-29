@@ -24,8 +24,7 @@ import {
   type LinkRow,
 } from "@/lib/expressions/schema";
 import { fieldGroupForCategory } from "@/lib/expressions/queries";
-import { normalizeTtbId } from "@/lib/cola/ids";
-import { attachCola, colaFilesForExpression, colaLookupEnabled, deleteColaFiles, refreshCola } from "@/lib/cola/store";
+import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
 
 /**
  * Fields every category writes, whatever its field group. Anything outside
@@ -200,25 +199,12 @@ export async function saveExpressionAction(
       return target;
     });
 
-    // "Start from a TTB ID": attach the COLA to the new label and fetch its
-    // label images. Best effort — the label is saved either way, and the
-    // COLA can be added or fetched again from the label's page.
-    let colaNote = "";
-    const ttbId = id === null ? normalizeTtbId(String(formData.get("ttbId") ?? "")) : null;
-    if (ttbId) {
-      const cola = await attachCola(expressionId, user.id, ttbId).catch(() => null);
-      if (cola && typeof cola === "object" && colaLookupEnabled()) {
-        const fetched = await refreshCola(cola.id, user.id).catch(() => null);
-        if (!fetched?.ok) colaNote = ` Its COLA was added, but the lookup failed; fetch it from the label's page.`;
-      }
-    }
-
     revalidatePath("/expressions");
     revalidatePath("/bottles");
     revalidatePath("/");
     return {
       ok: true,
-      message: id === null ? `Label created.${colaNote}` : "Label saved.",
+      message: id === null ? "Label created." : "Label saved.",
       createdId: expressionId,
     };
   } catch (error: unknown) {

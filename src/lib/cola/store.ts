@@ -1,7 +1,7 @@
 import "server-only";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { colaImages, expressionColas, expressions } from "@/db/schema";
+import { colaImages, distilleries, expressionColas, expressions } from "@/db/schema";
 import { env } from "@/lib/env";
 import { deleteStoredImage, ImageError, storeColaImage } from "@/lib/images";
 import { ColaLookupError, ColaNotFoundError, ColaParseError, lookupCola } from "./client";
@@ -86,10 +86,12 @@ export async function attachCola(
   return row ?? "duplicate";
 }
 
+type StoredFiles = { filePath: string; thumbPath: string | null; displayPath: string | null };
+
 /** Stored label files for a set of COLAs, for removing from disk once their rows are gone. */
-async function filesOf(where: ReturnType<typeof eq>): Promise<{ filePath: string; thumbPath: string | null }[]> {
+async function filesOf(where: ReturnType<typeof eq>): Promise<StoredFiles[]> {
   return db
-    .select({ filePath: colaImages.filePath, thumbPath: colaImages.thumbPath })
+    .select({ filePath: colaImages.filePath, thumbPath: colaImages.thumbPath, displayPath: colaImages.displayPath })
     .from(colaImages)
     .innerJoin(expressionColas, eq(expressionColas.id, colaImages.colaId))
     .where(where);
@@ -107,8 +109,52 @@ export function colaFilesForCola(colaId: number) {
   return filesOf(eq(expressionColas.id, colaId));
 }
 
-export async function deleteColaFiles(files: { filePath: string; thumbPath: string | null }[]): Promise<void> {
-  await Promise.allSettled(files.map((file) => deleteStoredImage(file.filePath, file.thumbPath)));
+export async function deleteColaFiles(files: { filePath: string; thumbPath: string | null; displayPath?: string | null }[]): Promise<void> {
+  await Promise.allSettled(files.map((file) => deleteStoredImage(file.filePath, file.thumbPath, file.displayPath ?? null)));
+}
+
+/** Moves a COLA to the front of its label's list, where the label page features it. */
+export async function featureCola(colaId: number, ownerId: number): Promise<ColaRow | null> {
+  const cola = await ownedCola(colaId, ownerId);
+  if (!cola) return null;
+  const siblings = await db
+    .select({ id: expressionColas.id })
+    .from(expressionColas)
+    .where(eq(expressionColas.expressionId, cola.expressionId))
+    .orderBy(asc(expressionColas.position), asc(expressionColas.id));
+  const order = [cola.id, ...siblings.map((row) => row.id).filter((id) => id !== cola.id)];
+  await db.transaction(async (tx) => {
+    for (const [position, id] of order.entries()) {
+      await tx.update(expressionColas).set({ position }).where(eq(expressionColas.id, id));
+    }
+  });
+  return cola;
+}
+
+/**
+ * The owner's distilleries that carry one of these permit numbers, keyed by
+ * the number. Read-only: a COLA's permit holder is shown against a matching
+ * distillery, never written to one.
+ */
+export async function distilleriesByPermit(
+  ownerId: number,
+  permits: ReadonlyArray<string | null>,
+): Promise<Record<string, { name: string; slug: string }>> {
+  const wanted = [...new Set(permits.filter((permit): permit is string => Boolean(permit)))];
+  if (wanted.length === 0) return {};
+  const rows = await db
+    .select({ name: distilleries.name, slug: distilleries.slug, dspNumber: distilleries.dspNumber })
+    .from(distilleries)
+    .where(and(eq(distilleries.ownerId, ownerId), isNotNull(distilleries.dspNumber)));
+  // Permit numbers are typed by hand on distilleries ("DSP-KY-95", "dsp ky 95"), so compare them loosely.
+  const key = (permit: string) => permit.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const byKey = new Map(rows.map((row) => [key(row.dspNumber!), { name: row.name, slug: row.slug }]));
+  const found: Record<string, { name: string; slug: string }> = {};
+  for (const permit of wanted) {
+    const match = byKey.get(key(permit));
+    if (match) found[permit] = match;
+  }
+  return found;
 }
 
 export type RefreshResult = { ok: true; message: string } | { ok: false; error: string };
@@ -137,12 +183,19 @@ export async function refreshCola(colaId: number, ownerId: number): Promise<Refr
   }
 
   // Files first, rows second: a crash in between leaves stray files, never rows pointing at nothing.
-  const stored: { filePath: string; thumbPath: string; panel: string | null; width: number; height: number }[] = [];
+  const stored: {
+    filePath: string;
+    thumbPath: string;
+    displayPath: string | null;
+    panel: string | null;
+    width: number;
+    height: number;
+  }[] = [];
   const skipped = [...lookup.skipped];
   for (const image of lookup.images) {
     try {
       const saved = await storeColaImage(image.bytes, image.contentType);
-      stored.push({ ...saved, panel: image.panel });
+      stored.push({ ...saved, displayPath: saved.displayPath ?? null, panel: image.panel });
     } catch (error: unknown) {
       if (!(error instanceof ImageError)) console.warn("[rickhouse] could not store COLA image", cola.ttbId, error);
       skipped.push(`${image.panel ?? "label image"} (${error instanceof Error ? error.message : "unreadable"})`);

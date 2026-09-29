@@ -26,7 +26,6 @@ export function ExpressionForm({
   initialLinks,
   options,
   categoryGroups,
-  ttbId = null,
 }: {
   expressionId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
@@ -34,8 +33,6 @@ export function ExpressionForm({
   options: Record<string, Option[]>;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
-  /** A TTB ID to attach once a new label is created ("Start from a TTB ID"). */
-  ttbId?: string | null;
 }) {
   const router = useRouter();
   const [values, setValues] = React.useState(() => initialFieldValues(ALL_FIELDS, initialValues));
@@ -67,7 +64,6 @@ export function ExpressionForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      {ttbId ? <input type="hidden" name="ttbId" value={ttbId} /> : null}
       {EXPRESSION_SECTIONS.map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
         return (

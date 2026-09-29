@@ -6,7 +6,7 @@ import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitl
 import { expressionFormData } from "@/lib/expressions/form-data";
 import { getExpression } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
-import { colaLookupEnabled, colasForExpression } from "@/lib/cola/store";
+import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 
 export const metadata: Metadata = { title: "Edit Label" };
 export const dynamic = "force-dynamic";
@@ -24,6 +24,10 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
     expressionFormData(expressionId, user.id),
     colasForExpression(expressionId, user.id),
   ]);
+  const distilleryMatches = await distilleriesByPermit(
+    user.id,
+    colas.map((cola) => cola.permitNumber),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -32,6 +36,26 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
           {row.brand.name} {row.expression.name}
         </h1>
       </div>
+      {/* Above the form: what TTB approved for this label, saved as it is added (SPEC M11). */}
+      <Section>
+        <SectionHeader>
+          <SectionTitle>Label approvals</SectionTitle>
+          <SectionDescription>
+            TTB&rsquo;s certificates of label approval (COLAs): the approved label art, and who bottled it. One per
+            proof, size or relabel. Saved as you add them, apart from the form below.
+          </SectionDescription>
+        </SectionHeader>
+        <SectionContent>
+          <ColaApprovals
+            mode="label"
+            expressionId={expressionId}
+            brandName={row.brand.name}
+            colas={colas}
+            lookupEnabled={colaLookupEnabled()}
+            distilleryMatches={distilleryMatches}
+          />
+        </SectionContent>
+      </Section>
       <ExpressionForm
         expressionId={expressionId}
         initialValues={row.expression as unknown as Record<string, string | number | boolean | null>}
@@ -39,18 +63,6 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
         options={options}
         categoryGroups={categoryGroups}
       />
-      <Section>
-        <SectionHeader>
-          <SectionTitle>Label approvals</SectionTitle>
-          <SectionDescription>
-            TTB&rsquo;s certificates of label approval (COLAs) for this label: one per proof, size or relabel. Saved
-            as you add them, apart from the form above.
-          </SectionDescription>
-        </SectionHeader>
-        <SectionContent>
-          <ColaApprovals mode="label" expressionId={expressionId} colas={colas} lookupEnabled={colaLookupEnabled()} />
-        </SectionContent>
-      </Section>
     </div>
   );
 }

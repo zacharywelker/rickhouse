@@ -2,8 +2,19 @@ import "server-only";
 import tls from "node:tls";
 import { EnvHttpProxyAgent, fetch, type Dispatcher } from "undici";
 import { TTB_INTERMEDIATE_PEM } from "./intermediate";
-import { colaDetailUrl, colaFormUrl, registryUrl } from "./ids";
-import { ColaNotFoundError, ColaParseError, parseColaDetail, parseColaForm, type ColaForm, type ColaRecord } from "./parse";
+import { colaDetailUrl, colaFormUrl, colaSearchFormUrl, colaSearchUrl, registryUrl } from "./ids";
+import {
+  ColaNotFoundError,
+  ColaParseError,
+  ColaSearchError,
+  isSpiritsClass,
+  parseColaDetail,
+  parseColaForm,
+  parseColaSearch,
+  type ColaForm,
+  type ColaRecord,
+  type ColaSearchRow,
+} from "./parse";
 
 /**
  * Talks to TTB's public COLA registry (SPEC M11). The only outbound call the
@@ -29,7 +40,7 @@ const USER_AGENT = "Rickhouse/1.0 (self-hosted collection tracker; COLA lookup b
 
 /** Anything that stopped a lookup other than "no such COLA" or "page changed". */
 export class ColaLookupError extends Error {}
-export { ColaNotFoundError, ColaParseError };
+export { ColaNotFoundError, ColaParseError, ColaSearchError };
 
 let dispatcher: Dispatcher | undefined;
 
@@ -76,8 +87,13 @@ async function readCapped(body: AsyncIterable<Uint8Array> | null, limit: number)
 class RegistrySession {
   private cookies = new Map<string, string>();
 
-  async get(start: URL, limit: number): Promise<{ body: Buffer; contentType: string }> {
+  /**
+   * GET, or POST a form when `form` is given. A redirect after a POST is
+   * followed with a GET, as browsers do.
+   */
+  async get(start: URL, limit: number, form?: URLSearchParams): Promise<{ body: Buffer; contentType: string }> {
     let url = start;
+    let body = form;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
       await turn();
       let response;
@@ -86,8 +102,10 @@ class RegistrySession {
           dispatcher: registryDispatcher(),
           redirect: "manual",
           signal: AbortSignal.timeout(TIMEOUT_MS),
+          ...(body ? { method: "POST", body: body.toString() } : {}),
           headers: {
             "user-agent": USER_AGENT,
+            ...(body ? { "content-type": "application/x-www-form-urlencoded" } : {}),
             ...(this.cookies.size > 0
               ? { cookie: [...this.cookies].map(([name, value]) => `${name}=${value}`).join("; ") }
               : {}),
@@ -108,6 +126,7 @@ class RegistrySession {
         const next = registryUrl(new URL(response.headers.get("location") ?? "", url).toString());
         if (!next) throw new ColaLookupError("The COLA registry redirected somewhere unexpected.");
         url = next;
+        body = undefined;
         continue;
       }
       if (!response.ok) {
@@ -122,8 +141,8 @@ class RegistrySession {
     throw new ColaLookupError("The COLA registry redirected too many times.");
   }
 
-  async page(url: string): Promise<string> {
-    const { body } = await this.get(new URL(url), MAX_PAGE_BYTES);
+  async page(url: string | URL, form?: URLSearchParams): Promise<string> {
+    const { body } = await this.get(new URL(url), MAX_PAGE_BYTES, form);
     // The registry declares ISO-8859-1.
     return new TextDecoder("latin1").decode(body);
   }
@@ -182,4 +201,63 @@ export async function lookupCola(ttbId: string, options: { images: boolean }): P
   }
 
   return { record: { ...record, ...codes }, images, skipped };
+}
+
+/** The registry's search is capped at a 15-year window of completion dates. */
+export const SEARCH_WINDOW_YEARS = 15;
+const MAX_SEARCH_PAGES = 3;
+
+export type ColaSearch = {
+  rows: ColaSearchRow[];
+  /** Everything the registry matched, wine and beer included. */
+  total: number;
+  /** True when there were more pages than were read. */
+  truncated: boolean;
+};
+
+/** MM/DD/YYYY, as the registry's search form wants dates. */
+function formDate(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(date.getUTCMonth() + 1)}/${pad(date.getUTCDate())}/${date.getUTCFullYear()}`;
+}
+
+/**
+ * Searches the registry by brand or fanciful name, the way its Basic Search
+ * page does (`%` is its wildcard), within one window of at most 15 years.
+ * Reads up to three pages of 20 and keeps only distilled spirits: a brand
+ * name search also finds the wine and beer that share it.
+ */
+export async function searchColas(query: {
+  name: string;
+  field: "brand" | "fanciful" | "either";
+  from: Date;
+  to: Date;
+}): Promise<ColaSearch> {
+  const session = new RegistrySession();
+  // The search form sets up the session the results are paged through.
+  await session.page(colaSearchFormUrl());
+  const form = new URLSearchParams({
+    "searchCriteria.dateCompletedFrom": formDate(query.from),
+    "searchCriteria.dateCompletedTo": formDate(query.to),
+    "searchCriteria.productOrFancifulName": query.name,
+    "searchCriteria.productNameSearchType": { brand: "B", fanciful: "F", either: "E" }[query.field],
+    "searchCriteria.classTypeFrom": "",
+    "searchCriteria.classTypeTo": "",
+    "searchCriteria.originCode": "",
+  });
+
+  let page = parseColaSearch(await session.page(colaSearchUrl(), form));
+  const total = page.total;
+  const rows = [...page.rows];
+  for (let read = 1; read < MAX_SEARCH_PAGES && page.nextHref; read++) {
+    const next = registryUrl(page.nextHref);
+    if (!next) break;
+    page = parseColaSearch(await session.page(next));
+    rows.push(...page.rows);
+  }
+  return {
+    rows: rows.filter((row) => isSpiritsClass(row.classTypeCode)),
+    total,
+    truncated: page.nextHref !== null,
+  };
 }

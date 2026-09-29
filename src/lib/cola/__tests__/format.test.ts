@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeTtbId, registryUrl } from "../ids";
-import { categorySlugFor, registryCase, suggestLabel } from "../map";
+import { nameMatch, rankResults, registryCase, searchWindow } from "../format";
 
 describe("normalizeTtbId", () => {
   it("accepts the bare number, with or without separators", () => {
@@ -56,6 +56,7 @@ describe("registryCase", () => {
     expect(registryCase("18TH CENTURY")).toBe("18th Century");
     expect(registryCase("B524")).toBe("B524");
     expect(registryCase("VSOP")).toBe("VSOP");
+    expect(registryCase("WHISKY BOTTLED IN BOND (BIB)")).toBe("Whisky Bottled in Bond (BIB)");
     expect(registryCase("SPIRIT OF THE HILLS")).toBe("Spirit of the Hills");
   });
 
@@ -64,55 +65,43 @@ describe("registryCase", () => {
   });
 });
 
-describe("categorySlugFor", () => {
-  it("maps whisky classes to the seeded categories", () => {
-    expect(categorySlugFor("STRAIGHT RYE WHISKY", "CALIFORNIA", false)).toBe("rye");
-    expect(categorySlugFor("STRAIGHT BOURBON WHISKY", "KENTUCKY", false)).toBe("bourbon");
-    expect(categorySlugFor("SINGLE MALT SCOTCH WHISKY", "SCOTLAND", true)).toBe("scotch");
-    expect(categorySlugFor("IRISH WHISKY", "IRELAND", true)).toBe("irish-whiskey");
+describe("searchWindow", () => {
+  const now = new Date(Date.UTC(2026, 8, 29));
+
+  it("covers the latest 15 years, the registry's limit", () => {
+    const { from, to, label } = searchWindow(0, now);
+    expect(to.toISOString().slice(0, 10)).toBe("2026-09-29");
+    expect(from.toISOString().slice(0, 10)).toBe("2011-09-30");
+    expect(label).toBe("2011–2026");
   });
 
-  it("only calls a malt American when it is", () => {
-    expect(categorySlugFor("MALT WHISKY", "CALIFORNIA", false)).toBe("american-single-malt");
-    expect(categorySlugFor("MALT WHISKY", "JAPAN", true)).toBe("whiskey");
-  });
-
-  it("puts a plain whisky under American Whiskey when it is American", () => {
-    expect(categorySlugFor("WHISKY SPECIALTIES", "CALIFORNIA", false)).toBe("american-whiskey");
-    expect(categorySlugFor("OTHER WHISKY", "CANADA", true)).toBe("whiskey");
-  });
-
-  it("maps other spirits to their family, and nothing to a guess", () => {
-    expect(categorySlugFor("PUERTO RICAN RUM", "PUERTO RICO", false)).toBe("rum");
-    expect(categorySlugFor("TEQUILA FB", "MEXICO", true)).toBe("agave");
-    expect(categorySlugFor("COGNAC (BRANDY) FB", "FRANCE", true)).toBe("brandy");
-    expect(categorySlugFor("STOUT", "CALIFORNIA", false)).toBeNull();
-    expect(categorySlugFor(null, null, null)).toBeNull();
+  it("steps back 15 years at a time", () => {
+    expect(searchWindow(1, now).label).toBe("1996–2011");
+    expect(searchWindow(1, now).to.toISOString().slice(0, 10)).toBe("2011-09-29");
   });
 });
 
-describe("suggestLabel", () => {
-  it("names the label from the fanciful name", () => {
-    expect(
-      suggestLabel({
-        brandName: "OLD POTRERO",
-        fancifulName: "6 YO",
-        classType: "STRAIGHT RYE WHISKY",
-        origin: "CALIFORNIA",
-        isImported: false,
-      }),
-    ).toEqual({ brandName: "Old Potrero", name: "6 YO", categorySlug: "rye" });
+describe("rankResults", () => {
+  it("puts the label's own name first, then shared words, then the newest", () => {
+    const rows = [
+      { fancifulName: "TOASTED BARREL", completedOn: "2023-03-29" },
+      { fancifulName: "6 YEARS OLD", completedOn: "2023-05-01" },
+      { fancifulName: "6 YO", completedOn: "2021-05-14" },
+      { fancifulName: null, completedOn: "2024-01-01" },
+    ];
+    expect(rankResults(rows, "6 YO").map((row) => [row.fancifulName, row.match])).toEqual([
+      ["6 YO", 2],
+      ["6 YEARS OLD", 1],
+      [null, 0],
+      ["TOASTED BARREL", 0],
+    ]);
   });
+});
 
-  it("falls back to the class when there is no fanciful name", () => {
-    expect(
-      suggestLabel({
-        brandName: "LAPHROAIG",
-        fancifulName: null,
-        classType: "SINGLE MALT SCOTCH WHISKY",
-        origin: "SCOTLAND",
-        isImported: true,
-      }).name,
-    ).toBe("Single Malt Scotch Whisky");
+describe("nameMatch", () => {
+  it("ignores case and punctuation", () => {
+    expect(nameMatch("Hotaling's Whiskey", "HOTALING'S WHISKEY")).toBe(2);
+    expect(nameMatch("Single Barrel", "SINGLE BARREL RESERVE PORT FINISH")).toBe(1);
+    expect(nameMatch("Double Oak", null)).toBe(0);
   });
 });

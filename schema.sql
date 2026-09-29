@@ -728,6 +728,7 @@ CREATE TABLE cola_images (
     cola_id     integer NOT NULL REFERENCES expression_colas(id) ON DELETE CASCADE,
     file_path   text    NOT NULL,          -- relative to the uploads volume
     thumb_path  text,
+    display_path text,                     -- 1200px rendition; file_path keeps the scan's resolution
     panel       text,                      -- "Brand (front) or keg collar", "Back"
     width       integer,
     height      integer,

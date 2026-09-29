@@ -134,6 +134,13 @@
       "when": 1790252974639,
       "tag": "0018_colas",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790339374639,
+      "tag": "0019_cola_display",
+      "breakpoints": true
     }
   ]
 }

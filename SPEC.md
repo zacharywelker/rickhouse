@@ -421,32 +421,43 @@ Every spirit sold in the US carries a label TTB approved, and each approval
 (a COLA) has a public record in TTB's COLA registry: a 14-digit TTB ID, the
 brand and fanciful name, the class/type, the origin, the permit holder that
 bottled or imported it, the approval date, and the approved label artwork.
-That is the closest thing to an authoritative record of what a label is, so
-a label can carry its COLAs.
+
+COLAs **add to a label; they never create one.** You decide what a product is
+(the label/bottle split exists for exactly that); the registry supplies the
+approved label art and what the approval says about who bottled it.
 
 - **Many per label.** Each proof, size, relabel and pick is approved
   separately, so `expression_colas` hangs off the label with a `position`,
   and `cola_images` holds each approval's label panels on the uploads volume.
   Both are private to the owner like the rest of the catalog.
-- **Look up by TTB ID.** Pasting a TTB ID (or the registry link) on a
-  label's page fetches the record and its label images; "Start from a TTB
-  ID" on New Label fills in the brand, name and category first. A brand is
-  only matched, never created. Refresh fetches again; a failed lookup keeps
-  the previous copy and says why.
+- **Found from the label.** "Find on TTB" on a label's page searches the
+  registry by the label's brand (brand or fanciful name, `%` wildcard, one
+  15-year window at a time, the registry's limit), keeps distilled spirits
+  only, ranks results against the label's name, and attaches the ones picked
+  (up to five at a time), fetching each record and its label images. Pasting
+  a TTB ID or registry link does the same for one.
+- **Shown at the top of the label's page.** The first COLA is featured: its
+  front label large, at a 1200px rendition that opens the full scan (kept at
+  TTB's resolution, up to 6000px), the other panels as thumbnails, and the
+  record beside it — a direct link to the COLA listing and its printable
+  application, class/type, origin, and the bottler or importer with permit
+  number and address. The rest are one line each and can be shown first.
+- **Bottler details are display only.** A COLA's permit holder filed the
+  label; for sourced whiskey that is not who distilled it. Nothing is written
+  to distilleries. When one of yours already has that DSP number, the COLA
+  says so and links to it.
 - **Label art as photos.** On a bottle's page, a label panel can be copied
   into the bottle's photos as a catalog shot.
-- **No API.** The registry has none, so the two public pages are read as
-  HTML (`src/lib/cola/parse.ts`), tested against saved pages. A markup change
-  fails loudly rather than filling labels with blanks; re-save the fixtures
-  and fix the parser. Name search stays on TTB's site: it needs a date
-  window of at most 15 years and a session, and people search it better
-  than a scraper does.
+- **No API.** The registry has none, so its search, record and application
+  pages are read as HTML (`src/lib/cola/parse.ts`), tested against saved
+  pages. A markup change fails loudly rather than filling labels with blanks;
+  re-save the fixtures and fix the parser.
 - **Narrow on the wire.** Only TTB's hosts (redirects and image links
   checked hop by hop), one request a second from the server, size caps and
   timeouts. TTB's server omits its intermediate certificate, so the app
   ships that one certificate for these requests rather than loosening TLS.
-- **Off switch.** `COLA_LOOKUP=false` stops all fetching; TTB IDs and links
-  to the registry still work.
+- **Off switch.** `COLA_LOOKUP=false` stops all fetching and searching; TTB
+  IDs and links to the registry still work.
 
 ---
 

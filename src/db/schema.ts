@@ -413,6 +413,8 @@ export const colaImages = pgTable(
       .references(() => expressionColas.id, { onDelete: "cascade" }),
     filePath: text("file_path").notNull(),
     thumbPath: text("thumb_path"),
+    /** 1200px rendition for the label page; the full file keeps the scan's resolution. */
+    displayPath: text("display_path"),
     /** TTB's image type: "Brand (front) or keg collar", "Back", "Other"… */
     panel: text("panel"),
     width: integer("width"),

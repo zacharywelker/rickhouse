@@ -36,6 +36,15 @@ export function colaFormUrl(ttbId: string): string {
   return `${BASE}/viewColaDetails.do?action=publicFormDisplay&ttbid=${ttbId}`;
 }
 
+/** The Basic Search page, which also opens the session results are paged in. */
+export function colaSearchFormUrl(): string {
+  return `${BASE}/publicSearchColasBasic.do`;
+}
+
+export function colaSearchUrl(): string {
+  return `${BASE}/publicSearchColasBasicProcess.do?action=search`;
+}
+
 /**
  * Resolves a link scraped from a registry page, refusing anything that would
  * leave the registry. Returns null for a link that points elsewhere, so a

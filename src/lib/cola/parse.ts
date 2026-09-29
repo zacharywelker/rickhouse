@@ -194,3 +194,89 @@ export function parseColaForm(html: string, ttbId: string): ColaForm {
     images,
   };
 }
+
+export type ColaSearchRow = {
+  ttbId: string;
+  permitNumber: string | null;
+  serialNumber: string | null;
+  /** ISO date the application was completed (approved, for approved ones). */
+  completedOn: string | null;
+  fancifulName: string | null;
+  brandName: string | null;
+  originCode: string | null;
+  origin: string | null;
+  classTypeCode: string | null;
+  classType: string | null;
+};
+
+export type ColaSearchPage = {
+  rows: ColaSearchRow[];
+  total: number;
+  /** The "Next >" link, as written in the page, when there are more results. */
+  nextHref: string | null;
+};
+
+/** The registry refused the search itself, e.g. a date window over 15 years. */
+export class ColaSearchError extends Error {}
+
+/**
+ * A page of basic-search results (`publicSearchColasBasicProcess.do`, and
+ * the `publicPageBasicCola.do` pages after it). Each result row is ten cells:
+ * TTB ID (linked), permit, serial, completed date, fanciful name, brand,
+ * origin code, origin, class/type code, class/type.
+ */
+export function parseColaSearch(html: string): ColaSearchPage {
+  const root = parse(html);
+  const errors = root.querySelectorAll(".errorbox li").map((li) => clean(li.text));
+  if (errors.length > 0) throw new ColaSearchError(errors.join(" "));
+  if (/No results were found/i.test(root.text)) return { rows: [], total: 0, nextHref: null };
+
+  const total = /Total Matching Records:\s*(\d+)/.exec(root.text);
+  if (!total) throw new ColaParseError("no result count");
+
+  const rows: ColaSearchRow[] = [];
+  for (const tr of root.querySelectorAll("tr")) {
+    // The page is tables in tables; a result is an innermost row holding a TTB ID link.
+    const link = tr.querySelector('a[href*="ttbid="]');
+    if (!link || tr.querySelector("table")) continue;
+    const cells = tr.querySelectorAll("td").map((td) => orNull(td.text));
+    const ttbId = /ttbid=([0-9]{14})/.exec(link.getAttribute("href") ?? "")?.[1];
+    if (!ttbId || cells.length !== 10) throw new ColaParseError("a result row has an unexpected shape");
+    const [, permitNumber, serialNumber, completed, fancifulName, brandName, originCode, origin, classTypeCode, classType] =
+      cells;
+    rows.push({
+      ttbId,
+      permitNumber: permitNumber ?? null,
+      serialNumber: serialNumber ?? null,
+      completedOn: registryDate(completed ?? null),
+      fancifulName: fancifulName ?? null,
+      brandName: brandName ?? null,
+      originCode: originCode ?? null,
+      origin: origin ?? null,
+      classTypeCode: classTypeCode ?? null,
+      classType: classType ?? null,
+    });
+  }
+
+  const next = root.querySelectorAll("a").find((a) => /pgfcn=nextset/.test(a.getAttribute("href") ?? ""));
+  return { rows, total: Number(total[1]), nextHref: next?.getAttribute("href") ?? null };
+}
+
+/**
+ * Whether a class/type code is a distilled spirit, from TTB's code list
+ * (the registry's "Lookup Class Type"). Wine codes are one or two digits
+ * with an optional letter ("80A"); malt beverages are 900–919 and 950–969;
+ * sake, non-alcoholic mixes and administrative withdrawals are also out.
+ * Everything else — 100–799 and the spirits in the 900s, where tequila,
+ * mezcal and agave spirits live — is a spirit.
+ */
+export function isSpiritsClass(code: string | null): boolean {
+  if (!code) return true;
+  const match = /^(\d+)/.exec(code);
+  if (!match) return true;
+  if (match[1]!.length <= 2) return false;
+  const n = Number(match[1]);
+  if (n === 0) return false;
+  if ((n >= 900 && n <= 919) || (n >= 950 && n <= 969)) return false;
+  return ![931, 934, 981, 984, 940, 990].includes(n);
+}
