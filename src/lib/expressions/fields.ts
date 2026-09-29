@@ -53,30 +53,6 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     ],
   },
   {
-    // Rendered by the form inside "Where it came from", under Distilleries;
-    // it is a section here so the field is validated and written like the rest.
-    id: "source",
-    title: "Bottler",
-    fields: [
-      {
-        kind: "reference",
-        name: "bottledById",
-        label: "Bottled By",
-        resource: "companies",
-        help: "Who bottled it, when the label names them. Not the same as who distilled it.",
-        span: "half",
-      },
-      {
-        kind: "text",
-        name: "bottledIn",
-        label: "Bottled In",
-        placeholder: "Kentucky",
-        help: "Where, when the label gives a place and no bottler.",
-        span: "half",
-      },
-    ],
-  },
-  {
     id: "strength",
     title: "Strength and age",
     description:
@@ -217,7 +193,12 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         help: "A handheld scanner types straight into this field.",
         span: "half",
       },
-      { kind: "textarea", name: "labelNotes", label: "Notes On The Bottle Label" },
+      {
+        kind: "textarea",
+        name: "labelNotes",
+        label: "Notes On The Bottle Label",
+        help: "What it says, as printed: \"Distilled in Indiana\", \"Bottled by …\", \"Made in …\". Bottlers and places live here, not in their own fields.",
+      },
     ],
   },
 ];

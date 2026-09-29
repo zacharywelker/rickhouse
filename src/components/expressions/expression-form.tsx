@@ -19,7 +19,6 @@ import { OrderedPicker, type LinkedRow } from "./ordered-picker";
 import { DeleteExpressionButton } from "./delete-expression-button";
 
 const ALL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
-const SOURCE_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.find((section) => section.id === "source")?.fields ?? [];
 
 export function ExpressionForm({
   expressionId,
@@ -65,7 +64,7 @@ export function ExpressionForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      {EXPRESSION_SECTIONS.filter((section) => section.id !== "source").map((section) => {
+      {EXPRESSION_SECTIONS.map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
         return (
           <Section key={section.id}>
@@ -155,27 +154,6 @@ export function ExpressionForm({
             value={links.distilleries}
             onChange={(rows) => setLinks((prev) => ({ ...prev, distilleries: rows }))}
           />
-          {SOURCE_FIELDS.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {SOURCE_FIELDS.map((field) => (
-                <Field
-                  key={field.name}
-                  spec={field}
-                  idPrefix="expression"
-                  value={values[field.name] ?? ""}
-                  onChange={(next) => set(field.name, next)}
-                  error={fieldErrors[field.name]}
-                  options={optionsByField[field.name] ?? []}
-                  onOptionCreated={(option) =>
-                    setOptionsByField((prev) => ({
-                      ...prev,
-                      [field.name]: [...(prev[field.name] ?? []), option].sort((x, y) => x.label.localeCompare(y.label)),
-                    }))
-                  }
-                />
-              ))}
-            </div>
-          ) : null}
           <OrderedPicker
             name="mashbillLinks"
             label="Mashbills"

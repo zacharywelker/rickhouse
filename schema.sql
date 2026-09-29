@@ -163,11 +163,6 @@ CREATE TABLE expressions (
     id              serial PRIMARY KEY,
     brand_id        integer NOT NULL REFERENCES brands(id) ON DELETE RESTRICT,
     category_id     integer NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
-    -- Who bottled it. A different claim from who distilled it, and often the
-    -- only name on a sourced bottle.
-    bottled_by_id   integer REFERENCES companies(id) ON DELETE SET NULL,
-    -- Where it was bottled, for labels that say where but not by whom.
-    bottled_in      text,
     name            citext  NOT NULL,          -- "Double Oak Spirit"
     slug            text    NOT NULL,
 
@@ -226,7 +221,6 @@ CREATE TABLE expressions (
 );
 CREATE INDEX expressions_brand_idx    ON expressions(brand_id);
 CREATE INDEX expressions_category_idx ON expressions(category_id);
-CREATE INDEX expressions_bottled_by_idx ON expressions(bottled_by_id);
 -- Barcode lookup: scan a bottle and jump straight to its expression.
 -- Deliberately NOT unique; relabels and regional variants share codes.
 CREATE INDEX expressions_upc_idx      ON expressions(upc) WHERE upc IS NOT NULL;
@@ -657,8 +651,6 @@ ALTER TABLE brands DROP CONSTRAINT brands_company_id_fkey,
     ADD FOREIGN KEY (company_id, owner_id) REFERENCES companies(id, owner_id) ON DELETE SET NULL (company_id);
 ALTER TABLE distilleries DROP CONSTRAINT distilleries_company_id_fkey,
     ADD FOREIGN KEY (company_id, owner_id) REFERENCES companies(id, owner_id) ON DELETE SET NULL (company_id);
-ALTER TABLE expressions DROP CONSTRAINT expressions_bottled_by_id_fkey,
-    ADD FOREIGN KEY (bottled_by_id, owner_id) REFERENCES companies(id, owner_id) ON DELETE SET NULL (bottled_by_id);
 ALTER TABLE expressions DROP CONSTRAINT expressions_brand_id_fkey,
     ADD FOREIGN KEY (brand_id, owner_id) REFERENCES brands(id, owner_id) ON DELETE NO ACTION;
 ALTER TABLE bottles DROP CONSTRAINT bottles_expression_id_fkey,

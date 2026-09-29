@@ -7,7 +7,6 @@ import {
   bottles,
   brands,
   categories,
-  companies,
   distilleries,
   expressionDistilleries,
   expressionFinishes,
@@ -216,9 +215,6 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       brandId: expressions.brandId,
       category: categories.name,
       categoryId: expressions.categoryId,
-      bottledBy: companies.name,
-      bottledById: expressions.bottledById,
-      bottledIn: expressions.bottledIn,
       fieldGroup: categories.fieldGroup,
       proof: expressions.proof,
       abv: expressions.abv,
@@ -259,7 +255,6 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
     .from(expressions)
     .innerJoin(brands, eq(expressions.brandId, brands.id))
     .innerJoin(categories, eq(expressions.categoryId, categories.id))
-    .leftJoin(companies, eq(expressions.bottledById, companies.id))
     .where(where)
     // NULLS LAST both ways, and a stable tiebreak so paging never reshuffles.
     .orderBy(sql`${direction} NULLS LAST`, asc(brands.name), asc(expressions.name))
@@ -356,11 +351,6 @@ export type ExpressionRow = {
   brandId: number;
   category: string;
   categoryId: number;
-  /** Who bottled it; null when the label does not say. */
-  bottledBy: string | null;
-  bottledById: number | null;
-  /** Where it was bottled, when the label says a place and no bottler. */
-  bottledIn: string | null;
   fieldGroup: FieldGroup;
   proof: string | null;
   abv: string | null;
