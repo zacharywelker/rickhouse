@@ -407,7 +407,8 @@ it live in issue #48; the phases, in order:
 5. ~~**2FA and passkeys.** Authenticator-app codes with backup codes (email
    codes too, when email is set); passkeys on the APP_URL domain.~~
 6. ~~**Sign-in hardening.** Optional Cloudflare Turnstile on password sign-in
-   and "forgot password"; new passwords checked against Have I Been Pwned
+   and "forgot password", skipped for visitors from `TURNSTILE_SKIP_NETWORKS`
+   (usually the LAN) who aren't at the APP_URL address; new passwords checked against Have I Been Pwned
    (`PASSWORD_BREACH_CHECK`) and refused if they match any of the last five;
    saved passkeys offered in the username field's autofill.~~
 

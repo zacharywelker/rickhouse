@@ -36,6 +36,14 @@ export function buildBlockList(entries: readonly string[]): BlockList {
   return list;
 }
 
+/** Whether an address (as clientIpFromForwardedFor returns it) is inside `list`. */
+export function listIncludes(list: BlockList, address: string | null): boolean {
+  if (!address) return false;
+  const ip = unmap(address);
+  const family = familyOf(ip);
+  return family !== null && list.check(ip, family);
+}
+
 /**
  * Picks the client out of an X-Forwarded-For chain.
  *
