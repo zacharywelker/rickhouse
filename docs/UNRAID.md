@@ -56,10 +56,12 @@ Direct LAN access on port `1964` keeps working.
 ```ini
 TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=
+TURNSTILE_SKIP_NETWORKS=
 PASSWORD_BREACH_CHECK=true
 ```
 
-- **Cloudflare Turnstile** (optional): create a Turnstile widget in the Cloudflare dashboard for your `APP_URL` hostname and paste in both keys. Sign-in and "forgot password" then show a bot check. Passkey sign-in skips it. Password sign-in then only works through `APP_URL`, not the LAN address. Leave both keys empty to turn it off.
+- **Cloudflare Turnstile** (optional): create a Turnstile widget in the Cloudflare dashboard for your `APP_URL` hostname and paste in both keys. Sign-in and "forgot password" then show a bot check. Passkey sign-in skips it. Password sign-in then only works through `APP_URL`, not the LAN address, unless you set `TURNSTILE_SKIP_NETWORKS`. Leave both keys empty to turn it off.
+- **`TURNSTILE_SKIP_NETWORKS`** (optional): visitors from these IPs or CIDR ranges sign in without the bot check, so the LAN address works again. List your home network, e.g. `192.168.1.0/24`. Rickhouse judges each visitor by the same address it rate-limits (see `TRUSTED_PROXIES`), so someone reaching you through Cloudflare or your reverse proxy still gets the check even when the tunnel or proxy itself runs on your LAN. Two conditions: your proxy must send `X-Forwarded-For` (Cloudflare, Caddy, Nginx Proxy Manager and Traefik do by default), and port `1964` must not be port-forwarded to the internet, since a direct connection can claim any address.
 - **Breached passwords:** new passwords are checked against [Have I Been Pwned](https://haveibeenpwned.com/Passwords). Only the first 5 characters of the password's hash are sent. If the server has no internet access, set `PASSWORD_BREACH_CHECK=false`, or choosing a password will fail, including at first sign-in.
 - **No reuse:** a new password can't match the current one or any of the 4 before it. There's nothing to configure.
 
@@ -127,7 +129,9 @@ To read the data without Rickhouse, extract `csv.tar.gz` and open the CSVs in a 
 
 **"Invalid origin":** set `APP_URL` to the address in your browser's address bar.
 
-**Bot check fails or never loads:** check that the Turnstile widget's hostname matches `APP_URL`. To turn the check off, clear both `TURNSTILE_*` keys and recreate the container. It's read from `.env`, so this works even when nobody can sign in.
+**Bot check fails or never loads:** check that the Turnstile widget's hostname matches `APP_URL`. To turn the check off, clear `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` and recreate the container. It's read from `.env`, so this works even when nobody can sign in.
+
+**Bot check still shows on the LAN:** `TURNSTILE_SKIP_NETWORKS` must cover the address of the device you're signing in from, and you must open Rickhouse at the server's LAN address. Going through your public domain sends you out via Cloudflare or your router, so you arrive from your public IP.
 
 **"Couldn't check that password":** the server can't reach Have I Been Pwned. Restore internet access, or set `PASSWORD_BREACH_CHECK=false`.
 
