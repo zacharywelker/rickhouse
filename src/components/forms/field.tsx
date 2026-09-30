@@ -4,7 +4,6 @@ import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { StopSlider } from "@/components/forms/stop-slider";
 import { Textarea } from "@/components/ui/textarea";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { descendantsOf } from "@/lib/admin/tree";
@@ -97,18 +96,6 @@ export function Field({
             </option>
           ))}
         </select>
-      ) : null}
-
-      {spec.kind === "slider" ? (
-        <StopSlider
-          id={inputId}
-          name={spec.name}
-          label={spec.label}
-          stops={spec.options}
-          value={String(value ?? "")}
-          onChange={onChange}
-          invalid={error !== undefined}
-        />
       ) : null}
 
       {spec.kind === "checkbox" ? (

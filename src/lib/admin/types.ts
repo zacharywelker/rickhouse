@@ -58,12 +58,6 @@ export type FieldSpec =
       required?: boolean;
       help?: string;
     })
-  | (FieldBase & {
-      kind: "slider";
-      /** Ordered stops; the first is the empty/unknown one. */
-      options: ReadonlyArray<{ value: string; label: string }>;
-      help?: string;
-    })
   /**
    * A picker over another entity, with "create new" inline. This is the field
    * that stops adding a bottle from turning into a detour to go create a
