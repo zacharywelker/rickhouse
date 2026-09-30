@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBlockList, clientIpFromForwardedFor } from "../client-ip";
+import { buildBlockList, clientIpFromForwardedFor, listIncludes } from "../client-ip";
 
 const none = buildBlockList([]);
 // A few of Cloudflare's published ranges, as someone behind it would list.
@@ -56,5 +56,22 @@ describe("buildBlockList", () => {
     expect(() => buildBlockList(["cloudflare"])).toThrow(/not an IP address/);
     expect(() => buildBlockList(["10.0.0.0/33"])).toThrow(/not an IP address/);
     expect(() => buildBlockList(["10.0.0.0/x"])).toThrow(/not an IP address/);
+  });
+});
+
+describe("listIncludes", () => {
+  const lan = buildBlockList(["192.168.1.0/24", "fd00::/8"]);
+
+  it("matches addresses inside the list, including IPv4-mapped ones", () => {
+    expect(listIncludes(lan, "192.168.1.50")).toBe(true);
+    expect(listIncludes(lan, "::ffff:192.168.1.50")).toBe(true);
+    expect(listIncludes(lan, "fd12::1")).toBe(true);
+  });
+
+  it("rejects everything else, including no address at all", () => {
+    expect(listIncludes(lan, "192.168.2.1")).toBe(false);
+    expect(listIncludes(lan, "203.0.113.9")).toBe(false);
+    expect(listIncludes(lan, "not-an-ip")).toBe(false);
+    expect(listIncludes(lan, null)).toBe(false);
   });
 });

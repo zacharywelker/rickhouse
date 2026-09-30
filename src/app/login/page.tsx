@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { db, schema } from "@/db";
+import { turnstileSiteKeyFor } from "@/lib/auth/turnstile";
 import { emailEnabled } from "@/lib/email/settings";
-import { env, turnstileSiteKey } from "@/lib/env";
+import { env } from "@/lib/env";
 import { enabledSsoButtons } from "@/lib/sso/providers";
 import { LoginForm } from "./login-form";
 
@@ -83,7 +85,7 @@ export default async function LoginPage({
             passkeys={Boolean(appUrl)}
             canReset={canReset}
             ssoError={error ? ssoErrorMessage(error) : null}
-            turnstileSiteKey={turnstileSiteKey()}
+            turnstileSiteKey={turnstileSiteKeyFor(await headers())}
           />
         </SectionContent>
       </Section>

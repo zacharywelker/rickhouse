@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { StopSlider } from "@/components/forms/stop-slider";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { cn } from "@/lib/utils";
 import type { FieldSpec, Option } from "@/lib/admin/types";
@@ -16,6 +17,7 @@ export const CELL_WIDTH: Record<FieldSpec["kind"], string> = {
   number: "min-w-24",
   date: "min-w-36",
   select: "min-w-32",
+  slider: "min-w-40",
   checkbox: "",
 };
 
@@ -92,6 +94,21 @@ export function GridCell({
             </option>
           ))}
         </select>
+      );
+
+    case "slider":
+      return (
+        <StopSlider
+          id={id}
+          label={spec.label}
+          stops={spec.options}
+          value={text}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          inputRef={inputRef}
+          invalid={invalid}
+          compact
+        />
       );
 
     case "reference":

@@ -1,7 +1,7 @@
 import { toNextJsHandler } from "better-auth/next-js";
-import { CLIENT_IP_HEADER, buildBlockList, clientIpFromForwardedFor } from "@/lib/auth/client-ip";
+import { CLIENT_IP_HEADER } from "@/lib/auth/client-ip";
+import { clientIpOf } from "@/lib/auth/request-ip";
 import { getAuth } from "@/lib/auth/server";
-import { env } from "@/lib/env";
 
 /**
  * Better Auth's HTTP endpoints: sign-in, sign-out, session, change-password.
@@ -10,7 +10,6 @@ import { env } from "@/lib/env";
  * The instance is fetched per request because SSO providers and email can
  * change at run time (see getAuth).
  */
-const trustedProxies = buildBlockList(env().TRUSTED_PROXIES);
 
 /**
  * The admin plugin's endpoints are closed to the browser. Account management
@@ -27,7 +26,7 @@ function blocked(request: Request): boolean {
 function withClientIp(request: Request): Request {
   const headers = new Headers(request.headers);
   headers.delete(CLIENT_IP_HEADER);
-  const ip = clientIpFromForwardedFor(request.headers.get("x-forwarded-for"), trustedProxies);
+  const ip = clientIpOf(request.headers);
   if (ip) headers.set(CLIENT_IP_HEADER, ip);
   return new Request(request, { headers });
 }

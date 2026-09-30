@@ -6,7 +6,7 @@
  * for Postgres `numeric` columns leave here as strings — never floats.
  */
 import { z } from "zod";
-import { ACQUISITIONS, BOTTLE_STATUSES, STILL_TYPES } from "@/db/schema";
+import { ACQUISITIONS, BOTTLE_STATUSES, CHAR_LEVELS, STILL_TYPES } from "@/db/schema";
 
 const trimmed = z.string().trim();
 
@@ -89,7 +89,7 @@ export const expressionSchema = z
     entryProof: optionalDecimal(0, 200),
     isChillFiltered: tristate,
     colorAdded: tristate,
-    charLevel: optionalText(80),
+    charLevel: optionalEnum(CHAR_LEVELS),
 
     // Rum
     stillType: optionalEnum(STILL_TYPES),

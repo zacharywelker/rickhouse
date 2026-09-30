@@ -19,6 +19,7 @@ import { CLIENT_IP_HEADER } from "./client-ip";
 import { PASSWORD_COMPROMISED_MESSAGE, PASSWORD_REUSED_CODE, PASSWORD_REUSED_MESSAGE, reusesRecentPassword } from "./password-checks";
 import { sameHostOrigins } from "./origins";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./passwords";
+import { skippingNetworks } from "./turnstile";
 
 /**
  * Admins manage accounts, not collections: the admin role gets everything
@@ -212,12 +213,14 @@ function buildAuth(settings: RuntimeSettings) {
       // Passkey sign-in is left out: it has no password to guess.
       ...(config.TURNSTILE_SITE_KEY && config.TURNSTILE_SECRET_KEY
         ? [
-            captcha({
-              provider: "cloudflare-turnstile",
-              secretKey: config.TURNSTILE_SECRET_KEY,
-              endpoints: TURNSTILE_ENDPOINTS,
-              ...(appUrl ? { allowedHostnames: [new URL(appUrl).hostname] } : {}),
-            }),
+            skippingNetworks(
+              captcha({
+                provider: "cloudflare-turnstile",
+                secretKey: config.TURNSTILE_SECRET_KEY,
+                endpoints: TURNSTILE_ENDPOINTS,
+                ...(appUrl ? { allowedHostnames: [new URL(appUrl).hostname] } : {}),
+              }),
+            ),
           ]
         : []),
       // A passkey is bound to one domain, so it needs APP_URL.
