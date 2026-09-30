@@ -30,6 +30,7 @@ export async function getDistillery(slug: string, ownerId: number) {
       country: distilleries.country,
       dspNumber: distilleries.dspNumber,
       founded: distilleries.founded,
+      disclosure: distilleries.disclosure,
       notes: distilleries.notes,
       company: companies.name,
     })

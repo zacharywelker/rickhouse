@@ -151,11 +151,13 @@ export function ExpressionForm({
           <OrderedPicker
             name="distilleryLinks"
             label="Distilleries"
-            description="Every distillery that contributed, in the order you would list them."
+            description="Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere."
             resource="distilleries"
             options={optionsByField.distilleryLinks ?? []}
             amountLabel="Share"
             amountSuffix="%"
+            inferable
+            undisclosable
             value={links.distilleries}
             onChange={(rows) => setLinks((prev) => ({ ...prev, distilleries: rows }))}
           />

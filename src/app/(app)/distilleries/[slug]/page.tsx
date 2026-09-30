@@ -30,7 +30,12 @@ export default async function DistilleryPage({
     <EntityPage
       kind="Distillery"
       name={row.name}
-      badges={row.company ? <Badge>{row.company}</Badge> : null}
+      badges={
+        <>
+          {row.disclosure === "undisclosed" ? <Badge>Undisclosed</Badge> : null}
+          {row.company ? <Badge>{row.company}</Badge> : null}
+        </>
+      }
       meta={[
         { label: "Location", value: where || "—" },
         { label: "DSP", value: row.dspNumber ?? "—" },
@@ -40,7 +45,11 @@ export default async function DistilleryPage({
       notes={row.notes}
       preset={{ distilleryIds: [row.id] }}
       searchParams={query}
-      emptyMessage="No bottles in your collection were made here yet. Blends count — a bottle appears here if this distillery contributed any part of it."
+      emptyMessage={
+        row.disclosure === "undisclosed"
+          ? "No bottles here yet. This stands in for labels that name only a place; the real distillery is not on them."
+          : "No bottles in your collection were made here yet. Blends count — a bottle appears here if this distillery contributed any part of it."
+      }
     />
   );
 }

@@ -21,6 +21,7 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
+import { Inferred } from "@/components/ui/inferred";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
@@ -101,7 +102,7 @@ function Chips({
   hrefFor,
 }: {
   label: string;
-  items: Array<{ id: number; name: string; slug: string | null; amount: string | null }>;
+  items: Array<{ id: number; name: string; slug: string | null; amount: string | null; inferred?: boolean }>;
   hrefFor: (item: { id: number; slug: string | null }) => Route | null;
 }) {
   if (items.length === 0) return null;
@@ -115,10 +116,11 @@ function Chips({
             <Badge
               className={cn(
                 "border-border bg-muted text-foreground",
+                item.inferred && "border-inferred/50 text-inferred",
                 href && "transition-colors hover:border-primary/50 hover:text-primary",
               )}
             >
-              {item.name}
+              {item.inferred ? <Inferred>{item.name}</Inferred> : item.name}
               {item.amount !== null ? (
                 <span className="ml-1 text-muted-foreground">{Number(item.amount)}%</span>
               ) : null}

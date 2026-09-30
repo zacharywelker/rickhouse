@@ -15,6 +15,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   pgView,
@@ -109,6 +110,18 @@ export const brands = pgTable(
   ],
 );
 
+/**
+ * What a distillery row stands for:
+ *   named       a real distillery
+ *   undisclosed a placeholder for a place a label admits to and nothing more
+ *
+ * Whether a label's link to a real distillery is a guess is not recorded here:
+ * that is per label (`expression_distilleries.is_inferred`), because the same
+ * distillery is stated on one bottle and only inferred on another.
+ */
+export const DISTILLERY_DISCLOSURES = ["named", "undisclosed"] as const;
+export type DistilleryDisclosure = (typeof DISTILLERY_DISCLOSURES)[number];
+
 export const distilleries = pgTable(
   "distilleries",
   {
@@ -125,6 +138,8 @@ export const distilleries = pgTable(
     country: text("country").notNull().default("USA"),
     dspNumber: text("dsp_number"),
     founded: integer("founded"),
+    /** How much the label told us; see DISTILLERY_DISCLOSURES. */
+    disclosure: text("disclosure", { enum: DISTILLERY_DISCLOSURES }).notNull().default("named"),
     notes: text("notes"),
   },
   (t) => [
@@ -319,6 +334,8 @@ export const expressionDistilleries = pgTable(
       .references(() => distilleries.id, { onDelete: "cascade" }),
     position: integer("position").notNull().default(0),
     sharePct: pct("share_pct"),
+    /** Identified from outside the label, so never presented as fact. */
+    isInferred: boolean("is_inferred").notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.expressionId, t.distilleryId] })],
 );
@@ -897,6 +914,8 @@ export const bottleList = pgView("bottle_list", {
   fieldGroup: text("field_group").notNull().$type<FieldGroup>(),
   store: citext("store"),
   distilleries: text("distilleries"),
+  /** The same distilleries with each one's per-label flag, for tables that colour an inferred one. */
+  distilleryLinks: jsonb("distillery_links").$type<Array<{ name: string; inferred: boolean }> | null>(),
   finishes: text("finishes"),
   avgRating: numeric("avg_rating", { precision: 3, scale: 1 }),
   thumbPath: text("thumb_path"),

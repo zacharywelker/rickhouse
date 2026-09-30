@@ -136,6 +136,10 @@
   --warning: light-dark(#a86600, #c98319);
   --info: light-dark(#246b9b, #4589bb);
 
+  /* A distillery identified from outside the label. Rust, its own token: blue
+     read as a link, and it is not a warning or a category color. */
+  --inferred: light-dark(#b0410f, #e8834f);
+
   /* Bottle lifecycle — DESIGN-TOKENS.md §41. Three restrained states, not
      badge soup. */
   --state-open: light-dark(#c96f2f, #dd8a4f);
@@ -213,6 +217,7 @@
   --color-warning: var(--warning);
   --color-success: var(--success);
   --color-info: var(--info);
+  --color-inferred: var(--inferred);
 
   --color-state-open: var(--state-open);
   --color-state-empty: var(--state-empty);

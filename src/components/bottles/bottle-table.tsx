@@ -28,6 +28,7 @@ import type { GridRow } from "@/lib/bottles/grid";
 import { deleteBottlesBulkAction, updateBottlesBulkAction } from "@/app/(app)/bottles/actions";
 import { BOTTLE_STATUSES } from "@/db/schema";
 import type { Option } from "@/lib/admin/types";
+import { DistilleryNames } from "@/components/ui/inferred";
 import { BottleCards } from "./bottle-cards";
 import { FillGauge } from "./fill-gauge";
 import { StatusMark } from "./status-mark";
@@ -310,8 +311,10 @@ export function BottleTable({
       helper.accessor("distilleries", {
         id: "distilleries",
         header: "Distilleries",
-        cell: ({ getValue }) => (
-          <span className="block min-w-32 max-w-56 text-muted-foreground">{getValue() ?? "—"}</span>
+        cell: ({ row }) => (
+          <span className="block min-w-32 max-w-56 text-muted-foreground">
+            <DistilleryNames links={row.original.distilleryLinks} />
+          </span>
         ),
       }),
       helper.accessor("proof", {

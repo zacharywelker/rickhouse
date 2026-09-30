@@ -71,6 +71,11 @@ CREATE TABLE distilleries (
     country     text NOT NULL DEFAULT 'USA',
     dsp_number  text,          -- e.g. DSP-KY-95
     founded     integer,
+    -- 'named' = a real distillery; 'undisclosed' = a placeholder for a place
+    -- and nothing more ("Undisclosed (Indiana)"). Whether a link to a real
+    -- distillery is a guess is per label: expression_distilleries.is_inferred.
+    disclosure  text NOT NULL DEFAULT 'named'
+                CHECK (disclosure IN ('named', 'undisclosed')),
     notes       text
 );
 CREATE INDEX distilleries_company_idx ON distilleries(company_id);
@@ -226,6 +231,10 @@ CREATE TABLE expression_distilleries (
     distillery_id integer NOT NULL REFERENCES distilleries(id) ON DELETE CASCADE,
     position      integer NOT NULL DEFAULT 0,
     share_pct     numeric(5,2),
+    -- Identified from outside the label (a community sourcing guess), so the
+    -- app never presents it as fact. Per label: the same distillery is stated
+    -- on one bottle and only inferred on another.
+    is_inferred   boolean NOT NULL DEFAULT false,
     PRIMARY KEY (expression_id, distillery_id)
 );
 

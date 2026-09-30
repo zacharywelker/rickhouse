@@ -97,8 +97,8 @@ describe("changesFor", () => {
     };
     const changes = changesFor(editableFrom(row), edit, "whiskey")!;
     expect(Object.keys(changes).sort()).toEqual(["distilleryLinks", "finishLinks", "mashbillLinks"]);
-    expect(JSON.parse(changes.finishLinks as string)).toEqual([{ id: 9, amount: "6", distilleryId: null }]);
-    expect(JSON.parse(changes.distilleryLinks as string)).toEqual([{ id: 1, amount: "60", distilleryId: null }]);
+    expect(JSON.parse(changes.finishLinks as string)).toEqual([{ id: 9, amount: "6", distilleryId: null, inferred: false }]);
+    expect(JSON.parse(changes.distilleryLinks as string)).toEqual([{ id: 1, amount: "60", distilleryId: null, inferred: false }]);
   });
 });
 

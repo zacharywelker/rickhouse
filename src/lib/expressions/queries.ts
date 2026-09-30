@@ -22,7 +22,16 @@ import {
 import type { LabelFilters } from "@/lib/expressions/filters";
 import type { LinkedRow } from "@/components/expressions/ordered-picker";
 
-export type LinkedEntity = { id: number; name: string; slug: string | null; amount: string | null };
+export type LinkedEntity = {
+  id: number;
+  name: string;
+  slug: string | null;
+  amount: string | null;
+  /** Distilleries only: identified from outside the label. */
+  inferred?: boolean;
+  /** Distilleries only: an "Undisclosed (…)" placeholder. */
+  undisclosed?: boolean;
+};
 
 /**
  * A mashbill carries its recipe, and on a blend, whose recipe it is — "78%
@@ -51,6 +60,8 @@ export async function expressionLinks(expressionId: number): Promise<{
         name: distilleries.name,
         slug: distilleries.slug,
         amount: expressionDistilleries.sharePct,
+        inferred: expressionDistilleries.isInferred,
+        disclosure: distilleries.disclosure,
       })
       .from(expressionDistilleries)
       .innerJoin(distilleries, eq(expressionDistilleries.distilleryId, distilleries.id))
@@ -98,7 +109,7 @@ export async function expressionLinks(expressionId: number): Promise<{
   const blended = d.length > 1;
 
   return {
-    distilleries: d,
+    distilleries: d.map(({ disclosure, ...row }) => ({ ...row, undisclosed: disclosure === "undisclosed" })),
     mashbills: m.map((row) => ({
       id: row.id,
       name: row.name ?? describeRecipe(row.recipe),
@@ -276,6 +287,8 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
         id: distilleries.id,
         name: distilleries.name,
         amount: expressionDistilleries.sharePct,
+        inferred: expressionDistilleries.isInferred,
+        disclosure: distilleries.disclosure,
       })
       .from(expressionDistilleries)
       .innerJoin(distilleries, eq(expressionDistilleries.distilleryId, distilleries.id))
@@ -311,7 +324,15 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
   ]);
 
   for (const row of d) {
-    byId.get(row.expressionId)?.distilleries.push({ id: row.id, label: row.name, amount: amount(row.amount) });
+    byId
+      .get(row.expressionId)
+      ?.distilleries.push({
+        id: row.id,
+        label: row.name,
+        amount: amount(row.amount),
+        inferred: row.inferred,
+        undisclosed: row.disclosure === "undisclosed",
+      });
   }
   for (const row of m) {
     byId.get(row.expressionId)?.mashbills.push({

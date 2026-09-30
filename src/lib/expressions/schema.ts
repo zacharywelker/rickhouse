@@ -135,6 +135,8 @@ export const linkRowSchema = z.object({
     .transform((v) => (v === "" ? null : v)),
   /** Mashbills only: which of the label's distilleries made this recipe. */
   distilleryId: z.number().int().positive().nullable().optional(),
+  /** Distilleries only: identified from outside the label, not stated on it. */
+  inferred: z.boolean().optional(),
 });
 
 export type LinkRow = z.infer<typeof linkRowSchema>;

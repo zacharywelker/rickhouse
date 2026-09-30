@@ -198,7 +198,12 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         help: "A handheld scanner types straight into this field.",
         span: "half",
       },
-      { kind: "textarea", name: "labelNotes", label: "Notes On The Bottle Label" },
+      {
+        kind: "textarea",
+        name: "labelNotes",
+        label: "Notes On The Bottle Label",
+        help: "What it says, as printed: \"Distilled in Indiana\", \"Bottled by …\", \"Made in …\". Bottlers and places live here, not in their own fields.",
+      },
     ],
   },
 ];

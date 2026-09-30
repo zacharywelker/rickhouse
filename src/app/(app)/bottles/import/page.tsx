@@ -28,6 +28,11 @@ export default function ImportPage() {
             {TRANSFER_HEADERS.join(",")}
           </code>
           <p className="text-sm text-muted-foreground">
+            <code className="text-foreground">inferred_distilleries</code> lists the ones in{" "}
+            <code className="text-foreground">distilleries</code> that were worked out from outside the label rather
+            than stated on it. Leave it blank if none were.
+          </p>
+          <p className="text-sm text-muted-foreground">
             The export uses exactly this shape, so the quickest way to get a template is to{" "}
             <a href="/api/bottles/export" download className="text-primary hover:underline">
               download your collection

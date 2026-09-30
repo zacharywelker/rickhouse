@@ -10,6 +10,8 @@ export type Option = {
   value: number;
   label: string;
   hint?: string;
+  /** Distilleries only: a placeholder for a place a label names and no distillery. */
+  undisclosed?: boolean;
   /** Set on self-referencing resources, so the form can exclude descendants. */
   parentId?: number | null;
 };
