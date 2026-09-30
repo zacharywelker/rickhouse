@@ -68,7 +68,7 @@ export function ExpressionBulkGrid({
         custom: [
           {
             id: "addBottle",
-            label: "Also add a bottle",
+            label: "Add bottle",
             initial: () => false,
             toPayload: (value) => value === true,
             render: ({ id, labelledBy, value, onChange }) => (

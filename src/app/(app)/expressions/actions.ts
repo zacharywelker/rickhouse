@@ -298,7 +298,7 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
           .values({ ...(valuesForGroup(input, allowed, slug) as typeof expressions.$inferInsert), ownerId: user.id })
           .returning({ id: expressions.id });
         await insertLinks(tx, inserted!.id, linksFrom(row));
-        // The row's "Also add a bottle" box: same transaction, so a label is
+        // The row's "Add bottle" box: same transaction, so a label is
         // never saved without the bottle that was asked for.
         if (row.addBottle === true) {
           await tx.insert(bottles).values({ expressionId: inserted!.id, ownerId: user.id });
