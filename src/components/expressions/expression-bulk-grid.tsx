@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { BulkGrid, type BulkSection, type CustomColumn } from "@/components/bulk/bulk-grid";
 import { saveExpressionsBulkAction } from "@/app/(app)/expressions/actions";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
@@ -59,6 +60,29 @@ export function ExpressionBulkGrid({
         title: "Where it came from",
         fields: [],
         custom: [linkColumn("distilleries"), linkColumn("mashbills"), linkColumn("finishes")],
+      },
+      {
+        id: "collection",
+        title: "Collection",
+        fields: [],
+        custom: [
+          {
+            id: "addBottle",
+            label: "Also add a bottle",
+            initial: () => false,
+            toPayload: (value) => value === true,
+            render: ({ id, labelledBy, value, onChange }) => (
+              <div className="flex h-9 items-center justify-center">
+                <Checkbox
+                  id={id}
+                  checked={value === true}
+                  onCheckedChange={(checked) => onChange(checked === true)}
+                  aria-labelledby={labelledBy}
+                />
+              </div>
+            ),
+          },
+        ],
       },
     ];
   }, [options]);
