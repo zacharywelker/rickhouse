@@ -288,12 +288,17 @@ System colors should be separate from category colors.
   --color-warning: #a86600;
   --color-danger: #b42318;
   --color-info: #246b9b;
+  --color-inferred: #b0410f;
 
   --color-focus: #005fcc;
 }
 ```
 
 These colors communicate system state.
+
+`--color-inferred` (rust) marks a distillery worked out from outside the label,
+always with the word "(inferred)" beside it. It is deliberately not blue, which
+reads as a link, and not a category hue.
 
 Do not confuse them with spirit categories.
 
