@@ -47,11 +47,13 @@ export function ExpressionForm({
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
 
   const saved = state.ok && state.message !== "";
+  const bottleId = state.ok ? state.bottleId : undefined;
   React.useEffect(() => {
     if (!saved) return;
-    router.push("/expressions");
+    // With a bottle just added, land on its edit page to fill in price, store, etc.
+    router.push(bottleId !== undefined ? `/bottles/${bottleId}/edit` : "/expressions");
     router.refresh();
-  }, [saved, state, router]);
+  }, [saved, bottleId, state, router]);
 
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
   const set = (name: string, value: FieldValue) =>
@@ -217,6 +219,11 @@ export function ExpressionForm({
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
           {expressionId ? "Save Label" : "Create Label"}
         </Button>
+        {expressionId === null ? (
+          <Button type="submit" name="addBottle" value="1" variant="outline" disabled={pending}>
+            Create Label &amp; Add Bottle
+          </Button>
+        ) : null}
       </div>
     </form>
   );

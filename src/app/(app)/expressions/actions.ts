@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  bottles,
   expressionDistilleries,
   expressionFinishes,
   expressionMashbills,
@@ -221,13 +222,31 @@ export async function saveExpressionAction(
       if (failed.length > 0) approvals += ` Fetch ${failed.join(", ")} again from the label's page.`;
     }
 
+    // "Create Label & Add Bottle": the label is already saved, so a failure
+    // here leaves it in place and says so rather than failing the whole save.
+    let bottleId: number | undefined;
+    let bottleNote = "";
+    if (id === null && formData.get("addBottle") === "1") {
+      try {
+        const [bottle] = await db
+          .insert(bottles)
+          .values({ expressionId, ownerId: user.id })
+          .returning({ id: bottles.id });
+        bottleId = bottle!.id;
+        bottleNote = " Bottle added to your collection.";
+      } catch {
+        bottleNote = " The bottle could not be added; add it from the label's page.";
+      }
+    }
+
     revalidatePath("/expressions");
     revalidatePath("/bottles");
     revalidatePath("/");
     return {
       ok: true,
-      message: id === null ? `Label created.${approvals}` : "Label saved.",
+      message: id === null ? `Label created.${approvals}${bottleNote}` : "Label saved.",
       createdId: expressionId,
+      ...(bottleId !== undefined ? { bottleId } : {}),
     };
   } catch (error: unknown) {
     if (error instanceof NotOwned) return { ok: false, error: "That label is gone." };
@@ -279,6 +298,11 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
           .values({ ...(valuesForGroup(input, allowed, slug) as typeof expressions.$inferInsert), ownerId: user.id })
           .returning({ id: expressions.id });
         await insertLinks(tx, inserted!.id, linksFrom(row));
+        // The row's "Add bottle" box: same transaction, so a label is
+        // never saved without the bottle that was asked for.
+        if (row.addBottle === true) {
+          await tx.insert(bottles).values({ expressionId: inserted!.id, ownerId: user.id });
+        }
         return inserted!.id;
       });
       results.push({ index, ok: true, id });
