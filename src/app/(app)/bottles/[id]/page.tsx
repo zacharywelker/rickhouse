@@ -121,7 +121,6 @@ function Chips({
               {item.amount !== null ? (
                 <span className="ml-1 text-muted-foreground">{Number(item.amount)}%</span>
               ) : null}
-              {item.inferred ? <span className="ml-1">(inferred)</span> : null}
             </Badge>
           );
           return <li key={item.id}>{href ? <Link href={href}>{chip}</Link> : chip}</li>;

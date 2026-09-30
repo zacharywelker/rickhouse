@@ -1,15 +1,12 @@
 import * as React from "react";
 
 /**
- * A distillery identified from outside the label: its name in rust, followed
- * by "(inferred)". Plain text, so it needs no hover and works on a phone.
+ * A distillery identified from outside the label: just its name in rust. No
+ * word, underline or tooltip; the label form's Inferred tick is where it is
+ * spelled out.
  */
 export function Inferred({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="text-inferred">
-      {children} (inferred)
-    </span>
-  );
+  return <span className="text-inferred">{children}</span>;
 }
 
 /** A label's distilleries as a comma-separated run, with the inferred ones marked. */

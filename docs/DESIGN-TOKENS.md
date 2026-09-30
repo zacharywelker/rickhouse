@@ -297,8 +297,8 @@ System colors should be separate from category colors.
 These colors communicate system state.
 
 `--color-inferred` (rust) marks a distillery worked out from outside the label,
-always with the word "(inferred)" beside it. It is deliberately not blue, which
-reads as a link, and not a category hue.
+by color alone: no word, underline or tooltip. It is deliberately not blue,
+which reads as a link, and not a category hue.
 
 Do not confuse them with spirit categories.
 
