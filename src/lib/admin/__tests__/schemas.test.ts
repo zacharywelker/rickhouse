@@ -56,9 +56,15 @@ describe("mashbillSchema", () => {
     }
   });
 
-  it("allows a recipe with no grains at all", () => {
-    // A mashbill you know the name of but not the contents is a real thing.
-    expect(mashbillSchema.safeParse(mashbill([], { name: "Unknown high rye" })).success).toBe(true);
+  it("needs ingredients, unless the mashbill is a secret", () => {
+    expect(mashbillSchema.safeParse(mashbill([])).success).toBe(false);
+    expect(mashbillSchema.safeParse(mashbill([], { isSecret: "on", name: "Buffalo Trace Wheated" })).success).toBe(true);
+  });
+
+  it("asks a secret mashbill for its reference name", () => {
+    const parsed = mashbillSchema.safeParse(mashbill([["Corn", "100"]], { isSecret: "on" }));
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) expect(parsed.error.issues[0]?.path).toEqual(["name"]);
   });
 
   it("rejects a grain with no name, and a percentage of zero", () => {

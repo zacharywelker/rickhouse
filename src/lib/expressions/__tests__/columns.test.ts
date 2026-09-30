@@ -4,12 +4,13 @@ import { EXPRESSION_SECTIONS } from "../fields";
 import { DEFAULT_FILTERS, LABEL_SORTS, parseLabelFilters, serialiseLabelFilters } from "../filters";
 
 describe("label columns", () => {
-  it("has a column for every field on the label form", () => {
+  it("has a column for every field on the label form, bar the long-form ones", () => {
     // Adding a field to the form without a column would quietly leave it
-    // out of the table's "all options".
+    // out of the table's "all options". The slug, description and label notes
+    // are deliberately not columns: they are too long to read in a cell.
     const covered = new Set(LABEL_COLUMNS.flatMap((column) => column.specs.map((spec) => spec.name)));
     const missing = EXPRESSION_SECTIONS.flatMap((s) => s.fields.map((f) => f.name)).filter((n) => !covered.has(n));
-    expect(missing).toEqual([]);
+    expect(missing).toEqual(["slug", "description", "labelNotes"]);
   });
 
   it("shows brand, label, category, proof, MSRP and bottles by default", () => {

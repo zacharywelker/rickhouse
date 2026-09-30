@@ -148,6 +148,13 @@
       "when": 1790425774639,
       "tag": "0020_undisclosed_distilleries",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790512174639,
+      "tag": "0021_mashbill_secret",
+      "breakpoints": true
     }
   ]
 }

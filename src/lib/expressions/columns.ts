@@ -49,13 +49,22 @@ function spec(name: string): FieldSpec {
   throw new Error(`No label form field "${name}"`);
 }
 
+/** Form fields that are too long or too internal to be a table column. */
+const NOT_COLUMNS: ReadonlySet<string> = new Set(["slug", "description", "labelNotes"]);
+
+/** Shorter header text for the table than the form's label. */
+const SHORT_LABELS: Readonly<Record<string, string>> = { isBottledInBond: "BiB" };
+
 function field(name: string, extra: Partial<LabelColumn> = {}): LabelColumn {
   const s = spec(name);
-  return { id: name, label: s.label, specs: [s], numeric: s.kind === "number", ...extra };
+  return { id: name, label: SHORT_LABELS[name] ?? s.label, specs: [s], numeric: s.kind === "number", ...extra };
 }
 
 /** Every field of a section, in form order. */
-const all = (id: string) => section(id).fields.map((f) => field(f.name));
+const all = (id: string) =>
+  section(id)
+    .fields.filter((f) => !NOT_COLUMNS.has(f.name))
+    .map((f) => field(f.name));
 
 export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
   {
@@ -66,8 +75,6 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
       field("brandId", { id: "brand", sort: "brand" }),
       field("name", { label: "Label", sort: "name", locked: true }),
       field("categoryId", { id: "category", sort: "category" }),
-      field("slug"),
-      field("description"),
     ],
   },
   {
@@ -92,7 +99,7 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
     id: "commercial",
     title: "On the shelf",
     section: section("commercial"),
-    columns: [field("msrp", { sort: "msrp" }), field("sizeMl"), field("upc"), field("labelNotes", { label: "Label Notes" })],
+    columns: [field("msrp", { sort: "msrp" }), field("sizeMl"), field("upc")],
   },
   {
     id: "links",

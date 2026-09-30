@@ -86,3 +86,16 @@ export function pendingTtbIds(raw: unknown): string[] {
   }
   return ids;
 }
+
+/** A permit number with the punctuation, case and leading zeros that hand-typed ones vary in removed. */
+export function permitKey(permit: string): string {
+  return permit
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .replace(/(?<=[A-Z])0+(?=\d)/g, "");
+}
+
+/** A class/type the registry can search on by code: digits with an optional letter, like "101" or "101A". */
+export function isClassTypeCode(input: string): boolean {
+  return /^[0-9]{1,4}[A-Za-z]?$/.test(input.trim());
+}

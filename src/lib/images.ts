@@ -149,6 +149,11 @@ export async function storeBottleImage(file: File): Promise<StoredImage> {
   return storeImage(file, ORIGINALS, THUMBS);
 }
 
+/** A bottle photo downloaded from a link. */
+export async function storeBottleImageBytes(bytes: Buffer, contentType: string): Promise<StoredImage> {
+  return storeImageBytes(bytes, contentType, ORIGINALS, THUMBS);
+}
+
 /**
  * A new bottle photo copied from another stored image (a COLA label panel).
  * A copy, not a shared path, so deleting either never breaks the other.

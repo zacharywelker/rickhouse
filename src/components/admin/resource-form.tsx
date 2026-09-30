@@ -19,15 +19,21 @@ export function ResourceForm({
   options,
   row,
   onSaved,
+  initialValues,
 }: {
   resourceKey: string;
   singular: string;
   fields: FieldSpec[];
   options: Record<string, Option[]>;
   row: AdminRow | null;
-  onSaved: () => void;
+  onSaved: (createdId?: number) => void;
+  /** Filled in on a new row, such as the name typed into a picker. */
+  initialValues?: FormValues;
 }) {
-  const [values, setValues] = React.useState<FormValues>(() => initialFieldValues(fields, row?.values ?? null));
+  const [values, setValues] = React.useState<FormValues>(() => ({
+    ...initialFieldValues(fields, row?.values ?? null),
+    ...initialValues,
+  }));
   const [optionsByField, setOptionsByField] = React.useState(options);
 
   const action = saveResourceAction.bind(null, resourceKey, row?.id ?? null);
@@ -36,9 +42,10 @@ export function ResourceForm({
   // IDLE_RESULT is `ok` with an empty message, so a real success is the one
   // that carries text. Without that distinction the dialog closes on mount.
   const saved = state.ok && state.message !== "";
+  const createdId = state.ok ? state.createdId : undefined;
   React.useEffect(() => {
-    if (saved) onSaved();
-  }, [saved, onSaved]);
+    if (saved) onSaved(createdId);
+  }, [saved, createdId, onSaved]);
 
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
   const set = (name: string, value: FieldValue) => setValues((prev) => ({ ...prev, [name]: value }));
@@ -48,9 +55,17 @@ export function ResourceForm({
   const [grains, setGrains] = React.useState<GrainRow[]>(() => parseGrainRows(row?.values?.grains));
 
   return (
-    <form action={formAction} className="flex min-h-0 flex-col">
+    <form
+      action={formAction}
+      // A dialog opened from another form (a label's) sits inside it in React's tree; never submit that one too.
+      onSubmit={(event) => event.stopPropagation()}
+      className="flex min-h-0 flex-col"
+    >
       <div className="grid min-h-0 grid-cols-1 gap-4 overflow-y-auto p-6 sm:grid-cols-2">
-        {fields.map((field) => (
+        {resourceKey === "mashbills" ? <GrainEditor rows={grains} onChange={setGrains} error={fieldErrors.grains} /> : null}
+        {fields
+          .filter((field) => !field.showWhenAny || field.showWhenAny.some((name) => values[name] === true))
+          .map((field) => (
           <React.Fragment key={field.name}>
             <Field
               spec={field}
@@ -69,9 +84,6 @@ export function ResourceForm({
               }
               excludeId={row?.id}
             />
-            {resourceKey === "mashbills" && field.name === "name" ? (
-              <GrainEditor rows={grains} onChange={setGrains} error={fieldErrors.grains} />
-            ) : null}
           </React.Fragment>
         ))}
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeMashbill, orderGrains, sumGrains } from "../mashbills";
+import { describeMashbill, ingredientColor, mashbillTitle, orderGrains, sumGrains } from "../mashbills";
 
 describe("orderGrains", () => {
   it("leads with the grain that names the spirit, for a bourbon", () => {
@@ -85,5 +85,28 @@ describe("sumGrains", () => {
   it("adds up, ignoring anything unparseable", () => {
     expect(sumGrains([{ grain: "Corn", percent: "70" }, { grain: "Wheat", percent: "30" }])).toBe(100);
     expect(sumGrains([{ grain: "Corn", percent: "" }, { grain: "Wheat", percent: "30" }])).toBe(30);
+  });
+});
+
+describe("mashbillTitle", () => {
+  it("is the recipe, even when a name was stored", () => {
+    expect(mashbillTitle({ isSecret: false, name: "BBC High Rye" }, "60% Corn · 40% Rye")).toBe("60% Corn · 40% Rye");
+  });
+
+  it("is the reference name for a secret mashbill", () => {
+    expect(mashbillTitle({ isSecret: true, name: "Buffalo Trace Wheated" }, "70% Corn")).toBe("Buffalo Trace Wheated");
+    expect(mashbillTitle({ isSecret: true, name: " " }, "70% Corn")).toBe("70% Corn");
+  });
+});
+
+describe("ingredientColor", () => {
+  it("gives each common ingredient its own colour, whatever the case", () => {
+    const colors = ["corn", "rye", "wheat", "malted barley", "sugarcane", "molasses", "agave"].map(ingredientColor);
+    expect(new Set(colors).size).toBe(7);
+    expect(ingredientColor("CORN")).toBe(ingredientColor("corn"));
+  });
+
+  it("gives an unlisted ingredient a steady colour", () => {
+    expect(ingredientColor("Triticale")).toBe(ingredientColor("triticale"));
   });
 });

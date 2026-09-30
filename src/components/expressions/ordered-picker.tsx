@@ -215,6 +215,7 @@ export function OrderedPicker({
         id={`${name}-add`}
         labelledBy={`${name}-add-label`}
         resource={resource}
+        {...(resource === null && name === "mashbillLinks" ? { detailResource: "mashbills" as const } : {})}
         options={selectable}
         value={null}
         onChange={(next) => {

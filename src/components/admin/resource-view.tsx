@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Loader2, Pencil, Trash2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,7 +35,7 @@ function Cell({ value }: { value: CellValue }) {
     return <span className="text-muted-foreground">—</span>;
   }
   if (typeof value === "boolean") {
-    return value ? <Badge className="border-primary/40 text-primary">Yes</Badge> : <span className="text-muted-foreground">No</span>;
+    return <span className="text-muted-foreground">{value ? "Yes" : "No"}</span>;
   }
   if (typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)) {
     return (

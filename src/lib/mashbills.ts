@@ -73,6 +73,16 @@ export function describeMashbill(grains: readonly Grain[]): string {
     .join(" · ");
 }
 
+/**
+ * What a mashbill is called. The recipe, unless the distillery keeps it secret:
+ * then the recipe is only inferred, and the reference name ("Buffalo Trace
+ * Wheated") stands in for it.
+ */
+export function mashbillTitle(mashbill: { isSecret: boolean; name: string | null }, recipe: string): string {
+  const reference = mashbill.name?.trim();
+  return mashbill.isSecret && reference ? reference : recipe;
+}
+
 /** What the sum has to land on, matching the database trigger. */
 export const GRAIN_TOTAL = { min: 99, max: 101, exact: 100 } as const;
 
@@ -93,6 +103,9 @@ export const COMMON_GRAINS = [
   "Rye",
   "Wheat",
   "Malted Barley",
+  "Sugarcane",
+  "Molasses",
+  "Agave",
   "Malted Rye",
   "Malted Wheat",
   "Oats",
@@ -105,3 +118,28 @@ export const COMMON_GRAINS = [
   "Sorghum",
   "Brown Rice",
 ] as const;
+
+/**
+ * The colour each common ingredient is drawn in, so the total bar and the rows
+ * of a recipe read the same everywhere. Anything not listed gets a steady
+ * colour of its own from its name.
+ */
+const INGREDIENT_COLORS: Readonly<Record<string, string>> = {
+  corn: "#e8b02e",
+  rye: "#a8432c",
+  wheat: "#c9b48a",
+  "malted barley": "#6b4a2b",
+  sugarcane: "#6fa85b",
+  molasses: "#3b2a25",
+  agave: "#4f9da6",
+};
+
+export function ingredientColor(ingredient: string): string {
+  const key = ingredient.trim().toLowerCase();
+  const known = INGREDIENT_COLORS[key];
+  if (known) return known;
+  if (key === "") return "#9ca3af";
+  let hash = 0;
+  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return `hsl(${hash % 360} 35% 52%)`;
+}

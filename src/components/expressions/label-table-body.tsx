@@ -183,7 +183,11 @@ export function LabelTableBody({
       case "abv":
         return row.abv === null ? DASH : `${formatNumeric(row.abv)}%`;
       case "age":
-        return describeAgeParts(row.ageYears, row.ageMonths, row.ageDays) ?? DASH;
+        // A zero age is no age at all: say what the label does claim instead.
+        return (
+          describeAgeParts(row.ageYears, row.ageMonths, row.ageDays) ??
+          (row.isNas ? "NAS" : row.isStraight ? "Straight" : DASH)
+        );
       case "bottles":
         return row.bottleCount;
       case "distilleries":

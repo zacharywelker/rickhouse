@@ -43,18 +43,14 @@ test("creates a distillery and generates its slug", async ({ page }) => {
 
 /** Adds one grain row to the editor, which starts empty. */
 async function addGrain(page: Page, grain: string, percent: string, index: number) {
-  await page.getByRole("button", { name: "Add a grain" }).click();
+  await page.getByRole("button", { name: "Add an ingredient" }).click();
   await page.getByLabel(`Grain ${index + 1}`, { exact: true }).fill(grain);
   await page.getByLabel(`${grain} percentage`, { exact: true }).fill(percent);
 }
 
 test("the mashbill editor totals the grains live and blocks a bad sum", async ({ page }) => {
-  // Named, so the assertion below is about this run's row and not a
-  // identically-proportioned one left by an earlier run.
-  const name = `Test Recipe ${stamp()}`;
   await page.goto("/admin/mashbills");
   await page.getByRole("button", { name: "Add mashbill" }).first().click();
-  await page.getByLabel("Name", { exact: true }).fill(name);
 
   await addGrain(page, "Corn", "70", 0);
   await expect(page.getByText("30% short of 100%.")).toBeVisible();
@@ -70,19 +66,33 @@ test("the mashbill editor totals the grains live and blocks a bad sum", async ({
   await expect(page.getByText("Adds up to 100%.")).toBeVisible();
 
   await page.getByRole("button", { name: "Add mashbill" }).last().click();
-  const row = page.getByRole("row").filter({ hasText: name });
+  // A mashbill is presented as its recipe, not a name.
   await expect(
-    row.getByRole("cell", { name: "70% Corn · 20% Rye · 10% Malted Barley", exact: true }),
+    page.getByRole("cell", { name: "70% Corn · 20% Rye · 10% Malted Barley", exact: true }).first(),
   ).toBeVisible();
+});
+
+test("a secret mashbill shows its reference name instead of the inferred recipe", async ({ page }) => {
+  const name = `Wheated ${stamp()}`;
+  await page.goto("/admin/mashbills");
+  await page.getByRole("button", { name: "Add mashbill" }).first().click();
+  // The reference name only appears once the mashbill is marked secret.
+  await expect(page.getByLabel("Reference name")).toHaveCount(0);
+  await page.getByLabel("Secret mashbill").click();
+  await page.getByLabel("Reference name").fill(name);
+  await addGrain(page, "Corn", "70", 0);
+  await addGrain(page, "Wheat", "20", 1);
+  await addGrain(page, "Malted Barley", "10", 2);
+
+  await page.getByRole("button", { name: "Add mashbill" }).last().click();
+  await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
 });
 
 // The whole point of the child table: the old fixed columns could hold exactly
 // one unusual grain, and lost the second one's name.
 test("a recipe can carry two grains the old fixed columns had no room for", async ({ page }) => {
-  const name = `Odd Grains ${stamp()}`;
   await page.goto("/admin/mashbills");
   await page.getByRole("button", { name: "Add mashbill" }).first().click();
-  await page.getByLabel("Name", { exact: true }).fill(name);
 
   await addGrain(page, "Corn", "60", 0);
   await addGrain(page, "Oats", "20", 1);
@@ -91,10 +101,9 @@ test("a recipe can carry two grains the old fixed columns had no room for", asyn
   await expect(page.getByText("Adds up to 100%.")).toBeVisible();
 
   await page.getByRole("button", { name: "Add mashbill" }).last().click();
-  const row = page.getByRole("row").filter({ hasText: name });
   // Convention first, then the unusual grains, biggest first.
   await expect(
-    row.getByRole("cell", { name: "60% Corn · 10% Malted Barley · 20% Oats · 10% Triticale", exact: true }),
+    page.getByRole("cell", { name: "60% Corn · 10% Malted Barley · 20% Oats · 10% Triticale", exact: true }).first(),
   ).toBeVisible();
 });
 

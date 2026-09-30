@@ -358,7 +358,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             ) : null}
             <p className="border-t border-border pt-4 text-xs text-muted-foreground">
               Specs belong to the label.{" "}
-              <Link href={`/expressions/${e.id}/edit`} className="text-primary hover:underline">
+              <Link href={`/expressions/${e.id}/edit`} className="text-primary underline underline-offset-2 hover:no-underline">
                 Edit the label
               </Link>{" "}
               to change them for every bottle of it.

@@ -227,7 +227,14 @@ function formDate(date: Date): string {
  * Reads up to three pages of 20 and keeps only distilled spirits: a brand
  * name search also finds the wine and beer that share it.
  */
-type SearchQuery = { name: string; field: "brand" | "fanciful" | "either"; from: Date; to: Date };
+type SearchQuery = {
+  name: string;
+  field: "brand" | "fanciful" | "either";
+  from: Date;
+  to: Date;
+  /** The registry's class/type code, for example "101" (straight bourbon whisky). Blank for any. */
+  classTypeCode?: string;
+};
 
 export async function searchColas(query: SearchQuery): Promise<ColaSearch> {
   try {
@@ -250,8 +257,8 @@ async function searchOnce(query: SearchQuery): Promise<ColaSearch> {
     "searchCriteria.dateCompletedTo": formDate(query.to),
     "searchCriteria.productOrFancifulName": query.name,
     "searchCriteria.productNameSearchType": { brand: "B", fanciful: "F", either: "E" }[query.field],
-    "searchCriteria.classTypeFrom": "",
-    "searchCriteria.classTypeTo": "",
+    "searchCriteria.classTypeFrom": query.classTypeCode ?? "",
+    "searchCriteria.classTypeTo": query.classTypeCode ?? "",
     "searchCriteria.originCode": "",
   });
 

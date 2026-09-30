@@ -20,6 +20,7 @@ import {
 import {
   addColaAction,
   attachColasAction,
+  colaPermitHintsAction,
   searchColasAction,
   type ColaSearchResult,
 } from "@/app/(app)/expressions/cola-actions";
@@ -59,6 +60,8 @@ export function ColaSearchDialog(
     brandName: string;
     /** The text link that opens it: "Find on TTB", or a sentence in an empty state. */
     triggerLabel: string;
+    /** A label being created: the distilleries picked on its form, whose DSP numbers fill the permit box. */
+    distilleryIds?: number[];
   } & Target,
 ) {
   const { brandName, triggerLabel } = props;
@@ -66,6 +69,8 @@ export function ColaSearchDialog(
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [field, setField] = React.useState<"brand" | "fanciful" | "either">("brand");
+  const [classType, setClassType] = React.useState("");
+  const [permit, setPermit] = React.useState("");
   const [span, setSpan] = React.useState(0);
   const [result, setResult] = React.useState<ColaSearchResult | null>(null);
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
@@ -77,7 +82,7 @@ export function ColaSearchDialog(
   const windows = React.useMemo(() => [0, 1].map((index) => searchWindow(index, new Date()).label), []);
   const draft = props.expressionId === null ? props : null;
 
-  function search(query = name) {
+  function search(query = name, permitFilter = permit) {
     setPicked(new Set());
     startSearch(async () =>
       setResult(
@@ -85,6 +90,8 @@ export function ColaSearchDialog(
           name: query,
           field,
           window: span,
+          classType,
+          permit: permitFilter,
           ...(draft ? { labelName: draft.labelName } : {}),
         }),
       ),
@@ -98,7 +105,12 @@ export function ColaSearchDialog(
     const initial = brandName.trim() ? `${brandName.trim().toUpperCase()}%` : "";
     setName(initial);
     setResult(null);
-    if (initial) search(initial);
+    // The permit is offered, not applied: the first search is by brand alone.
+    if (initial) search(initial, "");
+    void colaPermitHintsAction(props.expressionId, props.distilleryIds ?? []).then((hints) => {
+      const [first] = hints;
+      if (first) setPermit((current) => (current === "" ? first : current));
+    });
   }
 
   function toggle(ttbId: string, on: boolean) {
@@ -153,7 +165,8 @@ export function ColaSearchDialog(
           <DialogTitle>Find this label&rsquo;s approvals</DialogTitle>
           <DialogDescription>
             Searches TTB&rsquo;s public COLA registry. Pick the approvals that are this label: each proof, size or
-            relabel has its own. Use % as a wildcard.
+            relabel has its own. Use % as a wildcard. A class/type code (like 101) is searched by TTB; a word
+            (like bourbon) and the permit narrow what it finds.
           </DialogDescription>
         </DialogHeader>
 
@@ -169,6 +182,28 @@ export function ColaSearchDialog(
           <div className="flex min-w-48 flex-1 flex-col gap-1.5">
             <Label htmlFor="cola-search-name">Name</Label>
             <Input id="cola-search-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="cola-search-class">Class / type</Label>
+            <Input
+              id="cola-search-class"
+              value={classType}
+              onChange={(e) => setClassType(e.target.value)}
+              autoComplete="off"
+              placeholder="101 or bourbon"
+              className="w-36"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="cola-search-permit">Permit</Label>
+            <Input
+              id="cola-search-permit"
+              value={permit}
+              onChange={(e) => setPermit(e.target.value)}
+              autoComplete="off"
+              placeholder="DSP-NY-0000"
+              className="w-36"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="cola-search-field">Search in</Label>

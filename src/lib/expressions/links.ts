@@ -36,7 +36,7 @@ export const LINK_KINDS: Record<
     label: "Mashbills",
     description: "One per contributing recipe. With more than one distillery, say which one made each.",
     resource: null,
-    emptyHint: "Add mashbills under Configuration — their grains have to total 100%.",
+    emptyHint: "No mashbills yet — add a new one from here.",
     amountLabel: "Share",
     amountSuffix: "%",
   },

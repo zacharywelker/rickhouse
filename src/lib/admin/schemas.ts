@@ -110,6 +110,8 @@ const grainRow = z.object({
 
 export const mashbillSchema = z
   .object({
+    isSecret: checkbox,
+    // The reference name of a secret mashbill; ignored otherwise.
     name: optionalText(120),
     notes: optionalText(),
     // The editor serialises its rows into one hidden field.
@@ -141,6 +143,20 @@ export const mashbillSchema = z
     // guard a malformed field throws a TypeError instead of failing cleanly.
     if (!Array.isArray(value.grains)) return;
 
+    if (value.isSecret && value.name === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["name"],
+        message: "Give a secret mashbill a reference name, such as Buffalo Trace Wheated.",
+      });
+    }
+    // A mashbill is presented as its recipe, so a public one needs one. A
+    // secret one can be just its reference name until a recipe is inferred.
+    if (!value.isSecret && value.grains.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["grains"], message: "Add at least one ingredient." });
+      return;
+    }
+
     const seen = new Set<string>();
     for (const row of value.grains) {
       const key = row.grain.toLowerCase();
@@ -155,9 +171,9 @@ export const mashbillSchema = z
       seen.add(key);
     }
 
-    // An empty recipe is allowed: a mashbill you know the name of but not the
-    // contents is a real thing to record. Anything else has to add up, with
-    // the same slack the database trigger allows for rounded published bills.
+    // A secret mashbill may have no inferred recipe yet. Anything else has to
+    // add up, with the same slack the database trigger allows for rounded
+    // published bills.
     if (value.grains.length === 0) return;
     const total = value.grains.reduce((sum, row) => sum + row.percent, 0);
     if (total < 99 || total > 101) {

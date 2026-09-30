@@ -5,6 +5,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { GripVertical, Loader2, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Grain } from "@/components/ui/grain";
 import { cn } from "@/lib/utils";
 import { seededRandom, seededRange } from "@/lib/seeded-random";
@@ -45,10 +47,14 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
     setOrder(images);
   }
 
-  async function upload(files: FileList | null) {
-    if (!files || files.length === 0) return;
+  const [linking, setLinking] = React.useState(false);
+  const [link, setLink] = React.useState("");
+
+  async function upload(files: FileList | null, imageUrl?: string) {
+    if ((!files || files.length === 0) && !imageUrl) return;
     const data = new FormData();
-    for (const file of Array.from(files)) data.append("images", file);
+    for (const file of Array.from(files ?? [])) data.append("images", file);
+    if (imageUrl) data.append("imageUrl", imageUrl);
     setBusy(true);
     setError(null);
     // A route handler, not a Server Action: with this app's auth middleware
@@ -60,6 +66,10 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
     const result: ActionResult = await response.json();
     setBusy(false);
     if (!result.ok) setError(result.error);
+    else if (imageUrl) {
+      setLink("");
+      setLinking(false);
+    }
     if (inputRef.current) inputRef.current.value = "";
     // Refresh explicitly rather than leaning on revalidation to land in time:
     // the new photo has to appear the moment the upload returns.
@@ -90,6 +100,9 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
           {busy ? <Loader2 className="size-4 animate-spin" /> : null}
           Add photos
         </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => setLinking((on) => !on)} disabled={busy}>
+          Add from a link
+        </Button>
         <input
           ref={inputRef}
           type="file"
@@ -100,6 +113,33 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
           onChange={(e) => void upload(e.target.files)}
         />
       </div>
+
+      {linking ? (
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void upload(null, link.trim());
+          }}
+        >
+          <div className="flex min-w-56 flex-1 flex-col gap-1.5">
+            <Label htmlFor="photo-link">Link to a photo</Label>
+            <Input
+              id="photo-link"
+              type="url"
+              value={link}
+              onChange={(event) => setLink(event.target.value)}
+              placeholder="https://example.com/bottle.jpg"
+              autoComplete="off"
+            />
+          </div>
+          <Button type="submit" size="sm" disabled={busy || link.trim() === ""}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+            Add
+          </Button>
+        </form>
+      ) : null}
 
       {error ? (
         <p role="alert" className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

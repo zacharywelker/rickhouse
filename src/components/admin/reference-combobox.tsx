@@ -7,7 +7,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { quickCreateAction } from "@/app/(app)/admin/actions";
-import type { Option, ReferenceResource } from "@/lib/admin/types";
+import { DETAILED_RESOURCES, type DetailedResource, type Option, type ReferenceResource } from "@/lib/admin/types";
+import { CreateWithDetailsDialog } from "./create-with-details-dialog";
 
 type Props = {
   id: string;
@@ -19,6 +20,12 @@ type Props = {
    * total 100, so there is nothing sensible to make from a name alone.
    */
   resource: ReferenceResource | null;
+  /**
+   * Offers to create with the whole form too. Set automatically for companies,
+   * brands and distilleries; a mashbill (no quick create: its recipe has to add
+   * up) passes it here.
+   */
+  detailResource?: DetailedResource;
   options: Option[];
   /** Shown in place of the create row when `resource` is null. */
   emptyHint?: string;
@@ -43,6 +50,7 @@ export function ReferenceCombobox({
   id,
   labelledBy,
   resource,
+  detailResource,
   options,
   value,
   onChange,
@@ -56,6 +64,9 @@ export function ReferenceCombobox({
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [creating, setCreating] = React.useState(false);
+  const [detailing, setDetailing] = React.useState(false);
+  const detailed: DetailedResource | null =
+    detailResource ?? ((DETAILED_RESOURCES as readonly string[]).includes(resource ?? "") ? (resource as DetailedResource) : null);
   const [error, setError] = React.useState<string | null>(null);
 
   const selectable = React.useMemo(
@@ -73,6 +84,8 @@ export function ReferenceCombobox({
 
   const exactExists = selectable.some((o) => o.label.toLowerCase() === needle);
   const canCreate = resource !== null && needle.length > 0 && !exactExists;
+  // A mashbill has no name to type, so its form is always on offer.
+  const canDetail = detailed !== null && !exactExists && (needle.length > 0 || resource === null);
 
   async function create() {
     const name = query.trim();
@@ -117,7 +130,7 @@ export function ReferenceCombobox({
             <Command shouldFilter={false}>
               <CommandInput value={query} onValueChange={setQuery} placeholder={searchPlaceholder} />
               <CommandList>
-                {matches.length === 0 && !canCreate ? (
+                {matches.length === 0 && !canCreate && !canDetail ? (
                   <CommandEmpty>
                     {emptyHint ??
                       (options.length === 0
@@ -148,20 +161,42 @@ export function ReferenceCombobox({
                     ))}
                   </CommandGroup>
                 ) : null}
-                {canCreate ? (
+                {canCreate || canDetail ? (
                   <>
                     {matches.length > 0 ? <CommandSeparator /> : null}
                     <CommandGroup>
-                      <CommandItem value="__create__" onSelect={create} disabled={creating}>
-                        {creating ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
+                      {canCreate ? (
+                        <CommandItem value="__create__" onSelect={create} disabled={creating}>
+                          {creating ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Plus className="size-4 text-primary" />
+                          )}
+                          <span className="truncate">
+                            Create <span className="font-medium text-foreground">{query.trim()}</span>
+                          </span>
+                        </CommandItem>
+                      ) : null}
+                      {canDetail ? (
+                        <CommandItem
+                          value="__details__"
+                          onSelect={() => {
+                            setOpen(false);
+                            setDetailing(true);
+                          }}
+                        >
                           <Plus className="size-4 text-primary" />
-                        )}
-                        <span className="truncate">
-                          Create <span className="font-medium text-foreground">{query.trim()}</span>
-                        </span>
-                      </CommandItem>
+                          <span className="truncate">
+                            {resource === null ? "Add a new mashbill" : "Create with details"}
+                            {query.trim() && resource !== null ? (
+                              <>
+                                {" "}
+                                <span className="font-medium text-foreground">{query.trim()}</span>…
+                              </>
+                            ) : null}
+                          </span>
+                        </CommandItem>
+                      ) : null}
                     </CommandGroup>
                   </>
                 ) : null}
@@ -187,6 +222,19 @@ export function ReferenceCombobox({
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
+      ) : null}
+      {detailed !== null ? (
+        <CreateWithDetailsDialog
+          resource={detailed}
+          open={detailing}
+          onOpenChange={setDetailing}
+          initialName={query}
+          onCreated={(option) => {
+            onOptionCreated(option);
+            onChange(option.value);
+            setQuery("");
+          }}
+        />
       ) : null}
     </div>
   );

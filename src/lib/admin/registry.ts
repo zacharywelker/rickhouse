@@ -3,7 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import { db } from "@/db";
-import { describeMashbill, orderGrains } from "@/lib/mashbills";
+import { describeMashbill, mashbillTitle, orderGrains } from "@/lib/mashbills";
 import {
   FIELD_GROUPS,
   FINISH_TYPES,
@@ -400,6 +400,7 @@ const brandsConfig: ResourceConfig = {
     { key: "company", label: "Company" },
     { key: "isNdp", label: "NDP" },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
+    { key: "collection", label: "Collection", numeric: true },
   ],
   fields: [
     { kind: "text", name: "name", label: "Name", required: true, span: "half" },
@@ -425,6 +426,12 @@ const brandsConfig: ResourceConfig = {
         isNdp: brands.isNdp,
         notes: brands.notes,
         uses: sql<number>`(select count(*)::int from ${expressions} where ${expressions.brandId} = ${brands.id})`,
+        // Bottles of this brand still on the shelf, opened or not.
+        collection: sql<number>`(
+          select count(*)::int from ${bottles}
+          join ${expressions} e on e.id = ${bottles.expressionId}
+          where e.brand_id = ${brands.id} and ${bottles.status} in ('owned', 'open')
+        )`,
       })
       .from(brands)
       .leftJoin(companies, eq(brands.companyId, companies.id))
@@ -433,7 +440,7 @@ const brandsConfig: ResourceConfig = {
 
     return rows.map((r) => ({
       id: r.id,
-      cells: { name: r.name, company: r.company, isNdp: r.isNdp, uses: r.uses },
+      cells: { name: r.name, company: r.company, isNdp: r.isNdp, uses: r.uses, collection: r.collection },
       values: { name: r.name, slug: r.slug, companyId: r.companyId, isNdp: r.isNdp, notes: r.notes },
       ...(r.uses > 0 ? { deleteBlockedBy: `${r.uses} label${r.uses === 1 ? " uses" : "s use"} this brand` } : {}),
     }));
@@ -489,6 +496,7 @@ const distilleriesConfig: ResourceConfig = {
     { key: "disclosure", label: "Known As", secondary: true },
     { key: "dspNumber", label: "DSP", secondary: true },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
+    { key: "collection", label: "Collection", numeric: true },
   ],
   fields: [
     { kind: "text", name: "name", label: "Name", required: true, span: "half" },
@@ -636,16 +644,32 @@ const mashbillsConfig: ResourceConfig = {
   label: "Mashbills",
   singular: "Mashbill",
   description:
-    "Grain recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any grain can go in — oats, triticale, whatever the distillery actually used. The same recipe can come from more than one distillery, so which one applies is set per label, not here.",
+    "Recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any ingredient can go in — oats, molasses, whatever the distillery actually used. A distillery that keeps its recipe secret is entered as an inferred recipe under a reference name, which is what shows. The same recipe can come from more than one distillery, so which one applies is set per label, not here.",
   columns: [
-    { key: "name", label: "Name" },
-    { key: "recipe", label: "Recipe" },
+    // A mashbill is its recipe; a secret one shows its reference name instead.
+    { key: "name", label: "Recipe" },
+    { key: "secret", label: "Secret" },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
   // The grain list is rendered by GrainEditor, not as a FieldSpec — it is a
   // variable number of rows, which the field renderer has no shape for.
   fields: [
-    { kind: "text", name: "name", label: "Name", placeholder: "BBC High Rye", span: "half" },
+    {
+      kind: "checkbox",
+      name: "isSecret",
+      label: "Secret mashbill",
+      help: "The distillery does not publish it, so the recipe below is inferred.",
+      span: "half",
+    },
+    {
+      kind: "text",
+      name: "name",
+      label: "Reference name",
+      placeholder: "Buffalo Trace Wheated",
+      help: "Shown in place of the recipe.",
+      span: "half",
+      showWhenAny: ["isSecret"],
+    },
     notesField,
   ],
   list: async (ownerId) => {
@@ -653,6 +677,7 @@ const mashbillsConfig: ResourceConfig = {
       .select({
         id: mashbills.id,
         name: mashbills.name,
+        isSecret: mashbills.isSecret,
         notes: mashbills.notes,
         uses: sql<number>`(select count(*)::int from ${expressionMashbills} where ${expressionMashbills.mashbillId} = ${mashbills.id})`,
       })
@@ -683,9 +708,14 @@ const mashbillsConfig: ResourceConfig = {
       const mine = byMashbill.get(r.id) ?? [];
       return {
         id: r.id,
-        cells: { name: r.name, recipe: describeMashbill(mine), uses: r.uses },
+        cells: {
+          name: mashbillTitle(r, describeMashbill(mine) || "No recipe"),
+          secret: r.isSecret,
+          uses: r.uses,
+        },
         values: {
           name: r.name,
+          isSecret: r.isSecret,
           notes: r.notes,
           // The editor reads this back out of its hidden field.
           grains: JSON.stringify(orderGrains(mine).map((g) => ({ grain: g.grain, percent: String(Number(g.percent)) }))),
@@ -699,7 +729,7 @@ const mashbillsConfig: ResourceConfig = {
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
 
-    const values = { name: input.name, notes: input.notes };
+    const values = { name: input.isSecret ? input.name : null, isSecret: input.isSecret, notes: input.notes };
 
     /*
      * Grains are replaced wholesale inside one transaction. The sum trigger is
@@ -1021,7 +1051,7 @@ async function storeOptions(ownerId: number): Promise<Option[]> {
 }
 
 /**
- * Mashbills often have no name, so the recipe itself is the label. They are
+ * A mashbill is labelled by its recipe, or by its reference name when secret. They are
  * also not exclusive to one distillery — the same recipe name gets reused
  * across producers — so no distillery shows up here; that correlation is
  * per-label (issue #13), picked in the expression form instead.
@@ -1031,6 +1061,7 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
     .select({
       value: mashbills.id,
       name: mashbills.name,
+      isSecret: mashbills.isSecret,
       // string_agg keeps this one query rather than one per mashbill.
       recipe: sql<string | null>`(
         select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
@@ -1050,11 +1081,8 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
         return { grain, percent };
       });
     const recipe = describeMashbill(grains);
-    return {
-      value: r.value,
-      label: r.name ?? recipe ?? "Unnamed recipe",
-      ...(r.name && recipe ? { hint: recipe } : {}),
-    };
+    const label = mashbillTitle(r, recipe || "No recipe");
+    return { value: r.value, label, ...(label !== recipe && recipe ? { hint: recipe } : {}) };
   });
 }
 
