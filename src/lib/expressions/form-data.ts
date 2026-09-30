@@ -46,6 +46,7 @@ async function loadLinks(expressionId: number) {
       label: row.name,
       amount: row.amount === null ? "" : String(Number(row.amount)),
       inferred: row.inferred === true,
+      undisclosed: row.undisclosed === true,
     })),
     mashbills: linked.mashbills.map((row) => ({
       id: row.id,

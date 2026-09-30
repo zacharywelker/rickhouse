@@ -623,7 +623,7 @@ async function distilleryOptions(ownerId: number): Promise<Option[]> {
   // A named distillery's hint stays its state; a placeholder says what it is.
   return rows.map((r) => {
     const hint = r.disclosure === "named" ? r.state : [DISCLOSURE_LABELS[r.disclosure], r.state].filter(Boolean).join(" · ");
-    return { value: r.value, label: r.label, ...(hint ? { hint } : {}) };
+    return { value: r.value, label: r.label, ...(hint ? { hint } : {}), ...(r.disclosure === "undisclosed" ? { undisclosed: true } : {}) };
   });
 }
 

@@ -59,6 +59,12 @@ distillery identified from outside the label, so the same MGP can be stated on
 one label and inferred on another. Bottlers and "Made in" lines are not modelled:
 they live in the label notes as printed.
 
+The label form's distillery picker has a "Not disclosed…" shortcut: city, state,
+country, with a US state written as an abbreviation corrected to its full name
+(`src/lib/places.ts`). It finds the account's placeholder for that place,
+however its state was spelled, or creates it, so "NY", "ny" and "New York" are
+one row. A placeholder has nothing to infer, so it gets no Inferred tick.
+
 **3. Category-specific fields are sparse nullable columns.** Rum fields
 (`still_type`, `estate`, `ester_gl`, …) live on `expressions` and are shown or
 hidden based on `categories.field_group`. Do not create per-spirit tables, do

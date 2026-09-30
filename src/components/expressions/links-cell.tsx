@@ -69,6 +69,7 @@ export function LinksCell({
           value={value}
           onChange={onChange}
           inferable={config.inferable === true}
+          undisclosable={config.undisclosable === true}
           {...(config.emptyHint ? { emptyHint: config.emptyHint } : {})}
           {...(distilleryChoices ? { distilleryChoices } : {})}
         />

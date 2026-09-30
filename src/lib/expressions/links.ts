@@ -13,6 +13,8 @@ export const LINK_KINDS: Record<
     resource: ReferenceResource | null;
     /** Each row can be marked as identified from outside the label. */
     inferable?: boolean;
+    /** A "Not disclosed…" form for a label that names only a place. */
+    undisclosable?: boolean;
     emptyHint?: string;
     amountLabel: string;
     amountSuffix: string;
@@ -25,6 +27,7 @@ export const LINK_KINDS: Record<
       "Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere.",
     resource: "distilleries",
     inferable: true,
+    undisclosable: true,
     amountLabel: "Share",
     amountSuffix: "%",
   },

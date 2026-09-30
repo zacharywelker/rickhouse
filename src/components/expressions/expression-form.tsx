@@ -151,6 +151,7 @@ export function ExpressionForm({
             amountLabel="Share"
             amountSuffix="%"
             inferable
+            undisclosable
             value={links.distilleries}
             onChange={(rows) => setLinks((prev) => ({ ...prev, distilleries: rows }))}
           />

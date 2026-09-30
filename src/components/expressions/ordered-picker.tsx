@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
+import { UndisclosedForm } from "./undisclosed-form";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
 
 export type LinkedRow = {
@@ -17,6 +18,8 @@ export type LinkedRow = {
   distilleryId?: number | null;
   /** Distilleries only: identified from outside the label, not stated on it. */
   inferred?: boolean;
+  /** Distilleries only: an "Undisclosed (…)" placeholder, which has nothing to infer. */
+  undisclosed?: boolean;
 };
 
 /**
@@ -40,6 +43,7 @@ export function OrderedPicker({
   emptyHint,
   distilleryChoices,
   inferable = false,
+  undisclosable = false,
 }: {
   name: string;
   label: string;
@@ -60,6 +64,8 @@ export function OrderedPicker({
   distilleryChoices?: Array<{ id: number; name: string }>;
   /** Distilleries only: each row gets an "Inferred" tick, for a source the label never names. */
   inferable?: boolean;
+  /** Distilleries only: a "Not disclosed…" form, for a label that names a place and no distillery. */
+  undisclosable?: boolean;
 }) {
   const [available, setAvailable] = React.useState(options);
   const chosen = new Set(value.map((row) => row.id));
@@ -77,7 +83,10 @@ export function OrderedPicker({
 
   const addRow = (option: Option) => {
     const distilleryId = soloDistillery ? soloDistillery.id : null;
-    onChange([...value, { id: option.value, label: option.label, hint: option.hint, amount: "", distilleryId }]);
+    onChange([
+      ...value,
+      { id: option.value, label: option.label, hint: option.hint, amount: "", distilleryId, undisclosed: option.undisclosed },
+    ]);
   };
 
   return (
@@ -92,7 +101,7 @@ export function OrderedPicker({
               <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
               <span className="min-w-0 flex-1 truncate text-sm">
                 {row.label}
-                {row.hint ? <span className="ml-1.5 text-xs text-muted-foreground">{row.hint}</span> : null}
+                {row.hint && !row.undisclosed ? <span className="ml-1.5 text-xs text-muted-foreground">{row.hint}</span> : null}
               </span>
 
               {distilleryChoices && distilleryChoices.length > 1 ? (
@@ -126,7 +135,7 @@ export function OrderedPicker({
                 <span className="text-xs text-muted-foreground">from {soloDistillery.name}</span>
               ) : null}
 
-              {inferable ? (
+              {inferable && !row.undisclosed ? (
                 <label
                   htmlFor={`${name}-inferred-${row.id}`}
                   className="flex items-center gap-1 text-xs"
@@ -224,6 +233,16 @@ export function OrderedPicker({
       <span id={`${name}-add-label`} className="sr-only">
         Add {label.toLowerCase()}
       </span>
+      {undisclosable ? (
+        <UndisclosedForm
+          idPrefix={`${name}-undisclosed`}
+          chosen={chosen}
+          onAdd={(option) => {
+            setAvailable((prev) => (prev.some((o) => o.value === option.value) ? prev : [...prev, option]));
+            addRow(option);
+          }}
+        />
+      ) : null}
 
       <input
         type="hidden"
