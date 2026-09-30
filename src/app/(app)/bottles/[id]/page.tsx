@@ -15,11 +15,13 @@ import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
+import { ColaApprovals } from "@/components/expressions/cola-approvals";
 import { Tape } from "@/components/ui/tape";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
+import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
@@ -139,13 +141,19 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   const row = await getBottle(bottleId, user.id);
   if (!row) notFound();
 
-  const [images, notes, links, memberOf, allGroups] = await Promise.all([
+  const [images, notes, links, memberOf, allGroups, colas] = await Promise.all([
     bottleImagesFor(bottleId),
     tastingNotesFor(bottleId),
     expressionLinks(row.expression.id),
     groupsForBottle(bottleId),
     allGroupOptions(user.id),
+    colasForExpression(row.expression.id, user.id),
   ]);
+
+  const distilleryMatches = await distilleriesByPermit(
+    user.id,
+    colas.map((cola) => cola.permitNumber),
+  );
 
   const hero = images.find((image) => image.isPrimary) ?? images[0] ?? null;
   const e = row.expression;
@@ -361,6 +369,15 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
               {row.bottle.notes ? <p className={cn("text-lg text-accent", handFont)}>{row.bottle.notes}</p> : null}
             </div>
           ) : null}
+
+          <ColaApprovals
+            mode="bottle"
+            className="border-t border-border pt-6"
+            bottleId={bottleId}
+            colas={colas}
+            lookupEnabled={colaLookupEnabled()}
+            distilleryMatches={distilleryMatches}
+          />
 
           <div className="border-t border-border pt-6">
             <TastingNotes bottleId={bottleId} notes={notes} />

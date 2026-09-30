@@ -73,6 +73,7 @@ at the end of every milestone.
 | M7 | Model revisions | ✅ Done |
 | M8 | Interaction and wording | ✅ Done — except the t8ke wording, below |
 | M9 | Tastings beyond the shelf | ▶ Next |
+| M11 | TTB label approvals | ✅ Done |
 
 Finished milestones are struck through below. They stay in the document
 because the revisions in M7 only make sense against what was actually built.
@@ -415,6 +416,56 @@ it live in issue #48; the phases, in order:
 Email, SSO and passkeys all need APP_URL. The auth instance is rebuilt from
 the database within seconds of an admin changing SMTP or SSO settings.
 
+### M11 — TTB label approvals ✅
+
+Every spirit sold in the US carries a label TTB approved, and each approval
+(a COLA) has a public record in TTB's COLA registry: a 14-digit TTB ID, the
+brand and fanciful name, the class/type, the origin, the permit holder that
+bottled or imported it, the approval date, and the approved label artwork.
+
+COLAs **add to a label; they never create one.** You decide what a product is
+(the label/bottle split exists for exactly that); the registry supplies the
+approved label art and what the approval says about who bottled it.
+
+- **Many per label.** Each proof, size, relabel and pick is approved
+  separately, so `expression_colas` hangs off the label with a `position`,
+  and `cola_images` holds each approval's label panels on the uploads volume.
+  Both are private to the owner like the rest of the catalog.
+- **Found from the label.** "Find on TTB" on a label's page searches the
+  registry by the label's brand (brand or fanciful name, `%` wildcard, one
+  15-year window at a time, the registry's limit), keeps distilled spirits
+  only, ranks results against the label's name, and attaches the ones picked
+  (up to five at a time), fetching each record and its label images. Pasting
+  a TTB ID or registry link does the same for one.
+- **Also while creating a label.** New Label has the same search at the foot
+  of its form. A label has no ID until it is saved, so picked approvals are
+  listed there and attached, with their label art, on Create. Picking one
+  never fills in the label's fields.
+- **A specimen record below the label's form.** The form comes first; the
+  approvals follow as a compact record. The featured COLA's front label sits
+  on the page like a catalog shot (a 1200px rendition that opens the full
+  scan, kept at TTB's resolution up to 6000px), with its other panels a click
+  away. Beside it is a ruled record: TTB ID linked to the COLA listing,
+  approval date, the name as filed, class/type, origin, and the bottler or
+  importer with permit number and address. Other approvals are a short table,
+  any of which can be shown first.
+- **Bottler details are display only.** A COLA's permit holder filed the
+  label; for sourced whiskey that is not who distilled it. Nothing is written
+  to distilleries. When one of yours already has that DSP number, the COLA
+  says so and links to it.
+- **Label art as photos.** On a bottle's page, a label panel can be copied
+  into the bottle's photos as a catalog shot.
+- **No API.** The registry has none, so its search, record and application
+  pages are read as HTML (`src/lib/cola/parse.ts`), tested against saved
+  pages. A markup change fails loudly rather than filling labels with blanks;
+  re-save the fixtures and fix the parser.
+- **Narrow on the wire.** Only TTB's hosts (redirects and image links
+  checked hop by hop), one request a second from the server, size caps and
+  timeouts. TTB's server omits its intermediate certificate, so the app
+  ships that one certificate for these requests rather than loosening TLS.
+- **Off switch.** `COLA_LOOKUP=false` stops all fetching and searching; TTB
+  IDs and links to the registry still work.
+
 ---
 
 ## Deployment
@@ -480,7 +531,8 @@ Do not build these, and do not restructure the schema to accommodate them:
   roles are M10.)
 - Price scraping, market valuation, or any third-party API integration.
   M7 drops `bottles.estimated_value` for the same reason: this is a collection,
-  not a portfolio.
+  not a portfolio. The one exception is TTB's public COLA registry (M11): it
+  describes the label, not its price, and it can be switched off.
 - Mobile native apps.
 - Merging `expressions` and `bottles` "for simplicity".
 - Replacing the join tables with text columns.

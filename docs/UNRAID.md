@@ -166,6 +166,7 @@ TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET_KEY=
 TURNSTILE_SKIP_NETWORKS=
 PASSWORD_BREACH_CHECK=true
+COLA_LOOKUP=true
 ```
 
 - **Cloudflare Turnstile** (optional): create a Turnstile widget in the Cloudflare dashboard for your `APP_URL` hostname and paste in both keys. Sign-in and "forgot password" then show a bot check. Passkey sign-in skips it. Password sign-in then only works through `APP_URL`, not the LAN address, unless you set `TURNSTILE_SKIP_NETWORKS`. Leave both keys empty to turn it off.
@@ -176,6 +177,7 @@ PASSWORD_BREACH_CHECK=true
   This needs `APP_URL`; without it, nobody skips. List only your LAN, not Docker's `172.16.0.0/12` or every private range. And don't port-forward `1964` to the internet: a direct connection can claim any address.
 - **Breached passwords:** new passwords are checked against [Have I Been Pwned](https://haveibeenpwned.com/Passwords). Only the first 5 characters of the password's hash are sent. If the server has no internet access, set `PASSWORD_BREACH_CHECK=false`, or choosing a password will fail, including at first sign-in.
 - **No reuse:** a new password can't match the current one or any of the 4 before it. There's nothing to configure.
+- **Label approvals:** a label's TTB IDs are looked up in TTB's public COLA registry at `www.ttbonline.gov`, which fetches the approval record and label images. If the server has no internet access, set `COLA_LOOKUP=false`. TTB IDs and links to the registry still work.
 
 ## Email, single sign-on, two-step sign-in and passkeys
 
@@ -244,6 +246,8 @@ To read the data without Rickhouse, extract `csv.tar.gz` and open the CSVs in a 
 **Bot check fails or never loads:** check that the Turnstile widget's hostname matches `APP_URL`. To turn the check off, clear `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` and recreate the container. It's read from `.env`, so this works even when nobody can sign in.
 
 **Bot check still shows on the LAN:** open Rickhouse at the server's LAN address (`http://192.168.1.10:1964`), not your domain; at `APP_URL` everyone gets the check. `TURNSTILE_SKIP_NETWORKS` must cover the device you're signing in from, and `APP_URL` must be set.
+
+**A COLA lookup fails with a certificate error:** TTB has probably moved to a new certificate issuer. The app includes TTB's intermediate certificate because TTB's server doesn't send it (`src/lib/cola/intermediate.ts`). Update to the latest Rickhouse image, or set `COLA_LOOKUP=false` in the meantime.
 
 **"Couldn't check that password":** the server can't reach Have I Been Pwned. Restore internet access, or set `PASSWORD_BREACH_CHECK=false`.
 

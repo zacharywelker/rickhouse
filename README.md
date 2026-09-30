@@ -7,7 +7,7 @@ Rickhouse is a self-hosted bottle tracker for whiskey, rum, agave, gin and whate
 It keeps the **label** (the product: brand, distillery, mashbill, proof, MSRP) separate from the **bottle** (the one you own: where and when you bought it, what you paid, batch or barrel, fill level, photos). Brands, distilleries, mashbills, finishes and stores are linked records, so "everything Bardstown distilled" works even when Bardstown is one part of a three-distillery blend.
 
 - **Collection**: a dense grid and a gallery, searchable and sortable, with a fill level on every bottle
-- **Labels**: the product reference behind each bottle
+- **Labels**: the product reference behind each bottle, with its TTB label approvals: approved label art and bottler details, found by searching TTB's registry
 - **Groups**: hand-picked sets like trips, gifts or favorites
 - **Numbers**: what you buy, what you spend and what you keep coming back to, each linked to its bottles
 - **Accounts**: a private collection per person, with optional single sign-on, two-step sign-in, passkeys and a Cloudflare Turnstile bot check

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ExpressionForm } from "@/components/expressions/expression-form";
 import { expressionFormData } from "@/lib/expressions/form-data";
 import { requireSession } from "@/lib/auth";
+import { colaLookupEnabled } from "@/lib/cola/store";
 
 export const metadata: Metadata = { title: "New Label" };
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export default async function NewExpressionPage() {
         initialLinks={links}
         options={options}
         categoryGroups={categoryGroups}
+        colaLookup={colaLookupEnabled()}
       />
     </div>
   );

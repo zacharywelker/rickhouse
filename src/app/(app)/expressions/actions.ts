@@ -24,6 +24,8 @@ import {
   type LinkRow,
 } from "@/lib/expressions/schema";
 import { fieldGroupForCategory } from "@/lib/expressions/queries";
+import { pendingTtbIds } from "@/lib/cola/ids";
+import { attachCola, colaFilesForExpression, colaLookupEnabled, deleteColaFiles, refreshCola } from "@/lib/cola/store";
 
 /**
  * Fields every category writes, whatever its field group. Anything outside
@@ -198,12 +200,33 @@ export async function saveExpressionAction(
       return target;
     });
 
+    // Approvals picked on New Label (SPEC M11): attached, and fetched with
+    // their label art, once the label exists. Best effort — the label is
+    // saved either way, and a failed lookup shows on the label's page.
+    let approvals = "";
+    if (id === null) {
+      const ttbIds = pendingTtbIds(formData.get("ttbIds"));
+      const failed: string[] = [];
+      let attached = 0;
+      for (const ttbId of ttbIds) {
+        const cola = await attachCola(expressionId, user.id, ttbId).catch(() => null);
+        if (!cola || typeof cola !== "object") continue;
+        attached += 1;
+        if (colaLookupEnabled()) {
+          const fetched = await refreshCola(cola.id, user.id).catch(() => null);
+          if (!fetched?.ok) failed.push(ttbId);
+        }
+      }
+      if (attached > 0) approvals = ` Attached ${attached === 1 ? "1 approval" : `${attached} approvals`}.`;
+      if (failed.length > 0) approvals += ` Fetch ${failed.join(", ")} again from the label's page.`;
+    }
+
     revalidatePath("/expressions");
     revalidatePath("/bottles");
     revalidatePath("/");
     return {
       ok: true,
-      message: id === null ? "Label created." : "Label saved.",
+      message: id === null ? `Label created.${approvals}` : "Label saved.",
       createdId: expressionId,
     };
   } catch (error: unknown) {
@@ -369,11 +392,14 @@ export async function updateExpressionsBulkAction(
 export async function deleteExpressionAction(id: number): Promise<ActionResult> {
   const user = await requireSession();
   try {
+    // COLA label images cascade in the database; the files on disk do not.
+    const colaFiles = await colaFilesForExpression(id);
     const deleted = await db
       .delete(expressions)
       .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
       .returning({ id: expressions.id });
     if (deleted.length === 0) return { ok: false, error: "That label is gone." };
+    await deleteColaFiles(colaFiles);
     revalidatePath("/expressions");
     return { ok: true, message: "Label deleted." };
   } catch (error: unknown) {
@@ -390,10 +416,12 @@ export async function deleteExpressionsBulkAction(ids: number[]): Promise<BulkSa
 
   for (const [index, id] of ids.entries()) {
     try {
+      const colaFiles = await colaFilesForExpression(id);
       const deleted = await db
         .delete(expressions)
         .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
         .returning({ id: expressions.id });
+      if (deleted.length > 0) await deleteColaFiles(colaFiles);
       results.push(
         deleted.length > 0 ? { index, ok: true, id } : { index, ok: false, error: "That label is gone.", fieldErrors: {} },
       );

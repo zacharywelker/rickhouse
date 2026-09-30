@@ -12,6 +12,7 @@ import { mapDbError } from "@/lib/db-errors";
 import { getAuth, INVITE_MARKER } from "@/lib/auth/server";
 import { emailEnabled } from "@/lib/email/settings";
 import { deleteStoredImage } from "@/lib/images";
+import { colaFilesForOwner, deleteColaFiles } from "@/lib/cola/store";
 
 /**
  * Account management for admins. These write the database directly instead
@@ -166,7 +167,10 @@ export async function deleteUserAction(userId: number): Promise<UserActionResult
     .from(schema.groups)
     .where(and(eq(schema.groups.ownerId, userId), isNotNull(schema.groups.coverImagePath)));
 
+  const labels = await colaFilesForOwner(userId);
+
   await db.delete(schema.users).where(eq(schema.users.id, userId));
+  await deleteColaFiles(labels);
   await Promise.allSettled([
     ...photos.map((photo) => deleteStoredImage(photo.filePath, photo.thumbPath)),
     ...covers.map((cover) => deleteStoredImage(cover.path as string, null)),

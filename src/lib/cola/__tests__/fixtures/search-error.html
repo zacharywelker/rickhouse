@@ -1,0 +1,1106 @@
+
+
+
+                 
+
+
+
+
+
+
+<html>
+<head>
+    
+
+
+
+
+<META HTTP-EQUIV="Pragma" CONTENT="no-cache">
+
+<LINK REL="stylesheet" HREF="stylesheets/eform.css" TYPE="text/css">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+<script language="javascript" src="javascript/new.js"></script>
+<link href="/colasonline/stylesheets/jquery-ui.css" rel="stylesheet"> 
+<script src="/colasonline/javascript/jquery-3.5.1.min.js"></script>
+<script src="/colasonline/javascript/jquery-ui.js"></script>
+<script src="/colasonline/javascript/sessiontimeout.js"></script>
+
+
+
+<script id="_fed_an_ua_tag" type="text/javascript" src="https://dap.digitalgov.gov/Universal-Federated-Analytics-Min.js?agency=TRE&subagency=TTB&pua=UA-75514442-1"></script>
+
+  <script language="javascript">
+      var tabLink = window.location + '#skiptabs';
+  </script>
+
+    <base href="https://ttbonline.gov/colasonline/"/>
+
+	<title>TTB Online - COLAs Online - Public COLA Registry Search</title>
+	
+	<script language="JavaScript" type="text/javascript">
+		
+
+
+
+
+
+
+/**  
+ * Application-wide Javascript file that may be included in JSP pages
+ * that need to make use of any of the functions implemented here.
+ *
+ * List of functions:
+ *  - confirmSaveChanges()
+ *  - setReceivedCode()
+ *  - getReceivedCode( ttbId )
+ *  - confirmSaveExternalUserEAppChanges()
+ *  - alertOriginOverride()
+ *  - showHideClassType()
+ *  - enableDisableStatusFields()
+ *  - handleFinalStatus()
+ *  - enableReviewLevels()
+ *  - enableDisableTypeOfApplication( shouldEnable )
+ *  - alertFinalStatus( _status )
+ */
+ 
+
+  
+
+/**
+ * This function prompts the user to save any changes the user may have
+ * made on the page
+ *
+ */
+function confirmSaveChanges()
+{
+	var msg = "If you made any changes on this page that need to be saved, " +
+  "please press 'Cancel' and save your changes.  Otherwise, press 'OK' to proceed.";
+	return confirm( msg );
+}
+
+/**
+ * This function prompts the user to save any changes the user may have
+ * made on the page
+ *
+ */
+function confirmSaveExternalUserEAppChanges()
+{
+	var msg = "WARNING!\nChanges to your E-Application are not saved until you complete " +
+  "the entire E-Application creation\\editing process and Submit or Save your E-Application.\nPlease press 'Cancel' " +
+  "to complete the process and Submit or Save your E-Application.\nOtherwise, you may press 'OK' to proceed " +
+  "(any unsaved changes to your E-Application will be lost.)";
+	return confirm( msg );
+}
+
+/**
+ * This function prompts the user about the consequences of choosing to override
+ * the Origin Code (i.e. when the internal user -when processing an eApplication or
+ * a paper Label\Bottle application- decides that the Origin Code he/she enters
+ * should not be validated against the source of product specified for the application)
+ * 
+ *
+ */
+function alertOriginOverride()
+{
+	var msg = "Caution!\nYou have chosen to override the Origin for this COLA application. \n\n" +
+  "This means that you will be able to specify an Origin that is not based on the Source of Product that was assigned " +
+  "to this COLA application.\n\nIt may result in this COLA application having a Domestic Origin with an Imported Source " +
+  "of Product or a Foreign Origin with a Domestic Source of Product.";
+	alert( msg );
+}
+
+/**
+ * Sets the received code value for paper applications based on the ttb id value
+ * entered by the user.  It makes sure that the required ttb id length is met
+ * prior to parsing the ttb id field to extract the received code.  The received
+ * code extracted form the ttb id is a 3-digit value occupying positions 6 through
+ * 8.  The received code extracted from the ttb id is not necessarily the value
+ * that is stored in the database.   The requisite mapping is performed here as
+ * well.
+ *
+ */
+function setReceivedCode()
+{
+  var TTBID_REQUIRED_LENGTH_PAPER_APP = 14;
+  var FRONT_DESK_TTBID_RECEIVED_CODE = "000";
+  var FRONT_DESK_STORED_RECEIVED_CODE = "000";
+  var MAIL_IN_TTBID_RECEIVED_CODE = "002";
+  var MAIL_IN_STORED_RECEIVED_CODE = "MAIL";
+  var OVERNIGHT_EXPRESS_TTBID_RECEIVED_CODE = "003";
+  var OVERNIGHT_EXPRESS_STORED_RECEIVED_CODE = "OVR";
+  
+  var ttbIdField = document.forms[0].elements[ "ttbid" ];
+  var receivedCodeField = document.forms[0].elements[ "receivedcode" ];
+  
+  if ( ( ttbIdField != null ) && ( receivedCodeField != null ) )
+  {
+    var ttbId = ttbIdField.value;
+        
+    if ( ttbId.length == TTBID_REQUIRED_LENGTH_PAPER_APP )
+    {
+      var receivedCode = getReceivedCode( ttbId );
+    
+      if ( receivedCode == FRONT_DESK_TTBID_RECEIVED_CODE )
+      {
+        receivedCodeField.value = FRONT_DESK_STORED_RECEIVED_CODE;
+      }
+      else if ( receivedCode == MAIL_IN_TTBID_RECEIVED_CODE )
+      {
+        receivedCodeField.value = MAIL_IN_STORED_RECEIVED_CODE;
+      }
+      else if ( receivedCode == OVERNIGHT_EXPRESS_TTBID_RECEIVED_CODE )
+      {
+        receivedCodeField.value = OVERNIGHT_EXPRESS_STORED_RECEIVED_CODE;
+      }
+      else
+      {
+        receivedCodeField.value = "";
+      }
+    } //end if ( ttbId.length == TTBID_REQUIRED_LENGTH_PAPER_APP )
+    else
+    {
+      receivedCodeField.value = "";
+    }
+  }//end if ( ( ttbIdField != null ) && ( receivedCodeField != null ) )
+}//end function setReceivedCode()
+
+/**
+ * Parses the ttb id value to extract the 3-digit value representing the received
+ * code
+ *
+ */
+function getReceivedCode( _ttbId )
+{
+  var receivedCode = "";
+  
+  if ( _ttbId != null )
+  {
+    if ( _ttbId.length >= 8 )
+    {
+      receivedCode = _ttbId.substring( 5, 8 );
+    }
+  }
+  
+  return receivedCode;
+}
+
+
+/**
+ * Determines how to display the class type information that the user may
+ * select as a criterion based on the option selected by the user on search
+ * pages
+ *
+ */
+function showHideClassType()
+{
+  var classTypeDesired = document.forms[0].elements[ "searchCriteria.classTypeDesired" ];
+  var classTypeByCode = document.getElementById( "classTypeByCode" );
+  var classTypeByDescription = document.getElementById( "classTypeByDescription" );
+  var classTypeManual = document.getElementById( "classTypeManual" );
+  
+  if ( classTypeDesired != null )
+  {
+    for ( var i = 0; i < classTypeDesired.length; i++ )
+    {
+      if ( classTypeDesired[ i ].checked )
+      {
+        if ( classTypeDesired[ i ].value == "code" )
+        {
+          classTypeByCode.style.display = "inline";
+          classTypeByDescription.style.display = "none";
+          classTypeManual.style.display = "none";
+        }
+        else if ( classTypeDesired[ i ].value == "desc" )
+        {
+          classTypeByCode.style.display = "none";
+          classTypeByDescription.style.display = "inline";
+          classTypeManual.style.display = "none";   
+        }
+        else if ( classTypeDesired[ i ].value == "man" )
+        {
+          classTypeByCode.style.display = "none";
+          classTypeByDescription.style.display = "none";
+          classTypeManual.style.display = "inline";
+        }
+      }
+    }
+  }
+}
+
+
+/*
+ * Enables and disables the status reason and status internal comment
+ * text areas on the int_eapp_label_process_eapp.jsp page.  This is the
+ * page where Internal Users process eApplications.
+ *
+ */
+function enableDisableStatusFields()
+{
+  var statusReason = document.forms[0].elements[ "cola.statusReason" ];
+  var statusComment = document.forms[0].elements[ "cola.statusComment" ];
+  
+  var status = document.forms[0].elements[ "cola.status" ];
+  
+  if ( status != null )
+  {
+    var statusValue = status.value;
+    
+    if ( statusValue != "" ) 
+    {
+      if ( statusReason != null )
+      {
+        statusReason.disabled = false;
+      }
+      
+      if ( statusComment != null )
+      {
+        statusComment.disabled = false;
+      }
+    }
+    else
+    {
+      if ( statusReason != null )
+      {
+        statusReason.value = "";
+        statusReason.disabled = true;
+      }
+      
+       if ( statusComment != null )
+      {
+        statusComment.value = "";
+        statusComment.disabled = true;
+      }
+    }
+  }
+}
+
+/*
+ * Decides whether to display a message to the user informing the user that
+ * the user selected a (final) status of Approved or Rejected
+ *
+ */
+
+/**
+ * Determines what Review Percentage radio buttons
+ * should be enabled/disabled on the Internal User creation/update
+ * page (ref. userAdmin/int_user_detail_ttb.jsp)
+ *
+ */  
+function enableReviewLevels()
+{
+  var role =  document.forms[0].elements[ "userProfile.titleRole" ];
+  var reviewLevelArray = document.forms[0].elements[ "userProfile.reviewLevel" ];
+  if ( role != null )
+  {
+    if ( role.value == "6" )
+    { //Enable all review percentage radio buttons if the role selected
+      //is Label Specialist
+      if ( ( reviewLevelArray != null ) && ( reviewLevelArray.length > 0 ) )
+      {
+        for ( var i = 0; i < reviewLevelArray.length; i++ )
+        {
+          reviewLevelArray[ i ].disabled = false;
+        }
+      }
+    }
+    else //role selected is NOT Label Specialist
+    {
+      if ( ( reviewLevelArray != null ) && ( reviewLevelArray.length > 0 ) )
+      {
+        for ( var i = 0; i < reviewLevelArray.length; i++ )
+        {
+          if ( reviewLevelArray[ i ].value == "N" )
+          { //disable all review percentage radio buttons
+            //except for the "None" radio button which should
+            //also be checked
+            reviewLevelArray[ i ].disabled = false;
+            reviewLevelArray[ i ].checked = true;
+          }
+          else
+          {
+            reviewLevelArray[ i ].checked = false;
+            reviewLevelArray[ i ].disabled = true;
+          }
+        }
+      }
+    }
+  }
+}  
+
+/**
+ * Determines whether to enable/disable fields in the Type of Application
+ * section of Step 1 of the eApplication creation screen
+ * (ref. labeling/ext_create_label_eapp1.jsp)
+ *
+ */  
+function enableDisableTypeOfApplication( shouldEnable )
+{
+  var typeOfApplicationArray =  document.forms[0].elements[ "cola.typeOfApplication" ];
+  var forSaleIn = document.forms[0].elements[ "cola.forSaleIn" ];
+  
+  if ( shouldEnable )
+  {
+    if ( typeOfApplicationArray != null )
+    {
+      for ( var i = 0; i < typeOfApplicationArray.length; i++ )
+      {
+        typeOfApplicationArray[ i ].disabled = false;
+        forSaleIn.disabled = false;
+      }
+    }   
+  }
+  else
+  {
+    if ( typeOfApplicationArray != null )
+    {
+      for ( var i = 0; i < typeOfApplicationArray.length; i++ )
+      {
+        if ( typeOfApplicationArray[ i ].value == "EXEMPTION" )
+        {
+          typeOfApplicationArray[ i ].checked = false;
+          typeOfApplicationArray[ i ].disabled = true;
+          forSaleIn.value = "";
+          forSaleIn.disabled = true;
+        }
+        else if ( typeOfApplicationArray[ i ].value == "COLA" )
+        {
+          typeOfApplicationArray[ i ].checked = true;
+        }
+      }
+    } 
+  }
+}
+
+
+/*
+ * Display a alert message to the user informing the user that
+ * the user selected a (final) status
+ *
+ */
+function alertFinalStatus( _status )
+{
+  var msg = "Caution!\nYou have changed the status of this application to the final status of '" + _status + "'.";
+  return alert( msg );
+}
+
+/**
+* This function displays a warning message if the submitter enters a fanciful name.
+* The message informs that appellation or class/type cannot be entered in fanciful name field.
+*
+*/
+function alertFancifulNameEntry(typeOfProduct)
+{
+   var msg = "Please Note: Appellation or class/type cannot be entered in Fanciful Name field.";
+   
+   var popUpAlert = document.getElementById('popUpFancifulAlert').value;
+   
+   if (typeOfProduct == "1")
+   {
+	   
+	   if (popUpAlert == 'true')
+	   {
+		   	alert( msg );
+		   	document.getElementById('popUpFancifulAlert').value = 'false';
+	   }
+   }   
+}
+
+/**
+ * Determines whether to enable/disable submit button
+ *
+ */  
+function enableSubmitButton()
+{
+  var role =  document.forms[0].elements[ "userProfile.titleRole" ];
+  
+  if ( role != null )
+  {
+    if (( role.value == "6" ) ||
+       ( role.value == "5" ) ||
+       ( role.value == "4" ))     
+    {      
+      document.forms[0].submitButton.disabled = false;
+    }
+    else //role selected is NOT Label Specialist or QA Specialist or Supervisor
+    {  
+      document.forms[0].submitButton.disabled = true;
+    }   
+  }  
+}
+
+/**
+ * This function sets the date to operations date 
+ * based on registration on Hold values.
+ *
+ */  
+function setDateToOperations()
+{
+   var registration =  document.forms[0].elements[ "userProfile.registrationOnHold" ];
+   var dateToOperations =  document.forms[0].elements[ "userProfile.dateToOperations" ];
+   var sysDate = new Date(); 
+   var d = sysDate.getDate();
+   var day = (d < 10) ? '0' + d : d;
+   var m= sysDate.getMonth() + 1;
+   var month = (m < 10) ? '0' + m : m;
+   var yy = sysDate.getYear();
+   var year = (yy < 1000) ? yy + 1900 : yy;
+   var theDate = month + "/" + day + "/" + year;
+
+     if (registration.value == "N")
+     {   
+       if (dateToOperations.value == "")
+       {
+          dateToOperations.value = theDate;
+       }   
+     }
+}
+
+/**
+* This function displays a warning message if the submitter selects source of product = Domestic, 
+* but the permit is for Import products and vice versa.
+* This function is for cases when there are multiple permits.
+*
+*/
+function alertPermitSelection(sourceOfProduct)
+{
+   var msg = "Permit Selected does not match the Source of Product in Step 1.";
+   var permitId = document.forms[0].elements[ "permitId" ];
+   var permitTypeArray = document.forms[0].elements[ "pvo.permitType" ];
+   var productSource;
+   var permit;
+
+   // Create permitClone var and place permitId.value into the new var
+   // due to the reason that the length of permitId is not correct
+   var permitClone = permitId.value.substr(0);
+   
+   if ( permitTypeArray != null )   
+   { 
+     for ( var i = 0; i < permitTypeArray.length; i++ )
+     {  
+       permit = permitTypeArray [i].value.substr(4);
+       productSource = permitTypeArray [i].value.substr(0,3);
+
+       if ( permitClone == permit)
+       {
+          if (productSource != sourceOfProduct )
+          {
+             alert(msg);            
+          }          
+       }  
+     }   
+   }   
+   
+}
+
+/**
+* This function displays a warning message if the submitter selects source of product = Domestic, 
+* but the permit is for Import products and vice versa.
+* This function is for cases when there is only one permit.
+*
+*/
+function alertPermitSelection2(sourceOfProduct, permId, permType)
+{
+   var msg = "Permit does not match the Source of Product in Step 1.";
+   var permitId = permId;
+   var permitType = permType;
+   var productSource;
+   var permit;
+
+   // Create permitClone var and place permitId.value into the new var
+   // due to the reason that the length of permitId is not correct
+   var permitClone = permitId.substr(0);
+   
+       permit = permitType.substr(4);
+       productSource = permitType.substr(0,3);
+
+       if ( permitClone == permit)
+       {
+          if (productSource != sourceOfProduct )
+          {
+             alert(msg);            
+          }          
+       }         
+}
+
+/**
+* This function validates the user email address. If not valid then a pop up alert saying invalid email to user
+*
+*/
+function isValidEmail() 
+{   
+	   var email = document.getElementById('submitterEmail').value;
+	   
+	   var re = /^([\w-]+(?:\.[\w-]+)*)@((?:[\w-]+\.)*\w[\w-]{0,66})\.([a-z]{2,6}(?:\.[a-z]{2})?)$/i
+
+	   if ( email != "")
+	   {
+	   		if (re.test(email)) 
+	   		{
+	   			return true;
+	   		}
+	   		else 
+	   		{
+	   			alert("You entered an Invalid Email Address: " + email);
+		   
+	   			return false;
+	   		}
+	   }
+}
+
+/**
+* This function disables submit and search buttons to keep users from click them multiple times
+*
+*/
+function disableButtons()
+{
+    var inputObjs = document.getElementsByTagName('input');
+    for (var t = 0; t < inputObjs.length; t++)
+    {
+        if (inputObjs[t].type == 'submit')
+        {
+            inputObjs[t].disabled = true;
+        }
+    }
+}
+
+/**
+* This function submits a request(submit form,search) to the COLAs application
+*
+*/
+
+function submitColaSearchRequest(urlAction)
+{
+	 cleardataTable();
+	 submitColaRequest(urlAction);
+    
+}
+function submitColaRequest( urlAction)
+{
+    disableButtons();
+    document.forms[0].action= urlAction;
+    document.forms[0].submit();
+    
+}
+
+
+function submitColaRequestExtract( urlAction)
+{
+    document.forms[0].action= urlAction;
+    document.forms[0].submit();
+}
+
+
+/**
+* This function disables the pull apps from queue buttons to keep users from click them multiple times
+*
+*/
+function disableQueueButtons()
+{
+    var inputObjs = document.getElementsByTagName('input');
+
+    for (var t = 0; t < inputObjs.length; t++)
+    {
+    	if (inputObjs[t].type == 'button')
+        {
+            inputObjs[t].disabled = true;
+        }
+    }
+}
+
+
+/**
+* This function retrieves COLAs applications from the Queue for Internal Users
+*
+*/
+function getColaApps( pullAppsFromQueueAction )
+{
+	disableQueueButtons();
+	window.location.href=pullAppsFromQueueAction;
+}
+
+
+function setTheOvertimeFlag()
+{
+	$('#overTimeForm').submit();
+}
+
+
+
+/**
+ * 
+ * This function opens label verification window in full screen
+ * 
+ */
+function openFullScreen(url){
+	//alert("width"+screen.height);
+     var params = [
+		              'height='+screen.height*.75,
+		              'width='+screen.width*.85,
+		              'fullscreen=no',
+		              'closable=yes',
+                      'scrollbars=yes',
+                      'resizable=yes',
+                      'toolbar=yes'
+		          ].join(',');
+		          var popup = window.open(url,'verifyImages', params); 
+		          popup.moveTo(0,0);
+}
+
+
+function openSignatureScreen(url){
+	//alert("width"+screen.height);
+     var params = [
+		              'height='+screen.height*.75,
+		              'width='+screen.width*.85,
+		              'fullscreen=no',
+		              'closable=yes',
+                      'scrollbars=yes',
+                      'resizable=yes',
+                      'toolbar=yes'
+		          ].join(',');
+		          var popup = window.open(url,'verifySigImage', params); 
+		          popup.moveTo(0,0);
+}
+
+function hasIllegalSymbols(str){
+    if (
+	 str.indexOf('>') >=0 &&
+		   str.indexOf('<') >=0 &&
+		   str.indexOf('=') >=0 &&
+		   str.indexOf('(') >=0 &&
+		   (
+			   str.indexOf(')') >= 3 ||
+			   str.indexOf(';') >=0 ||
+			   str.indexOf('&') >=0 ||
+			   str.indexOf('%') >=0 
+		)){
+        alert('Illegal character inputs identifed.  Please remove one or more of the following: < > ( ) =');
+    	return true;
+        }
+		return false;	
+}
+
+
+
+/*
+ * Maintenance Log
+ *
+ *    Rev 3.7 04 May 2012 S. Martin
+ * Defect 245 : Added new function isValidEmail for the validation of the new field member submitterEmail.
+ * 
+ * Defect 65 : Fanciful Name Alert only popups once during creating/updating an Eapp(step 2) per session
+ * 
+ * 	Rev 3.8
+ * 07/24/2012  S. Martin Defect 261 : Adding new functions: submitColaForm( urlAction ) and disableButtons(). This is to eliminate multiple
+ * clicks on the submit button or the save for thirty days button.
+ * 
+ * 	Rev 3.9.1
+ * 05/07/2013  S. Martin Defect 366 : Changing method name of submitColaForm to submitColaRequest
+ * 
+ * 	Rev 3.10
+ * 07/09/2013  S. Martin Defect  18 : Selection of state for the exemption is now greyed out for Import
+ * 
+ * 	Rev 3.10.1
+ * 10/24/2013  S. Martin Defect 419 : Disable Get eApplication buttons after click
+ * 
+ * 	Rev 3.11
+ * 04/11/2014  S. Martin Defect 410 : Allow Supervisor/QA to assign/reassign apps in batch
+ * 
+ * 04/16/2014  S. Martin Defect 413 : Allow Supervisor/QA to put selected apps in the general Q
+ * 
+ * 04/29/2014  S. Martin Defect 448 : JavaScript error is generated on all pages (IE8)
+ *
+ * 02/15/2017  K. Rowe   CD-865     : Remove annoying pop-up.
+ */
+ 
+	</script>
+	
+</head>
+
+<body bgcolor="#ffffff" leftmargin="0" topmargin="0" marginwidth="0" marginheight="0" onLoad="MM_preloadImages('images/anitreas.gif')" link="#0000cc" vlink="#0000cc" alink="#6666ff">
+
+<div class="maintemplate" align="left"> 
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" summary="This table is for layout only">
+    <tr>
+      <td width="40" bgcolor="#ffffff">&nbsp;</td>
+      <td width="728" bgcolor="#ffffff"><img src="images/ttbmasthead.gif" width="728" height="87" border="0" alt="TTB Website Masterheader"></td>
+      <td bgcolor="#224862">&nbsp;</td>
+    </tr>
+    <tr> 
+      <td colspan="3" width="710" height="20" valign="top" bgcolor="#993333">&nbsp;</td> 
+    </tr>
+  </table>
+  
+  <table width="728" cellpadding="0" cellspacing="0" summary="This table is for layout only">
+   <td width="710" valign="top" bgcolor="#ffffff">
+
+ 
+     
+    
+
+<!--end header table-->
+
+<!--begin body table-->
+<table width="665" border="0" cellspacing="0" cellpadding="0">
+	<tr> 
+    	<!--begin left column-->
+    	<td width="55" valign="top" bgcolor="#003066" background="images/archbot.gif"><IMG alt="" height="480" src="images/arch.gif" width="55" border="0"></td>
+    	<!--end left column-->
+    	<!--begin main column-->
+    	<td width="610" valign="top" align="left"> 
+      		<table width="100%">
+        		<tr> 
+          			<td width="610" valign="top"> 
+
+            			
+
+
+
+
+
+<br>
+<div class="eform-nav">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+        <tr>
+            <td valign="top">
+                <img src="images/arrowrt.gif" border="0" alt="arrow" width="10" height="10">&nbsp;            
+            </td>
+            <td valign="top">
+                <a href="publicSearchColasBasic.do">Search Public COLA Registry</a><a href="#"></a>
+                <br><br>
+            </td>
+        </tr>
+        <tr>
+            <td valign="top">
+                <img src="images/arrowrt.gif" border="0" alt="arrow" width="10" height="10">&nbsp;                            
+            </td>
+            <td valign="top">
+                <a href="javascript:void(0)" onclick="win1 = popup('http://www.ttb.gov/faqs/colasonline.shtml','privacyWin1');win1.focus();">COLAs Online FAQs</a>
+                <br><br>
+            </td>            
+        </tr>
+        <tr>
+            <td valign="top">
+                <img src="images/arrowrt.gif" border="0" alt="arrow" width="10" height="10">&nbsp;
+            </td>
+            <td valign="top">
+                <a href="" onclick="window.open('https://www.ttb.gov/webforms/contact_alfd.shtml','','scrollbars,resizable,height=650,width=743'); return false;">Contact Us</a>
+                <br><br>
+            </td>            
+        </tr>       
+        <tr>
+            <td valign="top">
+                <!--
+                <img src="images/arrowrt.gif" border="0" alt="arrow" width="10" height="10">&nbsp;
+                -->
+            </td>
+            <td valign="top">
+                  
+                <!--
+                <a href="javascript:void(0)" onclick="win1 = popup('https://ttbonline.gov/colasonlinedocs/PubNetHelp/default.htm','privacyWin1');win1.focus();">
+                  Public COLA Registry Manual</a>
+                -->
+            </td>   
+        </tr>    
+        <tr>
+            <td valign="top">
+                <!--
+                <img src="images/arrowrt.gif" border="0" alt="arrow" width="10" height="10">&nbsp;                            
+                -->
+            </td>
+            <td valign="top">
+                <!--
+                <a href="javascript:void(0)" onclick="win1 = popup('http://www.ttb.gov/labeling/pdf/colas_ol_pcr_um.pdf', 'privacyWin1'); win1.focus();">Download Public COLA Registry Manual</a>
+                <br><br>
+                -->
+            </td>            
+        </tr>
+        <!-- End edits -->
+        <tr>
+            <td valign="top">
+                <img src="images/arrowrt.gif" border="0" alt="arrow" width="10" height="10">&nbsp;
+            </td>
+            <td valign="top">
+                <a href="https://ttbonline.gov/ttbonline">COLAs Online Logon</a>
+                <br><br>                          
+            </td>
+        </tr>
+    </table>
+</div>
+
+
+
+
+            
+            			<img src="images/logo_cola_registry.gif" width="299" height="78" align="left" alt="COLA Registry"><br><a name="skipnav"></a><br> 
+<br>
+<br>
+<br>
+<br>
+<br>
+<div class="logotext"> TTB F 5100.31: Application For and Certification/<br>  Exemption of Label/Bottle Approval</div>
+<br clear="all">
+
+
+            			<br clear="all">
+            			<h1>Search for COLAs</h1>
+            			<p>Note: The TTB Public COLA Registry provides access to information about Certification/Exemption of Label/Bottle Approvals (COLA), which TTB issues on Form 5100.31. 
+            			COLAs in the registry have one of the following current statuses: <i>approved, expired, surrendered, </i>or<i> revoked</i>. 
+            			Images of the documents are generally available for COLAs issued from 1999 to present. 
+            			You may view data only for COLAs issued prior to 1999. Searches for COLAs issued before 1996 may not produce a complete result set. 
+            			</p>
+  
+      					<a class="skipnav" href="#" onClick="window.location = tabLink;return false"> Skip Tabs</a> <br>
+      					<a name="content"></a> Basic Search | <a href='publicSearchColasAdvanced.do'>Advanced Search</a> 
+						<br><br>
+              			<div class="errorbox"><h2 class="error">Information / Error Messages: </h2><div class="errortext"><ul class="errorList"><li>The current Date Completed (From) thru Date Completed (To) is greater than 15 year(s), please select a range less than or equal to 15 year(s).</li></ul></div></div><br> 
+              			
+              			<form name="searchCriteriaForm" method="post" action="/colasonline/publicSearchColasBasicProcess.do?action=search">
+     					<fieldset>
+     						<legend><a class="legendtext">Basic Search Criteria</a></legend>
+	        				Note:  If you know the TTB ID number for a COLA, you do not need to enter any other search parameters. For all other searches you must enter dates in the "from" and "to" fields, and the date range must not exceed 15 years. You may use the percent sign (%) as a wildcard in any field except the date fields. 
+							
+            					<table width="100%" cellspacing="1" cellpadding="2">
+              						<tr> 
+                						<td valign="top">
+                						<br>
+                							<a name="skiptabs"></a><strong>Date Completed: </strong> 
+                  							<a href="#" onclick="win1=help('defOfTerms.do#date_completed','helpWin1');win1.focus();return false"><img src="images/q.gif" width="12" height="12" border="0" alt="Open help for the Date Completed field in a new window"></a></td>
+                						<td valign="top">&nbsp;</td>
+              						</tr>
+              						<tr> 
+                						<td valign="top"> 
+                							<label for="datecompletedfrom"> From</label> 
+                							<input type="text" name="searchCriteria.dateCompletedFrom" maxlength="10" size="12" value="01/01/1990" id="datecompletedfrom"> 
+                  							<a href="#" onClick='getCalendar(document.forms[0], "searchCriteria.dateCompletedFrom");return false'>
+                  								<img src="images/calendar.gif" width="37" height="18" border="0" alt="View Calendar"></a> 
+                  							MM/DD/YYYY
+                  						</td>
+                						<td valign="top">
+                							<label for="datecompletedto">To</label>
+                							<input type="text" name="searchCriteria.dateCompletedTo" maxlength="10" size="12" value="09/29/2026" id="datecompletedto"> 
+                  							<a href="#" onClick='getCalendar(document.forms[0], "searchCriteria.dateCompletedTo");return false'>
+                  								<img src="images/calendar.gif" width="37" height="18" border="0" alt="View Calendar"></a> 
+                  							MM/DD/YYYY 
+                  						</td>
+              						</tr>
+              						<tr> 
+                						<td valign="top">&nbsp;</td>
+                						<td valign="top">&nbsp;</td>
+              						</tr>
+              						<tr> 
+                						<td valign="top">
+                							<strong><label for="productName">Product Name:</label> </strong> 
+                							<a href="#" onclick="win1=help('defOfTerms.do#product_name','helpWin1');win1.focus();return false"><img src="images/q.gif" width="12" height="12" border="0" alt="Open help for the Product Name field in a new window"></a>
+                						</td>
+                						<td valign="top">&nbsp;</td>
+              						</tr>
+              						<tr> 
+                						<td valign="top" colspan="2"> 
+                  							<p> <input type="text" name="searchCriteria.productOrFancifulName" maxlength="40" size="40" value="OLD POTRERO%" id="productname"> 
+                  							</p>
+                  							<p> <input type="radio" name="searchCriteria.productNameSearchType" value="B" checked="checked" id="brandname"> 
+                    							<label for="brandname">Brand Name</label>
+                    							
+                    							<input type="radio" name="searchCriteria.productNameSearchType" value="F" id="fancifulname"> 
+                    							<label for="fancifulname">Fanciful Name</label> 
+                    							
+                    							<input type="radio" name="searchCriteria.productNameSearchType" value="E" id="either"> 
+                    							<label for="either">Either</label>
+                    						</p>
+                						</td>
+              						</tr>
+              						<tr> 
+                						<td valign="top" colspan="2">
+                							<strong><label for="productclass">Product Class/Type:</label> </strong>
+                							<a href="#" onclick="win1=help('defOfTerms.do#class_type','helpWin1');win1.focus();return false"><img src="images/q.gif" width="12" height="12" border="0" alt="Open help for the Product/Class Type field in a new window"></a>
+                						</td>
+              						</tr>
+              						<tr> 
+                						<td valign="top" colspan="2"> 
+                							<input type="text" name="searchCriteria.classTypeFrom" maxlength="10" size="10" value="" id="productclass"> 
+                  							<label for="productclassto"> to</label> <input type="text" name="searchCriteria.classTypeTo" maxlength="10" size="10" value="" id="productclassto"> 
+                  							<input type="button" name="novalue.button" accesskey="p" value="Lookup Class Type>" onclick="win1 = popup('lookupProductClassTypeCode.do','lookupWin1');win1.focus();"> 
+                						</td>
+              						</tr>
+              						<tr>
+                						<td valign="top" colspan="2">&nbsp;</td>
+              						</tr>
+              						<tr> 
+                						<td valign="top" colspan="2">
+                							<strong><label for="origincode">Origin Code:</label> </strong>
+                							<a href="#" onclick="win1=help('defOfTerms.do#origin','helpWin1');win1.focus();return false"><img src="images/q.gif" width="12" height="12" border="0" alt="Open help for the Origin Code field in a new window"></a> 
+                						</td>
+              						</tr>
+              						<tr> 
+               							<td valign="top" colspan="2"> 
+               								<input type="text" name="searchCriteria.originCode" maxlength="10" size="10" value="" id="origincode"> 
+                  							<input type="button" name="novalue.button" accesskey="o" value="Lookup Origin>" onclick="win1 = popup('lookupOriginCode.do','lookupWin1');win1.focus();"> 
+                  						</td>
+              						</tr>
+            					</table>
+            				
+  						</fieldset>
+            			<br>
+            			
+            			<div class="actionbox"> 
+              				<div style="float:right"> 
+                				<input alt="search COLA database" accesskey="s" type="submit" onclick="submitColaRequest('publicSearchColasBasicProcess.do?action=search')" value="Search" />
+              				</div>
+			   				<input type="button" name="novalue.button" accesskey="c" value="Clear and Start Over" onclick="location.href='publicSearchColasBasicProcess.do?action=clear'">
+            			</div>
+            			</form>
+<script type="text/javascript" language="JavaScript">
+  <!--
+  var focusControl = document.forms["searchCriteriaForm"].elements["searchCriteria.dateCompletedFrom"];
+
+  if (focusControl.type != "hidden" && !focusControl.disabled) {
+     focusControl.focus();
+  }
+  // -->
+</script>
+
+          			</td>
+          			
+        		</tr>
+        		<tr>
+  					<td valign="top" colspan="6">
+  						<a href="#" onclick="javascript:window.open('http://www.ttb.gov/about/privacy_policy.shtml'); return false;">Privacy Policy</a>
+  					     &nbsp;|&nbsp;
+  						<a href="#" onclick="javascript:window.open('http://www.ttb.gov/foia/pia.shtml'); return false;">Privacy Impact Assessment</a>
+  						<br>
+  						<br>
+  					</td>
+  				</tr>	
+      		</table>
+    	</td>
+   
+    	<!--begin right spacer column-->
+	 	<td width="11"></td>
+    	<!--end right spacer column-->
+  	</tr>  	
+</table>
+
+<!--end body table-->
+
+</table>
+<!-- close the opening tag of the body table which was opened in the header -->
+	
+	
+	
+	
+	
+	
+
+	
+	
+	<table width="100%" cellpadding="0" cellspacing="0" bgcolor="cccccc" border="0">
+		<tr>
+			<td width="55" valign="top" bgcolor="#cccccc" background="images/archfooter.gif">
+				<img src="images/archfooter.gif" width="55" height="5" border="0" alt="">
+			</td>
+			<td width="*" align="center" valign="top"> 
+				<table width="100%">           
+					<tr> 
+						<td colspan="2" height="15"> 
+                        	<div align="center">
+                        		<a href="mailto:webmaster@ttb.treas.gov">
+                        			<img name="ttbfooter" src="images/ttbfooter.gif" width="482" height="9" border="0" alt="">
+                        		</a>
+                        	</div>
+						</td>
+					</tr>
+                    <tr> 
+						<td height="27" width="50%">
+                        	<div align="center">
+                        		<a href="http://www.treas.gov" onclick="window.open('http://www.treas.gov','','scrollbars,resizable,height=650,width=743'); return false;">
+                        			<img src="images/treaslogo.gif" width="137" height="65" border="0" alt="Select to go to US Department of Treasury Web Site" vspace="0">
+                        		</a>
+                        	</div>
+						</td>
+						<td height="27" width="50%"> 
+                        	<div align="center">
+                        		<a href="http://www.ttb.gov" onclick="window.open('http://www.ttb.gov','','scrollbars,resizable,height=650,width=743'); return false;">
+                        			<img src="images/ttblogo.gif" alt="Select to go to the TTB Web Site" border="0" vspace="0">
+                        		</a>
+                        	</div>
+						</td>
+					</tr>
+                    <tr>
+						<td colspan="2" valign="top">
+				
+                        		<hr>
+                          		<font face="Verdana, Arial, Helvetica, sans-serif" size="1">While the Alcohol and 
+                          		Tobacco Tax and Trade Bureau (TTB) makes every effort to provide complete information, 
+                          		data such as company names, addresses, permit numbers, and other data provided in the 
+                          		registry may change over time.  TTB makes no warranty, expressed or implied, and 
+                          		assumes no legal liability or responsibility as to the accuracy, reliability or 
+                          		completeness of furnished data.  Label images contained within the Public COLA 
+                          		Registry may appear differently, with respect to type size, characters per inch and 
+                          		contrasting background, than actual labels on the container.  We also remind users of 
+                          		the Public COLA Registry that section V. of the instructions for the TTB COLA 
+                          		Form 5100.31, Allowable Revisions to Approved Labels, identifies various types of 
+                          		label information that may be changed by the COLA holder without the need for 
+                          		re-approval.  TTB welcomes suggestions on how to improve our Public COLA Registry.  
+                          		Please contact us via <a href=" https://www.ttb.gov/webforms/contact_alfd.shtml" target="blank">online inquiry</a>.
+                          		</font>
+                          		<br>
+                          		<br>
+				
+                        	<hr>
+                        	<center>
+                          		<font face="Verdana, Arial, Helvetica, sans-serif" size="1">If you have
+                          		difficulty accessing any information in the site due to a disability,
+                          		please contact us via email (<a href='mailto:webmaster@ttb.treas.gov'>webmaster@ttb.treas.gov</a>)
+                          		and we will do our best to make the information available to you.
+                          		</font>
+                          		<br>
+                          		<br>
+                        	</center>
+                        	<center>
+                          		<font face="Verdana, Arial, Helvetica, sans-serif" size="1">
+                          		This site is best viewed at 1280x800 screen resolution or higher using Internet Explorer 11 or higher.
+    							<br>
+                          		<br>
+                          		</font>
+
+                        	<center>
+                          		<font face="Verdana, Arial, Helvetica, sans-serif" size="1"><i>WARNING! THIS SYSTEM IS THE PROPERTY OF THE UNITED STATES DEPARTMENT OF TREASURY. 
+								UNAUTHORIZED USE OF THIS SYSTEM IS STRICTLY PROHIBITED AND SUBJECT TO CRIMINAL AND CIVIL PENALITIES. 
+                                THE DEPARTMENT MAY MONITOR, RECORD, AND AUDIT ANY ACTIVITY ON THE SYSTEM AND SEARCH AND RETRIEVE ANY INFORMATION STORED WITHIN THE SYSTEM. 
+                                BY ACCESSING AND USING THIS COMPUTER YOU ARE AGREEING TO ABIDE BY THE TTB RULES OF BEHAVIOR, AND ARE CONSENTING TO SUCH MONITORING, RECORDING, 
+                                AND INFORMATION RETRIEVAL FOR LAW ENFORCEMENT AND OTHER PURPOSES. USERS SHOULD HAVE NO EXPECTATION OF PRIVACY WHILE USING THIS SYSTEM.</i>
+                                </font>
+                          		<p>&nbsp;</p>
+                          		<div id='VersionNumber'></div>		
+    							<script type="text/javascript">
+    								var xhttp = new XMLHttpRequest();
+									xhttp.onreadystatechange = function() {
+									    if (this.readyState == 4 && this.status == 200) {
+									        // Typical action to be performed when the document is ready:
+									        document.getElementById("VersionNumber").innerHTML = xhttp.responseText;
+									    }
+									};
+									 xhttp.open("GET", "javascript/colas_version.txt", true);
+									 xhttp.send(); 
+    							</script>
+                        	</center>                    
+						</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+    
+            
+
+
+
+</body>
+<head>
+<meta http-equiv="PRAGMA" content="NO-CACHE">
+</head>
+
+
+</html>

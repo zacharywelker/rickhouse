@@ -71,6 +71,15 @@ const envSchema = z.object({
     .default("true")
     .transform((v) => v !== "false"),
   /**
+   * Look up TTB label approvals (COLAs) in TTB's public registry by TTB ID:
+   * the record and its label images. Off keeps TTB IDs and links to the
+   * registry, but nothing is fetched. Turn off for a server with no internet.
+   */
+  COLA_LOOKUP: z
+    .enum(["true", "false", ""])
+    .default("true")
+    .transform((v) => v !== "false"),
+  /**
    * Cloudflare Turnstile keys. With both set, sign-in and "forgot password"
    * ask for a Turnstile check first. Kept here rather than in the admin
    * pages so a bad key can be undone without signing in.

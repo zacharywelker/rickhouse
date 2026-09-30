@@ -684,6 +684,60 @@ CREATE TRIGGER group_bottles_same_owner BEFORE INSERT OR UPDATE ON group_bottles
     FOR EACH ROW EXECUTE FUNCTION assert_same_owner('group_id', 'groups', 'bottle_id', 'bottles');
 
 -- ------------------------------------------------------------
+-- TTB label approvals (M11)
+-- ------------------------------------------------------------
+
+-- A COLA is TTB's approval of one label. One product usually has several
+-- (each proof, size, relabel and pick is approved separately), so they hang
+-- off the label in their own table. The fetched columns are a copy of the
+-- public registry record, refreshed on demand; everything but ttb_id may be
+-- NULL, which is how a COLA looks before (or without) a lookup.
+CREATE TABLE expression_colas (
+    id              serial PRIMARY KEY,
+    owner_id        integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expression_id   integer NOT NULL,
+    ttb_id          text    NOT NULL CHECK (ttb_id ~ '^[0-9]{14}$'),
+    position        integer NOT NULL DEFAULT 0,
+    note            text,
+
+    status          text,          -- 'APPROVED' | 'EXPIRED' | 'SURRENDERED' | 'REVOKED'
+    brand_name      text,          -- as filed: "OLD POTRERO"
+    fanciful_name   text,          -- "6 YO"
+    class_type_code text,          -- "102"
+    class_type      text,          -- "STRAIGHT RYE WHISKY"
+    origin_code     text,
+    origin          text,          -- "CALIFORNIA"
+    is_imported     boolean,
+    applicant_name  text,          -- the permit holder: "Hotaling & Co., LLC"
+    applicant_address text,
+    permit_number   text,          -- "DSP-CA-267"
+    serial_number   text,
+    approved_on     date,
+    fetched_at      timestamptz,
+    fetch_error     text,          -- the last lookup's failure; older data is kept
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (expression_id, ttb_id),
+    UNIQUE (id, owner_id),
+    FOREIGN KEY (expression_id, owner_id) REFERENCES expressions(id, owner_id) ON DELETE CASCADE
+);
+CREATE INDEX expression_colas_owner_idx ON expression_colas(owner_id);
+CREATE INDEX expression_colas_ttb_idx   ON expression_colas(ttb_id);
+
+CREATE TABLE cola_images (
+    id          serial PRIMARY KEY,
+    cola_id     integer NOT NULL REFERENCES expression_colas(id) ON DELETE CASCADE,
+    file_path   text    NOT NULL,          -- relative to the uploads volume
+    thumb_path  text,
+    display_path text,                     -- 1200px rendition; file_path keeps the scan's resolution
+    panel       text,                      -- "Brand (front) or keg collar", "Back"
+    width       integer,
+    height      integer,
+    sort_order  integer NOT NULL DEFAULT 0,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX cola_images_cola_idx ON cola_images(cola_id);
+
+-- ------------------------------------------------------------
 -- Convenience view: the flat list for the grid page
 -- ------------------------------------------------------------
 

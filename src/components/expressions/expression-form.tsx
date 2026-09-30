@@ -17,6 +17,7 @@ import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
 import { OrderedPicker, type LinkedRow } from "./ordered-picker";
 import { DeleteExpressionButton } from "./delete-expression-button";
+import { PendingColas } from "./cola-approvals";
 
 const ALL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
 
@@ -26,6 +27,7 @@ export function ExpressionForm({
   initialLinks,
   options,
   categoryGroups,
+  colaLookup = false,
 }: {
   expressionId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
@@ -33,6 +35,8 @@ export function ExpressionForm({
   options: Record<string, Option[]>;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
+  /** Whether TTB's registry can be searched; on New Label, for picking approvals to attach. */
+  colaLookup?: boolean;
 }) {
   const router = useRouter();
   const [values, setValues] = React.useState(() => initialFieldValues(ALL_FIELDS, initialValues));
@@ -179,6 +183,17 @@ export function ExpressionForm({
           />
         </SectionContent>
       </Section>
+
+      {expressionId === null ? (
+        // A new label's approvals, attached on create (SPEC M11). An existing
+        // label's are managed below its form instead, saved as they are added.
+        <PendingColas
+          className="border-t border-foreground pt-3"
+          brandName={optionsByField.brandId?.find((option) => String(option.value) === String(values.brandId))?.label ?? ""}
+          labelName={typeof values.name === "string" ? values.name : ""}
+          lookupEnabled={colaLookup}
+        />
+      ) : null}
 
       {!state.ok && state.error ? (
         <p
