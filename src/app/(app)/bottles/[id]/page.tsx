@@ -20,6 +20,7 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
+import { Inferred } from "@/components/ui/inferred";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
@@ -117,7 +118,7 @@ function Chips({
                 href && "transition-colors hover:border-primary/50 hover:text-primary",
               )}
             >
-              {item.name}
+              {item.inferred ? <Inferred>{item.name}</Inferred> : item.name}
               {item.amount !== null ? (
                 <span className="ml-1 text-muted-foreground">{Number(item.amount)}%</span>
               ) : null}
