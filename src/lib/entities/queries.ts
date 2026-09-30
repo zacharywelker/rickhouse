@@ -11,6 +11,7 @@ import {
   mashbills,
   stores,
 } from "@/db/schema";
+import { mashbillTitle } from "@/lib/mashbills";
 import { describeRecipe } from "@/lib/expressions/queries";
 
 /**
@@ -82,6 +83,7 @@ export async function getMashbill(id: number, ownerId: number) {
     .select({
       id: mashbills.id,
       name: mashbills.name,
+      isSecret: mashbills.isSecret,
       recipe: sql<string | null>`(
         select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
           from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
@@ -92,7 +94,8 @@ export async function getMashbill(id: number, ownerId: number) {
     .where(and(eq(mashbills.id, id), eq(mashbills.ownerId, ownerId)))
     .limit(1);
   if (!row) return null;
-  return { ...row, recipe: describeRecipe(row.recipe) };
+  const recipe = describeRecipe(row.recipe);
+  return { ...row, recipe, title: mashbillTitle(row, recipe) };
 }
 
 /** Every grain split this mashbill is used in; check ownership with getMashbill first. */

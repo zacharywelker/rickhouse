@@ -11,7 +11,15 @@ import { RESOURCES, isResourceKey } from "@/lib/admin/registry";
 import { quickCreateSchema } from "@/lib/admin/schemas";
 import { normalizePlace, samePlace, undisclosedName } from "@/lib/places";
 import { resolveSlug } from "@/lib/slug";
-import { REFERENCE_RESOURCES, type ActionResult, type QuickCreateResult, type ReferenceResource } from "@/lib/admin/types";
+import {
+  REFERENCE_RESOURCES,
+  type ActionResult,
+  DETAILED_RESOURCES,
+  type DetailedResource,
+  type QuickCreateResult,
+  type ResourceFormSpec,
+  type ReferenceResource,
+} from "@/lib/admin/types";
 
 /** Categories are one tree shared by every account, so only admins change it. */
 const SHARED_ONLY_ADMIN_EDITS = "Categories are shared by everyone here, so only an admin can change them.";
@@ -197,4 +205,26 @@ export async function findOrCreateUndisclosedAction(input: {
     const mapped = mapDbError(error, { singular: "Distillery" });
     return { ok: false, error: mapped.ok ? "Could not add that." : mapped.error };
   }
+}
+
+function isDetailedResource(value: string): value is DetailedResource {
+  return (DETAILED_RESOURCES as readonly string[]).includes(value);
+}
+
+/** What the full form of a company, brand, distillery or mashbill needs, for a dialog opened from a picker. */
+export async function resourceFormSpecAction(resource: string): Promise<ResourceFormSpec> {
+  const user = await requireSession();
+  if (!isDetailedResource(resource)) return { ok: false, error: "That is not something this app manages." };
+  const config = RESOURCES[resource];
+  return { ok: true, singular: config.singular, fields: config.fields, options: await config.optionsFor(user.id) };
+}
+
+/** A row just made with its full form, as the option a picker chooses. */
+export async function createdOptionAction(resource: string, id: number): Promise<QuickCreateResult> {
+  const user = await requireSession();
+  if (!isDetailedResource(resource)) return { ok: false, error: "That is not something this app manages." };
+  const rows = await RESOURCES[resource].list(user.id);
+  const row = rows.find((r) => r.id === id);
+  if (!row) return { ok: false, error: "That was created but could not be found." };
+  return { ok: true, option: { value: id, label: String(row.cells.name ?? "") } };
 }

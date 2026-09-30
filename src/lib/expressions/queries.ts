@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { describeMashbill } from "@/lib/mashbills";
+import { describeMashbill, mashbillTitle } from "@/lib/mashbills";
 import {
   bottleImages,
   bottles,
@@ -71,6 +71,7 @@ export async function expressionLinks(expressionId: number): Promise<{
       .select({
         id: mashbills.id,
         name: mashbills.name,
+        isSecret: mashbills.isSecret,
         amount: expressionMashbills.sharePct,
         // Which distillery's recipe this is, as picked on this label — a
         // mashbill has no distillery of its own (issue #13). Surfaced on a
@@ -112,7 +113,7 @@ export async function expressionLinks(expressionId: number): Promise<{
     distilleries: d.map(({ disclosure, ...row }) => ({ ...row, undisclosed: disclosure === "undisclosed" })),
     mashbills: m.map((row) => ({
       id: row.id,
-      name: row.name ?? describeRecipe(row.recipe),
+      name: mashbillTitle(row, describeRecipe(row.recipe)),
       slug: null,
       amount: row.amount,
       recipe: describeRecipe(row.recipe),
@@ -299,6 +300,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
         expressionId: expressionMashbills.expressionId,
         id: mashbills.id,
         name: mashbills.name,
+        isSecret: mashbills.isSecret,
         amount: expressionMashbills.sharePct,
         distilleryId: expressionMashbills.distilleryId,
         recipe: sql<string | null>`(
@@ -337,7 +339,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
   for (const row of m) {
     byId.get(row.expressionId)?.mashbills.push({
       id: row.id,
-      label: row.name ?? describeRecipe(row.recipe),
+      label: mashbillTitle(row, describeRecipe(row.recipe)),
       amount: amount(row.amount),
       distilleryId: row.distilleryId,
     });

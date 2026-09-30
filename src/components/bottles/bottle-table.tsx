@@ -327,7 +327,7 @@ export function BottleTable({
         header: "Age",
         cell: ({ getValue, row }) => (
           <span className="block min-w-16 max-w-40 tabular-nums">
-            {getValue() ? `${formatNumeric(getValue())}y` : (row.original.ageStatement ?? "—")}
+            {Number(getValue()) > 0 ? `${formatNumeric(getValue())}y` : (row.original.ageStatement ?? "—")}
           </span>
         ),
       }),

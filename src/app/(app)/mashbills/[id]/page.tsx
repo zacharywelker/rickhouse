@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const [{ id }, user] = await Promise.all([params, requireSession()]);
   const row = Number.isInteger(Number(id)) ? await getMashbill(Number(id), user.id) : null;
-  return { title: row ? (row.name ?? row.recipe) : "Mashbill" };
+  return { title: row ? row.title : "Mashbill" };
 }
 
 export default async function MashbillPage({
@@ -29,7 +29,7 @@ export default async function MashbillPage({
   return (
     <EntityPage
       kind="Mashbill"
-      name={row.name ?? row.recipe}
+      name={row.title}
       meta={[{ label: "Recipe", value: row.recipe }]}
       notes={row.notes}
       preset={{ mashbillIds: [mashbillId] }}

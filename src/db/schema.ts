@@ -163,7 +163,10 @@ export const mashbills = pgTable("mashbills", {
   ownerId: integer("owner_id")
     .notNull()
     .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+  /** The reference name of a secret mashbill ("Buffalo Trace Wheated"); unused otherwise — a mashbill shows as its recipe. */
   name: citext("name"),
+  /** The distillery keeps the recipe secret; the recipe here is inferred and `name` is what shows. */
+  isSecret: boolean("is_secret").notNull().default(false),
   notes: text("notes"),
 }, (t) => [
   index("mashbills_owner_idx").on(t.ownerId),

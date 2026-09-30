@@ -166,7 +166,7 @@ export function ExpressionForm({
             label="Mashbills"
             description="One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
             resource={null}
-            emptyHint="Add mashbills under Configuration — their grains have to total 100%."
+            emptyHint="No mashbills yet — add a new one from here."
             options={optionsByField.mashbillLinks ?? []}
             amountLabel="Share"
             amountSuffix="%"
@@ -195,6 +195,7 @@ export function ExpressionForm({
           className="border-t border-foreground pt-3"
           brandName={optionsByField.brandId?.find((option) => String(option.value) === String(values.brandId))?.label ?? ""}
           labelName={typeof values.name === "string" ? values.name : ""}
+          distilleryIds={links.distilleries.map((row) => row.id)}
           lookupEnabled={colaLookup}
         />
       ) : null}

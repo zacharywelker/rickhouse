@@ -237,6 +237,8 @@ export function LabelTable({
                   key={column.id}
                   id={`label-col-${column.id}`}
                   className={cn(
+                    // Headers wrap onto two lines so the table is narrower.
+                    "h-auto max-w-24 whitespace-normal py-2 leading-tight",
                     !PHONE_COLUMNS.has(column.id) && "hidden sm:table-cell",
                     column.numeric && "text-right",
                   )}

@@ -1,14 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleImages, bottles, expressionColas, expressions } from "@/db/schema";
+import { bottleImages, bottles, distilleries, expressionColas, expressionDistilleries, expressions } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { copyToBottleImage, ImageError } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
-import { normalizeTtbId } from "@/lib/cola/ids";
+import { isClassTypeCode, normalizeTtbId, permitKey } from "@/lib/cola/ids";
 import { ColaLookupError, ColaParseError, ColaSearchError, searchColas } from "@/lib/cola/client";
 import { rankResults, searchWindow } from "@/lib/cola/format";
 import type { ColaSearchRow } from "@/lib/cola/parse";
@@ -139,7 +139,16 @@ const MAX_ATTACH = 5;
  */
 export async function searchColasAction(
   expressionId: number | null,
-  query: { name: string; field: "brand" | "fanciful" | "either"; window: number; labelName?: string },
+  query: {
+    name: string;
+    field: "brand" | "fanciful" | "either";
+    window: number;
+    labelName?: string;
+    /** A registry class/type code ("101") is searched on; anything else ("bourbon") narrows the results. */
+    classType?: string;
+    /** TTB cannot search by permit, so this narrows the results ("DSP-NY-0000"). */
+    permit?: string;
+  },
 ): Promise<ColaSearchResult> {
   const user = await requireSession();
   if (!colaLookupEnabled()) return { ok: false, error: "COLA lookups are turned off on this server (COLA_LOOKUP)." };
@@ -155,12 +164,23 @@ export async function searchColasAction(
   }
 
   const name = query.name.trim();
-  if (name.replace(/%/g, "").length < 2) return { ok: false, error: "Type at least two letters of the name to search for." };
+  const classType = (query.classType ?? "").trim();
+  const classCode = isClassTypeCode(classType) ? classType.toUpperCase() : "";
+  const classWords = classCode ? "" : classType.toLowerCase();
+  const permit = permitKey(query.permit ?? "");
+  if (name.replace(/%/g, "").length < 2 && !classCode) {
+    return {
+      ok: false,
+      error: permit
+        ? "TTB cannot search by permit alone. Add part of a name or a class/type code, and the permit narrows the results."
+        : "Type at least two letters of the name to search for, or a class/type code.",
+    };
+  }
   const window = searchWindow(Math.max(0, Math.min(1, Math.trunc(query.window))), new Date());
 
   let found;
   try {
-    found = await searchColas({ name, field: query.field, from: window.from, to: window.to });
+    found = await searchColas({ name, field: query.field, from: window.from, to: window.to, classTypeCode: classCode });
   } catch (error: unknown) {
     if (error instanceof ColaSearchError || error instanceof ColaParseError || error instanceof ColaLookupError) {
       return { ok: false, error: error.message };
@@ -181,7 +201,14 @@ export async function searchColasAction(
   );
   return {
     ok: true,
-    rows: rankResults(found.rows, labelName).map((row) => ({ ...row, attached: attached.has(row.ttbId) })),
+    rows: rankResults(
+      found.rows.filter(
+        (row) =>
+          (!permit || (row.permitNumber !== null && permitKey(row.permitNumber) === permit)) &&
+          (!classWords || (row.classType ?? "").toLowerCase().includes(classWords)),
+      ),
+      labelName,
+    ).map((row) => ({ ...row, attached: attached.has(row.ttbId) })),
     total: found.total,
     truncated: found.truncated,
     window: window.label,
@@ -220,4 +247,29 @@ export async function featureColaAction(colaId: number): Promise<ActionResult> {
   if (!cola) return { ok: false, error: "That COLA is gone." };
   revalidateLabel(cola.expressionId);
   return { ok: true, message: `${cola.ttbId} is shown first.` };
+}
+
+/**
+ * The DSP numbers of the distilleries a label is made at, to offer as the
+ * permit to search on. An existing label's come from its saved links; a label
+ * being created passes the distilleries picked on its form so far.
+ */
+export async function colaPermitHintsAction(expressionId: number | null, distilleryIds: number[]): Promise<string[]> {
+  const user = await requireSession();
+  const ids =
+    expressionId === null
+      ? distilleryIds.filter((id) => Number.isInteger(id))
+      : (
+          await db
+            .select({ id: expressionDistilleries.distilleryId })
+            .from(expressionDistilleries)
+            .innerJoin(expressions, eq(expressions.id, expressionDistilleries.expressionId))
+            .where(and(eq(expressionDistilleries.expressionId, expressionId), eq(expressions.ownerId, user.id)))
+        ).map((row) => row.id);
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({ dspNumber: distilleries.dspNumber })
+    .from(distilleries)
+    .where(and(eq(distilleries.ownerId, user.id), inArray(distilleries.id, ids)));
+  return [...new Set(rows.map((row) => row.dspNumber?.trim()).filter((dsp): dsp is string => Boolean(dsp)))];
 }

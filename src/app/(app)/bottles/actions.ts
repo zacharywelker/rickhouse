@@ -421,8 +421,9 @@ export async function setBottleFavoriteAction(bottleId: number, isFavorite: bool
 
 /**
  * Opening stamps `date_opened` the first time and promotes the status from
- * owned to open. Closing it again leaves both alone — the bottle was still
- * opened on that date, and the status is not a lie once it is true.
+ * owned to open. Closing it again keeps the opened date (the bottle was still
+ * opened then) but demotes the status back to owned, so the table stops
+ * calling a resealed bottle Open.
  */
 export async function setBottleOpenAction(bottleId: number, isOpen: boolean): Promise<ActionResult> {
   const user = await requireSession();
@@ -441,6 +442,7 @@ export async function setBottleOpenAction(bottleId: number, isOpen: boolean): Pr
         isOpen,
         ...(isOpen && current.dateOpened === null ? { dateOpened: today } : {}),
         ...(isOpen && current.status === "owned" ? { status: "open" as const } : {}),
+        ...(!isOpen && current.status === "open" ? { status: "owned" as const } : {}),
       })
       .where(ownedBottle(bottleId, user.id));
 
@@ -479,7 +481,7 @@ export async function setBottleDateAction(
 
   try {
     const [current] = await db
-      .select({ dateOpened: bottles.dateOpened, dateKilled: bottles.dateKilled })
+      .select({ dateOpened: bottles.dateOpened, dateKilled: bottles.dateKilled, status: bottles.status })
       .from(bottles)
       .where(ownedBottle(bottleId, user.id))
       .limit(1);
@@ -500,7 +502,9 @@ export async function setBottleDateAction(
       .update(bottles)
       .set({
         [field]: next,
-        ...(field === "dateOpened" && next === null ? { isOpen: false } : {}),
+        ...(field === "dateOpened" && next === null
+          ? { isOpen: false, ...(current.status === "open" ? { status: "owned" as const } : {}) }
+          : {}),
       })
       .where(ownedBottle(bottleId, user.id));
 

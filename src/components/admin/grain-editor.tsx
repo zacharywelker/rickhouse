@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { COMMON_GRAINS, GRAIN_TOTAL, orderGrains, sumGrains, type Grain } from "@/lib/mashbills";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { COMMON_GRAINS, GRAIN_TOTAL, ingredientColor, orderGrains, sumGrains, type Grain } from "@/lib/mashbills";
 
 export type GrainRow = { grain: string; percent: string };
 
@@ -24,6 +25,84 @@ export function parseGrainRows(raw: unknown): GrainRow[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * A free-text ingredient box with the common ones to pick from as it is
+ * focused or typed in. Anything can still be typed: the list is a convenience.
+ */
+function IngredientInput({
+  id,
+  value,
+  onChange,
+  suggestions,
+}: {
+  id: string;
+  value: string;
+  onChange: (next: string) => void;
+  suggestions: readonly string[];
+}) {
+  const [open, setOpen] = React.useState(false);
+  const query = value.trim().toLowerCase();
+  const matches = suggestions.filter((name) => name.toLowerCase().includes(query) && name.toLowerCase() !== query);
+
+  return (
+    <Popover open={open && matches.length > 0} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div className="relative">
+          <span
+            aria-hidden="true"
+            className="absolute left-3 top-1/2 size-3 -translate-y-1/2 rounded-full border border-border"
+            style={{ backgroundColor: ingredientColor(value) }}
+          />
+          <Input
+            id={id}
+            value={value}
+            placeholder="Corn"
+            autoComplete="off"
+            className="pl-8"
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            onChange={(event) => {
+              onChange(event.target.value);
+              setOpen(true);
+            }}
+          />
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        className="max-h-56 overflow-y-auto"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onInteractOutside={(event) => {
+          if (event.target instanceof HTMLElement && event.target.id === id) event.preventDefault();
+        }}
+      >
+        <ul role="listbox" aria-label="Common ingredients">
+          {matches.map((name) => (
+            <li key={name} role="option" aria-selected={false}>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                // Keep focus in the input, so picking does not blur-close before the click lands.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(name);
+                  setOpen(false);
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-3 rounded-full border border-border"
+                  style={{ backgroundColor: ingredientColor(name) }}
+                />
+                {name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /**
@@ -59,10 +138,10 @@ export function GrainEditor({
   return (
     <div className="col-span-full flex flex-col gap-3">
       <div className="flex flex-col gap-2">
-        <Label htmlFor={`${id}-0-grain`}>Grains</Label>
+        <Label htmlFor={`${id}-0-grain`}>Ingredients</Label>
         {empty ? (
           <p className="text-sm text-muted-foreground">
-            No grains yet. A recipe you know the name of but not the contents is fine — add them when you find out.
+            No ingredients yet. A secret mashbill can stay empty until you have inferred its recipe.
           </p>
         ) : null}
         {rows.map((row, index) => (
@@ -71,12 +150,11 @@ export function GrainEditor({
               <label htmlFor={`${id}-${index}-grain`} className="sr-only">
                 Grain {index + 1}
               </label>
-              <Input
+              <IngredientInput
                 id={`${id}-${index}-grain`}
                 value={row.grain}
-                list={`${id}-suggestions`}
-                placeholder="Corn"
-                onChange={(event) => update(index, { grain: event.target.value })}
+                suggestions={unused}
+                onChange={(next) => update(index, { grain: next })}
               />
             </div>
             <div className="w-28">
@@ -106,11 +184,6 @@ export function GrainEditor({
             </Button>
           </div>
         ))}
-        <datalist id={`${id}-suggestions`}>
-          {unused.map((grain) => (
-            <option key={grain} value={grain} />
-          ))}
-        </datalist>
         <Button
           type="button"
           variant="outline"
@@ -118,7 +191,7 @@ export function GrainEditor({
           className="w-fit"
           onClick={() => onChange([...rows, { grain: "", percent: "" }])}
         >
-          Add a grain
+          Add an ingredient
         </Button>
       </div>
 
@@ -135,15 +208,35 @@ export function GrainEditor({
               {rounded}%
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-border" role="presentation">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all",
-                exact ? "bg-primary" : acceptable ? "bg-accent" : "bg-destructive",
-              )}
-              style={{ width: `${Math.min(100, Math.max(0, total))}%` }}
-            />
+          {/* One segment per ingredient, in its own colour, so the mix reads at a glance. */}
+          <div className="flex h-2.5 overflow-hidden rounded-full bg-border" role="presentation">
+            {orderGrains(rows as Grain[]).map((row, index) => {
+              const share = Number(row.percent);
+              return Number.isFinite(share) && share > 0 ? (
+                <div
+                  key={`${row.grain}-${index}`}
+                  className="h-full transition-all"
+                  style={{
+                    width: `${(share / Math.max(100, total)) * 100}%`,
+                    backgroundColor: ingredientColor(row.grain),
+                  }}
+                  title={`${row.grain || "Unnamed"} ${Number(share.toFixed(2))}%`}
+                />
+              ) : null;
+            })}
           </div>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {orderGrains(rows as Grain[]).map((row, index) => (
+              <li key={`${row.grain}-${index}`} className="flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className="size-2.5 rounded-full border border-border"
+                  style={{ backgroundColor: ingredientColor(row.grain) }}
+                />
+                {row.grain || "Unnamed"} {Number(Number(row.percent || 0).toFixed(2))}%
+              </li>
+            ))}
+          </ul>
           <p className={cn("text-xs", acceptable ? "text-muted-foreground" : "text-destructive")} aria-live="polite">
             {exact
               ? "Adds up to 100%."

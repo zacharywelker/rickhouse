@@ -209,11 +209,13 @@ export function ColaApprovals(props: Props) {
 export function PendingColas({
   brandName,
   labelName,
+  distilleryIds,
   lookupEnabled,
   className,
 }: {
   brandName: string;
   labelName: string;
+  distilleryIds?: number[];
   lookupEnabled: boolean;
   className?: string;
 }) {
@@ -234,6 +236,7 @@ export function PendingColas({
         expressionId={null}
         brandName={brandName}
         labelName={labelName}
+        distilleryIds={distilleryIds}
         pendingIds={pendingIds}
         onPick={add}
         triggerLabel={triggerLabel}
