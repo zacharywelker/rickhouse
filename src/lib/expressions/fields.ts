@@ -1,4 +1,4 @@
-import { FIELD_GROUPS, STILL_TYPES, type FieldGroup } from "@/db/schema";
+import { CHAR_LEVELS, CHAR_LEVEL_LABELS, FIELD_GROUPS, STILL_TYPES, type FieldGroup } from "@/db/schema";
 import type { FieldSpec } from "@/lib/admin/types";
 
 /**
@@ -109,7 +109,12 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
       { kind: "number", name: "entryProof", label: "Entry Proof", min: 0, max: 200, step: 0.01, span: "half" },
       { kind: "select", name: "isChillFiltered", label: "Chill Filtered", options: TRISTATE, span: "half" },
       { kind: "select", name: "colorAdded", label: "Colour Added", options: TRISTATE, span: "half" },
-      { kind: "text", name: "charLevel", label: "Char Level", placeholder: "#4 alligator char", span: "half" },
+      {
+        kind: "slider",
+        name: "charLevel",
+        label: "Char Level",
+        options: [{ value: "", label: "Unknown" }, ...CHAR_LEVELS.map((v) => ({ value: v, label: CHAR_LEVEL_LABELS[v] }))],
+      },
     ],
   },
   {
