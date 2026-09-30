@@ -370,18 +370,14 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             </div>
           ) : null}
 
-          {colas.length > 0 ? (
-            <div className="flex flex-col gap-3 border-t border-border pt-6">
-              <h2 className="text-xl">Label approvals</h2>
-              <ColaApprovals
-                mode="bottle"
-                bottleId={bottleId}
-                colas={colas}
-                lookupEnabled={colaLookupEnabled()}
-                distilleryMatches={distilleryMatches}
-              />
-            </div>
-          ) : null}
+          <ColaApprovals
+            mode="bottle"
+            className="border-t border-border pt-6"
+            bottleId={bottleId}
+            colas={colas}
+            lookupEnabled={colaLookupEnabled()}
+            distilleryMatches={distilleryMatches}
+          />
 
           <div className="border-t border-border pt-6">
             <TastingNotes bottleId={bottleId} notes={notes} />

@@ -436,12 +436,14 @@ approved label art and what the approval says about who bottled it.
   only, ranks results against the label's name, and attaches the ones picked
   (up to five at a time), fetching each record and its label images. Pasting
   a TTB ID or registry link does the same for one.
-- **Shown at the top of the label's page.** The first COLA is featured: its
-  front label large, at a 1200px rendition that opens the full scan (kept at
-  TTB's resolution, up to 6000px), the other panels as thumbnails, and the
-  record beside it — a direct link to the COLA listing and its printable
-  application, class/type, origin, and the bottler or importer with permit
-  number and address. The rest are one line each and can be shown first.
+- **A specimen record below the label's form.** The form comes first; the
+  approvals follow as a compact record. The featured COLA's front label sits
+  on the page like a catalog shot (a 1200px rendition that opens the full
+  scan, kept at TTB's resolution up to 6000px), with its other panels a click
+  away. Beside it is a ruled record: TTB ID linked to the COLA listing,
+  approval date, the name as filed, class/type, origin, and the bottler or
+  importer with permit number and address. Other approvals are a short table,
+  any of which can be shown first.
 - **Bottler details are display only.** A COLA's permit holder filed the
   label; for sourced whiskey that is not who distilled it. Nothing is written
   to distilleries. When one of yours already has that DSP number, the COLA

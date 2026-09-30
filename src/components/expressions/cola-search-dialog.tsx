@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2, Search } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -17,11 +18,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  addColaAction,
   attachColasAction,
   searchColasAction,
   type ColaSearchResult,
 } from "@/app/(app)/expressions/cola-actions";
-import type { ActionResult } from "@/lib/admin/types";
+import { IDLE_RESULT, type ActionResult } from "@/lib/admin/types";
 import { colaDetailUrl } from "@/lib/cola/ids";
 import { registryCase, searchWindow } from "@/lib/cola/format";
 import { cn, formatDate } from "@/lib/utils";
@@ -36,10 +38,13 @@ const MAX_PICK = 5;
 export function ColaSearchDialog({
   expressionId,
   brandName,
+  triggerLabel,
   onDone,
 }: {
   expressionId: number;
   brandName: string;
+  /** The text link that opens it: "Find on TTB", or a sentence in an empty state. */
+  triggerLabel: string;
   onDone: (result: ActionResult) => void;
 }) {
   const router = useRouter();
@@ -92,10 +97,9 @@ export function ColaSearchDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline">
-          <Search className="size-4" />
-          Find on TTB
-        </Button>
+        <button type="button" className="text-sm text-primary hover:underline">
+          {triggerLabel} &rarr;
+        </button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
@@ -229,8 +233,18 @@ export function ColaSearchDialog({
         </div>
 
         <DialogFooter className="sm:items-center">
-          <span className="text-xs text-muted-foreground sm:mr-auto">
-            {picked.size > 0 ? `${picked.size} picked` : `Pick up to ${MAX_PICK}`}. Each is fetched with its label images.
+          <div className="sm:mr-auto">
+            <AddById
+              expressionId={expressionId}
+              label="Have a TTB ID?"
+              onDone={(outcome) => {
+                onDone(outcome);
+                if (outcome.ok) setOpen(false);
+              }}
+            />
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {picked.size > 0 ? `${picked.size} picked` : `Pick up to ${MAX_PICK}`}
           </span>
           <Button type="button" onClick={attach} disabled={picked.size === 0 || attaching}>
             {attaching ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -239,5 +253,56 @@ export function ColaSearchDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The fallback to searching: paste a TTB ID or a registry link. In the
+ * search dialog's footer, or on its own when lookups are off.
+ */
+export function AddById({
+  expressionId,
+  label,
+  onDone,
+}: {
+  expressionId: number;
+  label: string;
+  onDone: (result: ActionResult) => void;
+}) {
+  const router = useRouter();
+  const formRef = React.useRef<HTMLFormElement>(null);
+  const [state, formAction, pending] = useActionState<ActionResult, FormData>(
+    addColaAction.bind(null, expressionId),
+    IDLE_RESULT,
+  );
+
+  React.useEffect(() => {
+    if (state === IDLE_RESULT) return;
+    onDone(state);
+    if (state.ok) {
+      formRef.current?.reset();
+      router.refresh();
+    }
+  }, [state, onDone, router]);
+
+  return (
+    <form ref={formRef} action={formAction} className="flex flex-wrap items-center gap-2">
+      <Label htmlFor={`cola-ttb-id-${expressionId}`} className="text-xs text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={`cola-ttb-id-${expressionId}`}
+        name="ttbId"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="21132001000620"
+        className="h-8 w-44 text-sm tabular-nums"
+        aria-invalid={!state.ok && Boolean(state.fieldErrors?.ttbId)}
+      />
+      <Button type="submit" variant="outline" size="sm" disabled={pending}>
+        {pending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+        Add
+      </Button>
+    </form>
   );
 }

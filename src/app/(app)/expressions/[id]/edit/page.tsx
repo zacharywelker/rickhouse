@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ExpressionForm } from "@/components/expressions/expression-form";
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
-import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { expressionFormData } from "@/lib/expressions/form-data";
 import { getExpression } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
@@ -36,32 +35,22 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
           {row.brand.name} {row.expression.name}
         </h1>
       </div>
-      {/* Above the form: what TTB approved for this label, saved as it is added (SPEC M11). */}
-      <Section>
-        <SectionHeader>
-          <SectionTitle>Label approvals</SectionTitle>
-          <SectionDescription>
-            TTB&rsquo;s certificates of label approval (COLAs): the approved label art, and who bottled it. One per
-            proof, size or relabel. Saved as you add them, apart from the form below.
-          </SectionDescription>
-        </SectionHeader>
-        <SectionContent>
-          <ColaApprovals
-            mode="label"
-            expressionId={expressionId}
-            brandName={row.brand.name}
-            colas={colas}
-            lookupEnabled={colaLookupEnabled()}
-            distilleryMatches={distilleryMatches}
-          />
-        </SectionContent>
-      </Section>
       <ExpressionForm
         expressionId={expressionId}
         initialValues={row.expression as unknown as Record<string, string | number | boolean | null>}
         initialLinks={links}
         options={options}
         categoryGroups={categoryGroups}
+      />
+      {/* Below the form: what TTB approved for this label, saved as it is added (SPEC M11). */}
+      <ColaApprovals
+        mode="label"
+        className="mt-4 border-t border-foreground pt-3"
+        expressionId={expressionId}
+        brandName={row.brand.name}
+        colas={colas}
+        lookupEnabled={colaLookupEnabled()}
+        distilleryMatches={distilleryMatches}
       />
     </div>
   );
