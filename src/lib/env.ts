@@ -1,6 +1,26 @@
 import { z } from "zod";
 import { buildBlockList } from "@/lib/auth/client-ip";
 
+/** Comma-separated IPs and CIDR ranges; a bad entry fails at boot. */
+function ipList() {
+  return z
+    .string()
+    .default("")
+    .transform((v) =>
+      v
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean),
+    )
+    .superRefine((entries, ctx) => {
+      try {
+        buildBlockList(entries);
+      } catch (error) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: (error as Error).message });
+      }
+    });
+}
+
 /**
  * Parsed once, on the server only. Import this rather than reading
  * `process.env` directly so a missing variable fails loudly at boot.
@@ -41,22 +61,7 @@ const envSchema = z.object({
    * unless it is listed here, in which case the one before it is. Leave empty
    * when Caddy, Nginx Proxy Manager or Traefik talk to visitors directly.
    */
-  TRUSTED_PROXIES: z
-    .string()
-    .default("")
-    .transform((v) =>
-      v
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean),
-    )
-    .superRefine((entries, ctx) => {
-      try {
-        buildBlockList(entries);
-      } catch (error) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: (error as Error).message });
-      }
-    }),
+  TRUSTED_PROXIES: ipList(),
   /**
    * Refuse new passwords found in Have I Been Pwned's breach corpus. Only a
    * 5-character hash prefix is sent. Turn off for a server with no internet.
@@ -81,6 +86,13 @@ const envSchema = z.object({
    */
   TURNSTILE_SITE_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
   TURNSTILE_SECRET_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+  /**
+   * Visitors from these IPs or CIDR ranges — typically your LAN, e.g.
+   * 192.168.1.0/24 — sign in without the Turnstile check when they open
+   * Rickhouse at an address other than APP_URL. The visitor is the same
+   * address rate limiting uses (see TRUSTED_PROXIES).
+   */
+  TURNSTILE_SKIP_NETWORKS: ipList(),
   /** Absolute path to the uploads volume inside the container. */
   UPLOAD_DIR: z.string().min(1).default("/data/uploads"),
   /** Absolute path to the backups volume inside the container. */
@@ -89,12 +101,6 @@ const envSchema = z.object({
 });
 
 export type Env = z.infer<typeof envSchema>;
-
-/** The Turnstile site key for the browser, only when the check is fully set up. */
-export function turnstileSiteKey(): string | null {
-  const { TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY } = env();
-  return TURNSTILE_SITE_KEY && TURNSTILE_SECRET_KEY ? TURNSTILE_SITE_KEY : null;
-}
 
 let cached: Env | undefined;
 

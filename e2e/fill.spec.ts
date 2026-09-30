@@ -100,8 +100,10 @@ test("emptying a bottle offers to mark it killed", async ({ page }) => {
   await expect(prompt).toBeHidden();
   await expect(page.getByRole("definition").filter({ hasText: "Killed" })).toBeVisible();
 
-  // And the grid agrees.
+  // And the grid agrees: off the shelf by default, still there as history.
   await page.goto("/bottles");
+  await expect(page.getByRole("cell", { name: "Killed", exact: true })).toHaveCount(0);
+  await page.goto("/bottles?status=all");
   await expect(page.getByRole("cell", { name: "Killed", exact: true })).toBeVisible();
 });
 

@@ -19,7 +19,7 @@ Locked. Do not substitute without asking.
 | Framework | Next.js 15, App Router, TypeScript, React Server Components |
 | ORM | Drizzle ORM (schema generated from `schema.sql`, migrations via drizzle-kit) |
 | Database | PostgreSQL 16 (separate container) |
-| Styling | Tailwind CSS v4 + shadcn/ui (tooling locked; the visual direction is not — see Design direction) |
+| Styling | Tailwind CSS v4 + shadcn/ui (tooling locked; visual direction in [DESIGN.md](DESIGN.md)) |
 | Images | Local disk on a mounted volume, `sharp` for thumbnails. No S3, no MinIO. |
 | Auth | Better Auth (username + admin plugins, Drizzle adapter): individual accounts, `admin`/`member` roles, database sessions. See M10. |
 | Tables | TanStack Table for the grid view |
@@ -199,8 +199,8 @@ Two things worth keeping in mind later:
   microseconds. If that ever stops being true, materialise the view rather
   than scattering triggers.
 - **Light mode is accessible, not designed.** It exists because M6 asked for
-  both themes to be first-class, and every token passes contrast. The actual
-  visual direction is still [Design direction](#design-direction), unscheduled.
+  both themes to be first-class, and every token passes contrast. The visual
+  direction is now decided in [DESIGN.md](DESIGN.md).
 
 ### Barcodes
 
@@ -408,7 +408,8 @@ it live in issue #48; the phases, in order:
 5. ~~**2FA and passkeys.** Authenticator-app codes with backup codes (email
    codes too, when email is set); passkeys on the APP_URL domain.~~
 6. ~~**Sign-in hardening.** Optional Cloudflare Turnstile on password sign-in
-   and "forgot password"; new passwords checked against Have I Been Pwned
+   and "forgot password", skipped for visitors from `TURNSTILE_SKIP_NETWORKS`
+   (usually the LAN) who aren't at the APP_URL address; new passwords checked against Have I Been Pwned
    (`PASSWORD_BREACH_CHECK`) and refused if they match any of the last five;
    saved passkeys offered in the username field's autofill.~~
 
@@ -487,41 +488,22 @@ Unraid conventions to follow:
 
 ## Design direction
 
-Recorded so the eventual redesign has a brief. **Not yet scheduled** — the
-theme is a decision for later, deliberately deferred.
+**Decided.** The visual and interaction direction is **[DESIGN.md](DESIGN.md)**:
+a Swiss-designed field guide to an eccentric collection, precise underneath and
+human on top. Tokens are in [docs/DESIGN-TOKENS.md](docs/DESIGN-TOKENS.md).
+DESIGN.md supersedes the earlier Liquid Glass, Tropical and Suprematist
+explorations, and the old dark-wood-and-fireplace placeholder.
 
-The current look (dark, wood, fireplace) is a placeholder and is not the
-direction. What is wanted instead:
+What carries over from the original brief:
 
-- **Modern and at home next to Apple software.** Depth, translucency and
-  material rather than flat panels on a flat background.
 - **Personality.** It should be fun to open. A collection app for a hobby
   should not read like an admin console.
 - **Light and dark as equals**, following the system by default.
 - **Data-dense views done well.** Airtable, Baserow and NocoDB are the
-  reference for how the grid, filters and inline editing should feel — that
-  part is a solved problem worth learning from rather than reinventing.
+  reference for how the grid, filters and inline editing should feel.
 - **Accessible, and tested for it.** WCAG 2.2 AA as the floor: contrast,
   visible focus, keyboard reachability, honouring `prefers-reduced-motion`,
   and correct roles and names throughout.
-
-"Liquid glass" means Apple's design language specifically, not frosted panels
-generically: layered translucent material, depth by layering rather than drop
-shadows, concentric radii, motion as continuity.
-
-The supplied references — the Tropical, Suprematism and Kinetic Flux styles
-from ggprompts.com — are decoded with their real tokens, a recommended
-synthesis and the contrast maths for every colour in
-**[docs/DESIGN.md](docs/DESIGN.md)**. Start there rather than from the names.
-
-**One tension to resolve up front.** Translucency and accessible contrast pull
-against each other: text over a blurred backdrop has a contrast ratio that
-changes with whatever is behind it. Glass stays on chrome — bars, sheets, card
-edges — and text sits on a solid layer within it, never directly over the blur.
-Apple ships the same aesthetic behind Reduce Transparency and Increase
-Contrast; the web equivalents (`prefers-reduced-transparency`,
-`prefers-contrast`, `prefers-reduced-motion`) are what make it shippable rather
-than a compromise. See docs/DESIGN.md.
 
 ---
 

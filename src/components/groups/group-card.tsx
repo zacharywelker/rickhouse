@@ -1,14 +1,25 @@
 import Image from "next/image";
 import Link from "next/link";
+import { FillGauge } from "@/components/bottles/fill-gauge";
 import { cn } from "@/lib/utils";
 import type { GroupSummary } from "@/lib/groups/queries";
 
 /** A slight, deterministic stagger per stack position — mirrors the family cluster on the Gallery. */
 const STACK_TILT = ["-rotate-3", "rotate-2", "-rotate-1"];
 
-function CoverCollage({ thumbs }: { thumbs: string[] }) {
+function CoverCollage({ thumbs, bottles }: { thumbs: string[]; bottles: GroupSummary["memberBottles"] }) {
   if (thumbs.length === 0) {
-    return <p className="px-6 text-center text-sm text-muted-foreground">Nothing added yet.</p>;
+    if (bottles.length === 0) {
+      return <p className="px-6 text-center text-sm text-muted-foreground">Nothing added yet.</p>;
+    }
+    // No photos yet: the members stand on the shelf as the same drawn bottles the Gallery uses.
+    return (
+      <div className="flex items-end justify-center gap-3">
+        {bottles.map((bottle, i) => (
+          <FillGauge key={i} value={bottle.fillPct} readOnly fieldGroup={bottle.fieldGroup} height={96} decorative />
+        ))}
+      </div>
+    );
   }
   return (
     <div className="relative flex size-full items-center justify-center p-6">
@@ -34,11 +45,11 @@ export function GroupCard({ group }: { group: GroupSummary }) {
       href={`/groups/${group.id}`}
       className="group flex flex-col"
     >
-      <div className="relative flex aspect-[3/2] items-center justify-center overflow-hidden bg-muted/40">
+      <div className="relative flex aspect-[2/1] items-center justify-center overflow-hidden bg-muted/40">
         {group.coverImagePath ? (
           <Image src={`/api/images/${group.coverImagePath}`} alt="" fill unoptimized className="object-cover" />
         ) : (
-          <CoverCollage thumbs={group.memberThumbs} />
+          <CoverCollage thumbs={group.memberThumbs} bottles={group.memberBottles} />
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1 pt-3">

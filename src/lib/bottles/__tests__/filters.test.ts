@@ -51,6 +51,18 @@ describe("parseFilters", () => {
     expect(parse("size=7").pageSize).toBe(DEFAULT_PAGE_SIZE);
   });
 
+  it("keeps only known acquisition kinds and real dates", () => {
+    expect(parse("acq=gift,stolen,gift,lottery").acquisitions).toEqual(["gift", "lottery"]);
+    expect(parse("acquiredFrom=2024-02-30x&acquiredTo=2024-06-01").acquired).toEqual({ from: null, to: "2024-06-01" });
+    expect(parse("acquiredFrom=1999-13-45").acquired.from).toBeNull();
+    expect(parse("acquiredFrom=2024-02-30").acquired.from).toBeNull();
+    expect(parse("acquiredFrom=2024-02-29").acquired.from).toBe("2024-02-29");
+  });
+
+  it("clamps fill to a percentage", () => {
+    expect(parse("fillMin=-5&fillMax=250").fill).toEqual({ min: 0, max: 100 });
+  });
+
   it("refuses a page number that is not a positive integer", () => {
     expect(parse("page=3").page).toBe(3);
     expect(parse("page=0").page).toBe(1);
@@ -80,6 +92,13 @@ describe("serialiseFilters", () => {
       proof: { min: 90, max: 120 },
       age: { min: null, max: 12 },
       price: { min: 20, max: null },
+      acquisitions: ["gift", "allocation"],
+      acquired: { from: "2024-01-01", to: "2024-12-31" },
+      fill: { min: null, max: 10 },
+      caskStrength: true,
+      bottledInBond: true,
+      pick: true,
+      overMsrp: true,
       sort: "proof",
       desc: false,
       page: 3,
@@ -96,6 +115,33 @@ describe("serialiseFilters", () => {
   });
 });
 
+describe("status default", () => {
+  it("shows what's on the shelf until asked for more", () => {
+    expect(parse("").statuses).toEqual(["owned", "open"]);
+  });
+
+  it("spells every status as status=all and reads it back", () => {
+    const query = serialiseFilters({ ...DEFAULT_FILTERS, statuses: [] });
+    expect(query).toBe("status=all");
+    expect(parse(query).statuses).toEqual([]);
+  });
+
+  it("treats the default in any order as the default", () => {
+    const filters = { ...DEFAULT_FILTERS, statuses: ["open", "owned"] as BottleFilters["statuses"] };
+    expect(serialiseFilters(filters)).toBe("");
+    expect(activeFilterCount(filters)).toBe(0);
+  });
+
+  it("falls back to the default when nothing in the URL is a status", () => {
+    expect(parse("status=bogus").statuses).toEqual(["owned", "open"]);
+  });
+
+  it("counts showing history as an active filter", () => {
+    expect(activeFilterCount({ ...DEFAULT_FILTERS, statuses: [] })).toBe(1);
+    expect(activeFilterCount({ ...DEFAULT_FILTERS, statuses: ["killed"] })).toBe(1);
+  });
+});
+
 describe("activeFilterCount", () => {
   it("is zero for a default view", () => {
     expect(activeFilterCount(DEFAULT_FILTERS)).toBe(0);
@@ -108,6 +154,19 @@ describe("activeFilterCount", () => {
   it("counts a range once whether one end or both are set", () => {
     expect(activeFilterCount({ ...DEFAULT_FILTERS, proof: { min: 100, max: null } })).toBe(1);
     expect(activeFilterCount({ ...DEFAULT_FILTERS, proof: { min: 100, max: 120 } })).toBe(1);
+  });
+
+  it("counts each Numbers drill-down filter once", () => {
+    expect(
+      activeFilterCount({
+        ...DEFAULT_FILTERS,
+        acquisitions: ["gift", "trade"],
+        acquired: { from: "2024-01-01", to: null },
+        fill: { min: null, max: 10 },
+        caskStrength: true,
+        overMsrp: true,
+      }),
+    ).toBe(5);
   });
 
   it("ignores sorting, paging and view mode", () => {

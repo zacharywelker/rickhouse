@@ -929,6 +929,18 @@ export const BOTTLE_STATUSES = ["owned", "open", "killed", "sold", "traded", "wi
 export type BottleStatus = (typeof BOTTLE_STATUSES)[number];
 
 export const STILL_TYPES = ["pot", "column", "blend", "coffey"] as const;
+/** Barrel char, lightest to heaviest. Null in the database means unknown. */
+export const CHAR_LEVELS = ["none", "toasted", "1", "2", "3", "4"] as const;
+export type CharLevel = (typeof CHAR_LEVELS)[number];
+export const CHAR_LEVEL_LABELS: Record<CharLevel, string> = {
+  none: "No Char",
+  toasted: "Toasted",
+  "1": "1",
+  "2": "2",
+  "3": "3",
+  "4": "4",
+};
+
 export type StillType = (typeof STILL_TYPES)[number];
 
 export const PHOTO_KINDS = ["catalog", "life"] as const;

@@ -1,4 +1,4 @@
-import { BOTTLE_STATUSES, type BottleStatus } from "@/db/schema";
+import { ACQUISITIONS, BOTTLE_STATUSES, type Acquisition, type BottleStatus } from "@/db/schema";
 
 /**
  * Grid state, serialised to the URL so a view can be bookmarked and shared
@@ -31,6 +31,34 @@ export const DEFAULT_PAGE_SIZE = 25;
 
 export type Range = { min: number | null; max: number | null };
 
+/** Inclusive ISO dates (YYYY-MM-DD), either end open. */
+export type DateRange = { from: string | null; to: string | null };
+
+/**
+ * What the Collection shows until you ask for more: what's on the shelf.
+ * "Collection is ownership" (DESIGN.md §15) — wishlist, killed, sold and
+ * traded bottles are one Status click away. An empty list means every status,
+ * which the URL spells as `status=all`.
+ */
+export const DEFAULT_STATUSES: BottleStatus[] = ["owned", "open"];
+
+/** Order-insensitive, so ticking open then owned still counts as the default. */
+export function isDefaultStatuses(statuses: BottleStatus[]): boolean {
+  return statuses.length === DEFAULT_STATUSES.length && DEFAULT_STATUSES.every((s) => statuses.includes(s));
+}
+
+function parseStatuses(raw: string | null): BottleStatus[] {
+  if (raw === null) return [...DEFAULT_STATUSES];
+  if (raw === "all") return [];
+  const seen = new Set<BottleStatus>();
+  for (const part of raw.split(",")) {
+    const value = part.trim() as BottleStatus;
+    if (BOTTLE_STATUSES.includes(value)) seen.add(value);
+  }
+  // Nothing recognisable is the same as asking for nothing in particular.
+  return seen.size > 0 ? [...seen] : [...DEFAULT_STATUSES];
+}
+
 export type BottleFilters = {
   q: string | null;
   categoryIds: number[];
@@ -46,6 +74,14 @@ export type BottleFilters = {
   proof: Range;
   age: Range;
   price: Range;
+  /* The filters below are where Numbers findings land (the bottles behind a claim). */
+  acquisitions: Acquisition[];
+  acquired: DateRange;
+  fill: Range;
+  caskStrength: boolean;
+  bottledInBond: boolean;
+  pick: boolean;
+  overMsrp: boolean;
   sort: SortKey;
   desc: boolean;
   page: number;
@@ -64,12 +100,19 @@ export const DEFAULT_FILTERS: BottleFilters = {
   finishIds: [],
   storeIds: [],
   tagIds: [],
-  statuses: [],
+  statuses: DEFAULT_STATUSES,
   open: "any",
   favorite: false,
   proof: { min: null, max: null },
   age: { min: null, max: null },
   price: { min: null, max: null },
+  acquisitions: [],
+  acquired: { from: null, to: null },
+  fill: { min: null, max: null },
+  caskStrength: false,
+  bottledInBond: false,
+  pick: false,
+  overMsrp: false,
   sort: "acquired",
   desc: true,
   page: 1,
@@ -98,17 +141,6 @@ function idList(params: Params, key: string): number[] {
   return [...seen].slice(0, 50);
 }
 
-function stringList<T extends string>(params: Params, key: string, allowed: readonly T[]): T[] {
-  const raw = first(params, key);
-  if (raw === null) return [];
-  const seen = new Set<T>();
-  for (const part of raw.split(",")) {
-    const value = part.trim() as T;
-    if (allowed.includes(value)) seen.add(value);
-  }
-  return [...seen];
-}
-
 function numberOrNull(raw: string | null, min: number, max: number): number | null {
   if (raw === null) return null;
   const n = Number(raw);
@@ -121,6 +153,23 @@ function range(params: Params, key: string, min: number, max: number): Range {
     min: numberOrNull(first(params, `${key}Min`), min, max),
     max: numberOrNull(first(params, `${key}Max`), min, max),
   };
+}
+
+function isoDate(raw: string | null): string | null {
+  if (raw === null || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  // Round-trip, because Date rolls 2024-02-30 over to March where Postgres would throw.
+  const date = new Date(`${raw}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === raw ? raw : null;
+}
+
+function acquisitionList(raw: string | null): Acquisition[] {
+  if (raw === null) return [];
+  const seen = new Set<Acquisition>();
+  for (const part of raw.split(",")) {
+    const value = part.trim() as Acquisition;
+    if (ACQUISITIONS.includes(value)) seen.add(value);
+  }
+  return [...seen];
 }
 
 export function parseFilters(params: Params): BottleFilters {
@@ -139,12 +188,19 @@ export function parseFilters(params: Params): BottleFilters {
     finishIds: idList(params, "finish"),
     storeIds: idList(params, "store"),
     tagIds: idList(params, "tag"),
-    statuses: stringList(params, "status", BOTTLE_STATUSES),
+    statuses: parseStatuses(first(params, "status")),
     open: (OPEN_STATES as readonly string[]).includes(openRaw ?? "") ? (openRaw as OpenState) : "any",
     favorite: first(params, "fav") === "1",
     proof: range(params, "proof", 0, 200),
     age: range(params, "age", 0, 100),
     price: range(params, "price", 0, 100000),
+    acquisitions: acquisitionList(first(params, "acq")),
+    acquired: { from: isoDate(first(params, "acquiredFrom")), to: isoDate(first(params, "acquiredTo")) },
+    fill: range(params, "fill", 0, 100),
+    caskStrength: first(params, "cs") === "1",
+    bottledInBond: first(params, "bib") === "1",
+    pick: first(params, "pick") === "1",
+    overMsrp: first(params, "overMsrp") === "1",
     sort: (SORTABLE as readonly string[]).includes(sortRaw ?? "") ? (sortRaw as SortKey) : DEFAULT_FILTERS.sort,
     // Ascending is the explicit opt-in; the default view is newest first.
     desc: first(params, "dir") !== "asc",
@@ -173,7 +229,7 @@ export function serialiseFilters(filters: BottleFilters): string {
   ids("finish", filters.finishIds);
   ids("store", filters.storeIds);
   ids("tag", filters.tagIds);
-  if (filters.statuses.length > 0) params.set("status", filters.statuses.join(","));
+  if (!isDefaultStatuses(filters.statuses)) params.set("status", filters.statuses.length > 0 ? filters.statuses.join(",") : "all");
   if (filters.open !== "any") params.set("open", filters.open);
   if (filters.favorite) params.set("fav", "1");
 
@@ -181,10 +237,18 @@ export function serialiseFilters(filters: BottleFilters): string {
     ["proof", filters.proof],
     ["age", filters.age],
     ["price", filters.price],
+    ["fill", filters.fill],
   ] as const) {
     if (value.min !== null) params.set(`${key}Min`, String(value.min));
     if (value.max !== null) params.set(`${key}Max`, String(value.max));
   }
+  if (filters.acquisitions.length > 0) params.set("acq", filters.acquisitions.join(","));
+  if (filters.acquired.from) params.set("acquiredFrom", filters.acquired.from);
+  if (filters.acquired.to) params.set("acquiredTo", filters.acquired.to);
+  if (filters.caskStrength) params.set("cs", "1");
+  if (filters.bottledInBond) params.set("bib", "1");
+  if (filters.pick) params.set("pick", "1");
+  if (filters.overMsrp) params.set("overMsrp", "1");
 
   if (filters.sort !== DEFAULT_FILTERS.sort) params.set("sort", filters.sort);
   if (!filters.desc) params.set("dir", "asc");
@@ -207,11 +271,16 @@ export function activeFilterCount(filters: BottleFilters): number {
   count += filters.finishIds.length > 0 ? 1 : 0;
   count += filters.storeIds.length > 0 ? 1 : 0;
   count += filters.tagIds.length > 0 ? 1 : 0;
-  count += filters.statuses.length > 0 ? 1 : 0;
+  count += isDefaultStatuses(filters.statuses) ? 0 : 1;
   count += filters.open !== "any" ? 1 : 0;
   count += filters.favorite ? 1 : 0;
-  for (const r of [filters.proof, filters.age, filters.price]) {
+  for (const r of [filters.proof, filters.age, filters.price, filters.fill]) {
     if (r.min !== null || r.max !== null) count += 1;
+  }
+  count += filters.acquisitions.length > 0 ? 1 : 0;
+  count += filters.acquired.from !== null || filters.acquired.to !== null ? 1 : 0;
+  for (const flag of [filters.caskStrength, filters.bottledInBond, filters.pick, filters.overMsrp]) {
+    count += flag ? 1 : 0;
   }
   return count;
 }

@@ -7,6 +7,12 @@ import type { BottleFilters, SortKey } from "./filters";
 /** Opened and still on the shelf — killed, sold and traded bottles are history, not open. */
 export const isOpenNow = sql`(${bottleList.isOpen} AND ${bottleList.status} IN ('owned', 'open'))`;
 
+/** On the shelf right now — what "Bottles" counts. Labels are knowledge; Collection is ownership. */
+export const isOwnedNow = sql`(${bottleList.status} IN ('owned', 'open'))`;
+
+/** Money actually spent: a wishlist price is a hope, not a purchase. Killed and sold bottles were still paid for. */
+export const wasBought = sql`(${bottleList.status} <> 'wishlist')`;
+
 /**
  * The grid query: filtering, sorting and pagination, all in Postgres.
  *
@@ -124,6 +130,28 @@ function buildWhere(filters: BottleFilters, ownerId: number): SQL | undefined {
   if (filters.price.min !== null) clauses.push(gte(bottleList.pricePaid, String(filters.price.min)));
   if (filters.price.max !== null) clauses.push(lte(bottleList.pricePaid, String(filters.price.max)));
 
+  if (filters.fill.min !== null) clauses.push(gte(bottleList.fillPct, filters.fill.min));
+  if (filters.fill.max !== null) clauses.push(lte(bottleList.fillPct, filters.fill.max));
+  if (filters.acquired.from) clauses.push(gte(bottleList.dateAcquired, filters.acquired.from));
+  if (filters.acquired.to) clauses.push(lte(bottleList.dateAcquired, filters.acquired.to));
+  if (filters.pick) clauses.push(eq(bottleList.isSingleBarrelPick, true));
+  if (filters.overMsrp) clauses.push(sql`${bottleList.pricePaid} > ${bottleList.msrp}`);
+
+  // Not in the view, so matched against the base tables like the entity filters above.
+  if (filters.acquisitions.length > 0) {
+    clauses.push(sql`EXISTS (
+      SELECT 1 FROM bottles ab WHERE ab.id = ${bottleList.id}
+         AND ab.acquisition IN (${sql.join(filters.acquisitions.map((a) => sql`${a}`), sql`, `)})
+    )`);
+  }
+  if (filters.caskStrength || filters.bottledInBond) {
+    clauses.push(sql`EXISTS (
+      SELECT 1 FROM expressions fe WHERE fe.id = ${bottleList.expressionId}
+         ${filters.caskStrength ? sql`AND fe.is_cask_strength` : sql``}
+         ${filters.bottledInBond ? sql`AND fe.is_bottled_in_bond` : sql``}
+    )`);
+  }
+
   return and(...clauses);
 }
 
@@ -180,11 +208,11 @@ export async function summariseBottles(filters: BottleFilters, ownerId: number):
   const where = buildWhere(filters, ownerId);
   const [row] = await db
     .select({
-      count: sql<number>`count(*)::int`,
-      spend: sql<string>`coalesce(sum(${bottleList.pricePaid}), 0)::text`,
+      count: sql<number>`count(*) filter (where ${isOwnedNow})::int`,
+      spend: sql<string>`coalesce(sum(${bottleList.pricePaid}) filter (where ${wasBought}), 0)::text`,
       // Only where a price was actually recorded, so the comparison is like
       // for like rather than counting gifts as a saving.
-      msrp: sql<string>`coalesce(sum(${bottleList.msrp}) filter (where ${bottleList.pricePaid} is not null), 0)::text`,
+      msrp: sql<string>`coalesce(sum(${bottleList.msrp}) filter (where ${bottleList.pricePaid} is not null and ${wasBought}), 0)::text`,
       open: sql<number>`count(*) filter (where ${isOpenNow})::int`,
       avgProof: sql<string | null>`round(avg(${bottleList.proof}), 1)::text`,
       avgRating: sql<string | null>`round(avg(${bottleList.avgRating}), 1)::text`,

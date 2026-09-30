@@ -34,4 +34,13 @@ describe("env", () => {
     const env = await loadEnv({ TRUSTED_PROXIES: "cloudflare" });
     expect(() => env()).toThrow(/TRUSTED_PROXIES/);
   });
+
+  it("checks TURNSTILE_SKIP_NETWORKS entries the same way", async () => {
+    expect((await loadEnv({ TURNSTILE_SKIP_NETWORKS: "192.168.1.0/24, fd00::/8" }))().TURNSTILE_SKIP_NETWORKS).toEqual([
+      "192.168.1.0/24",
+      "fd00::/8",
+    ]);
+    const env = await loadEnv({ TURNSTILE_SKIP_NETWORKS: "192.168.1.0/33" });
+    expect(() => env()).toThrow(/TURNSTILE_SKIP_NETWORKS/);
+  });
 });
