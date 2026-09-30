@@ -24,7 +24,8 @@ import {
   type ColaSearchResult,
 } from "@/app/(app)/expressions/cola-actions";
 import { IDLE_RESULT, type ActionResult } from "@/lib/admin/types";
-import { colaDetailUrl } from "@/lib/cola/ids";
+import { colaDetailUrl, normalizeTtbId } from "@/lib/cola/ids";
+import type { ColaSearchRow } from "@/lib/cola/parse";
 import { registryCase, searchWindow } from "@/lib/cola/format";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -35,34 +36,69 @@ const MAX_PICK = 5;
  * starting from its brand, and attaches the ones picked. Searching never
  * changes the label; only the attached COLAs are saved.
  */
-export function ColaSearchDialog({
-  expressionId,
-  brandName,
-  triggerLabel,
-  onDone,
-}: {
-  expressionId: number;
-  brandName: string;
-  /** The text link that opens it: "Find on TTB", or a sentence in an empty state. */
-  triggerLabel: string;
-  onDone: (result: ActionResult) => void;
-}) {
+/** An approval picked for a label that is still being created: attached when it is saved. */
+export type PendingCola = Pick<
+  ColaSearchRow,
+  "ttbId" | "completedOn" | "brandName" | "fancifulName" | "classType" | "permitNumber"
+>;
+
+type Target =
+  /** An existing label: picked approvals are attached and fetched straight away. */
+  | { expressionId: number; onDone: (result: ActionResult) => void }
+  /** A label being created: picked approvals are handed back to its form. */
+  | {
+      expressionId: null;
+      labelName: string;
+      pendingIds: ReadonlySet<string>;
+      onPick: (rows: PendingCola[]) => void;
+    };
+
+export function ColaSearchDialog(
+  props: {
+    /** The label's brand, as saved or as picked on the form so far. */
+    brandName: string;
+    /** The text link that opens it: "Find on TTB", or a sentence in an empty state. */
+    triggerLabel: string;
+  } & Target,
+) {
+  const { brandName, triggerLabel } = props;
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [name, setName] = React.useState(`${brandName.toUpperCase()}%`);
+  const [name, setName] = React.useState("");
   const [field, setField] = React.useState<"brand" | "fanciful" | "either">("brand");
   const [span, setSpan] = React.useState(0);
   const [result, setResult] = React.useState<ColaSearchResult | null>(null);
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
   const [searching, startSearch] = React.useTransition();
   const [attaching, startAttach] = React.useTransition();
+  // The brand the name box was last filled from; on New Label it can change between openings.
+  const prefilledFrom = React.useRef<string | null>(null);
 
   const windows = React.useMemo(() => [0, 1].map((index) => searchWindow(index, new Date()).label), []);
+  const draft = props.expressionId === null ? props : null;
 
-  function search(event?: React.FormEvent) {
-    event?.preventDefault();
+  function search(query = name) {
     setPicked(new Set());
-    startSearch(async () => setResult(await searchColasAction(expressionId, { name, field, window: span })));
+    startSearch(async () =>
+      setResult(
+        await searchColasAction(props.expressionId, {
+          name: query,
+          field,
+          window: span,
+          ...(draft ? { labelName: draft.labelName } : {}),
+        }),
+      ),
+    );
+  }
+
+  function opened() {
+    // Search as the dialog opens, from the label's brand, unless that is what is already shown.
+    if (prefilledFrom.current === brandName) return;
+    prefilledFrom.current = brandName;
+    const initial = brandName.trim() ? `${brandName.trim().toUpperCase()}%` : "";
+    setName(initial);
+    setResult(null);
+    if (initial) search(initial);
   }
 
   function toggle(ttbId: string, on: boolean) {
@@ -74,14 +110,26 @@ export function ColaSearchDialog({
     });
   }
 
+  function close() {
+    setOpen(false);
+    setPicked(new Set());
+  }
+
   function attach() {
+    if (draft) {
+      const rows = result?.ok ? result.rows.filter((row) => picked.has(row.ttbId)) : [];
+      draft.onPick(rows);
+      close();
+      return;
+    }
+    const target = props as Extract<Target, { expressionId: number }>;
     startAttach(async () => {
-      const outcome = await attachColasAction(expressionId, [...picked]);
-      onDone(outcome);
+      const outcome = await attachColasAction(target.expressionId, [...picked]);
+      target.onDone(outcome);
       if (outcome.ok) {
-        setOpen(false);
-        setResult(null);
-        setPicked(new Set());
+        close();
+        // What is attached changed; search afresh next time.
+        prefilledFrom.current = null;
       }
       router.refresh();
     });
@@ -92,8 +140,7 @@ export function ColaSearchDialog({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        // Search as the dialog opens, from the label's brand.
-        if (next && result === null) search();
+        if (next) opened();
       }}
     >
       <DialogTrigger asChild>
@@ -110,7 +157,15 @@ export function ColaSearchDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={search} className="flex flex-wrap items-end gap-3 border-b border-border px-6 py-4">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            // On New Label this dialog sits inside the label's form in React's tree; never submit that.
+            event.stopPropagation();
+            search();
+          }}
+          className="flex flex-wrap items-end gap-3 border-b border-border px-6 py-4"
+        >
           <div className="flex min-w-48 flex-1 flex-col gap-1.5">
             <Label htmlFor="cola-search-name">Name</Label>
             <Input id="cola-search-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
@@ -184,15 +239,16 @@ export function ColaSearchDialog({
                 </thead>
                 <tbody>
                   {result.rows.map((row) => {
-                    const checked = row.attached || picked.has(row.ttbId);
+                    const already = row.attached || (draft?.pendingIds.has(row.ttbId) ?? false);
+                    const checked = already || picked.has(row.ttbId);
                     const full = !checked && picked.size >= MAX_PICK;
                     return (
-                      <tr key={row.ttbId} className={cn("border-b border-border/60", row.attached && "text-muted-foreground")}>
+                      <tr key={row.ttbId} className={cn("border-b border-border/60", already && "text-muted-foreground")}>
                         <td className="py-2 align-top">
                           <Checkbox
                             aria-label={`Add ${row.ttbId}`}
                             checked={checked}
-                            disabled={row.attached || full}
+                            disabled={already || full}
                             onCheckedChange={(state) => toggle(row.ttbId, state === true)}
                           />
                         </td>
@@ -200,12 +256,14 @@ export function ColaSearchDialog({
                         <td className="py-2 pr-3 align-top">
                           {row.brandName ? registryCase(row.brandName) : "—"}
                           {row.fancifulName ? (
-                            <span className={cn(row.match > 0 && !row.attached && "text-accent")}>
+                            <span className={cn(row.match > 0 && !already && "text-accent")}>
                               {" "}
                               {registryCase(row.fancifulName)}
                             </span>
                           ) : null}
-                          {row.attached ? <span className="block text-xs">Already on this label</span> : null}
+                          {already ? (
+                            <span className="block text-xs">{draft ? "Already added" : "Already on this label"}</span>
+                          ) : null}
                         </td>
                         <td className="py-2 pr-3 align-top">
                           {row.classType ? registryCase(row.classType) : "—"}
@@ -234,14 +292,24 @@ export function ColaSearchDialog({
 
         <DialogFooter className="sm:items-center">
           <div className="sm:mr-auto">
-            <AddById
-              expressionId={expressionId}
-              label="Have a TTB ID?"
-              onDone={(outcome) => {
-                onDone(outcome);
-                if (outcome.ok) setOpen(false);
-              }}
-            />
+            {draft ? (
+              <PendingIdField
+                label="Have a TTB ID?"
+                onAdd={(ttbId) => {
+                  draft.onPick([stubCola(ttbId)]);
+                  close();
+                }}
+              />
+            ) : (
+              <AddById
+                expressionId={props.expressionId as number}
+                label="Have a TTB ID?"
+                onDone={(outcome) => {
+                  (props as Extract<Target, { expressionId: number }>).onDone(outcome);
+                  if (outcome.ok) setOpen(false);
+                }}
+              />
+            )}
           </div>
           <span className="text-xs text-muted-foreground">
             {picked.size > 0 ? `${picked.size} picked` : `Pick up to ${MAX_PICK}`}
@@ -253,6 +321,65 @@ export function ColaSearchDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A pasted TTB ID on New Label: only its ID is known until the label is saved and it is fetched. */
+export function stubCola(ttbId: string): PendingCola {
+  return { ttbId, completedOn: null, brandName: null, fancifulName: null, classType: null, permitNumber: null };
+}
+
+const BAD_ID = "A TTB ID is 14 digits, like 21132001000620. Paste the number or the registry link.";
+
+/**
+ * Pasting a TTB ID on New Label. Not a <form>: it sits inside the label's
+ * form, and nothing is sent until that is saved.
+ */
+export function PendingIdField({ label, onAdd }: { label: string; onAdd: (ttbId: string) => void }) {
+  const id = React.useId();
+  const [value, setValue] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+
+  function add() {
+    const ttbId = normalizeTtbId(value);
+    if (!ttbId) {
+      setError(BAD_ID);
+      return;
+    }
+    setError(null);
+    setValue("");
+    onAdd(ttbId);
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <Label htmlFor={id} className="text-xs text-muted-foreground">
+          {label}
+        </Label>
+        <Input
+          id={id}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter adds the ID rather than submitting the label's form.
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="21132001000620"
+          className="h-8 w-44 text-sm tabular-nums"
+          aria-invalid={error !== null}
+        />
+        <Button type="button" variant="outline" size="sm" onClick={add}>
+          Add
+        </Button>
+      </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
   );
 }
 

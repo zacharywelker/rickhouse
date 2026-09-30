@@ -227,12 +227,21 @@ function formDate(date: Date): string {
  * Reads up to three pages of 20 and keeps only distilled spirits: a brand
  * name search also finds the wine and beer that share it.
  */
-export async function searchColas(query: {
-  name: string;
-  field: "brand" | "fanciful" | "either";
-  from: Date;
-  to: Date;
-}): Promise<ColaSearch> {
+type SearchQuery = { name: string; field: "brand" | "fanciful" | "either"; from: Date; to: Date };
+
+export async function searchColas(query: SearchQuery): Promise<ColaSearch> {
+  try {
+    return await searchOnce(query);
+  } catch (error: unknown) {
+    // The registry now and then refuses a brand-new session with its idle
+    // timeout message ("…20 minute timeout has occurred"). A second, fresh
+    // session gets through; anything else is a real answer.
+    if (error instanceof ColaSearchError && /timeout has occurred/i.test(error.message)) return searchOnce(query);
+    throw error;
+  }
+}
+
+async function searchOnce(query: SearchQuery): Promise<ColaSearch> {
   const session = new RegistrySession();
   // The search form sets up the session the results are paged through.
   await session.page(colaSearchFormUrl());

@@ -24,7 +24,8 @@ import {
   type LinkRow,
 } from "@/lib/expressions/schema";
 import { fieldGroupForCategory } from "@/lib/expressions/queries";
-import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
+import { pendingTtbIds } from "@/lib/cola/ids";
+import { attachCola, colaFilesForExpression, colaLookupEnabled, deleteColaFiles, refreshCola } from "@/lib/cola/store";
 
 /**
  * Fields every category writes, whatever its field group. Anything outside
@@ -199,12 +200,33 @@ export async function saveExpressionAction(
       return target;
     });
 
+    // Approvals picked on New Label (SPEC M11): attached, and fetched with
+    // their label art, once the label exists. Best effort — the label is
+    // saved either way, and a failed lookup shows on the label's page.
+    let approvals = "";
+    if (id === null) {
+      const ttbIds = pendingTtbIds(formData.get("ttbIds"));
+      const failed: string[] = [];
+      let attached = 0;
+      for (const ttbId of ttbIds) {
+        const cola = await attachCola(expressionId, user.id, ttbId).catch(() => null);
+        if (!cola || typeof cola !== "object") continue;
+        attached += 1;
+        if (colaLookupEnabled()) {
+          const fetched = await refreshCola(cola.id, user.id).catch(() => null);
+          if (!fetched?.ok) failed.push(ttbId);
+        }
+      }
+      if (attached > 0) approvals = ` Attached ${attached === 1 ? "1 approval" : `${attached} approvals`}.`;
+      if (failed.length > 0) approvals += ` Fetch ${failed.join(", ")} again from the label's page.`;
+    }
+
     revalidatePath("/expressions");
     revalidatePath("/bottles");
     revalidatePath("/");
     return {
       ok: true,
-      message: id === null ? "Label created." : "Label saved.",
+      message: id === null ? `Label created.${approvals}` : "Label saved.",
       createdId: expressionId,
     };
   } catch (error: unknown) {

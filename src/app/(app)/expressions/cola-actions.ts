@@ -134,19 +134,25 @@ const MAX_ATTACH = 5;
 /**
  * "Find on TTB": searches the registry for a label's COLAs by name, within
  * one 15-year window, and ranks the results against the label's own name.
+ * For a label still being created (`expressionId` null) the name typed so
+ * far is passed in, and nothing is attached yet.
  */
 export async function searchColasAction(
-  expressionId: number,
-  query: { name: string; field: "brand" | "fanciful" | "either"; window: number },
+  expressionId: number | null,
+  query: { name: string; field: "brand" | "fanciful" | "either"; window: number; labelName?: string },
 ): Promise<ColaSearchResult> {
   const user = await requireSession();
   if (!colaLookupEnabled()) return { ok: false, error: "COLA lookups are turned off on this server (COLA_LOOKUP)." };
-  const [label] = await db
-    .select({ name: expressions.name })
-    .from(expressions)
-    .where(and(eq(expressions.id, expressionId), eq(expressions.ownerId, user.id)))
-    .limit(1);
-  if (!label) return { ok: false, error: "That label is gone." };
+  let labelName = query.labelName ?? "";
+  if (expressionId !== null) {
+    const [label] = await db
+      .select({ name: expressions.name })
+      .from(expressions)
+      .where(and(eq(expressions.id, expressionId), eq(expressions.ownerId, user.id)))
+      .limit(1);
+    if (!label) return { ok: false, error: "That label is gone." };
+    labelName = label.name;
+  }
 
   const name = query.name.trim();
   if (name.replace(/%/g, "").length < 2) return { ok: false, error: "Type at least two letters of the name to search for." };
@@ -164,16 +170,18 @@ export async function searchColasAction(
   }
 
   const attached = new Set(
-    (
-      await db
-        .select({ ttbId: expressionColas.ttbId })
-        .from(expressionColas)
-        .where(eq(expressionColas.expressionId, expressionId))
-    ).map((row) => row.ttbId),
+    expressionId === null
+      ? []
+      : (
+          await db
+            .select({ ttbId: expressionColas.ttbId })
+            .from(expressionColas)
+            .where(eq(expressionColas.expressionId, expressionId))
+        ).map((row) => row.ttbId),
   );
   return {
     ok: true,
-    rows: rankResults(found.rows, label.name).map((row) => ({ ...row, attached: attached.has(row.ttbId) })),
+    rows: rankResults(found.rows, labelName).map((row) => ({ ...row, attached: attached.has(row.ttbId) })),
     total: found.total,
     truncated: found.truncated,
     window: window.label,

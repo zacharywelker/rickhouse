@@ -50,16 +50,17 @@ function words(text: string | null): string[] {
 }
 
 /**
- * How well a result's fanciful name fits the label's name: 2 for the same
- * words, 1 for any word in common, 0 for none. "6 YO" and "6 Years Old"
- * share "6"; "Single Barrel Reserve" and "Single Barrel" share two words.
+ * How well a result's fanciful name fits the label's name: the number of
+ * words they share, plus one more when they are the same words. "6 YO"
+ * scores 3 against a label called "6 YO", "6 Years Old" scores 1, and
+ * "Toasted Barrel" 0.
  */
 export function nameMatch(labelName: string, fancifulName: string | null): number {
   const label = words(labelName);
   const fanciful = words(fancifulName);
   if (label.length === 0 || fanciful.length === 0) return 0;
-  if (label.join(" ") === fanciful.join(" ")) return 2;
-  return fanciful.some((word) => label.includes(word)) ? 1 : 0;
+  const shared = new Set(fanciful.filter((word) => label.includes(word))).size;
+  return label.join(" ") === fanciful.join(" ") ? shared + 1 : shared;
 }
 
 /** Best name match first, then newest first. */

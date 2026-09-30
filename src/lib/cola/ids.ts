@@ -62,3 +62,27 @@ export function registryUrl(href: string): URL | null {
   if (url.username || url.password) return null;
   return url;
 }
+
+/** At most this many approvals are picked while creating a label; each is fetched on save. */
+export const MAX_PENDING_COLAS = 10;
+
+/**
+ * The TTB IDs a new label's form carries in `ttbIds` (a JSON array):
+ * normalized, deduplicated, in order, capped. Anything unreadable is dropped.
+ */
+export function pendingTtbIds(raw: unknown): string[] {
+  let parsed: unknown;
+  try {
+    parsed = typeof raw === "string" && raw !== "" ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const ids: string[] = [];
+  for (const entry of parsed) {
+    const id = typeof entry === "string" ? normalizeTtbId(entry) : null;
+    if (id && !ids.includes(id)) ids.push(id);
+    if (ids.length === MAX_PENDING_COLAS) break;
+  }
+  return ids;
+}

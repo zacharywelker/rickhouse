@@ -15,7 +15,8 @@ import { IDLE_RESULT, type ActionResult } from "@/lib/admin/types";
 import { colaDetailUrl, colaFormUrl } from "@/lib/cola/ids";
 import { registryCase } from "@/lib/cola/format";
 import { cn, formatDate } from "@/lib/utils";
-import { AddById, ColaSearchDialog } from "./cola-search-dialog";
+import { AddById, ColaSearchDialog, PendingIdField, stubCola, type PendingCola } from "./cola-search-dialog";
+import { MAX_PENDING_COLAS } from "@/lib/cola/ids";
 
 export type ColaImageView = {
   id: number;
@@ -195,6 +196,118 @@ export function ColaApprovals(props: Props) {
           ) : null}
         </>
       )}
+    </section>
+  );
+}
+
+/**
+ * Label approvals on New Label (SPEC M11). The label has no ID yet, so the
+ * approvals picked here are held on its form (`ttbIds`) and attached, with
+ * their label art fetched, when it is created. Picking one never fills in
+ * the label's fields.
+ */
+export function PendingColas({
+  brandName,
+  labelName,
+  lookupEnabled,
+  className,
+}: {
+  brandName: string;
+  labelName: string;
+  lookupEnabled: boolean;
+  className?: string;
+}) {
+  const [pending, setPending] = React.useState<PendingCola[]>([]);
+  const pendingIds = React.useMemo(() => new Set(pending.map((cola) => cola.ttbId)), [pending]);
+  const full = pending.length >= MAX_PENDING_COLAS;
+
+  const add = (rows: PendingCola[]) =>
+    setPending((prev) => {
+      const next = [...prev];
+      for (const row of rows) if (!next.some((cola) => cola.ttbId === row.ttbId)) next.push(row);
+      return next.slice(0, MAX_PENDING_COLAS);
+    });
+
+  const findOnTtb = (triggerLabel: string) =>
+    lookupEnabled && !full ? (
+      <ColaSearchDialog
+        expressionId={null}
+        brandName={brandName}
+        labelName={labelName}
+        pendingIds={pendingIds}
+        onPick={add}
+        triggerLabel={triggerLabel}
+      />
+    ) : null;
+
+  return (
+    <section className={cn("flex flex-col gap-4", className)}>
+      <input type="hidden" name="ttbIds" value={JSON.stringify(pending.map((cola) => cola.ttbId))} />
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+        <div>
+          <h2 className="text-xl leading-tight tracking-tight">Label approvals</h2>
+          <p className="text-sm text-muted-foreground">
+            TTB&rsquo;s certificates of label approval. Picked ones are attached, with their label art, when you create
+            the label.
+          </p>
+        </div>
+        {pending.length > 0 ? findOnTtb("Find on TTB") : null}
+        {!lookupEnabled && !full ? <PendingIdField label="TTB ID" onAdd={(ttbId) => add([stubCola(ttbId)])} /> : null}
+      </div>
+
+      {pending.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No approvals yet. {lookupEnabled ? findOnTtb("Find this label on TTB") : null}
+        </p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className={cn("border-b border-foreground text-left", KEY)}>
+              <th className="py-1.5 pr-4 font-semibold">Approved</th>
+              <th className="py-1.5 pr-4 font-semibold">Name</th>
+              <th className="hidden py-1.5 pr-4 font-semibold sm:table-cell">Class</th>
+              <th className="hidden py-1.5 pr-4 font-semibold sm:table-cell">Permit</th>
+              <th className="py-1.5 pr-4 font-semibold">TTB ID</th>
+              <th className="py-1.5" />
+            </tr>
+          </thead>
+          <tbody>
+            {pending.map((cola) => (
+              <tr key={cola.ttbId} className="border-b border-border">
+                <td className="whitespace-nowrap py-1.5 pr-4 tabular-nums">{formatDate(cola.completedOn)}</td>
+                <td className="py-1.5 pr-4">
+                  {[cola.brandName, cola.fancifulName].filter(Boolean).map((part) => registryCase(part!)).join(" ") ||
+                    "—"}
+                </td>
+                <td className="hidden py-1.5 pr-4 sm:table-cell">{cola.classType ? registryCase(cola.classType) : "—"}</td>
+                <td className="hidden whitespace-nowrap py-1.5 pr-4 tabular-nums sm:table-cell">
+                  {cola.permitNumber ?? "—"}
+                </td>
+                <td className="whitespace-nowrap py-1.5 pr-4 tabular-nums">
+                  <a href={colaDetailUrl(cola.ttbId)} target="_blank" rel="noreferrer" className={TEXT_LINK}>
+                    {cola.ttbId}&nbsp;↗
+                  </a>
+                </td>
+                <td className="whitespace-nowrap py-1.5 text-right">
+                  <button
+                    type="button"
+                    onClick={() => setPending((prev) => prev.filter((row) => row.ttbId !== cola.ttbId))}
+                    className="text-xs text-muted-foreground hover:text-destructive hover:underline"
+                    aria-label={`Remove ${cola.ttbId}`}
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {full ? (
+        <p className="text-xs text-muted-foreground">
+          {MAX_PENDING_COLAS} is the most that can be attached while creating a label; add more from its page afterwards.
+        </p>
+      ) : null}
     </section>
   );
 }

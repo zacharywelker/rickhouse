@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeTtbId, registryUrl } from "../ids";
+import { MAX_PENDING_COLAS, normalizeTtbId, pendingTtbIds, registryUrl } from "../ids";
 import { nameMatch, rankResults, registryCase, searchWindow } from "../format";
 
 describe("normalizeTtbId", () => {
@@ -90,7 +90,7 @@ describe("rankResults", () => {
       { fancifulName: null, completedOn: "2024-01-01" },
     ];
     expect(rankResults(rows, "6 YO").map((row) => [row.fancifulName, row.match])).toEqual([
-      ["6 YO", 2],
+      ["6 YO", 3],
       ["6 YEARS OLD", 1],
       [null, 0],
       ["TOASTED BARREL", 0],
@@ -99,9 +99,35 @@ describe("rankResults", () => {
 });
 
 describe("nameMatch", () => {
+  it("prefers the approval sharing more of the label's words", () => {
+    expect(nameMatch("Test 6 YO", "6 YO")).toBeGreaterThan(nameMatch("Test 6 YO", "6 YEARS OLD"));
+  });
+
   it("ignores case and punctuation", () => {
-    expect(nameMatch("Hotaling's Whiskey", "HOTALING'S WHISKEY")).toBe(2);
-    expect(nameMatch("Single Barrel", "SINGLE BARREL RESERVE PORT FINISH")).toBe(1);
+    expect(nameMatch("Hotaling's Whiskey", "HOTALING'S WHISKEY")).toBe(4);
+    expect(nameMatch("Single Barrel", "SINGLE BARREL RESERVE PORT FINISH")).toBe(2);
     expect(nameMatch("Double Oak", null)).toBe(0);
+  });
+});
+
+describe("pendingTtbIds", () => {
+  it("reads the new label form's JSON list: normalized, deduplicated, in order", () => {
+    expect(pendingTtbIds('["21132001000620", "23117 001 000590", "21132001000620"]')).toEqual([
+      "21132001000620",
+      "23117001000590",
+    ]);
+  });
+
+  it("drops anything that is not a TTB ID, and caps the list", () => {
+    expect(pendingTtbIds('["nope", 42, null, "21132001000620"]')).toEqual(["21132001000620"]);
+    const many = JSON.stringify(Array.from({ length: 15 }, (_, i) => `2113200100${String(i).padStart(4, "0")}`));
+    expect(pendingTtbIds(many)).toHaveLength(MAX_PENDING_COLAS);
+  });
+
+  it("treats a missing or broken field as no approvals", () => {
+    expect(pendingTtbIds(null)).toEqual([]);
+    expect(pendingTtbIds("")).toEqual([]);
+    expect(pendingTtbIds("{not json")).toEqual([]);
+    expect(pendingTtbIds('{"a":1}')).toEqual([]);
   });
 });

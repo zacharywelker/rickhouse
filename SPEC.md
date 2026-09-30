@@ -436,6 +436,10 @@ approved label art and what the approval says about who bottled it.
   only, ranks results against the label's name, and attaches the ones picked
   (up to five at a time), fetching each record and its label images. Pasting
   a TTB ID or registry link does the same for one.
+- **Also while creating a label.** New Label has the same search at the foot
+  of its form. A label has no ID until it is saved, so picked approvals are
+  listed there and attached, with their label art, on Create. Picking one
+  never fills in the label's fields.
 - **A specimen record below the label's form.** The form comes first; the
   approvals follow as a compact record. The featured COLA's front label sits
   on the page like a catalog shot (a 1200px rendition that opens the full
