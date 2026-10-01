@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottles, expressions } from "@/db/schema";
+import { bottles, expressions, groupBottles, groups } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { bottleSchema, expressionSchema } from "@/lib/expressions/schema";
@@ -12,6 +12,8 @@ import { loadLabelDocs } from "@/lib/expressions/label-search-docs";
 import { loadCatalogLabel, type CatalogLabel } from "@/lib/expressions/catalog";
 import { NotOwned, attachPendingColas, fieldErrorsOf, labelValues, linksFrom, writeLabel } from "@/lib/expressions/save";
 import { pendingTtbIds } from "@/lib/cola/ids";
+import { groupSchema } from "@/lib/groups/schemas";
+import { resolveSlug } from "@/lib/slug";
 import type { FieldValue } from "@/lib/forms/values";
 
 export type CatalogHit = {
@@ -70,6 +72,8 @@ export type CatalogInput = {
   /** TTB approvals picked for a new label. */
   ttbIds: string;
   bottle: Record<string, FieldValue>;
+  /** The haul's group, once it has been made one: the new bottle joins it. */
+  groupId?: number | null;
 };
 
 export type CatalogResult =
@@ -132,6 +136,14 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
     const approvals =
       chosenId === null ? await attachPendingColas(expressionId, user.id, pendingTtbIds(input.ttbIds)) : "";
 
+    // After the save, not inside it: a group deleted mid-haul should cost the
+    // group its new member, never the bottle itself.
+    let grouped = "";
+    if (Number.isInteger(input.groupId) && (input.groupId ?? 0) > 0) {
+      const added = await addToGroup(input.groupId!, [bottleId], user.id).catch(() => false);
+      grouped = added ? " Added to the haul's group." : " The haul's group is gone, so it was not added to it.";
+    }
+
     revalidatePath("/bottles");
     revalidatePath("/expressions");
     revalidatePath(`/expressions/${expressionId}`);
@@ -140,7 +152,7 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
       ok: true,
       bottleId,
       expressionId,
-      message: `${chosenId === null ? "Label and bottle added." : "Bottle added."}${approvals}`,
+      message: `${chosenId === null ? "Label and bottle added." : "Bottle added."}${approvals}${grouped}`,
     };
   } catch (error: unknown) {
     if (error instanceof NotOwned) {
@@ -155,5 +167,73 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
       labelErrors: stage === "label" ? fieldErrors : {},
       bottleErrors: stage === "bottle" ? fieldErrors : {},
     };
+  }
+}
+
+/**
+ * Appends the caller's own bottles to the caller's own group, after its
+ * current last member. False when the group isn't theirs (or is gone). The
+ * database also holds a group's bottles to its owner.
+ */
+async function addToGroup(groupId: number, bottleIds: number[], ownerId: number): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [group] = await tx
+      .select({ id: groups.id })
+      .from(groups)
+      .where(and(eq(groups.id, groupId), eq(groups.ownerId, ownerId)))
+      .limit(1);
+    if (!group) return false;
+    const owned = await tx
+      .select({ id: bottles.id })
+      .from(bottles)
+      .where(and(inArray(bottles.id, bottleIds), eq(bottles.ownerId, ownerId)));
+    const ownedIds = new Set(owned.map((row) => row.id));
+    const ordered = bottleIds.filter((id) => ownedIds.has(id));
+    if (ordered.length === 0) return true;
+    const [{ next } = { next: 0 }] = await tx
+      .select({ next: sql<number>`coalesce(max(${groupBottles.position}), -1)::int + 1` })
+      .from(groupBottles)
+      .where(eq(groupBottles.groupId, groupId));
+    await tx
+      .insert(groupBottles)
+      .values(ordered.map((bottleId, i) => ({ groupId, bottleId, position: next + i })))
+      .onConflictDoNothing();
+    return true;
+  });
+}
+
+export type HaulGroupResult = { ok: true; groupId: number; name: string } | { ok: false; error: string };
+
+/**
+ * "Make this haul a group": a new group holding the haul's bottles, in the
+ * order they were added. The name is checked like the Groups form's.
+ */
+export async function groupHaulAction(name: string, bottleIds: number[]): Promise<HaulGroupResult> {
+  const user = await requireSession();
+  const parsed = groupSchema.safeParse({ name, description: "" });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Name this group." };
+  const ids = Array.isArray(bottleIds) ? bottleIds.filter((id) => Number.isInteger(id) && id > 0).slice(0, 500) : [];
+  if (ids.length === 0) return { ok: false, error: "There are no bottles in this haul yet." };
+
+  try {
+    const slug = await resolveSlug({
+      table: groups,
+      column: groups.slug,
+      idColumn: groups.id,
+      scope: { column: groups.ownerId, value: user.id },
+      requested: null,
+      fallbackFrom: parsed.data.name,
+    });
+    const [group] = await db
+      .insert(groups)
+      .values({ ...parsed.data, slug, ownerId: user.id })
+      .returning({ id: groups.id, name: groups.name });
+    await addToGroup(group!.id, ids, user.id);
+    revalidatePath("/groups");
+    revalidatePath(`/groups/${group!.id}`);
+    return { ok: true, groupId: group!.id, name: group!.name };
+  } catch (error: unknown) {
+    const shaped = mapDbError(error, { singular: "Group" });
+    return { ok: false, error: shaped.ok ? "Could not make the group." : shaped.error };
   }
 }

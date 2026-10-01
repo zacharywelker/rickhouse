@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CatalogBottle } from "@/components/catalog/catalog-bottle";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
+import { bottleSuggestions } from "@/lib/bottles/suggestions-query";
 import { colaLookupEnabled } from "@/lib/cola/store";
 import { loadCatalogLabel } from "@/lib/expressions/catalog";
 import { expressionFormData } from "@/lib/expressions/form-data";
@@ -28,6 +29,7 @@ export default async function CatalogBottlePage({
     REFERENCE_OPTION_LOADERS.stores(user.id),
     getPreferences(user.id),
   ]);
+  const suggestions = await bottleSuggestions(user.id, stores.map((store) => store.label));
   // "Add a bottle of this" from a label's page arrives with the label chosen.
   const initialLabel = expression && /^\d+$/.test(expression) ? await loadCatalogLabel(Number(expression), user.id) : null;
 
@@ -58,6 +60,7 @@ export default async function CatalogBottlePage({
         categoryGroups={categoryGroups}
         colaLookup={colaLookupEnabled()}
         initialLabel={initialLabel}
+        suggestions={suggestions}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { expressionOptions } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
+import { bottleSuggestions } from "@/lib/bottles/suggestions-query";
 import { getPreferences } from "@/lib/preferences";
 
 export const metadata: Metadata = { title: "Add a bottle" };
@@ -27,6 +28,7 @@ export default async function NewBottlePage({
     expressionOptions(user.id),
     REFERENCE_OPTION_LOADERS.stores(user.id),
   ]);
+  const suggestions = await bottleSuggestions(user.id, stores.map((store) => store.label));
 
   const preselected = expression && /^\d+$/.test(expression) ? Number(expression) : null;
 
@@ -51,6 +53,7 @@ export default async function NewBottlePage({
           bottleId={null}
           initialValues={preselected === null ? null : { expressionId: preselected }}
           options={{ expressionId: expressions, storeId: stores }}
+          suggestions={suggestions}
         />
       )}
     </div>

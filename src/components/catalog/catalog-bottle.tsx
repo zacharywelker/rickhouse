@@ -22,21 +22,29 @@ import { serializeLinks } from "@/components/expressions/ordered-picker";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { guessNewLabel } from "@/lib/expressions/label-search";
 import { withOption } from "@/lib/forms/values";
-import { formatMoney, formatNumeric } from "@/lib/utils";
+import { formatDate, formatNumeric } from "@/lib/utils";
+import { withEntered, type BottleSuggestions } from "@/lib/bottles/suggestions";
 import type { FieldGroup } from "@/db/schema";
 import type { ActionResult, Option } from "@/lib/admin/types";
 import {
   catalogBottleAction,
   catalogLabelAction,
+  groupHaulAction,
   searchCatalogLabelsAction,
   type CatalogHit,
   type CatalogSearch,
 } from "@/app/(app)/bottles/add/actions";
 import type { CatalogLabel } from "@/lib/expressions/catalog";
 import { LabelSearchBox } from "./label-search-box";
+import { HaulPanel, type HaulBottle } from "./haul-panel";
 
 /** The first half of the page: still looking, a label chosen, or a new one being written. */
-type Phase = { kind: "search" } | { kind: "existing"; label: CatalogLabel; editing: boolean } | { kind: "new" };
+type Phase =
+  | { kind: "search" }
+  | { kind: "existing"; label: CatalogLabel; editing: boolean }
+  | { kind: "new" }
+  /** The last bottle of a haul is in: the haul's summary, and the offer to group it. */
+  | { kind: "done" };
 
 /**
  * What a haul has in common from one bottle to the next. Kept after "Save and
@@ -60,12 +68,15 @@ export function CatalogBottle({
   categoryGroups,
   colaLookup,
   initialLabel,
+  suggestions: initialSuggestions,
 }: {
   labelOptions: Record<string, Option[]>;
   bottleOptions: Record<string, Option[]>;
   categoryGroups: Record<number, FieldGroup>;
   colaLookup: boolean;
   initialLabel: CatalogLabel | null;
+  /** Past values for Picked By, Warehouse, Rick / Floor and Where It Lives. */
+  suggestions: BottleSuggestions;
 }) {
   const router = useRouter();
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -128,7 +139,22 @@ export function CatalogBottle({
     return guess.brandName ? `New label: ${guess.brandName} · ${guess.name}` : `New label: ${query.trim()}`;
   })();
 
-  const focusLater = (id: string) => window.requestAnimationFrame(() => document.getElementById(id)?.focus());
+  // Where focus goes once the next render is on screen: a field's id, the
+  // search box, or the first field in error. Set alongside the state change
+  // that renders it, and moved in an effect, which runs after the commit; a
+  // requestAnimationFrame can fire before the new fields exist.
+  const pendingFocus = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const target = pendingFocus.current;
+    if (target === null) return;
+    pendingFocus.current = null;
+    if (target === "search") searchRef.current?.focus();
+    else if (target === "error") formRef.current?.querySelector<HTMLElement>("[aria-invalid=true]")?.focus();
+    else document.getElementById(target)?.focus();
+  });
+  const focusLater = (target: string) => {
+    pendingFocus.current = target;
+  };
 
   const pick = async (hit: CatalogHit) => {
     setPicking(true);
@@ -138,9 +164,9 @@ export function CatalogBottle({
       setErrors({ ...NO_ERRORS, message: "That label is gone. Search for it again." });
       return;
     }
+    focusLater("bottle-pricePaid");
     setErrors(NO_ERRORS);
     setPhase({ kind: "existing", label, editing: false });
-    focusLater("bottle-pricePaid");
   };
 
   const startNew = () => {
@@ -158,9 +184,9 @@ export function CatalogBottle({
     setLabelLinks(EMPTY_LINKS);
     setPendingTtb(code?.kind === "ttb" ? [code.value] : []);
     setColaKey((key) => key + 1);
+    focusLater(values.brandId ? "expression-name" : "expression-brandId");
     setErrors(NO_ERRORS);
     setPhase({ kind: "new" });
-    focusLater(values.brandId ? "expression-name" : "expression-brandId");
   };
 
   const editChosen = (label: CatalogLabel) => {
@@ -170,14 +196,15 @@ export function CatalogBottle({
   };
 
   const backToSearch = () => {
+    focusLater("search");
     setErrors(NO_ERRORS);
     setPhase({ kind: "search" });
-    window.requestAnimationFrame(() => searchRef.current?.focus());
   };
 
   // --- The bottle -------------------------------------------------------------
   const [bottleOptionsState, setBottleOptions] = React.useState(bottleOptions);
   const [bottleValues, setBottleValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, null));
+  const [suggestions, setSuggestions] = React.useState(initialSuggestions);
   const [photos, setPhotos] = React.useState<Staged[]>([]);
   // Previews are object URLs; let them go when the page does.
   const photosRef = React.useRef(photos);
@@ -199,8 +226,25 @@ export function CatalogBottle({
 
   // --- Saving -----------------------------------------------------------------
   const [saving, setSaving] = React.useState(false);
-  const [haul, setHaul] = React.useState<Array<{ id: number; title: string; price: number }>>([]);
+  const [haul, setHaul] = React.useState<HaulBottle[]>([]);
   const [notice, setNotice] = React.useState<string | null>(null);
+  const [haulGroup, setHaulGroup] = React.useState<{ id: number; name: string } | null>(null);
+
+  // A haul is named for where and when it happened: "Seelbach's haul, Sep 30, 2026".
+  const haulName = (() => {
+    const store = bottleOptionsState.storeId?.find((o) => String(o.value) === String(bottleValues.storeId))?.label;
+    const date = typeof bottleValues.dateAcquired === "string" && bottleValues.dateAcquired !== "" ? bottleValues.dateAcquired : null;
+    const when = formatDate(date ?? new Date().toISOString().slice(0, 10));
+    return store ? `${store} haul, ${when}` : `Haul, ${when}`;
+  })();
+
+  const makeGroup = async (name: string): Promise<string | null> => {
+    const result = await groupHaulAction(name, haul.map((bottle) => bottle.id)).catch(() => null);
+    if (!result) return "Could not reach Rickhouse. Try again.";
+    if (!result.ok) return result.error;
+    setHaulGroup({ id: result.groupId, name: result.name });
+    return null;
+  };
 
   const labelTitle =
     phase.kind === "existing"
@@ -209,8 +253,9 @@ export function CatalogBottle({
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (phase.kind === "search" || saving) return;
-    const another = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "another";
+    if (phase.kind === "search" || phase.kind === "done" || saving) return;
+    // "another" keeps the haul going; "last" ends it on its summary; "save" (no haul yet) opens the bottle.
+    const mode = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") ?? "save";
 
     const writesLabel = phase.kind === "new" || phase.editing;
     const form = formRef.current;
@@ -228,16 +273,17 @@ export function CatalogBottle({
         : null,
       ttbIds: String(form ? (new FormData(form).get("ttbIds") ?? "") : ""),
       bottle: bottleValues,
+      groupId: haulGroup?.id ?? null,
     }).catch((): null => null);
 
     if (!result || !result.ok) {
+      focusLater("error");
       setSaving(false);
       setErrors(
         result
           ? { label: result.labelErrors, bottle: result.bottleErrors, message: result.error }
           : { ...NO_ERRORS, message: "Could not reach Rickhouse. Try again." },
       );
-      window.requestAnimationFrame(() => form?.querySelector<HTMLElement>("[aria-invalid=true]")?.focus());
       return;
     }
 
@@ -252,13 +298,14 @@ export function CatalogBottle({
       if (!uploaded.ok) photoNote = ` ${uploaded.error} Add them from the bottle's page.`;
     }
 
-    if (!another) {
+    if (mode !== "another" && mode !== "last") {
       router.push(`/bottles/${result.bottleId}`);
       router.refresh();
       return;
     }
 
-    // Next bottle: the trip carries over, the rest starts again.
+    // Next bottle (or the haul's summary): the trip carries over, the rest starts again.
+    setSuggestions((prev) => withEntered(prev, bottleValues));
     const price = Number(bottleValues.pricePaid);
     setHaul((prev) => [...prev, { id: result.bottleId, title: labelTitle, price: Number.isFinite(price) ? price : 0 }]);
     setBottleValues((prev) => {
@@ -276,40 +323,36 @@ export function CatalogBottle({
     setQuery("");
     setNotice(`${result.message}${photoNote}`);
     setSaving(false);
-    setPhase({ kind: "search" });
+    if (mode === "another") focusLater("search");
+    setPhase({ kind: mode === "last" ? "done" : "search" });
     router.refresh();
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: 0 });
-      searchRef.current?.focus();
-    });
+    window.scrollTo({ top: 0 });
   };
-
-  const haulSpend = haul.reduce((sum, bottle) => sum + bottle.price, 0);
 
   return (
     <form ref={formRef} onSubmit={submit} className="flex flex-col gap-8" noValidate>
       {haul.length > 0 ? (
-        <div className="flex flex-col gap-1 border-l-2 border-accent pl-3 text-sm" aria-live="polite">
-          <p>
-            <span className="font-medium">
-              This haul: {haul.length} {haul.length === 1 ? "bottle" : "bottles"}
-            </span>
-            {haulSpend > 0 ? <span className="text-muted-foreground"> · {formatMoney(String(haulSpend))}</span> : null}
-          </p>
-          <p className="text-muted-foreground">
-            {haul.map((bottle, i) => (
-              <React.Fragment key={bottle.id}>
-                {i > 0 ? " · " : null}
-                <Link href={`/bottles/${bottle.id}`} className="hover:text-accent hover:underline">
-                  {bottle.title}
-                </Link>
-              </React.Fragment>
-            ))}
-          </p>
-          {notice ? <p className="text-muted-foreground">{notice}</p> : null}
-        </div>
+        <HaulPanel
+          haul={haul}
+          notice={notice}
+          group={haulGroup}
+          defaultName={haulName}
+          onMakeGroup={makeGroup}
+          finished={phase.kind === "done"}
+        />
       ) : null}
 
+      {phase.kind === "done" ? (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={backToSearch}>
+            Add another after all
+          </Button>
+          <Button asChild>
+            <Link href="/bottles">Go to the collection</Link>
+          </Button>
+        </div>
+      ) : (
+        <>
       <Section>
         <SectionHeader>
           <SectionTitle>
@@ -413,6 +456,7 @@ export function CatalogBottle({
               options={bottleOptionsState}
               onOptionCreated={(name, option) => setBottleOptions((prev) => withOption(prev, name, option))}
               errors={errors.bottle}
+              suggestions={suggestions}
               omit={["expressionId"]}
             />
           </div>
@@ -460,28 +504,34 @@ export function CatalogBottle({
         </>
       )}
 
+        </>
+      )}
+
       {errors.message ? (
         <p role="alert" className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {errors.message}
         </p>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-        <Button type="button" variant="outline" asChild>
-          <Link href="/bottles">{haul.length > 0 ? "Done" : "Cancel"}</Link>
-        </Button>
-        {phase.kind !== "search" ? (
-          <>
-            <Button type="submit" value="another" variant="outline" disabled={saving}>
-              Save and add another
-            </Button>
-            <Button type="submit" value="save" disabled={saving}>
-              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-              {phase.kind === "new" ? "Save label and bottle" : "Save bottle"}
-            </Button>
-          </>
-        ) : null}
-      </div>
+      {phase.kind !== "done" ? (
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <Button type="button" variant="outline" asChild>
+            <Link href="/bottles">{haul.length > 0 ? "Done" : "Cancel"}</Link>
+          </Button>
+          {phase.kind !== "search" ? (
+            <>
+              <Button type="submit" value="another" variant="outline" disabled={saving}>
+                Save and add another
+              </Button>
+              {/* Mid-haul, the last bottle ends on the haul's summary rather than leaving it behind. */}
+              <Button type="submit" value={haul.length > 0 ? "last" : "save"} disabled={saving}>
+                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+                {haul.length > 0 ? "Save, last of the haul" : phase.kind === "new" ? "Save label and bottle" : "Save bottle"}
+              </Button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </form>
   );
 }

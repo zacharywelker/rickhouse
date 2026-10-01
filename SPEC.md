@@ -510,6 +510,18 @@ label and the bottle on one page with one save.
   written in one transaction; TTB approvals then attach as on New Label, and
   photos upload through the bottle's own image route once it exists. "Save
   and add another" keeps the store, date, how you got it and where it lives.
+- **A haul can become a Group.** "Make this haul a group" names it for the
+  haul's store and date and puts its bottles in, in order; bottles saved after
+  join it too. Mid-haul, the main button is "Save, last of the haul", which
+  ends on the haul's summary instead of leaving it behind.
+- **Enter waits for the results.** Pressed before the results for what was
+  typed are in, Enter takes the top one once they are, so a barcode scanner
+  (which types and presses Enter at once) never starts a duplicate label.
+- **Past entries offered.** Picked By, Warehouse, Rick / Floor and Where It
+  Lives offer the account's own past values, most used first, with spellings
+  that differ only in case or punctuation folded together; Picked By also
+  offers store names. A native datalist, on every bottle form
+  (`src/lib/bottles/suggestions.ts`).
 - **Label pages.** `/expressions/[id]` reads the label: specs, links, every
   bottle of it with what tells them apart (pick, barrel, batch), its TTB
   approvals and every bottle's tasting notes. Rows in the labels table and the

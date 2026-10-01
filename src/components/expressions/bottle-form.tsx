@@ -74,6 +74,7 @@ export function BottleFields({
   options,
   onOptionCreated,
   errors,
+  suggestions,
   omit = [],
   idPrefix = "bottle",
 }: {
@@ -82,6 +83,8 @@ export function BottleFields({
   options: Record<string, Option[]>;
   onOptionCreated: (name: string, option: Option) => void;
   errors: Record<string, string>;
+  /** Past values for the free-text fields (Picked By, Warehouse, …), by field name. */
+  suggestions?: Partial<Record<string, string[]>>;
   omit?: string[];
   idPrefix?: string;
 }) {
@@ -146,6 +149,7 @@ export function BottleFields({
                 error={errors[field.name]}
                 options={options[field.name] ?? []}
                 onOptionCreated={(option) => onOptionCreated(field.name, option)}
+                suggestions={suggestions?.[field.name]}
               />
             );
           })}
@@ -162,10 +166,12 @@ export function BottleForm({
   bottleId,
   initialValues,
   options,
+  suggestions,
 }: {
   bottleId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
   options: Record<string, Option[]>;
+  suggestions?: Partial<Record<string, string[]>>;
 }) {
   const router = useRouter();
   const [values, setValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, initialValues));
@@ -193,6 +199,7 @@ export function BottleForm({
         options={optionsByField}
         onOptionCreated={(name, option) => setOptionsByField((prev) => withOption(prev, name, option))}
         errors={fieldErrors}
+        suggestions={suggestions}
       />
 
       {!state.ok && state.error ? (

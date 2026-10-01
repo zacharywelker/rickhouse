@@ -84,6 +84,19 @@ export function LabelSearchBox({
     else onNew();
   };
 
+  // Enter before the results for what was typed have arrived waits for them,
+  // then takes the top one. A barcode scanner types the code and presses
+  // Enter at once; picking from the previous results (or "New label") then
+  // would start a duplicate of a label that is already on file.
+  const enterPending = React.useRef(false);
+  React.useEffect(() => {
+    if (searching || !enterPending.current) return;
+    enterPending.current = false;
+    choose(rows[0]);
+    // choose reads only props; rows and searching are what decide this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searching, rows]);
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -94,7 +107,8 @@ export function LabelSearchBox({
     } else if (event.key === "Enter") {
       // Never submit the page's form from here: Enter picks.
       event.preventDefault();
-      choose(rows[active]);
+      if (searching) enterPending.current = true;
+      else choose(rows[active]);
     }
   };
 
@@ -123,7 +137,10 @@ export function LabelSearchBox({
           autoComplete="off"
           autoFocus
           value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
+          onChange={(event) => {
+            enterPending.current = false;
+            onQueryChange(event.target.value);
+          }}
           onKeyDown={onKeyDown}
           placeholder="Brand, label, distillery, barcode or TTB ID"
           className="h-12 pl-9 text-base"

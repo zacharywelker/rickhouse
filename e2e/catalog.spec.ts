@@ -17,6 +17,16 @@ test.beforeEach(async ({ page }) => {
   await signIn(page);
 });
 
+test("Enter straight after typing waits for the results, as a barcode scanner needs", async ({ page }) => {
+  await page.goto("/bottles/add");
+  const search = page.getByRole("combobox", { name: "Find the label" });
+  // No pause between typing and Enter: the results for this text aren't in yet.
+  await search.fill("Pursuit Double Oak Spirit");
+  await search.press("Enter");
+  await expect(page.getByText(/You have \d+ bottles? of this/)).toBeVisible();
+  await expect(page.getByLabel("Label Name")).toBeHidden();
+});
+
 test("a brand and a label name typed together find the label", async ({ page }) => {
   await page.goto("/bottles/add");
   const search = page.getByRole("combobox", { name: "Find the label" });
@@ -126,4 +136,68 @@ test("the switch is each account's own", async ({ browser }) => {
 
   await admin.getByLabel("Search-first Add bottle").uncheck();
   await expect(admin.getByLabel("Search-first Add bottle")).not.toBeChecked();
+});
+
+/** Picks the seeded label from the search, ready for the bottle's fields. */
+async function pickSeededLabel(page: import("@playwright/test").Page) {
+  const search = page.getByRole("combobox", { name: "Find the label" });
+  await search.fill("Pursuit Double Oak Spirit");
+  await expect(page.getByRole("option", { name: /^Pursuit Spirits Double Oak Spirit/ })).toBeVisible();
+  await search.press("Enter");
+  await expect(page.getByLabel("Price Paid")).toBeFocused();
+}
+
+/** The values a text field offers from past entries. */
+const suggested = (page: import("@playwright/test").Page, field: string) =>
+  page.locator(`datalist#bottle-${field}-suggestions option`).evaluateAll((options) =>
+    options.map((option) => (option as HTMLOptionElement).value),
+  );
+
+test("free-text fields offer past entries, and a haul's own entries straight away", async ({ page }) => {
+  const picker = `Bourbon Club ${stamp()}`;
+  await page.goto("/bottles/add");
+  await pickSeededLabel(page);
+  await page.getByLabel("Private Selection").check();
+  // Stores are offered as pickers before anything has been typed.
+  expect(await suggested(page, "pickedBy")).toContain("P.Club by Pursuit Spirits");
+  await page.getByLabel("Picked By").fill(picker);
+  await page.getByRole("button", { name: "Save and add another" }).click();
+  await expect(page.getByText(/This haul: 1 bottle/)).toBeVisible();
+
+  await pickSeededLabel(page);
+  await page.getByLabel("Private Selection").check();
+  expect((await suggested(page, "pickedBy"))[0]).toBe(picker);
+
+  // And the bottle forms elsewhere offer it from the database.
+  await page.goto("/bottles/new");
+  await page.getByLabel("Private Selection").check();
+  expect(await suggested(page, "pickedBy")).toContain(picker);
+});
+
+test("a haul becomes a group, and bottles added after join it", async ({ page }) => {
+  const name = `Haul ${stamp()}`;
+  await page.goto("/bottles/add");
+  await pickSeededLabel(page);
+  await page.getByLabel("Price Paid").fill("50");
+  await page.getByRole("button", { name: "Save and add another" }).click();
+  await expect(page.getByText(/This haul: 1 bottle/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Make this haul a group" }).click();
+  const groupName = page.getByLabel("Group name");
+  await expect(groupName).toHaveValue(/^Haul, /);
+  await groupName.fill(name);
+  // Enter makes the group; it must not submit the bottle form around it.
+  await groupName.press("Enter");
+  await expect(page.getByRole("link", { name })).toBeVisible();
+  await expect(page.getByText("Bottles you add from here go in it too.")).toBeVisible();
+
+  await pickSeededLabel(page);
+  await page.getByLabel("Price Paid").fill("60");
+  await page.getByRole("button", { name: "Save, last of the haul" }).click();
+  await expect(page.getByRole("heading", { name: "That’s the haul." })).toBeVisible();
+  await expect(page.getByText("2 bottles")).toBeVisible();
+
+  await page.getByRole("link", { name }).click();
+  await expect(page).toHaveURL(/\/groups\/\d+$/);
+  await expect(page.getByRole("button", { name: /^Remove .* from this group$/ })).toHaveCount(2);
 });
