@@ -519,8 +519,9 @@ label and the bottle on one page with one save.
   (which types and presses Enter at once) never starts a duplicate label.
 - **Past entries offered.** Picked By, Warehouse, Rick / Floor and Where It
   Lives offer the account's own past values, most used first, with spellings
-  that differ only in case or punctuation folded together; Picked By also
-  offers store names. A native datalist, on every bottle form
+  that differ only in case, punctuation or "&" for "and" folded together and
+  shown in their Title Cased spelling when there is one (otherwise the most
+  used); Picked By also offers store names, whose spelling can win a group. A native datalist, on every bottle form
   (`src/lib/bottles/suggestions.ts`).
 - **Label pages.** `/expressions/[id]` reads the label: specs, links, every
   bottle of it with what tells them apart (pick, barrel, batch), its TTB

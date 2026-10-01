@@ -12,51 +12,96 @@ export type BottleSuggestions = Record<SuggestedBottleField, string[]>;
 
 export const NO_SUGGESTIONS: BottleSuggestions = { pickedBy: [], warehouse: [], rickFloor: [], location: [] };
 
-/** Spellings that differ only in case, accents, punctuation or spacing are one entry. */
+/**
+ * Spellings that differ only in case, accents, punctuation or spacing are one
+ * entry, and "&" reads as "and": "Total Wine & More" is "Total Wine and More".
+ */
 function keyOf(value: string): string {
-  return words(value).join(" ");
+  return words(value.replace(/&/g, " and ")).join(" ");
+}
+
+/** Small words a title leaves lowercase after its first word: "Total Wine and More". */
+const MINOR_WORDS = new Set([
+  "a", "an", "and", "as", "at", "but", "by", "de", "del", "for", "in", "la", "of", "on", "or", "the", "to", "with",
+]);
+
+/**
+ * Is this written in Title Case? Every word starts with a capital, except
+ * small words after the first; numbers ("5th", "1920") and symbols ("&")
+ * don't count either way. A long word in all capitals is shouting, not a
+ * title ("SEELBACH'S"); a short one is an acronym ("BBC", "K&L").
+ */
+export function isTitleCased(value: string): boolean {
+  let sawWord = false;
+  for (const [i, token] of value.trim().split(/\s+/).entries()) {
+    const letters = token.replace(/[^\p{L}]/gu, "");
+    if (letters === "" || /^\p{N}/u.test(token)) continue;
+    sawWord = true;
+    if (i > 0 && letters === letters.toLowerCase() && MINOR_WORDS.has(letters)) continue;
+    const first = letters[0]!;
+    if (first === first.toLowerCase() || first !== first.toUpperCase()) return false;
+    if (letters.length > 4 && letters === letters.toUpperCase()) return false;
+  }
+  return sawWord;
+}
+
+type Spelling = { text: string; count: number; title: boolean };
+
+/** The spelling a group shows: Title Case first, then the most used, then alphabetical. */
+function better(a: Spelling, b: Spelling): boolean {
+  if (a.title !== b.title) return a.title;
+  if (a.count !== b.count) return a.count > b.count;
+  return a.text.localeCompare(b.text) < 0;
 }
 
 /**
  * Past values, most used first, with each set of near-identical spellings
- * folded into its most used one. `extra` (for Picked By, your stores' names)
- * follows, minus anything already there.
+ * folded into one: the Title Cased one when there is one, otherwise the most
+ * used. `extra` (for Picked By, your stores' names) is a candidate spelling
+ * for a group it matches, and otherwise follows the past values.
  */
 export function rankSuggestions(
   rows: ReadonlyArray<{ value: string; count: number }>,
   extra: ReadonlyArray<string> = [],
   limit = 50,
 ): string[] {
-  const byKey = new Map<string, { total: number; best: string; bestCount: number }>();
-  for (const { value, count } of rows) {
-    const trimmed = value.trim();
-    const key = keyOf(trimmed);
-    if (key === "") continue;
+  const byKey = new Map<string, { total: number; best: Spelling }>();
+  const consider = (value: string, count: number): boolean => {
+    const text = value.trim();
+    const key = keyOf(text);
+    if (key === "") return false;
+    const spelling: Spelling = { text, count, title: isTitleCased(text) };
     const entry = byKey.get(key);
     if (!entry) {
-      byKey.set(key, { total: count, best: trimmed, bestCount: count });
-      continue;
+      byKey.set(key, { total: count, best: spelling });
+      return true;
     }
     entry.total += count;
-    if (count > entry.bestCount || (count === entry.bestCount && trimmed.localeCompare(entry.best) < 0)) {
-      entry.best = trimmed;
-      entry.bestCount = count;
-    }
-  }
-  const ranked = [...byKey.values()]
-    .sort((a, b) => b.total - a.total || a.best.localeCompare(b.best))
-    .map((entry) => entry.best);
+    // The same spelling seen twice (it can't from the database, but can from
+    // extras) counts once as a candidate, with its uses added up.
+    if (entry.best.text === text) entry.best = { ...entry.best, count: entry.best.count + count };
+    else if (better(spelling, entry.best)) entry.best = spelling;
+    return true;
+  };
+
+  for (const { value, count } of rows) consider(value, count);
+  const ranked = [...byKey.values()].sort((a, b) => b.total - a.total || a.best.text.localeCompare(b.best.text));
+  // Stores join as spellings (a store's tidy name can win its group), and the
+  // ones nobody has typed yet follow the past values.
+  const fresh: string[] = [];
   for (const value of extra) {
-    const key = keyOf(value);
-    if (key !== "" && !byKey.has(key)) {
-      byKey.set(key, { total: 0, best: value, bestCount: 0 });
-      ranked.push(value.trim());
-    }
+    const known = byKey.has(keyOf(value));
+    if (consider(value, 0) && !known) fresh.push(keyOf(value));
   }
-  return ranked.slice(0, limit);
+  const result = [...ranked.map((entry) => entry.best.text), ...fresh.map((key) => byKey.get(key)!.best.text)];
+  return result.slice(0, limit);
 }
 
-/** Adds what was just typed, so the next bottle of a haul offers it at once. */
+/**
+ * Adds what was just typed, so the next bottle of a haul offers it at once.
+ * A spelling of something already offered replaces it only when it is the
+ * Title Cased one and the offered one isn't.
+ */
 export function withEntered(
   suggestions: BottleSuggestions,
   values: Record<string, unknown>,
@@ -65,8 +110,12 @@ export function withEntered(
   for (const field of SUGGESTED_BOTTLE_FIELDS) {
     const value = values[field];
     if (typeof value !== "string" || keyOf(value) === "") continue;
-    if (next[field].some((existing) => keyOf(existing) === keyOf(value))) continue;
-    next[field] = [value.trim(), ...next[field]];
+    const text = value.trim();
+    const at = next[field].findIndex((existing) => keyOf(existing) === keyOf(text));
+    if (at === -1) next[field] = [text, ...next[field]];
+    else if (isTitleCased(text) && !isTitleCased(next[field][at]!)) {
+      next[field] = next[field].map((existing, i) => (i === at ? text : existing));
+    }
   }
   return next;
 }
