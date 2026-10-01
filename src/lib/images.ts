@@ -4,6 +4,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { env } from "./env";
+import { transparentCropBox } from "./trim-transparent";
 
 /**
  * Bottle photos live on a mounted volume, not in the database and not in
@@ -47,10 +48,16 @@ export type StoredImage = {
 };
 
 /** How the full-size file is encoded, and whether a mid-size rendition is kept too. */
-type Encoding = { fullMax: number; fullQuality: number; display?: { dir: string; max: number } };
+type Encoding = {
+  fullMax: number;
+  fullQuality: number;
+  display?: { dir: string; max: number };
+  /** Crop away transparent margins around the subject. */
+  trimTransparent?: boolean;
+};
 
 /** Photos: plenty for a screen, small enough for a phone upload's worth of them. */
-const PHOTO: Encoding = { fullMax: 2000, fullQuality: 86 };
+const PHOTO: Encoding = { fullMax: 2000, fullQuality: 86, trimTransparent: true };
 
 export class ImageError extends Error {}
 
@@ -100,11 +107,16 @@ async function storeImageBytes(
   // Re-encode rather than trusting the upload: this normalises HEIC from an
   // iPhone, strips EXIF (including GPS), and applies the orientation tag so
   // portrait shots are not served sideways.
-  const pipeline = sharp(buffer, { failOn: "error" }).rotate();
-  const meta = await pipeline.metadata();
+  const oriented = sharp(buffer, { failOn: "error" }).rotate();
+  const meta = await oriented.metadata();
   if (!meta.width || !meta.height) {
     throw new ImageError("That file does not look like an image.");
   }
+
+  // Cut-out photos often arrive on a big transparent canvas that leaves the
+  // bottle tiny. Crop to the visible pixels (rotate runs before extract).
+  const box = encoding.trimTransparent ? await transparentCropBox(oriented) : null;
+  const pipeline = box ? oriented.clone().extract(box) : oriented;
 
   const fileRelative = path.posix.join(originalsDir, `${id}.webp`);
   const thumbRelative = path.posix.join(thumbsDir, `${id}.webp`);
