@@ -9,6 +9,18 @@ import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { UndisclosedForm } from "./undisclosed-form";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
 
+/** The JSON a list is submitted as, read back by `parseLinks` on the server. */
+export function serializeLinks(rows: LinkedRow[]): string {
+  return JSON.stringify(
+    rows.map((row) => ({
+      id: row.id,
+      amount: row.amount,
+      distilleryId: row.distilleryId ?? null,
+      inferred: row.inferred === true,
+    })),
+  );
+}
+
 export type LinkedRow = {
   id: number;
   label: string;
@@ -248,14 +260,7 @@ export function OrderedPicker({
       <input
         type="hidden"
         name={name}
-        value={JSON.stringify(
-          value.map((row) => ({
-            id: row.id,
-            amount: row.amount,
-            distilleryId: row.distilleryId ?? null,
-            inferred: row.inferred === true,
-          })),
-        )}
+        value={serializeLinks(value)}
       />
     </fieldset>
   );

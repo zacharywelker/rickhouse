@@ -14,6 +14,7 @@ import { fieldVisible, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type Option } from "@/lib/admin/types";
 import { ageBetween, describeAge } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
+import { withOption } from "@/lib/forms/values";
 import { AgeFields } from "./age-fields";
 
 /**
@@ -62,6 +63,101 @@ function DeriveAge({
   );
 }
 
+/**
+ * The bottle's fields without a form around them, for the bottle form and
+ * for the search-first Add bottle page, which chooses the label itself and
+ * so leaves the Label picker out (`omit`).
+ */
+export function BottleFields({
+  values,
+  onChange,
+  options,
+  onOptionCreated,
+  errors,
+  omit = [],
+  idPrefix = "bottle",
+}: {
+  values: Record<string, FieldValue>;
+  onChange: (name: string, value: FieldValue) => void;
+  options: Record<string, Option[]>;
+  onOptionCreated: (name: string, option: Option) => void;
+  errors: Record<string, string>;
+  omit?: string[];
+  idPrefix?: string;
+}) {
+  return (
+    <>
+      {BOTTLE_SECTIONS.map((section) => {
+        // The pick block is revealed by the single-barrel checkboxes, the same
+        // way the label form reveals its per-spirit sections.
+        if (!sectionVisible(section, null, values)) return null;
+        return (
+        <Section key={section.id}>
+          <SectionHeader>
+            <SectionTitle>{section.title}</SectionTitle>
+            {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
+          </SectionHeader>
+          <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {section.fields.map((field) => {
+            if (!fieldVisible(field, values) || omit.includes(field.name)) return null;
+            // Proof/ABV and the age triplet render as linked composites
+            // rather than the generic field; see the label form for the same
+            // pattern. `field` stays in BOTTLE_FIELDS so seeding and the
+            // server's allow-list still see these names.
+            if (field.name === "proof") {
+              return (
+                <ProofAbvFields
+                  key={field.name}
+                  idPrefix={idPrefix}
+                  value={values.proof ?? ""}
+                  onChange={(next) => onChange("proof", next)}
+                  error={errors.proof}
+                />
+              );
+            }
+            if (field.name === "ageMonths" || field.name === "ageDays") return null;
+            if (field.name === "ageYears") {
+              return (
+                <AgeFields
+                  key="age"
+                  idPrefix={idPrefix}
+                  values={{
+                    ageYears: values.ageYears ?? "",
+                    ageMonths: values.ageMonths ?? "",
+                    ageDays: values.ageDays ?? "",
+                  }}
+                  onChange={(name, next) => onChange(name, next)}
+                  errors={{
+                    ageYears: errors.ageYears,
+                    ageMonths: errors.ageMonths,
+                    ageDays: errors.ageDays,
+                  }}
+                  help="Filled and bottled above will offer to work this out."
+                />
+              );
+            }
+            return (
+              <Field
+                key={field.name}
+                spec={field}
+                idPrefix={idPrefix}
+                value={values[field.name] ?? ""}
+                onChange={(next) => onChange(field.name, next)}
+                error={errors[field.name]}
+                options={options[field.name] ?? []}
+                onOptionCreated={(option) => onOptionCreated(field.name, option)}
+              />
+            );
+          })}
+            {section.id === "override" ? <DeriveAge values={values} set={onChange} /> : null}
+          </SectionContent>
+        </Section>
+        );
+      })}
+    </>
+  );
+}
+
 export function BottleForm({
   bottleId,
   initialValues,
@@ -91,78 +187,13 @@ export function BottleForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      {BOTTLE_SECTIONS.map((section) => {
-        // The pick block is revealed by the single-barrel checkboxes, the same
-        // way the label form reveals its per-spirit sections.
-        if (!sectionVisible(section, null, values)) return null;
-        return (
-        <Section key={section.id}>
-          <SectionHeader>
-            <SectionTitle>{section.title}</SectionTitle>
-            {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
-          </SectionHeader>
-          <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {section.fields.map((field) => {
-            if (!fieldVisible(field, values)) return null;
-            // Proof/ABV and the age triplet render as linked composites
-            // rather than the generic field; see the label form for the same
-            // pattern. `field` stays in BOTTLE_FIELDS so seeding and the
-            // server's allow-list still see these names.
-            if (field.name === "proof") {
-              return (
-                <ProofAbvFields
-                  key={field.name}
-                  idPrefix="bottle"
-                  value={values.proof ?? ""}
-                  onChange={(next) => set("proof", next)}
-                  error={fieldErrors.proof}
-                />
-              );
-            }
-            if (field.name === "ageMonths" || field.name === "ageDays") return null;
-            if (field.name === "ageYears") {
-              return (
-                <AgeFields
-                  key="age"
-                  idPrefix="bottle"
-                  values={{
-                    ageYears: values.ageYears ?? "",
-                    ageMonths: values.ageMonths ?? "",
-                    ageDays: values.ageDays ?? "",
-                  }}
-                  onChange={(name, next) => set(name, next)}
-                  errors={{
-                    ageYears: fieldErrors.ageYears,
-                    ageMonths: fieldErrors.ageMonths,
-                    ageDays: fieldErrors.ageDays,
-                  }}
-                  help="Filled and bottled above will offer to work this out."
-                />
-              );
-            }
-            return (
-              <Field
-                key={field.name}
-                spec={field}
-                idPrefix="bottle"
-                value={values[field.name] ?? ""}
-                onChange={(next) => set(field.name, next)}
-                error={fieldErrors[field.name]}
-                options={optionsByField[field.name] ?? []}
-                onOptionCreated={(option) =>
-                  setOptionsByField((prev) => ({
-                    ...prev,
-                    [field.name]: [...(prev[field.name] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)),
-                  }))
-                }
-              />
-            );
-          })}
-            {section.id === "override" ? <DeriveAge values={values} set={set} /> : null}
-          </SectionContent>
-        </Section>
-        );
-      })}
+      <BottleFields
+        values={values}
+        onChange={set}
+        options={optionsByField}
+        onOptionCreated={(name, option) => setOptionsByField((prev) => withOption(prev, name, option))}
+        errors={fieldErrors}
+      />
 
       {!state.ok && state.error ? (
         <p

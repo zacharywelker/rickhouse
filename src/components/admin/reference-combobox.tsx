@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { words } from "@/lib/expressions/label-search";
 import { quickCreateAction } from "@/app/(app)/admin/actions";
 import { DETAILED_RESOURCES, type DetailedResource, type Option, type ReferenceResource } from "@/lib/admin/types";
 import { CreateWithDetailsDialog } from "./create-with-details-dialog";
@@ -77,10 +78,16 @@ export function ReferenceCombobox({
   const selected = React.useMemo(() => options.find((o) => o.value === value) ?? null, [options, value]);
 
   const needle = query.trim().toLowerCase();
-  const matches = React.useMemo(
-    () => (needle === "" ? selectable : selectable.filter((o) => o.label.toLowerCase().includes(needle))),
-    [selectable, needle],
-  );
+  // Each typed word on its own, anywhere in the option: "Pursuit Double Oak"
+  // finds "Pursuit Spirits Double Oak", which a whole-phrase match misses.
+  const matches = React.useMemo(() => {
+    const terms = words(needle);
+    if (terms.length === 0) return selectable;
+    return selectable.filter((o) => {
+      const haystack = words(o.label).join(" ");
+      return terms.every((term) => haystack.includes(term));
+    });
+  }, [selectable, needle]);
 
   const exactExists = selectable.some((o) => o.label.toLowerCase() === needle);
   const canCreate = resource !== null && needle.length > 0 && !exactExists;

@@ -831,6 +831,18 @@ export const passwordHistory = pgTable(
   (t) => [index("password_history_user_idx").on(t.userId, t.id.desc())],
 );
 
+/**
+ * Per-account preferences, set on the Configuration page. No row means every
+ * default; a row is written the first time something is changed.
+ */
+export const userPreferences = pgTable("user_preferences", {
+  userId: integer("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** "Add bottle" opens the search-first page that saves a label and its bottle together. */
+  searchFirstAdd: boolean("search_first_add").notNull().default(false),
+});
+
 // ------------------------------------------------------------
 // Email and single sign-on (configured from the admin pages)
 // ------------------------------------------------------------

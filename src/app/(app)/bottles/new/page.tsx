@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { BottleForm } from "@/components/expressions/bottle-form";
 import { Button } from "@/components/ui/button";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { expressionOptions } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
+import { getPreferences } from "@/lib/preferences";
 
 export const metadata: Metadata = { title: "Add a bottle" };
 export const dynamic = "force-dynamic";
@@ -15,8 +17,13 @@ export default async function NewBottlePage({
   searchParams: Promise<{ expression?: string }>;
 }) {
   const user = await requireSession();
-  const [{ expression }, expressions, stores] = await Promise.all([
-    searchParams,
+  const [{ expression }, preferences] = await Promise.all([searchParams, getPreferences(user.id)]);
+  // Switched on in Configuration: every "Add bottle" in the app leads to the
+  // search-first page instead, with the label kept if one was chosen.
+  if (preferences.searchFirstAdd) {
+    redirect(expression && /^\d+$/.test(expression) ? `/bottles/add?expression=${expression}` : "/bottles/add");
+  }
+  const [expressions, stores] = await Promise.all([
     expressionOptions(user.id),
     REFERENCE_OPTION_LOADERS.stores(user.id),
   ]);

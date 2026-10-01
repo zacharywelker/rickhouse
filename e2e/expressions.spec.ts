@@ -114,8 +114,11 @@ test("creates a blended expression with ordered distilleries, then a bottle, the
   await expect(distilleryList.getByRole("listitem").nth(1)).toContainText(newDistillery);
 
   await pick(page, "Add finishes", "French Oak");
-  await page.getByRole("button", { name: "Create Label" }).click();
-  await expect(page).toHaveURL("/expressions");
+  await page.getByRole("button", { name: "Create Label", exact: true }).click();
+  // A saved label opens its own page.
+  await expect(page).toHaveURL(/\/expressions\/\d+$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(name);
+  await page.goto("/expressions");
   await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
 
   // --- the bottle ---
@@ -196,8 +199,9 @@ test("recategorising does not silently wipe the hidden fields", async ({ page })
   await page.getByLabel("Label Name").fill(name);
   await page.getByLabel("Marque").fill("DOK");
   await page.getByLabel("Esters (g/hLAA)").fill("1500");
-  await page.getByRole("button", { name: "Create Label" }).click();
-  await expect(page).toHaveURL("/expressions");
+  await page.getByRole("button", { name: "Create Label", exact: true }).click();
+  await expect(page).toHaveURL(/\/expressions\/\d+$/);
+  await page.goto("/expressions");
 
   // Recategorise it as a Bourbon, which hides the rum section entirely.
   await page.getByRole("row").filter({ hasText: name }).getByRole("link", { name: /Edit/ }).click();
@@ -205,7 +209,8 @@ test("recategorising does not silently wipe the hidden fields", async ({ page })
   await pick(page, "Category", "Bourbon");
   await expect(page.getByRole("heading", { name: "Rum detail" })).toBeHidden();
   await page.getByRole("button", { name: "Save Label" }).click();
-  await expect(page).toHaveURL("/expressions");
+  await expect(page).toHaveURL(/\/expressions\/\d+$/);
+  await page.goto("/expressions");
 
   // Switching back must find the esters still there.
   await page.getByRole("row").filter({ hasText: name }).getByRole("link", { name: /Edit/ }).click();

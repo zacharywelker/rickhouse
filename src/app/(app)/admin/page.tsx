@@ -2,18 +2,21 @@ import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Section, SectionContent } from "@/components/ui/section";
+import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
+import { PreferenceToggle } from "@/components/preferences/preference-toggle";
 import { RESOURCES, RESOURCE_KEYS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
+import { getPreferences } from "@/lib/preferences";
 
 export const metadata: Metadata = { title: "Configuration" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminIndexPage() {
   const user = await requireSession();
-  const counts = await Promise.all(
-    RESOURCE_KEYS.map(async (key) => ({ key, count: (await RESOURCES[key].list(user.id)).length })),
-  );
+  const [counts, preferences] = await Promise.all([
+    Promise.all(RESOURCE_KEYS.map(async (key) => ({ key, count: (await RESOURCES[key].list(user.id)).length }))),
+    getPreferences(user.id),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -43,6 +46,19 @@ export default async function AdminIndexPage() {
           );
         })}
       </div>
+
+      <Section className="mt-4">
+        <SectionHeader>
+          <SectionTitle>Trying out</SectionTitle>
+          <SectionDescription>New ways of working, yours to switch on before they become the default.</SectionDescription>
+        </SectionHeader>
+        <SectionContent className="max-w-2xl">
+          <PreferenceToggle name="searchFirstAdd" checked={preferences.searchFirstAdd} label="Search-first Add bottle">
+            &ldquo;Add bottle&rdquo; starts with a search of your labels. Pick one and fill in the bottle, or start a
+            new label on the same page and save the label, the bottle and its photos together.
+          </PreferenceToggle>
+        </SectionContent>
+      </Section>
     </div>
   );
 }

@@ -53,6 +53,7 @@ const TABLES = [
   "sso_providers",
   "passkeys",
   "password_history",
+  "user_preferences",
   "two_factors",
   "verifications",
   "sessions",
