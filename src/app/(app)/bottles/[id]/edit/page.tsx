@@ -4,6 +4,7 @@ import { BottleForm } from "@/components/expressions/bottle-form";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { expressionOptions, getBottle } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
+import { bottleSuggestions } from "@/lib/bottles/suggestions-query";
 
 export const metadata: Metadata = { title: "Edit bottle" };
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export default async function EditBottlePage({ params }: { params: Promise<{ id:
   if (!row) notFound();
 
   const [expressions, stores] = await Promise.all([expressionOptions(user.id), REFERENCE_OPTION_LOADERS.stores(user.id)]);
+  const suggestions = await bottleSuggestions(user.id, stores.map((store) => store.label));
 
   return (
     <div className="flex flex-col gap-6">
@@ -30,6 +32,7 @@ export default async function EditBottlePage({ params }: { params: Promise<{ id:
         bottleId={bottleId}
         initialValues={row.bottle as unknown as Record<string, string | number | boolean | null>}
         options={{ expressionId: expressions, storeId: stores }}
+        suggestions={suggestions}
       />
     </div>
   );

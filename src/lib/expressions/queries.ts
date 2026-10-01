@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { describeMashbill, mashbillTitle } from "@/lib/mashbills";
 import {
@@ -20,6 +20,8 @@ import {
   type FieldGroup,
 } from "@/db/schema";
 import type { LabelFilters } from "@/lib/expressions/filters";
+import { matchingLabelIds } from "@/lib/expressions/label-search";
+import { loadLabelDocs } from "@/lib/expressions/label-search-docs";
 import type { LinkedRow } from "@/components/expressions/ordered-picker";
 
 export type LinkedEntity = {
@@ -192,8 +194,10 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
 
   const clauses = [eq(expressions.ownerId, ownerId)];
   if (filters.q) {
-    const match = or(ilike(expressions.name, `%${filters.q}%`), ilike(brands.name, `%${filters.q}%`));
-    if (match) clauses.push(match);
+    // The same word-by-word matching as the add-bottle search, so "Pursuit
+    // Double Oak" finds what it finds there. The list keeps its own sort.
+    const ids = matchingLabelIds(await loadLabelDocs(ownerId), filters.q);
+    clauses.push(ids.length > 0 ? inArray(expressions.id, ids) : sql`false`);
   }
   if (filters.brandIds.length > 0) clauses.push(inArray(expressions.brandId, filters.brandIds));
   if (filters.categoryIds.length > 0) clauses.push(inArray(expressions.categoryId, filters.categoryIds));
@@ -473,5 +477,71 @@ export async function tastingNotesFor(bottleId: number) {
     .select()
     .from(tastingNotes)
     .where(eq(tastingNotes.bottleId, bottleId))
+    .orderBy(desc(tastingNotes.tastedOn), desc(tastingNotes.id));
+}
+
+/**
+ * Every bottle of a label, for the label's page: what tells one bottle of
+ * the same product from another (batch, barrel, pick), and where each is in
+ * its life. Proof is the bottle's own override only; blank means it reads
+ * as the label's.
+ */
+export async function bottlesOfLabel(expressionId: number, ownerId: number) {
+  return db
+    .select({
+      id: bottles.id,
+      batch: bottles.batch,
+      releaseYear: bottles.releaseYear,
+      barrelNumber: bottles.barrelNumber,
+      pickName: bottles.pickName,
+      pickedBy: bottles.pickedBy,
+      isSingleBarrel: bottles.isSingleBarrel,
+      isSingleBarrelPick: bottles.isSingleBarrelPick,
+      proof: bottles.proof,
+      ageStatement: bottles.ageStatement,
+      pricePaid: bottles.pricePaid,
+      dateAcquired: bottles.dateAcquired,
+      fillPct: bottles.fillPct,
+      status: bottles.status,
+      isOpen: bottles.isOpen,
+      store: { name: stores.name, slug: stores.slug },
+      thumbPath: sql<string | null>`(
+        select coalesce(${bottleImages.thumbPath}, ${bottleImages.filePath}) from ${bottleImages}
+        where ${bottleImages.bottleId} = ${bottles.id}
+        order by ${bottleImages.isPrimary} desc, ${bottleImages.sortOrder}, ${bottleImages.id}
+        limit 1
+      )`,
+      filePath: sql<string | null>`(
+        select ${bottleImages.filePath} from ${bottleImages}
+        where ${bottleImages.bottleId} = ${bottles.id}
+        order by ${bottleImages.isPrimary} desc, ${bottleImages.sortOrder}, ${bottleImages.id}
+        limit 1
+      )`,
+    })
+    .from(bottles)
+    .leftJoin(stores, eq(bottles.storeId, stores.id))
+    .where(and(eq(bottles.expressionId, expressionId), eq(bottles.ownerId, ownerId)))
+    .orderBy(sql`${bottles.dateAcquired} desc nulls last`, desc(bottles.id));
+}
+
+/** Tasting notes from every bottle of a label, newest first, each knowing its bottle. */
+export async function tastingNotesForLabel(expressionId: number, ownerId: number) {
+  return db
+    .select({
+      id: tastingNotes.id,
+      bottleId: tastingNotes.bottleId,
+      tastedOn: tastingNotes.tastedOn,
+      rating: tastingNotes.rating,
+      nose: tastingNotes.nose,
+      palate: tastingNotes.palate,
+      finish: tastingNotes.finish,
+      overall: tastingNotes.overall,
+      batch: bottles.batch,
+      barrelNumber: bottles.barrelNumber,
+      pickName: bottles.pickName,
+    })
+    .from(tastingNotes)
+    .innerJoin(bottles, eq(tastingNotes.bottleId, bottles.id))
+    .where(and(eq(bottles.expressionId, expressionId), eq(bottles.ownerId, ownerId)))
     .orderBy(desc(tastingNotes.tastedOn), desc(tastingNotes.id));
 }

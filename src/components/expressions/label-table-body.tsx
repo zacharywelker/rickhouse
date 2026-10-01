@@ -46,7 +46,7 @@ function errorText(errors: RowErrors): string {
 
 /**
  * Mirrors the bottle grid's double-click-to-open (SPEC M8): the row opens
- * the label's edit page, skipped when the pointer is on something that
+ * the label's page, skipped when the pointer is on something that
  * already does its own thing or there is a text selection to preserve.
  */
 function openOnDoubleClick(event: React.MouseEvent, router: ReturnType<typeof useRouter>, id: number) {
@@ -54,7 +54,7 @@ function openOnDoubleClick(event: React.MouseEvent, router: ReturnType<typeof us
     return;
   }
   if ((window.getSelection()?.toString() ?? "") !== "") return;
-  router.push(`/expressions/${id}/edit` as Route);
+  router.push(`/expressions/${id}` as Route);
 }
 
 /** A stored value as the table shows it, by the kind of field it is. */
@@ -165,10 +165,11 @@ export function LabelTableBody({
       case "name":
         return (
           <>
-            {/* Brand folds in here on a phone; the edit link is the only
-                way into a label, so it must never be squeezed off. */}
+            {/* Brand folds in here on a phone, so the name alone still says which label it is. */}
             <span className="block text-xs text-muted-foreground sm:hidden">{row.brand}</span>
-            <span className="text-accent">{row.name}</span>
+            <Link href={`/expressions/${row.id}`} className="text-accent hover:underline">
+              {row.name}
+            </Link>
             {row.pickCount > 0 ? (
               <Badge className="ml-2 border-primary/40 text-primary">
                 {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}

@@ -481,6 +481,53 @@ approved label art and what the approval says about who bottled it.
 - **Off switch.** `COLA_LOOKUP=false` stops all fetching and searching; TTB
   IDs and links to the registry still work.
 
+### Search-first Add bottle and label pages ▶ trying out
+
+Adding a haul meant the label form, then the bottle form, then the bottle's
+page for photos: three screens per bottle. The search-first page puts the
+label and the bottle on one page with one save.
+
+- **Off by default, per account.** Configuration → Trying out →
+  "Search-first Add bottle" (`user_preferences.search_first_add`). When on,
+  `/bottles/new` redirects to `/bottles/add`, keeping `?expression=`. The page
+  is reachable directly either way.
+- **Search first.** One box takes a brand, a label name, a distillery, a
+  barcode or a TTB ID. Each word is matched on its own against brand, name,
+  category (with its parents), distilleries and finishes, as a whole word, the
+  start of a word, or with a typo in a longer word, so "Pursuit Double Oak"
+  finds "Pursuit Spirits Double Oak Spirit". Labels matched through their
+  brand, name or category come first; ones that needed a distillery to match
+  are listed apart, under "Distilled at …". Category chips are counted from
+  the matches. `src/lib/expressions/label-search.ts`, which is pure and tested.
+  The Labels list search and the label picker use the same word-by-word
+  matching.
+- **Pick or start.** Picking a label shows it read back, with "Edit label
+  details" to correct it in place. "New label" opens the full label form,
+  with the brand recognised from the leading words when it is already on file
+  (filler like "Spirits" may be left off; "Old Overholt" never matches "Old
+  Forester"), the rest as the name, and a category named in it.
+- **One save.** The label (new, edited, or untouched) and the bottle are
+  written in one transaction; TTB approvals then attach as on New Label, and
+  photos upload through the bottle's own image route once it exists. "Save
+  and add another" keeps the store, date, how you got it and where it lives.
+- **A haul can become a Group.** "Make this haul a group" names it for the
+  haul's store and date and puts its bottles in, in order; bottles saved after
+  join it too. Mid-haul, the main button is "Save, last of the haul", which
+  ends on the haul's summary instead of leaving it behind.
+- **Enter waits for the results.** Pressed before the results for what was
+  typed are in, Enter takes the top one once they are, so a barcode scanner
+  (which types and presses Enter at once) never starts a duplicate label.
+- **Past entries offered.** Picked By, Warehouse, Rick / Floor and Where It
+  Lives offer the account's own past values, most used first, with spellings
+  that differ only in case, punctuation or "&" for "and" folded together and
+  shown in their Title Cased spelling when there is one (otherwise the most
+  used); Picked By also offers store names, whose spelling can win a group. A native datalist, on every bottle form
+  (`src/lib/bottles/suggestions.ts`).
+- **Label pages.** `/expressions/[id]` reads the label: specs, links, every
+  bottle of it with what tells them apart (pick, barrel, batch), its TTB
+  approvals and every bottle's tasting notes. Rows in the labels table and the
+  label name on a bottle's page lead here; editing is a button.
+
 ---
 
 ## Deployment

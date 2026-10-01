@@ -26,6 +26,7 @@ export function Field({
   options,
   onOptionCreated,
   excludeId,
+  suggestions,
 }: {
   spec: FieldSpec;
   idPrefix: string;
@@ -36,6 +37,12 @@ export function Field({
   onOptionCreated?: (option: Option) => void;
   /** For self-referencing pickers: the row being edited. */
   excludeId?: number | undefined;
+  /**
+   * Text fields only: your own past values, offered as you type. A native
+   * datalist, so it works the same with a keyboard, a screen reader and a
+   * phone's suggestion bar, and never stops you typing something new.
+   */
+  suggestions?: string[] | undefined;
 }) {
   const inputId = `${idPrefix}-${spec.name}`;
   const required = "required" in spec && spec.required === true;
@@ -66,7 +73,17 @@ export function Field({
           aria-invalid={error ? true : undefined}
           className={cn(error && "border-destructive")}
           {...(spec.kind === "number" ? { min: spec.min, max: spec.max, step: spec.step ?? 1 } : {})}
+          {...(spec.kind === "text" && suggestions && suggestions.length > 0
+            ? { list: `${inputId}-suggestions`, autoComplete: "off" }
+            : {})}
         />
+      ) : null}
+      {spec.kind === "text" && suggestions && suggestions.length > 0 ? (
+        <datalist id={`${inputId}-suggestions`}>
+          {suggestions.map((suggestion) => (
+            <option key={suggestion} value={suggestion} />
+          ))}
+        </datalist>
       ) : null}
 
       {spec.kind === "textarea" ? (

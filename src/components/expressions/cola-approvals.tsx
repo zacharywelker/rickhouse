@@ -212,14 +212,17 @@ export function PendingColas({
   distilleryIds,
   lookupEnabled,
   className,
+  initialTtbIds = [],
 }: {
   brandName: string;
   labelName: string;
   distilleryIds?: number[];
   lookupEnabled: boolean;
   className?: string;
+  /** Already chosen, such as a TTB ID typed into the add-bottle search that no label has yet. */
+  initialTtbIds?: string[];
 }) {
-  const [pending, setPending] = React.useState<PendingCola[]>([]);
+  const [pending, setPending] = React.useState<PendingCola[]>(() => initialTtbIds.map(stubCola));
   const pendingIds = React.useMemo(() => new Set(pending.map((cola) => cola.ttbId)), [pending]);
   const full = pending.length >= MAX_PENDING_COLAS;
 

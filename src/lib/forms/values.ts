@@ -1,4 +1,4 @@
-import type { FieldSpec } from "@/lib/admin/types";
+import type { FieldSpec, Option } from "@/lib/admin/types";
 
 export type FieldValue = string | boolean;
 
@@ -39,4 +39,9 @@ export function initialFieldValues(
     }
   }
   return values;
+}
+
+/** A picker's newly created option, added to its list in name order. */
+export function withOption(prev: Record<string, Option[]>, name: string, option: Option): Record<string, Option[]> {
+  return { ...prev, [name]: [...(prev[name] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)) };
 }

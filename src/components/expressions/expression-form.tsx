@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
+import { withOption } from "@/lib/forms/values";
 import { saveExpressionAction } from "@/app/(app)/expressions/actions";
 import { EXPRESSION_SECTIONS, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type FieldSpec, type Option } from "@/lib/admin/types";
@@ -19,57 +20,58 @@ import { OrderedPicker, type LinkedRow } from "./ordered-picker";
 import { DeleteExpressionButton } from "./delete-expression-button";
 import { PendingColas } from "./cola-approvals";
 
-const ALL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
+/** Every field on the label form, for seeding state from a row or from nothing. */
+export const LABEL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
 
-export function ExpressionForm({
-  expressionId,
-  initialValues,
-  initialLinks,
+export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
+
+export const EMPTY_LINKS: LabelLinks = { distilleries: [], mashbills: [], finishes: [] };
+
+/** One field changed, with an age statement offered as the age is typed. */
+export function withLabelChange(
+  prev: Record<string, FieldValue>,
+  name: string,
+  value: FieldValue,
+): Record<string, FieldValue> {
+  const next = { ...prev, [name]: value };
+  const offered = offeredAgeStatement(prev, next, name);
+  if (offered !== null) next.ageStatement = offered;
+  return next;
+}
+
+/**
+ * The label's fields and its three ordered lists, without a form around
+ * them: New Label and Edit Label wrap them in their own form, and the
+ * search-first Add bottle page puts them above the bottle's in one save.
+ */
+export function ExpressionFields({
+  values,
+  onChange,
+  links,
+  onLinksChange,
   options,
+  onOptionCreated,
   categoryGroups,
-  colaLookup = false,
+  errors,
+  idPrefix = "expression",
 }: {
-  expressionId: number | null;
-  initialValues: Record<string, string | number | boolean | null> | null;
-  initialLinks: { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
+  values: Record<string, FieldValue>;
+  onChange: (name: string, value: FieldValue) => void;
+  links: LabelLinks;
+  onLinksChange: (links: LabelLinks) => void;
   options: Record<string, Option[]>;
+  onOptionCreated: (name: string, option: Option) => void;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
-  /** Whether TTB's registry can be searched; on New Label, for picking approvals to attach. */
-  colaLookup?: boolean;
+  errors: Record<string, string>;
+  idPrefix?: string;
 }) {
-  const router = useRouter();
-  const [values, setValues] = React.useState(() => initialFieldValues(ALL_FIELDS, initialValues));
-  const [optionsByField, setOptionsByField] = React.useState(options);
-  const [links, setLinks] = React.useState(initialLinks);
-
-  const action = saveExpressionAction.bind(null, expressionId);
-  const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
-
-  const saved = state.ok && state.message !== "";
-  const bottleId = state.ok ? state.bottleId : undefined;
-  React.useEffect(() => {
-    if (!saved) return;
-    // With a bottle just added, land on its edit page to fill in price, store, etc.
-    router.push(bottleId !== undefined ? `/bottles/${bottleId}/edit` : "/expressions");
-    router.refresh();
-  }, [saved, bottleId, state, router]);
-
-  const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
-  const set = (name: string, value: FieldValue) =>
-    setValues((prev) => {
-      const next = { ...prev, [name]: value };
-      const offered = offeredAgeStatement(prev, next, name);
-      if (offered !== null) next.ageStatement = offered;
-      return next;
-    });
-
   const categoryRaw = values.categoryId;
   const categoryId = typeof categoryRaw === "string" && categoryRaw !== "" ? Number(categoryRaw) : null;
   const fieldGroup: FieldGroup = (categoryId !== null ? categoryGroups[categoryId] : undefined) ?? "other";
 
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    <>
       {EXPRESSION_SECTIONS.map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
         return (
@@ -87,10 +89,10 @@ export function ExpressionForm({
                   return (
                     <ProofAbvFields
                       key={field.name}
-                      idPrefix="expression"
+                      idPrefix={idPrefix}
                       value={values.proof ?? ""}
-                      onChange={(next) => set("proof", next)}
-                      error={fieldErrors.proof}
+                      onChange={(next) => onChange("proof", next)}
+                      error={errors.proof}
                     />
                   );
                 }
@@ -99,17 +101,17 @@ export function ExpressionForm({
                   return (
                     <AgeFields
                       key="age"
-                      idPrefix="expression"
+                      idPrefix={idPrefix}
                       values={{
                         ageYears: values.ageYears ?? "",
                         ageMonths: values.ageMonths ?? "",
                         ageDays: values.ageDays ?? "",
                       }}
-                      onChange={(name, next) => set(name, next)}
+                      onChange={(name, next) => onChange(name, next)}
                       errors={{
-                        ageYears: fieldErrors.ageYears,
-                        ageMonths: fieldErrors.ageMonths,
-                        ageDays: fieldErrors.ageDays,
+                        ageYears: errors.ageYears,
+                        ageMonths: errors.ageMonths,
+                        ageDays: errors.ageDays,
                       }}
                     />
                   );
@@ -118,19 +120,12 @@ export function ExpressionForm({
                   <Field
                     key={field.name}
                     spec={field}
-                    idPrefix="expression"
+                    idPrefix={idPrefix}
                     value={values[field.name] ?? ""}
-                    onChange={(next) => set(field.name, next)}
-                    error={fieldErrors[field.name]}
-                    options={optionsByField[field.name] ?? []}
-                    onOptionCreated={(option) =>
-                      setOptionsByField((prev) => ({
-                        ...prev,
-                        [field.name]: [...(prev[field.name] ?? []), option].sort((a, b) =>
-                          a.label.localeCompare(b.label),
-                        ),
-                      }))
-                    }
+                    onChange={(next) => onChange(field.name, next)}
+                    error={errors[field.name]}
+                    options={options[field.name] ?? []}
+                    onOptionCreated={(option) => onOptionCreated(field.name, option)}
                   />
                 );
               })}
@@ -153,13 +148,13 @@ export function ExpressionForm({
             label="Distilleries"
             description="Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere."
             resource="distilleries"
-            options={optionsByField.distilleryLinks ?? []}
+            options={options.distilleryLinks ?? []}
             amountLabel="Share"
             amountSuffix="%"
             inferable
             undisclosable
             value={links.distilleries}
-            onChange={(rows) => setLinks((prev) => ({ ...prev, distilleries: rows }))}
+            onChange={(rows) => onLinksChange({ ...links, distilleries: rows })}
           />
           <OrderedPicker
             name="mashbillLinks"
@@ -167,11 +162,11 @@ export function ExpressionForm({
             description="One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
             resource={null}
             emptyHint="No mashbills yet — add a new one from here."
-            options={optionsByField.mashbillLinks ?? []}
+            options={options.mashbillLinks ?? []}
             amountLabel="Share"
             amountSuffix="%"
             value={links.mashbills}
-            onChange={(rows) => setLinks((prev) => ({ ...prev, mashbills: rows }))}
+            onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
             distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
           />
           <OrderedPicker
@@ -179,14 +174,71 @@ export function ExpressionForm({
             label="Finishes"
             description="In sequence, for a double or triple finish."
             resource="finishes"
-            options={optionsByField.finishLinks ?? []}
+            options={options.finishLinks ?? []}
             amountLabel="Months"
             amountSuffix="mo"
             value={links.finishes}
-            onChange={(rows) => setLinks((prev) => ({ ...prev, finishes: rows }))}
+            onChange={(rows) => onLinksChange({ ...links, finishes: rows })}
           />
         </SectionContent>
       </Section>
+    </>
+  );
+}
+
+export function ExpressionForm({
+  expressionId,
+  initialValues,
+  initialLinks,
+  options,
+  categoryGroups,
+  colaLookup = false,
+}: {
+  expressionId: number | null;
+  initialValues: Record<string, string | number | boolean | null> | null;
+  initialLinks: { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
+  options: Record<string, Option[]>;
+  /** categoryId -> field group, so sections react without a round trip. */
+  categoryGroups: Record<number, FieldGroup>;
+  /** Whether TTB's registry can be searched; on New Label, for picking approvals to attach. */
+  colaLookup?: boolean;
+}) {
+  const router = useRouter();
+  const [values, setValues] = React.useState(() => initialFieldValues(LABEL_FIELDS, initialValues));
+  const [optionsByField, setOptionsByField] = React.useState(options);
+  const [links, setLinks] = React.useState(initialLinks);
+
+  const action = saveExpressionAction.bind(null, expressionId);
+  const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
+
+  const saved = state.ok && state.message !== "";
+  const bottleId = state.ok ? state.bottleId : undefined;
+  const savedId = state.ok ? state.createdId : undefined;
+  React.useEffect(() => {
+    if (!saved) return;
+    // With a bottle just added, land on its edit page to fill in price, store,
+    // etc.; otherwise on the label's own page.
+    router.push(
+      bottleId !== undefined ? `/bottles/${bottleId}/edit` : savedId !== undefined ? `/expressions/${savedId}` : "/expressions",
+    );
+    router.refresh();
+  }, [saved, bottleId, savedId, state, router]);
+
+  const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
+  const set = (name: string, value: FieldValue) => setValues((prev) => withLabelChange(prev, name, value));
+
+  return (
+    <form action={formAction} className="flex flex-col gap-6">
+      <ExpressionFields
+        values={values}
+        onChange={set}
+        links={links}
+        onLinksChange={setLinks}
+        options={optionsByField}
+        onOptionCreated={(name, option) => setOptionsByField((prev) => withOption(prev, name, option))}
+        categoryGroups={categoryGroups}
+        errors={fieldErrors}
+      />
 
       {expressionId === null ? (
         // A new label's approvals, attached on create (SPEC M11). An existing
@@ -216,7 +268,7 @@ export function ExpressionForm({
           </div>
         ) : null}
         <Button type="button" variant="outline" asChild>
-          <Link href="/expressions">Cancel</Link>
+          <Link href={expressionId ? `/expressions/${expressionId}` : "/expressions"}>Cancel</Link>
         </Button>
         <Button type="submit" disabled={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}

@@ -32,7 +32,8 @@ export async function expressionFormData(expressionId: number | null, ownerId: n
   return { options, categoryGroups, links };
 }
 
-async function loadLinks(expressionId: number) {
+/** A label's three lists as the form's pickers hold them. */
+export async function loadLinks(expressionId: number) {
   const linked = await expressionLinks(expressionId);
   const toRows = (rows: Array<{ id: number; name: string; amount: string | null }>): LinkedRow[] =>
     rows.map((row) => ({

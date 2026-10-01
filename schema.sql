@@ -569,6 +569,15 @@ CREATE TABLE password_history (
     password_hash text NOT NULL,
     created_at    timestamptz NOT NULL DEFAULT now()
 );
+
+-- Per-account preferences, set on the Configuration page. No row means every
+-- default; a row is written the first time something is changed.
+CREATE TABLE user_preferences (
+    user_id          integer PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    -- "Add bottle" opens the search-first page that saves a label and its
+    -- bottle together. Off until it has earned being the default.
+    search_first_add boolean NOT NULL DEFAULT false
+);
 CREATE INDEX password_history_user_idx ON password_history(user_id, id DESC);
 
 CREATE FUNCTION remember_old_password() RETURNS trigger LANGUAGE plpgsql AS $$
