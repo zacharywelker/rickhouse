@@ -23,7 +23,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   // headers() first: it is what marks the page dynamic, so nothing below
   // (getAuth reads the database) runs while Next prerenders at build time.
   const requestHeaders = await headers();
-  const session = await (await getAuth()).api.getSession({ headers: requestHeaders });
+  const session = await (await getAuth(requestHeaders)).api.getSession({ headers: requestHeaders });
   if (!session) return null;
   const { user } = session;
   return {

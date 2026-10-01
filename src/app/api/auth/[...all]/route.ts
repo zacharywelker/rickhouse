@@ -33,10 +33,12 @@ function withClientIp(request: Request): Request {
 
 export async function GET(request: Request): Promise<Response> {
   if (blocked(request)) return new Response("Not found", { status: 404 });
-  return toNextJsHandler(await getAuth()).GET(withClientIp(request));
+  const forwarded = withClientIp(request);
+  return toNextJsHandler(await getAuth(forwarded.headers)).GET(forwarded);
 }
 
 export async function POST(request: Request): Promise<Response> {
   if (blocked(request)) return new Response("Not found", { status: 404 });
-  return toNextJsHandler(await getAuth()).POST(withClientIp(request));
+  const forwarded = withClientIp(request);
+  return toNextJsHandler(await getAuth(forwarded.headers)).POST(forwarded);
 }

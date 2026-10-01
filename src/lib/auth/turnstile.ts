@@ -1,6 +1,7 @@
 import type { captcha } from "better-auth/plugins";
 import { CLIENT_IP_HEADER, buildBlockList, listIncludes } from "./client-ip";
 import { clientIpOf } from "./request-ip";
+import { sentToAppUrl } from "./request-url";
 import { env } from "@/lib/env";
 
 let skipNetworks: ReturnType<typeof buildBlockList> | undefined;
@@ -9,25 +10,6 @@ let skipNetworks: ReturnType<typeof buildBlockList> | undefined;
 export function turnstileConfigured(): boolean {
   const { TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY } = env();
   return Boolean(TURNSTILE_SITE_KEY && TURNSTILE_SECRET_KEY);
-}
-
-/** "192.168.1.10:1964" -> "192.168.1.10"; null for anything that isn't a host. */
-function hostnameOf(host: string): string | null {
-  try {
-    return new URL(`http://${host.trim()}`).hostname;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Whether the request was sent to APP_URL's hostname. Reverse proxies and
- * tunnels route on that name and pass it on, as Host or, when they rewrite
- * Host, as X-Forwarded-Host.
- */
-function sentToAppUrl(headers: Headers, appHostname: string): boolean {
-  const hosts = [headers.get("host"), ...(headers.get("x-forwarded-host") ?? "").split(",")];
-  return hosts.some((host) => host && hostnameOf(host) === appHostname);
 }
 
 /**

@@ -11,6 +11,6 @@ import { getAuth } from "@/lib/auth/server";
  */
 export async function logout(): Promise<void> {
   const requestHeaders = await headers();
-  await (await getAuth()).api.signOut({ headers: requestHeaders });
+  await (await getAuth(requestHeaders)).api.signOut({ headers: requestHeaders });
   redirect("/login");
 }
