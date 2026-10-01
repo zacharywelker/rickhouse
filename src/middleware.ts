@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   // A real database lookup, not just a signature check: a deactivated user
   // or a revoked session is out on the very next request.
-  const { headers: sessionHeaders, response: session } = await (await getAuth()).api.getSession({
+  const { headers: sessionHeaders, response: session } = await (await getAuth(request.headers)).api.getSession({
     headers: request.headers,
     returnHeaders: true,
   });

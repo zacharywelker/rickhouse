@@ -46,6 +46,7 @@ COOKIE_SECURE=true
 TRUSTED_PROXIES=
 ```
 
+- **`COOKIE_SECURE`** marks the sign-in cookie Secure on HTTPS visits. Visits straight to the LAN address over plain HTTP keep an ordinary cookie, because browsers throw Secure ones away there.
 - **`APP_URL`** is the address people type. Email, single sign-on and passkeys need it. It also fixes "invalid origin" errors behind tunnels that rewrite the `Host` header.
 - **`TRUSTED_PROXIES`**: Rickhouse allows 5 sign-in attempts a minute per visitor IP. It takes the visitor to be the last address in `X-Forwarded-For`, the one your proxy added. When something else sits in front of that proxy, such as Cloudflare, the last address is Cloudflare's, so list those addresses here and Rickhouse looks past them. Otherwise every visitor shares one limit. The sections below say what each setup needs.
 
@@ -237,7 +238,7 @@ To read the data without Rickhouse, extract `csv.tar.gz` and open the CSVs in a 
 
 **Health check:** `curl http://localhost:1964/api/health` should return `{"status":"ok","database":"up"}`.
 
-**Sign-in does nothing, or you're signed straight back out:** `COOKIE_SECURE` must be `false` over plain HTTP and `true` over HTTPS.
+**Sign-in does nothing, or you're signed straight back out:** the browser threw the sign-in cookie away. With `COOKIE_SECURE=true`, Rickhouse marks it Secure for any visit to the `APP_URL` hostname or any visit your proxy reports as HTTPS (`X-Forwarded-Proto`), and browsers drop Secure cookies over plain HTTP. So open `APP_URL` over HTTPS, or use the LAN address (`http://192.168.1.10:1964`). If you never use HTTPS, set `COOKIE_SECURE=false`.
 
 **"Too many tries":** wait a minute. If everyone sees it at once behind Cloudflare, set `TRUSTED_PROXIES`.
 

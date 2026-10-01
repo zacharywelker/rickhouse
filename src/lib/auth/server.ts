@@ -19,6 +19,7 @@ import { CLIENT_IP_HEADER } from "./client-ip";
 import { PASSWORD_COMPROMISED_MESSAGE, PASSWORD_REUSED_CODE, PASSWORD_REUSED_MESSAGE, reusesRecentPassword } from "./password-checks";
 import { sameHostOrigins } from "./origins";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./passwords";
+import { secureCookiesFor } from "./request-url";
 import { skippingNetworks } from "./turnstile";
 
 /**
@@ -57,7 +58,7 @@ type RuntimeSettings = {
  * and SSO are edited from the admin pages at run time — so the instance is
  * built from the current settings and rebuilt when they change.
  */
-function buildAuth(settings: RuntimeSettings) {
+function buildAuth(settings: RuntimeSettings, secureCookies: boolean) {
   const config = env();
   const appUrl = config.APP_URL;
 
@@ -174,7 +175,8 @@ function buildAuth(settings: RuntimeSettings) {
     },
     advanced: {
       cookiePrefix: "rickhouse",
-      useSecureCookies: config.COOKIE_SECURE,
+      // Chosen per request by getAuth; see secureCookiesFor.
+      useSecureCookies: secureCookies,
       database: { generateId: "serial" },
       ipAddress: {
         // Set by the /api/auth route from X-Forwarded-For (see client-ip.ts).
@@ -274,8 +276,11 @@ type Auth = ReturnType<typeof buildAuth>;
 /** How often settings are re-checked; admin changes land within this. */
 const RECHECK_MS = 10_000;
 
+/** The same settings twice: Secure cookies for HTTPS requests, plain ones otherwise. */
+type Instances = { secure: Auth; plain: Auth };
+
 const cache = globalThis as unknown as {
-  __rickhouseAuth?: { auth: Auth; stamp: string; checkedAt: number };
+  __rickhouseAuthInstances?: Instances & { stamp: string; checkedAt: number };
 };
 
 /** Changes whenever SMTP or an SSO provider is added, edited or removed. */
@@ -289,25 +294,37 @@ async function settingsStamp(): Promise<string> {
   return row?.stamp ?? "";
 }
 
-export async function getAuth(): Promise<Auth> {
+async function instances(): Promise<Instances> {
   const now = Date.now();
-  const current = cache.__rickhouseAuth;
-  if (current && now - current.checkedAt < RECHECK_MS) return current.auth;
+  const current = cache.__rickhouseAuthInstances;
+  if (current && now - current.checkedAt < RECHECK_MS) return current;
 
   const stamp = await settingsStamp();
   if (current && current.stamp === stamp) {
     current.checkedAt = now;
-    return current.auth;
+    return current;
   }
   const [email, sso] = await Promise.all([emailEnabled(), enabledSsoConfigs()]);
-  const auth = buildAuth({ email, sso });
-  cache.__rickhouseAuth = { auth, stamp, checkedAt: now };
-  return auth;
+  const plain = buildAuth({ email, sso }, false);
+  const secure = env().COOKIE_SECURE ? buildAuth({ email, sso }, true) : plain;
+  cache.__rickhouseAuthInstances = { secure, plain, stamp, checkedAt: now };
+  return cache.__rickhouseAuthInstances;
+}
+
+/**
+ * The Better Auth instance for a request. Both read and write the session
+ * cookie, so each request uses the one matching how the browser reached us:
+ * Secure cookies over HTTPS, plain ones on the LAN address over HTTP (see
+ * secureCookiesFor). A host only ever sees one kind, so the two never mix.
+ */
+export async function getAuth(requestHeaders: Headers): Promise<Auth> {
+  const { secure, plain } = await instances();
+  return secureCookiesFor(requestHeaders) ? secure : plain;
 }
 
 /** After an admin saves SMTP or SSO settings, so this process picks them up at once. */
 export function forgetAuth(): void {
-  delete cache.__rickhouseAuth;
+  delete cache.__rickhouseAuthInstances;
 }
 
 export type AuthSession = NonNullable<Awaited<ReturnType<Auth["api"]["getSession"]>>>;

@@ -2,6 +2,7 @@
 
 import { and, eq, isNotNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { USER_ROLES, type UserRole } from "@/db/schema";
@@ -130,7 +131,7 @@ export async function resetPasswordAction(userId: number): Promise<UserActionRes
 /** Sends Better Auth's reset link (or an invitation, by the redirect's marker). */
 async function emailLink(email: string, redirectTo: string): Promise<boolean> {
   try {
-    const auth = await getAuth();
+    const auth = await getAuth(await headers());
     await auth.api.requestPasswordReset({ body: { email, redirectTo } });
     return true;
   } catch (error: unknown) {

@@ -33,7 +33,12 @@ const envSchema = z.object({
    */
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(30),
-  /** Set true only when the app is reached over HTTPS; most Unraid LAN setups are not. */
+  /**
+   * Set true when the app is reached over HTTPS, e.g. through a reverse proxy
+   * or tunnel. Session cookies are then marked Secure for HTTPS requests;
+   * plain-HTTP requests straight to the LAN address keep ordinary cookies,
+   * since browsers drop Secure ones there (see secureCookiesFor).
+   */
   COOKIE_SECURE: z
     .enum(["true", "false"])
     .default("false")
