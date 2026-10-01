@@ -13,7 +13,7 @@ export const LINK_KINDS: Record<
     resource: ReferenceResource | null;
     /** Each row can be marked as identified from outside the label. */
     inferable?: boolean;
-    /** A "Not disclosed…" form for a label that names only a place. */
+    /** A "Distillery not disclosed" tick for a label that names only a place. */
     undisclosable?: boolean;
     emptyHint?: string;
     amountLabel: string;
@@ -63,6 +63,13 @@ export function describeLinks(kind: LinkKind, rows: ReadonlyArray<LinkedRow>): s
 /** The JSON the server's `parseLinks` reads — the same shape the form submits. */
 export function linksPayload(rows: ReadonlyArray<LinkedRow>): string {
   return JSON.stringify(
-    rows.map((row) => ({ id: row.id, amount: row.amount, distilleryId: row.distilleryId ?? null, inferred: row.inferred === true })),
+    rows.map((row) => ({
+      id: row.id,
+      amount: row.amount,
+      distilleryId: row.distilleryId ?? null,
+      inferred: row.inferred === true,
+      // An undisclosed place not yet saved as a row; the save resolves it.
+      ...(row.place ? { place: row.place } : {}),
+    })),
   );
 }
