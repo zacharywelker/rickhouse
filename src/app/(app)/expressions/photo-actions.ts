@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleImages, bottles, expressions } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
-import { contentTypeFor, copyToBottleImage, deleteStoredImage, resolveUpload, storeBottleImageBytes } from "@/lib/images";
+import { contentTypeFor, deleteStoredImage, resolveUpload, storeBottleImageBytes } from "@/lib/images";
 import { readFile } from "node:fs/promises";
 import type { ActionResult } from "@/lib/admin/types";
 
@@ -43,47 +43,6 @@ export async function setLabelPhotoFromBottleImageAction(imageId: number): Promi
     revalidatePath(`/expressions/${row.expressionId}`);
     revalidatePath(`/bottles/${row.bottleId}`);
     return { ok: true, message: "Now the label's photo." };
-  } catch (error: unknown) {
-    return mapDbError(error, { singular: "Image" });
-  }
-}
-
-/** Adds the label's photo to one of its bottles (as the hero if the bottle has none). */
-export async function addLabelPhotoToBottleAction(expressionId: number, bottleId: number): Promise<ActionResult> {
-  const user = await requireSession();
-  try {
-    const [label] = await db
-      .select({ photoPath: expressions.photoPath })
-      .from(expressions)
-      .where(and(eq(expressions.id, expressionId), eq(expressions.ownerId, user.id)))
-      .limit(1);
-    if (!label?.photoPath) return { ok: false, error: "This label has no photo yet." };
-
-    const owned = await db.$count(
-      bottles,
-      and(eq(bottles.id, bottleId), eq(bottles.ownerId, user.id), eq(bottles.expressionId, expressionId)),
-    );
-    if (owned === 0) return { ok: false, error: "That bottle is gone." };
-
-    const [existing] = await db
-      .select({ count: sql<number>`count(*)::int`, maxOrder: sql<number>`coalesce(max(${bottleImages.sortOrder}), -1)::int` })
-      .from(bottleImages)
-      .where(eq(bottleImages.bottleId, bottleId));
-    const isFirst = (existing?.count ?? 0) === 0;
-
-    const stored = await copyToBottleImage(label.photoPath);
-    await db.insert(bottleImages).values({
-      bottleId,
-      filePath: stored.filePath,
-      thumbPath: stored.thumbPath,
-      isPrimary: isFirst,
-      kind: isFirst ? "catalog" : "life",
-      sortOrder: (existing?.maxOrder ?? -1) + 1,
-    });
-
-    revalidatePath(`/bottles/${bottleId}`);
-    revalidatePath("/bottles");
-    return { ok: true, message: "Added to the bottle." };
   } catch (error: unknown) {
     return mapDbError(error, { singular: "Image" });
   }

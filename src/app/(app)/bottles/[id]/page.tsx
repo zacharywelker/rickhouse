@@ -58,7 +58,9 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
     colas.map((cola) => cola.permitNumber),
   );
 
-  const hero = images.find((image) => image.isPrimary) ?? images[0] ?? null;
+  const ownHero = images.find((image) => image.isPrimary) ?? images[0] ?? null;
+  // No photo of its own: show the label's.
+  const hero = ownHero ?? (row.expression.photoPath ? { filePath: row.expression.photoPath } : null);
   const e = row.expression;
   const b = row.bottle;
   const group = row.category.fieldGroup;

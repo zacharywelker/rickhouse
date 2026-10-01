@@ -153,11 +153,7 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
               )}
             </div>
           </Polaroid>
-          <LabelPhotoControls
-            expressionId={expressionId}
-            hasPhoto={e.photoPath !== null}
-            bottles={owned.map((bottle) => ({ id: bottle.id, name: releaseOf(bottle) }))}
-          />
+          <LabelPhotoControls expressionId={expressionId} hasPhoto={e.photoPath !== null} />
         </div>
 
         <div className="flex flex-col gap-6 pb-6">
