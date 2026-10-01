@@ -40,7 +40,7 @@ test("filtering by a distillery finds the blends it contributed to", async ({ pa
   await page.getByLabel("Label Name").fill(soloName);
   await page.getByLabel("Proof", { exact: true }).fill("92");
   await pick(page, "Add distilleries", "Finger Lakes", "Finger Lakes Distilling");
-  await page.getByRole("button", { name: "Create Label" }).click();
+  await page.getByRole("button", { name: "Create Label", exact: true }).click();
   await expect(page).toHaveURL("/expressions");
 
   await page.goto("/bottles/new");

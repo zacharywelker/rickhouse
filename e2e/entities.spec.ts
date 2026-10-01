@@ -73,6 +73,16 @@ test("an entity page keeps the grid's sorting and view controls", async ({ page 
 });
 
 test("Numbers reads as chapters, and every chart can show its numbers instead", async ({ page }) => {
+  // A chapter draws its chart from three bottles up; the seed has one.
+  for (let i = 0; i < 2; i++) {
+    await page.goto("/bottles/new");
+    await page.getByRole("combobox", { name: "Label" }).click();
+    await page.locator("[cmdk-input]").fill("Double Oak");
+    await page.locator('[cmdk-item]:not([data-value="__create__"])').first().click();
+    await page.getByRole("button", { name: "Add bottle" }).click();
+    await expect(page).toHaveURL(/\/bottles\/\d+$/);
+  }
+
   await page.goto("/numbers");
   await expect(page.getByRole("heading", { name: "Numbers", level: 1 })).toBeVisible();
 
@@ -86,8 +96,10 @@ test("Numbers reads as chapters, and every chart can show its numbers instead", 
 
   // Every chart ships with the numbers behind it, for screen readers and for
   // anyone who cannot read the colours.
-  const card = page.locator("div").filter({ hasText: /^What the collection is/ }).first();
-  await card.getByRole("button", { name: "Table" }).click();
+  // Each chapter proves its finding with one chart; Shelf's is "What the collection is".
+  const shelf = page.getByRole("region", { name: /Shelf/ });
+  await expect(shelf.getByText("What the collection is")).toBeVisible();
+  await shelf.getByRole("button", { name: "Table" }).click();
   await expect(page.getByRole("columnheader", { name: "Share" })).toBeVisible();
   // The chart groups by spirit family, so the seeded bourbon counts as Whiskey.
   await expect(page.getByRole("cell", { name: "Whiskey", exact: true })).toBeVisible();

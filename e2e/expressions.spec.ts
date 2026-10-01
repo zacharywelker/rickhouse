@@ -114,7 +114,7 @@ test("creates a blended expression with ordered distilleries, then a bottle, the
   await expect(distilleryList.getByRole("listitem").nth(1)).toContainText(newDistillery);
 
   await pick(page, "Add finishes", "French Oak");
-  await page.getByRole("button", { name: "Create Label" }).click();
+  await page.getByRole("button", { name: "Create Label", exact: true }).click();
   await expect(page).toHaveURL("/expressions");
   await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
 
@@ -196,7 +196,7 @@ test("recategorising does not silently wipe the hidden fields", async ({ page })
   await page.getByLabel("Label Name").fill(name);
   await page.getByLabel("Marque").fill("DOK");
   await page.getByLabel("Esters (g/hLAA)").fill("1500");
-  await page.getByRole("button", { name: "Create Label" }).click();
+  await page.getByRole("button", { name: "Create Label", exact: true }).click();
   await expect(page).toHaveURL("/expressions");
 
   // Recategorise it as a Bourbon, which hides the rum section entirely.
