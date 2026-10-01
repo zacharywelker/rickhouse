@@ -1065,7 +1065,7 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
       // string_agg keeps this one query rather than one per mashbill.
       recipe: sql<string | null>`(
         select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
-          from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
+          from ${mashbillGrains} g where g.mashbill_id = ${mashbills}.id
       )`,
     })
     .from(mashbills)
