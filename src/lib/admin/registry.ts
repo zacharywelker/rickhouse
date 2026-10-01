@@ -1082,7 +1082,7 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
       });
     const recipe = describeMashbill(grains);
     const label = mashbillTitle(r, recipe || "No recipe");
-    return { value: r.value, label, ...(label !== recipe && recipe ? { hint: recipe } : {}) };
+    return { value: r.value, label, grains, ...(label !== recipe && recipe ? { hint: recipe } : {}) };
   });
 }
 

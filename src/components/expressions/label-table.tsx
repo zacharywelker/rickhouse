@@ -23,6 +23,7 @@ import { serialiseLabelFilters, type LabelFilters } from "@/lib/expressions/filt
 import { changesFor, editableFrom, fieldGroupOf, type LabelEdit } from "@/lib/expressions/label-edits";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { FieldGroup } from "@/db/schema";
+import type { MashbillRule } from "@/lib/mashbills";
 import type { Option } from "@/lib/admin/types";
 import { cn } from "@/lib/utils";
 import { useLabelFilters } from "./use-label-filters";
@@ -81,6 +82,7 @@ export function LabelTable({
   filters,
   options,
   categoryGroups,
+  mashbillRules,
 }: {
   rows: ExpressionRow[];
   filters: LabelFilters;
@@ -88,6 +90,7 @@ export function LabelTable({
   options: Record<string, Option[]>;
   /** categoryId -> field group, so an edited category's sections follow. */
   categoryGroups: Record<number, FieldGroup>;
+  mashbillRules: Record<number, MashbillRule>;
 }) {
   const router = useRouter();
   const { apply } = useLabelFilters(filters);
@@ -259,6 +262,7 @@ export function LabelTable({
             onToggle={toggle}
             options={options}
             categoryGroups={categoryGroups}
+            mashbillRules={mashbillRules}
             originals={originals}
             edits={edits}
             updateEdit={updateEdit}

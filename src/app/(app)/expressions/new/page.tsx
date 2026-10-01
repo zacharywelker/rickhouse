@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewExpressionPage() {
   const user = await requireSession();
-  const { options, categoryGroups, links } = await expressionFormData(null, user.id);
+  const { options, categoryGroups, mashbillRules, links } = await expressionFormData(null, user.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -22,6 +22,7 @@ export default async function NewExpressionPage() {
         initialLinks={links}
         options={options}
         categoryGroups={categoryGroups}
+        mashbillRules={mashbillRules}
         colaLookup={colaLookupEnabled()}
       />
     </div>

@@ -25,6 +25,7 @@ import { withOption } from "@/lib/forms/values";
 import { formatDate, formatNumeric } from "@/lib/utils";
 import { withEntered, type BottleSuggestions } from "@/lib/bottles/suggestions";
 import type { FieldGroup } from "@/db/schema";
+import type { MashbillRule } from "@/lib/mashbills";
 import type { ActionResult, Option } from "@/lib/admin/types";
 import {
   catalogBottleAction,
@@ -66,6 +67,7 @@ export function CatalogBottle({
   labelOptions,
   bottleOptions,
   categoryGroups,
+  mashbillRules,
   colaLookup,
   initialLabel,
   suggestions: initialSuggestions,
@@ -73,6 +75,7 @@ export function CatalogBottle({
   labelOptions: Record<string, Option[]>;
   bottleOptions: Record<string, Option[]>;
   categoryGroups: Record<number, FieldGroup>;
+  mashbillRules: Record<number, MashbillRule>;
   colaLookup: boolean;
   initialLabel: CatalogLabel | null;
   /** Past values for Picked By, Warehouse, Rick / Floor and Where It Lives. */
@@ -424,6 +427,7 @@ export function CatalogBottle({
             options={labelOptionsState}
             onOptionCreated={(name, option) => setLabelOptions((prev) => withOption(prev, name, option))}
             categoryGroups={categoryGroups}
+            mashbillRules={mashbillRules}
             errors={errors.label}
           />
           {phase.kind === "new" ? (

@@ -1,7 +1,15 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { expressionDistilleries, expressionFinishes, expressionMashbills, expressions } from "@/db/schema";
+import {
+  categories,
+  expressionDistilleries,
+  expressionFinishes,
+  expressionMashbills,
+  expressions,
+  mashbillGrains,
+} from "@/db/schema";
+import { mashbillRuleFor, meetsMashbillRule } from "@/lib/mashbills";
 import { resolveSlug } from "@/lib/slug";
 import { attachCola, colaLookupEnabled, refreshCola } from "@/lib/cola/store";
 import { writableFields } from "./fields";
@@ -75,8 +83,40 @@ export async function replaceLinks(tx: Tx, expressionId: number, links: Links) {
   await insertLinks(tx, expressionId, links);
 }
 
+/**
+ * A category's mashbill rule, enforced where the form can't be trusted: a
+ * spirit with no grain bill keeps none, and a bourbon keeps only recipes that
+ * are at least 51% corn. The pickers already filter, so this only catches a
+ * stale form or a hand-built request.
+ */
+async function mashbillsAllowed(tx: Tx, expressionId: number, rows: LinkRow[]): Promise<LinkRow[]> {
+  if (rows.length === 0) return rows;
+  const [category] = await tx
+    .select({ slug: categories.slug, fieldGroup: categories.fieldGroup })
+    .from(expressions)
+    .innerJoin(categories, eq(categories.id, expressions.categoryId))
+    .where(eq(expressions.id, expressionId))
+    .limit(1);
+  if (!category) return rows;
+  const rule = mashbillRuleFor(category.slug, category.fieldGroup);
+  if (rule.kind === "free") return rows;
+  if (rule.kind === "hidden") return [];
+
+  const grains = await tx
+    .select({ mashbillId: mashbillGrains.mashbillId, grain: mashbillGrains.grain, percent: mashbillGrains.percent })
+    .from(mashbillGrains)
+    .where(inArray(mashbillGrains.mashbillId, rows.map((row) => row.id)));
+  return rows.filter((row) =>
+    meetsMashbillRule(
+      rule,
+      grains.filter((g) => g.mashbillId === row.id),
+    ),
+  );
+}
+
 export async function insertLinks(tx: Tx, expressionId: number, links: Links) {
-  const { distilleries: linkedDistilleries, mashbills: linkedMashbills, finishes: linkedFinishes } = links;
+  const { distilleries: linkedDistilleries, finishes: linkedFinishes } = links;
+  const linkedMashbills = await mashbillsAllowed(tx, expressionId, links.mashbills);
 
   if (linkedDistilleries.length > 0) {
     await tx.insert(expressionDistilleries).values(

@@ -13,6 +13,7 @@ import { saveExpressionAction } from "@/app/(app)/expressions/actions";
 import { EXPRESSION_SECTIONS, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type FieldSpec, type Option } from "@/lib/admin/types";
 import type { FieldGroup } from "@/db/schema";
+import { meetsMashbillRule, type MashbillRule } from "@/lib/mashbills";
 import { offeredAgeStatement } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
@@ -52,6 +53,7 @@ export function ExpressionFields({
   options,
   onOptionCreated,
   categoryGroups,
+  mashbillRules = {},
   errors,
   idPrefix = "expression",
 }: {
@@ -63,12 +65,18 @@ export function ExpressionFields({
   onOptionCreated: (name: string, option: Option) => void;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
+  /** categoryId -> what its mashbills must look like, or that it takes none. */
+  mashbillRules?: Record<number, MashbillRule>;
   errors: Record<string, string>;
   idPrefix?: string;
 }) {
   const categoryRaw = values.categoryId;
   const categoryId = typeof categoryRaw === "string" && categoryRaw !== "" ? Number(categoryRaw) : null;
   const fieldGroup: FieldGroup = (categoryId !== null ? categoryGroups[categoryId] : undefined) ?? "other";
+  const mashbillRule: MashbillRule = (categoryId !== null ? mashbillRules[categoryId] : undefined) ?? { kind: "free" };
+  const mashbillChoices = (options.mashbillLinks ?? []).filter(
+    (option) => mashbillRule.kind !== "minimum" || meetsMashbillRule(mashbillRule, option.grains ?? []),
+  );
 
   return (
     <>
@@ -156,19 +164,25 @@ export function ExpressionFields({
             value={links.distilleries}
             onChange={(rows) => onLinksChange({ ...links, distilleries: rows })}
           />
-          <OrderedPicker
-            name="mashbillLinks"
-            label="Mashbills"
-            description="One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
-            resource={null}
-            emptyHint="No mashbills yet — add a new one from here."
-            options={options.mashbillLinks ?? []}
-            amountLabel="Share"
-            amountSuffix="%"
-            value={links.mashbills}
-            onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
-            distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
-          />
+          {mashbillRule.kind === "hidden" ? null : (
+            <OrderedPicker
+              name="mashbillLinks"
+              label="Mashbills"
+              description={
+                mashbillRule.kind === "minimum"
+                  ? `One per contributing recipe. Only recipes with at least ${mashbillRule.percent}% ${mashbillRule.grain} are listed, as this category requires.`
+                  : "One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
+              }
+              resource={null}
+              emptyHint="No mashbills yet — add a new one from here."
+              options={mashbillChoices}
+              amountLabel="Share"
+              amountSuffix="%"
+              value={links.mashbills}
+              onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
+              distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
+            />
+          )}
           <OrderedPicker
             name="finishLinks"
             label="Finishes"
@@ -192,6 +206,7 @@ export function ExpressionForm({
   initialLinks,
   options,
   categoryGroups,
+  mashbillRules,
   colaLookup = false,
 }: {
   expressionId: number | null;
@@ -200,6 +215,7 @@ export function ExpressionForm({
   options: Record<string, Option[]>;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
+  mashbillRules: Record<number, MashbillRule>;
   /** Whether TTB's registry can be searched; on New Label, for picking approvals to attach. */
   colaLookup?: boolean;
 }) {
@@ -237,6 +253,7 @@ export function ExpressionForm({
         options={optionsByField}
         onOptionCreated={(name, option) => setOptionsByField((prev) => withOption(prev, name, option))}
         categoryGroups={categoryGroups}
+        mashbillRules={mashbillRules}
         errors={fieldErrors}
       />
 

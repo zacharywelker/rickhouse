@@ -143,3 +143,38 @@ export function ingredientColor(ingredient: string): string {
   for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return `hsl(${hash % 360} 35% 52%)`;
 }
+
+/**
+ * What a category asks of its mashbills. `hidden` means the label takes none —
+ * either the spirit has no grain bill (rum, agave, brandy) or the category
+ * fixes it (a single malt is 100% malted barley). `minimum` means the linked
+ * mashbills must each be at least `percent` of `grain` (the legal definition).
+ */
+export type MashbillRule =
+  | { kind: "free" }
+  | { kind: "hidden" }
+  | { kind: "minimum"; grain: string; percent: number };
+
+const NO_GRAIN_BILL = new Set(["rum", "agave", "brandy"]);
+
+const MINIMUMS: Record<string, { grain: string; percent: number }> = {
+  bourbon: { grain: "corn", percent: 51 },
+  rye: { grain: "corn", percent: 51 },
+  "wheat-whiskey": { grain: "wheat", percent: 51 },
+};
+
+export function mashbillRuleFor(slug: string, fieldGroup: string): MashbillRule {
+  if (NO_GRAIN_BILL.has(fieldGroup) || slug.includes("single-malt")) return { kind: "hidden" };
+  const minimum = MINIMUMS[slug];
+  return minimum ? { kind: "minimum", ...minimum } : { kind: "free" };
+}
+
+/** Whether a recipe satisfies a rule. Pass the grains as stored; names compare case-insensitively. */
+export function meetsMashbillRule(rule: MashbillRule, grains: readonly Grain[]): boolean {
+  if (rule.kind === "hidden") return false;
+  if (rule.kind === "free") return true;
+  const total = grains
+    .filter((g) => g.grain.trim().toLowerCase() === rule.grain)
+    .reduce((sum, g) => sum + Number(g.percent), 0);
+  return total >= rule.percent;
+}

@@ -14,6 +14,8 @@ export type Option = {
   undisclosed?: boolean;
   /** Set on self-referencing resources, so the form can exclude descendants. */
   parentId?: number | null;
+  /** Mashbills only: the recipe, so a category's rule can filter the list. */
+  grains?: Array<{ grain: string; percent: string }>;
 };
 
 /** Fields shared by every field kind. */

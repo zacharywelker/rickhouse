@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { describeMashbill, mashbillTitle } from "@/lib/mashbills";
+import { describeMashbill, mashbillRuleFor, mashbillTitle, type MashbillRule } from "@/lib/mashbills";
 import {
   bottleImages,
   bottles,
@@ -430,6 +430,12 @@ export async function expressionOptions(ownerId: number) {
 export async function categoryFieldGroups(): Promise<Record<number, FieldGroup>> {
   const rows = await db.select({ id: categories.id, fieldGroup: categories.fieldGroup }).from(categories);
   return Object.fromEntries(rows.map((row) => [row.id, row.fieldGroup]));
+}
+
+/** categoryId -> what its mashbills must look like (or that it takes none). */
+export async function categoryMashbillRules(): Promise<Record<number, MashbillRule>> {
+  const rows = await db.select({ id: categories.id, slug: categories.slug, fieldGroup: categories.fieldGroup }).from(categories);
+  return Object.fromEntries(rows.map((row) => [row.id, mashbillRuleFor(row.slug, row.fieldGroup)]));
 }
 
 export async function fieldGroupForCategory(categoryId: number): Promise<FieldGroup> {

@@ -20,7 +20,7 @@ export default async function ExpressionsPage({
   const user = await requireSession();
   const filters = parseLabelFilters(await searchParams);
   // The form's own pickers and category rules, for the unlocked grid.
-  const [{ rows, total, pageCount, page }, { options, categoryGroups }] = await Promise.all([
+  const [{ rows, total, pageCount, page }, { options, categoryGroups, mashbillRules }] = await Promise.all([
     queryExpressions(filters, user.id),
     expressionFormData(null, user.id),
   ]);
@@ -71,7 +71,7 @@ export default async function ExpressionsPage({
         </div>
       ) : (
         <>
-          <LabelTable rows={rows} filters={filters} options={options} categoryGroups={categoryGroups} />
+          <LabelTable rows={rows} filters={filters} options={options} categoryGroups={categoryGroups} mashbillRules={mashbillRules} />
           <LabelPagination filters={filters} page={page} pageCount={pageCount} total={total} />
         </>
       )}

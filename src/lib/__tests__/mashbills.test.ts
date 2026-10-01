@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { describeMashbill, ingredientColor, mashbillTitle, orderGrains, sumGrains } from "../mashbills";
+import {
+  describeMashbill,
+  ingredientColor,
+  mashbillRuleFor,
+  mashbillTitle,
+  meetsMashbillRule,
+  orderGrains,
+  sumGrains,
+} from "../mashbills";
 
 describe("orderGrains", () => {
   it("leads with the grain that names the spirit, for a bourbon", () => {
@@ -108,5 +116,31 @@ describe("ingredientColor", () => {
 
   it("gives an unlisted ingredient a steady colour", () => {
     expect(ingredientColor("Triticale")).toBe(ingredientColor("triticale"));
+  });
+});
+
+describe("category mashbill rules", () => {
+  const bourbon = mashbillRuleFor("bourbon", "whiskey");
+
+  it("asks bourbon and rye for 51% corn, wheat whiskey for 51% wheat", () => {
+    expect(bourbon).toEqual({ kind: "minimum", grain: "corn", percent: 51 });
+    expect(mashbillRuleFor("rye", "whiskey")).toEqual({ kind: "minimum", grain: "corn", percent: 51 });
+    expect(mashbillRuleFor("wheat-whiskey", "whiskey")).toEqual({ kind: "minimum", grain: "wheat", percent: 51 });
+  });
+
+  it("hides mashbills for single malts and grain-free spirits", () => {
+    expect(mashbillRuleFor("american-single-malt", "whiskey").kind).toBe("hidden");
+    expect(mashbillRuleFor("tequila", "agave").kind).toBe("hidden");
+    expect(mashbillRuleFor("rum", "rum").kind).toBe("hidden");
+  });
+
+  it("leaves other categories free", () => {
+    expect(mashbillRuleFor("scotch", "whiskey").kind).toBe("free");
+    expect(mashbillRuleFor("vodka", "vodka").kind).toBe("free");
+  });
+
+  it("meets the minimum at exactly 51% and not below", () => {
+    expect(meetsMashbillRule(bourbon, [{ grain: "Corn", percent: "51" }, { grain: "Rye", percent: "49" }])).toBe(true);
+    expect(meetsMashbillRule(bourbon, [{ grain: "Corn", percent: "50" }, { grain: "Rye", percent: "50" }])).toBe(false);
   });
 });

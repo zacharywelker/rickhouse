@@ -18,6 +18,7 @@ import { describeAgeParts, fieldGroupOf, groupApplies, type LabelEdit } from "@/
 import { describeLinks, LINK_KINDS, type LinkKind } from "@/lib/expressions/links";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { FieldGroup } from "@/db/schema";
+import { meetsMashbillRule, type MashbillRule } from "@/lib/mashbills";
 import type { LinkedRow } from "./ordered-picker";
 import { LinksCell } from "./links-cell";
 import type { RowErrors } from "./label-table";
@@ -86,6 +87,7 @@ export function LabelTableBody({
   onToggle,
   options,
   categoryGroups,
+  mashbillRules,
   originals,
   edits,
   updateEdit,
@@ -98,6 +100,7 @@ export function LabelTableBody({
   onToggle: (id: number, selected: boolean) => void;
   options: Record<string, Option[]>;
   categoryGroups: Record<number, FieldGroup>;
+  mashbillRules: Record<number, MashbillRule>;
   originals: ReadonlyMap<number, LabelEdit>;
   edits: Record<number, LabelEdit>;
   updateEdit: (row: ExpressionRow, name: string, value: LabelEdit[string]) => void;
@@ -107,6 +110,11 @@ export function LabelTableBody({
   // A brand created from a cell should be pickable in every other row too.
   const [optionsByField, setOptionsByField] = React.useState(options);
 
+  /** The rule for the row's category, following an edit before it is saved. */
+  function ruleFor(values: LabelEdit): MashbillRule {
+    return mashbillRules[Number(values.categoryId)] ?? { kind: "free" };
+  }
+
   function editCell(row: ExpressionRow, column: LabelColumn, values: LabelEdit, errors: Record<string, string>) {
     const cellId = (name: string) => `label-${row.id}-${name}`;
     const labelledBy = `label-col-${column.id}`;
@@ -114,6 +122,8 @@ export function LabelTableBody({
     if (LINK_COLUMNS.has(column.id)) {
       const kind = column.id as LinkKind;
       const field = LINK_KINDS[kind].field;
+      const rule = ruleFor(values);
+      const choices = optionsByField[field] ?? [];
       return (
         <LinksCell
           kind={kind}
@@ -121,7 +131,11 @@ export function LabelTableBody({
           labelledBy={labelledBy}
           value={values[field] as LinkedRow[]}
           onChange={(next) => updateEdit(row, field, next)}
-          options={optionsByField[field] ?? []}
+          options={
+            kind === "mashbills" && rule.kind === "minimum"
+              ? choices.filter((option) => meetsMashbillRule(rule, option.grains ?? []))
+              : choices
+          }
           className="h-8"
           {...(kind === "mashbills"
             ? {
@@ -237,7 +251,8 @@ export function LabelTableBody({
             ) : null}
 
             {shown.map(({ column, group }) => {
-              const applies = groupApplies(group, fieldGroup);
+              const applies =
+                groupApplies(group, fieldGroup) && !(column.id === "mashbills" && ruleFor(values).kind === "hidden");
               return (
                 <TableCell
                   key={column.id}
