@@ -4,7 +4,8 @@ import { resetDatabase } from "./support/db";
 
 const stamp = () => Math.random().toString(36).slice(2, 8);
 
-const EXISTING_OPTION = '[cmdk-item]:not([data-value="__create__"])';
+// Brands and distilleries also offer "Create with details" (__details__).
+const EXISTING_OPTION = '[cmdk-item]:not([data-value="__create__"]):not([data-value="__details__"])';
 
 async function pick(page: Page, comboboxLabel: string | RegExp, search: string, optionLabel?: string) {
   const target = optionLabel ?? search;

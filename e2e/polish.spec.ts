@@ -98,7 +98,8 @@ test.describe("on a phone", () => {
     // The phone cards have no edit mode, so the toggle is not offered.
     await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeHidden();
 
-    await page.getByText("More", { exact: true }).click();
+    // The filter bar has its own "More" (filters); this is the workbench one.
+    await page.locator("summary", { hasText: "More" }).click();
     await expect(page.getByRole("link", { name: "Export" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Import" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Bulk add" })).toBeVisible();
