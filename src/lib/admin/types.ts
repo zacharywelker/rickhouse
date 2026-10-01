@@ -125,7 +125,7 @@ export type QuickCreateResult = { ok: true; option: Option } | { ok: false; erro
 export const IDLE_RESULT: ActionResult = { ok: true, message: "" };
 
 /** Resources a picker can create with their whole form, without leaving the page. */
-export const DETAILED_RESOURCES = ["companies", "brands", "distilleries", "mashbills"] as const;
+export const DETAILED_RESOURCES = ["companies", "brands", "distilleries", "finishes", "mashbills"] as const;
 export type DetailedResource = (typeof DETAILED_RESOURCES)[number];
 
 export type ResourceFormSpec =
