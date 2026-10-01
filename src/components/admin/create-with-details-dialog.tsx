@@ -8,7 +8,7 @@ import type { DetailedResource, Option, ResourceFormSpec } from "@/lib/admin/typ
 import { ResourceForm } from "./resource-form";
 
 /**
- * A company, brand, distillery, finish or mashbill made with its whole form, from
+ * Any lookup row (company, brand, distillery, finish, store, tag, category or mashbill) made with its whole form, from
  * inside a picker on another page — so a label can be started with a brand
  * that does not exist yet without abandoning the label to go and make it.
  * Opened from a picker's "Add details" row; the new row is handed straight back
