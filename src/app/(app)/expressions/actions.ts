@@ -138,7 +138,7 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
           .insert(expressions)
           .values({ ...(valuesForGroup(input, allowed, slug) as typeof expressions.$inferInsert), ownerId: user.id })
           .returning({ id: expressions.id });
-        await insertLinks(tx, inserted!.id, linksFrom(row));
+        await insertLinks(tx, user.id, inserted!.id, linksFrom(row));
         // The row's "Add bottle" box: same transaction, so a label is
         // never saved without the bottle that was asked for.
         if (row.addBottle === true) {
@@ -231,7 +231,7 @@ export async function updateExpressionsBulkAction(
             .set(values as Partial<typeof expressions.$inferInsert>)
             .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)));
         }
-        if (relink) await replaceLinks(tx, id, linksFrom({ distilleryLinks, mashbillLinks, finishLinks }));
+        if (relink) await replaceLinks(tx, user.id, id, linksFrom({ distilleryLinks, mashbillLinks, finishLinks }));
       });
       results.push({ index, ok: true, id });
     } catch (error: unknown) {

@@ -126,18 +126,44 @@ export const expressionSchema = z
 
 export type ExpressionInput = z.infer<typeof expressionSchema>;
 
-/** One row of an ordered many-to-many list, as the form submits it. */
-export const linkRowSchema = z.object({
-  id: z.coerce.number().int().positive(),
+/**
+ * A place typed into the "Distillery not disclosed" tick, not yet a row. The
+ * save turns it into the account's "Undisclosed (…)" placeholder.
+ */
+const undisclosedPlaceSchema = z.object({
+  city: z.string().trim().max(80).default(""),
+  state: z.string().trim().max(60).default(""),
+  country: z.string().trim().max(80).default(""),
+});
+
+/**
+ * One row of an ordered many-to-many list, as the form submits it. A distillery
+ * row with a negative id and a `place` stands for an undisclosed place that has
+ * no row yet; the save resolves it, so the form never has to wait on the server.
+ */
+export const linkRowSchema = z
+  .object({
+  id: z.coerce
+    .number()
+    .int()
+    .refine((n) => n !== 0, "Choose a real row."),
   /** Share percentage for distilleries and mashbills; months for finishes. */
   amount: z
     .union([z.literal(""), z.coerce.number().min(0).max(100000)])
     .transform((v) => (v === "" ? null : v)),
-  /** Mashbills only: which of the label's distilleries made this recipe. */
-  distilleryId: z.number().int().positive().nullable().optional(),
+  /** Mashbills only: which of the label's distilleries made this recipe. May be a not-yet-resolved place (negative). */
+  distilleryId: z
+    .number()
+    .int()
+    .refine((n) => n !== 0)
+    .nullable()
+    .optional(),
   /** Distilleries only: identified from outside the label, not stated on it. */
   inferred: z.boolean().optional(),
-});
+  /** Distilleries only: with a negative id, the place the label names and no distillery. */
+  place: undisclosedPlaceSchema.optional(),
+})
+  .refine((row) => row.id > 0 || row.place !== undefined, "A place needs its details.");
 
 export type LinkRow = z.infer<typeof linkRowSchema>;
 

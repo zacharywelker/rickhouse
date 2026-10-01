@@ -6,19 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
-import { UndisclosedForm } from "./undisclosed-form";
+import { linksPayload } from "@/lib/expressions/links";
+import { UndisclosedTick } from "./undisclosed-tick";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
 
 /** The JSON a list is submitted as, read back by `parseLinks` on the server. */
 export function serializeLinks(rows: LinkedRow[]): string {
-  return JSON.stringify(
-    rows.map((row) => ({
-      id: row.id,
-      amount: row.amount,
-      distilleryId: row.distilleryId ?? null,
-      inferred: row.inferred === true,
-    })),
-  );
+  return linksPayload(rows);
 }
 
 export type LinkedRow = {
@@ -32,6 +26,8 @@ export type LinkedRow = {
   inferred?: boolean;
   /** Distilleries only: an "Undisclosed (…)" placeholder, which has nothing to infer. */
   undisclosed?: boolean;
+  /** An undisclosed place typed into the tick box, not yet a row: the save resolves it. */
+  place?: { city: string; state: string; country: string };
 };
 
 /**
@@ -50,8 +46,8 @@ export function OrderedPicker({
   options,
   amountLabel,
   amountSuffix,
-  value,
-  onChange,
+  value: allRows,
+  onChange: onAllRowsChange,
   emptyHint,
   distilleryChoices,
   inferable = false,
@@ -76,12 +72,23 @@ export function OrderedPicker({
   distilleryChoices?: Array<{ id: number; name: string }>;
   /** Distilleries only: each row gets an "Inferred" tick, for a source the label never names. */
   inferable?: boolean;
-  /** Distilleries only: a "Not disclosed…" form, for a label that names a place and no distillery. */
+  /**
+   * Distilleries only: a "Distillery not disclosed" tick under the list, for a
+   * label that names a place and no distillery. Those links live behind the
+   * tick, not in the list, so the list holds only real distilleries.
+   */
   undisclosable?: boolean;
 }) {
   const [available, setAvailable] = React.useState(options);
-  const chosen = new Set(value.map((row) => row.id));
-  const selectable = available.filter((option) => !chosen.has(option.value));
+  // With the tick, undisclosed links are set aside; every edit below is to the
+  // listed ones and puts the others back on the end, where they are saved.
+  const undisclosedRows = undisclosable ? allRows.filter((row) => row.undisclosed) : [];
+  const value = undisclosable ? allRows.filter((row) => !row.undisclosed) : allRows;
+  const onChange = (next: LinkedRow[]) => onAllRowsChange(undisclosable ? [...next, ...undisclosedRows] : next);
+  const chosen = new Set(allRows.map((row) => row.id));
+  const selectable = available.filter(
+    (option) => !chosen.has(option.value) && !(undisclosable && option.undisclosed),
+  );
   const soloDistillery = distilleryChoices?.length === 1 ? distilleryChoices[0]! : null;
 
   const move = (index: number, delta: number) => {
@@ -219,9 +226,9 @@ export function OrderedPicker({
             </li>
           ))}
         </ol>
-      ) : (
+      ) : undisclosedRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">None yet.</p>
-      )}
+      ) : null}
 
       <ReferenceCombobox
         id={`${name}-add`}
@@ -247,20 +254,17 @@ export function OrderedPicker({
         Add {label.toLowerCase()}
       </span>
       {undisclosable ? (
-        <UndisclosedForm
+        <UndisclosedTick
           idPrefix={`${name}-undisclosed`}
-          chosen={chosen}
-          onAdd={(option) => {
-            setAvailable((prev) => (prev.some((o) => o.value === option.value) ? prev : [...prev, option]));
-            addRow(option);
-          }}
+          rows={undisclosedRows}
+          onChange={(next) => onAllRowsChange([...value, ...next])}
         />
       ) : null}
 
       <input
         type="hidden"
         name={name}
-        value={serializeLinks(value)}
+        value={serializeLinks(allRows)}
       />
     </fieldset>
   );

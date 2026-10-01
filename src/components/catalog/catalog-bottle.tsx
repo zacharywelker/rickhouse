@@ -432,7 +432,7 @@ export function CatalogBottle({
               className="border-t border-foreground pt-3"
               brandName={labelOptionsState.brandId?.find((o) => String(o.value) === String(labelValues.brandId))?.label ?? ""}
               labelName={typeof labelValues.name === "string" ? labelValues.name : ""}
-              distilleryIds={labelLinks.distilleries.map((row) => row.id)}
+              distilleryIds={labelLinks.distilleries.map((row) => row.id).filter((id) => id > 0)}
               lookupEnabled={colaLookup}
               initialTtbIds={pendingTtb}
             />

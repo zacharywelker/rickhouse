@@ -7,6 +7,7 @@ import { attachCola, colaLookupEnabled, refreshCola } from "@/lib/cola/store";
 import { writableFields } from "./fields";
 import { fieldGroupForCategory } from "./queries";
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
+import { undisclosedDistilleryId } from "./undisclosed";
 
 /**
  * Saving a label, shared by the label form, the label grids and the
@@ -68,15 +69,38 @@ export function linksFrom(source: { distilleryLinks?: unknown; mashbillLinks?: u
  * rewriting them is both simpler and correct. Always all three together —
  * which distillery made each mashbill depends on the distillery list.
  */
-export async function replaceLinks(tx: Tx, expressionId: number, links: Links) {
+export async function replaceLinks(tx: Tx, ownerId: number, expressionId: number, links: Links) {
   await tx.delete(expressionDistilleries).where(eq(expressionDistilleries.expressionId, expressionId));
   await tx.delete(expressionMashbills).where(eq(expressionMashbills.expressionId, expressionId));
   await tx.delete(expressionFinishes).where(eq(expressionFinishes.expressionId, expressionId));
-  await insertLinks(tx, expressionId, links);
+  await insertLinks(tx, ownerId, expressionId, links);
 }
 
-export async function insertLinks(tx: Tx, expressionId: number, links: Links) {
-  const { distilleries: linkedDistilleries, mashbills: linkedMashbills, finishes: linkedFinishes } = links;
+export async function insertLinks(tx: Tx, ownerId: number, expressionId: number, links: Links) {
+  // An undisclosed place typed into the form arrives as a negative id plus its
+  // place; it becomes the account's placeholder row here, in this transaction.
+  // Mashbills that named it by that temporary id follow it to the real one.
+  const resolved = new Map<number, number>();
+  const seen = new Set<number>();
+  const linkedDistilleries: LinkRow[] = [];
+  for (const row of links.distilleries) {
+    let id = row.id;
+    if (id < 0) {
+      if (!row.place) continue;
+      const known = resolved.get(id);
+      id = known ?? (await undisclosedDistilleryId(tx, ownerId, row.place));
+      resolved.set(row.id, id);
+    }
+    // A place can land on a row the label already lists; the join's key is one per pair.
+    if (seen.has(id)) continue;
+    seen.add(id);
+    linkedDistilleries.push({ ...row, id, place: undefined });
+  }
+  // Only distilleries can be a place; a negative id elsewhere is not a row.
+  const linkedMashbills = links.mashbills
+    .filter((row) => row.id > 0)
+    .map((row) => ({ ...row, distilleryId: row.distilleryId && row.distilleryId < 0 ? (resolved.get(row.distilleryId) ?? null) : row.distilleryId }));
+  const linkedFinishes = links.finishes.filter((row) => row.id > 0);
 
   if (linkedDistilleries.length > 0) {
     await tx.insert(expressionDistilleries).values(
@@ -166,7 +190,7 @@ export async function writeLabel(
     // Stop before the link rows below are rewritten for someone else's label.
     if (updated.length === 0) throw new NotOwned();
   }
-  await replaceLinks(tx, target, links);
+  await replaceLinks(tx, ownerId, target, links);
   return target;
 }
 

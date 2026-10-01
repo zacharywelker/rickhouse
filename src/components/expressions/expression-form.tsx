@@ -247,7 +247,7 @@ export function ExpressionForm({
           className="border-t border-foreground pt-3"
           brandName={optionsByField.brandId?.find((option) => String(option.value) === String(values.brandId))?.label ?? ""}
           labelName={typeof values.name === "string" ? values.name : ""}
-          distilleryIds={links.distilleries.map((row) => row.id)}
+          distilleryIds={links.distilleries.map((row) => row.id).filter((id) => id > 0)}
           lookupEnabled={colaLookup}
         />
       ) : null}
