@@ -2,10 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleImages, bottles } from "@/db/schema";
+import { bottleImages, bottles, expressions } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
-import { ImageError, storeBottleImage, storeBottleImageBytes } from "@/lib/images";
+import { ImageError, copyToBottleImage, storeBottleImage, storeBottleImageBytes } from "@/lib/images";
 import { fetchRemoteImage } from "@/lib/remote-image";
 import type { ActionResult } from "@/lib/admin/types";
 
@@ -35,8 +35,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     // Checked before any file is written, so a stranger's bottle id stores nothing.
-    const owned = await db.$count(bottles, and(eq(bottles.id, bottleId), eq(bottles.ownerId, user.id)));
-    if (owned === 0) return NextResponse.json({ ok: false, error: "That bottle is gone." }, { status: 404 });
+    const [owned] = await db
+      .select({ expressionId: bottles.expressionId, labelPhoto: expressions.photoPath })
+      .from(bottles)
+      .innerJoin(expressions, eq(expressions.id, bottles.expressionId))
+      .where(and(eq(bottles.id, bottleId), eq(bottles.ownerId, user.id)))
+      .limit(1);
+    if (!owned) return NextResponse.json({ ok: false, error: "That bottle is gone." }, { status: 404 });
 
     const [existing] = await db
       .select({ count: sql<number>`count(*)::int`, maxOrder: sql<number>`coalesce(max(${bottleImages.sortOrder}), -1)::int` })
@@ -67,6 +72,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         kind: isFirst ? "catalog" : "life",
         sortOrder: order,
       });
+      // A label with no photo yet takes its first bottle photo, so the two
+      // never need linking by hand. A copy, so deleting one leaves the other.
+      if (isFirst && !owned.labelPhoto) {
+        const labelCopy = await copyToBottleImage(stored.filePath);
+        await db
+          .update(expressions)
+          .set({ photoPath: labelCopy.filePath, photoThumbPath: labelCopy.thumbPath })
+          .where(and(eq(expressions.id, owned.expressionId), eq(expressions.ownerId, user.id)));
+        revalidatePath(`/expressions/${owned.expressionId}`);
+      }
       order += 1;
       isFirst = false;
     }

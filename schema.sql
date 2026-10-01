@@ -194,6 +194,8 @@ CREATE TABLE expressions (
     size_ml         integer NOT NULL DEFAULT 750,
     upc             text,
     label_notes     text,
+    photo_path      text,
+    photo_thumb_path text,
     description     text,
 
     -- ---- Rum-specific (nullable; shown when category.field_group = 'rum')

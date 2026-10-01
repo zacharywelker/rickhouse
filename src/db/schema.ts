@@ -289,6 +289,9 @@ export const expressions = pgTable(
     upc: text("upc"),
     labelNotes: text("label_notes"),
     description: text("description"),
+    /** The label's own photo, relative to the uploads volume. */
+    photoPath: text("photo_path"),
+    photoThumbPath: text("photo_thumb_path"),
 
     // ---- Rum-specific (shown when category.field_group = 'rum')
     stillType: text("still_type"),
