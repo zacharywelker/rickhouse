@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
+import { deleteStoredImage } from "@/lib/images";
 import { db } from "@/db";
 import { bottles, expressions } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
@@ -262,8 +263,9 @@ export async function deleteExpressionAction(id: number): Promise<ActionResult> 
     const deleted = await db
       .delete(expressions)
       .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
-      .returning({ id: expressions.id });
+      .returning({ id: expressions.id, photoPath: expressions.photoPath, photoThumbPath: expressions.photoThumbPath });
     if (deleted.length === 0) return { ok: false, error: "That label is gone." };
+    if (deleted[0]?.photoPath) await deleteStoredImage(deleted[0].photoPath, deleted[0].photoThumbPath);
     await deleteColaFiles(colaFiles);
     revalidatePath("/expressions");
     return { ok: true, message: "Label deleted." };

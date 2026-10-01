@@ -19,16 +19,9 @@ function BottleTile({ row }: { row: GridRow }) {
       href={`/bottles/${row.id}`}
       className="group flex h-full w-full flex-col"
     >
-      <div className="relative flex aspect-square items-center justify-center bg-muted/40">
+      <div className="relative flex aspect-square overflow-hidden items-center justify-center bg-muted/40">
         {row.thumbPath ? (
-          <Image
-            src={`/api/images/${row.thumbPath}`}
-            alt=""
-            width={480}
-            height={480}
-            unoptimized
-            className="size-full object-cover"
-          />
+          <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="object-cover" />
         ) : (
           <FillGauge
             value={row.fillPct}

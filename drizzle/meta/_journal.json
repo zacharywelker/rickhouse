@@ -162,6 +162,13 @@
       "when": 1790598574639,
       "tag": "0022_user_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790684974639,
+      "tag": "0023_label_photo",
+      "breakpoints": true
     }
   ]
 }

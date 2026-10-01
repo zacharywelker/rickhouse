@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { GripVertical, Loader2, Star, Trash2 } from "lucide-react";
+import { GripVertical, Loader2, Star, Tag, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import { Grain } from "@/components/ui/grain";
 import { cn } from "@/lib/utils";
 import { seededRandom, seededRange } from "@/lib/seeded-random";
 import { scallopRectClipPath } from "@/lib/scallop-edge";
+import { setLabelPhotoFromBottleImageAction } from "@/app/(app)/expressions/photo-actions";
 import { deleteBottleImageAction, reorderBottleImagesAction, setPrimaryImageAction } from "@/app/(app)/bottles/actions";
 import type { ActionResult } from "@/lib/admin/types";
 import type { PhotoKind } from "@/db/schema";
@@ -259,6 +260,17 @@ export function BottleImages({ bottleId, images }: { bottleId: number; images: B
                       title="Make hero image"
                     >
                       <Star className={cn("size-4", image.isPrimary && "fill-current")} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-7 p-0 text-white hover:bg-white/20"
+                      onClick={() => void setLabelPhotoFromBottleImageAction(image.id).then(() => router.refresh())}
+                      aria-label="Use as label photo"
+                      title="Use as label photo"
+                    >
+                      <Tag className="size-4" />
                     </Button>
                     <Button
                       type="button"

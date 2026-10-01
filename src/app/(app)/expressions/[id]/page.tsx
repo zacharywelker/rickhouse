@@ -12,6 +12,7 @@ import { FillGauge } from "@/components/bottles/fill-gauge";
 import { StatusMark } from "@/components/bottles/status-mark";
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
 import { DeleteExpressionButton } from "@/components/expressions/delete-expression-button";
+import { LabelPhotoControls } from "@/components/expressions/label-photo-controls";
 import { Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
 import { T8keHint } from "@/components/expressions/t8ke-hint";
 import { CHAR_LEVEL_LABELS, type CharLevel } from "@/db/schema";
@@ -80,7 +81,7 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
   const e = row.expression;
   const group = row.category.fieldGroup;
   const title = `${row.brand.name} ${e.name}`;
-  const hero = owned.find((bottle) => bottle.filePath !== null) ?? null;
+  const heroPath = e.photoPath ?? owned.find((bottle) => bottle.filePath !== null)?.filePath ?? null;
 
   const onShelf = owned.filter((bottle) => bottle.status === "owned" || bottle.status === "open");
   const paid = owned.map((bottle) => (bottle.pricePaid === null ? null : Number(bottle.pricePaid))).filter((v): v is number => v !== null);
@@ -138,9 +139,9 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
         <div className="flex flex-col gap-4">
           <Polaroid seed={expressionId} backdropClassName={categoryBackdropClass(group)} caption={row.brand.name}>
             <div className="flex size-full items-center justify-center p-6">
-              {hero?.filePath ? (
+              {heroPath ? (
                 <Image
-                  src={`/api/images/${hero.filePath}`}
+                  src={`/api/images/${heroPath}`}
                   alt={title}
                   width={640}
                   height={640}
@@ -152,6 +153,11 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
               )}
             </div>
           </Polaroid>
+          <LabelPhotoControls
+            expressionId={expressionId}
+            hasPhoto={e.photoPath !== null}
+            bottles={owned.map((bottle) => ({ id: bottle.id, name: releaseOf(bottle) }))}
+          />
         </div>
 
         <div className="flex flex-col gap-6 pb-6">
