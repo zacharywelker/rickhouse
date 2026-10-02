@@ -128,7 +128,13 @@ export function OrderedPicker({
           {value.map((row, index) => (
             <li key={row.id} className="flex flex-wrap items-center gap-2 border border-border bg-muted/30 p-2">
               <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-sm">
+              {/*
+                On a phone the name takes the whole first line (less the index
+                number) and the controls wrap below it; a long recipe would
+                otherwise be squeezed down to its first letter. From sm up it
+                shares the line, truncated.
+              */}
+              <span className="min-w-0 grow basis-[calc(100%-1.75rem)] break-words text-sm sm:basis-40 sm:truncate">
                 {row.label}
                 {row.hint && !row.undisclosed ? <span className="ml-1.5 text-xs text-muted-foreground">{row.hint}</span> : null}
               </span>
@@ -191,11 +197,14 @@ export function OrderedPicker({
                   type="number"
                   min={0}
                   step="0.01"
+                  inputMode="decimal"
                   value={row.amount}
                   onChange={(e) =>
                     onChange(value.map((r) => (r.id === row.id ? { ...r, amount: e.target.value } : r)))
                   }
-                  className="h-8 w-24"
+                  // Wide enough for "100.00" and no more. The spinner arrows
+                  // would take half of that, and a phone shows a keypad anyway.
+                  className="h-8 w-16 px-2 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
                 <span className="text-xs text-muted-foreground">{amountSuffix}</span>
               </div>
