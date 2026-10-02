@@ -48,7 +48,8 @@ export function Mashbills({
         {items.map((item) => (
           <li key={item.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
             <Link href={`/mashbills/${item.id}` as Route} className="font-medium hover:text-accent">
-              {item.recipe}
+              {/* A generic style, or a secret one not yet inferred, has no recipe to show. */}
+              {item.recipe || item.name}
             </Link>
             {item.amount !== null ? (
               <span className="text-muted-foreground">{Number(item.amount)}% of the blend</span>

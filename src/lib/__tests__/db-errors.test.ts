@@ -53,6 +53,17 @@ describe("mapDbError", () => {
     if (!result.ok) expect(result.fieldErrors?.name).toBe("Already taken.");
   });
 
+  it("skips the account column of a per-account key", () => {
+    const result = mapDbError({ code: "23505", detail: "Key (owner_id, name)=(1, High Rye) already exists." }, {
+      singular: "Mashbill",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe("Another mashbill already uses that name.");
+      expect(result.fieldErrors).toEqual({ name: "Already taken." });
+    }
+  });
+
   it("falls back to a generic message for anything unrecognised", () => {
     const result = mapDbError(new Error("socket hang up"), ctx);
     expect(result.ok).toBe(false);

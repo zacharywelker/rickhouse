@@ -76,12 +76,17 @@ export function describeMashbill(grains: readonly Grain[]): string {
 /**
  * What a mashbill is called. The recipe, unless the distillery keeps it secret:
  * then the recipe is only inferred, and the reference name ("Buffalo Trace
- * Wheated") stands in for it.
+ * Wheated") stands in for it. A generic mashbill ("High Rye") is a style with
+ * no recipe at all, so its name is all there is.
  */
-export function mashbillTitle(mashbill: { isSecret: boolean; name: string | null }, recipe: string): string {
+export function mashbillTitle(
+  mashbill: { isSecret: boolean; isGeneric?: boolean; name: string | null },
+  recipe: string,
+): string {
   const reference = mashbill.name?.trim();
-  return mashbill.isSecret && reference ? reference : recipe;
+  return (mashbill.isSecret || mashbill.isGeneric) && reference ? reference : recipe;
 }
+
 
 /** What the sum has to land on, matching the database trigger. */
 export const GRAIN_TOTAL = { min: 99, max: 101, exact: 100 } as const;
@@ -142,4 +147,30 @@ export function ingredientColor(ingredient: string): string {
   let hash = 0;
   for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return `hsl(${hash % 360} 35% 52%)`;
+}
+
+/**
+ * How a grain is written. A common one takes its usual spelling whatever the
+ * case it was typed in ("MALTED barley" is Malted Barley); anything else typed
+ * all in lowercase is title-cased ("blue corn" is Blue Corn). Mixed case is
+ * left alone, since someone chose it.
+ */
+export function normalizeGrainName(name: string): string {
+  const tidy = name.trim().replace(/\s+/g, " ");
+  const common = COMMON_GRAINS.find((g) => g.toLowerCase() === tidy.toLowerCase());
+  if (common) return common;
+  if (tidy !== tidy.toLowerCase()) return tidy;
+  return tidy.replace(/(^|[\s-])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toUpperCase());
+}
+
+/**
+ * What makes two recipes the same: the same grains in the same amounts,
+ * whatever order or case they were entered in. "78% Corn · 10% Rye" and
+ * "10% rye · 78.00% corn" share a key.
+ */
+export function recipeKey(grains: readonly Grain[]): string {
+  return grains
+    .map((g) => `${g.grain.trim().toLowerCase()}:${Number(g.percent)}`)
+    .sort()
+    .join("|");
 }

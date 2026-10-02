@@ -30,7 +30,7 @@ export default async function MashbillPage({
     <EntityPage
       kind="Mashbill"
       name={row.title}
-      meta={[{ label: "Recipe", value: row.recipe }]}
+      meta={row.isGeneric ? [{ label: "Recipe", value: "Generic style" }] : [{ label: "Recipe", value: row.recipe }]}
       notes={row.notes}
       preset={{ mashbillIds: [mashbillId] }}
       searchParams={query}

@@ -169,6 +169,20 @@
       "when": 1790684974639,
       "tag": "0023_label_photo",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790771374639,
+      "tag": "0024_generic_mashbills",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790857774639,
+      "tag": "0025_unique_mashbills",
+      "breakpoints": true
     }
   ]
 }
