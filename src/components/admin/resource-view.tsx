@@ -174,7 +174,7 @@ export function ResourceView({
             <DialogDescription>
               {editing
                 ? "Changes apply everywhere this is linked."
-                : `New ${singular.toLowerCase()}s are available immediately from every picker.`}
+                : `New ${label.toLowerCase()} are available immediately from every picker.`}
             </DialogDescription>
           </DialogHeader>
           {editing !== undefined ? (
