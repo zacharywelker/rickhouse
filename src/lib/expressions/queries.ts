@@ -454,7 +454,7 @@ export async function getBottle(id: number, ownerId: number) {
       expression: expressions,
       brand: { id: brands.id, name: brands.name, slug: brands.slug },
       category: { id: categories.id, name: categories.name, slug: categories.slug, fieldGroup: categories.fieldGroup },
-      store: { id: stores.id, name: stores.name, slug: stores.slug, location: stores.location },
+      store: { id: stores.id, name: stores.name, slug: stores.slug },
     })
     .from(bottles)
     .innerJoin(expressions, eq(bottles.expressionId, expressions.id))

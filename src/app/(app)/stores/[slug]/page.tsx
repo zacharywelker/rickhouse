@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { EntityPage } from "@/components/entities/entity-page";
 import { requireSession } from "@/lib/auth";
 import { getStore } from "@/lib/entities/queries";
+import { formatPlace } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function StorePage({
       name={row.name}
       badges={row.isOnline ? <Badge className="border-primary/40 text-primary">Online</Badge> : null}
       meta={[
-        { label: "Location", value: row.location ?? "—" },
+        { label: "Location", value: formatPlace(row) ?? (row.isOnline ? "Online" : "—") },
         {
           label: "Website",
           value: row.url ? (

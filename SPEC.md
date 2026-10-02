@@ -60,8 +60,8 @@ one label and inferred on another. Bottlers and "Made in" lines are not modelled
 they live in the label notes as printed.
 
 Under the distillery list, the label form has a "Distillery not disclosed" tick
-that asks for the state (and, optionally, a city and country), with a US state
-written as an abbreviation corrected to its full name (`src/lib/places.ts`).
+that asks for a city, state and country, with a US state written as an
+abbreviation corrected to its full name (`src/lib/places.ts`).
 Undisclosed links live behind the tick, not in the list, which holds only real
 distilleries. The tick records only the typed place; saving the label finds the
 account's placeholder for it, however its state was spelled, or creates it

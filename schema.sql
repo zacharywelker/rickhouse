@@ -44,6 +44,8 @@ CREATE TABLE companies (
     name        citext NOT NULL,
     slug        text   NOT NULL,
     parent_id   integer REFERENCES companies(id) ON DELETE SET NULL,
+    city        text,
+    state       text,
     country     text,
     website     text,
     notes       text
@@ -104,11 +106,13 @@ CREATE TABLE stores (
     id          serial PRIMARY KEY,
     name        citext NOT NULL,
     slug        text   NOT NULL,
-    location    text,                      -- "Online", "Louisville, KY"
+    city        text,                      -- all three blank for an online store
+    state       text,                      -- a US state spelled out: "Kentucky"
+    country     text,
     is_online   boolean NOT NULL DEFAULT false,
     url         text,
     notes       text
-    -- (owner_id, name, location) is unique; see Private collections below.
+    -- (owner_id, name, city, state, country) is unique; see Private collections below.
 );
 
 -- ------------------------------------------------------------
@@ -651,7 +655,7 @@ ALTER TABLE groups ADD CONSTRAINT groups_owner_name_unique UNIQUE (owner_id, nam
 ALTER TABLE groups ADD CONSTRAINT groups_owner_slug_unique UNIQUE (owner_id, slug);
 ALTER TABLE stores ADD CONSTRAINT stores_owner_slug_unique UNIQUE (owner_id, slug);
 ALTER TABLE expressions ADD CONSTRAINT expressions_owner_slug_unique UNIQUE (owner_id, slug);
-ALTER TABLE stores ADD CONSTRAINT stores_owner_name_location_unique UNIQUE (owner_id, name, location);
+ALTER TABLE stores ADD CONSTRAINT stores_owner_name_place_unique UNIQUE (owner_id, name, city, state, country);
 
 -- Direct references stay within one owner. NO ACTION where these used to be
 -- RESTRICT: checked at statement end, so a user's delete can cascade through
@@ -947,9 +951,9 @@ SELECT 'Pursuit Spirits', 'pursuit-spirits-brand', id, true
 FROM companies WHERE slug = 'pursuit-spirits';
 
 INSERT INTO distilleries (name, slug, state, country) VALUES
-    ('Bardstown Bourbon Company', 'bardstown-bourbon-company', 'KY', 'USA'),
-    ('Tennessee Distilling Ltd.', 'tennessee-distilling',      'TN', 'USA'),
-    ('Finger Lakes Distilling',   'finger-lakes-distilling',   'NY', 'USA');
+    ('Bardstown Bourbon Company', 'bardstown-bourbon-company', 'Kentucky', 'USA'),
+    ('Tennessee Distilling Ltd.', 'tennessee-distilling',      'Tennessee', 'USA'),
+    ('Finger Lakes Distilling',   'finger-lakes-distilling',   'New York', 'USA');
 
 INSERT INTO mashbills (name, corn, rye, wheat, malted_barley) VALUES
     ('BBC 78/10/12', 78, 10, 0, 12),
@@ -959,8 +963,8 @@ INSERT INTO mashbills (name, corn, rye, wheat, malted_barley) VALUES
 INSERT INTO finishes (name, slug, finish_type)
 VALUES ('French Oak', 'french-oak', 'wood');
 
-INSERT INTO stores (name, slug, location, is_online)
-VALUES ('P.Club by Pursuit Spirits', 'p-club', 'Online', true);
+INSERT INTO stores (name, slug, is_online)
+VALUES ('P.Club by Pursuit Spirits', 'p-club', true);
 
 INSERT INTO expressions (brand_id, category_id, name, slug, proof,
                          age_statement, msrp)

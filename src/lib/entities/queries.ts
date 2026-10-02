@@ -51,6 +51,8 @@ export async function getBrand(slug: string, ownerId: number) {
       isNdp: brands.isNdp,
       notes: brands.notes,
       company: companies.name,
+      companyCity: companies.city,
+      companyState: companies.state,
       companyCountry: companies.country,
     })
     .from(brands)
