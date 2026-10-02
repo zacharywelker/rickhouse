@@ -13,9 +13,8 @@ import { StatusMark } from "@/components/bottles/status-mark";
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
 import { DeleteExpressionButton } from "@/components/expressions/delete-expression-button";
 import { LabelPhotoControls } from "@/components/expressions/label-photo-controls";
-import { Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
+import { CharLevelSpec, Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
 import { T8keHint } from "@/components/expressions/t8ke-hint";
-import { CHAR_LEVEL_LABELS, type CharLevel } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
@@ -166,8 +165,8 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
             <Spec label="Entry Proof" value={e.entryProof ? formatNumeric(e.entryProof) : null} />
             <Spec label="Chill Filtered" value={yesNo(e.isChillFiltered)} />
             <Spec label="Colour Added" value={yesNo(e.colorAdded)} />
-            <Spec label="Char Level" value={e.charLevel ? (CHAR_LEVEL_LABELS[e.charLevel as CharLevel] ?? e.charLevel) : null} />
           </dl>
+          <CharLevelSpec value={e.charLevel} />
           <StampDesignations stamps={stamps} />
 
           <div className="flex flex-col gap-4 border-t border-border pt-6">

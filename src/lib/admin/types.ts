@@ -64,6 +64,8 @@ export type FieldSpec =
       kind: "slider";
       /** Ordered stops; the first is the empty/unknown one. */
       options: ReadonlyArray<{ value: string; label: string }>;
+      /** "stave": draw the stops as the Char Level stave in the full form. */
+      look?: "stave";
       help?: string;
     })
   /**
