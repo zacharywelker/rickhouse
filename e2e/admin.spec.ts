@@ -150,12 +150,16 @@ test("deleting a brand in use is blocked and explains why", async ({ page }) => 
 });
 
 test("edits an existing row and persists the change", async ({ page }) => {
-  const location = `Louisville ${stamp()}`;
+  const city = `Louisville ${stamp()}`;
   await page.goto("/admin/stores");
   await page.getByRole("button", { name: "Edit P.Club by Pursuit Spirits" }).click();
-  await page.getByLabel("Location").fill(location);
+  await page.getByLabel("City").fill(city);
+  await page.getByLabel("State").fill("ky");
+  await page.getByLabel("Country").fill("United States");
   await page.getByRole("button", { name: "Save store" }).click();
 
+  // Saved as one tidy place: the state spelled out, the US left off.
+  const location = `${city}, Kentucky`;
   await expect(page.getByRole("cell", { name: location, exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("cell", { name: location, exact: true })).toBeVisible();

@@ -63,6 +63,13 @@ const hexColor = blankIfAbsent(
     .refine((v) => v === null || /^#[0-9a-fA-F]{6}$/.test(v), "Use a hex colour like #b5651d."),
 );
 
+/** City, state and country, as every location form asks for them. */
+const placeFields = {
+  city: optionalText(80),
+  state: optionalText(40),
+  country: optionalText(80),
+};
+
 export const categorySchema = z.object({
   name: requiredText(80),
   slug: optionalSlug,
@@ -75,7 +82,7 @@ export const companySchema = z.object({
   name: requiredText(120),
   slug: optionalSlug,
   parentId: optionalRef,
-  country: optionalText(80),
+  ...placeFields,
   website: optionalUrl,
   notes: optionalText(),
 });
@@ -92,8 +99,7 @@ export const distillerySchema = z.object({
   name: requiredText(120),
   slug: optionalSlug,
   companyId: optionalRef,
-  city: optionalText(80),
-  state: optionalText(40),
+  ...placeFields,
   country: requiredText(80),
   dspNumber: optionalText(40),
   founded: optionalYear,
@@ -195,7 +201,7 @@ export const finishSchema = z.object({
 export const storeSchema = z.object({
   name: requiredText(120),
   slug: optionalSlug,
-  location: optionalText(120),
+  ...placeFields,
   isOnline: checkbox,
   url: optionalUrl,
   notes: optionalText(),

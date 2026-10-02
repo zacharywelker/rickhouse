@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { EntityPage } from "@/components/entities/entity-page";
 import { requireSession } from "@/lib/auth";
 import { getDistillery } from "@/lib/entities/queries";
+import { formatPlace } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,6 @@ export default async function DistilleryPage({
   const row = await getDistillery(slug, user.id);
   if (!row) notFound();
 
-  const where = [row.city, row.state, row.country].filter(Boolean).join(", ");
-
   return (
     <EntityPage
       kind="Distillery"
@@ -37,7 +36,7 @@ export default async function DistilleryPage({
         </>
       }
       meta={[
-        { label: "Location", value: where || "—" },
+        { label: "Location", value: formatPlace(row) ?? "—" },
         { label: "DSP", value: row.dspNumber ?? "—" },
         { label: "Founded", value: row.founded ?? "—" },
         { label: "Owner", value: row.company ?? "—" },

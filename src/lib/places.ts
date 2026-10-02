@@ -1,7 +1,9 @@
 /**
- * Places, as a label states them: a city, a state, a country, any of them
- * missing. Used to name and match the "Undisclosed (…)" placeholder distilleries,
- * so "NY", "ny" and "New York" all land on the same row instead of three.
+ * Places: a city, a state, a country, any of them missing. Every location in the
+ * app (distilleries, companies, stores) is kept as these three fields, entered
+ * and shown the same way. Also names and matches the "Undisclosed (…)"
+ * placeholder distilleries, so "NY", "ny" and "New York" all land on the same
+ * row instead of three.
  *
  * Only US states are corrected. Anywhere else a state or province is kept as
  * typed, because guessing at "AB" or "NSW" would do more harm than good.
@@ -68,6 +70,8 @@ export const HOME_COUNTRY = "USA";
 
 const HOME_COUNTRY_ALIASES = new Set(["usa", "us", "u.s.", "u.s.a.", "united states", "united states of america", "america"]);
 
+const hasText = (value: string | null | undefined): value is string => (value ?? "").trim() !== "";
+
 const squash = (value: string | null | undefined): string => (value ?? "").trim().replace(/\s+/g, " ");
 
 /** "us", "U.S.A." and "United States" are all USA; blank is USA too, the app's default. Others are kept as typed. */
@@ -97,15 +101,38 @@ export function normalizePlace(input: { city?: string | null; state?: string | n
   return { city: city === "" ? null : city, state: state === "" ? null : state, country };
 }
 
+/** A place that may have no country at all, like an online store's. */
+export type Location = { city: string | null; state: string | null; country: string | null };
+
+/**
+ * Like normalizePlace, but a blank country stays blank instead of becoming USA,
+ * for the places where a location is optional. A US state is still corrected
+ * when no country is given.
+ */
+export function normalizeLocation(input: { city?: string | null; state?: string | null; country?: string | null }): Location {
+  const country = squash(input.country);
+  const place = normalizePlace(input);
+  return { ...place, country: country === "" ? null : place.country };
+}
+
+/**
+ * "Louisville, Kentucky", "Speyside, Scotland", "Mexico". The country is left
+ * out for the US when there is anything more specific. Null when nothing is set.
+ */
+export function formatPlace(place: { city?: string | null; state?: string | null; country?: string | null }): string | null {
+  const parts = [place.city, place.state].filter(hasText);
+  const country = hasText(place.country) ? place.country : null;
+  if (country !== null && (country !== HOME_COUNTRY || parts.length === 0)) parts.push(country);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 /**
  * "Undisclosed (Louisville, Kentucky)". The country is left out for the US when
  * there is anything more specific, and stands alone when there is not:
  * "Undisclosed (Scotland)", "Undisclosed (USA)".
  */
 export function undisclosedName(place: Place): string {
-  const parts = [place.city, place.state].filter((part): part is string => part !== null);
-  if (place.country !== HOME_COUNTRY || parts.length === 0) parts.push(place.country);
-  return `Undisclosed (${parts.join(", ")})`;
+  return `Undisclosed (${formatPlace(place) ?? place.country})`;
 }
 
 /** Whether two places are the same one, ignoring case and spelling of the state. */

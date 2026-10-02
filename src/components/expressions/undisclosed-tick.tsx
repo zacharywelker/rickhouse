@@ -12,7 +12,8 @@ export const PENDING_PLACE_ID = -1;
 
 /**
  * "Distillery not disclosed": for a label that names a place and no distillery.
- * A tick under the distillery list that asks for the state, with a US
+ * A tick under the distillery list that asks for the city, state and country,
+ * the same three fields as every other location, with a US state's
  * abbreviation corrected to its full name. It holds only what was typed; the
  * shared "Undisclosed (…)" row is found or made when the label is saved, so
  * there is nothing to wait on and nothing left behind by an abandoned form.
@@ -89,13 +90,30 @@ export function UndisclosedTick({
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="flex flex-col gap-1">
+              <Label htmlFor={`${idPrefix}-city`} className="text-xs">
+                City
+              </Label>
+              <Input
+                id={`${idPrefix}-city`}
+                value={city}
+                placeholder="Louisville"
+                onChange={(e) => {
+                  setCity(e.target.value);
+                  commit({ city: e.target.value, state, country });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.preventDefault();
+                }}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor={`${idPrefix}-state`} className="text-xs">
                 State
               </Label>
               <Input
                 id={`${idPrefix}-state`}
                 value={state}
-                placeholder="IN or Indiana"
+                placeholder="KY or Kentucky"
                 autoFocus={rows.length === 0}
                 onChange={(e) => {
                   setState(e.target.value);
@@ -106,22 +124,6 @@ export function UndisclosedTick({
                   const fixed = normalizeState(state, country);
                   setState(fixed);
                   commit({ city, state: fixed, country });
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.preventDefault();
-                }}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor={`${idPrefix}-city`} className="text-xs">
-                City <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id={`${idPrefix}-city`}
-                value={city}
-                onChange={(e) => {
-                  setCity(e.target.value);
-                  commit({ city: e.target.value, state, country });
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") e.preventDefault();

@@ -24,6 +24,7 @@ import {
   stores,
   tags,
 } from "@/db/schema";
+import { HOME_COUNTRY, formatPlace, normalizeLocation, normalizePlace } from "@/lib/places";
 import { resolveSlug } from "@/lib/slug";
 import { createsCycle } from "./tree";
 import type { AdminRow, ColumnSpec, FieldSpec, Option } from "./types";
@@ -104,6 +105,20 @@ const slugField: FieldSpec = {
 };
 
 const notesField: FieldSpec = { kind: "textarea", name: "notes", label: "Notes" };
+
+/**
+ * City, state and country: the same three fields, in the same order, wherever a
+ * location is asked for. Only a distillery has to have a country.
+ */
+function placeFields({ countryRequired = false }: { countryRequired?: boolean } = {}): FieldSpec[] {
+  return [
+    { kind: "text", name: "city", label: "City", placeholder: "Louisville", span: "half" },
+    { kind: "text", name: "state", label: "State", placeholder: "KY or Kentucky", span: "half" },
+    countryRequired
+      ? { kind: "text", name: "country", label: "Country", required: true, defaultValue: HOME_COUNTRY, span: "half" }
+      : { kind: "text", name: "country", label: "Country", placeholder: HOME_COUNTRY, span: "half" },
+  ];
+}
 
 const nameColumn: ColumnSpec = { key: "name", label: "Name" };
 
@@ -262,7 +277,7 @@ const companiesConfig: ResourceConfig = {
   columns: [
     nameColumn,
     { key: "parent", label: "Owned By" },
-    { key: "country", label: "Country", secondary: true },
+    { key: "where", label: "Location", secondary: true },
     { key: "brands", label: "Brands", numeric: true, secondary: true },
     { key: "distilleries", label: "Distilleries", numeric: true, secondary: true },
   ],
@@ -276,10 +291,10 @@ const companiesConfig: ResourceConfig = {
       resource: "companies",
       excludeSelfAndDescendants: true,
       help: "For ownership chains. Leave empty if it owns itself.",
-      span: "half",
+      span: "full",
     },
-    { kind: "text", name: "country", label: "Country", placeholder: "USA", span: "half" },
-    { kind: "text", name: "website", label: "Website", placeholder: "https://", span: "full" },
+    ...placeFields(),
+    { kind: "text", name: "website", label: "Website", placeholder: "https://", span: "half" },
     notesField,
   ],
   list: async (ownerId) => {
@@ -290,6 +305,8 @@ const companiesConfig: ResourceConfig = {
         slug: companies.slug,
         parentId: companies.parentId,
         parent: companyParent.name,
+        city: companies.city,
+        state: companies.state,
         country: companies.country,
         website: companies.website,
         notes: companies.notes,
@@ -306,7 +323,7 @@ const companiesConfig: ResourceConfig = {
       cells: {
         name: r.name,
         parent: r.parent,
-        country: r.country,
+        where: formatPlace(r),
         brands: r.brandCount,
         distilleries: r.distilleryCount,
       },
@@ -314,6 +331,8 @@ const companiesConfig: ResourceConfig = {
         name: r.name,
         slug: r.slug,
         parentId: r.parentId,
+        city: r.city,
+        state: r.state,
         country: r.country,
         website: r.website,
         notes: r.notes,
@@ -350,7 +369,7 @@ const companiesConfig: ResourceConfig = {
       name: input.name,
       slug,
       parentId: input.parentId,
-      country: input.country,
+      ...normalizeLocation(input),
       website: input.website,
       notes: input.notes,
     };
@@ -373,16 +392,21 @@ const companiesConfig: ResourceConfig = {
 
 async function companyOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
-    .select({ value: companies.id, label: companies.name, parentId: companies.parentId, hint: companies.country })
+    .select({
+      value: companies.id,
+      label: companies.name,
+      parentId: companies.parentId,
+      city: companies.city,
+      state: companies.state,
+      country: companies.country,
+    })
     .from(companies)
     .where(eq(companies.ownerId, ownerId))
     .orderBy(asc(companies.name));
-  return rows.map((r) => ({
-    value: r.value,
-    label: r.label,
-    parentId: r.parentId,
-    ...(r.hint ? { hint: r.hint } : {}),
-  }));
+  return rows.map((r) => {
+    const hint = formatPlace(r);
+    return { value: r.value, label: r.label, parentId: r.parentId, ...(hint ? { hint } : {}) };
+  });
 }
 
 // ------------------------------------------------------------
@@ -502,11 +526,9 @@ const distilleriesConfig: ResourceConfig = {
     { kind: "text", name: "name", label: "Name", required: true, span: "half" },
     slugField,
     { kind: "reference", name: "companyId", label: "Company", resource: "companies", span: "half" },
-    { kind: "text", name: "country", label: "Country", required: true, defaultValue: "USA", span: "half" },
-    { kind: "text", name: "city", label: "City", span: "half" },
-    { kind: "text", name: "state", label: "State", placeholder: "KY", span: "half" },
-    { kind: "text", name: "dspNumber", label: "DSP Number", placeholder: "DSP-KY-95", span: "half" },
     { kind: "number", name: "founded", label: "Founded", min: 1600, max: 2200, step: 1, span: "half" },
+    ...placeFields({ countryRequired: true }),
+    { kind: "text", name: "dspNumber", label: "DSP Number", placeholder: "DSP-KY-95", span: "half" },
     {
       kind: "select",
       name: "disclosure",
@@ -548,7 +570,7 @@ const distilleriesConfig: ResourceConfig = {
       cells: {
         name: r.name,
         company: r.company,
-        where: [r.city, r.state, r.country].filter(Boolean).join(", "),
+        where: formatPlace(r),
         dspNumber: r.dspNumber,
         uses: r.uses,
         disclosure: DISCLOSURE_LABELS[r.disclosure],
@@ -587,9 +609,7 @@ const distilleriesConfig: ResourceConfig = {
       name: input.name,
       slug,
       companyId: input.companyId,
-      city: input.city,
-      state: input.state,
-      country: input.country,
+      ...normalizePlace(input),
       dspNumber: input.dspNumber,
       founded: input.founded,
       disclosure: input.disclosure,
@@ -856,17 +876,18 @@ const storesConfig: ResourceConfig = {
   key: "stores",
   label: "Stores",
   singular: "Store",
-  description: "Where you bought it. Name and location together have to be unique, so two branches can share a name.",
+  description:
+    "Where you bought it. Name and location together have to be unique, so two branches can share a name. An online store can leave the location blank.",
   columns: [
     nameColumn,
-    { key: "location", label: "Location" },
+    { key: "where", label: "Location" },
     { key: "isOnline", label: "Online" },
     { key: "uses", label: "Bottles", numeric: true, secondary: true },
   ],
   fields: [
     { kind: "text", name: "name", label: "Name", required: true, span: "half" },
     slugField,
-    { kind: "text", name: "location", label: "Location", placeholder: "Louisville, KY or Online", span: "half" },
+    ...placeFields(),
     { kind: "checkbox", name: "isOnline", label: "Online Retailer", span: "half" },
     { kind: "text", name: "url", label: "Website", placeholder: "https://", span: "full" },
     notesField,
@@ -877,7 +898,9 @@ const storesConfig: ResourceConfig = {
         id: stores.id,
         name: stores.name,
         slug: stores.slug,
-        location: stores.location,
+        city: stores.city,
+        state: stores.state,
+        country: stores.country,
         isOnline: stores.isOnline,
         url: stores.url,
         notes: stores.notes,
@@ -889,11 +912,13 @@ const storesConfig: ResourceConfig = {
 
     return rows.map((r) => ({
       id: r.id,
-      cells: { name: r.name, location: r.location, isOnline: r.isOnline, uses: r.uses },
+      cells: { name: r.name, where: formatPlace(r), isOnline: r.isOnline, uses: r.uses },
       values: {
         name: r.name,
         slug: r.slug,
-        location: r.location,
+        city: r.city,
+        state: r.state,
+        country: r.country,
         isOnline: r.isOnline,
         url: r.url,
         notes: r.notes,
@@ -919,7 +944,7 @@ const storesConfig: ResourceConfig = {
     const values = {
       name: input.name,
       slug,
-      location: input.location,
+      ...normalizeLocation(input),
       isOnline: input.isOnline,
       url: input.url,
       notes: input.notes,
@@ -1043,11 +1068,14 @@ async function finishOptions(ownerId: number): Promise<Option[]> {
 
 async function storeOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
-    .select({ value: stores.id, label: stores.name, hint: stores.location })
+    .select({ value: stores.id, label: stores.name, city: stores.city, state: stores.state, country: stores.country })
     .from(stores)
     .where(eq(stores.ownerId, ownerId))
     .orderBy(asc(stores.name));
-  return rows.map((r) => ({ value: r.value, label: r.label, ...(r.hint ? { hint: r.hint } : {}) }));
+  return rows.map((r) => {
+    const hint = formatPlace(r);
+    return { value: r.value, label: r.label, ...(hint ? { hint } : {}) };
+  });
 }
 
 /**
