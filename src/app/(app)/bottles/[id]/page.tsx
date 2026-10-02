@@ -22,6 +22,7 @@ import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
+import { describeMarkup, markup } from "@/lib/bottles/markup";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
@@ -64,6 +65,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   const e = row.expression;
   const b = row.bottle;
   const group = row.category.fieldGroup;
+  const paidVsMsrp = markup(b.pricePaid, e.msrp);
 
   const age =
     e.ageStatement ??
@@ -184,7 +186,19 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="Age" value={age} />
             <Spec label="Size" value={`${e.sizeMl} ml`} />
             <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp) : null} />
-            <Spec label="Paid" value={row.bottle.pricePaid ? formatMoney(row.bottle.pricePaid) : null} />
+            <Spec
+              label="Paid"
+              value={
+                row.bottle.pricePaid ? (
+                  <>
+                    {formatMoney(row.bottle.pricePaid)}
+                    {paidVsMsrp ? (
+                      <span className="block text-xs text-muted-foreground">{describeMarkup(paidVsMsrp)}</span>
+                    ) : null}
+                  </>
+                ) : null
+              }
+            />
             <Spec
               label="Store"
               value={

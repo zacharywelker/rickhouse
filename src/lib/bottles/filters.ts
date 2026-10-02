@@ -14,6 +14,7 @@ export const SORTABLE = [
   "age",
   "price",
   "msrp",
+  "markup",
   "fill",
   "rating",
   "status",

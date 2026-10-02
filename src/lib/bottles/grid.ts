@@ -33,6 +33,8 @@ const SORT_COLUMNS: Record<SortKey, SQL | ReturnType<typeof sql>> = {
   age: sql`${bottleList.ageYears}`,
   price: sql`${bottleList.pricePaid}`,
   msrp: sql`${bottleList.msrp}`,
+  // By percentage, so a $20 premium on a $40 bottle outranks one on a $200 bottle.
+  markup: sql`(${bottleList.pricePaid} - ${bottleList.msrp}) / nullif(${bottleList.msrp}, 0)`,
   fill: sql`${bottleList.fillPct}`,
   rating: sql`${bottleList.avgRating}`,
   status: sql`${bottleList.status}`,
