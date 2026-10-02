@@ -13,7 +13,7 @@ CREATE FUNCTION "seed_generic_mashbills"(account integer) RETURNS void LANGUAGE 
   SELECT account, style, true
     FROM unnest(ARRAY['High Rye', 'Low Rye', 'Wheated', 'High Wheat', 'Four Grain']) AS style
    WHERE NOT EXISTS (
-     SELECT 1 FROM mashbills m WHERE m.owner_id = account AND m.is_generic AND m.name = style::citext
+     SELECT 1 FROM mashbills m WHERE m.owner_id = account AND (m.is_generic OR m.is_secret) AND m.name = style::citext
    );
 $$;
 --> statement-breakpoint

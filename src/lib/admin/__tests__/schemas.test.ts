@@ -67,6 +67,12 @@ describe("mashbillSchema", () => {
     if (!parsed.success) expect(parsed.error.issues[0]?.path).toEqual(["name"]);
   });
 
+  it("title-cases grains typed in lowercase", () => {
+    const parsed = mashbillSchema.safeParse(mashbill([["corn", "78"], ["rye", "10"], ["malted barley", "12"]]));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.grains.map((g) => g.grain)).toEqual(["Corn", "Rye", "Malted Barley"]);
+  });
+
   it("takes a generic style by name alone, and asks for the name", () => {
     expect(mashbillSchema.safeParse(mashbill([], { isGeneric: "on", name: "High Rye" })).success).toBe(true);
     const unnamed = mashbillSchema.safeParse(mashbill([], { isGeneric: "on" }));

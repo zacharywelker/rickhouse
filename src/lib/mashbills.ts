@@ -148,3 +148,29 @@ export function ingredientColor(ingredient: string): string {
   for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return `hsl(${hash % 360} 35% 52%)`;
 }
+
+/**
+ * How a grain is written. A common one takes its usual spelling whatever the
+ * case it was typed in ("MALTED barley" is Malted Barley); anything else typed
+ * all in lowercase is title-cased ("blue corn" is Blue Corn). Mixed case is
+ * left alone, since someone chose it.
+ */
+export function normalizeGrainName(name: string): string {
+  const tidy = name.trim().replace(/\s+/g, " ");
+  const common = COMMON_GRAINS.find((g) => g.toLowerCase() === tidy.toLowerCase());
+  if (common) return common;
+  if (tidy !== tidy.toLowerCase()) return tidy;
+  return tidy.replace(/(^|[\s-])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toUpperCase());
+}
+
+/**
+ * What makes two recipes the same: the same grains in the same amounts,
+ * whatever order or case they were entered in. "78% Corn · 10% Rye" and
+ * "10% rye · 78.00% corn" share a key.
+ */
+export function recipeKey(grains: readonly Grain[]): string {
+  return grains
+    .map((g) => `${g.grain.trim().toLowerCase()}:${Number(g.percent)}`)
+    .sort()
+    .join("|");
+}

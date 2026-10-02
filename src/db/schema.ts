@@ -181,6 +181,9 @@ export const mashbills = pgTable("mashbills", {
 }, (t) => [
   index("mashbills_owner_idx").on(t.ownerId),
   check("mashbills_secret_or_generic_check", sql`NOT (${t.isSecret} AND ${t.isGeneric})`),
+  // A secret or generic mashbill is known by its name, so the name is unique
+  // among those (drizzle/0025). Recipes are compared by the app on save.
+  uniqueIndex("mashbills_owner_name_unique").on(t.ownerId, t.name).where(sql`${t.isSecret} OR ${t.isGeneric}`),
 ]);
 
 /**

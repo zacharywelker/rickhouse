@@ -8,6 +8,7 @@
  */
 import { z } from "zod";
 import { DISTILLERY_DISCLOSURES, FIELD_GROUPS, FINISH_TYPES } from "@/db/schema";
+import { normalizeGrainName } from "@/lib/mashbills";
 
 const trimmed = z.string().trim();
 
@@ -104,7 +105,8 @@ export const distillerySchema = z.object({
 
 /** One row of the grain editor, as it arrives in the hidden JSON field. */
 const grainRow = z.object({
-  grain: z.string().trim().min(1, "Name the grain.").max(60),
+  // "corn" is saved as Corn; see normalizeGrainName.
+  grain: z.string().trim().min(1, "Name the grain.").max(60).transform(normalizeGrainName),
   percent: z.coerce.number().gt(0, "More than 0%.").max(100, "100% at the most."),
 });
 

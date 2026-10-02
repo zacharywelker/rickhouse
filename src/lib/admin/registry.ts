@@ -1,9 +1,9 @@
 import "server-only";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne, not, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import { db } from "@/db";
-import { describeMashbill, mashbillTitle, orderGrains } from "@/lib/mashbills";
+import { describeMashbill, mashbillTitle, orderGrains, recipeKey } from "@/lib/mashbills";
 import {
   FIELD_GROUPS,
   FINISH_TYPES,
@@ -749,6 +749,9 @@ const mashbillsConfig: ResourceConfig = {
     // A style has no recipe, whatever the form still carried.
     const grains = input.isGeneric ? [] : input.grains;
 
+    const duplicate = await findDuplicateMashbill(ownerId, id, values.name, grains);
+    if (duplicate) return duplicate;
+
     /*
      * Grains are replaced wholesale inside one transaction. The sum trigger is
      * DEFERRABLE, so the delete-then-insert passes through a total of 0 and is
@@ -784,6 +787,67 @@ const mashbillsConfig: ResourceConfig = {
     await db.delete(mashbills).where(and(eq(mashbills.id, id), eq(mashbills.ownerId, ownerId)));
   },
 };
+
+/**
+ * The same mashbill twice splits its labels between two rows, so "what else
+ * uses this recipe" stops having one answer. A secret or generic mashbill is
+ * the same as another one with its name; any other is the same as one with
+ * its recipe — the same grains in the same amounts, however they were typed.
+ *
+ * Names are also held unique by the database (drizzle/0025). Recipes are rows
+ * of a child table, which no index can compare, so they are checked here.
+ */
+async function findDuplicateMashbill(
+  ownerId: number,
+  id: number | null,
+  name: string | null,
+  grains: ReadonlyArray<{ grain: string; percent: number }>,
+): Promise<SaveOutcome | null> {
+  const others = and(eq(mashbills.ownerId, ownerId), id === null ? undefined : ne(mashbills.id, id));
+
+  if (name !== null) {
+    const [taken] = await db
+      .select({ id: mashbills.id })
+      .from(mashbills)
+      .where(and(others, or(mashbills.isSecret, mashbills.isGeneric), sql`${mashbills.name} = ${name}::citext`))
+      .limit(1);
+    return taken
+      ? { ok: false, error: `There is already a mashbill called ${name}.`, fieldErrors: { name: "Already taken." } }
+      : null;
+  }
+
+  const key = recipeKey(grains);
+  const rows = await db
+    .select({
+      // `${mashbills}.id`, not `${mashbills.id}`: on a one-table select Drizzle
+      // leaves the column bare, and inside the subquery a bare id is the grain's.
+      recipe: sql<string | null>`(
+        select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
+          from ${mashbillGrains} g where g.mashbill_id = ${mashbills}.id
+      )`,
+    })
+    .from(mashbills)
+    .where(and(others, not(mashbills.isSecret), not(mashbills.isGeneric)));
+  for (const row of rows) {
+    const theirs = parseRecipe(row.recipe);
+    if (theirs.length > 0 && recipeKey(theirs) === key) {
+      const message = `That recipe is already a mashbill: ${describeMashbill(theirs)}. Use that one instead.`;
+      return { ok: false, error: message, fieldErrors: { grains: message } };
+    }
+  }
+  return null;
+}
+
+/** The `grain:percent|…` string the recipe subqueries build. */
+function parseRecipe(raw: string | null): Array<{ grain: string; percent: string }> {
+  return (raw ?? "")
+    .split("|")
+    .filter(Boolean)
+    .map((part) => {
+      const [grain = "", percent = "0"] = part.split(":");
+      return { grain, percent };
+    });
+}
 
 // ------------------------------------------------------------
 // Finishes
@@ -1092,14 +1156,7 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
     .orderBy(asc(mashbills.name), asc(mashbills.id));
 
   return rows.map((r) => {
-    const grains = (r.recipe ?? "")
-      .split("|")
-      .filter(Boolean)
-      .map((part) => {
-        const [grain = "", percent = "0"] = part.split(":");
-        return { grain, percent };
-      });
-    const recipe = describeMashbill(grains);
+    const recipe = describeMashbill(parseRecipe(r.recipe));
     const label = mashbillTitle(r, recipe || "No recipe");
     const hint = r.isGeneric ? "Generic" : label !== recipe ? recipe : "";
     return { value: r.value, label, ...(hint ? { hint } : {}) };

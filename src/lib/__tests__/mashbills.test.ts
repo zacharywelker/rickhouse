@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { describeMashbill, ingredientColor, mashbillTitle, orderGrains, sumGrains } from "../mashbills";
+import {
+  describeMashbill,
+  ingredientColor,
+  mashbillTitle,
+  normalizeGrainName,
+  orderGrains,
+  recipeKey,
+  sumGrains,
+} from "../mashbills";
 
 describe("orderGrains", () => {
   it("leads with the grain that names the spirit, for a bourbon", () => {
@@ -112,5 +120,45 @@ describe("ingredientColor", () => {
 
   it("gives an unlisted ingredient a steady colour", () => {
     expect(ingredientColor("Triticale")).toBe(ingredientColor("triticale"));
+  });
+});
+
+describe("normalizeGrainName", () => {
+  it("title-cases a grain typed in lowercase", () => {
+    expect(normalizeGrainName("corn")).toBe("Corn");
+    expect(normalizeGrainName("malted barley")).toBe("Malted Barley");
+    expect(normalizeGrainName("  blue   corn ")).toBe("Blue Corn");
+    expect(normalizeGrainName("heirloom-wheat")).toBe("Heirloom-Wheat");
+  });
+
+  it("gives a common grain its usual spelling, whatever the case", () => {
+    expect(normalizeGrainName("MALTED barley")).toBe("Malted Barley");
+    expect(normalizeGrainName("RYE")).toBe("Rye");
+  });
+
+  it("leaves a deliberate mixed case alone", () => {
+    expect(normalizeGrainName("Bloody Butcher corn")).toBe("Bloody Butcher corn");
+  });
+});
+
+describe("recipeKey", () => {
+  it("matches the same recipe whatever the order, case or decimals", () => {
+    const a = recipeKey([
+      { grain: "Corn", percent: 78 },
+      { grain: "Rye", percent: 10 },
+      { grain: "Malted Barley", percent: "12" },
+    ]);
+    const b = recipeKey([
+      { grain: "malted barley", percent: "12.00" },
+      { grain: "corn", percent: "78.00" },
+      { grain: " Rye ", percent: 10 },
+    ]);
+    expect(a).toBe(b);
+  });
+
+  it("tells different amounts apart", () => {
+    expect(recipeKey([{ grain: "Corn", percent: 78 }, { grain: "Rye", percent: 22 }])).not.toBe(
+      recipeKey([{ grain: "Corn", percent: 80 }, { grain: "Rye", percent: 20 }]),
+    );
   });
 });

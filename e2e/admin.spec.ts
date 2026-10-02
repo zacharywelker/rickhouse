@@ -104,6 +104,63 @@ test("every account starts with generic styles, and can add its own with no reci
   await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
 });
 
+test("grains typed in lowercase are saved title-cased", async ({ page }) => {
+  await page.goto("/admin/mashbills");
+  await page.getByRole("button", { name: "Add mashbill" }).first().click();
+  await addGrain(page, "corn", "61", 0);
+  await addGrain(page, "rye", "27", 1);
+  await addGrain(page, "malted barley", "12", 2);
+  await page.getByRole("button", { name: "Add mashbill" }).last().click();
+  await expect(page.getByRole("cell", { name: "61% Corn · 27% Rye · 12% Malted Barley", exact: true })).toBeVisible();
+});
+
+test("the same mashbill cannot be added twice", async ({ page }) => {
+  await page.goto("/admin/mashbills");
+
+  await page.getByRole("button", { name: "Add mashbill" }).first().click();
+  await addGrain(page, "Corn", "62", 0);
+  await addGrain(page, "Rye", "26", 1);
+  await addGrain(page, "Malted Barley", "12", 2);
+  await page.getByRole("button", { name: "Add mashbill" }).last().click();
+  await expect(page.getByRole("cell", { name: "62% Corn · 26% Rye · 12% Malted Barley", exact: true })).toBeVisible();
+
+  // The same recipe again, typed in another order and case.
+  await page.getByRole("button", { name: "Add mashbill" }).first().click();
+  await addGrain(page, "malted barley", "12", 0);
+  await addGrain(page, "Rye", "26", 1);
+  await addGrain(page, "CORN", "62", 2);
+  await page.getByRole("button", { name: "Add mashbill" }).last().click();
+  await expect(page.getByText("That recipe is already a mashbill").first()).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  // A generic style that is already there, in another case.
+  await page.getByRole("button", { name: "Add mashbill" }).first().click();
+  await page.getByLabel("Generic style").click();
+  await page.getByLabel("Name", { exact: true }).fill("high rye");
+  await page.getByRole("button", { name: "Add mashbill" }).last().click();
+  await expect(page.getByText("There is already a mashbill called high rye").first()).toBeVisible();
+});
+
+test("the mashbill table sorts by any column, and the sort stays in the URL", async ({ page }) => {
+  await page.goto("/admin/mashbills");
+  const firstRecipe = () => page.locator("tbody tr").first().locator("td").first();
+
+  await page.getByRole("link", { name: "Sort by Recipe" }).click();
+  await expect(page).toHaveURL(/\?sort=name$/);
+  await expect(page.getByRole("columnheader", { name: "Sort by Recipe" })).toHaveAttribute("aria-sort", "ascending");
+  const ascending = await firstRecipe().innerText();
+
+  await page.getByRole("link", { name: "Sort by Recipe" }).click();
+  await expect(page).toHaveURL(/\?sort=name&dir=desc$/);
+  await expect(firstRecipe()).not.toHaveText(ascending);
+
+  // Generic styles first when sorting by that column, and still after a reload.
+  await page.getByRole("link", { name: "Sort by Generic" }).click();
+  await expect(page).toHaveURL(/\?sort=generic$/);
+  await page.reload();
+  await expect(page.locator("tbody tr").first().locator("td").nth(2)).toHaveText("Yes");
+});
+
 // The whole point of the child table: the old fixed columns could hold exactly
 // one unusual grain, and lost the second one's name.
 test("a recipe can carry two grains the old fixed columns had no room for", async ({ page }) => {
