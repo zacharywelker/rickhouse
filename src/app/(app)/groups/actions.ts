@@ -9,6 +9,8 @@ import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
 import { resolveSlug } from "@/lib/slug";
 import { groupSchema } from "@/lib/groups/schemas";
+import { smartGroupFilters, smartGroupQuery } from "@/lib/groups/smart";
+import { activeFilterCount } from "@/lib/bottles/filters";
 import type { ActionResult } from "@/lib/admin/types";
 
 /**
@@ -63,6 +65,41 @@ export async function saveGroupAction(id: number | null, _prev: ActionResult, fo
   }
 }
 
+/**
+ * Saves the Collection's current filters as a smart group. The query is read
+ * back through the filter parser before it is stored, so only filters the
+ * Collection understands are kept, in its own spelling.
+ */
+export async function createSmartGroupAction(name: string, query: string): Promise<ActionResult> {
+  const user = await requireSession();
+
+  const parsed = groupSchema.safeParse({ name, description: "" });
+  if (!parsed.success) return invalid(parsed.error.issues);
+  const filters = smartGroupFilters(query);
+  if (activeFilterCount(filters) === 0) {
+    return { ok: false, error: "Filter the collection first — a smart group with no filters is just the collection." };
+  }
+
+  try {
+    const slug = await resolveSlug({
+      table: groups,
+      column: groups.slug,
+      idColumn: groups.id,
+      scope: { column: groups.ownerId, value: user.id },
+      requested: null,
+      fallbackFrom: parsed.data.name,
+    });
+    const [row] = await db
+      .insert(groups)
+      .values({ name: parsed.data.name, slug, ownerId: user.id, filterQuery: smartGroupQuery(filters) })
+      .returning({ id: groups.id });
+    revalidatePath("/groups");
+    return { ok: true, message: "Smart group created.", createdId: row!.id };
+  } catch (error: unknown) {
+    return mapDbError(error, { singular: "Group" });
+  }
+}
+
 export async function deleteGroupAction(id: number): Promise<ActionResult> {
   const user = await requireSession();
   try {
@@ -109,8 +146,15 @@ export async function setBottleGroupMembershipAction(
 ): Promise<ActionResult> {
   const user = await requireSession();
   try {
-    const [group] = await db.select({ id: groups.id }).from(groups).where(ownedGroup(groupId, user.id)).limit(1);
+    const [group] = await db
+      .select({ id: groups.id, filterQuery: groups.filterQuery })
+      .from(groups)
+      .where(ownedGroup(groupId, user.id))
+      .limit(1);
     if (!group) return { ok: false, error: "That group is gone." };
+    if (group.filterQuery !== null) {
+      return { ok: false, error: "A smart group picks its own bottles. Change its filters instead." };
+    }
 
     if (member) {
       const [{ nextPosition } = { nextPosition: 0 }] = await db

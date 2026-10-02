@@ -84,7 +84,7 @@ export function BottleGroups({
                 <li className="px-3 py-6 text-center text-sm text-muted-foreground">
                   {allGroups.length === 0 ? (
                     <>
-                      No groups yet.{" "}
+                      No hand-picked groups yet.{" "}
                       <Link href="/groups/new" className="text-primary hover:underline">
                         Create one
                       </Link>

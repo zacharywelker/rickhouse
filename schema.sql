@@ -392,6 +392,9 @@ CREATE TABLE groups (
     slug             text   NOT NULL,
     description      text,
     cover_image_path text,
+    -- A smart group: the Collection's filters as a query string; its bottles
+    -- are whatever they match today. NULL for a hand-picked group.
+    filter_query     text,
     created_at       timestamptz NOT NULL DEFAULT now(),
     updated_at       timestamptz NOT NULL DEFAULT now()
 );

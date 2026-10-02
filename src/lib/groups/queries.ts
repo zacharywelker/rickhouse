@@ -1,8 +1,9 @@
 import "server-only";
-import { and, asc, eq, getViewSelectedFields, sql } from "drizzle-orm";
+import { and, asc, eq, getViewSelectedFields, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList, groupBottles, groups, type FieldGroup, type Group } from "@/db/schema";
-import type { GridRow } from "@/lib/bottles/grid";
+import { queryBottles, type GridRow } from "@/lib/bottles/grid";
+import { smartGroupFilters } from "./smart";
 
 /** Every bottle_list column except the two search-only ones (see lib/bottles/grid.ts). */
 const { search: _search, searchText: _searchText, ...GRID_COLUMNS } = getViewSelectedFields(bottleList);
@@ -46,20 +47,42 @@ export async function listGroups(ownerId: number): Promise<GroupSummary[]> {
     .groupBy(groups.id)
     .orderBy(asc(groups.name));
 
-  return rows.map(({ group, bottleCount, memberThumbs, memberBottles }) => ({
-    ...group,
-    bottleCount,
-    memberThumbs: memberThumbs.slice(0, MAX_COLLAGE_THUMBS),
-    memberBottles: memberBottles.slice(0, MAX_COLLAGE_THUMBS),
-  }));
+  return Promise.all(
+    rows.map(async ({ group, bottleCount, memberThumbs, memberBottles }) => {
+      if (group.filterQuery === null) {
+        return {
+          ...group,
+          bottleCount,
+          memberThumbs: memberThumbs.slice(0, MAX_COLLAGE_THUMBS),
+          memberBottles: memberBottles.slice(0, MAX_COLLAGE_THUMBS),
+        };
+      }
+      // A smart group has no member rows; its cover comes from what it matches now.
+      const { rows: first, total } = await queryBottles(smartGroupFilters(group.filterQuery, MAX_COLLAGE_THUMBS), ownerId);
+      return {
+        ...group,
+        bottleCount: total,
+        memberThumbs: first.flatMap((row) => (row.thumbPath ? [row.thumbPath] : [])),
+        memberBottles: first.map((row) => ({ fillPct: row.fillPct, fieldGroup: row.fieldGroup })),
+      };
+    }),
+  );
 }
 
-export type GroupDetail = { group: Group; members: GridRow[] };
+export type GroupDetail = { group: Group; members: GridRow[]; total: number };
 
-/** A single group and its bottles, in the order they were arranged. */
+/**
+ * A single group and its bottles: in the order they were arranged, or for a
+ * smart group, whatever its filters match today in the order they sort.
+ */
 export async function getGroupDetail(id: number, ownerId: number): Promise<GroupDetail | null> {
   const group = await getGroup(id, ownerId);
   if (!group) return null;
+
+  if (group.filterQuery !== null) {
+    const { rows, total } = await queryBottles(smartGroupFilters(group.filterQuery), ownerId);
+    return { group, members: rows, total };
+  }
 
   const memberRows = await db
     .select({ bottle: GRID_COLUMNS })
@@ -68,7 +91,7 @@ export async function getGroupDetail(id: number, ownerId: number): Promise<Group
     .where(eq(groupBottles.groupId, group.id))
     .orderBy(asc(groupBottles.position));
 
-  return { group, members: memberRows.map((row) => row.bottle) };
+  return { group, members: memberRows.map((row) => row.bottle), total: memberRows.length };
 }
 
 /** Null unless the group belongs to `ownerId`. */
@@ -83,12 +106,12 @@ export async function getGroup(id: number, ownerId: number): Promise<Group | nul
 
 export type GroupOption = { id: number; name: string };
 
-/** Every group, for the "add to group" picker on a bottle. */
+/** Every hand-picked group, for the "add to group" picker on a bottle. A smart group picks its own. */
 export async function allGroupOptions(ownerId: number): Promise<GroupOption[]> {
   return db
     .select({ id: groups.id, name: groups.name })
     .from(groups)
-    .where(eq(groups.ownerId, ownerId))
+    .where(and(eq(groups.ownerId, ownerId), isNull(groups.filterQuery)))
     .orderBy(asc(groups.name));
 }
 

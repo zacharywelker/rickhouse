@@ -25,7 +25,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
 
   const [detail, bottleOptions] = await Promise.all([getGroupDetail(groupId, user.id), allBottleOptions(user.id)]);
   if (!detail) notFound();
-  const { group, members } = detail;
+  const { group, members, total } = detail;
 
   return (
     <div className="flex flex-col gap-8">
@@ -51,7 +51,13 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_1fr]">
         <GroupCoverUpload groupId={groupId} coverImagePath={group.coverImagePath} />
-        <GroupBottleGrid groupId={groupId} members={members} bottleOptions={bottleOptions} />
+        <GroupBottleGrid
+          groupId={groupId}
+          members={members}
+          total={total}
+          bottleOptions={group.filterQuery !== null ? [] : bottleOptions}
+          smartQuery={group.filterQuery}
+        />
       </div>
     </div>
   );

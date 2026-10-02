@@ -8,10 +8,12 @@ import { BottleTable, COLUMN_LABELS } from "@/components/bottles/bottle-table";
 import { FilterBar } from "@/components/bottles/filter-bar";
 import { GridPagination } from "@/components/bottles/grid-pagination";
 import { SpinTheBottle } from "@/components/bottles/spin-the-bottle";
+import { SaveSmartGroup } from "@/components/groups/save-smart-group";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
 import { activeFilterCount, parseFilters } from "@/lib/bottles/filters";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
+import { smartGroupQuery } from "@/lib/groups/smart";
 import { cn, formatMoney, formatNumeric } from "@/lib/utils";
 
 /** Workbench jobs: inline on desktop, folded into "More" on a phone. */
@@ -114,6 +116,11 @@ export default async function BottlesPage({
       </p>
 
       <FilterBar filters={filters} options={{ categories, brands, distilleries, mashbills, finishes, stores, tags }} columns={COLUMN_LABELS} total={total} />
+      {filtered ? (
+        <div className="-mt-3 flex justify-end">
+          <SaveSmartGroup query={smartGroupQuery(filters)} />
+        </div>
+      ) : null}
 
       {rows.length === 0 ? (
         <div className="border border-dashed border-border p-10 text-center">

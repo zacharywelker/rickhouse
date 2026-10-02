@@ -30,7 +30,8 @@ export default async function GroupsPage() {
         <div className="border border-dashed border-border p-10 text-center">
           <p className="text-lg">No groups yet</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            An unfinished scrapbook page. Start one to pull bottles together around a story.
+            An unfinished scrapbook page. Start one to pull bottles together around a story — or filter the
+            Collection and save it as a smart group that keeps itself up to date.
           </p>
           <Button className="mt-4" asChild>
             <Link href="/groups/new">Create a group</Link>
