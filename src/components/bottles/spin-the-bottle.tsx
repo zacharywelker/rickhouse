@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { Check, Loader2, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -235,9 +236,38 @@ function ProofPicker({
   );
 }
 
+const OPEN_ONLY_KEY = "rickhouse:spin:open-only";
+
+/**
+ * "Only open bottles" is a standing rule, not one of tonight's questions: kept
+ * apart from the filters so "Surprise me" still honours it, and remembered in
+ * this browser so a sealed bottle stays safe on the next spin too.
+ */
+function useOpenOnly() {
+  const [openOnly, setOpenOnly] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
+      setOpenOnly(window.localStorage.getItem(OPEN_ONLY_KEY) === "1");
+    } catch {
+      // Unavailable: start with every bottle in play.
+    }
+  }, []);
+  const update = React.useCallback((next: boolean) => {
+    setOpenOnly(next);
+    try {
+      window.localStorage.setItem(OPEN_ONLY_KEY, next ? "1" : "0");
+    } catch {
+      // Not remembered this time; it still applies until you leave.
+    }
+  }, []);
+  return [openOnly, update] as const;
+}
+
 export function SpinTheBottle({ categories, finishes }: { categories: Option[]; finishes: Option[] }) {
   const [open, setOpen] = React.useState(false);
   const [filters, setFilters] = React.useState<Filters>(EMPTY_FILTERS);
+  const [openOnly, setOpenOnly] = useOpenOnly();
   const [spinning, setSpinning] = React.useState(false);
   const [bottleAngle, setBottleAngle] = React.useState(0);
   const [wheelAngle, setWheelAngle] = React.useState(0);
@@ -252,6 +282,7 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
     if (withFilters.finishIds.length > 0) params.set("finish", withFilters.finishIds.join(","));
     if (withFilters.proofMin !== null) params.set("proofMin", String(withFilters.proofMin));
     if (withFilters.proofMax !== null) params.set("proofMax", String(withFilters.proofMax));
+    if (openOnly) params.set("open", "1");
 
     const request = fetch(`/api/bottles/roulette?${params.toString()}`).then(
       (res) => res.json() as Promise<{ bottle: GridRow | null }>,
@@ -315,6 +346,12 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
               onChange={({ min, max }) => setFilters((f) => ({ ...f, proofMin: min, proofMax: max }))}
             />
           </div>
+          <div className="-mt-2 flex items-center justify-center gap-2">
+            <Checkbox id="spin-open-only" checked={openOnly} onCheckedChange={(c) => setOpenOnly(c === true)} />
+            <Label htmlFor="spin-open-only" className="cursor-pointer text-sm font-normal">
+              Only open bottles
+            </Label>
+          </div>
 
           <div className="relative mx-auto aspect-square w-60 select-none sm:w-72">
             <div className="absolute left-1/2 -top-1 z-20 -translate-x-1/2" aria-hidden="true">
@@ -361,7 +398,9 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
             </div>
           ) : result === null ? (
             <div className="flex flex-col items-center gap-3 text-center">
-              <p className="text-sm text-muted-foreground">Nothing on the shelf matches those questions.</p>
+              <p className="text-sm text-muted-foreground">
+                {openOnly ? "Nothing open matches those questions." : "Nothing on the shelf matches those questions."}
+              </p>
               <Button variant="outline" onClick={() => setResult(undefined)}>
                 Loosen up and try again
               </Button>

@@ -29,6 +29,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     categoryIds: idList(params.get("category")),
     finishIds: idList(params.get("finish")),
     proof: { min: proofBound(params.get("proofMin")), max: proofBound(params.get("proofMax")) },
+    openOnly: params.get("open") === "1",
   }, user.id);
 
   return NextResponse.json({ bottle });
