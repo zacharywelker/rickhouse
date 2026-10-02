@@ -2,7 +2,6 @@ import type { FieldGroup } from "@/db/schema";
 import type { LinkedRow } from "@/components/expressions/ordered-picker";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import { initialFieldValues, type FieldValue } from "@/lib/forms/values";
-import { formatNumeric } from "@/lib/utils";
 import { LABEL_COLUMN_GROUPS, LABEL_COLUMNS, type LabelColumnGroup } from "./columns";
 import { sectionVisible } from "./fields";
 import { LINK_FIELDS, linksPayload } from "./links";
@@ -66,16 +65,4 @@ export function changesFor(original: LabelEdit, edit: LabelEdit, fieldGroup: Fie
     for (const field of LINK_FIELDS) changes[field] = linksPayload(edit[field] as LinkedRow[]);
   }
   return Object.keys(changes).length > 0 ? changes : null;
-}
-
-/** "12y", "4y 3m", "10y 2m 14d" — or null when no age is recorded. */
-export function describeAgeParts(years: string | null, months: number | string | null, days: number | string | null): string | null {
-  const parts = [
-    [years, "y"],
-    [months, "m"],
-    [days, "d"],
-  ]
-    .filter(([value]) => value !== null && value !== "" && Number(value) !== 0)
-    .map(([value, unit]) => `${formatNumeric(String(value))}${unit}`);
-  return parts.length > 0 ? parts.join(" ") : null;
 }

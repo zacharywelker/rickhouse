@@ -169,6 +169,13 @@
       "when": 1790684974639,
       "tag": "0023_label_photo",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790771374639,
+      "tag": "0024_bottle_list_age_parts",
+      "breakpoints": true
     }
   ]
 }
