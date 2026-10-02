@@ -69,6 +69,7 @@ export function LinksCell({
           options={options}
           amountLabel={config.amountLabel}
           amountSuffix={config.amountSuffix}
+          {...(config.amountMax !== undefined ? { amountMax: config.amountMax } : {})}
           value={value}
           onChange={onChange}
           inferable={config.inferable === true}

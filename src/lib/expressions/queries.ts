@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { describeMashbill, mashbillTitle } from "@/lib/mashbills";
+import { shareText } from "./links";
 import {
   bottleImages,
   bottles,
@@ -285,7 +286,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
   const byId = new Map<number, LabelLinks>(ids.map((id) => [id, { distilleries: [], mashbills: [], finishes: [] }]));
   if (ids.length === 0) return byId;
 
-  const amount = (value: string | null) => (value === null ? "" : String(Number(value)));
+  const amount = shareText;
   const [d, m, f] = await Promise.all([
     db
       .select({

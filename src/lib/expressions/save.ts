@@ -108,7 +108,8 @@ export async function insertLinks(tx: Tx, ownerId: number, expressionId: number,
         expressionId,
         distilleryId: row.id,
         position,
-        sharePct: row.amount === null ? null : String(row.amount),
+        // Shares are whole percentages (see shareText).
+        sharePct: row.amount === null ? null : String(Math.round(row.amount)),
         isInferred: row.inferred === true,
       })),
     );
@@ -127,7 +128,8 @@ export async function insertLinks(tx: Tx, ownerId: number, expressionId: number,
         expressionId,
         mashbillId: row.id,
         position,
-        sharePct: row.amount === null ? null : String(row.amount),
+        // Shares are whole percentages (see shareText).
+        sharePct: row.amount === null ? null : String(Math.round(row.amount)),
         distilleryId: distilleryIdFor(row),
       })),
     );

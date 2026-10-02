@@ -151,6 +151,7 @@ export function ExpressionFields({
             options={options.distilleryLinks ?? []}
             amountLabel="Share"
             amountSuffix="%"
+            amountMax={100}
             inferable
             undisclosable
             value={links.distilleries}
@@ -165,6 +166,7 @@ export function ExpressionFields({
             options={options.mashbillLinks ?? []}
             amountLabel="Share"
             amountSuffix="%"
+            amountMax={100}
             value={links.mashbills}
             onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
             distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}

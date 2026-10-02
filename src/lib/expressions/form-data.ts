@@ -2,6 +2,7 @@ import "server-only";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import type { Option } from "@/lib/admin/types";
 import { categoryFieldGroups, expressionLinks } from "./queries";
+import { shareText } from "./links";
 import type { LinkedRow } from "@/components/expressions/ordered-picker";
 
 /** Everything the expression form needs to render, in one round of queries. */
@@ -45,14 +46,14 @@ export async function loadLinks(expressionId: number) {
     distilleries: linked.distilleries.map((row) => ({
       id: row.id,
       label: row.name,
-      amount: row.amount === null ? "" : String(Number(row.amount)),
+      amount: shareText(row.amount),
       inferred: row.inferred === true,
       undisclosed: row.undisclosed === true,
     })),
     mashbills: linked.mashbills.map((row) => ({
       id: row.id,
       label: row.name,
-      amount: row.amount === null ? "" : String(Number(row.amount)),
+      amount: shareText(row.amount),
       // Which of the label's distilleries made this recipe (issue #13); the
       // picker preselects this once there is more than one to choose from.
       distilleryId: row.distilleryId ?? null,

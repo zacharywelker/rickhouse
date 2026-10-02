@@ -46,6 +46,7 @@ export function OrderedPicker({
   options,
   amountLabel,
   amountSuffix,
+  amountMax,
   value: allRows,
   onChange: onAllRowsChange,
   emptyHint,
@@ -62,6 +63,8 @@ export function OrderedPicker({
   emptyHint?: string;
   amountLabel: string;
   amountSuffix: string;
+  /** The most the amount can be: 100 for a share. Months have no cap. */
+  amountMax?: number;
   value: LinkedRow[];
   onChange: (rows: LinkedRow[]) => void;
   /**
@@ -196,15 +199,18 @@ export function OrderedPicker({
                   id={`${name}-amount-${row.id}`}
                   type="number"
                   min={0}
-                  step="0.01"
-                  inputMode="decimal"
+                  max={amountMax}
+                  // Whole numbers: a share to the hundredth is more exact than
+                  // anyone knows a blend to be, and months are whole anyway.
+                  step={1}
+                  inputMode="numeric"
                   value={row.amount}
                   onChange={(e) =>
                     onChange(value.map((r) => (r.id === row.id ? { ...r, amount: e.target.value } : r)))
                   }
-                  // Wide enough for "100.00" and no more. The spinner arrows
-                  // would take half of that, and a phone shows a keypad anyway.
-                  className="h-8 w-16 px-2 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  // Wide enough for "100" and no more. The spinner arrows would
+                  // take half of that, and a phone shows a keypad anyway.
+                  className="h-8 w-12 px-2 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
                 <span className="text-xs text-muted-foreground">{amountSuffix}</span>
               </div>
