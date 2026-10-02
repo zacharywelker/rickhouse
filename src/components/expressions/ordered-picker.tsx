@@ -208,9 +208,11 @@ export function OrderedPicker({
                   onChange={(e) =>
                     onChange(value.map((r) => (r.id === row.id ? { ...r, amount: e.target.value } : r)))
                   }
-                  // Wide enough for "100" and no more. The spinner arrows would
-                  // take half of that, and a phone shows a keypad anyway.
-                  className="h-8 w-12 px-2 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  // Exactly three digits wide — "100" — plus padding and
+                  // border, in the input's own font (1ch is one tabular digit).
+                  // No spinner arrows: they would take half of it, and a phone
+                  // shows a keypad anyway.
+                  className="h-8 w-[calc(3ch_+_0.75rem_+_2px)] px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
                 <span className="text-xs text-muted-foreground">{amountSuffix}</span>
               </div>
