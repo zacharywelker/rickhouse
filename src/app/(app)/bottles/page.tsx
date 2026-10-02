@@ -10,6 +10,7 @@ import { GridPagination } from "@/components/bottles/grid-pagination";
 import { SpinTheBottle } from "@/components/bottles/spin-the-bottle";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
+import { getCurrency } from "@/lib/preferences";
 import { activeFilterCount, parseFilters } from "@/lib/bottles/filters";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { cn, formatMoney, formatNumeric } from "@/lib/utils";
@@ -30,6 +31,7 @@ export default async function BottlesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [user, filters] = await Promise.all([requireSession(), searchParams.then(parseFilters)]);
+  const currency = await getCurrency();
 
   const [{ rows, total, pageCount, page }, summary, categories, brands, distilleries, mashbills, finishes, stores, tags] =
     await Promise.all([
@@ -103,13 +105,13 @@ export default async function BottlesPage({
           items={[
             { label: filtered ? "Matching" : "Bottles", value: filtered ? total : summary.count },
             { label: "Open", value: summary.open },
-            { label: filtered ? "Spend, filtered" : "Total spend", value: formatMoney(summary.spend) },
+            { label: filtered ? "Spend, filtered" : "Total spend", value: formatMoney(summary.spend, currency) },
             { label: "Average proof", value: formatNumeric(summary.avgProof) },
           ]}
         />
       </div>
       <p className="-mt-2 border-t-2 border-foreground pt-2 text-sm text-muted-foreground sm:hidden">
-        {summary.open} open · {formatMoney(summary.spend)} {filtered ? "spent, filtered" : "spent"} ·{" "}
+        {summary.open} open · {formatMoney(summary.spend, currency)} {filtered ? "spent, filtered" : "spent"} ·{" "}
         {formatNumeric(summary.avgProof)} average proof
       </p>
 

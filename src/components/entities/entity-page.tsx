@@ -8,6 +8,7 @@ import { Section, SectionContent } from "@/components/ui/section";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
+import { getCurrency } from "@/lib/preferences";
 import { parseFilters, type BottleFilters } from "@/lib/bottles/filters";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { formatMoney, formatNumeric } from "@/lib/utils";
@@ -47,6 +48,7 @@ export async function EntityPage({
   // merged over the top so it cannot be filtered away.
   const filters: BottleFilters = { ...parseFilters(searchParams), ...preset };
   const user = await requireSession();
+  const currency = await getCurrency();
 
   const [{ rows, total, pageCount, page }, summary, stores] = await Promise.all([
     queryBottles(filters, user.id),
@@ -82,9 +84,12 @@ export async function EntityPage({
       <StatStrip
         items={[
           { label: "Bottles", value: summary.count },
-          { label: "Total spend", value: formatMoney(summary.spend) },
+          { label: "Total spend", value: formatMoney(summary.spend, currency) },
           { label: "Average proof", value: formatNumeric(summary.avgProof) },
-          { label: "Average rating", value: summary.avgRating ? `${Number(summary.avgRating)}/10` : "—" },
+          {
+            label: "Average rating",
+            value: summary.avgRating ? `${Number(summary.avgRating)}/10` : "—",
+          },
         ]}
       />
 
@@ -99,9 +104,7 @@ export async function EntityPage({
         <BottleTable rows={rows} filters={filters} stores={stores} />
       )}
 
-      {rows.length > 0 ? (
-        <GridPagination filters={filters} page={page} pageCount={pageCount} total={total} />
-      ) : null}
+      {rows.length > 0 ? <GridPagination filters={filters} page={page} pageCount={pageCount} total={total} /> : null}
     </div>
   );
 }

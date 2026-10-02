@@ -5,6 +5,7 @@ import { bottleList } from "@/db/schema";
 import { Section, SectionContent, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { requireSession } from "@/lib/auth";
+import { getCurrency } from "@/lib/preferences";
 import { isOpenNow, isOwnedNow, wasBought } from "@/lib/bottles/grid";
 import { formatMoney, formatNumeric, formatDate } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ async function loadSummary(ownerId: number): Promise<Summary> {
 
 export default async function HomePage() {
   const user = await requireSession();
+  const currency = await getCurrency();
   const [summary, recent] = await Promise.all([
     loadSummary(user.id),
     db
@@ -56,7 +58,7 @@ export default async function HomePage() {
         items={[
           { label: "Bottles", value: summary.bottles },
           { label: "Open", value: summary.open },
-          { label: "Total spend", value: formatMoney(summary.spend) },
+          { label: "Total spend", value: formatMoney(summary.spend, currency) },
         ]}
       />
 
@@ -82,7 +84,7 @@ export default async function HomePage() {
                       {bottle.brand} <span className="text-accent">{bottle.name}</span>
                     </Link>
                     <span className="text-sm text-muted-foreground">
-                      {formatNumeric(bottle.proof)} proof · {formatMoney(bottle.pricePaid)}
+                      {formatNumeric(bottle.proof)} proof · {formatMoney(bottle.pricePaid, currency)}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">

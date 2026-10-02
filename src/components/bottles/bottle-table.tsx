@@ -21,7 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { ageLabel } from "@/lib/expressions/display";
-import { cn, formatDate, formatMoney, formatNumeric } from "@/lib/utils";
+import { useMoney } from "@/components/currency-context";
+import { cn, formatDate, formatNumeric } from "@/lib/utils";
 import { fillState, fillStateDescription } from "@/lib/bottles/fill-state";
 import type { BottleFilters, SortKey } from "@/lib/bottles/filters";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
@@ -128,6 +129,7 @@ export function BottleTable({
   stores: Option[];
 }) {
   const { apply } = useGridFilters(filters);
+  const money = useMoney();
   const router = useRouter();
 
   const [unlocked, setUnlocked] = React.useState(false);
@@ -346,13 +348,13 @@ export function BottleTable({
               className="h-8 w-24"
             />
           ) : (
-            <span className="tabular-nums">{formatMoney(getValue())}</span>
+            <span className="tabular-nums">{money(getValue())}</span>
           ),
       }),
       helper.accessor("msrp", {
         id: "msrp",
         header: "MSRP",
-        cell: ({ getValue }) => <span className="tabular-nums">{formatMoney(getValue())}</span>,
+        cell: ({ getValue }) => <span className="tabular-nums">{money(getValue())}</span>,
       }),
       helper.accessor("store", {
         id: "store",
@@ -414,7 +416,7 @@ export function BottleTable({
           ]
         : []),
     ],
-    [unlocked, edits, stores],
+    [unlocked, edits, stores, money],
   );
 
   const columnVisibility = React.useMemo<VisibilityState>(

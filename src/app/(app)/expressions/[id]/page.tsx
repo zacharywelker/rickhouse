@@ -17,6 +17,7 @@ import { Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
 import { T8keHint } from "@/components/expressions/t8ke-hint";
 import { CHAR_LEVEL_LABELS, type CharLevel } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import { getCurrency } from "@/lib/preferences";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { ageLabel } from "@/lib/expressions/display";
@@ -63,6 +64,7 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
   if (!Number.isInteger(expressionId)) notFound();
 
   const user = await requireSession();
+  const currency = await getCurrency();
   // Someone else's label is simply not found.
   const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
@@ -130,8 +132,8 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
         items={[
           { label: owned.length === 1 ? "Bottle" : "Bottles", value: owned.length },
           { label: "On the shelf", value: onShelf.length },
-          { label: "Average paid", value: averagePaid === null ? "—" : formatMoney(String(averagePaid)) },
-          { label: "MSRP", value: e.msrp ? formatMoney(e.msrp) : "—" },
+          { label: "Average paid", value: averagePaid === null ? "—" : formatMoney(String(averagePaid), currency) },
+          { label: "MSRP", value: e.msrp ? formatMoney(e.msrp, currency) : "—" },
         ]}
       />
 
@@ -264,7 +266,7 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
                         </td>
                         <td className="py-2 pr-4">{bottle.dateAcquired ? formatDate(bottle.dateAcquired) : "—"}</td>
                         <td className="py-2 pr-4 text-right tabular-nums">
-                          {bottle.pricePaid ? formatMoney(bottle.pricePaid) : "—"}
+                          {bottle.pricePaid ? formatMoney(bottle.pricePaid, currency) : "—"}
                         </td>
                         <td className="py-2">
                           <StatusMark status={bottle.status} />

@@ -45,6 +45,8 @@ export type NumbersInput = {
   money: Money;
   acquiring: Acquiring;
   shelf: Shelf;
+  /** ISO 4217 code amounts are shown in. */
+  currency?: string;
 };
 
 const MIN_SAMPLE = 3;
@@ -142,7 +144,7 @@ function stockpileFindings({ today, stockpile: s }: NumbersInput): Finding[] {
   return out;
 }
 
-function moneyFindings({ today, money: m }: NumbersInput): Finding[] {
+function moneyFindings({ today, money: m, currency }: NumbersInput): Finding[] {
   const out: Finding[] = [];
   const acquiredLinks = { statuses: [...EVER_ACQUIRED] };
   if (m.thisYear > 0 && m.lastYearToDate > 0) {
@@ -151,7 +153,7 @@ function moneyFindings({ today, money: m }: NumbersInput): Finding[] {
     out.push({
       id: "pace",
       chapter: "money",
-      figure: formatMoney(String(m.thisYear)),
+      figure: formatMoney(String(m.thisYear), currency),
       sentence:
         delta === 0
           ? `spent so far this year, exactly last year's pace.`
@@ -190,8 +192,8 @@ function moneyFindings({ today, money: m }: NumbersInput): Finding[] {
     out.push({
       id: "sealed-value",
       chapter: "money",
-      figure: formatMoney(String(m.sealedValue)),
-      sentence: `is sitting in sealed bottles, against ${formatMoney(String(m.openValue))} in open ones.`,
+      figure: formatMoney(String(m.sealedValue), currency),
+      sentence: `is sitting in sealed bottles, against ${formatMoney(String(m.openValue), currency)} in open ones.`,
       href: href({ open: "closed", sort: "price" }),
       weight: 0.15,
     });
@@ -200,7 +202,7 @@ function moneyFindings({ today, money: m }: NumbersInput): Finding[] {
     out.push({
       id: "priciest",
       chapter: "money",
-      figure: formatMoney(m.priciest.price),
+      figure: formatMoney(m.priciest.price, currency),
       sentence: `is the most you've paid for one bottle: ${m.priciest.name}.`,
       href: `/bottles/${m.priciest.id}` as Route,
       weight: 0.1,

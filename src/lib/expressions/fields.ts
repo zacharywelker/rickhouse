@@ -188,7 +188,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     id: "commercial",
     title: "On the shelf",
     fields: [
-      { kind: "number", name: "msrp", label: "MSRP", min: 0, step: 0.01, span: "half" },
+      { kind: "number", name: "msrp", label: "MSRP", money: true, min: 0, step: 0.01, span: "half" },
       { kind: "number", name: "sizeMl", label: "Size (ml)", min: 1, max: 20000, step: 1, defaultValue: "750", span: "half" },
       {
         kind: "text",
