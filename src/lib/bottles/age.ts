@@ -64,23 +64,29 @@ export function defaultAgeStatement(flags: { isStraight: boolean; isBottledInBon
 /** Fields whose checkbox, when switched on, offers a default age statement. */
 const AGE_DESIGNATION_FIELDS: ReadonlySet<string> = new Set(["isStraight", "isBottledInBond", "isNas"]);
 
+const designations = (values: Record<string, unknown>) => ({
+  isStraight: values.isStraight === true,
+  isBottledInBond: values.isBottledInBond === true,
+  isNas: values.isNas === true,
+});
+
 /**
  * The age statement to fill in after `name` changed from `prev` to `next`, or
- * null to leave it alone. Turning on Straight, Bottled In Bond or NAS offers
- * the default, but only into a blank statement — Old Grand Dad 7 is
- * bottled-in-bond and still reads "7 Year", not the BiB default. Shared by the
- * label form and the bulk grid so the two never disagree.
+ * null to leave it alone. Switching Straight, Bottled In Bond or NAS on or off
+ * offers the default, but only over a blank statement or the default the
+ * previous ticks produced — so ticking Straight then Bottled In Bond upgrades
+ * to the BiB default, and unticking takes the text back out, while Old Grand
+ * Dad 7 is bottled-in-bond and still reads "7 Year". Shared by the label form
+ * and the bulk grid so the two never disagree.
  */
 export function offeredAgeStatement(
   prev: Record<string, unknown>,
   next: Record<string, unknown>,
   name: string,
 ): string | null {
-  if (!AGE_DESIGNATION_FIELDS.has(name) || next[name] !== true) return null;
-  if (String(prev.ageStatement ?? "").trim() !== "") return null;
-  return defaultAgeStatement({
-    isStraight: next.isStraight === true,
-    isBottledInBond: next.isBottledInBond === true,
-    isNas: next.isNas === true,
-  });
+  if (!AGE_DESIGNATION_FIELDS.has(name) || prev[name] === next[name]) return null;
+  const current = String(prev.ageStatement ?? "").trim();
+  if (current !== "" && current !== defaultAgeStatement(designations(prev))) return null;
+  const offered = defaultAgeStatement(designations(next));
+  return offered === current ? null : offered;
 }

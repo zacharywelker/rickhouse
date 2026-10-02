@@ -81,6 +81,27 @@ describe("offeredAgeStatement", () => {
     expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: true }, "isBottledInBond")).toBeNull();
   });
 
+  it("upgrades its own default when a stronger designation is ticked", () => {
+    const prev = { isStraight: true, isBottledInBond: false, ageStatement: "Straight (at least 2 years)" };
+    expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: true }, "isBottledInBond")).toBe(
+      "Bottled-in-Bond (at least 4 years)",
+    );
+  });
+
+  it("takes its own default back out when the designation is unticked", () => {
+    const prev = { isStraight: true, ageStatement: "Straight (at least 2 years)" };
+    expect(offeredAgeStatement(prev, { ...prev, isStraight: false }, "isStraight")).toBe("");
+    const both = { isStraight: true, isBottledInBond: true, ageStatement: "Bottled-in-Bond (at least 4 years)" };
+    expect(offeredAgeStatement(both, { ...both, isBottledInBond: false }, "isBottledInBond")).toBe(
+      "Straight (at least 2 years)",
+    );
+  });
+
+  it("leaves typed text alone when a designation is unticked", () => {
+    const prev = { isBottledInBond: true, ageStatement: "7 Year" };
+    expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: false }, "isBottledInBond")).toBeNull();
+  });
+
   it("offers nothing when switching one off, or for other fields", () => {
     const prev = { isStraight: true, ageStatement: "" };
     expect(offeredAgeStatement(prev, { ...prev, isStraight: false }, "isStraight")).toBeNull();
