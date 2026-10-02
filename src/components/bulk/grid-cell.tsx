@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { MaybeMoney } from "@/components/currency-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { StopSlider } from "@/components/forms/stop-slider";
@@ -128,6 +129,7 @@ export function GridCell({
 
     default:
       return (
+        <MaybeMoney money={spec.kind === "number" && spec.money === true}>
         <Input
           ref={inputRef}
           id={id}
@@ -138,9 +140,10 @@ export function GridCell({
           placeholder={"placeholder" in spec ? spec.placeholder : undefined}
           aria-label={spec.label}
           aria-invalid={invalid || undefined}
-          className={cn("h-9", invalid && "border-destructive", className)}
+          className={cn("h-9", invalid && "border-destructive", spec.kind === "number" && spec.money && "pl-8", className)}
           {...(spec.kind === "number" ? { min: spec.min, max: spec.max, step: spec.step ?? 1 } : {})}
         />
+        </MaybeMoney>
       );
   }
 }

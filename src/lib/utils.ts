@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { currencySymbol, DEFAULT_CURRENCY } from "@/lib/currency";
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
@@ -9,13 +10,13 @@ export function cn(...inputs: ClassValue[]): string {
  * Money arrives from Postgres `numeric` as a string. Format it without ever
  * round-tripping through a float (SPEC: Conventions).
  */
-export function formatMoney(value: string | null | undefined): string {
+export function formatMoney(value: string | null | undefined, currency: string = DEFAULT_CURRENCY): string {
   if (value === null || value === undefined || value === "") return "—";
   const negative = value.startsWith("-");
   const [whole = "0", fraction = ""] = value.replace("-", "").split(".");
   const cents = `${fraction}00`.slice(0, 2);
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${negative ? "-" : ""}$${grouped}.${cents}`;
+  return `${negative ? "-" : ""}${currencySymbol(currency)}${grouped}.${cents}`;
 }
 
 /** Trims Postgres numeric padding: "108.00" -> "108", "54.50" -> "54.5". */
@@ -75,7 +76,11 @@ export function timeSince(value: string | null | undefined, today: Date = new Da
   if (!value) return null;
   const date = parseIsoDate(value);
   if (!date) return null;
-  const now = { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
+  const now = {
+    year: today.getFullYear(),
+    month: today.getMonth() + 1,
+    day: today.getDate(),
+  };
   const days = Math.round(
     (Date.UTC(now.year, now.month - 1, now.day) - Date.UTC(date.year, date.month - 1, date.day)) / 86_400_000,
   );

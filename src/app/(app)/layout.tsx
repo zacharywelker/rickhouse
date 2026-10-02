@@ -4,7 +4,9 @@ import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
+import { CurrencyProvider } from "@/components/currency-context";
 import { requireSession } from "@/lib/auth";
+import { getPreferences } from "@/lib/preferences";
 
 /**
  * The signed-in shell. Login sits outside this group so it keeps its bare
@@ -16,6 +18,7 @@ import { requireSession } from "@/lib/auth";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireSession();
+  const { currency } = await getPreferences(user.id);
 
   const signOut = (
     <form action={logout}>
@@ -32,7 +35,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         signOut={signOut}
         userMenu={<UserMenu name={user.name} username={user.username} isAdmin={user.role === "admin"} />}
       />
-      <main className="mx-auto w-full max-w-page flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      <main className="mx-auto w-full max-w-page flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <CurrencyProvider currency={currency}>{children}</CurrencyProvider>
+      </main>
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
+import { getCurrency } from "@/lib/preferences";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
@@ -41,6 +42,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   if (!Number.isInteger(bottleId)) notFound();
 
   const user = await requireSession();
+  const currency = await getCurrency();
   // Someone else's bottle is simply not found.
   const row = await getBottle(bottleId, user.id);
   if (!row) notFound();
@@ -186,8 +188,8 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
             <Spec label="Age" value={age} />
             <Spec label="Size" value={`${e.sizeMl} ml`} />
-            <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp) : null} />
-            <Spec label="Paid" value={row.bottle.pricePaid ? formatMoney(row.bottle.pricePaid) : null} />
+            <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp, currency) : null} />
+            <Spec label="Paid" value={row.bottle.pricePaid ? formatMoney(row.bottle.pricePaid, currency) : null} />
             <Spec
               label="Store"
               value={

@@ -6,7 +6,8 @@ import type { Route } from "next";
 import { Star } from "lucide-react";
 import { fillStateText } from "@/lib/bottles/fill-state";
 import { ageLabel } from "@/lib/expressions/display";
-import { cn, formatMoney, formatNumeric } from "@/lib/utils";
+import { useMoney } from "@/components/currency-context";
+import { cn, formatNumeric } from "@/lib/utils";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
 import type { GridRow } from "@/lib/bottles/grid";
 import { FillGauge } from "./fill-gauge";
@@ -23,6 +24,7 @@ import { StatusMark } from "./status-mark";
  * column would silently blank a field the phone had room for.
  */
 export function BottleCards({ rows }: { rows: GridRow[] }) {
+  const money = useMoney();
   return (
     <ul className="flex flex-col gap-2">
       {rows.map((row) => (
@@ -66,10 +68,8 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 <StatusMark status={row.status} className="text-muted-foreground" />
                 <span className="text-muted-foreground">{fillStateText(row.fillPct)}</span>
-                {row.pricePaid ? <span className="tabular-nums">{formatMoney(row.pricePaid)}</span> : null}
-                {row.avgRating ? (
-                  <span className="tabular-nums text-accent">{Number(row.avgRating)}/10</span>
-                ) : null}
+                {row.pricePaid ? <span className="tabular-nums">{money(row.pricePaid)}</span> : null}
+                {row.avgRating ? <span className="tabular-nums text-accent">{Number(row.avgRating)}/10</span> : null}
               </div>
             </div>
           </Link>

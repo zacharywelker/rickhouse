@@ -5,6 +5,8 @@ describe("formatMoney", () => {
   it("formats Postgres numeric strings without touching floats", () => {
     expect(formatMoney("69.99")).toBe("$69.99");
     expect(formatMoney("1234.50")).toBe("$1,234.50");
+    expect(formatMoney("1234.50", "GBP")).toBe("£1,234.50");
+    expect(formatMoney("5", "EUR")).toBe("€5.00");
     expect(formatMoney("1234567.05")).toBe("$1,234,567.05");
   });
 

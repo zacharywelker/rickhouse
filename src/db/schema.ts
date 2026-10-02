@@ -862,6 +862,8 @@ export const userPreferences = pgTable("user_preferences", {
     .references(() => users.id, { onDelete: "cascade" }),
   /** "Add bottle" opens the search-first page that saves a label and its bottle together. */
   searchFirstAdd: boolean("search_first_add").notNull().default(false),
+  /** ISO 4217 code prices are shown and entered in. Display only: amounts are never converted. */
+  currency: text("currency").notNull().default("USD"),
 });
 
 // ------------------------------------------------------------

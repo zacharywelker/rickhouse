@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn, formatMoney } from "@/lib/utils";
+import { useMoney } from "@/components/currency-context";
+import { cn } from "@/lib/utils";
 
 export type HaulBottle = { id: number; title: string; price: number };
 
@@ -32,6 +33,7 @@ export function HaulPanel({
   onMakeGroup: (name: string) => Promise<string | null>;
   finished: boolean;
 }) {
+  const money = useMoney();
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState(defaultName);
   const [error, setError] = React.useState<string | null>(null);
@@ -55,14 +57,17 @@ export function HaulPanel({
   };
 
   return (
-    <div className={cn("flex flex-col gap-2 border-l-2 border-accent pl-3 text-sm", finished && "py-1")} aria-live="polite">
+    <div
+      className={cn("flex flex-col gap-2 border-l-2 border-accent pl-3 text-sm", finished && "py-1")}
+      aria-live="polite"
+    >
       {finished ? <h2 className="text-2xl leading-tight tracking-tight">That&rsquo;s the haul.</h2> : null}
       <p>
         <span className="font-medium">
           {finished ? "" : "This haul: "}
           {haul.length} {haul.length === 1 ? "bottle" : "bottles"}
         </span>
-        {spend > 0 ? <span className="text-muted-foreground"> · {formatMoney(String(spend))}</span> : null}
+        {spend > 0 ? <span className="text-muted-foreground"> · {money(String(spend))}</span> : null}
       </p>
       <p className="text-muted-foreground">
         {haul.map((bottle, i) => (
@@ -79,7 +84,10 @@ export function HaulPanel({
       {group ? (
         <p>
           In the group{" "}
-          <Link href={`/groups/${group.id}`} className="font-medium text-primary underline underline-offset-2 hover:no-underline">
+          <Link
+            href={`/groups/${group.id}`}
+            className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+          >
             {group.name}
           </Link>
           {finished ? "." : ". Bottles you add from here go in it too."}

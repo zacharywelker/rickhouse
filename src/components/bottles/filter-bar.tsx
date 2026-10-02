@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Check, LayoutGrid, Rows3, Search, X } from "lucide-react";
+import { useCurrencySymbol } from "@/components/currency-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -172,6 +173,7 @@ export function FilterBar({
   total: number;
 }) {
   const { apply, toggleId } = useGridFilters(filters);
+  const currencySymbol = useCurrencySymbol();
   const [search, setSearch] = React.useState(filters.q ?? "");
   // Eleven filter buttons push the first bottle off a phone screen, so below
   // `sm` they live behind a disclosure. Open it if filters are already on:
@@ -333,7 +335,7 @@ export function FilterBar({
 
         <RangeFilter label="Proof" value={filters.proof} onChange={(proof) => apply({ proof })} />
         <RangeFilter label="Age" suffix="yr" value={filters.age} onChange={(age) => apply({ age })} />
-        <RangeFilter label="Price" suffix="$" value={filters.price} onChange={(price) => apply({ price })} />
+        <RangeFilter label="Price" suffix={currencySymbol} value={filters.price} onChange={(price) => apply({ price })} />
 
         <Popover>
           <PopoverTrigger asChild>
