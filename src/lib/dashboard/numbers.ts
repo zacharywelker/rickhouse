@@ -9,6 +9,7 @@ import {
   proofDistribution,
   topDistilleries,
 } from "./queries";
+import { outright } from "./findings";
 
 /**
  * The raw facts behind each Numbers chapter, one round trip per chapter.
@@ -174,7 +175,7 @@ export async function acquiring(ownerId: number): Promise<Acquiring> {
        WHERE b.owner_id = ${ownerId} AND ${ACQUIRED}
        GROUP BY s.id, s.name
        ORDER BY count DESC, s.name
-       LIMIT 1
+       LIMIT 2
     `),
     db.execute<{ picks: number; name: string | null; count: number | null }>(sql`
       WITH picks AS (
@@ -195,7 +196,7 @@ export async function acquiring(ownerId: number): Promise<Acquiring> {
   return {
     acquired: mixRows.reduce((sum, r) => sum + r.count, 0),
     mix: mixRows,
-    favouriteStore: [...stores][0] ?? null,
+    favouriteStore: outright([...stores]),
     picks: pickRow.picks,
     topPicker: pickRow.name && pickRow.count ? { name: pickRow.name, count: pickRow.count } : null,
   };
@@ -231,7 +232,7 @@ export async function shelf(ownerId: number): Promise<Shelf> {
     `),
     categoryShare(ownerId),
     proofDistribution(ownerId),
-    topDistilleries(ownerId, 1),
+    topDistilleries(ownerId, 2),
   ]);
-  return { ...[...head][0]!, categories, proof, topDistillery: distilleries[0] ?? null };
+  return { ...[...head][0]!, categories, proof, topDistillery: outright(distilleries) };
 }

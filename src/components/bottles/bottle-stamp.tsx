@@ -368,7 +368,7 @@ export function BottleStamp({
       );
       break;
     case "nas":
-      mark = <LedgerMark id={id} color={color} rng={rng} topText="UNDATED · UNAGED" centerText="NAS" bottomText="AS BOTTLED" />;
+      mark = <LedgerMark id={id} color={color} rng={rng} topText="AGE NOT STATED" centerText="NAS" bottomText="AS BOTTLED" />;
       break;
     case "private-selection":
       mark = (
