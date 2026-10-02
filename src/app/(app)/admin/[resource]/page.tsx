@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ResourceView } from "@/components/admin/resource-view";
 import { RESOURCES, isResourceKey } from "@/lib/admin/registry";
+import { parseAdminSort } from "@/lib/admin/sort";
 import { requireSession } from "@/lib/auth";
 
 /**
@@ -21,8 +22,14 @@ export async function generateMetadata({
   return { title: isResourceKey(resource) ? RESOURCES[resource].label : "Not found" };
 }
 
-export default async function ResourcePage({ params }: { params: Promise<{ resource: string }> }) {
-  const { resource } = await params;
+export default async function ResourcePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ resource: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [{ resource }, query] = await Promise.all([params, searchParams]);
   if (!isResourceKey(resource)) notFound();
 
   const user = await requireSession();
@@ -37,6 +44,7 @@ export default async function ResourcePage({ params }: { params: Promise<{ resou
       fields={config.fields}
       columns={config.columns}
       rows={rows}
+      sort={parseAdminSort(query, config.columns)}
       options={options}
       readOnly={resource === "categories" && user.role !== "admin"}
     />

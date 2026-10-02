@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Loader2, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +17,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { deleteResourceAction } from "@/app/(app)/admin/actions";
+import { adminSortQuery, sortAdminRows, type AdminSort } from "@/lib/admin/sort";
 import type { AdminRow, CellValue, ColumnSpec, FieldSpec, Option } from "@/lib/admin/types";
 import { ResourceForm } from "./resource-form";
 
@@ -25,6 +28,8 @@ type Props = {
   fields: FieldSpec[];
   columns: ColumnSpec[];
   rows: AdminRow[];
+  /** From the URL; null keeps the order the registry lists them in. */
+  sort: AdminSort | null;
   options: Record<string, Option[]>;
   /** Shown but not editable: categories, for anyone but an admin. */
   readOnly?: boolean;
@@ -48,6 +53,29 @@ function Cell({ value }: { value: CellValue }) {
   return <>{value}</>;
 }
 
+/** A column header that sorts by it: a new column starts ascending, the active one flips. */
+function SortLink({ resourceKey, column, sort }: { resourceKey: string; column: ColumnSpec; sort: AdminSort | null }) {
+  const active = sort?.key === column.key;
+  return (
+    <Link
+      href={`/admin/${resourceKey}${adminSortQuery(sort, column.key)}` as Route}
+      // Sorting is a view change, not a new page to scroll back up from.
+      scroll={false}
+      replace
+      className={cn("-mx-1 inline-flex items-center gap-1 px-1 py-0.5 hover:text-foreground", active && "text-primary")}
+    >
+      {/* Not aria-label: that would also label the form field of the same name. */}
+      <span className="sr-only">Sort by </span>
+      {column.label}
+      {active ? (
+        sort.desc ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />
+      ) : (
+        <ChevronsUpDown className="size-3 opacity-40" />
+      )}
+    </Link>
+  );
+}
+
 export function ResourceView({
   resourceKey,
   label,
@@ -55,9 +83,11 @@ export function ResourceView({
   fields,
   columns,
   rows,
+  sort,
   options,
   readOnly = false,
 }: Props) {
+  const sorted = React.useMemo(() => sortAdminRows(rows, sort), [rows, sort]);
   // `null` means the create form; a row means edit. `undefined` means closed.
   const [editing, setEditing] = React.useState<AdminRow | null | undefined>(undefined);
   const [deleting, setDeleting] = React.useState<AdminRow | null>(null);
@@ -114,9 +144,10 @@ export function ResourceView({
                 {columns.map((column) => (
                   <TableHead
                     key={column.key}
+                    aria-sort={sort?.key === column.key ? (sort.desc ? "descending" : "ascending") : undefined}
                     className={cn(column.numeric && "text-right", column.secondary && "hidden sm:table-cell")}
                   >
-                    {column.label}
+                    <SortLink resourceKey={resourceKey} column={column} sort={sort} />
                   </TableHead>
                 ))}
                 <TableHead className="w-24 text-right">
@@ -125,7 +156,7 @@ export function ResourceView({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {sorted.map((row) => (
                 <TableRow key={row.id}>
                   {columns.map((column, index) => (
                     <TableCell
