@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import type { Option } from "@/lib/admin/types";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
 import type { GridRow } from "@/lib/bottles/grid";
+import { ageLabel } from "@/lib/expressions/display";
 import { cn, formatNumeric } from "@/lib/utils";
 
 /**
@@ -373,7 +374,7 @@ export function SpinTheBottle({ categories, finishes }: { categories: Option[]; 
               <p className="text-xl font-medium">{result.expressionName}</p>
               <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <span className={cn("size-2 shrink-0 rounded-full", categorySwatchClass(result.fieldGroup))} aria-hidden="true" />
-                {[result.category, result.proof ? `${formatNumeric(result.proof)} proof` : null, result.ageStatement]
+                {[result.category, result.proof ? `${formatNumeric(result.proof)} proof` : null, ageLabel(result)]
                   .filter(Boolean)
                   .join(" · ")}
               </p>

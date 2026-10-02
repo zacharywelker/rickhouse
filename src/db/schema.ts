@@ -933,6 +933,8 @@ export const bottleList = pgView("bottle_list", {
   proof: pct("proof"),
   abv: pct("abv"),
   ageYears: numeric("age_years", { precision: 4, scale: 1 }),
+  ageMonths: integer("age_months"),
+  ageDays: integer("age_days"),
   ageStatement: text("age_statement"),
   /** True when the value above came from the label rather than the bottle. */
   proofInherited: boolean("proof_inherited").notNull(),
