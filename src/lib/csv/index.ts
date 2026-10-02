@@ -9,6 +9,14 @@
 
 export type CsvRow = Record<string, string>;
 
+/**
+ * A cell a spreadsheet would run as a formula: "=HYPERLINK(…)" in a bottle's
+ * notes executes when the export is opened in Excel or Sheets. The writer
+ * defuses it with a leading apostrophe (OWASP's CSV-injection advice), and
+ * the reader takes that apostrophe back off, so a round trip stays lossless.
+ */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
 /** Splits CSV text into rows of raw cells. Handles quotes, escaped quotes,
  *  embedded commas and newlines, and both CRLF and LF line endings. */
 export function parseCsv(input: string): string[][] {
@@ -76,7 +84,8 @@ export function parseCsvRows(input: string): { headers: string[]; rows: CsvRow[]
   const rows = raw.slice(1).map((cells) => {
     const row: CsvRow = {};
     headers.forEach((header, index) => {
-      row[header] = (cells[index] ?? "").trim();
+      const cell = (cells[index] ?? "").trim();
+      row[header] = cell.startsWith("'") && FORMULA_START.test(cell.slice(1)) ? cell.slice(1) : cell;
     });
     return row;
   });
@@ -86,7 +95,7 @@ export function parseCsvRows(input: string): { headers: string[]; rows: CsvRow[]
 /** Quotes only where it has to, which keeps hand-edited files readable. */
 export function toCsvCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
-  const text = String(value);
+  const text = typeof value === "string" && FORMULA_START.test(value) ? `'${value}` : String(value);
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

@@ -96,4 +96,16 @@ describe("toCsv", () => {
       note: 'He said "neat"',
     });
   });
+
+  it("defuses cells a spreadsheet would run as formulas, and the parser restores them", () => {
+    expect(toCsvCell('=HYPERLINK("http://example.com","click")')).toBe('"\'=HYPERLINK(""http://example.com"",""click"")"');
+    expect(toCsvCell("@SUM(A1)")).toBe("'@SUM(A1)");
+    expect(toCsvCell("+1 for the label art")).toBe("'+1 for the label art");
+    // Numbers are data, not text a person typed.
+    expect(toCsvCell(-5)).toBe("-5");
+
+    const notes = ["=1+1", "-ish, a bit hot", "'quoted on purpose"];
+    const parsed = parseCsvRows(toCsv(["note"], notes.map((n) => [n])));
+    expect(parsed.rows.map((r) => r.note)).toEqual(notes);
+  });
 });
