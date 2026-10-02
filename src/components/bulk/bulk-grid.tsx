@@ -6,7 +6,7 @@ import { Copy, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fieldVisible, sectionVisible, type FormSection } from "@/lib/expressions/fields";
-import { initialFieldValues, type FieldValue } from "@/lib/forms/values";
+import { initialFieldValues, withOption, type FieldValue } from "@/lib/forms/values";
 import type { FieldSpec, Option } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
 import type { FieldGroup } from "@/db/schema";
@@ -31,6 +31,10 @@ export type CustomColumn = {
     value: unknown;
     onChange: (value: unknown) => void;
     values: RowValues;
+    /** Picker options by field name, with any created in this grid. */
+    options: Record<string, Option[]>;
+    /** Share an option created in one row's picker with every row. */
+    onOptionCreated: (field: string, option: Option) => void;
   }) => React.ReactNode;
   className?: string;
 };
@@ -259,6 +263,8 @@ export function BulkGrid({
         value: row.values[column.id],
         onChange: (value) => update(row.key, column.id, value),
         values: row.values,
+        options: optionsByField,
+        onOptionCreated: (field, option) => setOptionsByField((prev) => withOption(prev, field, option)),
       });
     }
 
@@ -273,12 +279,7 @@ export function BulkGrid({
         onChange={(value) => update(row.key, column.id, value)}
         invalid={error !== undefined}
         options={optionsByField[column.id] ?? []}
-        onOptionCreated={(option) =>
-          setOptionsByField((prev) => ({
-            ...prev,
-            [column.id]: [...(prev[column.id] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)),
-          }))
-        }
+        onOptionCreated={(option) => setOptionsByField((prev) => withOption(prev, column.id, option))}
         {...(typed
           ? {
               inputRef: nav.register(rowIndex, column.id),
