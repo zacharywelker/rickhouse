@@ -33,7 +33,9 @@ function columnFromDetail(detail: string | undefined): string | null {
   const match = detail?.match(/^Key \(([^)]+)\)=/);
   if (!match?.[1]) return null;
   // Composite keys come back as "name, location"; the first is the useful one.
-  return match[1].split(",")[0]?.trim() ?? null;
+  // Per-account keys lead with owner_id, which is never what the person typed.
+  const columns = match[1].split(",").map((column) => column.trim());
+  return columns.find((column) => column !== "owner_id") ?? null;
 }
 
 export function mapDbError(error: unknown, context: { singular: string }): ActionResult {

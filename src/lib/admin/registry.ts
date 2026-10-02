@@ -1,9 +1,9 @@
 import "server-only";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne, not, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import { db } from "@/db";
-import { describeMashbill, mashbillTitle, orderGrains } from "@/lib/mashbills";
+import { describeMashbill, mashbillTitle, orderGrains, recipeKey } from "@/lib/mashbills";
 import {
   FIELD_GROUPS,
   FINISH_TYPES,
@@ -644,11 +644,12 @@ const mashbillsConfig: ResourceConfig = {
   label: "Mashbills",
   singular: "Mashbill",
   description:
-    "Recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any ingredient can go in — oats, molasses, whatever the distillery actually used. A distillery that keeps its recipe secret is entered as an inferred recipe under a reference name, which is what shows. The same recipe can come from more than one distillery, so which one applies is set per label, not here.",
+    "Recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any ingredient can go in — oats, molasses, whatever the distillery actually used. A distillery that keeps its recipe secret is entered as an inferred recipe under a reference name, which is what shows. A label that says no more than High Rye or Wheated gets a generic style instead, with no recipe; a few come ready-made. The same recipe can come from more than one distillery, so which one applies is set per label, not here.",
   columns: [
-    // A mashbill is its recipe; a secret one shows its reference name instead.
+    // A mashbill is its recipe; a secret or generic one shows its name instead.
     { key: "name", label: "Recipe" },
     { key: "secret", label: "Secret" },
+    { key: "generic", label: "Generic" },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
   // The grain list is rendered by GrainEditor, not as a FieldSpec — it is a
@@ -662,13 +663,20 @@ const mashbillsConfig: ResourceConfig = {
       span: "half",
     },
     {
+      kind: "checkbox",
+      name: "isGeneric",
+      label: "Generic style",
+      help: "A style such as High Rye or Wheated, with no recipe.",
+      span: "half",
+    },
+    {
       kind: "text",
       name: "name",
-      label: "Reference name",
-      placeholder: "Buffalo Trace Wheated",
+      label: "Name",
+      placeholder: "Buffalo Trace Wheated, High Rye",
       help: "Shown in place of the recipe.",
       span: "half",
-      showWhenAny: ["isSecret"],
+      showWhenAny: ["isSecret", "isGeneric"],
     },
     notesField,
   ],
@@ -678,6 +686,7 @@ const mashbillsConfig: ResourceConfig = {
         id: mashbills.id,
         name: mashbills.name,
         isSecret: mashbills.isSecret,
+        isGeneric: mashbills.isGeneric,
         notes: mashbills.notes,
         uses: sql<number>`(select count(*)::int from ${expressionMashbills} where ${expressionMashbills.mashbillId} = ${mashbills.id})`,
       })
@@ -711,11 +720,13 @@ const mashbillsConfig: ResourceConfig = {
         cells: {
           name: mashbillTitle(r, describeMashbill(mine) || "No recipe"),
           secret: r.isSecret,
+          generic: r.isGeneric,
           uses: r.uses,
         },
         values: {
           name: r.name,
           isSecret: r.isSecret,
+          isGeneric: r.isGeneric,
           notes: r.notes,
           // The editor reads this back out of its hidden field.
           grains: JSON.stringify(orderGrains(mine).map((g) => ({ grain: g.grain, percent: String(Number(g.percent)) }))),
@@ -729,7 +740,17 @@ const mashbillsConfig: ResourceConfig = {
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
 
-    const values = { name: input.isSecret ? input.name : null, isSecret: input.isSecret, notes: input.notes };
+    const values = {
+      name: input.isSecret || input.isGeneric ? input.name : null,
+      isSecret: input.isSecret,
+      isGeneric: input.isGeneric,
+      notes: input.notes,
+    };
+    // A style has no recipe, whatever the form still carried.
+    const grains = input.isGeneric ? [] : input.grains;
+
+    const duplicate = await findDuplicateMashbill(ownerId, id, values.name, grains);
+    if (duplicate) return duplicate;
 
     /*
      * Grains are replaced wholesale inside one transaction. The sum trigger is
@@ -749,9 +770,9 @@ const mashbillsConfig: ResourceConfig = {
       const mashbillId = row.id;
 
       await tx.delete(mashbillGrains).where(eq(mashbillGrains.mashbillId, mashbillId));
-      if (input.grains.length > 0) {
+      if (grains.length > 0) {
         await tx.insert(mashbillGrains).values(
-          input.grains.map((g, position) => ({
+          grains.map((g, position) => ({
             mashbillId,
             grain: g.grain,
             percent: String(g.percent),
@@ -766,6 +787,67 @@ const mashbillsConfig: ResourceConfig = {
     await db.delete(mashbills).where(and(eq(mashbills.id, id), eq(mashbills.ownerId, ownerId)));
   },
 };
+
+/**
+ * The same mashbill twice splits its labels between two rows, so "what else
+ * uses this recipe" stops having one answer. A secret or generic mashbill is
+ * the same as another one with its name; any other is the same as one with
+ * its recipe — the same grains in the same amounts, however they were typed.
+ *
+ * Names are also held unique by the database (drizzle/0025). Recipes are rows
+ * of a child table, which no index can compare, so they are checked here.
+ */
+async function findDuplicateMashbill(
+  ownerId: number,
+  id: number | null,
+  name: string | null,
+  grains: ReadonlyArray<{ grain: string; percent: number }>,
+): Promise<SaveOutcome | null> {
+  const others = and(eq(mashbills.ownerId, ownerId), id === null ? undefined : ne(mashbills.id, id));
+
+  if (name !== null) {
+    const [taken] = await db
+      .select({ id: mashbills.id })
+      .from(mashbills)
+      .where(and(others, or(mashbills.isSecret, mashbills.isGeneric), sql`${mashbills.name} = ${name}::citext`))
+      .limit(1);
+    return taken
+      ? { ok: false, error: `There is already a mashbill called ${name}.`, fieldErrors: { name: "Already taken." } }
+      : null;
+  }
+
+  const key = recipeKey(grains);
+  const rows = await db
+    .select({
+      // `${mashbills}.id`, not `${mashbills.id}`: on a one-table select Drizzle
+      // leaves the column bare, and inside the subquery a bare id is the grain's.
+      recipe: sql<string | null>`(
+        select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
+          from ${mashbillGrains} g where g.mashbill_id = ${mashbills}.id
+      )`,
+    })
+    .from(mashbills)
+    .where(and(others, not(mashbills.isSecret), not(mashbills.isGeneric)));
+  for (const row of rows) {
+    const theirs = parseRecipe(row.recipe);
+    if (theirs.length > 0 && recipeKey(theirs) === key) {
+      const message = `That recipe is already a mashbill: ${describeMashbill(theirs)}. Use that one instead.`;
+      return { ok: false, error: message, fieldErrors: { grains: message } };
+    }
+  }
+  return null;
+}
+
+/** The `grain:percent|…` string the recipe subqueries build. */
+function parseRecipe(raw: string | null): Array<{ grain: string; percent: string }> {
+  return (raw ?? "")
+    .split("|")
+    .filter(Boolean)
+    .map((part) => {
+      const [grain = "", percent = "0"] = part.split(":");
+      return { grain, percent };
+    });
+}
 
 // ------------------------------------------------------------
 // Finishes
@@ -1051,7 +1133,7 @@ async function storeOptions(ownerId: number): Promise<Option[]> {
 }
 
 /**
- * A mashbill is labelled by its recipe, or by its reference name when secret. They are
+ * A mashbill is labelled by its recipe, or by its name when secret or generic. They are
  * also not exclusive to one distillery — the same recipe name gets reused
  * across producers — so no distillery shows up here; that correlation is
  * per-label (issue #13), picked in the expression form instead.
@@ -1062,6 +1144,7 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
       value: mashbills.id,
       name: mashbills.name,
       isSecret: mashbills.isSecret,
+      isGeneric: mashbills.isGeneric,
       // string_agg keeps this one query rather than one per mashbill.
       recipe: sql<string | null>`(
         select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
@@ -1073,16 +1156,10 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
     .orderBy(asc(mashbills.name), asc(mashbills.id));
 
   return rows.map((r) => {
-    const grains = (r.recipe ?? "")
-      .split("|")
-      .filter(Boolean)
-      .map((part) => {
-        const [grain = "", percent = "0"] = part.split(":");
-        return { grain, percent };
-      });
-    const recipe = describeMashbill(grains);
+    const recipe = describeMashbill(parseRecipe(r.recipe));
     const label = mashbillTitle(r, recipe || "No recipe");
-    return { value: r.value, label, ...(label !== recipe && recipe ? { hint: recipe } : {}) };
+    const hint = r.isGeneric ? "Generic" : label !== recipe ? recipe : "";
+    return { value: r.value, label, ...(hint ? { hint } : {}) };
   });
 }
 

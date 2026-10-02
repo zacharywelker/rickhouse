@@ -52,6 +52,7 @@ export function OrderedPicker({
   distilleryChoices,
   inferable = false,
   undisclosable = false,
+  onOptionCreated,
 }: {
   name: string;
   label: string;
@@ -78,8 +79,17 @@ export function OrderedPicker({
    * tick, not in the list, so the list holds only real distilleries.
    */
   undisclosable?: boolean;
+  /**
+   * A newly created option, for the caller to share — a grid's other rows
+   * need it in their pickers too. Kept here as well, for callers that don't.
+   */
+  onOptionCreated?: (option: Option) => void;
 }) {
-  const [available, setAvailable] = React.useState(options);
+  const [created, setCreated] = React.useState<Option[]>([]);
+  const available = React.useMemo(() => {
+    const known = new Set(options.map((option) => option.value));
+    return [...options, ...created.filter((option) => !known.has(option.value))];
+  }, [options, created]);
   // With the tick, undisclosed links are set aside; every edit below is to the
   // listed ones and puts the others back on the end, where they are saved.
   const undisclosedRows = undisclosable ? allRows.filter((row) => row.undisclosed) : [];
@@ -244,7 +254,8 @@ export function OrderedPicker({
           addRow(option);
         }}
         onOptionCreated={(option) => {
-          setAvailable((prev) => [...prev, option]);
+          setCreated((prev) => [...prev, option]);
+          onOptionCreated?.(option);
           addRow(option);
         }}
         placeholder={`Add ${label.toLowerCase()}…`}

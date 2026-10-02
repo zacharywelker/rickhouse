@@ -22,6 +22,7 @@ export function LinksCell({
   onChange,
   options,
   distilleryChoices,
+  onOptionCreated,
   className,
 }: {
   kind: LinkKind;
@@ -32,6 +33,8 @@ export function LinksCell({
   options: Option[];
   /** Mashbills only: the row's distilleries, to attribute each recipe to. */
   distilleryChoices?: Array<{ id: number; name: string }>;
+  /** A distillery, mashbill or finish created here, for the other rows' pickers. */
+  onOptionCreated?: (option: Option) => void;
   className?: string;
 }) {
   const config = LINK_KINDS[kind];
@@ -72,6 +75,7 @@ export function LinksCell({
           undisclosable={config.undisclosable === true}
           {...(config.emptyHint ? { emptyHint: config.emptyHint } : {})}
           {...(distilleryChoices ? { distilleryChoices } : {})}
+          {...(onOptionCreated ? { onOptionCreated } : {})}
         />
       </PopoverContent>
     </Popover>
