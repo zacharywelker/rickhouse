@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bottleStateSchema, expressionGridEditSchema } from "../schema";
+import { bottleGridEditSchema, bottleSchema, bottleStateSchema, expressionGridEditSchema } from "../schema";
 
 describe("expressionGridEditSchema", () => {
   it("leaves out what was not sent, rather than clearing it", () => {
@@ -52,5 +52,22 @@ describe("bottleStateSchema", () => {
   it("refuses a date in the future", () => {
     const result = bottleStateSchema.safeParse({ dateOpened: "2999-01-01" });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("bottle dates", () => {
+  const futureIssue = (result: { success: boolean; error?: { issues: Array<{ path: PropertyKey[]; message: string }> } }) =>
+    result.error?.issues.find((i) => i.message === "That date is in the future.")?.path;
+
+  it("refuses a bottle bought in the future", () => {
+    expect(futureIssue(bottleSchema.safeParse({ expressionId: "1", dateAcquired: "2099-01-01" }))).toEqual(["dateAcquired"]);
+    expect(futureIssue(bottleGridEditSchema.safeParse({ expressionId: "1", dateAcquired: "2099-01-01" }))).toEqual([
+      "dateAcquired",
+    ]);
+  });
+
+  it("refuses a barrel bottled in the future, and accepts one bottled in the past", () => {
+    expect(futureIssue(bottleSchema.safeParse({ expressionId: "1", bottledOn: "2999-06-01" }))).toEqual(["bottledOn"]);
+    expect(futureIssue(bottleSchema.safeParse({ expressionId: "1", bottledOn: "2020-06-01" }))).toBeUndefined();
   });
 });

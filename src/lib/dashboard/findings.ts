@@ -49,6 +49,15 @@ export type NumbersInput = {
 
 const MIN_SAMPLE = 3;
 
+/**
+ * The leader of rows sorted by count, descending — or null on a tie, because
+ * "more than any other" is false when another one has just as many.
+ */
+export function outright<T extends { count: number }>(rows: readonly T[]): T | null {
+  const [first, second] = rows;
+  return first && (!second || first.count > second.count) ? first : null;
+}
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** The noun alone, for sentences that continue from the figure. */
 const noun = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
