@@ -111,7 +111,8 @@ const grainRow = z.object({
 export const mashbillSchema = z
   .object({
     isSecret: checkbox,
-    // The reference name of a secret mashbill; ignored otherwise.
+    isGeneric: checkbox,
+    // The reference name of a secret mashbill or the style of a generic one; ignored otherwise.
     name: optionalText(120),
     notes: optionalText(),
     // The editor serialises its rows into one hidden field.
@@ -143,12 +144,28 @@ export const mashbillSchema = z
     // guard a malformed field throws a TypeError instead of failing cleanly.
     if (!Array.isArray(value.grains)) return;
 
+    if (value.isSecret && value.isGeneric) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["isGeneric"],
+        message: "A mashbill is a secret recipe or a generic style, not both.",
+      });
+      return;
+    }
     if (value.isSecret && value.name === null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["name"],
         message: "Give a secret mashbill a reference name, such as Buffalo Trace Wheated.",
       });
+    }
+    // A style has no recipe, so the name is all there is. Any grains the
+    // form still carried are dropped on save.
+    if (value.isGeneric) {
+      if (value.name === null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["name"], message: "Name the style, such as High Rye." });
+      }
+      return;
     }
     // A mashbill is presented as its recipe, so a public one needs one. A
     // secret one can be just its reference name until a recipe is inferred.

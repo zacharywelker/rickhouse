@@ -77,13 +77,29 @@ test("a secret mashbill shows its reference name instead of the inferred recipe"
   await page.goto("/admin/mashbills");
   await page.getByRole("button", { name: "Add mashbill" }).first().click();
   // The reference name only appears once the mashbill is marked secret.
-  await expect(page.getByLabel("Reference name")).toHaveCount(0);
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
   await page.getByLabel("Secret mashbill").click();
-  await page.getByLabel("Reference name").fill(name);
+  await page.getByLabel("Name", { exact: true }).fill(name);
   await addGrain(page, "Corn", "70", 0);
   await addGrain(page, "Wheat", "20", 1);
   await addGrain(page, "Malted Barley", "10", 2);
 
+  await page.getByRole("button", { name: "Add mashbill" }).last().click();
+  await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
+});
+
+test("every account starts with generic styles, and can add its own with no recipe", async ({ page }) => {
+  await page.goto("/admin/mashbills");
+  for (const style of ["High Rye", "Low Rye", "Wheated"]) {
+    await expect(page.getByRole("cell", { name: style, exact: true })).toBeVisible();
+  }
+
+  const name = `Bottled Oddity ${stamp()}`;
+  await page.getByRole("button", { name: "Add mashbill" }).first().click();
+  await page.getByLabel("Generic style").click();
+  // A style has no recipe, so there are no grains to enter.
+  await expect(page.getByRole("button", { name: "Add an ingredient" })).toHaveCount(0);
+  await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByRole("button", { name: "Add mashbill" }).last().click();
   await expect(page.getByRole("cell", { name, exact: true })).toBeVisible();
 });

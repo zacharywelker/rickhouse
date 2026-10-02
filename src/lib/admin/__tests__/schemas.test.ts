@@ -67,6 +67,23 @@ describe("mashbillSchema", () => {
     if (!parsed.success) expect(parsed.error.issues[0]?.path).toEqual(["name"]);
   });
 
+  it("takes a generic style by name alone, and asks for the name", () => {
+    expect(mashbillSchema.safeParse(mashbill([], { isGeneric: "on", name: "High Rye" })).success).toBe(true);
+    const unnamed = mashbillSchema.safeParse(mashbill([], { isGeneric: "on" }));
+    expect(unnamed.success).toBe(false);
+    if (!unnamed.success) expect(unnamed.error.issues[0]?.path).toEqual(["name"]);
+  });
+
+  it("does not judge leftover grains on a generic style, which are dropped on save", () => {
+    expect(mashbillSchema.safeParse(mashbill([["Corn", "50"]], { isGeneric: "on", name: "Wheated" })).success).toBe(true);
+  });
+
+  it("is a secret recipe or a generic style, not both", () => {
+    const parsed = mashbillSchema.safeParse(mashbill([], { isSecret: "on", isGeneric: "on", name: "High Rye" }));
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) expect(parsed.error.issues[0]?.path).toEqual(["isGeneric"]);
+  });
+
   it("rejects a grain with no name, and a percentage of zero", () => {
     expect(mashbillSchema.safeParse(mashbill([["", "100"]])).success).toBe(false);
     expect(mashbillSchema.safeParse(mashbill([["Corn", "100"], ["Rye", "0"]])).success).toBe(false);

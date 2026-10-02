@@ -97,6 +97,10 @@ describe("mashbillTitle", () => {
     expect(mashbillTitle({ isSecret: true, name: "Buffalo Trace Wheated" }, "70% Corn")).toBe("Buffalo Trace Wheated");
     expect(mashbillTitle({ isSecret: true, name: " " }, "70% Corn")).toBe("70% Corn");
   });
+
+  it("is the style for a generic mashbill, which has no recipe", () => {
+    expect(mashbillTitle({ isSecret: false, isGeneric: true, name: "High Rye" }, "")).toBe("High Rye");
+  });
 });
 
 describe("ingredientColor", () => {

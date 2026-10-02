@@ -163,13 +163,24 @@ export const mashbills = pgTable("mashbills", {
   ownerId: integer("owner_id")
     .notNull()
     .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
-  /** The reference name of a secret mashbill ("Buffalo Trace Wheated"); unused otherwise — a mashbill shows as its recipe. */
+  /**
+   * The reference name of a secret mashbill ("Buffalo Trace Wheated") or the
+   * style of a generic one ("High Rye"); unused otherwise — a mashbill shows
+   * as its recipe.
+   */
   name: citext("name"),
   /** The distillery keeps the recipe secret; the recipe here is inferred and `name` is what shows. */
   isSecret: boolean("is_secret").notNull().default(false),
+  /**
+   * A style rather than a recipe ("High Rye", "Wheated"), for a label that
+   * says no more than that. Has no grains; `name` is what shows. Every
+   * account starts with a few (drizzle/0024).
+   */
+  isGeneric: boolean("is_generic").notNull().default(false),
   notes: text("notes"),
 }, (t) => [
   index("mashbills_owner_idx").on(t.ownerId),
+  check("mashbills_secret_or_generic_check", sql`NOT (${t.isSecret} AND ${t.isGeneric})`),
 ]);
 
 /**

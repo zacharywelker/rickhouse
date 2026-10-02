@@ -644,11 +644,12 @@ const mashbillsConfig: ResourceConfig = {
   label: "Mashbills",
   singular: "Mashbill",
   description:
-    "Recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any ingredient can go in — oats, molasses, whatever the distillery actually used. A distillery that keeps its recipe secret is entered as an inferred recipe under a reference name, which is what shows. The same recipe can come from more than one distillery, so which one applies is set per label, not here.",
+    "Recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any ingredient can go in — oats, molasses, whatever the distillery actually used. A distillery that keeps its recipe secret is entered as an inferred recipe under a reference name, which is what shows. A label that says no more than High Rye or Wheated gets a generic style instead, with no recipe; a few come ready-made. The same recipe can come from more than one distillery, so which one applies is set per label, not here.",
   columns: [
-    // A mashbill is its recipe; a secret one shows its reference name instead.
+    // A mashbill is its recipe; a secret or generic one shows its name instead.
     { key: "name", label: "Recipe" },
     { key: "secret", label: "Secret" },
+    { key: "generic", label: "Generic" },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
   // The grain list is rendered by GrainEditor, not as a FieldSpec — it is a
@@ -662,13 +663,20 @@ const mashbillsConfig: ResourceConfig = {
       span: "half",
     },
     {
+      kind: "checkbox",
+      name: "isGeneric",
+      label: "Generic style",
+      help: "A style such as High Rye or Wheated, with no recipe.",
+      span: "half",
+    },
+    {
       kind: "text",
       name: "name",
-      label: "Reference name",
-      placeholder: "Buffalo Trace Wheated",
+      label: "Name",
+      placeholder: "Buffalo Trace Wheated, High Rye",
       help: "Shown in place of the recipe.",
       span: "half",
-      showWhenAny: ["isSecret"],
+      showWhenAny: ["isSecret", "isGeneric"],
     },
     notesField,
   ],
@@ -678,6 +686,7 @@ const mashbillsConfig: ResourceConfig = {
         id: mashbills.id,
         name: mashbills.name,
         isSecret: mashbills.isSecret,
+        isGeneric: mashbills.isGeneric,
         notes: mashbills.notes,
         uses: sql<number>`(select count(*)::int from ${expressionMashbills} where ${expressionMashbills.mashbillId} = ${mashbills.id})`,
       })
@@ -711,11 +720,13 @@ const mashbillsConfig: ResourceConfig = {
         cells: {
           name: mashbillTitle(r, describeMashbill(mine) || "No recipe"),
           secret: r.isSecret,
+          generic: r.isGeneric,
           uses: r.uses,
         },
         values: {
           name: r.name,
           isSecret: r.isSecret,
+          isGeneric: r.isGeneric,
           notes: r.notes,
           // The editor reads this back out of its hidden field.
           grains: JSON.stringify(orderGrains(mine).map((g) => ({ grain: g.grain, percent: String(Number(g.percent)) }))),
@@ -729,7 +740,14 @@ const mashbillsConfig: ResourceConfig = {
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
 
-    const values = { name: input.isSecret ? input.name : null, isSecret: input.isSecret, notes: input.notes };
+    const values = {
+      name: input.isSecret || input.isGeneric ? input.name : null,
+      isSecret: input.isSecret,
+      isGeneric: input.isGeneric,
+      notes: input.notes,
+    };
+    // A style has no recipe, whatever the form still carried.
+    const grains = input.isGeneric ? [] : input.grains;
 
     /*
      * Grains are replaced wholesale inside one transaction. The sum trigger is
@@ -749,9 +767,9 @@ const mashbillsConfig: ResourceConfig = {
       const mashbillId = row.id;
 
       await tx.delete(mashbillGrains).where(eq(mashbillGrains.mashbillId, mashbillId));
-      if (input.grains.length > 0) {
+      if (grains.length > 0) {
         await tx.insert(mashbillGrains).values(
-          input.grains.map((g, position) => ({
+          grains.map((g, position) => ({
             mashbillId,
             grain: g.grain,
             percent: String(g.percent),
@@ -1051,7 +1069,7 @@ async function storeOptions(ownerId: number): Promise<Option[]> {
 }
 
 /**
- * A mashbill is labelled by its recipe, or by its reference name when secret. They are
+ * A mashbill is labelled by its recipe, or by its name when secret or generic. They are
  * also not exclusive to one distillery — the same recipe name gets reused
  * across producers — so no distillery shows up here; that correlation is
  * per-label (issue #13), picked in the expression form instead.
@@ -1062,6 +1080,7 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
       value: mashbills.id,
       name: mashbills.name,
       isSecret: mashbills.isSecret,
+      isGeneric: mashbills.isGeneric,
       // string_agg keeps this one query rather than one per mashbill.
       recipe: sql<string | null>`(
         select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
@@ -1082,7 +1101,8 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
       });
     const recipe = describeMashbill(grains);
     const label = mashbillTitle(r, recipe || "No recipe");
-    return { value: r.value, label, ...(label !== recipe && recipe ? { hint: recipe } : {}) };
+    const hint = r.isGeneric ? "Generic" : label !== recipe ? recipe : "";
+    return { value: r.value, label, ...(hint ? { hint } : {}) };
   });
 }
 

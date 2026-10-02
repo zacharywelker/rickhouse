@@ -76,12 +76,17 @@ export function describeMashbill(grains: readonly Grain[]): string {
 /**
  * What a mashbill is called. The recipe, unless the distillery keeps it secret:
  * then the recipe is only inferred, and the reference name ("Buffalo Trace
- * Wheated") stands in for it.
+ * Wheated") stands in for it. A generic mashbill ("High Rye") is a style with
+ * no recipe at all, so its name is all there is.
  */
-export function mashbillTitle(mashbill: { isSecret: boolean; name: string | null }, recipe: string): string {
+export function mashbillTitle(
+  mashbill: { isSecret: boolean; isGeneric?: boolean; name: string | null },
+  recipe: string,
+): string {
   const reference = mashbill.name?.trim();
-  return mashbill.isSecret && reference ? reference : recipe;
+  return (mashbill.isSecret || mashbill.isGeneric) && reference ? reference : recipe;
 }
+
 
 /** What the sum has to land on, matching the database trigger. */
 export const GRAIN_TOTAL = { min: 99, max: 101, exact: 100 } as const;
