@@ -174,7 +174,28 @@
       "idx": 24,
       "version": "7",
       "when": 1790771374639,
-      "tag": "0024_split_locations",
+      "tag": "0024_generic_mashbills",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790857774639,
+      "tag": "0025_unique_mashbills",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790944174639,
+      "tag": "0026_bottle_list_age_parts",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791030574639,
+      "tag": "0027_split_locations",
       "breakpoints": true
     }
   ]

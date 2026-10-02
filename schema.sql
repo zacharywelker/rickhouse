@@ -804,10 +804,14 @@ SELECT
     coalesce(b.proof, e.proof)                 AS proof,
     coalesce(b.abv, e.abv)                     AS abv,
     coalesce(b.age_years, e.age_years)         AS age_years,
+    coalesce(b.age_months, e.age_months)       AS age_months,
+    coalesce(b.age_days, e.age_days)           AS age_days,
     coalesce(b.age_statement, e.age_statement) AS age_statement,
     (b.proof IS NULL AND e.proof IS NOT NULL)  AS proof_inherited,
-    (b.age_years IS NULL AND b.age_statement IS NULL
-       AND (e.age_years IS NOT NULL OR e.age_statement IS NOT NULL))
+    (b.age_years IS NULL AND b.age_months IS NULL AND b.age_days IS NULL
+       AND b.age_statement IS NULL
+       AND (e.age_years IS NOT NULL OR e.age_months IS NOT NULL
+            OR e.age_days IS NOT NULL OR e.age_statement IS NOT NULL))
                                                AS age_inherited,
     e.msrp,
     br.id   AS brand_id,

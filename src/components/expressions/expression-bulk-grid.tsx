@@ -37,7 +37,7 @@ export function ExpressionBulkGrid({
       initial: () => [],
       toPayload: (value) => linksPayload(value as LinkedRow[]),
       className: "min-w-48",
-      render: ({ id, labelledBy, value, onChange, values }) => (
+      render: ({ id, labelledBy, value, onChange, values, options, onOptionCreated }) => (
         <LinksCell
           kind={kind}
           id={id}
@@ -45,6 +45,7 @@ export function ExpressionBulkGrid({
           value={value as LinkedRow[]}
           onChange={onChange}
           options={options[LINK_KINDS[kind].field] ?? []}
+          onOptionCreated={(option) => onOptionCreated(LINK_KINDS[kind].field, option)}
           {...(kind === "mashbills"
             ? {
                 distilleryChoices: (values.distilleryLinks as LinkedRow[]).map((d) => ({ id: d.id, name: d.label })),
@@ -85,7 +86,7 @@ export function ExpressionBulkGrid({
         ],
       },
     ];
-  }, [options]);
+  }, []);
 
   return (
     <BulkGrid

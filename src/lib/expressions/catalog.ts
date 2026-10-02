@@ -50,7 +50,8 @@ export async function loadCatalogLabel(id: number, ownerId: number): Promise<Cat
     sizeMl: e.sizeMl,
     bottles: bottleCount,
     distilleries: linked.distilleries.map((d) => ({ name: d.name, inferred: d.inferred === true })),
-    mashbills: linked.mashbills.map((m) => m.recipe),
+    // A generic style has no recipe; its name is all there is.
+    mashbills: linked.mashbills.map((m) => m.recipe || m.name),
     finishes: linked.finishes.map((f) => f.name),
     values,
     links,

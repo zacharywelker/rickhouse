@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { Star } from "lucide-react";
 import { fillStateText } from "@/lib/bottles/fill-state";
+import { ageLabel } from "@/lib/expressions/display";
 import { cn, formatMoney, formatNumeric } from "@/lib/utils";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
 import type { GridRow } from "@/lib/bottles/grid";
@@ -57,7 +58,7 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
                   aria-hidden="true"
                 />
                 <span className="truncate">
-                  {[row.category, row.proof ? `${formatNumeric(row.proof)} proof` : null, row.ageStatement]
+                  {[row.category, row.proof ? `${formatNumeric(row.proof)} proof` : null, ageLabel(row)]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>

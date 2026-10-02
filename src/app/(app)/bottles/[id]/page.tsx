@@ -24,6 +24,7 @@ import { requireSession } from "@/lib/auth";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
+import { ageLabel } from "@/lib/expressions/display";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -65,12 +66,14 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   const b = row.bottle;
   const group = row.category.fieldGroup;
 
-  const age =
-    e.ageStatement ??
-    [e.ageYears ? `${Number(e.ageYears)}y` : null, e.ageMonths ? `${e.ageMonths}m` : null, e.ageDays ? `${e.ageDays}d` : null]
-      .filter(Boolean)
-      .join(" ") ??
-    null;
+  // The bottle's own age where it has one, the label's otherwise — the same
+  // per-field inheritance as bottle_list.
+  const age = ageLabel({
+    ageYears: b.ageYears ?? e.ageYears,
+    ageMonths: b.ageMonths ?? e.ageMonths,
+    ageDays: b.ageDays ?? e.ageDays,
+    ageStatement: b.ageStatement ?? e.ageStatement,
+  });
 
   // The pen this bottle's entry was "filled in" with — one hand for the
   // whole page, not a different marker per field.

@@ -12,9 +12,10 @@ import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { CELL_WIDTH, GridCell } from "@/components/bulk/grid-cell";
 import { cn, formatMoney, formatNumeric } from "@/lib/utils";
 import type { FieldSpec, Option } from "@/lib/admin/types";
-import type { FieldValue } from "@/lib/forms/values";
+import { withOption, type FieldValue } from "@/lib/forms/values";
 import { LABEL_COLUMNS, type LabelColumn, type LabelColumnGroup } from "@/lib/expressions/columns";
-import { describeAgeParts, fieldGroupOf, groupApplies, type LabelEdit } from "@/lib/expressions/label-edits";
+import { describeAgeParts } from "@/lib/expressions/display";
+import { fieldGroupOf, groupApplies, type LabelEdit } from "@/lib/expressions/label-edits";
 import { describeLinks, LINK_KINDS, type LinkKind } from "@/lib/expressions/links";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { FieldGroup } from "@/db/schema";
@@ -30,6 +31,9 @@ export const PHONE_COLUMNS: ReadonlySet<string> = new Set(["name", "proof", "bot
 const LINK_COLUMNS: ReadonlySet<string> = new Set<LinkKind>(["distilleries", "mashbills", "finishes"]);
 
 const DASH = <span className="text-muted-foreground">—</span>;
+
+/** The age column's three boxes, which share one header: each says its unit. */
+const AGE_UNITS: Readonly<Record<string, string>> = { ageYears: "yr", ageMonths: "mo", ageDays: "day" };
 
 /** "upc" -> "UPC / Barcode", for an error on a column that may not be shown. */
 const FIELD_LABELS = new Map(LABEL_COLUMNS.flatMap((column) => column.specs.map((spec) => [spec.name, spec.label])));
@@ -122,6 +126,7 @@ export function LabelTableBody({
           value={values[field] as LinkedRow[]}
           onChange={(next) => updateEdit(row, field, next)}
           options={optionsByField[field] ?? []}
+          onOptionCreated={(option) => setOptionsByField((prev) => withOption(prev, field, option))}
           className="h-8"
           {...(kind === "mashbills"
             ? {
@@ -138,23 +143,29 @@ export function LabelTableBody({
     return (
       <div className="flex items-start gap-1">
         {column.specs.map((spec) => (
-          <GridCell
-            key={spec.name}
-            spec={spec}
-            id={cellId(spec.name)}
-            labelledBy={labelledBy}
-            value={values[spec.name] as FieldValue}
-            onChange={(next) => updateEdit(row, spec.name, next)}
-            invalid={errors[spec.name] !== undefined}
-            options={optionsByField[spec.name] ?? []}
-            onOptionCreated={(option) =>
-              setOptionsByField((prev) => ({
-                ...prev,
-                [spec.name]: [...(prev[spec.name] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)),
-              }))
-            }
-            className={cn("h-8", column.specs.length > 1 && "w-16")}
-          />
+          <div key={spec.name} className="flex items-center gap-0.5">
+            <GridCell
+              spec={spec}
+              id={cellId(spec.name)}
+              labelledBy={labelledBy}
+              value={values[spec.name] as FieldValue}
+              onChange={(next) => updateEdit(row, spec.name, next)}
+              invalid={errors[spec.name] !== undefined}
+              options={optionsByField[spec.name] ?? []}
+              onOptionCreated={(option) =>
+                setOptionsByField((prev) => ({
+                  ...prev,
+                  [spec.name]: [...(prev[spec.name] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)),
+                }))
+              }
+              className={cn("h-8", column.specs.length > 1 && "w-16")}
+            />
+            {AGE_UNITS[spec.name] ? (
+              <span aria-hidden="true" className="text-xs text-muted-foreground">
+                {AGE_UNITS[spec.name]}
+              </span>
+            ) : null}
+          </div>
         ))}
       </div>
     );

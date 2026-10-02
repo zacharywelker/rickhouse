@@ -86,9 +86,10 @@ export async function getMashbill(id: number, ownerId: number) {
       id: mashbills.id,
       name: mashbills.name,
       isSecret: mashbills.isSecret,
+      isGeneric: mashbills.isGeneric,
       recipe: sql<string | null>`(
         select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
-          from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
+          from ${mashbillGrains} g where g.mashbill_id = ${mashbills}.id
       )`,
       notes: mashbills.notes,
     })

@@ -74,6 +74,7 @@ export async function expressionLinks(expressionId: number): Promise<{
         id: mashbills.id,
         name: mashbills.name,
         isSecret: mashbills.isSecret,
+        isGeneric: mashbills.isGeneric,
         amount: expressionMashbills.sharePct,
         // Which distillery's recipe this is, as picked on this label — a
         // mashbill has no distillery of its own (issue #13). Surfaced on a
@@ -305,6 +306,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
         id: mashbills.id,
         name: mashbills.name,
         isSecret: mashbills.isSecret,
+        isGeneric: mashbills.isGeneric,
         amount: expressionMashbills.sharePct,
         distilleryId: expressionMashbills.distilleryId,
         recipe: sql<string | null>`(

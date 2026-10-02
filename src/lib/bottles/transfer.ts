@@ -3,8 +3,6 @@ import { and, asc, eq, sql, type Table } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
-  ACQUISITIONS,
-  BOTTLE_STATUSES,
   bottles,
   brands,
   categories,
@@ -14,10 +12,9 @@ import {
   expressions,
   finishes,
   stores,
-  type Acquisition,
-  type BottleStatus,
 } from "@/db/schema";
 import { parseCsvRows, toCsv } from "@/lib/csv";
+import { readBottleValues, readNumber } from "./import-values";
 import { slugify } from "@/lib/utils";
 
 /**
@@ -147,11 +144,6 @@ const list = (value: string): string[] =>
     .map((part) => part.trim())
     .filter((part) => part !== "");
 
-const numberOrNull = (value: string): string | null => {
-  if (value.trim() === "") return null;
-  const n = Number(value.replace(/[$,]/g, ""));
-  return Number.isFinite(n) ? String(n) : null;
-};
 
 /** Finds one of the owner's rows by case-insensitive name, creating it if it is missing. */
 async function findOrCreate(
@@ -249,6 +241,13 @@ export async function importBottlesCsv(text: string, ownerId: number): Promise<I
         continue;
       }
 
+      const values = readBottleValues(row);
+      const labelNumber = (key: "proof" | "msrp") => {
+        const n = readNumber(row[key] ?? "");
+        if (n === undefined) values.ignored.push(`${key} "${(row[key] ?? "").trim()}" (not a number)`);
+        return n ?? null;
+      };
+
       const brandId = await findOrCreate("brand", brandName, ownerId);
       const batch = (row.batch ?? "").trim() || null;
 
@@ -277,9 +276,9 @@ export async function importBottlesCsv(text: string, ownerId: number): Promise<I
             categoryId: category.id,
             name: expressionName,
             slug: await freeSlug(expressions, expressions.ownerId, expressions.slug, expressionName, ownerId),
-            proof: numberOrNull(row.proof ?? ""),
+            proof: labelNumber("proof"),
             ageStatement: (row.age_statement ?? "").trim() || null,
-            msrp: numberOrNull(row.msrp ?? ""),
+            msrp: labelNumber("msrp"),
             upc: (row.upc ?? "").trim() || null,
           })
           .returning({ id: expressions.id });
@@ -306,24 +305,19 @@ export async function importBottlesCsv(text: string, ownerId: number): Promise<I
       }
 
       const storeName = (row.store ?? "").trim();
-      const acquisition = (row.acquisition ?? "").trim().toLowerCase();
-      const status = (row.status ?? "").trim().toLowerCase();
-      const fill = Number(row.fill_pct ?? "");
 
       await db.insert(bottles).values({
         ownerId,
         expressionId,
         // Release identity belongs to the bottle since M7.
         batch,
-        pricePaid: numberOrNull(row.price_paid ?? ""),
+        pricePaid: values.pricePaid,
         storeId: storeName ? await findOrCreate("store", storeName, ownerId) : null,
-        dateAcquired: /^\d{4}-\d{2}-\d{2}$/.test(row.date_acquired ?? "") ? row.date_acquired! : null,
-        acquisition: (ACQUISITIONS as readonly string[]).includes(acquisition)
-          ? (acquisition as Acquisition)
-          : "purchase",
-        status: (BOTTLE_STATUSES as readonly string[]).includes(status) ? (status as BottleStatus) : "owned",
-        fillPct: Number.isFinite(fill) ? Math.min(100, Math.max(0, Math.round(fill))) : 100,
-        isOpen: (row.is_open ?? "").trim().toLowerCase() === "true",
+        dateAcquired: values.dateAcquired,
+        acquisition: values.acquisition,
+        status: values.status,
+        fillPct: values.fillPct,
+        isOpen: values.isOpen,
         location: (row.location ?? "").trim() || null,
         notes: (row.notes ?? "").trim() || null,
       });
@@ -332,7 +326,9 @@ export async function importBottlesCsv(text: string, ownerId: number): Promise<I
         line,
         label,
         status: "created",
-        detail: existing[0] ? "Added a bottle to the existing label." : "Created the label and a bottle.",
+        detail:
+          (existing[0] ? "Added a bottle to the existing label." : "Created the label and a bottle.") +
+          (values.ignored.length > 0 ? ` Ignored: ${values.ignored.join("; ")}.` : ""),
       });
     } catch (error: unknown) {
       console.error("[rickhouse] import row failed", line, error);

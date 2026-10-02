@@ -60,6 +60,9 @@ const optionalDate = blankIfAbsent(
     .transform((v) => (v === "" ? null : v)),
 );
 
+/** A date that has already happened: when a bottle was filled, bottled or bought. */
+const pastDate = optionalDate.refine((v) => v === null || v <= today(), "That date is in the future.");
+
 const optionalEnum = <T extends readonly [string, ...string[]]>(values: T) =>
   blankIfAbsent(z.enum(["", ...values] as unknown as readonly [string, ...string[]]).transform((v) => (v === "" ? null : v)));
 
@@ -185,7 +188,7 @@ export const bottleSchema = z.object({
   expressionId: requiredRef,
   pricePaid: optionalDecimal(0, 99_999_999),
   storeId: optionalRef,
-  dateAcquired: optionalDate,
+  dateAcquired: pastDate,
   acquisition: z.enum(ACQUISITIONS),
   status: z.enum(BOTTLE_STATUSES),
   location: optionalText(120),
@@ -200,8 +203,8 @@ export const bottleSchema = z.object({
   bottleCount: optionalInt(1, 10_000_000),
   pickName: optionalText(160),
   pickedBy: optionalText(160),
-  barrelFilledOn: optionalDate,
-  bottledOn: optionalDate,
+  barrelFilledOn: pastDate,
+  bottledOn: pastDate,
   warehouse: optionalText(80),
   rickFloor: optionalText(80),
 
@@ -270,7 +273,7 @@ export const bottleGridEditSchema = z.object({
   storeId: optionalRef,
   status: z.enum(BOTTLE_STATUSES),
   pricePaid: optionalDecimal(0, 99_999_999),
-  dateAcquired: optionalDate,
+  dateAcquired: pastDate,
   releaseYear: optionalInt(1700, 2200),
 });
 

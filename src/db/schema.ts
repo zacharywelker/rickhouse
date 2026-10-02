@@ -165,13 +165,27 @@ export const mashbills = pgTable("mashbills", {
   ownerId: integer("owner_id")
     .notNull()
     .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
-  /** The reference name of a secret mashbill ("Buffalo Trace Wheated"); unused otherwise — a mashbill shows as its recipe. */
+  /**
+   * The reference name of a secret mashbill ("Buffalo Trace Wheated") or the
+   * style of a generic one ("High Rye"); unused otherwise — a mashbill shows
+   * as its recipe.
+   */
   name: citext("name"),
   /** The distillery keeps the recipe secret; the recipe here is inferred and `name` is what shows. */
   isSecret: boolean("is_secret").notNull().default(false),
+  /**
+   * A style rather than a recipe ("High Rye", "Wheated"), for a label that
+   * says no more than that. Has no grains; `name` is what shows. Every
+   * account starts with a few (drizzle/0024).
+   */
+  isGeneric: boolean("is_generic").notNull().default(false),
   notes: text("notes"),
 }, (t) => [
   index("mashbills_owner_idx").on(t.ownerId),
+  check("mashbills_secret_or_generic_check", sql`NOT (${t.isSecret} AND ${t.isGeneric})`),
+  // A secret or generic mashbill is known by its name, so the name is unique
+  // among those (drizzle/0025). Recipes are compared by the app on save.
+  uniqueIndex("mashbills_owner_name_unique").on(t.ownerId, t.name).where(sql`${t.isSecret} OR ${t.isGeneric}`),
 ]);
 
 /**
@@ -923,6 +937,8 @@ export const bottleList = pgView("bottle_list", {
   proof: pct("proof"),
   abv: pct("abv"),
   ageYears: numeric("age_years", { precision: 4, scale: 1 }),
+  ageMonths: integer("age_months"),
+  ageDays: integer("age_days"),
   ageStatement: text("age_statement"),
   /** True when the value above came from the label rather than the bottle. */
   proofInherited: boolean("proof_inherited").notNull(),

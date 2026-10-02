@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNumbers, type NumbersInput } from "../findings";
+import { buildNumbers, outright, type NumbersInput } from "../findings";
 
 function input(overrides: Partial<{ [K in keyof NumbersInput]: Partial<NumbersInput[K]> }> = {}): NumbersInput {
   return {
@@ -139,5 +139,15 @@ describe("buildNumbers", () => {
     const one = buildNumbers(input({ acquiring: { acquired: 5, picks: 1, mix: [{ kind: "purchase", count: 5 }] } }));
     const picks = [one.lead, ...one.chapters.flatMap((c) => c.findings)].find((f) => f?.id === "picks")!;
     expect(picks.sentence).toBe("single-barrel pick on the shelf.");
+  });
+});
+
+describe("outright", () => {
+  it("names a leader only when nothing else has as many", () => {
+    expect(outright([{ id: 1, count: 3 }, { id: 2, count: 1 }])).toEqual({ id: 1, count: 3 });
+    expect(outright([{ id: 1, count: 1 }])).toEqual({ id: 1, count: 1 });
+    // Liquor Barn and Total Wine, one bottle each: neither is "more than any other".
+    expect(outright([{ id: 1, count: 1 }, { id: 2, count: 1 }])).toBeNull();
+    expect(outright([])).toBeNull();
   });
 });

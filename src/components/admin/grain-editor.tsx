@@ -141,7 +141,8 @@ export function GrainEditor({
         <Label htmlFor={`${id}-0-grain`}>Ingredients</Label>
         {empty ? (
           <p className="text-sm text-muted-foreground">
-            No ingredients yet. A secret mashbill can stay empty until you have inferred its recipe.
+            No ingredients yet. A secret mashbill can stay empty until you have inferred its recipe; a style
+            such as High Rye is a generic one, with none.
           </p>
         ) : null}
         {rows.map((row, index) => (

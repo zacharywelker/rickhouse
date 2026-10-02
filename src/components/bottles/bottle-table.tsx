@@ -20,6 +20,7 @@ import { GridEditBar } from "@/components/ui/grid-edit-bar";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
+import { ageLabel } from "@/lib/expressions/display";
 import { cn, formatDate, formatMoney, formatNumeric } from "@/lib/utils";
 import { fillState, fillStateDescription } from "@/lib/bottles/fill-state";
 import type { BottleFilters, SortKey } from "@/lib/bottles/filters";
@@ -325,9 +326,9 @@ export function BottleTable({
       helper.accessor("ageYears", {
         id: "age",
         header: "Age",
-        cell: ({ getValue, row }) => (
+        cell: ({ row }) => (
           <span className="block min-w-16 max-w-40 tabular-nums">
-            {Number(getValue()) > 0 ? `${formatNumeric(getValue())}y` : (row.original.ageStatement ?? "—")}
+            {ageLabel(row.original) ?? "—"}
           </span>
         ),
       }),
