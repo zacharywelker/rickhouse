@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { DEFAULT_CURRENCY, currencySymbol } from "@/lib/currency";
+import { DEFAULT_CURRENCY, currencyDecimals, currencySymbol } from "@/lib/currency";
 import { formatMoney } from "@/lib/utils";
 
 const CurrencyContext = React.createContext<string>(DEFAULT_CURRENCY);
@@ -19,6 +19,11 @@ export function useCurrency(): string {
 export function useMoney(): (value: string | null | undefined) => string {
   const currency = useCurrency();
   return React.useCallback((value) => formatMoney(value, currency), [currency]);
+}
+
+/** The smallest step a price input should take in the account's currency. */
+export function useMoneyStep(): number {
+  return currencyDecimals(useCurrency()) === 0 ? 1 : 0.01;
 }
 
 export function useCurrencySymbol(): string {

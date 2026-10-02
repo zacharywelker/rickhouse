@@ -25,6 +25,13 @@ export const CURRENCIES = [
 
 export const CURRENCY_CODES = CURRENCIES.map((c) => c.code) as [string, ...string[]];
 
+/** Currencies with no minor unit: shown as whole numbers. */
+const WHOLE_UNIT = new Set(["JPY", "KRW"]);
+
+export function currencyDecimals(code: string): number {
+  return WHOLE_UNIT.has(code) ? 0 : 2;
+}
+
 export function currencySymbol(code: string): string {
   return CURRENCIES.find((c) => c.code === code)?.symbol ?? `${code} `;
 }

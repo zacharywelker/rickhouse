@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { currencySymbol, DEFAULT_CURRENCY } from "@/lib/currency";
+import { currencyDecimals, currencySymbol, DEFAULT_CURRENCY } from "@/lib/currency";
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
@@ -14,9 +14,14 @@ export function formatMoney(value: string | null | undefined, currency: string =
   if (value === null || value === undefined || value === "") return "—";
   const negative = value.startsWith("-");
   const [whole = "0", fraction = ""] = value.replace("-", "").split(".");
+  const symbol = currencySymbol(currency);
+  if (currencyDecimals(currency) === 0) {
+    const rounded = (BigInt(whole || "0") + (Number(fraction[0] ?? 0) >= 5 ? 1n : 0n)).toString();
+    return `${negative ? "-" : ""}${symbol}${rounded.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+  }
   const cents = `${fraction}00`.slice(0, 2);
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${negative ? "-" : ""}${currencySymbol(currency)}${grouped}.${cents}`;
+  return `${negative ? "-" : ""}${symbol}${grouped}.${cents}`;
 }
 
 /** Trims Postgres numeric padding: "108.00" -> "108", "54.50" -> "54.5". */
