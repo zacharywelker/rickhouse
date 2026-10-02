@@ -46,6 +46,7 @@ export function OrderedPicker({
   options,
   amountLabel,
   amountSuffix,
+  amountMax,
   value: allRows,
   onChange: onAllRowsChange,
   emptyHint,
@@ -62,6 +63,8 @@ export function OrderedPicker({
   emptyHint?: string;
   amountLabel: string;
   amountSuffix: string;
+  /** The most the amount can be: 100 for a share. Months have no cap. */
+  amountMax?: number;
   value: LinkedRow[];
   onChange: (rows: LinkedRow[]) => void;
   /**
@@ -128,7 +131,13 @@ export function OrderedPicker({
           {value.map((row, index) => (
             <li key={row.id} className="flex flex-wrap items-center gap-2 border border-border bg-muted/30 p-2">
               <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-sm">
+              {/*
+                On a phone the name takes the whole first line (less the index
+                number) and the controls wrap below it; a long recipe would
+                otherwise be squeezed down to its first letter. From sm up it
+                shares the line, truncated.
+              */}
+              <span className="min-w-0 grow basis-[calc(100%-1.75rem)] break-words text-sm sm:basis-40 sm:truncate">
                 {row.label}
                 {row.hint && !row.undisclosed ? <span className="ml-1.5 text-xs text-muted-foreground">{row.hint}</span> : null}
               </span>
@@ -190,12 +199,20 @@ export function OrderedPicker({
                   id={`${name}-amount-${row.id}`}
                   type="number"
                   min={0}
-                  step="0.01"
+                  max={amountMax}
+                  // Whole numbers: a share to the hundredth is more exact than
+                  // anyone knows a blend to be, and months are whole anyway.
+                  step={1}
+                  inputMode="numeric"
                   value={row.amount}
                   onChange={(e) =>
                     onChange(value.map((r) => (r.id === row.id ? { ...r, amount: e.target.value } : r)))
                   }
-                  className="h-8 w-24"
+                  // Exactly three digits wide — "100" — plus padding and
+                  // border, in the input's own font (1ch is one tabular digit).
+                  // No spinner arrows: they would take half of it, and a phone
+                  // shows a keypad anyway.
+                  className="h-8 w-[calc(3ch_+_0.75rem_+_2px)] px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
                 <span className="text-xs text-muted-foreground">{amountSuffix}</span>
               </div>

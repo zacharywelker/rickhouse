@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { normalizeCountry, normalizePlace, normalizeState, samePlace, undisclosedName } from "../places";
+import {
+  formatPlace,
+  normalizeCountry,
+  normalizeLocation,
+  normalizePlace,
+  normalizeState,
+  samePlace,
+  undisclosedName,
+} from "../places";
 
 describe("normalizeState", () => {
   it("expands abbreviations, in any case", () => {
@@ -58,5 +66,33 @@ describe("samePlace", () => {
     expect(samePlace(a, normalizePlace({ state: "new york", country: "us" }))).toBe(true);
     expect(samePlace(a, normalizePlace({ state: "New Jersey" }))).toBe(false);
     expect(samePlace(normalizePlace({ city: "Albany", state: "NY" }), a)).toBe(false);
+  });
+});
+
+describe("normalizeLocation", () => {
+  it("tidies a place like normalizePlace does", () => {
+    expect(normalizeLocation({ city: " Louisville ", state: "ky", country: "us" })).toEqual({
+      city: "Louisville",
+      state: "Kentucky",
+      country: "USA",
+    });
+  });
+
+  it("leaves a blank country blank, for an online store", () => {
+    expect(normalizeLocation({ city: "", state: "", country: "" })).toEqual({ city: null, state: null, country: null });
+    expect(normalizeLocation({ state: "tn" })).toEqual({ city: null, state: "Tennessee", country: null });
+  });
+});
+
+describe("formatPlace", () => {
+  it("joins city, state and country, leaving the US off when there is more", () => {
+    expect(formatPlace({ city: "Louisville", state: "Kentucky", country: "USA" })).toBe("Louisville, Kentucky");
+    expect(formatPlace({ city: "Dufftown", state: "Speyside", country: "Scotland" })).toBe("Dufftown, Speyside, Scotland");
+    expect(formatPlace({ country: "USA" })).toBe("USA");
+  });
+
+  it("skips what is missing, and is null when nothing is set", () => {
+    expect(formatPlace({ city: "Louisville", state: null, country: null })).toBe("Louisville");
+    expect(formatPlace({ city: "  ", state: "", country: null })).toBeNull();
   });
 });

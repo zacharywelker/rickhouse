@@ -31,7 +31,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
         required: true,
         span: "full",
       },
-      { kind: "number", name: "pricePaid", label: "Price Paid", min: 0, step: 0.01, span: "half" },
+      { kind: "number", name: "pricePaid", label: "Price Paid", money: true, min: 0, step: 0.01, span: "half" },
       { kind: "reference", name: "storeId", label: "Store", resource: "stores", span: "half" },
       { kind: "date", name: "dateAcquired", label: "Date Acquired", span: "half" },
       {

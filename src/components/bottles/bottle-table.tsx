@@ -20,7 +20,9 @@ import { GridEditBar } from "@/components/ui/grid-edit-bar";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
-import { cn, formatDate, formatMoney, formatNumeric } from "@/lib/utils";
+import { ageLabel } from "@/lib/expressions/display";
+import { useCurrency, useMoney } from "@/components/currency-context";
+import { cn, formatDate, formatNumeric } from "@/lib/utils";
 import { fillState, fillStateDescription } from "@/lib/bottles/fill-state";
 import type { BottleFilters, SortKey } from "@/lib/bottles/filters";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
@@ -130,6 +132,8 @@ export function BottleTable({
   stores: Option[];
 }) {
   const { apply } = useGridFilters(filters);
+  const money = useMoney();
+  const currency = useCurrency();
   const router = useRouter();
 
   const [unlocked, setUnlocked] = React.useState(false);
@@ -328,9 +332,9 @@ export function BottleTable({
       helper.accessor("ageYears", {
         id: "age",
         header: "Age",
-        cell: ({ getValue, row }) => (
+        cell: ({ row }) => (
           <span className="block min-w-16 max-w-40 tabular-nums">
-            {Number(getValue()) > 0 ? `${formatNumeric(getValue())}y` : (row.original.ageStatement ?? "—")}
+            {ageLabel(row.original) ?? "—"}
           </span>
         ),
       }),
@@ -348,13 +352,13 @@ export function BottleTable({
               className="h-8 w-24"
             />
           ) : (
-            <span className="tabular-nums">{formatMoney(getValue())}</span>
+            <span className="tabular-nums">{money(getValue())}</span>
           ),
       }),
       helper.accessor("msrp", {
         id: "msrp",
         header: "MSRP",
-        cell: ({ getValue }) => <span className="tabular-nums">{formatMoney(getValue())}</span>,
+        cell: ({ getValue }) => <span className="tabular-nums">{money(getValue())}</span>,
       }),
       helper.display({
         id: "markup",
@@ -362,7 +366,7 @@ export function BottleTable({
         cell: ({ row }) => {
           const m = markup(row.original.pricePaid, row.original.msrp);
           return (
-            <span className="tabular-nums" title={m ? describeMarkup(m) : undefined}>
+            <span className="tabular-nums" title={m ? describeMarkup(m, currency) : undefined}>
               {m ? shortMarkup(m) : "—"}
             </span>
           );
@@ -428,7 +432,7 @@ export function BottleTable({
           ]
         : []),
     ],
-    [unlocked, edits, stores],
+    [unlocked, edits, stores, money],
   );
 
   const columnVisibility = React.useMemo<VisibilityState>(

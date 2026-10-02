@@ -52,7 +52,7 @@ export function Mashbills({
               {item.recipe || item.name}
             </Link>
             {item.amount !== null ? (
-              <span className="text-muted-foreground">{Number(item.amount)}% of the blend</span>
+              <span className="text-muted-foreground">{Math.round(Number(item.amount))}% of the blend</span>
             ) : null}
             {item.attribution ? (
               <span className="text-muted-foreground">
@@ -99,7 +99,7 @@ export function Chips({
             >
               {item.inferred ? <Inferred>{item.name}</Inferred> : item.name}
               {item.amount !== null ? (
-                <span className="ml-1 text-muted-foreground">{Number(item.amount)}%</span>
+                <span className="ml-1 text-muted-foreground">{Math.round(Number(item.amount))}%</span>
               ) : null}
             </Badge>
           );

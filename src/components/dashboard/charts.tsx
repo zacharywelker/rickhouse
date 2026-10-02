@@ -18,7 +18,8 @@ import { ChartCard } from "./chart-card";
 import type { Point, Slice } from "@/lib/dashboard/queries";
 import type { YearCount } from "@/lib/dashboard/numbers";
 import { BOTTLE_STATUSES } from "@/db/schema";
-import { formatMoney, humanise } from "@/lib/utils";
+import { useMoney } from "@/components/currency-context";
+import { humanise } from "@/lib/utils";
 
 /** Money and acquisition charts count everything ever acquired, so their links do too. */
 const EVER_ACQUIRED = BOTTLE_STATUSES.filter((s) => s !== "wishlist").join(",");
@@ -228,6 +229,7 @@ export function SealedByYear({ data }: { data: YearCount[] }) {
 /** Spend per month over the last two years, gaps kept so quiet months show as quiet. */
 export function SpendByMonth({ data }: { data: Point[] }) {
   const router = useRouter();
+  const formatMoney = useMoney();
   const money = (value: number) => formatMoney(String(Math.round(value)));
   return (
     <ChartCard

@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { describeMashbill, mashbillTitle } from "@/lib/mashbills";
+import { shareText } from "./links";
 import {
   bottleImages,
   bottles,
@@ -285,7 +286,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
   const byId = new Map<number, LabelLinks>(ids.map((id) => [id, { distilleries: [], mashbills: [], finishes: [] }]));
   if (ids.length === 0) return byId;
 
-  const amount = (value: string | null) => (value === null ? "" : String(Number(value)));
+  const amount = shareText;
   const [d, m, f] = await Promise.all([
     db
       .select({
@@ -454,7 +455,7 @@ export async function getBottle(id: number, ownerId: number) {
       expression: expressions,
       brand: { id: brands.id, name: brands.name, slug: brands.slug },
       category: { id: categories.id, name: categories.name, slug: categories.slug, fieldGroup: categories.fieldGroup },
-      store: { id: stores.id, name: stores.name, slug: stores.slug, location: stores.location },
+      store: { id: stores.id, name: stores.name, slug: stores.slug },
     })
     .from(bottles)
     .innerJoin(expressions, eq(bottles.expressionId, expressions.id))

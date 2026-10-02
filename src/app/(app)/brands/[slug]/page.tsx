@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { EntityPage } from "@/components/entities/entity-page";
 import { requireSession } from "@/lib/auth";
 import { getBrand } from "@/lib/entities/queries";
+import { formatPlace } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,10 @@ export default async function BrandPage({
       }
       meta={[
         { label: "Company", value: row.company ?? "—" },
-        { label: "Country", value: row.companyCountry ?? "—" },
+        {
+          label: "Location",
+          value: formatPlace({ city: row.companyCity, state: row.companyState, country: row.companyCountry }) ?? "—",
+        },
         { label: "Sources whiskey", value: row.isNdp ? "Yes" : "No" },
       ]}
       notes={row.notes}

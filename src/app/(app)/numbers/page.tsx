@@ -6,6 +6,7 @@ import { AcquisitionMix, CategoryShare, SealedByYear, SpendByMonth } from "@/com
 import { buildNumbers, type Chapter, type Finding } from "@/lib/dashboard/findings";
 import { acquiring, money, shelf, stockpile } from "@/lib/dashboard/numbers";
 import { requireSession } from "@/lib/auth";
+import { getCurrency } from "@/lib/preferences";
 
 export const metadata: Metadata = { title: "Numbers" };
 export const dynamic = "force-dynamic";
@@ -27,7 +28,14 @@ export default async function NumbersPage() {
   ]);
   // The server's own calendar day (the container's TZ), which is what "this year" means here.
   const today = new Date().toLocaleDateString("en-CA");
-  const { lead, chapters } = buildNumbers({ today, stockpile: stock, money: spend, acquiring: arrivals, shelf: onShelf });
+  const { lead, chapters } = buildNumbers({
+    currency: await getCurrency(),
+    today,
+    stockpile: stock,
+    money: spend,
+    acquiring: arrivals,
+    shelf: onShelf,
+  });
 
   const charts: Record<Chapter["id"], React.ReactNode> = {
     stockpile: stock.sealedByYear.length > 0 ? <SealedByYear data={stock.sealedByYear} /> : null,
@@ -113,7 +121,10 @@ function ChapterSection({ chapter, chart }: { chapter: Chapter; chart: React.Rea
 
   return (
     <section id={chapter.id} aria-labelledby={headingId} className="scroll-mt-14 pt-10 sm:pt-14">
-      <h2 id={headingId} className="flex items-baseline gap-3 border-t-2 border-foreground pt-3 text-2xl tracking-tight">
+      <h2
+        id={headingId}
+        className="flex items-baseline gap-3 border-t-2 border-foreground pt-3 text-2xl tracking-tight"
+      >
         <span className="tabular-nums text-muted-foreground">{chapter.number}</span>
         {chapter.title}
       </h2>

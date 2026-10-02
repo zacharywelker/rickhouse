@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ExpressionRow } from "../queries";
-import { changesFor, describeAgeParts, editableFrom, fieldGroupOf } from "../label-edits";
+import { changesFor, editableFrom, fieldGroupOf } from "../label-edits";
 
 const row: ExpressionRow = {
   id: 7,
@@ -107,17 +107,5 @@ describe("fieldGroupOf", () => {
     const groups = { 11: "whiskey", 20: "rum" } as const;
     expect(fieldGroupOf(row, undefined, groups)).toBe("whiskey");
     expect(fieldGroupOf(row, { ...editableFrom(row), categoryId: "20" }, groups)).toBe("rum");
-  });
-});
-
-describe("describeAgeParts", () => {
-  it.each([
-    [["12.0", null, null], "12y"],
-    [["4.0", 3, null], "4y 3m"],
-    [["10", "2", "14"], "10y 2m 14d"],
-    [[null, 0, 45], "45d"],
-    [[null, null, null], null],
-  ] as const)("%j -> %s", ([years, months, days], expected) => {
-    expect(describeAgeParts(years, months, days)).toBe(expected);
   });
 });

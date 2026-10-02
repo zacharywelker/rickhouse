@@ -117,9 +117,9 @@ async function seedPursuitExample(db: Db, ownerId: number): Promise<void> {
   const distilleryRows = await db
     .insert(distilleries)
     .values([
-      { ownerId, name: "Bardstown Bourbon Company", slug: "bardstown-bourbon-company", state: "KY", country: "USA" },
-      { ownerId, name: "Tennessee Distilling Ltd.", slug: "tennessee-distilling", state: "TN", country: "USA" },
-      { ownerId, name: "Finger Lakes Distilling", slug: "finger-lakes-distilling", state: "NY", country: "USA" },
+      { ownerId, name: "Bardstown Bourbon Company", slug: "bardstown-bourbon-company", state: "Kentucky", country: "USA" },
+      { ownerId, name: "Tennessee Distilling Ltd.", slug: "tennessee-distilling", state: "Tennessee", country: "USA" },
+      { ownerId, name: "Finger Lakes Distilling", slug: "finger-lakes-distilling", state: "New York", country: "USA" },
     ])
     .onConflictDoNothing({ target: [distilleries.ownerId, distilleries.slug] })
     .returning({ id: distilleries.id, slug: distilleries.slug });
@@ -178,7 +178,7 @@ async function seedPursuitExample(db: Db, ownerId: number): Promise<void> {
 
   const [store] = await db
     .insert(stores)
-    .values({ ownerId, name: "P.Club by Pursuit Spirits", slug: "p-club", location: "Online", isOnline: true })
+    .values({ ownerId, name: "P.Club by Pursuit Spirits", slug: "p-club", isOnline: true })
     .onConflictDoNothing({ target: [stores.ownerId, stores.slug] })
     .returning({ id: stores.id });
   const storeId =

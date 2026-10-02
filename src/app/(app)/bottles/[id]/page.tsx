@@ -21,10 +21,12 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
+import { getCurrency } from "@/lib/preferences";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { describeMarkup, markup } from "@/lib/bottles/markup";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
+import { ageLabel } from "@/lib/expressions/display";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +43,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   if (!Number.isInteger(bottleId)) notFound();
 
   const user = await requireSession();
+  const currency = await getCurrency();
   // Someone else's bottle is simply not found.
   const row = await getBottle(bottleId, user.id);
   if (!row) notFound();
@@ -67,12 +70,14 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   const group = row.category.fieldGroup;
   const paidVsMsrp = markup(b.pricePaid, e.msrp);
 
-  const age =
-    e.ageStatement ??
-    [e.ageYears ? `${Number(e.ageYears)}y` : null, e.ageMonths ? `${e.ageMonths}m` : null, e.ageDays ? `${e.ageDays}d` : null]
-      .filter(Boolean)
-      .join(" ") ??
-    null;
+  // The bottle's own age where it has one, the label's otherwise — the same
+  // per-field inheritance as bottle_list.
+  const age = ageLabel({
+    ageYears: b.ageYears ?? e.ageYears,
+    ageMonths: b.ageMonths ?? e.ageMonths,
+    ageDays: b.ageDays ?? e.ageDays,
+    ageStatement: b.ageStatement ?? e.ageStatement,
+  });
 
   // The pen this bottle's entry was "filled in" with — one hand for the
   // whole page, not a different marker per field.
@@ -185,15 +190,15 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
             <Spec label="Age" value={age} />
             <Spec label="Size" value={`${e.sizeMl} ml`} />
-            <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp) : null} />
+            <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp, currency) : null} />
             <Spec
               label="Paid"
               value={
                 row.bottle.pricePaid ? (
                   <>
-                    {formatMoney(row.bottle.pricePaid)}
+                    {formatMoney(row.bottle.pricePaid, currency)}
                     {paidVsMsrp ? (
-                      <span className="block text-xs text-muted-foreground">{describeMarkup(paidVsMsrp)}</span>
+                      <span className="block text-xs text-muted-foreground">{describeMarkup(paidVsMsrp, currency)}</span>
                     ) : null}
                   </>
                 ) : null

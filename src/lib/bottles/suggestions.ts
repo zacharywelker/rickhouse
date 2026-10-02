@@ -10,8 +10,6 @@ export const SUGGESTED_BOTTLE_FIELDS = ["pickedBy", "warehouse", "rickFloor", "l
 export type SuggestedBottleField = (typeof SUGGESTED_BOTTLE_FIELDS)[number];
 export type BottleSuggestions = Record<SuggestedBottleField, string[]>;
 
-export const NO_SUGGESTIONS: BottleSuggestions = { pickedBy: [], warehouse: [], rickFloor: [], location: [] };
-
 /**
  * Spellings that differ only in case, accents, punctuation or spacing are one
  * entry, and "&" reads as "and": "Total Wine & More" is "Total Wine and More".
@@ -95,27 +93,4 @@ export function rankSuggestions(
   }
   const result = [...ranked.map((entry) => entry.best.text), ...fresh.map((key) => byKey.get(key)!.best.text)];
   return result.slice(0, limit);
-}
-
-/**
- * Adds what was just typed, so the next bottle of a haul offers it at once.
- * A spelling of something already offered replaces it only when it is the
- * Title Cased one and the offered one isn't.
- */
-export function withEntered(
-  suggestions: BottleSuggestions,
-  values: Record<string, unknown>,
-): BottleSuggestions {
-  const next = { ...suggestions };
-  for (const field of SUGGESTED_BOTTLE_FIELDS) {
-    const value = values[field];
-    if (typeof value !== "string" || keyOf(value) === "") continue;
-    const text = value.trim();
-    const at = next[field].findIndex((existing) => keyOf(existing) === keyOf(text));
-    if (at === -1) next[field] = [text, ...next[field]];
-    else if (isTitleCased(text) && !isTitleCased(next[field][at]!)) {
-      next[field] = next[field].map((existing, i) => (i === at ? text : existing));
-    }
-  }
-  return next;
 }

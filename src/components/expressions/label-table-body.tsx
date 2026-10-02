@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { CELL_WIDTH, GridCell } from "@/components/bulk/grid-cell";
-import { cn, formatMoney, formatNumeric } from "@/lib/utils";
+import { useMoney } from "@/components/currency-context";
+import { cn, formatNumeric } from "@/lib/utils";
 import type { FieldSpec, Option } from "@/lib/admin/types";
 import { withOption, type FieldValue } from "@/lib/forms/values";
 import { LABEL_COLUMNS, type LabelColumn, type LabelColumnGroup } from "@/lib/expressions/columns";
-import { describeAgeParts, fieldGroupOf, groupApplies, type LabelEdit } from "@/lib/expressions/label-edits";
+import { describeAgeParts } from "@/lib/expressions/display";
+import { fieldGroupOf, groupApplies, type LabelEdit } from "@/lib/expressions/label-edits";
 import { describeLinks, LINK_KINDS, type LinkKind } from "@/lib/expressions/links";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { FieldGroup } from "@/db/schema";
@@ -32,7 +34,11 @@ const LINK_COLUMNS: ReadonlySet<string> = new Set<LinkKind>(["distilleries", "ma
 const DASH = <span className="text-muted-foreground">—</span>;
 
 /** The age column's three boxes, which share one header: each says its unit. */
-const AGE_UNITS: Readonly<Record<string, string>> = { ageYears: "yr", ageMonths: "mo", ageDays: "day" };
+const AGE_UNITS: Readonly<Record<string, string>> = {
+  ageYears: "yr",
+  ageMonths: "mo",
+  ageDays: "day",
+};
 
 /** "upc" -> "UPC / Barcode", for an error on a column that may not be shown. */
 const FIELD_LABELS = new Map(LABEL_COLUMNS.flatMap((column) => column.specs.map((spec) => [spec.name, spec.label])));
@@ -44,7 +50,9 @@ const FIELD_LABELS = new Map(LABEL_COLUMNS.flatMap((column) => column.specs.map(
  */
 function errorText(errors: RowErrors): string {
   const known = Object.entries(errors.fields).filter(([name]) => FIELD_LABELS.has(name));
-  return known.length > 0 ? known.map(([name, message]) => `${FIELD_LABELS.get(name)}: ${message}`).join(" ") : errors.error;
+  return known.length > 0
+    ? known.map(([name, message]) => `${FIELD_LABELS.get(name)}: ${message}`).join(" ")
+    : errors.error;
 }
 
 /**
@@ -61,7 +69,7 @@ function openOnDoubleClick(event: React.MouseEvent, router: ReturnType<typeof us
 }
 
 /** A stored value as the table shows it, by the kind of field it is. */
-function display(spec: FieldSpec, value: unknown): React.ReactNode {
+function display(spec: FieldSpec, value: unknown, money: (v: string) => string): React.ReactNode {
   if (value === null || value === undefined || value === "") return DASH;
   switch (spec.kind) {
     case "checkbox":
@@ -71,7 +79,7 @@ function display(spec: FieldSpec, value: unknown): React.ReactNode {
       return option && option.value !== "" ? option.label : DASH;
     }
     case "number":
-      return spec.name === "msrp" ? formatMoney(String(value)) : formatNumeric(String(value));
+      return spec.money ? money(String(value)) : formatNumeric(String(value));
     default:
       return (
         <span className="block max-w-56 truncate" title={String(value)}>
@@ -107,6 +115,7 @@ export function LabelTableBody({
   saveErrors: Record<number, RowErrors>;
 }) {
   const router = useRouter();
+  const money = useMoney();
   // A brand created from a cell should be pickable in every other row too.
   const [optionsByField, setOptionsByField] = React.useState(options);
 
@@ -215,7 +224,7 @@ export function LabelTableBody({
       }
       default: {
         const spec = column.specs[0]!;
-        return display(spec, (row as unknown as Record<string, unknown>)[spec.name]);
+        return display(spec, (row as unknown as Record<string, unknown>)[spec.name], money);
       }
     }
   }

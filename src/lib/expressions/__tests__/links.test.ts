@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeLinks, linksPayload } from "../links";
+import { describeLinks, linksPayload, shareText } from "../links";
 import { parseLinks } from "../schema";
 
 describe("inferred distillery links", () => {
@@ -55,5 +55,19 @@ describe("an undisclosed place that has no row yet", () => {
 
   it("makes changing the place count as a change", () => {
     expect(linksPayload([pending])).not.toBe(linksPayload([{ ...pending, place: { ...place, state: "tn" } }]));
+  });
+});
+
+describe("shareText", () => {
+  it("shows a share as a whole percentage, rounding any saved with decimals", () => {
+    expect(shareText("60.00")).toBe("60");
+    expect(shareText("33.33")).toBe("33");
+    expect(shareText("66.67")).toBe("67");
+    expect(shareText("100.00")).toBe("100");
+  });
+
+  it("leaves no share blank", () => {
+    expect(shareText(null)).toBe("");
+    expect(shareText("")).toBe("");
   });
 });

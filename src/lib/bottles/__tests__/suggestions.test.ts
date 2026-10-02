@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_SUGGESTIONS, isTitleCased, rankSuggestions, withEntered } from "../suggestions";
+import { isTitleCased, rankSuggestions } from "../suggestions";
 
 describe("rankSuggestions", () => {
   it("puts the most used first", () => {
@@ -110,20 +110,5 @@ describe("isTitleCased", () => {
     ["1920", false],
   ])("%s → %s", (value, expected) => {
     expect(isTitleCased(value)).toBe(expected);
-  });
-});
-
-describe("withEntered", () => {
-  it("swaps in a Title Cased spelling typed mid-haul", () => {
-    const after = withEntered({ ...NO_SUGGESTIONS, pickedBy: ["seelbachs", "Total Wine"] }, { pickedBy: "Seelbach's" });
-    expect(after.pickedBy).toEqual(["Seelbach's", "Total Wine"]);
-    expect(withEntered(after, { pickedBy: "SEELBACHS" }).pickedBy).toEqual(["Seelbach's", "Total Wine"]);
-  });
-
-  it("offers what was just typed on the next bottle, once", () => {
-    const after = withEntered({ ...NO_SUGGESTIONS, pickedBy: ["Total Wine"] }, { pickedBy: "Seelbach's", warehouse: "" });
-    expect(after.pickedBy).toEqual(["Seelbach's", "Total Wine"]);
-    expect(after.warehouse).toEqual([]);
-    expect(withEntered(after, { pickedBy: "seelbachs" }).pickedBy).toEqual(["Seelbach's", "Total Wine"]);
   });
 });

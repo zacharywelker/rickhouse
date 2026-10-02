@@ -18,6 +18,8 @@ export const LINK_KINDS: Record<
     emptyHint?: string;
     amountLabel: string;
     amountSuffix: string;
+    /** The most the amount can be: 100 for a share. Months have no cap. */
+    amountMax?: number;
   }
 > = {
   distilleries: {
@@ -30,6 +32,7 @@ export const LINK_KINDS: Record<
     undisclosable: true,
     amountLabel: "Share",
     amountSuffix: "%",
+    amountMax: 100,
   },
   mashbills: {
     field: "mashbillLinks",
@@ -39,6 +42,7 @@ export const LINK_KINDS: Record<
     emptyHint: "No mashbills yet — add a new one from here.",
     amountLabel: "Share",
     amountSuffix: "%",
+    amountMax: 100,
   },
   finishes: {
     field: "finishLinks",
@@ -51,6 +55,15 @@ export const LINK_KINDS: Record<
 };
 
 export const LINK_FIELDS = (Object.keys(LINK_KINDS) as LinkKind[]).map((kind) => LINK_KINDS[kind].field);
+
+/**
+ * A share as the form and the label page show it: a whole percentage. "33.33%"
+ * is more exact than anyone knows a blend to be, so shares are kept whole —
+ * this also rounds any saved before that was the rule.
+ */
+export function shareText(value: string | null): string {
+  return value === null || value === "" ? "" : String(Math.round(Number(value)));
+}
 
 /** "Buffalo Trace (60%), Barton (40%)" — the list as a line of text. */
 export function describeLinks(kind: LinkKind, rows: ReadonlyArray<LinkedRow>): string {

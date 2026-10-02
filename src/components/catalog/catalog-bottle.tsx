@@ -22,35 +22,25 @@ import { serializeLinks } from "@/components/expressions/ordered-picker";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { guessNewLabel } from "@/lib/expressions/label-search";
 import { withOption } from "@/lib/forms/values";
-import { formatDate, formatNumeric } from "@/lib/utils";
-import { withEntered, type BottleSuggestions } from "@/lib/bottles/suggestions";
+import { formatNumeric } from "@/lib/utils";
+import type { BottleSuggestions } from "@/lib/bottles/suggestions";
 import type { FieldGroup } from "@/db/schema";
 import type { ActionResult, Option } from "@/lib/admin/types";
 import {
   catalogBottleAction,
   catalogLabelAction,
-  groupHaulAction,
   searchCatalogLabelsAction,
   type CatalogHit,
   type CatalogSearch,
 } from "@/app/(app)/bottles/add/actions";
 import type { CatalogLabel } from "@/lib/expressions/catalog";
 import { LabelSearchBox } from "./label-search-box";
-import { HaulPanel, type HaulBottle } from "./haul-panel";
 
 /** The first half of the page: still looking, a label chosen, or a new one being written. */
 type Phase =
   | { kind: "search" }
   | { kind: "existing"; label: CatalogLabel; editing: boolean }
-  | { kind: "new" }
-  /** The last bottle of a haul is in: the haul's summary, and the offer to group it. */
-  | { kind: "done" };
-
-/**
- * What a haul has in common from one bottle to the next. Kept after "Save and
- * add another"; everything else about the next bottle starts blank.
- */
-const TRIP_FIELDS = ["storeId", "dateAcquired", "acquisition", "location"] as const;
+  | { kind: "new" };
 
 type Staged = { file: File; url: string };
 
@@ -68,7 +58,7 @@ export function CatalogBottle({
   categoryGroups,
   colaLookup,
   initialLabel,
-  suggestions: initialSuggestions,
+  suggestions,
 }: {
   labelOptions: Record<string, Option[]>;
   bottleOptions: Record<string, Option[]>;
@@ -204,7 +194,6 @@ export function CatalogBottle({
   // --- The bottle -------------------------------------------------------------
   const [bottleOptionsState, setBottleOptions] = React.useState(bottleOptions);
   const [bottleValues, setBottleValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, null));
-  const [suggestions, setSuggestions] = React.useState(initialSuggestions);
   const [photos, setPhotos] = React.useState<Staged[]>([]);
   // Previews are object URLs; let them go when the page does.
   const photosRef = React.useRef(photos);
@@ -226,41 +215,14 @@ export function CatalogBottle({
 
   // --- Saving -----------------------------------------------------------------
   const [saving, setSaving] = React.useState(false);
-  const [haul, setHaul] = React.useState<HaulBottle[]>([]);
-  const [notice, setNotice] = React.useState<string | null>(null);
-  const [haulGroup, setHaulGroup] = React.useState<{ id: number; name: string } | null>(null);
-
-  // A haul is named for where and when it happened: "Seelbach's haul, Sep 30, 2026".
-  const haulName = (() => {
-    const store = bottleOptionsState.storeId?.find((o) => String(o.value) === String(bottleValues.storeId))?.label;
-    const date = typeof bottleValues.dateAcquired === "string" && bottleValues.dateAcquired !== "" ? bottleValues.dateAcquired : null;
-    const when = formatDate(date ?? new Date().toISOString().slice(0, 10));
-    return store ? `${store} haul, ${when}` : `Haul, ${when}`;
-  })();
-
-  const makeGroup = async (name: string): Promise<string | null> => {
-    const result = await groupHaulAction(name, haul.map((bottle) => bottle.id)).catch(() => null);
-    if (!result) return "Could not reach Rickhouse. Try again.";
-    if (!result.ok) return result.error;
-    setHaulGroup({ id: result.groupId, name: result.name });
-    return null;
-  };
-
-  const labelTitle =
-    phase.kind === "existing"
-      ? `${phase.label.brand} ${phase.label.name}`
-      : `${labelOptionsState.brandId?.find((o) => String(o.value) === String(labelValues.brandId))?.label ?? ""} ${String(labelValues.name ?? "")}`.trim();
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (phase.kind === "search" || phase.kind === "done" || saving) return;
-    // "another" keeps the haul going; "last" ends it on its summary; "save" (no haul yet) opens the bottle.
-    const mode = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") ?? "save";
+    if (phase.kind === "search" || saving) return;
 
     const writesLabel = phase.kind === "new" || phase.editing;
     const form = formRef.current;
     setSaving(true);
-    setNotice(null);
     const result = await catalogBottleAction({
       expressionId: phase.kind === "existing" ? phase.label.id : null,
       label: writesLabel ? labelValues : null,
@@ -273,7 +235,6 @@ export function CatalogBottle({
         : null,
       ttbIds: String(form ? (new FormData(form).get("ttbIds") ?? "") : ""),
       bottle: bottleValues,
-      groupId: haulGroup?.id ?? null,
     }).catch((): null => null);
 
     if (!result || !result.ok) {
@@ -288,71 +249,18 @@ export function CatalogBottle({
     }
 
     // Photos go up once the bottle exists, through the bottle page's own route.
-    let photoNote = "";
     if (photos.length > 0) {
       const body = new FormData();
       for (const photo of photos) body.append("images", photo.file);
-      const uploaded = (await fetch(`/api/bottles/${result.bottleId}/images`, { method: "POST", body })
-        .then((response) => response.json() as Promise<ActionResult>)
-        .catch(() => null)) ?? { ok: false, error: "The photos did not upload." };
-      if (!uploaded.ok) photoNote = ` ${uploaded.error} Add them from the bottle's page.`;
+      await fetch(`/api/bottles/${result.bottleId}/images`, { method: "POST", body }).catch(() => null);
     }
 
-    if (mode !== "another" && mode !== "last") {
-      router.push(`/bottles/${result.bottleId}`);
-      router.refresh();
-      return;
-    }
-
-    // Next bottle (or the haul's summary): the trip carries over, the rest starts again.
-    setSuggestions((prev) => withEntered(prev, bottleValues));
-    const price = Number(bottleValues.pricePaid);
-    setHaul((prev) => [...prev, { id: result.bottleId, title: labelTitle, price: Number.isFinite(price) ? price : 0 }]);
-    setBottleValues((prev) => {
-      const next = initialFieldValues(BOTTLE_FIELDS, null);
-      for (const name of TRIP_FIELDS) next[name] = prev[name] ?? next[name]!;
-      return next;
-    });
-    photos.forEach((photo) => URL.revokeObjectURL(photo.url));
-    setPhotos([]);
-    setLabelValues(initialFieldValues(LABEL_FIELDS, null));
-    setLabelLinks(EMPTY_LINKS);
-    setPendingTtb([]);
-    setColaKey((key) => key + 1);
-    setErrors(NO_ERRORS);
-    setQuery("");
-    setNotice(`${result.message}${photoNote}`);
-    setSaving(false);
-    if (mode === "another") focusLater("search");
-    setPhase({ kind: mode === "last" ? "done" : "search" });
+    router.push(`/bottles/${result.bottleId}`);
     router.refresh();
-    window.scrollTo({ top: 0 });
   };
 
   return (
     <form ref={formRef} onSubmit={submit} className="flex flex-col gap-8" noValidate>
-      {haul.length > 0 ? (
-        <HaulPanel
-          haul={haul}
-          notice={notice}
-          group={haulGroup}
-          defaultName={haulName}
-          onMakeGroup={makeGroup}
-          finished={phase.kind === "done"}
-        />
-      ) : null}
-
-      {phase.kind === "done" ? (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={backToSearch}>
-            Add another after all
-          </Button>
-          <Button asChild>
-            <Link href="/bottles">Go to the collection</Link>
-          </Button>
-        </div>
-      ) : (
-        <>
       <Section>
         <SectionHeader>
           <SectionTitle>
@@ -504,34 +412,23 @@ export function CatalogBottle({
         </>
       )}
 
-        </>
-      )}
-
       {errors.message ? (
         <p role="alert" className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {errors.message}
         </p>
       ) : null}
 
-      {phase.kind !== "done" ? (
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <Button type="button" variant="outline" asChild>
-            <Link href="/bottles">{haul.length > 0 ? "Done" : "Cancel"}</Link>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <Button type="button" variant="outline" asChild>
+          <Link href="/bottles">Cancel</Link>
+        </Button>
+        {phase.kind !== "search" ? (
+          <Button type="submit" disabled={saving}>
+            {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+            {phase.kind === "new" ? "Save label and bottle" : "Save bottle"}
           </Button>
-          {phase.kind !== "search" ? (
-            <>
-              <Button type="submit" value="another" variant="outline" disabled={saving}>
-                Save and add another
-              </Button>
-              {/* Mid-haul, the last bottle ends on the haul's summary rather than leaving it behind. */}
-              <Button type="submit" value={haul.length > 0 ? "last" : "save"} disabled={saving}>
-                {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-                {haul.length > 0 ? "Save, last of the haul" : phase.kind === "new" ? "Save label and bottle" : "Save bottle"}
-              </Button>
-            </>
-          ) : null}
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </form>
   );
 }

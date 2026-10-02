@@ -188,7 +188,28 @@
       "idx": 26,
       "version": "7",
       "when": 1790944174639,
-      "tag": "0026_smart_groups",
+      "tag": "0026_bottle_list_age_parts",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791030574639,
+      "tag": "0027_split_locations",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791116974639,
+      "tag": "0028_currency_preference",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791203374639,
+      "tag": "0029_smart_groups",
       "breakpoints": true
     }
   ]

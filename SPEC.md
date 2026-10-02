@@ -60,8 +60,8 @@ one label and inferred on another. Bottlers and "Made in" lines are not modelled
 they live in the label notes as printed.
 
 Under the distillery list, the label form has a "Distillery not disclosed" tick
-that asks for the state (and, optionally, a city and country), with a US state
-written as an abbreviation corrected to its full name (`src/lib/places.ts`).
+that asks for a city, state and country, with a US state written as an
+abbreviation corrected to its full name (`src/lib/places.ts`).
 Undisclosed links live behind the tick, not in the list, which holds only real
 distilleries. The tick records only the typed place; saving the label finds the
 account's placeholder for it, however its state was spelled, or creates it
@@ -487,8 +487,8 @@ approved label art and what the approval says about who bottled it.
 
 ### Search-first Add bottle and label pages ▶ trying out
 
-Adding a haul meant the label form, then the bottle form, then the bottle's
-page for photos: three screens per bottle. The search-first page puts the
+Adding a bottle meant the label form, then the bottle form, then the
+bottle's page for photos: three screens per bottle. The search-first page puts the
 label and the bottle on one page with one save.
 
 - **Off by default, per account.** Configuration → Trying out →
@@ -512,12 +512,8 @@ label and the bottle on one page with one save.
   Forester"), the rest as the name, and a category named in it.
 - **One save.** The label (new, edited, or untouched) and the bottle are
   written in one transaction; TTB approvals then attach as on New Label, and
-  photos upload through the bottle's own image route once it exists. "Save
-  and add another" keeps the store, date, how you got it and where it lives.
-- **A haul can become a Group.** "Make this haul a group" names it for the
-  haul's store and date and puts its bottles in, in order; bottles saved after
-  join it too. Mid-haul, the main button is "Save, last of the haul", which
-  ends on the haul's summary instead of leaving it behind.
+  photos upload through the bottle's own image route once it exists. Saving
+  opens the new bottle's page.
 - **Enter waits for the results.** Pressed before the results for what was
   typed are in, Enter takes the top one once they are, so a barcode scanner
   (which types and presses Enter at once) never starts a duplicate label.

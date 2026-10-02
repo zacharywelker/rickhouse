@@ -44,6 +44,8 @@ export type FieldSpec =
     })
   | (FieldBase & {
       kind: "number";
+      /** A price: shown with the account's currency symbol. */
+      money?: boolean;
       required?: boolean;
       min?: number;
       max?: number;
@@ -138,5 +140,10 @@ export const DETAILED_RESOURCES = [
 export type DetailedResource = (typeof DETAILED_RESOURCES)[number];
 
 export type ResourceFormSpec =
-  | { ok: true; singular: string; fields: FieldSpec[]; options: Record<string, Option[]> }
+  | {
+      ok: true;
+      singular: string;
+      fields: FieldSpec[];
+      options: Record<string, Option[]>;
+    }
   | { ok: false; error: string };

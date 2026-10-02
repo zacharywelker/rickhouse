@@ -75,6 +75,8 @@ export const companies = pgTable(
     name: citext("name").notNull(),
     slug: text("slug").notNull(),
     parentId: integer("parent_id").references((): AnyPgColumn => companies.id, { onDelete: "set null" }),
+    city: text("city"),
+    state: text("state"),
     country: text("country"),
     website: text("website"),
     notes: text("notes"),
@@ -240,14 +242,16 @@ export const stores = pgTable(
       .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
     name: citext("name").notNull(),
     slug: text("slug").notNull(),
-    location: text("location"),
+    city: text("city"),
+    state: text("state"),
+    country: text("country"),
     isOnline: boolean("is_online").notNull().default(false),
     url: text("url"),
     notes: text("notes"),
   },
   (t) => [
     index("stores_owner_idx").on(t.ownerId),
-    unique("stores_owner_name_location_unique").on(t.ownerId, t.name, t.location),
+    unique("stores_owner_name_place_unique").on(t.ownerId, t.name, t.city, t.state, t.country),
     unique("stores_owner_slug_unique").on(t.ownerId, t.slug),
   ],
 );
@@ -864,6 +868,8 @@ export const userPreferences = pgTable("user_preferences", {
     .references(() => users.id, { onDelete: "cascade" }),
   /** "Add bottle" opens the search-first page that saves a label and its bottle together. */
   searchFirstAdd: boolean("search_first_add").notNull().default(false),
+  /** ISO 4217 code prices are shown and entered in. Display only: amounts are never converted. */
+  currency: text("currency").notNull().default("USD"),
 });
 
 // ------------------------------------------------------------
@@ -939,6 +945,8 @@ export const bottleList = pgView("bottle_list", {
   proof: pct("proof"),
   abv: pct("abv"),
   ageYears: numeric("age_years", { precision: 4, scale: 1 }),
+  ageMonths: integer("age_months"),
+  ageDays: integer("age_days"),
   ageStatement: text("age_statement"),
   /** True when the value above came from the label rather than the bottle. */
   proofInherited: boolean("proof_inherited").notNull(),

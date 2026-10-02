@@ -26,8 +26,8 @@ export function shortMarkup(m: Markup): string {
 }
 
 /** "$5.00 (8%) over MSRP" / "$10.00 (12%) under MSRP" / "At MSRP". */
-export function describeMarkup(m: Markup): string {
+export function describeMarkup(m: Markup, currency?: string): string {
   if (m.amount === 0) return "At MSRP";
   const pct = m.pct === 0 ? "<1" : String(Math.abs(m.pct));
-  return `${formatMoney(Math.abs(m.amount).toFixed(2))} (${pct}%) ${m.amount > 0 ? "over" : "under"} MSRP`;
+  return `${formatMoney(Math.abs(m.amount).toFixed(2), currency)} (${pct}%) ${m.amount > 0 ? "over" : "under"} MSRP`;
 }

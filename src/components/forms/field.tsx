@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { MaybeMoney, useMoneyStep } from "@/components/currency-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,7 @@ export function Field({
    */
   suggestions?: string[] | undefined;
 }) {
+  const moneyStep = useMoneyStep();
   const inputId = `${idPrefix}-${spec.name}`;
   const required = "required" in spec && spec.required === true;
 
@@ -63,6 +65,7 @@ export function Field({
       </div>
 
       {spec.kind === "text" || spec.kind === "number" || spec.kind === "date" ? (
+        <MaybeMoney money={spec.kind === "number" && spec.money === true}>
         <Input
           id={inputId}
           name={spec.name}
@@ -71,12 +74,13 @@ export function Field({
           onChange={(e) => onChange(e.target.value)}
           placeholder={"placeholder" in spec ? spec.placeholder : undefined}
           aria-invalid={error ? true : undefined}
-          className={cn(error && "border-destructive")}
-          {...(spec.kind === "number" ? { min: spec.min, max: spec.max, step: spec.step ?? 1 } : {})}
+          className={cn(error && "border-destructive", spec.kind === "number" && spec.money && "pl-8")}
+          {...(spec.kind === "number" ? { min: spec.min, max: spec.max, step: spec.money ? moneyStep : (spec.step ?? 1) } : {})}
           {...(spec.kind === "text" && suggestions && suggestions.length > 0
             ? { list: `${inputId}-suggestions`, autoComplete: "off" }
             : {})}
         />
+        </MaybeMoney>
       ) : null}
       {spec.kind === "text" && suggestions && suggestions.length > 0 ? (
         <datalist id={`${inputId}-suggestions`}>

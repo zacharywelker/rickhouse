@@ -89,17 +89,13 @@ test("a new label starts from the search, and both save together", async ({ page
   await page.getByLabel("Proof", { exact: true }).first().fill("117.6");
   await page.getByLabel("Price Paid").fill("89.99");
 
-  // Save and add another: the trip carries over, the label starts again.
-  await page.getByLabel("Date Acquired").fill("2026-09-30");
-  await page.getByRole("button", { name: "Save and add another" }).click();
-  await expect(page.getByText(/This haul: 1 bottle/)).toBeVisible();
-  await expect(search).toBeFocused();
+  await page.getByRole("button", { name: "Save label and bottle" }).click();
+  await expect(page).toHaveURL(/\/bottles\/\d+$/);
 
+  // The new label is on file, and the search finds it next time.
+  await page.goto("/bottles/add");
   await search.fill(name);
   await expect(page.getByRole("option", { name: new RegExp(name) })).toBeVisible();
-  await search.press("Enter");
-  await expect(page.getByLabel("Date Acquired")).toHaveValue("2026-09-30");
-  await expect(page.getByLabel("Price Paid")).toHaveValue("");
 });
 
 test("the switch in Configuration makes Add bottle search-first", async ({ page }) => {
@@ -153,7 +149,7 @@ const suggested = (page: import("@playwright/test").Page, field: string) =>
     options.map((option) => (option as HTMLOptionElement).value),
   );
 
-test("free-text fields offer past entries, and a haul's own entries straight away", async ({ page }) => {
+test("free-text fields offer past entries", async ({ page }) => {
   const picker = `Bourbon Club ${stamp()}`;
   await page.goto("/bottles/add");
   await pickSeededLabel(page);
@@ -161,43 +157,16 @@ test("free-text fields offer past entries, and a haul's own entries straight awa
   // Stores are offered as pickers before anything has been typed.
   expect(await suggested(page, "pickedBy")).toContain("P.Club by Pursuit Spirits");
   await page.getByLabel("Picked By").fill(picker);
-  await page.getByRole("button", { name: "Save and add another" }).click();
-  await expect(page.getByText(/This haul: 1 bottle/)).toBeVisible();
+  await page.getByRole("button", { name: "Save bottle" }).click();
+  await expect(page).toHaveURL(/\/bottles\/\d+$/);
 
+  await page.goto("/bottles/add");
   await pickSeededLabel(page);
   await page.getByLabel("Private Selection").check();
-  expect((await suggested(page, "pickedBy"))[0]).toBe(picker);
+  expect(await suggested(page, "pickedBy")).toContain(picker);
 
   // And the bottle forms elsewhere offer it from the database.
   await page.goto("/bottles/new");
   await page.getByLabel("Private Selection").check();
   expect(await suggested(page, "pickedBy")).toContain(picker);
-});
-
-test("a haul becomes a group, and bottles added after join it", async ({ page }) => {
-  const name = `Haul ${stamp()}`;
-  await page.goto("/bottles/add");
-  await pickSeededLabel(page);
-  await page.getByLabel("Price Paid").fill("50");
-  await page.getByRole("button", { name: "Save and add another" }).click();
-  await expect(page.getByText(/This haul: 1 bottle/)).toBeVisible();
-
-  await page.getByRole("button", { name: "Make this haul a group" }).click();
-  const groupName = page.getByLabel("Group name");
-  await expect(groupName).toHaveValue(/^Haul, /);
-  await groupName.fill(name);
-  // Enter makes the group; it must not submit the bottle form around it.
-  await groupName.press("Enter");
-  await expect(page.getByRole("link", { name })).toBeVisible();
-  await expect(page.getByText("Bottles you add from here go in it too.")).toBeVisible();
-
-  await pickSeededLabel(page);
-  await page.getByLabel("Price Paid").fill("60");
-  await page.getByRole("button", { name: "Save, last of the haul" }).click();
-  await expect(page.getByRole("heading", { name: "That’s the haul." })).toBeVisible();
-  await expect(page.getByText("2 bottles")).toBeVisible();
-
-  await page.getByRole("link", { name }).click();
-  await expect(page).toHaveURL(/\/groups\/\d+$/);
-  await expect(page.getByRole("button", { name: /^Remove .* from this group$/ })).toHaveCount(2);
 });
