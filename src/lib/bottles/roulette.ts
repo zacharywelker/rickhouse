@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, getViewSelectedFields, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
+import { and, eq, getViewSelectedFields, gt, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleList } from "@/db/schema";
 import type { GridRow } from "./grid";
@@ -43,6 +43,8 @@ function buildWhere(filters: RouletteFilters, ownerId: number): SQL {
     // Only bottles still on the shelf — a wishlist entry or a bottle you
     // killed, sold, or traded away isn't something you can pour tonight.
     inArray(bottleList.status, ["owned", "open"]),
+    // Nor is one you have drunk to empty but not yet marked killed.
+    gt(bottleList.fillPct, 0),
   ];
 
   if (filters.categoryIds.length > 0) clauses.push(categorySubtree(filters.categoryIds));
