@@ -36,7 +36,7 @@ Rickhouse is "a field guide to your liquor collection": a self-hosted bottle tra
 - Stack is locked by `SPEC.md`: Next.js 15 App Router, Drizzle, Postgres 16, Tailwind v4 with shadcn/ui tooling, TanStack Table, Better Auth, Zod, and `sharp` with images on local disk. Mutations go through server actions.
 - `schema.sql` is the source of truth for the data model. Fields specific to one category (for example rum) are sparse nullable columns, shown according to `categories.field_group`.
 - Terminology: **label** (in the schema, `expression`) is the product and **bottle** is the physical unit. Use "label" in UI copy.
-- Non-goals (`SPEC.md`): no sharing between accounts or social features, no price scraping or third-party APIs, no native mobile apps, no merging labels with bottles, no text columns in place of join tables, no SQLite, no LLM label reader for now.
+- Non-goals (`SPEC.md`): no sharing between accounts or social features, no price scraping or third-party APIs, no native mobile apps beyond the iOS companion in `ios/`, no merging labels with bottles, no text columns in place of join tables, no SQLite, no LLM label reader for now.
 - Next milestone: M9, tastings beyond the shelf.
 - **Visual direction (decided 2026-09-28):** `DESIGN.md`, a Swiss field guide that has been lived in (paper tones, ruled sections, stamps and painter's tape), with tokens in `docs/DESIGN-TOKENS.md`. It supersedes the Liquid Glass direction once recorded in `SPEC.md`.
 

@@ -26,7 +26,10 @@ Locked. Do not substitute without asking.
 | Validation | Zod schemas shared between server actions and forms |
 
 Data mutations go through Next.js **server actions**, not API routes. Expose a
-read-only JSON API under `/api/` only where Milestone 5 needs it.
+read-only JSON API under `/api/` only where Milestone 5 needs it. The one
+exception is `/api/v1`, the small bearer-token JSON API behind the iOS app
+(see [`ios/README.md`](ios/README.md)); it reuses the web app's queries and
+validation rather than duplicating them.
 
 ---
 
@@ -595,7 +598,8 @@ Do not build these, and do not restructure the schema to accommodate them:
   M7 drops `bottles.estimated_value` for the same reason: this is a collection,
   not a portfolio. The one exception is TTB's public COLA registry (M11): it
   describes the label, not its price, and it can be switched off.
-- Mobile native apps.
+- Mobile native apps beyond the SwiftUI iOS companion in `ios/` (browse, add
+  a bottle with photos). Android has no plans.
 - Merging `expressions` and `bottles` "for simplicity".
 - Replacing the join tables with text columns.
 - Swapping Postgres for SQLite.
