@@ -11,7 +11,6 @@ enum APIError: LocalizedError {
         switch self {
         case .badServer: "That doesn't look like a server address."
         case .unauthorized: "Your session has ended. Sign in again."
-        case .twoFactorUnsupported: "This account uses two-step sign-in, which the app doesn't support yet. Turn it off in the web app's account settings to sign in here."
         case .server(let message): message
         case .transport(let error): error.localizedDescription
         }
@@ -29,27 +28,47 @@ struct APIClient {
 
     // MARK: Sign in
 
-    static func signIn(baseURL: URL, username: String, password: String) async throws -> (token: String, user: User) {
-        var request = URLRequest(url: baseURL.appending(path: "api/auth/sign-in/username"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        // Better Auth checks Origin against the host it is served from.
-        request.setValue(baseURL.absoluteString, forHTTPHeaderField: "Origin")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["username": username, "password": password])
+    enum SignInOutcome {
+        case signedIn(token: String, user: User)
+        case needsSecondFactor(TwoFactorChallenge)
+    }
 
-        let (data, response) = try await send(request)
+    static func signIn(baseURL: URL, username: String, password: String) async throws -> SignInOutcome {
+        let (data, response) = try await post(baseURL, "api/auth/sign-in/username", json: ["username": username, "password": password])
         guard let http = response as? HTTPURLResponse else { throw APIError.badServer }
+        guard http.statusCode == 200 else { throw APIError.server(message(from: data) ?? "Wrong username or password.") }
 
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            object["twoFactorRedirect"] as? Bool == true {
-            throw APIError.twoFactorUnsupported
+            // The server ties the next step to a short-lived cookie from this response.
+            let cookies = HTTPCookie.cookies(withResponseHeaderFields: http.allHeaderFields as? [String: String] ?? [:], for: baseURL)
+            let header = HTTPCookie.requestHeaderFields(with: cookies)["Cookie"] ?? ""
+            guard !header.isEmpty else { throw APIError.server("The server didn't start a two-step sign-in. Is it up to date?") }
+            return .needsSecondFactor(TwoFactorChallenge(baseURL: baseURL, cookie: header))
         }
-        guard http.statusCode == 200 else { throw APIError.server(message(from: data) ?? "Wrong username or password.") }
+        return try await finish(baseURL: baseURL, http: http)
+    }
+
+    /// Reads the token off a successful sign-in response and looks up who it is.
+    fileprivate static func finish(baseURL: URL, http: HTTPURLResponse) async throws -> SignInOutcome {
         guard let token = http.value(forHTTPHeaderField: "set-auth-token") else {
             throw APIError.server("The server didn't hand back a token. Is it up to date?")
         }
         let me = try await APIClient(baseURL: baseURL, token: token).me()
-        return (token, me)
+        return .signedIn(token: token, user: me)
+    }
+
+    fileprivate static func post(_ baseURL: URL, _ path: String, json: [String: Any], cookie: String? = nil) async throws -> (Data, URLResponse) {
+        var request = URLRequest(url: baseURL.appending(path: path))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Better Auth checks Origin against the host it is served from.
+        request.setValue(baseURL.absoluteString, forHTTPHeaderField: "Origin")
+        // Cookies are passed by hand, so nothing leaks between sign-in attempts.
+        request.httpShouldHandleCookies = false
+        if let cookie { request.setValue(cookie, forHTTPHeaderField: "Cookie") }
+        request.httpBody = try JSONSerialization.data(withJSONObject: json)
+        return try await send(request)
     }
 
     // MARK: Reads
@@ -133,7 +152,7 @@ struct APIClient {
         return try Self.decoder.decode(T.self, from: data)
     }
 
-    private static func send(_ request: URLRequest, body: Data? = nil) async throws -> (Data, URLResponse) {
+    fileprivate static func send(_ request: URLRequest, body: Data? = nil) async throws -> (Data, URLResponse) {
         do {
             if let body { return try await URLSession.shared.upload(for: request, from: body) }
             return try await URLSession.shared.data(for: request)
@@ -152,9 +171,39 @@ struct APIClient {
     }
 
     /// `{ "error": { "message": … } }` from /api/v1, or Better Auth's `{ "message": … }`.
-    private static func message(from data: Data) -> String? {
+    fileprivate static func message(from data: Data) -> String? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         if let error = object["error"] as? [String: Any] { return error["message"] as? String }
         return object["message"] as? String
+    }
+}
+
+/// A password that was right, waiting on a second factor.
+struct TwoFactorChallenge {
+    let baseURL: URL
+    fileprivate let cookie: String
+
+    enum Method { case authenticator, backupCode, emailCode }
+
+    func verify(_ code: String, method: Method) async throws -> APIClient.SignInOutcome {
+        let path = switch method {
+        case .authenticator: "api/auth/two-factor/verify-totp"
+        case .backupCode: "api/auth/two-factor/verify-backup-code"
+        case .emailCode: "api/auth/two-factor/verify-otp"
+        }
+        let (data, response) = try await APIClient.post(baseURL, path, json: ["code": code], cookie: cookie)
+        guard let http = response as? HTTPURLResponse else { throw APIError.badServer }
+        guard http.statusCode == 200 else {
+            throw APIError.server(APIClient.message(from: data) ?? "That code didn't work.")
+        }
+        return try await APIClient.finish(baseURL: baseURL, http: http)
+    }
+
+    /// Emails a one-time code. Only works when the server has email set up.
+    func sendEmailCode() async throws {
+        let (data, response) = try await APIClient.post(baseURL, "api/auth/two-factor/send-otp", json: [:], cookie: cookie)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw APIError.server(APIClient.message(from: data) ?? "The code couldn't be sent.")
+        }
     }
 }

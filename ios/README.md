@@ -19,7 +19,7 @@ Set your signing team in the target's *Signing & Capabilities*, then run.
 
 ## Signing in
 
-Enter the address you open Rickhouse at (`rickhouse.local:1964`, or `https://…`) and your username and password. The server answers with a bearer token, which the app keeps in the Keychain. Accounts with two-step sign-in aren't supported yet, and an account still holding a generated password must pick its own in the web app first.
+Enter the address you open Rickhouse at (`rickhouse.local:1964`, or `https://…`) and your username and password. The server answers with a bearer token, which the app keeps in the Keychain. Two-step sign-in (authenticator app, backup code or emailed code) is supported. An account still holding a generated password must pick its own in the web app first.
 
 ## Server API
 
@@ -40,4 +40,4 @@ Errors from `/api/v1` look like `{ "error": { "code", "message", "fields?" } }`.
 
 ## Not yet
 
-Editing fill level, tasting notes, creating new labels, groups, Numbers, two-step sign-in, passkeys and SSO.
+Editing fill level, tasting notes, creating new labels, groups, Numbers, passkeys (they need the paid Apple Developer Program) and SSO.
