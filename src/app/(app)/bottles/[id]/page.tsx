@@ -21,6 +21,8 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
+import { nameWithYears } from "@/lib/other-names";
+import { expressionOtherNames } from "@/lib/other-names-store";
 import { getCurrency } from "@/lib/preferences";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { describeMarkup, markup } from "@/lib/bottles/markup";
@@ -61,6 +63,12 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
     user.id,
     colas.map((cola) => cola.permitNumber),
   );
+
+  // The older name of the label this bottle was sold under, if one was chosen.
+  const version =
+    row.bottle.expressionNameId === null
+      ? null
+      : ((await expressionOtherNames(row.expression.id)).find((name) => name.id === row.bottle.expressionNameId) ?? null);
 
   const ownHero = images.find((image) => image.isPrimary) ?? images[0] ?? null;
   // No photo of its own: show the label's.
@@ -118,6 +126,11 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             </Link>
             <FavoriteToggle bottleId={bottleId} isFavorite={row.bottle.isFavorite} />
           </h1>
+          {version ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Sold as</span> {nameWithYears(version)}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>

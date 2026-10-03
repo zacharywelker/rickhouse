@@ -4,6 +4,8 @@ import { ExpressionForm } from "@/components/expressions/expression-form";
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
 import { expressionFormData } from "@/lib/expressions/form-data";
 import { getExpression } from "@/lib/expressions/queries";
+import { otherNamesText } from "@/lib/other-names";
+import { expressionOtherNames } from "@/lib/other-names-store";
 import { requireSession } from "@/lib/auth";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 
@@ -19,9 +21,10 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
   const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
 
-  const [{ options, categoryGroups, links }, colas] = await Promise.all([
+  const [{ options, categoryGroups, links }, colas, otherNames] = await Promise.all([
     expressionFormData(expressionId, user.id),
     colasForExpression(expressionId, user.id),
+    expressionOtherNames(expressionId),
   ]);
   const distilleryMatches = await distilleriesByPermit(
     user.id,
@@ -39,6 +42,7 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
         expressionId={expressionId}
         initialValues={row.expression as unknown as Record<string, string | number | boolean | null>}
         initialLinks={links}
+        initialOtherNames={otherNamesText(otherNames)}
         options={options}
         categoryGroups={categoryGroups}
       />

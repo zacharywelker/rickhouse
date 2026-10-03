@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { withOption } from "@/lib/forms/values";
@@ -192,6 +194,7 @@ export function ExpressionForm({
   expressionId,
   initialValues,
   initialLinks,
+  initialOtherNames = "",
   options,
   categoryGroups,
   colaLookup = false,
@@ -199,6 +202,8 @@ export function ExpressionForm({
   expressionId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
   initialLinks: { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
+  /** Older names, one per line, as `otherNamesText` writes them. */
+  initialOtherNames?: string;
   options: Record<string, Option[]>;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
@@ -209,6 +214,7 @@ export function ExpressionForm({
   const [values, setValues] = React.useState(() => initialFieldValues(LABEL_FIELDS, initialValues));
   const [optionsByField, setOptionsByField] = React.useState(options);
   const [links, setLinks] = React.useState(initialLinks);
+  const [otherNames, setOtherNames] = React.useState(initialOtherNames);
 
   const action = saveExpressionAction.bind(null, expressionId);
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
@@ -241,6 +247,32 @@ export function ExpressionForm({
         categoryGroups={categoryGroups}
         errors={fieldErrors}
       />
+
+      <Section>
+        <SectionHeader>
+          <SectionTitle>Other / old names</SectionTitle>
+          <SectionDescription>
+            Names this label has gone by. A bottle can say which version it is, and a search finds the label under any
+            of them.
+          </SectionDescription>
+        </SectionHeader>
+        <SectionContent>
+          <Label htmlFor="expression-otherNames">Older names</Label>
+          <Textarea
+            id="expression-otherNames"
+            name="otherNames"
+            rows={3}
+            value={otherNames}
+            onChange={(event) => setOtherNames(event.target.value)}
+            placeholder={"Old Grand-Dad Bonded (1980–1995)\nOld Grand-Dad 100 (from 1996)"}
+            aria-invalid={fieldErrors.otherNames ? true : undefined}
+          />
+          <p className="text-xs text-muted-foreground">
+            One per line. Years in brackets are optional: (1980–1995), (from 1996) or (until 1985).
+          </p>
+          {fieldErrors.otherNames ? <p className="text-sm text-destructive">{fieldErrors.otherNames}</p> : null}
+        </SectionContent>
+      </Section>
 
       {expressionId === null ? (
         // A new label's approvals, attached on create (SPEC M11). An existing

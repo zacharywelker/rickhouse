@@ -14,6 +14,7 @@ import {
   categories,
   companies,
   distilleries,
+  distilleryNames,
   expressionDistilleries,
   expressionFinishes,
   expressionMashbills,
@@ -25,6 +26,8 @@ import {
   tags,
 } from "@/db/schema";
 import { HOME_COUNTRY, formatPlace, normalizeLocation, normalizePlace } from "@/lib/places";
+import { otherNamesText, parseOtherNames } from "@/lib/other-names";
+import { syncDistilleryNames } from "@/lib/other-names-store";
 import { resolveSlug } from "@/lib/slug";
 import { createsCycle } from "./tree";
 import type { AdminRow, ColumnSpec, FieldSpec, Option } from "./types";
@@ -541,9 +544,30 @@ const distilleriesConfig: ResourceConfig = {
       help: "For a bottle that says only \"Distilled in Indiana\", add \"Undisclosed (Indiana)\" and set the state. Guessing who really made it is marked on each label, next to the distillery, not here.",
       span: "full",
     },
+    {
+      kind: "textarea",
+      name: "otherNames",
+      label: "Other / Old Names",
+      placeholder: "Bernheim (1999–2005)\nI.W. Harper Distillery (until 1999)",
+      help: "Names it has gone by, one per line. Years in brackets are optional: (1980–1995), (from 1996) or (until 1985). A search finds its labels under any of them.",
+    },
     notesField,
   ],
   list: async (ownerId) => {
+    const olderNames = await db
+      .select({
+        distilleryId: distilleryNames.distilleryId,
+        name: distilleryNames.name,
+        yearFrom: distilleryNames.yearFrom,
+        yearTo: distilleryNames.yearTo,
+      })
+      .from(distilleryNames)
+      .innerJoin(distilleries, eq(distilleries.id, distilleryNames.distilleryId))
+      .where(eq(distilleries.ownerId, ownerId))
+      .orderBy(asc(distilleryNames.position), asc(distilleryNames.id));
+    const olderById = new Map<number, typeof olderNames>();
+    for (const entry of olderNames) olderById.set(entry.distilleryId, [...(olderById.get(entry.distilleryId) ?? []), entry]);
+
     const rows = await db
       .select({
         id: distilleries.id,
@@ -585,6 +609,7 @@ const distilleriesConfig: ResourceConfig = {
         dspNumber: r.dspNumber,
         founded: r.founded,
         disclosure: r.disclosure,
+        otherNames: otherNamesText(olderById.get(r.id) ?? []),
         notes: r.notes,
       },
     }));
@@ -616,16 +641,26 @@ const distilleriesConfig: ResourceConfig = {
       notes: input.notes,
     };
 
-    if (id === null) {
-      const [row] = await db.insert(distilleries).values({ ...values, ownerId }).returning({ id: distilleries.id });
-      return { ok: true, id: row!.id };
-    }
-    const updated = await db
-      .update(distilleries)
-      .set(values)
-      .where(and(eq(distilleries.id, id), eq(distilleries.ownerId, ownerId)))
-      .returning({ id: distilleries.id });
-    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
+    // Only the full form sends older names; inline "create new" leaves them alone.
+    const otherNames = input.otherNames === undefined ? null : parseOtherNames(input.otherNames);
+    if (otherNames?.error) return { ok: false, error: otherNames.error, fieldErrors: { otherNames: otherNames.error } };
+
+    return db.transaction(async (tx) => {
+      let target = id;
+      if (target === null) {
+        const [row] = await tx.insert(distilleries).values({ ...values, ownerId }).returning({ id: distilleries.id });
+        target = row!.id;
+      } else {
+        const updated = await tx
+          .update(distilleries)
+          .set(values)
+          .where(and(eq(distilleries.id, target), eq(distilleries.ownerId, ownerId)))
+          .returning({ id: distilleries.id });
+        if (updated.length === 0) return { ok: false as const, error: "That no longer exists." };
+      }
+      if (otherNames) await syncDistilleryNames(tx, target, otherNames.names);
+      return { ok: true as const, id: target };
+    });
   },
   remove: async (id, ownerId) => {
     await db.delete(distilleries).where(and(eq(distilleries.id, id), eq(distilleries.ownerId, ownerId)));

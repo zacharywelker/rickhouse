@@ -16,6 +16,8 @@ import { LabelPhotoControls } from "@/components/expressions/label-photo-control
 import { CharLevelSpec, Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
 import { T8keHint } from "@/components/expressions/t8ke-hint";
 import { requireSession } from "@/lib/auth";
+import { nameWithYears } from "@/lib/other-names";
+import { expressionOtherNames } from "@/lib/other-names-store";
 import { getCurrency } from "@/lib/preferences";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
@@ -68,11 +70,12 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
   const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
 
-  const [links, owned, notes, colas] = await Promise.all([
+  const [links, owned, notes, colas, otherNames] = await Promise.all([
     expressionLinks(expressionId),
     bottlesOfLabel(expressionId, user.id),
     tastingNotesForLabel(expressionId, user.id),
     colasForExpression(expressionId, user.id),
+    expressionOtherNames(expressionId),
   ]);
   const distilleryMatches = await distilleriesByPermit(
     user.id,
@@ -115,6 +118,11 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
             </Link>{" "}
             <span className="text-accent">{e.name}</span>
           </h1>
+          {otherNames.length > 0 ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Also known as</span> {otherNames.map(nameWithYears).join(" · ")}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild>
