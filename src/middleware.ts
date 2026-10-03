@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { apiError } from "@/lib/api/v1";
 import { getAuth } from "@/lib/auth/server";
 
 /**
@@ -35,6 +36,15 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   if (PUBLIC_PATHS.has(pathname)) {
     if (pathname === "/login" && session) return respond(NextResponse.redirect(new URL("/", request.url)));
+    return respond(NextResponse.next());
+  }
+
+  // The JSON API answers with status codes, never a redirect to a login page.
+  if (pathname.startsWith("/api/v1/")) {
+    if (!session) return respond(apiError(401, "unauthorized", "Sign in first."));
+    if (session.user.mustChangePassword) {
+      return respond(apiError(403, "password_change_required", "Choose your own password in the web app first."));
+    }
     return respond(NextResponse.next());
   }
 

@@ -1,0 +1,28 @@
+name: Rickhouse
+options:
+  bundleIdPrefix: com.zacharywelker
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Rickhouse:
+    type: application
+    platform: iOS
+    sources: [Rickhouse]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zacharywelker.rickhouse
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_CFBundleDisplayName: Rickhouse
+        INFOPLIST_KEY_NSCameraUsageDescription: Rickhouse uses the camera to photograph your bottles and labels.
+        # Self-hosted servers are often plain http on the home network.
+        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: Rickhouse connects to your server on the home network.

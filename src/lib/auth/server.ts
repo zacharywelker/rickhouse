@@ -3,7 +3,7 @@ import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { admin, captcha, genericOAuth, haveIBeenPwned, twoFactor, username } from "better-auth/plugins";
+import { admin, bearer, captcha, genericOAuth, haveIBeenPwned, twoFactor, username } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/admin/access";
 import { sql } from "drizzle-orm";
@@ -241,6 +241,9 @@ function buildAuth(settings: RuntimeSettings, secureCookies: boolean) {
             }),
           ]
         : []),
+      // The iOS app has no cookie jar to lean on: sign-in answers with a
+      // `set-auth-token` header, and the app sends it back as a Bearer token.
+      bearer(),
       // Lets server actions that call auth.api set and clear the cookie.
       nextCookies(),
     ],
