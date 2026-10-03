@@ -39,14 +39,31 @@ final class Session {
         }
     }
 
-    func signIn(server: String, username: String, password: String) async throws {
+    /// Signs in, or returns the second-factor step for the caller to finish with `complete`.
+    func signIn(server: String, username: String, password: String) async throws -> TwoFactorChallenge? {
         let url = try Self.normalise(server)
-        let result = try await APIClient.signIn(baseURL: url, username: username, password: password)
-        Keychain.write(Self.tokenAccount, value: result.token)
-        UserDefaults.standard.set(url.absoluteString, forKey: Self.serverKey)
-        serverURL = url
-        token = result.token
-        user = result.user
+        let outcome = try await APIClient.signIn(baseURL: url, username: username, password: password)
+        return accept(outcome, baseURL: url)
+    }
+
+    /// Finishes a two-step sign-in with the code from the authenticator app, a backup code or email.
+    func complete(_ challenge: TwoFactorChallenge, code: String, method: TwoFactorChallenge.Method) async throws {
+        let outcome = try await challenge.verify(code.trimmingCharacters(in: .whitespaces), method: method)
+        _ = accept(outcome, baseURL: challenge.baseURL)
+    }
+
+    private func accept(_ outcome: APIClient.SignInOutcome, baseURL: URL) -> TwoFactorChallenge? {
+        switch outcome {
+        case .needsSecondFactor(let challenge):
+            return challenge
+        case .signedIn(let token, let user):
+            Keychain.write(Self.tokenAccount, value: token)
+            UserDefaults.standard.set(baseURL.absoluteString, forKey: Self.serverKey)
+            serverURL = baseURL
+            self.token = token
+            self.user = user
+            return nil
+        }
     }
 
     func signOut() {

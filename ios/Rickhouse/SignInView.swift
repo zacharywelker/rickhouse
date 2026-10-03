@@ -7,6 +7,7 @@ struct SignInView: View {
     @State private var password = ""
     @State private var busy = false
     @State private var error: String?
+    @State private var challenge: TwoFactorChallenge?
 
     var body: some View {
         Form {
@@ -37,7 +38,18 @@ struct SignInView: View {
                     .disabled(busy || server.isEmpty || username.isEmpty || password.isEmpty)
             }
         }
+        .sheet(item: $challengeBinding) { item in
+            TwoFactorView(challenge: item.challenge)
+        }
         .onAppear { if server.isEmpty, let url = session.serverURL { server = url.absoluteString } }
+    }
+
+    /// `sheet(item:)` wants an Identifiable; the challenge is a plain struct.
+    private var challengeBinding: Binding<PendingChallenge?> {
+        Binding(
+            get: { challenge.map(PendingChallenge.init) },
+            set: { if $0 == nil { challenge = nil } }
+        )
     }
 
     private func submit() {
@@ -45,11 +57,20 @@ struct SignInView: View {
         error = nil
         Task {
             do {
-                try await session.signIn(server: server, username: username, password: password)
+                if let pending = try await session.signIn(server: server, username: username, password: password) {
+                    challenge = pending
+                }
             } catch {
                 self.error = error.localizedDescription
             }
             busy = false
         }
     }
+}
+
+struct PendingChallenge: Identifiable, Equatable {
+    let id = UUID()
+    let challenge: TwoFactorChallenge
+
+    static func == (a: PendingChallenge, b: PendingChallenge) -> Bool { a.id == b.id }
 }
