@@ -17,12 +17,15 @@ export type RouletteFilters = {
   categoryIds: number[];
   finishIds: number[];
   proof: { min: number | null; max: number | null };
+  /** Never pick a sealed bottle — tonight is not the night to crack the lottery Blanton's. */
+  openOnly: boolean;
 };
 
 export const EMPTY_ROULETTE_FILTERS: RouletteFilters = {
   categoryIds: [],
   finishIds: [],
   proof: { min: null, max: null },
+  openOnly: false,
 };
 
 /** Same recursive walk as the grid's category filter: a style includes its children. */
@@ -47,6 +50,7 @@ function buildWhere(filters: RouletteFilters, ownerId: number): SQL {
     gt(bottleList.fillPct, 0),
   ];
 
+  if (filters.openOnly) clauses.push(eq(bottleList.isOpen, true));
   if (filters.categoryIds.length > 0) clauses.push(categorySubtree(filters.categoryIds));
   if (filters.finishIds.length > 0) {
     clauses.push(sql`EXISTS (

@@ -65,9 +65,9 @@ export function readBottleValues(row: Record<string, string | undefined>): Impor
 
   const openText = cell("is_open").toLowerCase();
   if (openText !== "" && !TRUE.has(openText) && !FALSE.has(openText)) drop("is_open", "use true or false");
-  // Same rule as the bottle form, both ways: an Open status means the bottle
-  // is open, and an open bottle that is merely owned is Open.
-  const isOpen = TRUE.has(openText) || status === "open";
+  // Same rules as the bottle form and the gauge: an Open status or a level
+  // below full means the bottle is open, and an open bottle merely owned is Open.
+  const isOpen = TRUE.has(openText) || status === "open" || fillPct < 100;
 
   return {
     pricePaid: price ?? null,

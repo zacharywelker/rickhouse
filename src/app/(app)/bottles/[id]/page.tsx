@@ -23,6 +23,7 @@ import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
 import { getCurrency } from "@/lib/preferences";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
+import { describeMarkup, markup } from "@/lib/bottles/markup";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { ageLabel } from "@/lib/expressions/display";
@@ -67,6 +68,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
   const e = row.expression;
   const b = row.bottle;
   const group = row.category.fieldGroup;
+  const paidVsMsrp = markup(b.pricePaid, e.msrp);
 
   // The bottle's own age where it has one, the label's otherwise — the same
   // per-field inheritance as bottle_list.
@@ -189,7 +191,19 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="Age" value={age} />
             <Spec label="Size" value={`${e.sizeMl} ml`} />
             <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp, currency) : null} />
-            <Spec label="Paid" value={row.bottle.pricePaid ? formatMoney(row.bottle.pricePaid, currency) : null} />
+            <Spec
+              label="Paid"
+              value={
+                row.bottle.pricePaid ? (
+                  <>
+                    {formatMoney(row.bottle.pricePaid, currency)}
+                    {paidVsMsrp ? (
+                      <span className="block text-xs text-muted-foreground">{describeMarkup(paidVsMsrp, currency)}</span>
+                    ) : null}
+                  </>
+                ) : null
+              }
+            />
             <Spec
               label="Store"
               value={

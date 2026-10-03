@@ -18,6 +18,11 @@ describe("readBottleValues", () => {
     expect(readBottleValues({ status: "killed", is_open: "true" })).toMatchObject({ isOpen: true, status: "killed" });
   });
 
+  it("opens a bottle that has been poured from, whatever is_open says", () => {
+    expect(readBottleValues({ fill_pct: "75", is_open: "false" })).toMatchObject({ isOpen: true, status: "open" });
+    expect(readBottleValues({ fill_pct: "100", is_open: "false" })).toMatchObject({ isOpen: false, status: "owned" });
+  });
+
   it("names every value it could not read instead of dropping it silently", () => {
     const values = readBottleValues({
       date_acquired: "9/15/2026",

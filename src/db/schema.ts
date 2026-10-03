@@ -642,6 +642,12 @@ export const groups = pgTable("groups", {
   slug: text("slug").notNull(),
   description: text("description"),
   coverImagePath: text("cover_image_path"),
+  /**
+   * A smart group: the Collection's filters as a query string ("pick=1&store=3"),
+   * and its bottles are whatever those filters match today. Null for a
+   * hand-picked group, whose bottles live in group_bottles.
+   */
+  filterQuery: text("filter_query"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

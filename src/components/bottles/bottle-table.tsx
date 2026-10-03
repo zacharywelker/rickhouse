@@ -21,12 +21,13 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { ageLabel } from "@/lib/expressions/display";
-import { useMoney } from "@/components/currency-context";
+import { useCurrency, useMoney } from "@/components/currency-context";
 import { cn, formatDate, formatNumeric } from "@/lib/utils";
 import { fillState, fillStateDescription } from "@/lib/bottles/fill-state";
 import type { BottleFilters, SortKey } from "@/lib/bottles/filters";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
 import type { GridRow } from "@/lib/bottles/grid";
+import { describeMarkup, markup, shortMarkup } from "@/lib/bottles/markup";
 import { deleteBottlesBulkAction, updateBottlesBulkAction } from "@/app/(app)/bottles/actions";
 import { BOTTLE_STATUSES } from "@/db/schema";
 import type { Option } from "@/lib/admin/types";
@@ -48,6 +49,7 @@ const SORT_BY_COLUMN: Partial<Record<string, SortKey>> = {
   age: "age",
   price: "price",
   msrp: "msrp",
+  markup: "markup",
   fill: "fill",
   rating: "rating",
   status: "status",
@@ -66,6 +68,7 @@ export const COLUMN_LABELS: Array<{ id: string; label: string }> = [
   { id: "age", label: "Age" },
   { id: "price", label: "Paid" },
   { id: "msrp", label: "MSRP" },
+  { id: "markup", label: "Markup" },
   { id: "store", label: "Store" },
   { id: "acquired", label: "Acquired" },
   { id: "rating", label: "Rating" },
@@ -130,6 +133,7 @@ export function BottleTable({
 }) {
   const { apply } = useGridFilters(filters);
   const money = useMoney();
+  const currency = useCurrency();
   const router = useRouter();
 
   const [unlocked, setUnlocked] = React.useState(false);
@@ -356,6 +360,18 @@ export function BottleTable({
         header: "MSRP",
         cell: ({ getValue }) => <span className="tabular-nums">{money(getValue())}</span>,
       }),
+      helper.display({
+        id: "markup",
+        header: "Markup",
+        cell: ({ row }) => {
+          const m = markup(row.original.pricePaid, row.original.msrp);
+          return (
+            <span className="tabular-nums" title={m ? describeMarkup(m, currency) : undefined}>
+              {m ? shortMarkup(m) : "—"}
+            </span>
+          );
+        },
+      }),
       helper.accessor("store", {
         id: "store",
         header: "Store",
@@ -555,6 +571,7 @@ const MOBILE_SORTS: Array<{ key: SortKey; label: string }> = [
   { key: "proof", label: "Proof" },
   { key: "age", label: "Age" },
   { key: "price", label: "Paid" },
+  { key: "markup", label: "Markup" },
   { key: "fill", label: "Fill" },
   { key: "rating", label: "Rating" },
 ];

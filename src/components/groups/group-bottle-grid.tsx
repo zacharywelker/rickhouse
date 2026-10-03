@@ -20,7 +20,7 @@ import { setBottleGroupMembershipAction } from "@/app/(app)/groups/actions";
 import type { GridRow } from "@/lib/bottles/grid";
 import type { BottlePickerOption } from "@/lib/groups/queries";
 
-function MemberTile({ row, onRemove }: { row: GridRow; onRemove: () => void }) {
+function MemberTile({ row, onRemove }: { row: GridRow; onRemove: (() => void) | null }) {
   return (
     <li className="group relative flex flex-col">
       <Link href={`/bottles/${row.id}`} className="flex flex-1 flex-col">
@@ -50,14 +50,16 @@ function MemberTile({ row, onRemove }: { row: GridRow; onRemove: () => void }) {
           <Badge className="mt-1 w-fit">{humanise(row.status)}</Badge>
         </div>
       </Link>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${row.expressionName} from this group`}
-        className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white opacity-0 transition-opacity hover:bg-black/90 focus-visible:opacity-100 group-hover:opacity-100"
-      >
-        <X className="size-3.5" />
-      </button>
+      {onRemove ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${row.expressionName} from this group`}
+          className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white opacity-0 transition-opacity hover:bg-black/90 focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <X className="size-3.5" />
+        </button>
+      ) : null}
     </li>
   );
 }
@@ -148,14 +150,23 @@ function AddBottlesDialog({
   );
 }
 
+/**
+ * A hand-picked group's bottles, with add and remove. A smart group passes
+ * `smartQuery` instead: its bottles are read-only here, because they belong
+ * to the filters, which are changed from the Collection.
+ */
 export function GroupBottleGrid({
   groupId,
   members,
+  total,
   bottleOptions,
+  smartQuery = null,
 }: {
   groupId: number;
   members: GridRow[];
+  total: number;
   bottleOptions: BottlePickerOption[];
+  smartQuery?: string | null;
 }) {
   const router = useRouter();
   const [pickerOpen, setPickerOpen] = React.useState(false);
@@ -170,30 +181,46 @@ export function GroupBottleGrid({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl">Bottles</h2>
-        <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
-          Add bottles
-        </Button>
+        {smartQuery !== null ? (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/bottles?${smartQuery}`}>Open in Collection</Link>
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+            Add bottles
+          </Button>
+        )}
       </div>
+      {smartQuery !== null ? (
+        <p className="-mt-1 text-sm text-muted-foreground">
+          A smart group: whatever matches its filters today.
+          {total > members.length ? ` Showing the first ${members.length} of ${total}.` : ""}
+        </p>
+      ) : null}
 
       {members.length === 0 ? (
         <p className="border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          An unfinished scrapbook page. Add a bottle to get this group started.
+          {smartQuery !== null
+            ? "Nothing on the shelf matches these filters right now."
+            : "An unfinished scrapbook page. Add a bottle to get this group started."}
         </p>
       ) : (
         <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
           {members.map((row) => (
-            <MemberTile key={row.id} row={row} onRemove={() => void remove(row.id)} />
+            <MemberTile key={row.id} row={row} onRemove={smartQuery !== null ? null : () => void remove(row.id)} />
           ))}
         </ul>
       )}
 
-      <AddBottlesDialog
-        groupId={groupId}
-        memberIds={memberIds}
-        options={bottleOptions}
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-      />
+      {smartQuery === null ? (
+        <AddBottlesDialog
+          groupId={groupId}
+          memberIds={memberIds}
+          options={bottleOptions}
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+        />
+      ) : null}
     </div>
   );
 }

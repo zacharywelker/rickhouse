@@ -204,6 +204,13 @@
       "when": 1791116974639,
       "tag": "0028_currency_preference",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791203374639,
+      "tag": "0029_smart_groups",
+      "breakpoints": true
     }
   ]
 }

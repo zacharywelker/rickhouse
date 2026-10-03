@@ -116,7 +116,8 @@ export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Pr
     }
 
     const values = { ...parsed.data, ...state.data };
-    if (values.status === "open") values.isOpen = true;
+    // Below full means it has been poured from, the same rule as the gauge.
+    if (values.status === "open" || values.fillPct < 100) values.isOpen = true;
     if (values.isOpen) {
       if (values.status === "owned") values.status = "open";
       values.dateOpened ??= new Date().toISOString().slice(0, 10);
@@ -377,9 +378,10 @@ export async function deleteTastingNoteAction(bottleId: number, noteId: number):
 const fillSchema = z.coerce.number().int().min(0).max(100);
 
 /**
- * Sets the level. Deliberately does not decide anything else: dropping to
- * empty prompts in the UI, and killing the bottle is a separate, explicit act
- * (SPEC M4).
+ * Sets the level. Below full means somebody poured from it, so a sealed
+ * bottle is opened on the way — stamped today and promoted from owned to open,
+ * exactly as the Opened tick does. Dropping to empty only prompts in the UI;
+ * killing the bottle is a separate, explicit act (SPEC M4).
  */
 export async function setBottleFillAction(bottleId: number, fillPct: number): Promise<ActionResult> {
   const user = await requireSession();
@@ -387,12 +389,27 @@ export async function setBottleFillAction(bottleId: number, fillPct: number): Pr
   if (!parsed.success) return { ok: false, error: "A fill level is 0 to 100." };
 
   try {
-    const updated = await db
-      .update(bottles)
-      .set({ fillPct: parsed.data })
+    const [current] = await db
+      .select({ isOpen: bottles.isOpen, dateOpened: bottles.dateOpened, status: bottles.status })
+      .from(bottles)
       .where(ownedBottle(bottleId, user.id))
-      .returning({ id: bottles.id });
-    if (updated.length === 0) return { ok: false, error: "That bottle is gone." };
+      .limit(1);
+    if (!current) return { ok: false, error: "That bottle is gone." };
+
+    const opening = parsed.data < 100 && !current.isOpen;
+    await db
+      .update(bottles)
+      .set({
+        fillPct: parsed.data,
+        ...(opening
+          ? {
+              isOpen: true,
+              ...(current.dateOpened === null ? { dateOpened: new Date().toISOString().slice(0, 10) } : {}),
+              ...(current.status === "owned" ? { status: "open" as const } : {}),
+            }
+          : {}),
+      })
+      .where(ownedBottle(bottleId, user.id));
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
     return { ok: true, message: `Set to ${parsed.data}%.` };

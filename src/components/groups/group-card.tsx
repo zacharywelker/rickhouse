@@ -57,6 +57,7 @@ export function GroupCard({ group }: { group: GroupSummary }) {
         {group.description ? <p className="line-clamp-2 text-sm text-muted-foreground">{group.description}</p> : null}
         <p className="mt-auto pt-2 text-xs uppercase tracking-wide text-muted-foreground">
           {group.bottleCount} {group.bottleCount === 1 ? "bottle" : "bottles"}
+          {group.filterQuery !== null ? " · Smart" : null}
         </p>
       </div>
     </Link>
