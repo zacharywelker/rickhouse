@@ -113,6 +113,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         kind: "slider",
         name: "charLevel",
         label: "Char Level",
+        look: "stave",
         options: [{ value: "", label: "Unknown" }, ...CHAR_LEVELS.map((v) => ({ value: v, label: CHAR_LEVEL_LABELS[v] }))],
       },
     ],

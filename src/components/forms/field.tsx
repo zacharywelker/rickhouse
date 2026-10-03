@@ -129,6 +129,7 @@ export function Field({
           value={String(value ?? "")}
           onChange={onChange}
           invalid={error !== undefined}
+          look={spec.look}
         />
       ) : null}
 

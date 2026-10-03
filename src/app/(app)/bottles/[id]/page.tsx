@@ -14,7 +14,7 @@ import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
-import { Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
+import { CharLevelSpec, Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
 import { Tape } from "@/components/ui/tape";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
@@ -219,6 +219,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="Batch" value={b.batch} />
             <Spec label="UPC" value={e.upc} />
           </dl>
+          <CharLevelSpec value={e.charLevel} />
           <StampDesignations stamps={stamps} />
 
           <div className="border-t border-border pt-6">

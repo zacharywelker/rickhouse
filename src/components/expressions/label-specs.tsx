@@ -1,7 +1,11 @@
 import type { Route } from "next";
 import Link from "next/link";
+import { CharStave } from "@/components/char/char-stave";
 import { Badge } from "@/components/ui/badge";
 import { Inferred } from "@/components/ui/inferred";
+import { MarginTag } from "@/components/ui/margin-tag";
+import { CHAR_LEVEL_LABELS } from "@/db/schema";
+import { CHAR_LEVEL_DETAILS, isCharLevel } from "@/lib/char-levels";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,6 +21,30 @@ export function Spec({ label, value }: { label: string; value: React.ReactNode }
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-base">{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * Char Level gets its own full-width row under the spec grid: the stave with
+ * this label's section marked, the value, and the one-liner. Like every other
+ * spec, nothing renders when it isn't known.
+ */
+export function CharLevelSpec({ value }: { value: string | null }) {
+  if (!isCharLevel(value)) return null;
+  const detail = CHAR_LEVEL_DETAILS[value];
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-4">
+      <span className="text-xs uppercase tracking-wide text-muted-foreground">Char Level</span>
+      <div className="flex flex-col gap-x-5 gap-y-2 sm:flex-row sm:items-center">
+        <CharStave level={value} thickness={26} className="min-w-0 flex-1" />
+        <div className="flex items-baseline gap-3">
+          <span className="text-base">{CHAR_LEVEL_LABELS[value]}</span>
+          {detail.flameShort ? <span className="text-sm tabular-nums text-muted-foreground">{detail.flameShort}</span> : null}
+          {value === "4" ? <MarginTag seed={4}>alligator!</MarginTag> : null}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">{detail.line}</p>
     </div>
   );
 }

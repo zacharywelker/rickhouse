@@ -75,6 +75,19 @@
      reading against its own pastel regardless of theme. */
   --color-tape-ink: #242424;
 
+  /* Barrel stave — the Char Level drawing (components/char/char-stave.tsx).
+     Real wood and real char, so like tape these don't shift between themes;
+     the stave carries a foreground hairline so the near-black sections still
+     read on the dark background. */
+  --color-stave-oak: #dcc097;
+  --color-stave-grain: #c3a070;
+  --color-stave-toast: #b67a3c;
+  --color-stave-char-1: #5e3a22;
+  --color-stave-char-2: #3a2417;
+  --color-stave-char-3: #22160e;
+  --color-stave-char-4: #100a06;
+  --color-stave-seam: rgb(60 35 15 / 0.35);
+
   /* Instant-photo/stamp paper — same rationale as tape: real paper doesn't
      turn dark just because the room's lights dim, so it's fixed rather than
      following --card into dark mode. */
