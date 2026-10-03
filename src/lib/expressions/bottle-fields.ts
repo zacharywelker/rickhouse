@@ -31,6 +31,16 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
         required: true,
         span: "full",
       },
+      // Shown only when the chosen label has older names; its choices come from
+      // the label, not from a static list (see BottleFields).
+      {
+        kind: "select",
+        name: "expressionNameId",
+        label: "Label Version",
+        options: [{ value: "", label: "Current name" }],
+        help: "Which name this bottle was sold under.",
+        span: "full",
+      },
       { kind: "number", name: "pricePaid", label: "Price Paid", money: true, min: 0, step: 0.01, span: "half" },
       { kind: "reference", name: "storeId", label: "Store", resource: "stores", span: "half" },
       { kind: "date", name: "dateAcquired", label: "Date Acquired", span: "half" },

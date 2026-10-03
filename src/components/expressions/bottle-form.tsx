@@ -75,6 +75,7 @@ export function BottleFields({
   onOptionCreated,
   errors,
   suggestions,
+  labelVersions,
   omit = [],
   idPrefix = "bottle",
 }: {
@@ -85,6 +86,8 @@ export function BottleFields({
   errors: Record<string, string>;
   /** Past values for the free-text fields (Picked By, Warehouse, …), by field name. */
   suggestions?: Partial<Record<string, string[]>>;
+  /** Each label's older names (by label id), for the Label Version choice. */
+  labelVersions?: Record<number, Array<{ value: string; label: string }>>;
   omit?: string[];
   idPrefix?: string;
 }) {
@@ -115,6 +118,20 @@ export function BottleFields({
                   value={values.proof ?? ""}
                   onChange={(next) => onChange("proof", next)}
                   error={errors.proof}
+                />
+              );
+            }
+            if (field.name === "expressionNameId") {
+              const versions = labelVersions?.[Number(values.expressionId)] ?? [];
+              if (versions.length === 0 || field.kind !== "select") return null;
+              return (
+                <Field
+                  key={field.name}
+                  spec={{ ...field, options: [...field.options, ...versions] }}
+                  idPrefix={idPrefix}
+                  value={values.expressionNameId ?? ""}
+                  onChange={(next) => onChange("expressionNameId", next)}
+                  error={errors.expressionNameId}
                 />
               );
             }
@@ -167,11 +184,13 @@ export function BottleForm({
   initialValues,
   options,
   suggestions,
+  labelVersions,
 }: {
   bottleId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
   options: Record<string, Option[]>;
   suggestions?: Partial<Record<string, string[]>>;
+  labelVersions?: Record<number, Array<{ value: string; label: string }>>;
 }) {
   const router = useRouter();
   const [values, setValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, initialValues));
@@ -189,7 +208,9 @@ export function BottleForm({
   }, [saved, createdId, router]);
 
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
-  const set = (name: string, value: FieldValue) => setValues((prev) => ({ ...prev, [name]: value }));
+  // Changing the label drops a version picked for the previous one.
+  const set = (name: string, value: FieldValue) =>
+    setValues((prev) => ({ ...prev, [name]: value, ...(name === "expressionId" ? { expressionNameId: "" } : {}) }));
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -200,6 +221,7 @@ export function BottleForm({
         onOptionCreated={(name, option) => setOptionsByField((prev) => withOption(prev, name, option))}
         errors={fieldErrors}
         suggestions={suggestions}
+        labelVersions={labelVersions}
       />
 
       {!state.ok && state.error ? (

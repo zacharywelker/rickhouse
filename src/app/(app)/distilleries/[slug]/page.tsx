@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { EntityPage } from "@/components/entities/entity-page";
 import { requireSession } from "@/lib/auth";
 import { getDistillery } from "@/lib/entities/queries";
+import { nameWithYears } from "@/lib/other-names";
+import { distilleryOtherNames } from "@/lib/other-names-store";
 import { formatPlace } from "@/lib/places";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +26,7 @@ export default async function DistilleryPage({
   const [{ slug }, query, user] = await Promise.all([params, searchParams, requireSession()]);
   const row = await getDistillery(slug, user.id);
   if (!row) notFound();
+  const otherNames = await distilleryOtherNames(row.id);
 
   return (
     <EntityPage
@@ -41,6 +44,7 @@ export default async function DistilleryPage({
         { label: "Founded", value: row.founded ?? "—" },
         { label: "Owner", value: row.company ?? "—" },
       ]}
+      alsoKnownAs={otherNames.map(nameWithYears)}
       notes={row.notes}
       preset={{ distilleryIds: [row.id] }}
       searchParams={query}

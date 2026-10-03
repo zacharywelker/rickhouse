@@ -4,6 +4,7 @@ import { BottleForm } from "@/components/expressions/bottle-form";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { expressionOptions, getBottle } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
+import { labelVersionChoices } from "@/lib/other-names-store";
 import { bottleSuggestions } from "@/lib/bottles/suggestions-query";
 
 export const metadata: Metadata = { title: "Edit bottle" };
@@ -33,6 +34,7 @@ export default async function EditBottlePage({ params }: { params: Promise<{ id:
         initialValues={row.bottle as unknown as Record<string, string | number | boolean | null>}
         options={{ expressionId: expressions, storeId: stores }}
         suggestions={suggestions}
+        labelVersions={await labelVersionChoices(user.id)}
       />
     </div>
   );

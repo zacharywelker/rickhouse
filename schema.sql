@@ -264,6 +264,33 @@ CREATE TABLE expression_finishes (
     PRIMARY KEY (expression_id, finish_id)
 );
 
+-- Older names a label has gone by. A bottle may say which version it is
+-- (bottles.expression_name_id); the years are optional, display only.
+CREATE TABLE expression_names (
+    id            serial PRIMARY KEY,
+    expression_id integer NOT NULL REFERENCES expressions(id) ON DELETE CASCADE,
+    name          citext  NOT NULL,
+    year_from     integer,
+    year_to       integer,
+    position      integer NOT NULL DEFAULT 0,
+    UNIQUE (expression_id, name),
+    CHECK (year_from IS NULL OR year_to IS NULL OR year_from <= year_to)
+);
+CREATE INDEX expression_names_expression_idx ON expression_names(expression_id);
+
+-- The same for distilleries.
+CREATE TABLE distillery_names (
+    id           serial PRIMARY KEY,
+    distillery_id integer NOT NULL REFERENCES distilleries(id) ON DELETE CASCADE,
+    name         citext  NOT NULL,
+    year_from    integer,
+    year_to      integer,
+    position     integer NOT NULL DEFAULT 0,
+    UNIQUE (distillery_id, name),
+    CHECK (year_from IS NULL OR year_to IS NULL OR year_from <= year_to)
+);
+CREATE INDEX distillery_names_distillery_idx ON distillery_names(distillery_id);
+
 -- ------------------------------------------------------------
 -- Bottles (the physical unit)
 -- ------------------------------------------------------------
@@ -271,6 +298,8 @@ CREATE TABLE expression_finishes (
 CREATE TABLE bottles (
     id              serial PRIMARY KEY,
     expression_id   integer NOT NULL REFERENCES expressions(id) ON DELETE RESTRICT,
+    -- Which older name of the label this bottle carries; NULL = its current name.
+    expression_name_id integer REFERENCES expression_names(id) ON DELETE SET NULL,
 
     -- ---- Release identity (M7).
     -- These live here, not on the label, because they vary barrel to barrel.
