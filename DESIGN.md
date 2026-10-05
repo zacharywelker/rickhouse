@@ -15,6 +15,13 @@ palette, the Char Level stave drawing). This document describes the target.
 Moving the code to it is the web redesign, which is its own spec. Until a
 component is migrated, do not copy its old styling into new work.
 
+**Section citations in code.** Comments in `src/` that cite a section of
+`DESIGN.md` (for example "DESIGN.md §29" or "§38") refer to the previous,
+archived document, whose numbering is different. Look them up in
+`archive/DESIGN-2026-09-swiss-field-guide.md`. Citations of
+`docs/DESIGN-TOKENS.md` sections are mostly still valid, because the unchanged
+sections kept their numbers; sections 3.2, 7, 9, 27 and 28 were replaced.
+
 Items marked *(proposed)* were introduced to make a decision work and still
 await the owner's confirmation. Items marked *(undecided)* are open; see
 section 13.
