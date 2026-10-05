@@ -33,6 +33,11 @@ self-hosted first, with an optional hosted service later. The design language
 is platform-neutral (tokens and rules), and navigation chrome follows each
 platform's conventions.
 
+Run modes (Decided): the native apps work standalone with all data on the
+device, or connect to the user's own home server (strongly recommended), or,
+later, to a hosted service. With a server, the server holds the truth. Section
+14.6 gives the rules.
+
 Product sequence (Decided), used to decide what to build now and what to leave
 a seam for:
 1. Bottle management.
@@ -366,8 +371,9 @@ random choice.
   central catalog can supply flavor profiles, this rule will change.
 - The proof step is skipped for spirits where proof does not discriminate
   (Proposed).
-- Whether Spin picks only from open bottles or from everything is open. Earlier
-  smart-groups work added a spin toggle for bottles; check whether to reuse it.
+- Whether Spin picks only from open bottles or from everything is open. The
+  server already has a roulette route (`src/app/api/bottles/roulette`); check
+  whether to reuse it.
 
 ### 11.6 Labels (mobile)
 
@@ -387,6 +393,8 @@ future and are not committed.
 - Config is administrative, so it is shown to admins only (Proposed).
 - Where the native app's server connection setting lives (Account or Config)
   is open.
+- In standalone mode there is no server account: Account shows a local profile
+  and Config is hidden (Proposed).
 
 ### 11.8 Collection on mobile
 
@@ -438,9 +446,13 @@ Helvetica Now named in `DESIGN.md`.
 ### 14.3 Native architecture (a separate spec)
 
 Native clients are blocked on things this spec does not solve:
-- A public, authenticated API. Mutations are server actions today.
-- A server-address-agnostic client from the first version (a self-hosted URL
-  or a hosted account), so the optional hosted service does not force a rebuild.
+- A public, authenticated API. On `main`, only a few routes exist and mutations
+  are server actions. A bearer-token JSON API and a SwiftUI client are under
+  way on the unmerged `claude/ios-app` branch (an online-only client with no
+  local database).
+- A storage-agnostic client from the first version (on the device, on a
+  self-hosted server, or on a hosted account), so neither standalone mode nor
+  the optional hosted service forces a rebuild.
 - A compatibility policy for app and server versions, since self-hosters update
   on their own schedule.
 - Native sign-in (passkeys, SSO, two-step) and offline behavior for use in
@@ -498,6 +510,29 @@ stuffing. Tying contributions to accounts allows both, but is not anonymous. A
 common compromise is accounts for rate limiting and removal, with stored
 contributions carrying only an anonymous token.
 
+### 14.6 Run modes, export and first connection (Decided)
+
+- **Three modes:** standalone (data on the device), with the user's own home
+  server (strongly recommended; the server holds the truth and devices keep a
+  working copy and sync), and hosted (later, optional).
+- **Standalone is full core:** bottles, photos, labels and tastings. The server
+  adds the web and desktop app, sync across devices, household accounts, Config
+  and backups.
+- **On-device database.** SQLite is allowed on the device. The server database
+  stays Postgres, so the old "no SQLite" non-goal is reworded to cover the
+  server only. The data is relational, so a SQL store is the natural fit, and
+  one schema could serve iOS and Android. The choice is open (SwiftData and GRDB
+  are the iOS candidates; both use SQLite underneath).
+- **Manual export.** A human-readable CSV of bottles that Rickhouse can import.
+  It excludes tastings and has no standalone label records. The export screen
+  says so at the moment of export. Standalone tastings therefore cannot be
+  backed up except by connecting to a server (Decided limitation).
+- **First connection to a server.** Strict silent matching first: the same
+  barcode, or the same brand, name, proof and age statement with the same
+  purchase date and price paid. Everything else goes to a duplicate review. After
+  records are linked, the most recent edit wins per record. Device clocks are
+  trusted. Tastings are copied to the server.
+
 ## 15. Open decisions
 
 Each has an owner (the product owner) and a trigger.
@@ -524,6 +559,8 @@ Each has an owner (the product owner) and a trigger.
 | A yearly recap moment | Optional; can be dropped |
 | Frame thickness | Test with real photos at card scale |
 | Grid column counts beyond 2 and 3 | Collection screen spec |
+| On-device database and the Android stack | Native architecture spec |
+| Duplicate review screen on first connection | Native app spec |
 
 ## 16. Follow-up specs
 
