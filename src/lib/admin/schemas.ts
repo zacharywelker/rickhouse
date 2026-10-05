@@ -107,6 +107,8 @@ export const distillerySchema = z.object({
   // Absent means named, so the inline "create new" path (a name and nothing else) still works.
   disclosure: blankIfAbsent(z.enum(["", ...DISTILLERY_DISCLOSURES]).transform((v) => (v === "" ? "named" : v))),
   notes: optionalText(),
+  // One older name per line (see lib/other-names). Absent leaves them as they are.
+  otherNames: z.string().max(4000, "Keep this under 4000 characters.").optional(),
 });
 
 /** One row of the grain editor, as it arrives in the hidden JSON field. */

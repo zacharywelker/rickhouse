@@ -364,6 +364,49 @@ export const expressionDistilleries = pgTable(
   (t) => [primaryKey({ columns: [t.expressionId, t.distilleryId] })],
 );
 
+/**
+ * Older names a label has gone by. A bottle may say which version it is
+ * (`bottles.expression_name_id`); the years are optional and display only.
+ */
+export const expressionNames = pgTable(
+  "expression_names",
+  {
+    id: serial("id").primaryKey(),
+    expressionId: integer("expression_id")
+      .notNull()
+      .references(() => expressions.id, { onDelete: "cascade" }),
+    name: citext("name").notNull(),
+    yearFrom: integer("year_from"),
+    yearTo: integer("year_to"),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [
+    index("expression_names_expression_idx").on(t.expressionId),
+    unique("expression_names_expression_name_unique").on(t.expressionId, t.name),
+    check("expression_names_years_check", sql`${t.yearFrom} IS NULL OR ${t.yearTo} IS NULL OR ${t.yearFrom} <= ${t.yearTo}`),
+  ],
+);
+
+/** The same for distilleries. */
+export const distilleryNames = pgTable(
+  "distillery_names",
+  {
+    id: serial("id").primaryKey(),
+    distilleryId: integer("distillery_id")
+      .notNull()
+      .references(() => distilleries.id, { onDelete: "cascade" }),
+    name: citext("name").notNull(),
+    yearFrom: integer("year_from"),
+    yearTo: integer("year_to"),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [
+    index("distillery_names_distillery_idx").on(t.distilleryId),
+    unique("distillery_names_distillery_name_unique").on(t.distilleryId, t.name),
+    check("distillery_names_years_check", sql`${t.yearFrom} IS NULL OR ${t.yearTo} IS NULL OR ${t.yearFrom} <= ${t.yearTo}`),
+  ],
+);
+
 export const expressionMashbills = pgTable(
   "expression_mashbills",
   {
@@ -481,6 +524,10 @@ export const bottles = pgTable(
     expressionId: integer("expression_id")
       .notNull()
       .references(() => expressions.id, { onDelete: "restrict" }),
+    /** Which older name of the label this bottle carries; NULL = its current name. */
+    expressionNameId: integer("expression_name_id").references((): AnyPgColumn => expressionNames.id, {
+      onDelete: "set null",
+    }),
 
     // ---- Release identity (M7). Here, not on the label, because these vary
     // barrel to barrel — six picks of one Weller 12 are six bottles of one
@@ -533,6 +580,7 @@ export const bottles = pgTable(
   },
   (t) => [
     index("bottles_expression_idx").on(t.expressionId),
+    index("bottles_expression_name_idx").on(t.expressionNameId),
     index("bottles_store_idx").on(t.storeId),
     index("bottles_status_idx").on(t.status),
     index("bottles_owner_idx").on(t.ownerId),

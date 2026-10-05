@@ -6,9 +6,11 @@ import {
   brands,
   categories,
   distilleries,
+  distilleryNames,
   expressionColas,
   expressionDistilleries,
   expressionFinishes,
+  expressionNames,
   expressions,
   finishes,
 } from "@/db/schema";
@@ -29,11 +31,25 @@ export async function loadLabelDocs(ownerId: number): Promise<LabelDoc[]> {
         categoryId: expressions.categoryId,
         upc: expressions.upc,
         proof: expressions.proof,
+        otherNames: sql<string[]>`coalesce((
+          select array_agg(${expressionNames.name}::text order by ${expressionNames.position})
+          from ${expressionNames}
+          where ${expressionNames.expressionId} = ${expressions.id}
+        ), '{}')`,
+        // A distillery is found under its older names too.
         distilleries: sql<string[]>`coalesce((
-          select array_agg(${distilleries.name}::text order by ${expressionDistilleries.position})
-          from ${expressionDistilleries}
-          join ${distilleries} on ${distilleries.id} = ${expressionDistilleries.distilleryId}
-          where ${expressionDistilleries.expressionId} = ${expressions.id}
+          select array_agg(n order by pos, ord)
+          from (
+            select ${distilleries.name}::text as n, ${expressionDistilleries.position} as pos, 0 as ord
+            from ${expressionDistilleries}
+            join ${distilleries} on ${distilleries.id} = ${expressionDistilleries.distilleryId}
+            where ${expressionDistilleries.expressionId} = ${expressions.id}
+            union all
+            select ${distilleryNames.name}::text, ${expressionDistilleries.position}, 1 + ${distilleryNames.position}
+            from ${expressionDistilleries}
+            join ${distilleryNames} on ${distilleryNames.distilleryId} = ${expressionDistilleries.distilleryId}
+            where ${expressionDistilleries.expressionId} = ${expressions.id}
+          ) names
         ), '{}')`,
         finishes: sql<string[]>`coalesce((
           select array_agg(${finishes.name}::text order by ${expressionFinishes.position})

@@ -26,6 +26,8 @@ import {
   writableValues,
   writeLabel,
 } from "@/lib/expressions/save";
+import { parseOtherNames } from "@/lib/other-names";
+import { syncExpressionNames } from "@/lib/other-names-store";
 import { pendingTtbIds } from "@/lib/cola/ids";
 import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
 
@@ -57,9 +59,19 @@ export async function saveExpressionAction(
     finishLinks: formData.get("finishLinks"),
   });
 
+  // Only the label form sends this; the grids and Add bottle leave older names alone.
+  const otherNames = formData.has("otherNames") ? parseOtherNames(String(formData.get("otherNames"))) : null;
+  if (otherNames?.error) {
+    return { ok: false, error: otherNames.error, fieldErrors: { otherNames: otherNames.error } };
+  }
+
   try {
     const values = await labelValues(input, user.id, id);
-    const expressionId = await db.transaction((tx) => writeLabel(tx, user.id, id, values, links));
+    const expressionId = await db.transaction(async (tx) => {
+      const target = await writeLabel(tx, user.id, id, values, links);
+      if (otherNames) await syncExpressionNames(tx, target, otherNames.names);
+      return target;
+    });
 
     // Approvals picked on New Label (SPEC M11), attached once the label exists.
     const approvals = id === null ? await attachPendingColas(expressionId, user.id, pendingTtbIds(formData.get("ttbIds"))) : "";

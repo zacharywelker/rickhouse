@@ -186,6 +186,8 @@ export function parseLinks(raw: unknown): LinkRow[] {
 
 export const bottleSchema = z.object({
   expressionId: requiredRef,
+  /** Which older name of the label this bottle carries; blank is the current name. */
+  expressionNameId: optionalRef,
   pricePaid: optionalDecimal(0, 99_999_999),
   storeId: optionalRef,
   dateAcquired: pastDate,
