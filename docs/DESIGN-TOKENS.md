@@ -2,14 +2,23 @@
 
 > **Implementation-level visual rules for Rickhouse.**
 >
-> `DESIGN.md` explains what Rickhouse should feel like.
-> This document explains how that feeling becomes code.
+> `DESIGN.md` says what Rickhouse should feel like.
+> This document says how that becomes tokens and code.
 
-These tokens are the canonical starting point for the Rickhouse interface.
+**Status (2026-10).** Updated for the new direction in `DESIGN.md`. Sections 1,
+3.2, 7, 9, 27, 28, 58, 59 and 60 are new or replaced. **All other sections are
+carried over unchanged from the previous direction and have not been reviewed
+against the new one** (2, 3.1, 4 to 6, 8, 10 to 26, 29 to 57). The code in
+`src/app/globals.css` still implements the previous values; migrating it is the
+web redesign. Until a section is reviewed, treat carried-over values as the
+current implementation, not as the target.
 
-Do not introduce one-off visual values when an existing token can express the intent.
+Do not introduce one-off visual values when an existing token can express the
+intent. If a new value is genuinely necessary, first ask whether the design
+system is missing a token.
 
-If a new value is genuinely necessary, first ask whether the design system is missing a token.
+Items marked *(proposed)* await the owner's confirmation. Items marked
+*(undecided)* are open.
 
 ---
 
@@ -17,29 +26,26 @@ If a new value is genuinely necessary, first ask whether the design system is mi
 
 Rickhouse uses:
 
-* Swiss typography
-* disciplined spacing
-* warm paper-like neutrals
-* strong category color
-* restrained geometry
-* thin rules and borders
-* real photography
-* contextual physical interventions
-* dense information layouts
+* warm paper and navy ink
+* one category color per kind of spirit, on photo frames
+* Inter for everything functional and Source Serif 4 for headlines only
+* tabular figures for numbers
+* hairline rules and borders
+* real bottle photography
+* a few contextual marks (tape and marker) for real bottle facts
+* dense information where density helps
 
 Rickhouse does **not** use:
 
-* glassmorphism
-* translucent UI as a default
+* Rick or any mascot
+* decorative tape, handwriting or scrapbook layouts
+* glassmorphism or translucent UI as a default
 * gradient backgrounds
-* giant rounded cards
+* giant rounded cards or pill-everything
 * excessive shadows
-* pill-everything
-* generic SaaS blue/purple
-* decorative blobs
-* excessive whitespace
-* arbitrary one-off colors
-* arbitrary one-off spacing
+* color floods
+* generic SaaS styling
+* arbitrary one-off colors or spacing
 * animation for its own sake
 
 ---
@@ -98,32 +104,22 @@ The differences should be visible enough to establish hierarchy but subtle enoug
 
 ## 3.2 Neutral palette
 
-Initial primitives:
+Target primitives (light mode):
 
 ```css
 :root {
-  --color-paper-50: #fffefa;
-  --color-paper-100: #faf8f1;
-  --color-paper-200: #f3f0e7;
-  --color-paper-300: #e8e4d9;
-
-  --color-white: #ffffff;
-
-  --color-ink-900: #171717;
-  --color-ink-800: #242424;
-  --color-ink-700: #3a3a3a;
-  --color-ink-600: #555555;
-  --color-ink-500: #707070;
-  --color-ink-400: #8c8c8c;
-  --color-ink-300: #b0b0b0;
-
-  --color-black: #000000;
+  --color-paper: #f6f1e7;
+  --color-ink: #14213d;
+  --color-ink-on-color: #0a1226; /* proposed: text on colored frames */
+  --color-rule: #14213d2e;       /* hairlines on paper */
 }
 ```
 
-These values are intentionally restrained.
-
-The application should generally avoid pure black text except where maximum contrast is useful.
+The pre-existing paper and ink ramps in the code (`--color-paper-50` to
+`--color-ink-300`) are the previous direction's primitives. The semantic tokens
+in sections 4 to 6 must be re-pointed at the primitives above during the
+redesign. The dark-mode values are *(undecided)*; keep the current dark tokens
+until they are decided.
 
 ---
 
@@ -213,68 +209,63 @@ Prefer a single-pixel rule over a large shadow.
 
 # 7. Category Colors
 
-Category colors are part of the collection's visual language.
-
-Initial palette:
+Sixteen categories; whiskey kinds each have their own color. The values come
+from Pantone references; the hex values are the source of truth.
 
 ```css
 :root {
-  --category-whiskey: #e97824;
-  --category-agave: #e85d75;
-  --category-gin: #4d9b61;
-  --category-rum: #c94b3f;
-  --category-vodka: #3d82b8;
-  --category-liqueur: #8b5aa8;
-  --category-brandy: #b87333;
-  --category-wine: #9a4161;
-  --category-other: #6d6a63;
+  --category-vodka: #56b7e6;
+  --category-gin: #48d597;
+  --category-rum: #9678d3;
+  --category-bourbon: #fc9350;
+  --category-rye: #1caa3d;
+  --category-scotch: #f4633a;
+  --category-irish: #a6dd45;
+  --category-japanese: #ba0c2f;
+  --category-american-whiskey: #ca9a8e; /* other, ASM, ALW, corn */
+  --category-canadian: #5461c8;
+  --category-international-whiskey: #eab8e4;
+  --category-amaro: #ef426f;
+  --category-liqueur: #e93cac;
+  --category-agave: #50a684;            /* tequila, mezcal */
+  --category-brandy: #61007d;
+  --category-other: #f7ea48;
 }
 ```
 
-These are **starting values**, not immutable brand colors.
+The previous nine tokens (`--category-whiskey`, `--category-wine` and so on)
+are retired. A whiskey is now one of its kinds. Wine has no category in the new
+set.
 
-The important requirement is the relationship:
+## 7.1 Text on a category color
 
-* whiskey = warm amber/orange
-* agave = coral/pink
-* gin = green
-* rum = red
-* vodka = blue
-* liqueur = purple
+Each category pairs with one text color. Every pairing reaches 4.5:1.
 
----
+| Text token | Used on |
+|---|---|
+| `--color-ink` | Vodka, Gin, Rum, Bourbon, Rye, Scotch, Irish, American whiskey, International whiskey, Agave, Other |
+| `--color-ink-on-color` | Amaro, Liqueur (standard ink reaches only 4.3:1) |
+| `--color-paper` | Japanese, Canadian, Brandy |
 
-## 7.1 Category color usage
+## 7.2 Usage
 
-Category color may appear in:
+Category color may appear on photo frames (and, once background removal ships,
+plates), as one small swatch beside the category name, and in chart series. It
+must not fill screens, and it is not used as text on light backgrounds.
 
-* painter's tape
-* section labels
-* table accents
-* small rules
-* bottle groupings
-* chart series
-* gallery interventions
-* timeline markers
-* subtle backgrounds
+Residual categories (American whiskey, International whiskey, Other) are
+deliberately quieter than the named kinds.
 
-Category color should generally **not** fill entire screens.
+## 7.3 Accessibility
 
----
-
-## 7.2 Category color accessibility
-
-Never communicate category using color alone.
-
-A bottle should still identify its category through:
-
-* text
-* label
-* icon
-* grouping
-* accessible name
-
-Do not use light category colors as text on light backgrounds.
+* Never communicate category by color alone: the category name is always
+  printed with it.
+* Amaro and Liqueur (9.6 apart) and Scotch and Amaro (9.9 apart) are the
+  closest pairs in normal vision. Amaro with Agave (3.7) and Amaro with Rye
+  (4.0) are close for red-green color blindness.
+* Vodka, Gin, Bourbon, Irish, International whiskey and Other have 1.1 to 2.0
+  contrast against paper, and American whiskey, Rye, Scotch and Agave are under
+  3. Every frame therefore carries a 1px ink hairline *(proposed)*.
 
 ---
 
@@ -307,29 +298,33 @@ Do not confuse them with spirit categories.
 
 # 9. Typography
 
-## 9.1 Font family
-
-Primary:
+## 9.1 Font families
 
 ```css
---font-sans: "Helvetica Now", "Helvetica Neue", Helvetica, Arial, sans-serif;
+--font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+--font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
 ```
 
-Fallbacks should remain strong if Helvetica Now is unavailable.
+* **Inter** for all UI, data, tables, labels, controls and numbers.
+* **Source Serif 4** for headlines and short editorial lines only. Never for
+  data, controls or body copy.
+* Both are free and open-licensed. Bundle them (do not rely on a CDN) and
+  subset to the needed languages *(proposed)*.
+* The previous fonts (Aileron, Georgia as the display face) are the
+  previous direction's values.
 
-Do not replace the entire system with a novelty font because the font is unavailable.
-
----
-
-## 9.2 Editorial serif
-
-Use a restrained serif only where appropriate.
+## 9.2 Numerals and optical size
 
 ```css
---font-serif: Georgia, "Times New Roman", serif;
+.numeric { font-variant-numeric: tabular-nums; }       /* numbers compared in columns */
+h1, h2, .headline { font-family: var(--font-serif);
+                    font-variant-numeric: lining-nums;   /* matches Inter's digits */
+                    font-optical-sizing: auto; }          /* display cut at large sizes */
 ```
 
-If the project later adds a licensed/web serif, update the token rather than changing components individually.
+Lining figures are the default in the serif so headline counts match Inter's
+digits. The old-style numerals of a different serif were the reason Junicode was
+rejected.
 
 ---
 
@@ -764,52 +759,41 @@ If removing the card would make the information hierarchy clearer, remove it.
 
 ---
 
-# 27. Painter's Tape Token
+# 27. Marks (tape and marker)
 
-Painter's tape is a recurring physical element.
-
-It should have a small number of controlled colors:
+Tape and marker appear only for facts a person would write on a real bottle:
+**open date, gifted-by, store pick, location.** They are never decoration.
 
 ```css
 :root {
-  --tape-coral: #f07870;
-  --tape-orange: #f29a38;
-  --tape-yellow: #e7c84a;
-  --tape-green: #72a96b;
-  --tape-blue: #6fa8c9;
-  --tape-pink: #d98da5;
-  --tape-purple: #9b7bb0;
-  --tape-neutral: #b9b4a7;
+  --mark-tilt-max: 2deg; /* proposed */
 }
 ```
 
-Tape should generally have:
+Rules:
 
-* slightly imperfect edges
-* restrained opacity variation
-* optional tiny rotation
-* handwritten or bold label text
+* A mark is a component with a fixed slot, not placed by hand.
+* Tilt at most `--mark-tilt-max`.
+* Marks never overlap content or touch targets.
+* Each has a plain-text equivalent for assistive technology.
+* They scale with system text size up to a cap *(proposed)*.
 
-Do not apply tape to everything.
-
-A tape element should imply:
-
-> someone physically put this here.
+The tape colors in the code (`--color-tape-coral` through
+`--color-tape-neutral`, and `--color-tape-ink`) are the previous direction's.
+Which colors the new tape uses, and its look, are *(undecided)*; keep the
+existing tokens until decided.
 
 ---
 
 # 28. Handwriting
 
-Handwriting is decorative/contextual, never the only source of information.
+Handwriting is for marks only. It is never the only source of information.
 
-If handwriting appears:
+* Provide an accessible equivalent text.
+* Do not use it for essential controls.
+* Keep it short (one to three words) and legible.
 
-* provide accessible equivalent text
-* do not use it for essential controls
-* keep it legible
-* use it sparingly
-
-Handwriting should feel like an annotation, not a font system.
+The marker typeface is *(undecided)*.
 
 ---
 
@@ -991,7 +975,6 @@ ui.paper
 ui.bottle
 milestone.discovery
 milestone.opening
-rick.reaction
 ```
 
 Sound must never be the only feedback mechanism.
@@ -1306,7 +1289,7 @@ Toasts should be:
 * non-blocking
 * visually connected to Rickhouse
 
-A physical intervention such as painter's tape may be used.
+Toasts do not use tape or marker. Marks are reserved for real bottle facts (section 27).
 
 ---
 
@@ -1578,7 +1561,7 @@ Tokens exist to create **consistency without uniformity**.
 
 Rickhouse should feel like one coherent world without making every component look identical.
 
-The Collection table should not look like a Group scrapbook.
+The Collection table should not look like a Group page.
 
 A Label reference page should not look like Home.
 
@@ -1606,14 +1589,45 @@ That is intentional.
 
 ---
 
-# 58. The Final Rule
+# 58. Photo Frame and Bottle Card
 
-When in doubt:
+```css
+:root {
+  --frame-width: 6px;               /* proposed; test 6 to 8px at card scale */
+  --frame-outline: 1px solid var(--color-ink);   /* proposed: every frame */
+  --card-photo-aspect: 3 / 4;       /* proposed: portrait */
+  --card-fact-max-chars: 14;        /* proposed: fact slot length */
+}
+```
 
-> **Make it feel like a Swiss field guide that someone has been using for years.**
+The frame is colored by category (`--category-*`) with the matching text token
+from section 7.1. When background removal ships, the frame's interior fills
+with the same color and becomes a plate; the footprint does not change. A plate
+means a cutout succeeded.
 
-Not:
+Fact slot defaults and the density rule (3 columns show one fact, 2 show two,
+a wide gallery three) are in `DESIGN.md` section 4.3.
 
-> a SaaS app pretending to be a field guide.
+---
 
-The difference is everything.
+# 59. Targets and Spacing
+
+```css
+:root {
+  --target-min-ios: 44pt;
+  --target-min-android: 48dp;
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;  --space-4: 16px;
+  --space-6: 24px; --space-8: 32px; --space-12: 48px;   /* proposed scale */
+}
+```
+
+The spacing scale is a 4px base. Section 15 (carried over) lists the previous
+spacing tokens; reconcile them with this scale during the redesign.
+
+---
+
+# 60. The Final Rule
+
+When in doubt, apply the decision order in `DESIGN.md` section 11: the bottle
+comes first, structure stays quiet, color means category only, a mark is a real
+fact a person would write on a bottle, and the voice lives in the headline.
