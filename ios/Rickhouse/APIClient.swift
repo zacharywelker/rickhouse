@@ -3,7 +3,6 @@ import Foundation
 enum APIError: LocalizedError {
     case badServer
     case unauthorized
-    case twoFactorUnsupported
     case server(String)
     case transport(Error)
 

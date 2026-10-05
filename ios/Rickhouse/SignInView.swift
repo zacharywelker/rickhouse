@@ -38,7 +38,7 @@ struct SignInView: View {
                     .disabled(busy || server.isEmpty || username.isEmpty || password.isEmpty)
             }
         }
-        .sheet(item: $challengeBinding) { item in
+        .sheet(item: challengeBinding) { item in
             TwoFactorView(challenge: item.challenge)
         }
         .onAppear { if server.isEmpty, let url = session.serverURL { server = url.absoluteString } }
