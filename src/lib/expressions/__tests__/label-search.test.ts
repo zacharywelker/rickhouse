@@ -209,3 +209,33 @@ describe("guessNewLabel", () => {
     expect(guessNewLabel("Buffalo Trace", brands, categories)).toMatchObject({ brandId: null, name: "Buffalo Trace" });
   });
 });
+
+describe("older names", () => {
+  const doc = (over: Partial<LabelDoc>): LabelDoc => ({
+    id: 1,
+    brand: "Old Grand-Dad",
+    name: "114",
+    categoryId: 1,
+    category: "Bourbon",
+    categoryPath: [{ id: 1, name: "Bourbon" }],
+    distilleries: [],
+    finishes: [],
+    upc: null,
+    ttbIds: [],
+    proof: null,
+    bottles: 0,
+    ...over,
+  });
+
+  it("finds a label under an older name", () => {
+    const docs = [doc({ otherNames: ["Bonded Reserve"] }), doc({ id: 2, name: "Other" })];
+    expect(searchLabels(docs, "bonded reserve").hits.map((h) => h.doc.id)).toEqual([1]);
+    expect(searchLabels(docs, "nothing like it").hits).toEqual([]);
+  });
+
+  it("finds a label through an older distillery name, in the distillery group", () => {
+    const hits = searchLabels([doc({ distilleries: ["Beam", "Hirsch"] })], "hirsch").hits;
+    expect(hits).toHaveLength(1);
+    expect(hits[0]!.group).toBe("distillery");
+  });
+});

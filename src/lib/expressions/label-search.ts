@@ -23,6 +23,9 @@ export type LabelDoc = {
   category: string;
   /** The category and its ancestors, nearest first: Bourbon, American Whiskey, Whiskey. */
   categoryPath: Array<{ id: number; name: string }>;
+  /** Older names the label has gone by, so it is found under any of them. */
+  otherNames?: string[];
+  /** Includes the older names of each distillery. */
   distilleries: string[];
   finishes: string[];
   upc: string | null;
@@ -139,10 +142,10 @@ function termQuality(term: string, token: string): number {
 // ---------------------------------------------------------------------------
 // Matching
 
-type FieldKind = "brand" | "name" | "category" | "distillery" | "finish";
+type FieldKind = "brand" | "name" | "alias" | "category" | "distillery" | "finish";
 
 /** Brand and name say what a label is; a category or finish narrows it; a distillery is where it came from. */
-const WEIGHT: Record<FieldKind, number> = { brand: 3, name: 3, category: 1.5, finish: 1, distillery: 1 };
+const WEIGHT: Record<FieldKind, number> = { brand: 3, name: 3, alias: 2.5, category: 1.5, finish: 1, distillery: 1 };
 
 type IndexedDoc = {
   doc: LabelDoc;
@@ -157,6 +160,7 @@ function indexDoc(doc: LabelDoc): IndexedDoc {
   const fields: IndexedDoc["fields"] = [
     { kind: "brand", text: doc.brand, tokens: fieldTokens(doc.brand) },
     { kind: "name", text: doc.name, tokens: fieldTokens(doc.name) },
+    ...(doc.otherNames ?? []).map((n) => ({ kind: "alias" as const, text: n, tokens: fieldTokens(n) })),
     ...doc.categoryPath.map((c) => ({ kind: "category" as const, text: c.name, tokens: fieldTokens(c.name) })),
     ...doc.distilleries.map((d) => ({ kind: "distillery" as const, text: d, tokens: fieldTokens(d) })),
     ...doc.finishes.map((f) => ({ kind: "finish" as const, text: f, tokens: fieldTokens(f) })),

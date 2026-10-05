@@ -62,6 +62,16 @@ distillery identified from outside the label, so the same MGP can be stated on
 one label and inferred on another. Bottlers and "Made in" lines are not modelled:
 they live in the label notes as printed.
 
+**Other / old names** (issue #86). A label and a distillery can each list names
+they have gone by (`expression_names`, `distillery_names`), typed one per line
+with optional years: `Old Grand-Dad Bonded (1980–1995)`. A bottle may say which
+version of its label it is (`bottles.expression_name_id`, NULL = the current
+name), shown as "Sold as" on the bottle page; the label and distillery pages
+show "Also known as". Older names are searchable: a label is found under its own
+old names and, in the distillery group, under its distilleries' old names. They
+are not shown in lists or grids. Saving matches names case-insensitively so an
+edit keeps the rows bottles point at; renaming one counts as a new name.
+
 Under the distillery list, the label form has a "Distillery not disclosed" tick
 that asks for a city, state and country, with a US state written as an
 abbreviation corrected to its full name (`src/lib/places.ts`).

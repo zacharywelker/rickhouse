@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleImages, bottles, tastingNotes } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
@@ -9,6 +9,7 @@ import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
+import { nameBelongsToExpression } from "@/lib/other-names-store";
 import { z } from "zod";
 import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
 
@@ -62,6 +63,11 @@ export async function saveBottleAction(
   const input = parsed.data;
 
   try {
+    // A version has to be one of this label's own; anything else means the
+    // label was changed after it was picked, and falls back to the current name.
+    if (input.expressionNameId !== null && !(await nameBelongsToExpression(input.expressionNameId, input.expressionId))) {
+      input.expressionNameId = null;
+    }
     if (id === null) {
       const [row] = await db
         .insert(bottles)
@@ -225,7 +231,11 @@ export async function updateBottlesBulkAction(
     try {
       const updated = await db
         .update(bottles)
-        .set(parsed.data)
+        // Moving a bottle to another label drops its chosen older name.
+        .set({
+          ...parsed.data,
+          expressionNameId: sql`case when ${bottles.expressionId} = ${parsed.data.expressionId} then ${bottles.expressionNameId} else null end`,
+        })
         .where(ownedBottle(id, user.id))
         .returning({ id: bottles.id });
       results.push(

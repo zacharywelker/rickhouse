@@ -30,6 +30,7 @@ export async function EntityPage({
   badges,
   meta,
   notes,
+  alsoKnownAs,
   preset,
   searchParams,
   emptyMessage,
@@ -39,6 +40,8 @@ export async function EntityPage({
   badges?: React.ReactNode;
   meta?: EntityMeta[];
   notes?: string | null;
+  /** Older names, already with their years, shown under the title. */
+  alsoKnownAs?: string[];
   /** The filter that defines "connected to this thing". */
   preset: Partial<BottleFilters>;
   searchParams: Record<string, string | string[] | undefined>;
@@ -79,6 +82,11 @@ export async function EntityPage({
         </Section>
       ) : null}
 
+      {alsoKnownAs && alsoKnownAs.length > 0 ? (
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Also known as</span> {alsoKnownAs.join(" · ")}
+        </p>
+      ) : null}
       {notes ? <p className="max-w-3xl text-sm text-muted-foreground">{notes}</p> : null}
 
       <StatStrip
