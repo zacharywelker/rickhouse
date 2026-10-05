@@ -52,7 +52,7 @@ The product grows in stages: bottle management, then the tasting log, then a cen
 - Name: **Rickhouse**. Motto: **"Take the collection seriously. Don't take yourself seriously."**
 - Voice: curiosity over connoisseurship. It never reads like a luxury spirits publication or an experts-only database. Humor comes from the user's own data.
 - Rick, the dog, is retired as a character.
-- Tagline: undecided. The earlier tagline, "A field guide to your liquor collection", is retired.
+- Tagline: **"A field guide to your liquor collection."** Kept for now; revisit if it stops fitting.
 - Visual identity lives in the design-language spec (`docs/superpowers/specs/`).
 
 ## Evidence on Hand

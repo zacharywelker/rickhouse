@@ -429,19 +429,24 @@ floating button has on Android.
 
 ### 14.1 Product document
 
-`PRODUCT.md` must be rewritten. Items that conflict with this spec:
-"Platform: web"; the non-goal "no native mobile apps"; the tagline "A field
-guide to your liquor collection" and its Rick commitment; and the single-audience
-assumption (self-hosted collectors only). The rewrite also states the
-privacy-promise change for hosted users, the product sequence (section 1), the
-planned central catalog, and that social features are a far-future possibility
-and not a commitment.
+`PRODUCT.md` was rewritten on this branch: platform `adaptive`, the broader
+audience, the tasting log, the run modes, the privacy rules and the product
+sequence. Rick is retired. The tagline "A field guide to your liquor
+collection" is kept for now (Decided). The privacy-promise change for hosted
+users is stated there.
 
 ### 14.2 Design documents
 
-`DESIGN.md` and `docs/DESIGN-TOKENS.md` are superseded by this spec and by the
-tokens written from it. Note that the app already ships Aileron, not the
-Helvetica Now named in `DESIGN.md`.
+`DESIGN.md` is replaced by a new canonical document derived from this spec; the
+previous one is kept in `archive/` with a superseded banner.
+`docs/DESIGN-TOKENS.md` is updated in place: the sections for the new direction
+are replaced and the rest are marked as carried over and not yet reviewed. The
+web code still implements the previous direction until the web redesign, and
+`docs/DESIGN-BRIEF.MD` is an earlier brief that is now stale (a decision to
+archive it is pending). The previous `DESIGN.md` named Helvetica Now, though the
+app shipped Aileron. The Char Level stave drawing and the existing tape
+components are not addressed by this language and are decided in the web
+redesign spec.
 
 ### 14.3 Native architecture (a separate spec)
 
@@ -468,11 +473,12 @@ Native clients are blocked on things this spec does not solve:
 
 ### 14.4 Features pulled forward
 
-Logging a tasting (milestone M9) is stage two of the product sequence and is
-central to the mobile app (section 11). The first version: a label (and
-optionally a bottle), tags from a fixed vocabulary per category, optional free
-text, an optional photo, and no rating until decided. It needs its own spec and
-a data model. The per-category tag vocabularies must be written.
+Logging a tasting (milestone M9 in `SPEC.md`) is stage two of the product
+sequence and is central to the mobile app (section 11). `SPEC.md` M9 already
+describes the shape: a tasting attaches to a label with the bottle optional. The
+first version adds tags from a fixed vocabulary per category, optional free
+text and an optional photo. Ratings are planned in M9; the scale is open. It
+needs its own spec. The per-category tag vocabularies must be written.
 
 ### 14.5 Data leaving the user's server
 
@@ -550,10 +556,9 @@ Each has an owner (the product owner) and a trigger.
 | Desktop entry points for add, log a tasting and tonight | Web redesign spec |
 | Mobile in-depth mode details (button size, scroll behavior) | Collection screen spec |
 | Dark-mode palette | Before dark mode is built; needs the light palette final |
-| New tagline | During the PRODUCT.md rewrite |
 | Does the desktop have a gallery view | Web redesign spec |
 | Desktop navigation set | Web redesign spec |
-| Tasting ratings: yes or no | Tasting log spec |
+| Tasting rating scale (ratings are planned in SPEC M9) | Tasting log spec |
 | Voice guide (profanity, personality levels) | Before copy is written at scale |
 | Brandy and Other default card facts | Before the card ships |
 | A yearly recap moment | Optional; can be dropped |

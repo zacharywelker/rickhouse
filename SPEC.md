@@ -26,7 +26,10 @@ Locked. Do not substitute without asking.
 | Validation | Zod schemas shared between server actions and forms |
 
 Data mutations go through Next.js **server actions**, not API routes. Expose a
-read-only JSON API under `/api/` only where Milestone 5 needs it.
+read-only JSON API under `/api/` only where Milestone 5 needs it. The one
+exception is the native apps: they need a deliberate, versioned, bearer-token
+JSON API, added as its own surface and not by exposing server actions (see
+[Native apps and run modes](#native-apps-and-run-modes)).
 
 ---
 
@@ -398,6 +401,22 @@ With that in place, a **tastings timeline** becomes possible: everything you
 have tried, newest first, owned or not, with the ratings alongside. That is a
 different and more interesting page than a list of what is on the shelf.
 
+**Decisions from the 2026-10 design work** (see
+`docs/superpowers/specs/2026-10-05-design-language-design.md`):
+
+- This is stage two of the product sequence, after bottle management. It is the
+  next milestone and is central to the mobile app.
+- A tasting always belongs to an expression (a label) and optionally to a
+  bottle, exactly as proposed above.
+- Tasting notes are chosen from a **fixed vocabulary of tags per category**, in
+  the style of Untappd. Free text and a longer description are optional and
+  stay with the user. Writing the per-category vocabularies is part of this
+  milestone.
+- On the phone, the Labels tab is a searchable history of tastings.
+- Tonight's flavor step depends on this data: it appears only once a spirit has
+  enough tastings (at least 25 overall, gated per spirit).
+- The rating scale is still to be decided; ratings themselves are planned.
+
 ### ~~M10 — Accounts~~ ✅
 
 Replaces the single shared `APP_PASSWORD`. The plan and the decisions behind
@@ -548,21 +567,60 @@ Unraid conventions to follow:
 
 ---
 
+## Native apps and run modes
+
+**Decided (2026-10).** Native iOS and Android apps are planned alongside the web
+app. Details and reasoning are in `PRODUCT.md` and
+`docs/superpowers/specs/2026-10-05-design-language-design.md` (section 14.6).
+
+- **Three modes:** standalone (all data on the device), with the user's own
+  home server (strongly recommended; the server holds the truth and devices
+  keep a working copy and sync), and a hosted service (later, optional).
+- **Standalone is full core:** bottles, photos, labels and tastings work on the
+  device. The server adds the web and desktop app, sync across devices,
+  household accounts, Config and backups.
+- **On-device database:** SQLite is allowed there. The server database stays
+  PostgreSQL.
+- **Manual export** (standalone backup): a human-readable CSV of bottles that
+  Rickhouse can import. It excludes tastings and has no standalone label
+  records, and the export screen says so.
+- **First connection to a server:** strict silent matching (the same barcode,
+  or the same brand, name, proof and age statement with the same purchase date
+  and price paid), then a duplicate review for everything else. After records
+  are linked, the most recent edit wins per record. Device clocks are trusted.
+  Tastings are copied to the server.
+- **Client independence:** the native client must not assume where its data
+  lives (device, home server, or hosted). It needs a compatibility policy
+  between app and server versions, because self-hosters update on their own
+  schedule.
+- **Data leaving a server:** a catalog lookup uses a label or barcode only;
+  contributions share flavor tags from a fixed vocabulary only. Both are opt-in.
+  Free text never leaves the user's data.
+- **State of the work:** a bearer-token JSON API and an online-only SwiftUI
+  client were started on the unmerged `claude/ios-app` branch. The server
+  already has a `roulette` route that Spin the Bottle can reuse. Android and
+  the on-device database choice are open.
+
+---
+
 ## Design direction
 
 **Decided.** The visual and interaction direction is **[DESIGN.md](DESIGN.md)**:
-a Swiss-designed field guide to an eccentric collection, precise underneath and
-human on top. Tokens are in [docs/DESIGN-TOKENS.md](docs/DESIGN-TOKENS.md).
-DESIGN.md supersedes the earlier Liquid Glass, Tropical and Suprematist
-explorations, and the old dark-wood-and-fireplace placeholder.
+the back bar, annotated. The collection is taken seriously and the
+connoisseur is not. Tokens are in
+[docs/DESIGN-TOKENS.md](docs/DESIGN-TOKENS.md). DESIGN.md replaces the previous
+Swiss field-guide direction (kept in `archive/`) and, before it, the earlier
+Liquid Glass, Tropical and Suprematist explorations. The web code still
+implements the previous direction until the web redesign.
 
 What carries over from the original brief:
 
 - **Personality.** It should be fun to open. A collection app for a hobby
-  should not read like an admin console.
+  should not read like an admin console. The personality now lives in headline
+  copy written from the user's own data.
 - **Light and dark as equals**, following the system by default.
 - **Data-dense views done well.** Airtable, Baserow and NocoDB are the
-  reference for how the grid, filters and inline editing should feel.
+  reference for how the grid, filters and inline editing should feel (desktop).
 - **Accessible, and tested for it.** WCAG 2.2 AA as the floor: contrast,
   visible focus, keyboard reachability, honouring `prefers-reduced-motion`,
   and correct roles and names throughout.
@@ -589,16 +647,18 @@ What carries over from the original brief:
 
 Do not build these, and do not restructure the schema to accommodate them:
 
-- Sharing collections between accounts, or social features. (Accounts and
-  roles are M10.)
-- Price scraping, market valuation, or any third-party API integration.
+- Sharing collections between accounts. (Accounts and roles are M10.) Social
+  features are a far-future possibility, not committed, and are not built now.
+- Price scraping, market valuation, or any third-party API integration. (The
+  owner's own central catalog, planned later, is first-party and opt-in; see
+  Native apps and run modes.)
   M7 drops `bottles.estimated_value` for the same reason: this is a collection,
   not a portfolio. The one exception is TTB's public COLA registry (M11): it
   describes the label, not its price, and it can be switched off.
-- Mobile native apps.
 - Merging `expressions` and `bottles` "for simplicity".
 - Replacing the join tables with text columns.
-- Swapping Postgres for SQLite.
+- Using SQLite as the server database. (SQLite on the standalone native app
+  is expected.)
 - An LLM/vision label reader. Possible later; out of scope now.
 
 ---
