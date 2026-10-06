@@ -1,14 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { parseReleases, releaseLabel, releaseRow, releaseRowsText, releasesText } from "../releases";
+import { parseReleaseRow, parseReleaseRows, releaseLabel, releaseRow, type ReleaseRow } from "../releases";
 
-describe("parseReleases", () => {
-  it("reads every column, and lines with only some of them", () => {
-    const { releases, error } = parseReleases(
-      "2024-01 Springfield | 2024 | 124.6 | 7y 2m 3d | $99.99\nBourbon War | 2020 | | 4\nBatch C923",
+const blank: ReleaseRow = {
+  id: "",
+  name: "",
+  year: "",
+  proof: "",
+  ageYears: "",
+  ageMonths: "",
+  ageDays: "",
+  ageStatement: "",
+  msrp: "",
+};
+
+describe("parseReleaseRows", () => {
+  it("reads every part, and rows with only some of them", () => {
+    const { releases, error } = parseReleaseRows(
+      JSON.stringify([
+        { ...blank, id: "4", name: "2024-01 Springfield", year: "2024", proof: "124.6", ageYears: "7", ageMonths: "2", ageDays: "3", msrp: "$99.99" },
+        { ...blank, name: "Batch C923" },
+      ]),
     );
     expect(error).toBeNull();
     expect(releases).toEqual([
       {
+        id: 4,
         name: "2024-01 Springfield",
         releaseYear: 2024,
         proof: "124.6",
@@ -19,16 +35,7 @@ describe("parseReleases", () => {
         msrp: "99.99",
       },
       {
-        name: "Bourbon War",
-        releaseYear: 2020,
-        proof: null,
-        ageYears: "4",
-        ageMonths: null,
-        ageDays: null,
-        ageStatement: null,
-        msrp: null,
-      },
-      {
+        id: null,
         name: "Batch C923",
         releaseYear: null,
         proof: null,
@@ -41,31 +48,40 @@ describe("parseReleases", () => {
     ]);
   });
 
-  it("keeps an age it cannot split as the statement", () => {
-    const { releases } = parseReleases("Old Stock | | | at least 6 years");
-    expect(releases[0]!.ageStatement).toBe("at least 6 years");
-    expect(releases[0]!.ageYears).toBeNull();
+  it("skips rows left without a name", () => {
+    expect(parseReleaseRows(JSON.stringify([{ ...blank, proof: "100" }])).releases).toEqual([]);
   });
 
-  it("drops blanks and case-insensitive repeats", () => {
-    const { releases } = parseReleases("\nBatch A\n\nbatch a | 2020\r\n");
-    expect(releases).toHaveLength(1);
+  it("refuses two releases with one name, ignoring case", () => {
+    const rows = [{ ...blank, name: "Batch A" }, { ...blank, name: "batch a" }];
+    expect(parseReleaseRows(JSON.stringify(rows)).error).toMatch(/both called/);
   });
 
-  it("refuses bad lines rather than guessing", () => {
-    expect(parseReleases("| 2024").error).toMatch(/no name/);
-    expect(parseReleases("A | 24").error).toMatch(/not a year/);
-    expect(parseReleases("A | | 250").error).toMatch(/not a proof/);
-    expect(parseReleases("A | | | 300").error).toMatch(/believable/);
-    expect(parseReleases("A | | | | cheap").error).toMatch(/not a price/);
-    expect(parseReleases("A|1|2|3|4|5").error).toMatch(/more than five/);
+  it("refuses bad values rather than guessing", () => {
+    const one = (row: Partial<ReleaseRow>) => parseReleaseRow({ ...blank, name: "A", ...row }).error;
+    expect(one({ year: "24" })).toMatch(/not a year/);
+    expect(one({ proof: "250" })).toMatch(/not a proof/);
+    expect(one({ ageYears: "300" })).toMatch(/years/);
+    expect(one({ ageMonths: "1.5" })).toMatch(/months/);
+    expect(one({ msrp: "cheap" })).toMatch(/price/);
+    expect(parseReleaseRows("not json").error).toMatch(/could not be read/);
   });
 
-  it("round-trips through releasesText, including database-shaped numbers", () => {
-    const text = "2024-01 Springfield | 2024 | 124.6 | 7y 2m 3d | 99.99\nBourbon War | 2020 | | 4y\nBatch C923";
-    expect(releasesText(parseReleases(text).releases)).toBe(text);
-    const fromDb = { ...parseReleases(text).releases[0]!, proof: "124.60", ageYears: "7.0", msrp: "99.99" };
-    expect(releasesText([fromDb])).toBe("2024-01 Springfield | 2024 | 124.6 | 7y 2m 3d | 99.99");
+  it("round-trips a stored release, keeping a wording-only age", () => {
+    const stored = {
+      id: 9,
+      name: "Old Stock",
+      releaseYear: 2020,
+      proof: "124.60",
+      ageYears: "7.0",
+      ageMonths: null,
+      ageDays: null,
+      ageStatement: "at least 6 years",
+      msrp: "99.99",
+    };
+    const row = releaseRow(stored);
+    expect(row).toMatchObject({ id: "9", proof: "124.6", ageYears: "7" });
+    expect(parseReleaseRow(row).value).toMatchObject({ id: 9, ageStatement: "at least 6 years", ageYears: "7" });
   });
 });
 
@@ -74,30 +90,5 @@ describe("releaseLabel", () => {
     expect(releaseLabel({ name: "Bourbon War", releaseYear: 2020 })).toBe("Bourbon War (2020)");
     expect(releaseLabel({ name: "2024-01 Springfield", releaseYear: 2024 })).toBe("2024-01 Springfield");
     expect(releaseLabel({ name: "Batch C923", releaseYear: null })).toBe("Batch C923");
-  });
-});
-
-describe("releaseRowsText", () => {
-  const blank = { year: "", proof: "", ageYears: "", ageMonths: "", ageDays: "", ageStatement: "", msrp: "" };
-  it("reads back exactly the rows the label form holds", () => {
-    const rows = [
-      { ...blank, name: "2024-01 Springfield", year: "2024", proof: "124.6", ageYears: "7", ageMonths: "2", ageDays: "3", msrp: "$99.99" },
-      { ...blank, name: "Bourbon War", year: "2020", ageYears: "4" },
-      { ...blank, name: "Months Only", ageMonths: "18" },
-      { ...blank, name: "Batch C923" },
-    ];
-    const { releases, error } = parseReleases(releaseRowsText(rows));
-    expect(error).toBeNull();
-    expect(releases.map(releaseRow)).toEqual([
-      { ...rows[0], msrp: "99.99" },
-      rows[1],
-      rows[2],
-      rows[3],
-    ]);
-  });
-
-  it("keeps a wording-only age the form does not show", () => {
-    const [row] = parseReleases("Old Stock | | | at least 6 years").releases.map(releaseRow);
-    expect(parseReleases(releaseRowsText([row!])).releases[0]!.ageStatement).toBe("at least 6 years");
   });
 });

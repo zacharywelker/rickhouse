@@ -6,14 +6,17 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { removeLabelPhotoAction } from "@/app/(app)/expressions/photo-actions";
+import { removeReleasePhotoAction } from "@/app/(app)/expressions/release-actions";
 import type { ActionResult } from "@/lib/admin/types";
 
-/** Upload, link and remove for a label's photo, shown under its frame. */
+/** Upload, link and remove for a label's photo — or, with `releaseId`, one of its releases' — shown under its frame. */
 export function LabelPhotoControls({
   expressionId,
+  releaseId,
   hasPhoto,
 }: {
   expressionId: number;
+  releaseId?: number;
   hasPhoto: boolean;
 }) {
   const router = useRouter();
@@ -36,7 +39,11 @@ export function LabelPhotoControls({
     if (imageUrl) data.append("imageUrl", imageUrl);
     setBusy(true);
     setMessage(null);
-    const response = await fetch(`/api/expressions/${expressionId}/photo`, { method: "POST", body: data });
+    const url =
+      releaseId === undefined
+        ? `/api/expressions/${expressionId}/photo`
+        : `/api/expressions/${expressionId}/releases/${releaseId}/photo`;
+    const response = await fetch(url, { method: "POST", body: data });
     const result: ActionResult = await response.json();
     if (result.ok) {
       setLink("");
@@ -64,7 +71,9 @@ export function LabelPhotoControls({
             disabled={busy}
             onClick={() => {
               setBusy(true);
-              void removeLabelPhotoAction(expressionId).then(finish);
+              void (releaseId === undefined ? removeLabelPhotoAction(expressionId) : removeReleasePhotoAction(releaseId)).then(
+                finish,
+              );
             }}
           >
             Remove

@@ -21,7 +21,7 @@ import { DeleteExpressionButton } from "./delete-expression-button";
 import { PendingColas } from "./cola-approvals";
 import { RowListEditor } from "./row-list-editor";
 import { otherNamesRowsText, parseOtherNames } from "@/lib/other-names";
-import { parseReleases, releaseRow, releaseRowsText } from "@/lib/releases";
+import type { ReleaseRow } from "@/lib/releases";
 
 /** Every field on the label form, for seeding state from a row or from nothing. */
 export const LABEL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
@@ -196,7 +196,8 @@ export function ExpressionForm({
   initialValues,
   initialLinks,
   initialOtherNames = "",
-  initialReleases = "",
+  initialReleases = [],
+  releaseImpact = {},
   options,
   categoryGroups,
   colaLookup = false,
@@ -206,8 +207,10 @@ export function ExpressionForm({
   initialLinks: { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
   /** Older names, one per line, as `otherNamesText` writes them. */
   initialOtherNames?: string;
-  /** Known releases, one per line, as `releasesText` writes them. */
-  initialReleases?: string;
+  /** Known releases, as `releaseRow` shapes them. */
+  initialReleases?: ReleaseRow[];
+  /** By release id: what removing it would affect, for the confirm before it goes. */
+  releaseImpact?: Record<string, string>;
   options: Record<string, Option[]>;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
@@ -294,7 +297,7 @@ export function ExpressionForm({
             idPrefix="expression-release"
             addLabel="Add a release"
             columns={[
-              { key: "name", label: "Name", placeholder: "2024-01 Springfield", pattern: "[^\\|]*", title: "Names can't contain |" },
+              { key: "name", label: "Name", placeholder: "2024-01 Springfield" },
               { key: "year", label: "Year", placeholder: "2024", inputMode: "numeric", pattern: "\\d{4}", title: "A four-digit year", className: "sm:w-20" },
               { key: "proof", label: "Proof", kind: "proofAbv", className: "sm:w-24" },
               { key: "ageYears", label: "Years", placeholder: "7", inputMode: "decimal", pattern: "\\d+(\\.\\d)?", title: "Years, like 7 or 7.5", className: "sm:w-16" },
@@ -302,8 +305,9 @@ export function ExpressionForm({
               { key: "ageDays", label: "Days", placeholder: "3", inputMode: "numeric", pattern: "\\d+", title: "Whole days", className: "sm:w-16" },
               { key: "msrp", label: "MSRP", placeholder: "99.99", inputMode: "decimal", pattern: "\\$?\\d+(\\.\\d{1,2})?", title: "A price, like 99.99", className: "sm:w-24" },
             ]}
-            initialRows={parseReleases(initialReleases).releases.map(releaseRow)}
-            toText={releaseRowsText}
+            initialRows={initialReleases}
+            toText={(rows) => JSON.stringify(rows)}
+            removeWarning={(row) => releaseImpact[row.id ?? ""] ?? null}
             error={fieldErrors.releases}
           />
         </SectionContent>

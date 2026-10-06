@@ -225,6 +225,13 @@
       "when": 1791376174639,
       "tag": "0031_label_releases",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791462574639,
+      "tag": "0032_release_photo_notes",
+      "breakpoints": true
     }
   ]
 }

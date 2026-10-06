@@ -3,6 +3,15 @@
 import * as React from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ProofAbvFields } from "./proof-abv-field";
@@ -37,6 +46,7 @@ export function RowListEditor({
   initialRows,
   toText,
   error,
+  removeWarning,
 }: {
   name: string;
   idPrefix: string;
@@ -45,6 +55,8 @@ export function RowListEditor({
   initialRows: Array<Record<string, string>>;
   toText: (rows: Array<Record<string, string>>) => string;
   error?: string;
+  /** What removing this row would lose, asked about first; null removes it at once. */
+  removeWarning?: (row: Record<string, string>) => string | null;
 }) {
   // Loaded rows are numbered by position, so server and client render the
   // same ids; added rows continue the count.
@@ -52,6 +64,9 @@ export function RowListEditor({
   const nextId = React.useRef(initialRows.length);
   // Only a row added with the button takes focus, not the ones loaded with the page.
   const [addedId, setAddedId] = React.useState<string | null>(null);
+
+  const [confirming, setConfirming] = React.useState<{ id: string; message: string } | null>(null);
+  const remove = (id: string) => setRows((prev) => prev.filter((r) => r._id !== id));
 
   const set = (id: string, key: string, value: string) =>
     setRows((prev) => prev.map((row) => (row._id === id ? { ...row, [key]: value } : row)));
@@ -108,7 +123,11 @@ export function RowListEditor({
             variant="ghost"
             className="px-2 text-muted-foreground"
             aria-label={`Remove ${row[columns[0]!.key] || "this row"}`}
-            onClick={() => setRows((prev) => prev.filter((r) => r._id !== row._id))}
+            onClick={() => {
+              const message = removeWarning?.(row) ?? null;
+              if (message) setConfirming({ id: row._id, message });
+              else remove(row._id);
+            }}
           >
             <X className="size-4" />
           </Button>
@@ -131,6 +150,32 @@ export function RowListEditor({
         </Button>
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+      <Dialog open={confirming !== null} onOpenChange={(open) => (open ? null : setConfirming(null))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove this?</DialogTitle>
+            <DialogDescription>{confirming?.message} Nothing changes until you save.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Keep it
+              </Button>
+            </DialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (confirming) remove(confirming.id);
+                setConfirming(null);
+              }}
+            >
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
