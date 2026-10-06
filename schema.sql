@@ -291,6 +291,26 @@ CREATE TABLE distillery_names (
 );
 CREATE INDEX distillery_names_distillery_idx ON distillery_names(distillery_id);
 
+-- Known releases of a label (Booker's batches, a yearly vertical). Each may
+-- carry its own proof, age and MSRP; blank inherits from the label. A bottle
+-- may point at one (bottles.release_id); its own overrides still win.
+CREATE TABLE expression_releases (
+    id            serial PRIMARY KEY,
+    expression_id integer NOT NULL REFERENCES expressions(id) ON DELETE CASCADE,
+    name          citext  NOT NULL,
+    release_year  integer,
+    proof         numeric(5,2),
+    abv           numeric(5,2) GENERATED ALWAYS AS (proof / 2.0) STORED,
+    age_years     numeric(4,1),
+    age_months    integer,
+    age_days      integer,
+    age_statement text,
+    msrp          numeric(10,2),
+    position      integer NOT NULL DEFAULT 0,
+    UNIQUE (expression_id, name)
+);
+CREATE INDEX expression_releases_expression_idx ON expression_releases(expression_id);
+
 -- ------------------------------------------------------------
 -- Bottles (the physical unit)
 -- ------------------------------------------------------------
@@ -300,6 +320,8 @@ CREATE TABLE bottles (
     expression_id   integer NOT NULL REFERENCES expressions(id) ON DELETE RESTRICT,
     -- Which older name of the label this bottle carries; NULL = its current name.
     expression_name_id integer REFERENCES expression_names(id) ON DELETE SET NULL,
+    -- Which known release of the label this is; NULL = none chosen.
+    release_id      integer REFERENCES expression_releases(id) ON DELETE SET NULL,
 
     -- ---- Release identity (M7).
     -- These live here, not on the label, because they vary barrel to barrel.
@@ -356,6 +378,7 @@ CREATE TABLE bottles (
 );
 CREATE INDEX bottles_expression_idx ON bottles(expression_id);
 CREATE INDEX bottles_store_idx      ON bottles(store_id);
+CREATE INDEX bottles_release_idx    ON bottles(release_id);
 CREATE INDEX bottles_status_idx     ON bottles(status);
 
 CREATE TABLE bottle_images (
@@ -809,9 +832,8 @@ CREATE TABLE label_merge_log (
     differences text[]  NOT NULL    -- columns where the two disagreed
 );
 
-CREATE VIEW bottle_list AS
-SELECT
-    b.id,
+CREATE VIEW "bottle_list" AS
+ SELECT b.id,
     b.status,
     b.is_open,
     b.fill_pct,
@@ -820,114 +842,82 @@ SELECT
     b.date_opened,
     b.is_favorite,
     b.store_id,
-    b.batch,
-    b.release_year,
+    COALESCE(r.name::text, b.batch) AS batch,
+    COALESCE(r.release_year, b.release_year) AS release_year,
     b.is_single_barrel,
     b.is_single_barrel_pick,
     b.pick_name,
     b.barrel_filled_on,
     b.bottled_on,
-    e.id   AS expression_id,
+    e.id AS expression_id,
     e.name AS expression_name,
-    -- Inheritance resolved here, once, so nothing downstream has to remember
-    -- the rule. NULL on the bottle means "whatever the label says"; the
-    -- *_inherited flags let the UI show that rather than pretend the bottle
-    -- was typed with those numbers.
-    coalesce(b.proof, e.proof)                 AS proof,
-    coalesce(b.abv, e.abv)                     AS abv,
-    coalesce(b.age_years, e.age_years)         AS age_years,
-    coalesce(b.age_months, e.age_months)       AS age_months,
-    coalesce(b.age_days, e.age_days)           AS age_days,
-    coalesce(b.age_statement, e.age_statement) AS age_statement,
-    (b.proof IS NULL AND e.proof IS NOT NULL)  AS proof_inherited,
-    (b.age_years IS NULL AND b.age_months IS NULL AND b.age_days IS NULL
-       AND b.age_statement IS NULL
-       AND (e.age_years IS NOT NULL OR e.age_months IS NOT NULL
-            OR e.age_days IS NOT NULL OR e.age_statement IS NOT NULL))
-                                               AS age_inherited,
-    e.msrp,
-    br.id   AS brand_id,
+    COALESCE(b.proof, r.proof, e.proof) AS proof,
+    COALESCE(b.abv, r.abv, e.abv) AS abv,
+    COALESCE(b.age_years, CASE WHEN (r.age_years IS NOT NULL OR r.age_months IS NOT NULL OR r.age_days IS NOT NULL OR r.age_statement IS NOT NULL) THEN r.age_years ELSE e.age_years END) AS age_years,
+    COALESCE(b.age_statement, CASE WHEN (r.age_years IS NOT NULL OR r.age_months IS NOT NULL OR r.age_days IS NOT NULL OR r.age_statement IS NOT NULL) THEN r.age_statement ELSE e.age_statement END) AS age_statement,
+    b.proof IS NULL AND COALESCE(r.proof, e.proof) IS NOT NULL AS proof_inherited,
+    b.age_years IS NULL AND b.age_months IS NULL AND b.age_days IS NULL AND b.age_statement IS NULL AND ((r.age_years IS NOT NULL OR r.age_months IS NOT NULL OR r.age_days IS NOT NULL OR r.age_statement IS NOT NULL) OR e.age_years IS NOT NULL OR e.age_months IS NOT NULL OR e.age_days IS NOT NULL OR e.age_statement IS NOT NULL) AS age_inherited,
+    COALESCE(r.msrp, e.msrp) AS msrp,
+    br.id AS brand_id,
     br.name AS brand,
-    c.id    AS category_id,
-    c.name  AS category,
-    c.field_group AS field_group,
-    s.name  AS store,
-    (SELECT string_agg(d.name, ', ' ORDER BY ed.position)
-       FROM expression_distilleries ed
-       JOIN distilleries d ON d.id = ed.distillery_id
-      WHERE ed.expression_id = e.id) AS distilleries,
-    (SELECT string_agg(f.name, ', ' ORDER BY ef.position)
-       FROM expression_finishes ef
-       JOIN finishes f ON f.id = ef.finish_id
-      WHERE ef.expression_id = e.id) AS finishes,
-    (SELECT round(avg(tn.rating), 1)
-       FROM tasting_notes tn WHERE tn.bottle_id = b.id) AS avg_rating,
-    (SELECT bi.thumb_path FROM bottle_images bi
-      WHERE bi.bottle_id = b.id
-      ORDER BY bi.is_primary DESC, bi.sort_order, bi.id
-      LIMIT 1) AS thumb_path,
-    -- Full-text search (SPEC M6), weighted: the name of the thing beats what
-    -- someone wrote about it. Built in the view rather than kept as a stored
-    -- column because it draws on six tables — a generated column cannot see
-    -- past its own row, and a trigger-maintained copy across brands,
-    -- expressions, distilleries, stores, bottles and tasting_notes is six
-    -- ways to go stale. A view means it is never wrong.
-    --
-    -- The cost is that it cannot be indexed, so this is a sequential scan. At
-    -- a home collection's scale (hundreds of bottles, thousands at the very
-    -- outside) that is microseconds. If it ever stops being: materialise this
-    -- view and REFRESH it from the same places that revalidate the grid.
-    (
-      setweight(to_tsvector('english', coalesce(br.name::text, '')), 'A') ||
-      setweight(to_tsvector('english', coalesce(e.name::text, '')), 'A') ||
-      setweight(to_tsvector('english', coalesce(b.batch, '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(b.pick_name, '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(b.picked_by, '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(b.age_statement, e.age_statement, '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(c.name::text, '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(s.name::text, '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(
-        (SELECT string_agg(d.name::text, ' ')
+    c.id AS category_id,
+    c.name AS category,
+    c.field_group,
+    s.name AS store,
+    ( SELECT string_agg(d.name::text, ', '::text ORDER BY ed."position") AS string_agg
            FROM expression_distilleries ed
-           JOIN distilleries d ON d.id = ed.distillery_id
-          WHERE ed.expression_id = e.id), '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(
-        (SELECT string_agg(f.name::text, ' ')
+             JOIN distilleries d ON d.id = ed.distillery_id
+          WHERE ed.expression_id = e.id) AS distilleries,
+    ( SELECT string_agg(f.name::text, ', '::text ORDER BY ef."position") AS string_agg
            FROM expression_finishes ef
-           JOIN finishes f ON f.id = ef.finish_id
-          WHERE ef.expression_id = e.id), '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(e.description, '')), 'C') ||
-      setweight(to_tsvector('english', coalesce(b.notes, '')), 'C') ||
-      setweight(to_tsvector('english', coalesce(
-        (SELECT string_agg(
-            concat_ws(' ', tn.nose, tn.palate, tn.finish, tn.overall), ' ')
-           FROM tasting_notes tn WHERE tn.bottle_id = b.id), '')), 'C')
-    ) AS search,
-    -- The same corpus as plain text. Full text cannot match a prefix, and
-    -- nobody typing "goose" wants nothing on the way to "gooseberry" — so the
-    -- grid ORs a substring match over this against the tsvector above. One
-    -- column so the two can never cover different fields.
-    concat_ws(' ',
-      br.name::text, e.name::text, b.batch, b.pick_name, b.picked_by,
-      coalesce(b.age_statement, e.age_statement), c.name::text, s.name::text,
-      (SELECT string_agg(d.name::text, ' ')
-         FROM expression_distilleries ed
-         JOIN distilleries d ON d.id = ed.distillery_id
-        WHERE ed.expression_id = e.id),
-      (SELECT string_agg(f.name::text, ' ')
-         FROM expression_finishes ef
-         JOIN finishes f ON f.id = ef.finish_id
-        WHERE ef.expression_id = e.id),
-      e.description, b.notes,
-      (SELECT string_agg(concat_ws(' ', tn.nose, tn.palate, tn.finish, tn.overall), ' ')
-         FROM tasting_notes tn WHERE tn.bottle_id = b.id)
-    ) AS search_text,
-    b.owner_id
-FROM bottles b
-JOIN expressions  e  ON e.id  = b.expression_id
-JOIN brands       br ON br.id = e.brand_id
-JOIN categories   c  ON c.id  = e.category_id
-LEFT JOIN stores  s  ON s.id  = b.store_id;
+             JOIN finishes f ON f.id = ef.finish_id
+          WHERE ef.expression_id = e.id) AS finishes,
+    ( SELECT round(avg(tn.rating), 1) AS round
+           FROM tasting_notes tn
+          WHERE tn.bottle_id = b.id) AS avg_rating,
+    COALESCE(( SELECT bi.thumb_path
+           FROM bottle_images bi
+          WHERE bi.bottle_id = b.id
+          ORDER BY bi.is_primary DESC, bi.sort_order, bi.id
+         LIMIT 1), e.photo_thumb_path) AS thumb_path,
+    (((((((((((setweight(to_tsvector('english'::regconfig, COALESCE(br.name::text, ''::text)), 'A'::"char") || setweight(to_tsvector('english'::regconfig, COALESCE(e.name::text, ''::text)), 'A'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(r.name::text, b.batch, ''::text)), 'B'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(b.pick_name, ''::text)), 'B'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(b.picked_by, ''::text)), 'B'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(b.age_statement, e.age_statement, ''::text)), 'B'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(c.name::text, ''::text)), 'B'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(s.name::text, ''::text)), 'B'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(( SELECT string_agg(d.name::text, ' '::text) AS string_agg
+           FROM expression_distilleries ed
+             JOIN distilleries d ON d.id = ed.distillery_id
+          WHERE ed.expression_id = e.id), ''::text)), 'B'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(( SELECT string_agg(f.name::text, ' '::text) AS string_agg
+           FROM expression_finishes ef
+             JOIN finishes f ON f.id = ef.finish_id
+          WHERE ef.expression_id = e.id), ''::text)), 'B'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(e.description, ''::text)), 'C'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(b.notes, ''::text)), 'C'::"char")) || setweight(to_tsvector('english'::regconfig, COALESCE(( SELECT string_agg(concat_ws(' '::text, tn.nose, tn.palate, tn.finish, tn.overall), ' '::text) AS string_agg
+           FROM tasting_notes tn
+          WHERE tn.bottle_id = b.id), ''::text)), 'C'::"char") AS search,
+    concat_ws(' '::text, br.name::text, e.name::text, COALESCE(r.name::text, b.batch), b.pick_name, b.picked_by, COALESCE(b.age_statement, e.age_statement), c.name::text, s.name::text, ( SELECT string_agg(d.name::text, ' '::text) AS string_agg
+           FROM expression_distilleries ed
+             JOIN distilleries d ON d.id = ed.distillery_id
+          WHERE ed.expression_id = e.id), ( SELECT string_agg(f.name::text, ' '::text) AS string_agg
+           FROM expression_finishes ef
+             JOIN finishes f ON f.id = ef.finish_id
+          WHERE ef.expression_id = e.id), e.description, b.notes, ( SELECT string_agg(concat_ws(' '::text, tn.nose, tn.palate, tn.finish, tn.overall), ' '::text) AS string_agg
+           FROM tasting_notes tn
+          WHERE tn.bottle_id = b.id)) AS search_text,
+    b.owner_id,
+    -- Each distillery with its per-label flag, so a table can colour an inferred
+    -- one without splitting a comma-joined string. Last, so the view is replaced in place.
+    ( SELECT jsonb_agg(jsonb_build_object('name', d.name::text, 'inferred', ed.is_inferred) ORDER BY ed."position")
+           FROM expression_distilleries ed
+             JOIN distilleries d ON d.id = ed.distillery_id
+          WHERE ed.expression_id = e.id) AS distillery_links,
+    -- The rest of the age, so a list can say "12y 4m" rather than only the
+    -- years. Last, so the view is replaced in place.
+    COALESCE(b.age_months, CASE WHEN (r.age_years IS NOT NULL OR r.age_months IS NOT NULL OR r.age_days IS NOT NULL OR r.age_statement IS NOT NULL) THEN r.age_months ELSE e.age_months END) AS age_months,
+    COALESCE(b.age_days, CASE WHEN (r.age_years IS NOT NULL OR r.age_months IS NOT NULL OR r.age_days IS NOT NULL OR r.age_statement IS NOT NULL) THEN r.age_days ELSE e.age_days END) AS age_days,
+    -- The chosen release, so a list can link or filter by it.
+    b.release_id,
+    r.name AS release_name
+   FROM bottles b
+     JOIN expressions e ON e.id = b.expression_id
+     JOIN brands br ON br.id = e.brand_id
+     JOIN categories c ON c.id = e.category_id
+     LEFT JOIN stores s ON s.id = b.store_id
+     LEFT JOIN expression_releases r ON r.id = b.release_id;
 
 -- ------------------------------------------------------------
 -- Seed: category tree + the Pursuit example as a smoke test

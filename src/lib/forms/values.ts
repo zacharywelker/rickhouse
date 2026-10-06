@@ -24,7 +24,8 @@ export function initialFieldValues(
       values[spec.name] =
         typeof current === "string"
           ? current
-          : typeof current === "boolean"
+          : // Selects of rows (Label Version, Release) store an id.
+            typeof current === "number" || typeof current === "boolean"
             ? String(current)
             : (spec.options[0]?.value ?? "");
     } else if (current === null || current === undefined) {

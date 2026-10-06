@@ -72,6 +72,16 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
     title: "Release",
     description: "What varies bottle to bottle. Single barrels and private selections reveal more fields below.",
     fields: [
+      // Shown only when the chosen label has known releases; picking one hides
+      // Batch and Release Year, which the release then supplies (see BottleFields).
+      {
+        kind: "select",
+        name: "releaseId",
+        label: "Release",
+        options: [{ value: "", label: "Not listed" }],
+        help: "Its proof, age and MSRP apply unless this bottle says otherwise.",
+        span: "full",
+      },
       { kind: "text", name: "batch", label: "Batch", placeholder: "Batch 2 or B524", span: "half" },
       { kind: "number", name: "releaseYear", label: "Release Year", min: 1700, max: 2200, step: 1, span: "half" },
       { kind: "checkbox", name: "isSingleBarrel", label: "Single Barrel", span: "half" },

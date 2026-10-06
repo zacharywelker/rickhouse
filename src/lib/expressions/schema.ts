@@ -188,6 +188,8 @@ export const bottleSchema = z.object({
   expressionId: requiredRef,
   /** Which older name of the label this bottle carries; blank is the current name. */
   expressionNameId: optionalRef,
+  /** Which known release of the label this is; blank is none. */
+  releaseId: optionalRef,
   pricePaid: optionalDecimal(0, 99_999_999),
   storeId: optionalRef,
   dateAcquired: pastDate,

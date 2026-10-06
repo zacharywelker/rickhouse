@@ -76,6 +76,7 @@ export function BottleFields({
   errors,
   suggestions,
   labelVersions,
+  releases,
   omit = [],
   idPrefix = "bottle",
 }: {
@@ -88,6 +89,8 @@ export function BottleFields({
   suggestions?: Partial<Record<string, string[]>>;
   /** Each label's older names (by label id), for the Label Version choice. */
   labelVersions?: Record<number, Array<{ value: string; label: string }>>;
+  /** Each label's known releases (by label id), for the Release choice. */
+  releases?: Record<number, Array<{ value: string; label: string }>>;
   omit?: string[];
   idPrefix?: string;
 }) {
@@ -135,6 +138,22 @@ export function BottleFields({
                 />
               );
             }
+            if (field.name === "releaseId") {
+              const choices = releases?.[Number(values.expressionId)] ?? [];
+              if (choices.length === 0 || field.kind !== "select") return null;
+              return (
+                <Field
+                  key={field.name}
+                  spec={{ ...field, options: [...field.options, ...choices] }}
+                  idPrefix={idPrefix}
+                  value={values.releaseId ?? ""}
+                  onChange={(next) => onChange("releaseId", next)}
+                  error={errors.releaseId}
+                />
+              );
+            }
+            // A chosen release supplies these; the server clears them to match.
+            if ((field.name === "batch" || field.name === "releaseYear") && values.releaseId) return null;
             if (field.name === "ageMonths" || field.name === "ageDays") return null;
             if (field.name === "ageYears") {
               return (
@@ -185,12 +204,14 @@ export function BottleForm({
   options,
   suggestions,
   labelVersions,
+  releases,
 }: {
   bottleId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
   options: Record<string, Option[]>;
   suggestions?: Partial<Record<string, string[]>>;
   labelVersions?: Record<number, Array<{ value: string; label: string }>>;
+  releases?: Record<number, Array<{ value: string; label: string }>>;
 }) {
   const router = useRouter();
   const [values, setValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, initialValues));
@@ -208,9 +229,13 @@ export function BottleForm({
   }, [saved, createdId, router]);
 
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
-  // Changing the label drops a version picked for the previous one.
+  // Changing the label drops a version or release picked for the previous one.
   const set = (name: string, value: FieldValue) =>
-    setValues((prev) => ({ ...prev, [name]: value, ...(name === "expressionId" ? { expressionNameId: "" } : {}) }));
+    setValues((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === "expressionId" ? { expressionNameId: "", releaseId: "" } : {}),
+    }));
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -222,6 +247,7 @@ export function BottleForm({
         errors={fieldErrors}
         suggestions={suggestions}
         labelVersions={labelVersions}
+        releases={releases}
       />
 
       {!state.ok && state.error ? (

@@ -9,7 +9,7 @@ import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
-import { nameBelongsToExpression } from "@/lib/other-names-store";
+import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { z } from "zod";
 import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
 
@@ -63,11 +63,7 @@ export async function saveBottleAction(
   const input = parsed.data;
 
   try {
-    // A version has to be one of this label's own; anything else means the
-    // label was changed after it was picked, and falls back to the current name.
-    if (input.expressionNameId !== null && !(await nameBelongsToExpression(input.expressionNameId, input.expressionId))) {
-      input.expressionNameId = null;
-    }
+    await settleLabelChoices(input);
     if (id === null) {
       const [row] = await db
         .insert(bottles)
@@ -121,7 +117,7 @@ export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Pr
       continue;
     }
 
-    const values = { ...parsed.data, ...state.data };
+    const values = { ...(await settleLabelChoices(parsed.data)), ...state.data };
     // Below full means it has been poured from, the same rule as the gauge.
     if (values.status === "open" || values.fillPct < 100) values.isOpen = true;
     if (values.isOpen) {
@@ -231,10 +227,11 @@ export async function updateBottlesBulkAction(
     try {
       const updated = await db
         .update(bottles)
-        // Moving a bottle to another label drops its chosen older name.
+        // Moving a bottle to another label drops its chosen older name and release.
         .set({
           ...parsed.data,
           expressionNameId: sql`case when ${bottles.expressionId} = ${parsed.data.expressionId} then ${bottles.expressionNameId} else null end`,
+          releaseId: sql`case when ${bottles.expressionId} = ${parsed.data.expressionId} then ${bottles.releaseId} else null end`,
         })
         .where(ownedBottle(id, user.id))
         .returning({ id: bottles.id });

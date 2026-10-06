@@ -7,6 +7,7 @@ import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { expressionOptions } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
 import { labelVersionChoices } from "@/lib/other-names-store";
+import { releaseChoices } from "@/lib/releases-store";
 import { bottleSuggestions } from "@/lib/bottles/suggestions-query";
 import { getPreferences } from "@/lib/preferences";
 
@@ -56,6 +57,7 @@ export default async function NewBottlePage({
           options={{ expressionId: expressions, storeId: stores }}
           suggestions={suggestions}
           labelVersions={await labelVersionChoices(user.id)}
+          releases={await releaseChoices(user.id)}
         />
       )}
     </div>
