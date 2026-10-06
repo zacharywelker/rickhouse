@@ -4,60 +4,123 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Layers, Star } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { fillStateText } from "@/lib/bottles/fill-state";
-import { cn, formatNumeric, humanise } from "@/lib/utils";
+import { categoryColor } from "@/lib/bottles/category-palette";
+import { ageLabel } from "@/lib/expressions/display";
+import { cn, formatNumeric } from "@/lib/utils";
 import type { GridRow } from "@/lib/bottles/grid";
 import { FillGauge } from "./fill-gauge";
 
 /** A slight, deterministic stagger per stack position — never dead straight. */
 const STACK_TILT = ["-rotate-3", "rotate-2", "-rotate-1"];
 
-function BottleTile({ row }: { row: GridRow }) {
+/** The brand is dropped from the title when the name already starts with it. */
+function tileTitle(row: GridRow): string {
+  return row.expressionName.toLowerCase().startsWith(row.brand.toLowerCase())
+    ? row.expressionName
+    : `${row.brand} ${row.expressionName}`;
+}
+
+/** Proof, then age, then where it was bought — a slot is never blank (DESIGN.md §4.3). */
+function tileFacts(row: GridRow): string[] {
+  const facts: string[] = [];
+  if (row.proof) facts.push(`${formatNumeric(row.proof)} proof`);
+  const age = ageLabel(row);
+  if (age) facts.push(age);
+  if (row.batch) facts.push(row.batch);
+  if (facts.length === 0) facts.push(row.category);
+  return facts.slice(0, 2);
+}
+
+/**
+ * The photo in a category-coloured plate with an ink hairline, in a fixed 3:4
+ * slot. The photo is scaled to fit (never cropped), so the whole bottle shows
+ * whatever its own shape. A thin gauge on the right edge shows how full it is.
+ */
+function Frame({ row, children }: { row: GridRow; children?: React.ReactNode }) {
+  const color = categoryColor(row.category);
   return (
-    <Link
-      href={`/bottles/${row.id}`}
-      className="group flex h-full w-full flex-col"
+    <div
+      className="relative aspect-[3/4] border border-foreground p-2"
+      style={{ backgroundColor: color.hex }}
     >
-      <div className="relative flex aspect-square overflow-hidden items-center justify-center bg-muted/40">
+      <div className="relative size-full overflow-hidden">
         {row.thumbPath ? (
-          <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="object-cover" />
-        ) : (
-          <FillGauge
-            value={row.fillPct}
-            readOnly
-            fieldGroup={row.fieldGroup}
-            height={130}
-            label={`${row.expressionName} fill`}
+          <Image
+            src={`/api/images/${row.thumbPath}`}
+            alt=""
+            fill
+            unoptimized
+            className="object-contain p-1"
           />
+        ) : (
+          <div className="flex size-full items-center justify-center">
+            <FillGauge
+              value={row.fillPct}
+              readOnly
+              fieldGroup={row.fieldGroup}
+              height={130}
+              label={`${row.expressionName} fill`}
+            />
+          </div>
         )}
-        {row.isFavorite ? (
-          <Star className="absolute right-2 top-2 size-4 fill-accent text-accent" aria-label="Favorite" />
-        ) : null}
-        {row.thumbPath ? (
-          <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
-            {fillStateText(row.fillPct)}
-          </span>
-        ) : null}
       </div>
-      <div className="flex flex-1 flex-col gap-1 pt-2">
-        <p className="text-xs text-muted-foreground">{row.brand}</p>
-        <p className="font-medium leading-tight group-hover:text-accent">{row.expressionName}</p>
-        <p className="text-xs text-muted-foreground">
-          {formatNumeric(row.proof)} proof
-          {row.batch ? ` · ${row.batch}` : ""}
+      <span
+        aria-hidden
+        className="absolute bottom-2 right-0.5 top-2 w-[3px] overflow-hidden rounded-full bg-paper/75"
+      >
+        <span
+          className="absolute inset-x-0 bottom-0 bg-foreground"
+          style={{ height: `${Math.max(0, Math.min(100, row.fillPct))}%` }}
+        />
+      </span>
+      {row.isFavorite ? (
+        <Star className="absolute left-2 top-2 size-4 fill-foreground text-foreground" aria-label="Favorite" />
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+function CategoryLine({ category }: { category: string }) {
+  return (
+    <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+      <span
+        aria-hidden
+        className="size-2 shrink-0 border border-foreground"
+        style={{ backgroundColor: categoryColor(category).hex }}
+      />
+      <span className="truncate">{category}</span>
+    </p>
+  );
+}
+
+function BottleTile({ row }: { row: GridRow }) {
+  const facts = tileFacts(row);
+  return (
+    <Link href={`/bottles/${row.id}`} className="group flex h-full w-full flex-col">
+      <Frame row={row} />
+      <p className="mt-2 line-clamp-2 min-h-[2lh] text-[13px] font-semibold leading-snug group-hover:text-accent">
+        {tileTitle(row)}
+      </p>
+      <CategoryLine category={row.category} />
+      {facts.map((fact, i) => (
+        <p
+          key={fact}
+          className={cn(
+            "truncate text-xs tabular-nums",
+            i === 0 ? "mt-1 font-medium" : "text-muted-foreground",
+          )}
+        >
+          {fact}
         </p>
-        <Badge className={`mt-auto w-fit ${row.isOpen ? "border-primary/40 text-primary" : ""}`}>
-          {humanise(row.status)}
-        </Badge>
-      </div>
+      ))}
     </Link>
   );
 }
 
 /**
  * Same Label, more than one bottle: the database sees N rows, the gallery
- * sees a family (SPEC §18). Collapsed, it's a small stack of photos rather
+ * sees a family (SPEC §18). Collapsed, it's a small stack of frames rather
  * than N identical cards; a click fans it out into the individual bottles,
  * right there in the grid.
  */
@@ -66,49 +129,29 @@ function FamilyCluster({ rows, onExpand }: { rows: GridRow[]; onExpand: () => vo
   const behind = rows.filter((r) => r.id !== front.id).slice(0, 2);
 
   return (
-    <button
-      type="button"
-      onClick={onExpand}
-      className="group flex h-full w-full flex-col text-left"
-    >
-      <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-muted/40 p-4">
+    <button type="button" onClick={onExpand} className="group flex h-full w-full flex-col text-left">
+      <div className="relative aspect-[3/4]">
         {behind.map((row, i) => (
           <div
             key={row.id}
-            className={cn(
-              "absolute inset-4 border border-border bg-card shadow-md",
-              STACK_TILT[i % STACK_TILT.length],
-            )}
+            className={cn("absolute inset-0 shadow-md", STACK_TILT[i % STACK_TILT.length])}
           >
-            {row.thumbPath ? (
-              <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="object-cover" />
-            ) : null}
+            <Frame row={row} />
           </div>
         ))}
-        <div className="absolute inset-4 border border-border bg-card shadow-lg">
-          {front.thumbPath ? (
-            <Image src={`/api/images/${front.thumbPath}`} alt="" fill unoptimized className="object-cover" />
-          ) : (
-            <div className="flex size-full items-center justify-center">
-              <FillGauge
-                value={front.fillPct}
-                readOnly
-                fieldGroup={front.fieldGroup}
-                height={110}
-                label={`${front.expressionName} fill`}
-              />
-            </div>
-          )}
+        <div className="absolute inset-0 shadow-lg">
+          <Frame row={front}>
+            <span className="absolute bottom-3 left-3 rounded-full bg-black/70 px-2 py-0.5 text-xs font-medium tabular-nums text-white">
+              {rows.length} bottles
+            </span>
+          </Frame>
         </div>
-        <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-xs font-medium tabular-nums text-white">
-          {rows.length} bottles
-        </span>
       </div>
-      <div className="flex flex-1 flex-col gap-1 pt-2">
-        <p className="text-xs text-muted-foreground">{front.brand}</p>
-        <p className="font-medium leading-tight group-hover:text-accent">{front.expressionName}</p>
-        <p className="text-xs text-muted-foreground">See all {rows.length}</p>
-      </div>
+      <p className="mt-2 line-clamp-2 min-h-[2lh] text-[13px] font-semibold leading-snug group-hover:text-accent">
+        {tileTitle(front)}
+      </p>
+      <CategoryLine category={front.category} />
+      <p className="mt-1 text-xs font-medium">See all {rows.length}</p>
     </button>
   );
 }
@@ -146,7 +189,7 @@ export function BottleGallery({ rows }: { rows: GridRow[] }) {
   const seen = new Set<number>();
 
   return (
-    <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
+    <ul className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {rows.map((row) => {
         if (seen.has(row.expressionId)) return null;
         seen.add(row.expressionId);
