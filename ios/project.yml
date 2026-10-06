@@ -23,6 +23,8 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_CFBundleDisplayName: Rickhouse
         INFOPLIST_KEY_NSCameraUsageDescription: Rickhouse uses the camera to photograph your bottles and labels.
-        # Self-hosted servers are often plain http on the home network.
-        INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: Rickhouse connects to your server on the home network.
+      # Release is HTTPS only, enforced in Session.normalise (generated
+      # Info.plists can't carry an ATS dictionary). Debug may use a LAN dev server.
+      configs:
+        Debug:
+          INFOPLIST_KEY_NSLocalNetworkUsageDescription: Rickhouse connects to a development server on the local network.

@@ -3,6 +3,9 @@ import Foundation
 enum APIError: LocalizedError {
     case badServer
     case unauthorized
+    case insecureServer
+    case serverTooOld
+    case appTooOld
     case server(String)
     case transport(Error)
 
@@ -10,6 +13,9 @@ enum APIError: LocalizedError {
         switch self {
         case .badServer: "That doesn't look like a server address."
         case .unauthorized: "Your session has ended. Sign in again."
+        case .insecureServer: "Use an https:// address. Rickhouse only signs in over an encrypted connection."
+        case .serverTooOld: "Your Rickhouse server is older than this app. Update the server."
+        case .appTooOld: "Your Rickhouse server is newer than this app. Update the app."
         case .server(let message): message
         case .transport(let error): error.localizedDescription
         }
@@ -22,6 +28,10 @@ enum APIError: LocalizedError {
 struct APIClient {
     let baseURL: URL
     let token: String
+
+    /// `x-rickhouse-api` versions this app understands. Within one version the
+    /// server only adds fields, and Codable ignores ones it doesn't know.
+    static let supportedAPIVersions = 1...1
 
     private static let decoder = JSONDecoder()
 
@@ -162,6 +172,14 @@ struct APIClient {
 
     private static func check(_ response: URLResponse, _ data: Data) throws {
         guard let http = response as? HTTPURLResponse else { throw APIError.badServer }
+        // Checked before the status, so a mismatch isn't misread as a decode error.
+        if http.url?.path.contains("/api/v1/") == true {
+            guard let raw = http.value(forHTTPHeaderField: "x-rickhouse-api"), let version = Int(raw) else {
+                throw APIError.serverTooOld
+            }
+            if version < supportedAPIVersions.lowerBound { throw APIError.serverTooOld }
+            if version > supportedAPIVersions.upperBound { throw APIError.appTooOld }
+        }
         switch http.statusCode {
         case 200..<300: return
         case 401: throw APIError.unauthorized

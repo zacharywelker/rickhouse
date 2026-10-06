@@ -12,7 +12,7 @@ struct SignInView: View {
     var body: some View {
         Form {
             Section {
-                TextField("Server (e.g. rickhouse.local:1964)", text: $server)
+                TextField("Server (e.g. rickhouse.example.com)", text: $server)
                     .textContentType(.URL)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
@@ -20,7 +20,7 @@ struct SignInView: View {
             } header: {
                 Text("Rickhouse")
             } footer: {
-                Text("The address you open Rickhouse at in a browser. Use http:// for a plain home-network server.")
+                Text("The https:// address you open Rickhouse at, through your reverse proxy.")
             }
             Section {
                 TextField("Username", text: $username)

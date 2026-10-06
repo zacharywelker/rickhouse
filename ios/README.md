@@ -19,7 +19,7 @@ Set your signing team in the target's *Signing & Capabilities*, then run.
 
 ## Signing in
 
-Enter the address you open Rickhouse at (`rickhouse.local:1964`, or `https://…`) and your username and password. The server answers with a bearer token, which the app keeps in the Keychain. Two-step sign-in (authenticator app, backup code or emailed code) is supported. An account still holding a generated password must pick its own in the web app first.
+Enter the `https://` address you open Rickhouse at (through your reverse proxy, or Tailscale) and your username and password. Release builds refuse plain `http://`, so the token never crosses the network unencrypted; Debug builds allow it for a local development server. The server answers with a bearer token, which the app keeps in the Keychain. Two-step sign-in (authenticator app, backup code or emailed code) is supported. An account still holding a generated password must pick its own in the web app first.
 
 ## Server API
 
@@ -35,6 +35,8 @@ The app uses a small JSON API under `/api/v1`, plus two web routes that accept t
 | `GET /api/v1/expressions?q=` | Search labels for the picker |
 | `POST /api/bottles/:id/images` | Multipart photo upload (`images` field) |
 | `GET /api/images/<path>` | A photo or thumbnail |
+
+Every `/api/v1` response carries `x-rickhouse-api` (currently `1`). Within a version the API only adds fields; the app refuses a server outside the versions it supports and says which side to update.
 
 Errors from `/api/v1` look like `{ "error": { "code", "message", "fields?" } }`.
 

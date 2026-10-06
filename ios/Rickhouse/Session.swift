@@ -72,12 +72,17 @@ final class Session {
         user = nil
     }
 
-    /// "rickhouse.local:1964" -> http://rickhouse.local:1964. Bare hosts get https.
+    /// "rickhouse.example.com" -> https://rickhouse.example.com. Release builds
+    /// refuse http:// so the token never crosses the network in the clear;
+    /// Debug builds allow it for a local development server.
     static func normalise(_ raw: String) throws -> URL {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         while text.hasSuffix("/") { text.removeLast() }
         if !text.contains("://") { text = "https://" + text }
         guard let url = URL(string: text), url.host != nil else { throw APIError.badServer }
+        #if !DEBUG
+        guard url.scheme?.lowercased() == "https" else { throw APIError.insecureServer }
+        #endif
         return url
     }
 }

@@ -21,6 +21,9 @@ struct AddBottleView: View {
     @State private var showCamera = false
     @State private var saving = false
     @State private var error: String?
+    /// Set once the bottle exists, so a retry after a failed photo upload
+    /// only re-sends the photos instead of adding the bottle twice.
+    @State private var createdId: Int?
 
     var body: some View {
         NavigationStack {
@@ -69,7 +72,7 @@ struct AddBottleView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(saving ? "Saving…" : "Save", action: save).disabled(label == nil || saving)
+                    Button(saving ? "Saving…" : error == nil ? "Save" : "Retry", action: save).disabled(label == nil || saving)
                 }
             }
             .sheet(isPresented: $picking) { LabelPickerView { label = $0 } }
@@ -95,13 +98,19 @@ struct AddBottleView: View {
         error = nil
         Task {
             do {
-                var bottle = NewBottle(expressionId: label.id)
-                bottle.pricePaid = price.isEmpty ? nil : price
-                bottle.dateAcquired = includeDate ? Self.isoDay.string(from: acquired) : nil
-                bottle.batch = batch.isEmpty ? nil : batch
-                bottle.location = location.isEmpty ? nil : location
-                bottle.notes = notes.isEmpty ? nil : notes
-                let id = try await api.createBottle(bottle)
+                let id: Int
+                if let createdId {
+                    id = createdId
+                } else {
+                    var bottle = NewBottle(expressionId: label.id)
+                    bottle.pricePaid = price.isEmpty ? nil : price
+                    bottle.dateAcquired = includeDate ? Self.isoDay.string(from: acquired) : nil
+                    bottle.batch = batch.isEmpty ? nil : batch
+                    bottle.location = location.isEmpty ? nil : location
+                    bottle.notes = notes.isEmpty ? nil : notes
+                    id = try await api.createBottle(bottle)
+                    createdId = id
+                }
                 if !photos.isEmpty {
                     // Downscaled so a 12 MP photo doesn't cross the home network at full size.
                     let jpegs = photos.compactMap { $0.scaled(maxEdge: 2000).jpegData(compressionQuality: 0.85) }
@@ -110,7 +119,10 @@ struct AddBottleView: View {
                 onSaved()
                 dismiss()
             } catch {
-                self.error = error.localizedDescription
+                // The form and photos stay, so nothing is lost to a bad connection.
+                self.error = createdId == nil
+                    ? error.localizedDescription
+                    : "The bottle was saved, but its photos weren't: \(error.localizedDescription)"
                 saving = false
             }
         }
