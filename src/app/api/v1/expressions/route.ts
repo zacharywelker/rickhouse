@@ -9,35 +9,12 @@ import { newLabelSchema, normalizeUpc, upcCandidates } from "@/lib/api/labels";
 import { mapDbError } from "@/lib/db-errors";
 import { findOrCreateBrand } from "@/lib/expressions/brand";
 import { expressionSchema } from "@/lib/expressions/schema";
+import { labelColumns, pickerLabel } from "@/lib/expressions/picker";
 import { labelValues, writeLabel } from "@/lib/expressions/save";
 
 export const dynamic = "force-dynamic";
 
 const LIMIT = 30;
-
-/** The columns a label shows in the add-bottle picker. */
-const labelColumns = {
-  id: expressions.id,
-  name: expressions.name,
-  brand: brands.name,
-  category: categories.name,
-  proof: expressions.proof,
-  ageStatement: expressions.ageStatement,
-  upc: expressions.upc,
-  thumbPath: expressions.photoThumbPath,
-};
-
-/** One of the caller's labels in the picker's shape. */
-async function pickerLabel(id: number, ownerId: number) {
-  const [row] = await db
-    .select(labelColumns)
-    .from(expressions)
-    .innerJoin(brands, eq(brands.id, expressions.brandId))
-    .innerJoin(categories, eq(categories.id, expressions.categoryId))
-    .where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)))
-    .limit(1);
-  return row;
-}
 
 /** Thrown inside the transaction when the brand already has a label of this name. */
 class DuplicateLabel extends Error {
