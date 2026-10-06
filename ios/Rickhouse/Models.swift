@@ -93,12 +93,52 @@ struct LabelOption: Decodable, Identifiable, Hashable {
     let brand: String
     let category: String
     let proof: String?
+    /// Absent from an older server's answer.
+    let upc: String?
     let thumbPath: String?
 
     var title: String { "\(brand) \(name)" }
 }
 
 struct LabelsResponse: Decodable { let expressions: [LabelOption] }
+
+/// A 409 from creating a label: the label that is already there.
+struct DuplicateAnswer: Decodable { let existing: LabelOption? }
+
+struct CategoryOption: Decodable, Identifiable, Hashable {
+    let id: Int
+    let name: String
+    /// The group it sits in ("American Whiskey"), or nil for a top-level one.
+    let parent: String?
+}
+
+struct CategoriesResponse: Decodable { let categories: [CategoryOption] }
+
+/// What the phone sends to start a label; the rest is filled in on the web.
+struct NewLabel: Encodable {
+    var brand: String
+    var name: String
+    var categoryId: Int
+    var upc: String?
+}
+
+/// Barcodes as the server stores and matches them.
+enum Barcode {
+    /// Digits only, or nil when it can't be a barcode (6 to 32 digits).
+    static func normalise(_ raw: String) -> String? {
+        let digits = raw.filter { !$0.isWhitespace && $0 != "-" }
+        guard (6...32).contains(digits.count), digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        return digits
+    }
+
+    /// The forms a code may be saved under: a UPC-A is the same product as its EAN-13 with a leading zero.
+    static func forms(of digits: String) -> Set<String> {
+        var forms: Set = [digits]
+        if digits.count == 13, digits.hasPrefix("0") { forms.insert(String(digits.dropFirst())) }
+        if digits.count == 12 { forms.insert("0" + digits) }
+        return forms
+    }
+}
 
 struct NewBottle: Encodable {
     var expressionId: Int

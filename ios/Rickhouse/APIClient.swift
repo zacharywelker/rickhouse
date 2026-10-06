@@ -7,6 +7,7 @@ enum APIError: LocalizedError {
     case serverTooOld
     case appTooOld
     case server(String)
+    case duplicateLabel(LabelOption)
     case transport(Error)
 
     var errorDescription: String? {
@@ -17,6 +18,7 @@ enum APIError: LocalizedError {
         case .serverTooOld: "Your Rickhouse server is older than this app. Update the server."
         case .appTooOld: "Your Rickhouse server is newer than this app. Update the app."
         case .server(let message): message
+        case .duplicateLabel(let label): "You already have \(label.title)."
         case .transport(let error): error.localizedDescription
         }
     }
@@ -116,6 +118,18 @@ struct APIClient {
         try await get("api/v1/expressions", query: [.init(name: "q", value: query)], as: LabelsResponse.self).expressions
     }
 
+    /// Labels with this barcode. The server treats a UPC-A and its 13-digit EAN form as one code. An older
+    /// server ignores `upc` and answers with every label, so the answer is filtered here too.
+    func labels(withBarcode code: String) async throws -> [LabelOption] {
+        let found = try await get("api/v1/expressions", query: [.init(name: "upc", value: code)], as: LabelsResponse.self).expressions
+        let wanted = Barcode.forms(of: code)
+        return found.filter { label in label.upc.map(wanted.contains) ?? false }
+    }
+
+    func categories() async throws -> [CategoryOption] {
+        try await get("api/v1/categories", as: CategoriesResponse.self).categories
+    }
+
     func imageData(path: String) async throws -> Data {
         let (data, response) = try await Self.send(request(path: "api/images/\(path)"))
         try Self.check(response, data)
@@ -132,6 +146,26 @@ struct APIClient {
         let (data, response) = try await Self.send(req)
         try Self.check(response, data)
         return try Self.decoder.decode(CreatedBottle.self, from: data).id
+    }
+
+    /// Starts a label. A label the brand already has comes back as `APIError.duplicateLabel`, carrying it.
+    func createLabel(_ label: NewLabel) async throws -> LabelOption {
+        var req = request(path: "api/v1/expressions")
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(label)
+        let (data, response) = try await Self.send(req)
+        if (response as? HTTPURLResponse)?.statusCode == 409,
+           let existing = try? Self.decoder.decode(DuplicateAnswer.self, from: data).existing {
+            throw APIError.duplicateLabel(existing)
+        }
+        try Self.check(response, data)
+        return try Self.decoder.decode(LabelOption.self, from: data)
+    }
+
+    /// Saves a scanned barcode onto a label that has none. The server never overwrites one it has.
+    func attachBarcode(labelId: Int, code: String) async throws {
+        _ = try await sendJSON("PATCH", "api/v1/expressions/\(labelId)", body: ["upc": code], as: LabelOption.self)
     }
 
     /// Sets the fill level. The answer says what else changed: below full opens a sealed bottle.
