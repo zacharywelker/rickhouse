@@ -40,9 +40,8 @@ final class Session {
     }
 
     /// Signs in, or returns the second-factor step for the caller to finish with `complete`.
-    func signIn(server: String, username: String, password: String) async throws -> TwoFactorChallenge? {
-        let url = try Self.normalise(server)
-        let outcome = try await APIClient.signIn(baseURL: url, username: username, password: password)
+    func signIn(baseURL url: URL, username: String, password: String, captchaToken: String?) async throws -> TwoFactorChallenge? {
+        let outcome = try await APIClient.signIn(baseURL: url, username: username, password: password, captchaToken: captchaToken)
         return accept(outcome, baseURL: url)
     }
 
