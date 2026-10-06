@@ -19,15 +19,15 @@ struct BottleCard: View {
             // category's colour; the slot clips anything that still overflows.
             Color.clear
                 .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                .overlay { AuthenticatedImage(path: bottle.thumbPath, contentMode: .fit, background: .clear).padding(6) }
+                .overlay { AuthenticatedImage(path: bottle.thumbPath, contentMode: .fit, background: .clear).padding(4) }
                 .clipped()
-                .padding(7)
+                .padding(8)
                 .background(color)
                 .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
                 .overlay(alignment: .trailing) {
                     FillGauge(percent: bottle.fillPct)
                         .frame(width: 3)
-                        .padding(.vertical, 7)
+                        .padding(.vertical, 8)
                         .padding(.trailing, 2)
                 }
 
@@ -35,19 +35,19 @@ struct BottleCard: View {
                 .font(.inter(12.5, .semibold, relativeTo: .footnote))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2, reservesSpace: true)
-                .padding(.top, 7)
+                .padding(.top, 8)
 
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Rectangle().fill(color)
                     .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
-                    .frame(width: 9, height: 9)
+                    .frame(width: 8, height: 8)
                     .accessibilityHidden(true)
                 Text(bottle.category)
                     .font(.inter(11, .medium, relativeTo: .caption2))
                     .foregroundStyle(Theme.muted)
                     .lineLimit(1)
             }
-            .padding(.top, 3)
+            .padding(.top, 4)
 
             ForEach(Array(facts.enumerated()), id: \.offset) { index, fact in
                 Text(fact)
@@ -55,11 +55,11 @@ struct BottleCard: View {
                     .monospacedDigit()
                     .foregroundStyle(index == 0 ? Theme.ink : Theme.muted)
                     .lineLimit(1)
-                    .padding(.top, index == 0 ? 2 : 0)
+                    .padding(.top, index == 0 ? 4 : 0)
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(bottle.category), \(bottle.fillPct) percent full")
+        .accessibilityLabel(([title, bottle.category] + facts + ["\(bottle.fillPct) percent full"]).joined(separator: ", "))
     }
 
     private var title: String {

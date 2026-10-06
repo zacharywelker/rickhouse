@@ -64,9 +64,11 @@ struct AddBottleView: View {
                     PhotosPicker("Choose from library", selection: $pickerItems, maxSelectionCount: 6, matching: .images)
                 }
                 if let error {
-                    Section { Text(error).foregroundStyle(.red) }
+                    Section { ErrorText(error) }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.paper)
             .navigationTitle("Add bottle")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -163,6 +165,8 @@ struct LabelPickerView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.paper)
             .overlay {
                 // A failed search is not an empty one: say so, and let them retry.
                 if let failure {

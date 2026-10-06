@@ -38,7 +38,7 @@ struct NoteEditorView: View {
                 Section("Finish") { TextField("How it ends", text: $finish, axis: .vertical) }
                 Section("Overall") { TextField("In a line", text: $overall, axis: .vertical) }
                 if let error {
-                    Section { Text(error).foregroundStyle(.red) }
+                    Section { ErrorText(error) }
                 }
                 if note != nil {
                     Section {

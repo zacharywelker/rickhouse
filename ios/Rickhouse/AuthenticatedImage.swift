@@ -11,6 +11,8 @@ struct AuthenticatedImage: View {
     /// What shows behind a picture that doesn't fill its frame.
     var background: Color = Color(.secondarySystemFill)
     @State private var image: UIImage?
+    /// The fetch failed; shows a different glyph. It runs again when the view is next created.
+    @State private var failed = false
 
     private static let cache = NSCache<NSString, UIImage>()
 
@@ -20,7 +22,7 @@ struct AuthenticatedImage: View {
             if let image {
                 Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
             } else {
-                Image(systemName: "wineglass").foregroundStyle(.secondary)
+                Image(systemName: failed ? "photo.badge.exclamationmark" : "wineglass").foregroundStyle(.secondary)
             }
         }
         .clipped()
@@ -28,9 +30,13 @@ struct AuthenticatedImage: View {
     }
 
     private func load() async {
+        failed = false
         guard let path, let api = session.api else { image = nil; return }
         if let cached = Self.cache.object(forKey: path as NSString) { image = cached; return }
-        guard let data = try? await api.imageData(path: path), let loaded = UIImage(data: data) else { return }
+        guard let data = try? await api.imageData(path: path), let loaded = UIImage(data: data) else {
+            failed = !Task.isCancelled
+            return
+        }
         Self.cache.setObject(loaded, forKey: path as NSString)
         image = loaded
     }

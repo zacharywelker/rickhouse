@@ -41,12 +41,14 @@ struct TwoFactorView: View {
                     }
                 }
                 if let notice { Section { Text(notice).foregroundStyle(.secondary) } }
-                if let error { Section { Text(error).foregroundStyle(.red) } }
+                if let error { Section { ErrorText(error) } }
                 Section {
                     Button(busy ? "Checking…" : "Verify", action: verify)
                         .disabled(busy || code.isEmpty)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.paper)
             .navigationTitle("Two-step sign-in")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }

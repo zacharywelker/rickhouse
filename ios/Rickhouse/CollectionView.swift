@@ -9,6 +9,9 @@ struct CollectionView: View {
     @State private var query = ""
     @State private var loading = false
     @State private var error: String?
+    /// False until the first fetch succeeds, so the screen never claims "0 bottles" or "No bottles yet" early.
+    @State private var hasLoaded = false
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// Bumped by the shell after a bottle is added, so the list reloads.
     var reloadSignal = 0
     @AppStorage("gridColumns") private var gridColumns = 3
@@ -19,10 +22,22 @@ struct CollectionView: View {
             if inDepth { inDepthList } else { gallery }
         }
         .overlay {
-            if bottles.isEmpty && !loading && error == nil {
-                ContentUnavailableView(query.isEmpty ? "No bottles yet" : "No matches",
-                                       systemImage: "wineglass",
-                                       description: Text(query.isEmpty ? "Tap + to add your first bottle." : "Try a different search."))
+            if bottles.isEmpty {
+                if let error {
+                    ContentUnavailableView {
+                        Label("Couldn't load bottles", systemImage: "wifi.slash")
+                    } description: {
+                        Text(error)
+                    } actions: {
+                        Button("Try again") { Task { await reload() } }
+                    }
+                } else if !hasLoaded {
+                    ProgressView()
+                } else {
+                    ContentUnavailableView(query.isEmpty ? "No bottles yet" : "No matches",
+                                           systemImage: "wineglass",
+                                           description: Text(query.isEmpty ? "Tap + to add your first bottle." : "Try a different search."))
+                }
             }
         }
         .overlay(alignment: .bottomTrailing) { inDepthToggle }
@@ -44,17 +59,18 @@ struct CollectionView: View {
 
     /// The gallery: the headline scrolls away with the bottles.
     private var gallery: some View {
-        let columns = gridColumns == 2 ? 2 : 3
+        // At accessibility text sizes three narrow columns truncate every fact, so go to one.
+        let columns = typeSize.isAccessibilitySize ? 1 : gridColumns == 2 ? 2 : 3
         return ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                headline
-                if let error {
-                    Text(error).font(.inter(14)).foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 16) {
+                if hasLoaded { headline }
+                if let error, !bottles.isEmpty {
+                    ErrorText(error)
                 }
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: columns),
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .top), count: columns),
                           alignment: .leading, spacing: 16) {
                     ForEach(bottles) { bottle in
-                        NavigationLink(value: bottle) { BottleCard(bottle: bottle, factCount: columns == 2 ? 2 : 1) }
+                        NavigationLink(value: bottle) { BottleCard(bottle: bottle, factCount: columns == 3 ? 1 : 2) }
                             .buttonStyle(.plain)
                             .task { if bottle.id == bottles.last?.id { await loadMore() } }
                     }
@@ -73,8 +89,8 @@ struct CollectionView: View {
 
     private var inDepthList: some View {
         List {
-            if let error {
-                Text(error).foregroundStyle(.red)
+            if let error, !bottles.isEmpty {
+                ErrorText(error)
             }
             ForEach(bottles) { bottle in
                 NavigationLink(value: bottle) { BottleRow(bottle: bottle) }
@@ -123,6 +139,7 @@ struct CollectionView: View {
             bottles = replacing ? result.bottles : bottles + result.bottles
             total = result.total
             pageCount = result.pageCount
+            hasLoaded = true
             error = nil
             return true
         } catch APIError.unauthorized {
@@ -146,10 +163,10 @@ struct BottleRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(bottle.brand).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
                 Text(bottle.name).font(.inter(16, .semibold, relativeTo: .headline)).foregroundStyle(Theme.ink)
-                HStack(spacing: 5) {
+                HStack(spacing: 4) {
                     Rectangle().fill(CategoryPalette.color(for: bottle.category))
                         .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
-                        .frame(width: 9, height: 9)
+                        .frame(width: 8, height: 8)
                         .accessibilityHidden(true)
                     Text(subtitle).font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted).monospacedDigit()
                 }
