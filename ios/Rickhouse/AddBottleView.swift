@@ -143,6 +143,8 @@ struct LabelPickerView: View {
     var onPick: (LabelOption) -> Void
     @State private var query = ""
     @State private var results: [LabelOption] = []
+    @State private var failure: String?
+    @State private var attempt = 0
 
     var body: some View {
         NavigationStack {
@@ -162,16 +164,37 @@ struct LabelPickerView: View {
                 }
             }
             .overlay {
-                if results.isEmpty { ContentUnavailableView.search(text: query) }
+                // A failed search is not an empty one: say so, and let them retry.
+                if let failure {
+                    ContentUnavailableView {
+                        Label("Couldn't load labels", systemImage: "wifi.slash")
+                    } description: {
+                        Text(failure)
+                    } actions: {
+                        Button("Try again") { attempt += 1 }
+                    }
+                } else if results.isEmpty {
+                    ContentUnavailableView.search(text: query)
+                }
             }
             .navigationTitle("Choose a label")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Brand or name")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-            .task(id: query) {
+            .task(id: "\(query)#\(attempt)") {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled, let api = session.api else { return }
-                results = (try? await api.labels(matching: query)) ?? []
+                do {
+                    results = try await api.labels(matching: query)
+                    failure = nil
+                } catch APIError.unauthorized {
+                    session.signOut()
+                } catch {
+                    // A newer keystroke cancels this request; that isn't a failure.
+                    guard !Task.isCancelled else { return }
+                    results = []
+                    failure = error.localizedDescription
+                }
             }
         }
     }

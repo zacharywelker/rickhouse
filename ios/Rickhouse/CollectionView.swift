@@ -62,11 +62,14 @@ struct CollectionView: View {
     private func loadMore() async {
         guard !loading, page < pageCount else { return }
         page += 1
-        await fetch(replacing: false)
+        // A failed page must be asked for again, not skipped.
+        if !(await fetch(replacing: false)) { page -= 1 }
     }
 
-    private func fetch(replacing: Bool) async {
-        guard let api = session.api else { return }
+    /// Whether the page arrived.
+    @discardableResult
+    private func fetch(replacing: Bool) async -> Bool {
+        guard let api = session.api else { return false }
         loading = true
         defer { loading = false }
         do {
@@ -75,11 +78,13 @@ struct CollectionView: View {
             total = result.total
             pageCount = result.pageCount
             error = nil
+            return true
         } catch APIError.unauthorized {
             session.signOut()
         } catch {
             if !(error is CancellationError) { self.error = error.localizedDescription }
         }
+        return false
     }
 }
 
