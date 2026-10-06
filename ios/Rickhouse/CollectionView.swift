@@ -138,7 +138,7 @@ struct BottleRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AuthenticatedImage(path: bottle.thumbPath)
+            AuthenticatedImage(path: bottle.thumbPath, contentMode: .fit, background: CategoryPalette.color(for: bottle.category))
                 .frame(width: 56, height: 56)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
             VStack(alignment: .leading, spacing: 2) {

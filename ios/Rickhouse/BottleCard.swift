@@ -14,10 +14,12 @@ struct BottleCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // A fixed 3:4 slot with the photo drawn into it. The photo is an
             // overlay so its own shape (wide, tall, square) never reaches the
-            // layout; whatever doesn't fit the slot is cropped.
+            // layout. Cut-out bottles, the usual photo here, are trimmed to the
+            // bottle itself, so they scale to fit and sit on a plate of the
+            // category's colour; the slot clips anything that still overflows.
             Color.clear
                 .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                .overlay { AuthenticatedImage(path: bottle.thumbPath) }
+                .overlay { AuthenticatedImage(path: bottle.thumbPath, contentMode: .fit, background: .clear).padding(6) }
                 .clipped()
                 .padding(7)
                 .background(color)
