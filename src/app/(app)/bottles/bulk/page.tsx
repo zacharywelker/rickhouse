@@ -5,6 +5,7 @@ import { Section, SectionContent } from "@/components/ui/section";
 import { BottleBulkGrid } from "@/components/bottles/bottle-bulk-grid";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { expressionOptions } from "@/lib/expressions/queries";
+import { releaseChoices } from "@/lib/releases-store";
 import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Bulk add bottles" };
@@ -33,7 +34,7 @@ export default async function BulkBottlesPage() {
           </SectionContent>
         </Section>
       ) : (
-        <BottleBulkGrid expressions={expressions} stores={stores} />
+        <BottleBulkGrid expressions={expressions} stores={stores} releases={await releaseChoices(user.id)} />
       )}
     </div>
   );
