@@ -22,3 +22,9 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# iOS
+ios/*.xcodeproj
+ios/build/
+xcuserdata/
+.DS_Store
