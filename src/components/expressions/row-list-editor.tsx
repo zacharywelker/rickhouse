@@ -5,9 +5,12 @@ import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { ProofAbvFields } from "./proof-abv-field";
 
 export type RowColumn = {
   key: string;
+  /** "proofAbv" renders the app's linked Proof / ABV pair for this key. */
+  kind?: "text" | "proofAbv";
   label: string;
   placeholder?: string;
   inputMode?: "numeric" | "decimal" | "text";
@@ -64,6 +67,20 @@ export function RowListEditor({
           <div className="grid flex-1 grid-cols-2 gap-2 sm:flex sm:items-end">
             {columns.map((column, c) => {
               const id = `${idPrefix}-${row._id}-${column.key}`;
+              if (column.kind === "proofAbv") {
+                return (
+                  <ProofAbvFields
+                    key={column.key}
+                    idPrefix={`${idPrefix}-${row._id}`}
+                    value={row[column.key] ?? ""}
+                    onChange={(next) => set(row._id, column.key, String(next ?? ""))}
+                    name={null}
+                    hint={false}
+                    className={cn("gap-1", column.className)}
+                    labelClassName={cn("text-xs font-normal text-muted-foreground", index > 0 && "sm:sr-only")}
+                  />
+                );
+              }
               return (
                 <div key={column.key} className={cn("flex flex-col gap-1", c === 0 ? "col-span-2 sm:flex-1" : column.className)}>
                   {/* Labels on the first row only; later rows line up beneath them. */}

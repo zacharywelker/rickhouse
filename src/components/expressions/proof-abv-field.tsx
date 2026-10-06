@@ -21,11 +21,22 @@ export function ProofAbvFields({
   value,
   onChange,
   error,
+  name = "proof",
+  hint = true,
+  className = "sm:col-span-1",
+  labelClassName,
 }: {
   idPrefix: string;
   value: FieldValue;
   onChange: (value: FieldValue) => void;
   error?: string | undefined;
+  /** The submitted field's name; null when a parent serialises the value itself. */
+  name?: string | null;
+  /** The "half of proof" line under ABV. */
+  hint?: boolean;
+  /** Wrapper classes for each of the two fields. */
+  className?: string;
+  labelClassName?: string;
 }) {
   const proofValue = String(value ?? "");
   const [source, setSource] = React.useState<"proof" | "abv" | null>(proofValue === "" ? null : "proof");
@@ -43,11 +54,13 @@ export function ProofAbvFields({
 
   return (
     <>
-      <div className="flex flex-col gap-1.5 sm:col-span-1">
-        <Label htmlFor={proofId}>Proof</Label>
+      <div className={cn("flex flex-col gap-1.5", className)}>
+        <Label htmlFor={proofId} className={labelClassName}>
+          Proof
+        </Label>
         <Input
           id={proofId}
-          name="proof"
+          name={name ?? undefined}
           type="number"
           min={0}
           max={200}
@@ -69,8 +82,10 @@ export function ProofAbvFields({
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1.5 sm:col-span-1">
-        <Label htmlFor={abvId}>ABV</Label>
+      <div className={cn("flex flex-col gap-1.5", className)}>
+        <Label htmlFor={abvId} className={labelClassName}>
+          ABV
+        </Label>
         <Input
           id={abvId}
           type="number"
@@ -86,7 +101,9 @@ export function ProofAbvFields({
             onChange(abvToProof(next));
           }}
         />
-        <p className="text-xs text-muted-foreground">Half of proof, with a % sign. Calculates the other way too.</p>
+        {hint ? (
+          <p className="text-xs text-muted-foreground">Half of proof, with a % sign. Calculates the other way too.</p>
+        ) : null}
       </div>
     </>
   );
