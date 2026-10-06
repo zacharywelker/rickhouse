@@ -32,6 +32,9 @@ The app uses a small JSON API under `/api/v1`, plus two web routes that accept t
 | `GET /api/v1/me` | Who the token belongs to |
 | `GET /api/v1/bottles` | The collection; takes the web grid's `q`, `status`, `sort`, `desc`, `page`, `size`, … |
 | `GET /api/v1/bottles/:id` | One bottle with label specs, photos and tasting notes |
+| `PATCH /api/v1/bottles/:id` | Set the fill level (`{ "fillPct": 0-100 }`). Below full opens a sealed bottle, as on the web; the answer says what else changed |
+| `POST /api/v1/bottles/:id/tasting-notes` | Add a tasting note: `tastedOn`, `rating` (0 to 10), `nose`, `palate`, `finish`, `overall` |
+| `PATCH` / `DELETE /api/v1/bottles/:id/tasting-notes/:noteId` | Replace (send every field) or delete a note |
 | `POST /api/v1/bottles` | Add a bottle of an existing label (`expressionId` required) |
 | `GET /api/v1/expressions?q=` | Search labels for the picker |
 | `POST /api/bottles/:id/images` | Multipart photo upload (`images` field) |
@@ -47,4 +50,4 @@ The app follows the design-language spec (`docs/superpowers/specs/`): paper and 
 
 ## Not yet
 
-Editing fill level, tasting notes, creating new labels, groups, Numbers, the Labels tab, marks (open date, gifted by, store pick), category facts such as rum age or gin style, dark mode, passkeys (they need the paid Apple Developer Program) and SSO.
+Finishing a bottle (marking it killed), editing a bottle's other fields, creating new labels, groups, Numbers, the Labels tab, marks (open date, gifted by, store pick), category facts such as rum age or gin style, dark mode, passkeys (they need the paid Apple Developer Program) and SSO.

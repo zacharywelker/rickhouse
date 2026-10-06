@@ -3,25 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleImages, bottles, tastingNotes } from "@/db/schema";
+import { bottleImages, bottles } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
+import { addTastingNote, deleteTastingNote, ownedBottle, ownsBottle, setFill, updateTastingNote } from "@/lib/bottles/state";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { z } from "zod";
 import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
-
-/**
- * Every write below is scoped to the signed-in account. A bottle id that is
- * someone else's matches nothing, so it reads as "gone" — the same answer a
- * deleted bottle gets, which gives nothing away. Label and store ids on a
- * bottle are held to the same owner by composite foreign keys in Postgres.
- */
-function ownedBottle(id: number, ownerId: number) {
-  return and(eq(bottles.id, id), eq(bottles.ownerId, ownerId));
-}
 
 /** The image, provided its bottle belongs to `ownerId`. */
 async function ownedImage(imageId: number, ownerId: number) {
@@ -32,10 +23,6 @@ async function ownedImage(imageId: number, ownerId: number) {
     .where(and(eq(bottleImages.id, imageId), eq(bottles.ownerId, ownerId)))
     .limit(1);
   return row?.image ?? null;
-}
-
-async function ownsBottle(bottleId: number, ownerId: number): Promise<boolean> {
-  return (await db.$count(bottles, ownedBottle(bottleId, ownerId))) > 0;
 }
 
 function invalid(issues: { path: PropertyKey[]; message: string }[]): ActionResult {
@@ -349,15 +336,11 @@ export async function saveTastingNoteAction(
   if (!parsed.success) return invalid(parsed.error.issues);
 
   try {
-    if (!(await ownsBottle(bottleId, user.id))) return { ok: false, error: "That bottle is gone." };
-    if (noteId === null) {
-      await db.insert(tastingNotes).values({ bottleId, ...parsed.data });
-    } else {
-      await db
-        .update(tastingNotes)
-        .set(parsed.data)
-        .where(and(eq(tastingNotes.id, noteId), eq(tastingNotes.bottleId, bottleId)));
-    }
+    const saved =
+      noteId === null
+        ? (await addTastingNote(bottleId, user.id, parsed.data)) !== null
+        : await updateTastingNote(bottleId, noteId, user.id, parsed.data);
+    if (!saved) return { ok: false, error: noteId === null ? "That bottle is gone." : "That note is gone." };
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
     return { ok: true, message: noteId === null ? "Note added." : "Note saved." };
@@ -369,8 +352,7 @@ export async function saveTastingNoteAction(
 export async function deleteTastingNoteAction(bottleId: number, noteId: number): Promise<ActionResult> {
   const user = await requireSession();
   try {
-    if (!(await ownsBottle(bottleId, user.id))) return { ok: false, error: "That bottle is gone." };
-    await db.delete(tastingNotes).where(and(eq(tastingNotes.id, noteId), eq(tastingNotes.bottleId, bottleId)));
+    if (!(await deleteTastingNote(bottleId, noteId, user.id))) return { ok: false, error: "That note is gone." };
     revalidatePath(`/bottles/${bottleId}`);
     return { ok: true, message: "Note deleted." };
   } catch (error: unknown) {
@@ -396,27 +378,7 @@ export async function setBottleFillAction(bottleId: number, fillPct: number): Pr
   if (!parsed.success) return { ok: false, error: "A fill level is 0 to 100." };
 
   try {
-    const [current] = await db
-      .select({ isOpen: bottles.isOpen, dateOpened: bottles.dateOpened, status: bottles.status })
-      .from(bottles)
-      .where(ownedBottle(bottleId, user.id))
-      .limit(1);
-    if (!current) return { ok: false, error: "That bottle is gone." };
-
-    const opening = parsed.data < 100 && !current.isOpen;
-    await db
-      .update(bottles)
-      .set({
-        fillPct: parsed.data,
-        ...(opening
-          ? {
-              isOpen: true,
-              ...(current.dateOpened === null ? { dateOpened: new Date().toISOString().slice(0, 10) } : {}),
-              ...(current.status === "owned" ? { status: "open" as const } : {}),
-            }
-          : {}),
-      })
-      .where(ownedBottle(bottleId, user.id));
+    if (!(await setFill(bottleId, user.id, parsed.data))) return { ok: false, error: "That bottle is gone." };
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
     return { ok: true, message: `Set to ${parsed.data}%.` };

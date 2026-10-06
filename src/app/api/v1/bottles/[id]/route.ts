@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
-import { apiError, parseId } from "@/lib/api/v1";
+import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
+import { setFill } from "@/lib/bottles/state";
 import { releaseById } from "@/lib/releases-store";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 
@@ -77,4 +80,33 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       overall: n.overall,
     })),
   });
+}
+
+/** Only these fields can change here; anything else is refused rather than quietly ignored. */
+const patchSchema = z.object({ fillPct: z.number().int().min(0).max(100) }).strict();
+
+/**
+ * Sets the fill level, with the web app's rules: below full opens a sealed
+ * bottle. The answer says what else changed, so the app doesn't have to guess.
+ */
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+  const user = await getCurrentUser();
+  if (!user) return apiError(401, "unauthorized", "Sign in first.");
+
+  const id = parseId((await params).id);
+  if (id === null) return apiError(404, "not_found", "That bottle is gone.");
+
+  const read = await readJsonObject(request);
+  if ("error" in read) return read.error;
+  const parsed = patchSchema.safeParse(read.body);
+  if (!parsed.success) {
+    return apiError(422, "invalid", parsed.error.issues[0]?.message ?? "Check the fields.", issueFields(parsed.error.issues));
+  }
+
+  const result = await setFill(id, user.id, parsed.data.fillPct);
+  if (!result) return apiError(404, "not_found", "That bottle is gone.");
+  revalidatePath(`/bottles/${id}`);
+  revalidatePath("/bottles");
+  revalidatePath("/");
+  return NextResponse.json(result);
 }

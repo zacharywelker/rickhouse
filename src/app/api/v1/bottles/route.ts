@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { bottles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { apiError, paramsRecord } from "@/lib/api/v1";
+import { apiError, paramsRecord, readJsonObject } from "@/lib/api/v1";
 import { mapDbError } from "@/lib/db-errors";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { parseFilters } from "@/lib/bottles/filters";
@@ -59,11 +59,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return apiError(401, "unauthorized", "Sign in first.");
 
-  const body: unknown = await request.json().catch(() => null);
-  if (typeof body !== "object" || body === null || Array.isArray(body)) {
-    return apiError(400, "bad_request", "Send a JSON object.");
-  }
-  const input = { acquisition: "purchase", status: "owned", ...body };
+  const read = await readJsonObject(request);
+  if ("error" in read) return read.error;
+  const input = { acquisition: "purchase", status: "owned", ...read.body };
 
   const parsed = bottleSchema.safeParse(input);
   if (!parsed.success) {

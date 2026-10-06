@@ -134,6 +134,26 @@ struct APIClient {
         return try Self.decoder.decode(CreatedBottle.self, from: data).id
     }
 
+    /// Sets the fill level. The answer says what else changed: below full opens a sealed bottle.
+    func setFill(bottleId: Int, to percent: Int) async throws -> FillResult {
+        try await sendJSON("PATCH", "api/v1/bottles/\(bottleId)", body: ["fillPct": percent], as: FillResult.self)
+    }
+
+    func addNote(bottleId: Int, _ note: NoteBody) async throws {
+        _ = try await sendJSON("POST", "api/v1/bottles/\(bottleId)/tasting-notes", body: note, as: CreatedBottle.self)
+    }
+
+    func updateNote(bottleId: Int, noteId: Int, _ note: NoteBody) async throws {
+        _ = try await sendJSON("PATCH", "api/v1/bottles/\(bottleId)/tasting-notes/\(noteId)", body: note, as: CreatedBottle.self)
+    }
+
+    func deleteNote(bottleId: Int, noteId: Int) async throws {
+        var req = request(path: "api/v1/bottles/\(bottleId)/tasting-notes/\(noteId)")
+        req.httpMethod = "DELETE"
+        let (data, response) = try await Self.send(req)
+        try Self.check(response, data)
+    }
+
     /// Multipart upload to the web route; the first photo becomes the bottle's hero shot.
     func uploadImages(bottleId: Int, jpegs: [Data]) async throws {
         let boundary = "rickhouse-\(UUID().uuidString)"
@@ -160,6 +180,16 @@ struct APIClient {
     }
 
     // MARK: Plumbing
+
+    private func sendJSON<Body: Encodable, Answer: Decodable>(_ method: String, _ path: String, body: Body, as type: Answer.Type) async throws -> Answer {
+        var req = request(path: path)
+        req.httpMethod = method
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await Self.send(req)
+        try Self.check(response, data)
+        return try Self.decoder.decode(Answer.self, from: data)
+    }
 
     private func request(path: String, query: [URLQueryItem] = []) -> URLRequest {
         var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
