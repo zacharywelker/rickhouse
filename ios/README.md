@@ -38,13 +38,14 @@ The app uses a small JSON API under `/api/v1`, plus two web routes that accept t
 | `POST /api/v1/bottles` | Add a bottle of an existing label (`expressionId` required) |
 | `GET /api/v1/expressions?q=&upc=` | Search labels for the picker. `upc` finds a label by barcode (exact; a 12-digit UPC-A and its 13-digit EAN form match each other); a bad code is a 422. Each label carries its `upc` |
 | `POST /api/v1/expressions` | Start a label: `brand` (a name, created if new), `name`, `categoryId`, optional `upc`. Answers `201` with the label; a label the brand already has is a `409` `duplicate` that carries it as `existing` |
+| `PATCH /api/v1/expressions/:id` | Save a scanned barcode (`{ "upc": "…" }`) onto a label that has none, so the next scan finds it. Never overwrites: a label with a different code is a `409` `has_barcode`; the same code again is a no-op |
 | `GET /api/v1/categories` | The categories a label can have (`id`, `name`, `parent`), in the web form's order |
 | `POST /api/bottles/:id/images` | Multipart photo upload (`images` field) |
 | `GET /api/images/<path>` | A photo or thumbnail |
 
 Every `/api/v1` response carries `x-rickhouse-api` (currently `1`). Within a version the API only adds fields; the app refuses a server outside the versions it supports and says which side to update.
 
-Errors from `/api/v1` look like `{ "error": { "code", "message", "fields?" } }`. A `409` `duplicate` adds an `existing` label beside `error`.
+Errors from `/api/v1` look like `{ "error": { "code", "message", "fields?" } }`. A `409` (`duplicate`, `has_barcode`) adds an `existing` label beside `error`.
 
 ## Look
 

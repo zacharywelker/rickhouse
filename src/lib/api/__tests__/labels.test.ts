@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { expressionSchema } from "@/lib/expressions/schema";
-import { newLabelSchema, normalizeUpc, upcCandidates } from "../labels";
+import { attachBarcodeSchema, newLabelSchema, normalizeUpc, upcCandidates } from "../labels";
 
 describe("normalizeUpc", () => {
   it("keeps digits and drops spaces and dashes", () => {
@@ -52,5 +52,14 @@ describe("a new label through the web label schema", () => {
     const parsed = expressionSchema.safeParse({ brandId: 3, categoryId: 7, name: "Vertical Series", upc: "081128012345" });
     expect(parsed.success).toBe(true);
     expect(parsed.data?.upc).toBe("081128012345");
+  });
+});
+
+describe("attachBarcodeSchema", () => {
+  it("needs a real barcode", () => {
+    expect(attachBarcodeSchema.parse({ upc: "081 128-012345" }).upc).toBe("081128012345");
+    expect(attachBarcodeSchema.safeParse({ upc: "12" }).success).toBe(false);
+    expect(attachBarcodeSchema.safeParse({}).success).toBe(false);
+    expect(attachBarcodeSchema.safeParse({ upc: null }).success).toBe(false);
   });
 });

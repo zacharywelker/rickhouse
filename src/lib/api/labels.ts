@@ -35,3 +35,15 @@ export const newLabelSchema = z.object({
 });
 
 export type NewLabel = z.infer<typeof newLabelSchema>;
+
+/** The body of "save this scanned barcode onto a label". */
+export const attachBarcodeSchema = z.object({
+  upc: z.string({ message: "A barcode is 6–32 digits." }).transform((value, ctx) => {
+    const digits = normalizeUpc(value);
+    if (digits === null) {
+      ctx.addIssue({ code: "custom", message: "A barcode is 6–32 digits." });
+      return z.NEVER;
+    }
+    return digits;
+  }),
+});
