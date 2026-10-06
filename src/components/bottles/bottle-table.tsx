@@ -232,10 +232,10 @@ export function BottleTable({
               width={32}
               height={32}
               unoptimized
-              className="size-8 border border-border object-cover"
+              className="size-8 max-w-none shrink-0 border border-border object-cover"
             />
           ) : (
-            <div className="size-8 border border-dashed border-border" aria-hidden="true" />
+            <div className="size-8 shrink-0 border border-dashed border-border" aria-hidden="true" />
           ),
       }),
       helper.accessor("fillPct", {
