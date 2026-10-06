@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { withOption } from "@/lib/forms/values";
@@ -21,6 +19,9 @@ import { AgeFields } from "./age-fields";
 import { OrderedPicker, type LinkedRow } from "./ordered-picker";
 import { DeleteExpressionButton } from "./delete-expression-button";
 import { PendingColas } from "./cola-approvals";
+import { RowListEditor } from "./row-list-editor";
+import { otherNamesRowsText, parseOtherNames } from "@/lib/other-names";
+import { parseReleases, releaseRow, releaseRowsText } from "@/lib/releases";
 
 /** Every field on the label form, for seeding state from a row or from nothing. */
 export const LABEL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
@@ -217,8 +218,6 @@ export function ExpressionForm({
   const [values, setValues] = React.useState(() => initialFieldValues(LABEL_FIELDS, initialValues));
   const [optionsByField, setOptionsByField] = React.useState(options);
   const [links, setLinks] = React.useState(initialLinks);
-  const [otherNames, setOtherNames] = React.useState(initialOtherNames);
-  const [releases, setReleases] = React.useState(initialReleases);
 
   const action = saveExpressionAction.bind(null, expressionId);
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
@@ -261,20 +260,23 @@ export function ExpressionForm({
           </SectionDescription>
         </SectionHeader>
         <SectionContent>
-          <Label htmlFor="expression-otherNames">Older names</Label>
-          <Textarea
-            id="expression-otherNames"
+          <RowListEditor
             name="otherNames"
-            rows={3}
-            value={otherNames}
-            onChange={(event) => setOtherNames(event.target.value)}
-            placeholder={"Old Grand-Dad Bonded (1980–1995)\nOld Grand-Dad 100 (from 1996)"}
-            aria-invalid={fieldErrors.otherNames ? true : undefined}
+            idPrefix="expression-otherName"
+            addLabel="Add an older name"
+            columns={[
+              { key: "name", label: "Name", placeholder: "Old Grand-Dad Bonded" },
+              { key: "yearFrom", label: "From", placeholder: "1980", inputMode: "numeric", pattern: "\\d{4}", title: "A four-digit year", className: "sm:w-24" },
+              { key: "yearTo", label: "Until", placeholder: "1995", inputMode: "numeric", pattern: "\\d{4}", title: "A four-digit year", className: "sm:w-24" },
+            ]}
+            initialRows={parseOtherNames(initialOtherNames).names.map((n) => ({
+              name: n.name,
+              yearFrom: n.yearFrom === null ? "" : String(n.yearFrom),
+              yearTo: n.yearTo === null ? "" : String(n.yearTo),
+            }))}
+            toText={otherNamesRowsText}
+            error={fieldErrors.otherNames}
           />
-          <p className="text-xs text-muted-foreground">
-            One per line. Years in brackets are optional: (1980–1995), (from 1996) or (until 1985).
-          </p>
-          {fieldErrors.otherNames ? <p className="text-sm text-destructive">{fieldErrors.otherNames}</p> : null}
         </SectionContent>
       </Section>
 
@@ -283,26 +285,25 @@ export function ExpressionForm({
           <SectionTitle>Known releases</SectionTitle>
           <SectionDescription>
             Batches or yearly editions of this label. A bottle can say which one it is, and takes its proof, age and
-            MSRP unless the bottle says otherwise.
+            MSRP unless the bottle says otherwise. Leave a box blank to use the label&apos;s.
           </SectionDescription>
         </SectionHeader>
         <SectionContent>
-          <Label htmlFor="expression-releases">Releases</Label>
-          <Textarea
-            id="expression-releases"
+          <RowListEditor
             name="releases"
-            rows={4}
-            value={releases}
-            onChange={(event) => setReleases(event.target.value)}
-            placeholder={"2024-01 Springfield | 2024 | 124.6 | 7y 2m 3d | 99.99\nBourbon War | 2020 | | 4y"}
-            aria-invalid={fieldErrors.releases ? true : undefined}
-            className="font-mono text-sm"
+            idPrefix="expression-release"
+            addLabel="Add a release"
+            columns={[
+              { key: "name", label: "Name", placeholder: "2024-01 Springfield", pattern: "[^|]*", title: "Names can't contain |" },
+              { key: "year", label: "Year", placeholder: "2024", inputMode: "numeric", pattern: "\\d{4}", title: "A four-digit year", className: "sm:w-20" },
+              { key: "proof", label: "Proof", placeholder: "124.6", inputMode: "decimal", pattern: "\\d+(\\.\\d{1,2})?", title: "A number, like 124.6", className: "sm:w-20" },
+              { key: "age", label: "Age", placeholder: "7y 2m 3d", className: "sm:w-28" },
+              { key: "msrp", label: "MSRP", placeholder: "99.99", inputMode: "decimal", pattern: "\\$?\\d+(\\.\\d{1,2})?", title: "A price, like 99.99", className: "sm:w-24" },
+            ]}
+            initialRows={parseReleases(initialReleases).releases.map(releaseRow)}
+            toText={releaseRowsText}
+            error={fieldErrors.releases}
           />
-          <p className="text-xs text-muted-foreground">
-            One per line: name | year | proof | age | MSRP. Only the name is required; leave a part blank to use the
-            label&apos;s. Age is 7y 2m 3d, a number of years, or any wording.
-          </p>
-          {fieldErrors.releases ? <p className="text-sm text-destructive">{fieldErrors.releases}</p> : null}
         </SectionContent>
       </Section>
 

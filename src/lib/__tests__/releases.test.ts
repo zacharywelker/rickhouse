@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseReleases, releaseLabel, releasesText } from "../releases";
+import { parseReleases, releaseLabel, releaseRow, releaseRowsText, releasesText } from "../releases";
 
 describe("parseReleases", () => {
   it("reads every column, and lines with only some of them", () => {
@@ -74,5 +74,22 @@ describe("releaseLabel", () => {
     expect(releaseLabel({ name: "Bourbon War", releaseYear: 2020 })).toBe("Bourbon War (2020)");
     expect(releaseLabel({ name: "2024-01 Springfield", releaseYear: 2024 })).toBe("2024-01 Springfield");
     expect(releaseLabel({ name: "Batch C923", releaseYear: null })).toBe("Batch C923");
+  });
+});
+
+describe("releaseRowsText", () => {
+  it("reads back exactly the rows the label form holds", () => {
+    const rows = [
+      { name: "2024-01 Springfield", year: "2024", proof: "124.6", age: "7y 2m 3d", msrp: "$99.99" },
+      { name: "Bourbon War", year: "2020", proof: "", age: "4", msrp: "" },
+      { name: "Batch C923", year: "", proof: "", age: "", msrp: "" },
+    ];
+    const { releases, error } = parseReleases(releaseRowsText(rows));
+    expect(error).toBeNull();
+    expect(releases.map(releaseRow)).toEqual([
+      { name: "2024-01 Springfield", year: "2024", proof: "124.6", age: "7y 2m 3d", msrp: "99.99" },
+      { name: "Bourbon War", year: "2020", proof: "", age: "4y", msrp: "" },
+      { name: "Batch C923", year: "", proof: "", age: "", msrp: "" },
+    ]);
   });
 });

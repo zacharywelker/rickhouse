@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nameWithYears, otherNamesText, parseOtherNames, yearsText } from "../other-names";
+import { nameWithYears, otherNamesRowsText, otherNamesText, parseOtherNames, yearsText } from "../other-names";
 
 describe("parseOtherNames", () => {
   it("reads names with and without years", () => {
@@ -50,5 +50,24 @@ describe("formatting", () => {
     expect(parseOtherNames(otherNamesText(names)).names).toEqual(names);
     expect(yearsText({ yearFrom: 1990, yearTo: 1990 })).toBe("1990");
     expect(nameWithYears(names[3]!)).toBe("D");
+  });
+});
+
+describe("otherNamesRowsText", () => {
+  it("reads back exactly the rows the label form holds", () => {
+    const rows = [
+      { name: "Old Grand-Dad Bonded", yearFrom: "1980", yearTo: "1995" },
+      { name: "Old Grand-Dad 100", yearFrom: "1996", yearTo: "" },
+      { name: "Hirsch", yearFrom: "", yearTo: "1985" },
+      { name: "One Year", yearFrom: "1990", yearTo: "1990" },
+      { name: "Plain", yearFrom: "", yearTo: "" },
+    ];
+    expect(parseOtherNames(otherNamesRowsText(rows)).names).toEqual([
+      { name: "Old Grand-Dad Bonded", yearFrom: 1980, yearTo: 1995 },
+      { name: "Old Grand-Dad 100", yearFrom: 1996, yearTo: null },
+      { name: "Hirsch", yearFrom: null, yearTo: 1985 },
+      { name: "One Year", yearFrom: 1990, yearTo: 1990 },
+      { name: "Plain", yearFrom: null, yearTo: null },
+    ]);
   });
 });
