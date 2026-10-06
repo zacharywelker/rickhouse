@@ -100,7 +100,7 @@ export function BulkGrid({
   /** Follow-on changes to make when a field changes — the form's niceties. */
   onChanged?: (prev: RowValues, next: RowValues, name: string) => RowValues;
   /** Extra choices for a select column that depend on the row, like a label's releases. */
-  selectOptionsFor?: (name: string, values: RowValues) => Option[];
+  selectOptionsFor?: (name: string, values: RowValues) => Array<{ value: string; label: string }>;
   save: (rows: Record<string, unknown>[]) => Promise<BulkSaveResult>;
   noun: string;
   /** Where this grid remembers its hidden columns. */
