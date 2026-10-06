@@ -297,7 +297,9 @@ export function ExpressionForm({
               { key: "name", label: "Name", placeholder: "2024-01 Springfield", pattern: "[^|]*", title: "Names can't contain |" },
               { key: "year", label: "Year", placeholder: "2024", inputMode: "numeric", pattern: "\\d{4}", title: "A four-digit year", className: "sm:w-20" },
               { key: "proof", label: "Proof", placeholder: "124.6", inputMode: "decimal", pattern: "\\d+(\\.\\d{1,2})?", title: "A number, like 124.6", className: "sm:w-20" },
-              { key: "age", label: "Age", placeholder: "7y 2m 3d", className: "sm:w-28" },
+              { key: "ageYears", label: "Years", placeholder: "7", inputMode: "decimal", pattern: "\\d+(\\.\\d)?", title: "Years, like 7 or 7.5", className: "sm:w-16" },
+              { key: "ageMonths", label: "Months", placeholder: "2", inputMode: "numeric", pattern: "\\d+", title: "Whole months", className: "sm:w-16" },
+              { key: "ageDays", label: "Days", placeholder: "3", inputMode: "numeric", pattern: "\\d+", title: "Whole days", className: "sm:w-16" },
               { key: "msrp", label: "MSRP", placeholder: "99.99", inputMode: "decimal", pattern: "\\$?\\d+(\\.\\d{1,2})?", title: "A price, like 99.99", className: "sm:w-24" },
             ]}
             initialRows={parseReleases(initialReleases).releases.map(releaseRow)}

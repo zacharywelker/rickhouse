@@ -135,13 +135,20 @@ export function releaseLabel(r: Pick<Release, "name" | "releaseYear">): string {
   return r.releaseYear !== null && !r.name.includes(String(r.releaseYear)) ? `${r.name} (${r.releaseYear})` : r.name;
 }
 
-/** One release as the label form's row of strings. */
+/**
+ * One release as the label form's row of strings. Age is split the way every
+ * other age field is; a wording-only age rides along unseen in `ageStatement`
+ * so saving the form does not drop it.
+ */
 export function releaseRow(r: Release): Record<string, string> {
   return {
     name: r.name,
     year: r.releaseYear !== null ? String(r.releaseYear) : "",
     proof: r.proof !== null ? String(Number(r.proof)) : "",
-    age: releaseAgeText(r),
+    ageYears: r.ageYears !== null ? String(Number(r.ageYears)) : "",
+    ageMonths: r.ageMonths !== null ? String(r.ageMonths) : "",
+    ageDays: r.ageDays !== null ? String(r.ageDays) : "",
+    ageStatement: r.ageStatement ?? "",
     msrp: r.msrp !== null ? String(Number(r.msrp)) : "",
   };
 }
@@ -149,11 +156,15 @@ export function releaseRow(r: Release): Record<string, string> {
 /** The label form's rows (strings as typed) as the lines `parseReleases` reads. */
 export function releaseRowsText(rows: ReadonlyArray<Record<string, string>>): string {
   return rows
-    .map((row) =>
-      [row.name, row.year, row.proof, row.age, row.msrp]
-        .map((cell) => (cell ?? "").trim())
-        .join(" | ")
-        .replace(/( \| )+$/, ""),
-    )
+    .map((row) => {
+      const cell = (key: string) => (row[key] ?? "").trim();
+      const parts = [
+        cell("ageYears") && `${cell("ageYears")}y`,
+        cell("ageMonths") && `${cell("ageMonths")}m`,
+        cell("ageDays") && `${cell("ageDays")}d`,
+      ].filter(Boolean);
+      const age = parts.length > 0 ? parts.join(" ") : cell("ageStatement");
+      return [cell("name"), cell("year"), cell("proof"), age, cell("msrp")].join(" | ").replace(/( \| )+$/, "");
+    })
     .join("\n");
 }
