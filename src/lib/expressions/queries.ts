@@ -513,19 +513,19 @@ export async function bottlesOfLabel(expressionId: number, ownerId: number, rele
       status: bottles.status,
       isOpen: bottles.isOpen,
       store: { name: stores.name, slug: stores.slug },
-      // A bottle with no photo of its own shows its label's.
+      // A bottle with no photo of its own shows its release's, then its label's.
       thumbPath: sql<string | null>`coalesce((
         select coalesce(${bottleImages.thumbPath}, ${bottleImages.filePath}) from ${bottleImages}
         where ${bottleImages.bottleId} = ${bottles.id}
         order by ${bottleImages.isPrimary} desc, ${bottleImages.sortOrder}, ${bottleImages.id}
         limit 1
-      ), ${expressions.photoThumbPath}, ${expressions.photoPath})`,
+      ), ${expressionReleases.photoThumbPath}, ${expressionReleases.photoPath}, ${expressions.photoThumbPath}, ${expressions.photoPath})`,
       filePath: sql<string | null>`coalesce((
         select ${bottleImages.filePath} from ${bottleImages}
         where ${bottleImages.bottleId} = ${bottles.id}
         order by ${bottleImages.isPrimary} desc, ${bottleImages.sortOrder}, ${bottleImages.id}
         limit 1
-      ), ${expressions.photoPath})`,
+      ), ${expressionReleases.photoPath}, ${expressions.photoPath})`,
     })
     .from(bottles)
     .innerJoin(expressions, eq(expressions.id, bottles.expressionId))

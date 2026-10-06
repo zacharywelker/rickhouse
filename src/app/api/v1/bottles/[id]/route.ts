@@ -63,10 +63,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     distilleries: links.distilleries.map((d) => d.name),
     finishes: links.finishes.map((f) => f.name),
     mashbills: links.mashbills.map((m) => m.recipe),
-    // No photo of its own: the label's stands in (id 0 — it isn't a bottle photo).
+    // No photo of its own: the release's, then the label's, stands in (id 0 — it isn't a bottle photo).
     images:
-      images.length === 0 && expression.photoPath
-        ? [{ id: 0, path: expression.photoPath, thumbPath: expression.photoThumbPath, isPrimary: true, caption: null }]
+      images.length === 0 && (release?.photoPath ?? expression.photoPath)
+        ? [
+            release?.photoPath
+              ? { id: 0, path: release.photoPath, thumbPath: release.photoThumbPath, isPrimary: true, caption: null }
+              : { id: 0, path: expression.photoPath!, thumbPath: expression.photoThumbPath, isPrimary: true, caption: null },
+          ]
         : images.map((i) => ({
             id: i.id,
             path: i.filePath,
