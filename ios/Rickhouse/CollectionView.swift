@@ -29,7 +29,9 @@ struct CollectionView: View {
         .background(Theme.paper)
         .toolbarBackground(Theme.paper, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: BottleSummary.self) { BottleDetailView(id: $0.id) }
+        .navigationDestination(for: BottleSummary.self) { bottle in
+            BottleDetailView(id: bottle.id, onChanged: { Task { await reload() } })
+        }
         .searchable(text: $query, prompt: "Search bottles")
         .task(id: query) {
             // Debounce typing; .task(id:) cancels the previous run.

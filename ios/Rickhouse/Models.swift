@@ -37,10 +37,10 @@ struct BottleDetail: Decodable {
     let brand: String
     let name: String
     let category: String
-    let status: String
-    let isOpen: Bool
+    var status: String
+    var isOpen: Bool
     let isFavorite: Bool
-    let fillPct: Int
+    var fillPct: Int
     let proof: String?
     let ageStatement: String?
     let sizeMl: Int
@@ -48,6 +48,7 @@ struct BottleDetail: Decodable {
     let pricePaid: String?
     let store: String?
     let dateAcquired: String?
+    var dateOpened: String?
     let batch: String?
     let releaseYear: Int?
     let barrelNumber: String?
@@ -58,7 +59,15 @@ struct BottleDetail: Decodable {
     let finishes: [String]
     let mashbills: [String]
     let images: [BottleImage]
-    let tastingNotes: [TastingNote]
+    var tastingNotes: [TastingNote]
+}
+
+/// What the server changed besides the level when one is set.
+struct FillResult: Decodable {
+    let fillPct: Int
+    let isOpen: Bool
+    let status: String
+    let dateOpened: String?
 }
 
 struct BottleImage: Decodable, Identifiable {
@@ -68,7 +77,7 @@ struct BottleImage: Decodable, Identifiable {
     let isPrimary: Bool
 }
 
-struct TastingNote: Decodable, Identifiable {
+struct TastingNote: Decodable, Identifiable, Equatable {
     let id: Int
     let tastedOn: String
     let rating: String?
@@ -101,3 +110,13 @@ struct NewBottle: Encodable {
 }
 
 struct CreatedBottle: Decodable { let id: Int }
+
+/// A tasting note as the server takes it. Left out, a field is cleared, so an edit sends all of them.
+struct NoteBody: Encodable {
+    var tastedOn: String
+    var rating: Double?
+    var nose: String?
+    var palate: String?
+    var finish: String?
+    var overall: String?
+}
