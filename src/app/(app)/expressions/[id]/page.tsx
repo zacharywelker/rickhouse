@@ -46,8 +46,8 @@ function releaseOf(bottle: Awaited<ReturnType<typeof bottlesOfLabel>>[number]): 
     bottle.pickName ? `“${bottle.pickName}”` : null,
     bottle.pickedBy ? `picked by ${bottle.pickedBy}` : bottle.isSingleBarrelPick ? "private selection" : null,
     bottle.barrelNumber ? `barrel ${bottle.barrelNumber}` : bottle.isSingleBarrel ? "single barrel" : null,
-    bottle.batch ? `batch ${bottle.batch}` : null,
-    bottle.releaseYear ? String(bottle.releaseYear) : null,
+    bottle.releaseName ?? (bottle.batch ? `batch ${bottle.batch}` : null),
+    bottle.releaseYear && !bottle.releaseName?.includes(String(bottle.releaseYear)) ? String(bottle.releaseYear) : null,
   ].filter(Boolean);
   if (parts.length === 0) return "Standard release";
   const text = parts.join(", ");
@@ -351,7 +351,7 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
                         {note.pickName || note.barrelNumber || note.batch ? (
                           <span className="font-normal text-muted-foreground">
                             {" · "}
-                            {note.pickName ?? (note.barrelNumber ? `barrel ${note.barrelNumber}` : `batch ${note.batch}`)}
+                            {note.pickName ?? (note.barrelNumber ? `barrel ${note.barrelNumber}` : note.batch)}
                           </span>
                         ) : null}
                       </Link>

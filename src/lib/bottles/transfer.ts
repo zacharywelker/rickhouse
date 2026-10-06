@@ -9,6 +9,7 @@ import {
   distilleries,
   expressionDistilleries,
   expressionFinishes,
+  expressionReleases,
   expressions,
   finishes,
   stores,
@@ -58,7 +59,8 @@ export async function exportBottlesCsv(ownerId: number): Promise<string> {
       expression: expressions.name,
       // Batch lives on the bottle now (M7): two batches of one product are
       // two bottles of one label, so it exports per row rather than per label.
-      batch: bottles.batch,
+      // A chosen release's name, which replaces the bottle's own batch.
+      batch: sql<string | null>`coalesce(${expressionReleases.name}::text, ${bottles.batch})`,
       category: categories.name,
       proof: expressions.proof,
       ageStatement: expressions.ageStatement,
@@ -94,6 +96,7 @@ export async function exportBottlesCsv(ownerId: number): Promise<string> {
     .innerJoin(brands, eq(expressions.brandId, brands.id))
     .innerJoin(categories, eq(expressions.categoryId, categories.id))
     .leftJoin(stores, eq(bottles.storeId, stores.id))
+    .leftJoin(expressionReleases, eq(expressionReleases.id, bottles.releaseId))
     .where(eq(bottles.ownerId, ownerId))
     .orderBy(asc(brands.name), asc(expressions.name), asc(bottles.id));
 
