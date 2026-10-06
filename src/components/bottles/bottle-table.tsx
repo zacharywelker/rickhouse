@@ -33,6 +33,7 @@ import { BOTTLE_STATUSES } from "@/db/schema";
 import type { Option } from "@/lib/admin/types";
 import { DistilleryNames } from "@/components/ui/inferred";
 import { BottleCards } from "./bottle-cards";
+import { categoryColor } from "@/lib/bottles/category-palette";
 import { FillGauge } from "./fill-gauge";
 import { StatusMark } from "./status-mark";
 import { useGridFilters } from "./use-grid-filters";
@@ -226,16 +227,22 @@ export function BottleTable({
         header: "",
         cell: ({ row }) =>
           row.original.thumbPath ? (
-            <Image
-              src={`/api/images/${row.original.thumbPath}`}
-              alt=""
-              width={32}
-              height={32}
-              unoptimized
-              className="size-8 max-w-none shrink-0 border border-border object-cover"
-            />
+            // A 3:4 slot with the whole photo scaled to fit, on the category's
+            // colour like the gallery card — a cut-out bottle is never cropped.
+            <div
+              className="relative h-14 w-[42px] shrink-0 border border-foreground"
+              style={{ backgroundColor: categoryColor(row.original.category).hex }}
+            >
+              <Image
+                src={`/api/images/${row.original.thumbPath}`}
+                alt=""
+                fill
+                unoptimized
+                className="object-contain p-0.5"
+              />
+            </div>
           ) : (
-            <div className="size-8 shrink-0 border border-dashed border-border" aria-hidden="true" />
+            <div className="h-14 w-[42px] shrink-0 border border-dashed border-border" aria-hidden="true" />
           ),
       }),
       helper.accessor("fillPct", {
