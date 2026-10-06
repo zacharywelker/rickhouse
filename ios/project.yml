@@ -22,7 +22,7 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_CFBundleDisplayName: Rickhouse
-        INFOPLIST_KEY_NSCameraUsageDescription: Rickhouse uses the camera to photograph your bottles and labels.
+        INFOPLIST_KEY_NSCameraUsageDescription: Rickhouse uses the camera to photograph your bottles and labels, and to scan their barcodes.
       # Release is HTTPS only, enforced in Session.normalise (generated
       # Info.plists can't carry an ATS dictionary). Debug may use a LAN dev server.
       configs:
