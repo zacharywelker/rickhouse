@@ -8,6 +8,21 @@ enum Theme {
     static let ink = Color(hex: 0x14213D)
     /// Secondary text. About 5.2:1 on paper.
     static let muted = Color(hex: 0x5B6478)
+    /// Error text. About 5.8:1 on paper; system red is about 3.2:1.
+    static let error = Color(hex: 0xB3261E)
+}
+
+/// An error message: the icon keeps colour from being the only cue.
+struct ErrorText: View {
+    let message: String
+
+    init(_ message: String) { self.message = message }
+
+    var body: some View {
+        Label(message, systemImage: "exclamationmark.triangle.fill")
+            .font(.inter(14, relativeTo: .footnote))
+            .foregroundStyle(Theme.error)
+    }
 }
 
 extension Color {

@@ -33,13 +33,15 @@ struct SignInView: View {
                     .textContentType(.password)
             }
             if let error {
-                Section { Text(error).foregroundStyle(.red) }
+                Section { ErrorText(error) }
             }
             Section {
                 Button(busy ? "Signing in…" : "Sign in", action: submit)
                     .disabled(busy || server.isEmpty || username.isEmpty || password.isEmpty)
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Theme.paper)
         .sheet(item: challengeBinding) { item in
             TwoFactorView(challenge: item.challenge)
         }
