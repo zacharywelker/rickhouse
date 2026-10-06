@@ -256,7 +256,18 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="How" value={humanise(row.bottle.acquisition)} />
             <Spec label="Status" value={humanise(row.bottle.status)} />
             <Spec label="Where" value={row.bottle.location} />
-            <Spec label={release ? "Release" : "Batch"} value={batch} />
+            <Spec
+              label={release ? "Release" : "Batch"}
+              value={
+                release ? (
+                  <Link href={`/expressions/${e.id}/releases/${release.id}` as Route} className="text-primary hover:underline">
+                    {batch}
+                  </Link>
+                ) : (
+                  batch
+                )
+              }
+            />
             <Spec label="UPC" value={e.upc} />
           </dl>
           <CharLevelSpec value={e.charLevel} />

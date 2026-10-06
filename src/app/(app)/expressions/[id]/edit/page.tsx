@@ -6,8 +6,8 @@ import { expressionFormData } from "@/lib/expressions/form-data";
 import { getExpression } from "@/lib/expressions/queries";
 import { otherNamesText } from "@/lib/other-names";
 import { expressionOtherNames } from "@/lib/other-names-store";
-import { releasesText } from "@/lib/releases";
-import { expressionReleaseList } from "@/lib/releases-store";
+import { releaseRow } from "@/lib/releases";
+import { expressionReleaseList, releaseRemovalImpact } from "@/lib/releases-store";
 import { requireSession } from "@/lib/auth";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 
@@ -23,11 +23,12 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
   const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
 
-  const [{ options, categoryGroups, links }, colas, otherNames, releases] = await Promise.all([
+  const [{ options, categoryGroups, links }, colas, otherNames, releases, releaseImpact] = await Promise.all([
     expressionFormData(expressionId, user.id),
     colasForExpression(expressionId, user.id),
     expressionOtherNames(expressionId),
     expressionReleaseList(expressionId),
+    releaseRemovalImpact(expressionId),
   ]);
   const distilleryMatches = await distilleriesByPermit(
     user.id,
@@ -46,7 +47,8 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
         initialValues={row.expression as unknown as Record<string, string | number | boolean | null>}
         initialLinks={links}
         initialOtherNames={otherNamesText(otherNames)}
-        initialReleases={releasesText(releases)}
+        initialReleases={releases.map(releaseRow)}
+        releaseImpact={releaseImpact}
         options={options}
         categoryGroups={categoryGroups}
       />

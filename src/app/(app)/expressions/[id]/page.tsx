@@ -229,7 +229,11 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
                 <tbody>
                   {releases.map((r) => (
                     <tr key={r.id} className="border-t border-border">
-                      <td className="py-1">{releaseLabel(r)}</td>
+                      <td className="py-1">
+                        <Link href={`/expressions/${expressionId}/releases/${r.id}` as Route} className="hover:text-accent hover:underline">
+                          {releaseLabel(r)}
+                        </Link>
+                      </td>
                       <td className="py-1">{r.proof ? formatNumeric(r.proof) : "—"}</td>
                       <td className="py-1">{ageLabel(r) || "—"}</td>
                       <td className="py-1">{r.msrp ? formatMoney(r.msrp, currency) : "—"}</td>

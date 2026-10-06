@@ -306,6 +306,9 @@ CREATE TABLE expression_releases (
     age_days      integer,
     age_statement text,
     msrp          numeric(10,2),
+    photo_path    text,                     -- the release's own label photo
+    photo_thumb_path text,
+    notes         text,
     position      integer NOT NULL DEFAULT 0,
     UNIQUE (expression_id, name)
 );
