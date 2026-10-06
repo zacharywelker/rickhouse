@@ -19,7 +19,7 @@ Set your signing team in the target's *Signing & Capabilities*, then run.
 
 ## Signing in
 
-Enter the `https://` address you open Rickhouse at (through your reverse proxy, or Tailscale) and your username and password. Release builds refuse plain `http://`, so the token never crosses the network unencrypted; Debug builds allow it for a local development server. The server answers with a bearer token, which the app keeps in the Keychain. Two-step sign-in (authenticator app, backup code or emailed code) is supported. An account still holding a generated password must pick its own in the web app first.
+Enter the `https://` address you open Rickhouse at (through your reverse proxy, or Tailscale) and your username and password. Release builds refuse plain `http://`, so the token never crosses the network unencrypted; Debug builds allow it for a local development server. If the server has Turnstile on, the app runs the check in a small sheet first and sends its token with the password. The server answers with a bearer token, which the app keeps in the Keychain. Two-step sign-in (authenticator app, backup code or emailed code) is supported. An account still holding a generated password must pick its own in the web app first.
 
 ## Server API
 
@@ -28,6 +28,7 @@ The app uses a small JSON API under `/api/v1`, plus two web routes that accept t
 | Request | Purpose |
 | --- | --- |
 | `POST /api/auth/sign-in/username` | Sign in; the token comes back in the `set-auth-token` header |
+| `GET /api/v1/server` | Public. The API version and, when the server has Cloudflare Turnstile on, its site key |
 | `GET /api/v1/me` | Who the token belongs to |
 | `GET /api/v1/bottles` | The collection; takes the web grid's `q`, `status`, `sort`, `desc`, `page`, `size`, … |
 | `GET /api/v1/bottles/:id` | One bottle with label specs, photos and tasting notes |

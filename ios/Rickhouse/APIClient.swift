@@ -33,7 +33,7 @@ struct APIClient {
     /// server only adds fields, and Codable ignores ones it doesn't know.
     static let supportedAPIVersions = 1...1
 
-    private static let decoder = JSONDecoder()
+    fileprivate static let decoder = JSONDecoder()
 
     // MARK: Sign in
 
@@ -42,8 +42,22 @@ struct APIClient {
         case needsSecondFactor(TwoFactorChallenge)
     }
 
-    static func signIn(baseURL: URL, username: String, password: String) async throws -> SignInOutcome {
-        let (data, response) = try await post(baseURL, "api/auth/sign-in/username", json: ["username": username, "password": password])
+    /// What the server says before sign-in: its API version and, when it asks
+    /// for a Turnstile check, the site key for the widget.
+    struct ServerInfo: Decodable {
+        let turnstileSiteKey: String?
+    }
+
+    static func serverInfo(baseURL: URL) async throws -> ServerInfo {
+        let (data, response) = try await send(URLRequest(url: baseURL.appending(path: "api/v1/server")))
+        try check(response, data)
+        return try decoder.decode(ServerInfo.self, from: data)
+    }
+
+    /// `captchaToken` is the Turnstile result; the server refuses sign-in
+    /// without one when it has Turnstile switched on.
+    static func signIn(baseURL: URL, username: String, password: String, captchaToken: String? = nil) async throws -> SignInOutcome {
+        let (data, response) = try await post(baseURL, "api/auth/sign-in/username", json: ["username": username, "password": password], captchaToken: captchaToken)
         guard let http = response as? HTTPURLResponse else { throw APIError.badServer }
         guard http.statusCode == 200 else { throw APIError.server(message(from: data) ?? "Wrong username or password.") }
 
@@ -67,7 +81,7 @@ struct APIClient {
         return .signedIn(token: token, user: me)
     }
 
-    fileprivate static func post(_ baseURL: URL, _ path: String, json: [String: Any], cookie: String? = nil) async throws -> (Data, URLResponse) {
+    fileprivate static func post(_ baseURL: URL, _ path: String, json: [String: Any], cookie: String? = nil, captchaToken: String? = nil) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: baseURL.appending(path: path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -76,6 +90,7 @@ struct APIClient {
         // Cookies are passed by hand, so nothing leaks between sign-in attempts.
         request.httpShouldHandleCookies = false
         if let cookie { request.setValue(cookie, forHTTPHeaderField: "Cookie") }
+        if let captchaToken { request.setValue(captchaToken, forHTTPHeaderField: "x-captcha-response") }
         request.httpBody = try JSONSerialization.data(withJSONObject: json)
         return try await send(request)
     }
@@ -170,7 +185,7 @@ struct APIClient {
         }
     }
 
-    private static func check(_ response: URLResponse, _ data: Data) throws {
+    fileprivate static func check(_ response: URLResponse, _ data: Data) throws {
         guard let http = response as? HTTPURLResponse else { throw APIError.badServer }
         // Checked before the status, so a mismatch isn't misread as a decode error.
         if http.url?.path.contains("/api/v1/") == true {
