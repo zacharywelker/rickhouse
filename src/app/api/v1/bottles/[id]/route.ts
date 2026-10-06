@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { setFill } from "@/lib/bottles/state";
+import { releaseById } from "@/lib/releases-store";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     expressionLinks(row.expression.id),
   ]);
   const { bottle, expression } = row;
+  // A chosen release sits between the bottle and the label, as on the web.
+  const release = bottle.releaseId === null ? null : await releaseById(bottle.releaseId, user.id);
+  const ageSource =
+    release && (release.ageYears ?? release.ageMonths ?? release.ageDays ?? release.ageStatement) !== null
+      ? release
+      : expression;
 
   return NextResponse.json({
     id: bottle.id,
@@ -34,18 +41,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     isFavorite: bottle.isFavorite,
     fillPct: bottle.fillPct,
     // The bottle's own value when it overrides the label, otherwise the label's.
-    proof: bottle.proof ?? expression.proof,
-    ageStatement: bottle.ageStatement ?? expression.ageStatement,
-    ageYears: bottle.ageYears ?? expression.ageYears,
+    proof: bottle.proof ?? release?.proof ?? expression.proof,
+    ageStatement: bottle.ageStatement ?? ageSource.ageStatement,
+    ageYears: bottle.ageYears ?? ageSource.ageYears,
     sizeMl: expression.sizeMl,
-    msrp: expression.msrp,
+    msrp: release?.msrp ?? expression.msrp,
     pricePaid: bottle.pricePaid,
     store: row.store?.name ?? null,
     dateAcquired: bottle.dateAcquired,
     dateOpened: bottle.dateOpened,
     acquisition: bottle.acquisition,
-    batch: bottle.batch,
-    releaseYear: bottle.releaseYear,
+    releaseId: bottle.releaseId,
+    batch: release?.name ?? bottle.batch,
+    releaseYear: release?.releaseYear ?? bottle.releaseYear,
     isSingleBarrel: bottle.isSingleBarrel,
     isSingleBarrelPick: bottle.isSingleBarrelPick,
     barrelNumber: bottle.barrelNumber,

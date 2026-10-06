@@ -12,6 +12,7 @@ import {
   expressionDistilleries,
   expressionFinishes,
   expressionMashbills,
+  expressionReleases,
   expressions,
   finishes,
   mashbillGrains,
@@ -493,14 +494,17 @@ export async function bottlesOfLabel(expressionId: number, ownerId: number) {
   return db
     .select({
       id: bottles.id,
+      // A chosen release clears the bottle's own batch and year (see
+      // settleLabelChoices), so both come from the release when there is one.
       batch: bottles.batch,
-      releaseYear: bottles.releaseYear,
+      releaseName: expressionReleases.name,
+      releaseYear: sql<number | null>`coalesce(${expressionReleases.releaseYear}, ${bottles.releaseYear})`,
       barrelNumber: bottles.barrelNumber,
       pickName: bottles.pickName,
       pickedBy: bottles.pickedBy,
       isSingleBarrel: bottles.isSingleBarrel,
       isSingleBarrelPick: bottles.isSingleBarrelPick,
-      proof: bottles.proof,
+      proof: sql<string | null>`coalesce(${bottles.proof}, ${expressionReleases.proof})`,
       ageStatement: bottles.ageStatement,
       pricePaid: bottles.pricePaid,
       dateAcquired: bottles.dateAcquired,
@@ -523,6 +527,7 @@ export async function bottlesOfLabel(expressionId: number, ownerId: number) {
     })
     .from(bottles)
     .leftJoin(stores, eq(bottles.storeId, stores.id))
+    .leftJoin(expressionReleases, eq(expressionReleases.id, bottles.releaseId))
     .where(and(eq(bottles.expressionId, expressionId), eq(bottles.ownerId, ownerId)))
     .orderBy(sql`${bottles.dateAcquired} desc nulls last`, desc(bottles.id));
 }
@@ -539,12 +544,13 @@ export async function tastingNotesForLabel(expressionId: number, ownerId: number
       palate: tastingNotes.palate,
       finish: tastingNotes.finish,
       overall: tastingNotes.overall,
-      batch: bottles.batch,
+      batch: sql<string | null>`coalesce(${expressionReleases.name}::text, ${bottles.batch})`,
       barrelNumber: bottles.barrelNumber,
       pickName: bottles.pickName,
     })
     .from(tastingNotes)
     .innerJoin(bottles, eq(tastingNotes.bottleId, bottles.id))
+    .leftJoin(expressionReleases, eq(expressionReleases.id, bottles.releaseId))
     .where(and(eq(bottles.expressionId, expressionId), eq(bottles.ownerId, ownerId)))
     .orderBy(desc(tastingNotes.tastedOn), desc(tastingNotes.id));
 }
