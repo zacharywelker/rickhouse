@@ -22,11 +22,23 @@ const SECTIONS: ReadonlyArray<BulkSection> = [
  * as it does on the form: pick name and picked-by fill in once the row is a
  * private selection. Anything not needed hides from the Fields menu.
  */
-export function BottleBulkGrid({ expressions, stores }: { expressions: Option[]; stores: Option[] }) {
+export function BottleBulkGrid({
+  expressions,
+  stores,
+  releases,
+}: {
+  expressions: Option[];
+  stores: Option[];
+  /** Each label's known releases (by label id), for the Release column. */
+  releases: Record<number, Array<{ value: string; label: string }>>;
+}) {
   return (
     <BulkGrid
       sections={SECTIONS}
       options={{ expressionId: expressions, storeId: stores }}
+      // A release belongs to its label: offer the row's label's, and drop one when the label changes.
+      selectOptionsFor={(name, values) => (name === "releaseId" ? (releases[Number(values.expressionId)] ?? []) : [])}
+      onChanged={(prev, next, name) => (name === "expressionId" ? { ...next, releaseId: "" } : next)}
       save={saveBottlesBulkAction}
       noun="bottle"
       storageKey="rickhouse:bulk-bottles:hidden"

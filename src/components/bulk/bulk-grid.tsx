@@ -87,6 +87,7 @@ export function BulkGrid({
   options,
   fieldGroupFor = () => null,
   onChanged,
+  selectOptionsFor,
   save,
   noun,
   storageKey,
@@ -98,6 +99,8 @@ export function BulkGrid({
   fieldGroupFor?: (values: RowValues) => FieldGroup | null;
   /** Follow-on changes to make when a field changes — the form's niceties. */
   onChanged?: (prev: RowValues, next: RowValues, name: string) => RowValues;
+  /** Extra choices for a select column that depend on the row, like a label's releases. */
+  selectOptionsFor?: (name: string, values: RowValues) => Array<{ value: string; label: string }>;
   save: (rows: Record<string, unknown>[]) => Promise<BulkSaveResult>;
   noun: string;
   /** Where this grid remembers its hidden columns. */
@@ -268,7 +271,9 @@ export function BulkGrid({
       });
     }
 
-    const spec = column.spec!;
+    const spec = column.spec!.kind === "select" && selectOptionsFor
+      ? { ...column.spec!, options: [...column.spec!.options, ...selectOptionsFor(column.id, row.values)] }
+      : column.spec!;
     const typed = spec.kind !== "reference" && spec.kind !== "checkbox";
     return (
       <GridCell

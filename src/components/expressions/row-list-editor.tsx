@@ -65,6 +65,39 @@ export function RowListEditor({
   // Only a row added with the button takes focus, not the ones loaded with the page.
   const [addedId, setAddedId] = React.useState<string | null>(null);
 
+  // Enter moves down a column, like a spreadsheet; a new row's cell is focused once it renders.
+  const container = React.useRef<HTMLDivElement>(null);
+  const pendingFocus = React.useRef<{ rowId: string; cell: number } | null>(null);
+  React.useEffect(() => {
+    const pending = pendingFocus.current;
+    if (!pending) return;
+    pendingFocus.current = null;
+    const rowEl = container.current?.querySelector(`[data-row-id="${pending.rowId}"]`);
+    rowEl?.querySelectorAll<HTMLInputElement>("input:not([type=hidden])")[pending.cell]?.focus();
+  }, [rows]);
+
+  const onEnter = (event: React.KeyboardEvent<HTMLDivElement>, rowId: string) => {
+    const target = event.target;
+    if (event.key !== "Enter" || event.nativeEvent.isComposing || !(target instanceof HTMLInputElement)) return;
+    // Enter here moves to the next row; it never saves the label.
+    event.preventDefault();
+    const rowEl = event.currentTarget;
+    const cell = Array.from(rowEl.querySelectorAll<HTMLInputElement>("input:not([type=hidden])")).indexOf(target);
+    if (cell < 0) return;
+    const nextEl = rowEl.nextElementSibling;
+    const nextRow = nextEl instanceof HTMLElement ? nextEl.dataset.rowId : undefined;
+    if (nextRow !== undefined) {
+      nextEl!.querySelectorAll<HTMLInputElement>("input:not([type=hidden])")[cell]?.focus();
+      return;
+    }
+    // On the last row, only add another once this one has a name.
+    const current = rows.find((r) => r._id === rowId);
+    if (!current || (current[columns[0]!.key] ?? "").trim() === "") return;
+    const row: Row = { _id: String(nextId.current++) };
+    pendingFocus.current = { rowId: row._id, cell };
+    setRows((prev) => [...prev, row]);
+  };
+
   const [confirming, setConfirming] = React.useState<{ id: string; message: string } | null>(null);
   const remove = (id: string) => setRows((prev) => prev.filter((r) => r._id !== id));
 
@@ -75,10 +108,15 @@ export function RowListEditor({
   const filled = rows.filter((row) => (row[columns[0]!.key] ?? "").trim() !== "");
 
   return (
-    <div className="flex flex-col gap-2">
+    <div ref={container} className="flex flex-col gap-2">
       <input type="hidden" name={name} value={toText(filled)} />
       {rows.map((row, index) => (
-        <div key={row._id} className={cn("flex items-end gap-2", index > 0 && "border-t border-border pt-3 sm:border-0 sm:pt-0")}>
+        <div
+          key={row._id}
+          data-row-id={row._id}
+          onKeyDown={(event) => onEnter(event, row._id)}
+          className={cn("flex items-end gap-2", index > 0 && "border-t border-border pt-3 sm:border-0 sm:pt-0")}
+        >
           <div className="grid flex-1 grid-cols-2 gap-2 sm:flex sm:items-end">
             {columns.map((column, c) => {
               const id = `${idPrefix}-${row._id}-${column.key}`;
@@ -122,6 +160,8 @@ export function RowListEditor({
             type="button"
             variant="ghost"
             className="px-2 text-muted-foreground"
+            // Tab runs across the cells and on to the next row, not through the remove buttons.
+            tabIndex={-1}
             aria-label={`Remove ${row[columns[0]!.key] || "this row"}`}
             onClick={() => {
               const message = removeWarning?.(row) ?? null;

@@ -11,6 +11,7 @@ import { searchLabels, type CategoryFacet, type HitGroup, type TypedCode } from 
 import { loadLabelDocs } from "@/lib/expressions/label-search-docs";
 import { loadCatalogLabel, type CatalogLabel } from "@/lib/expressions/catalog";
 import { NotOwned, attachPendingColas, fieldErrorsOf, labelValues, linksFrom, writeLabel } from "@/lib/expressions/save";
+import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { pendingTtbIds } from "@/lib/cola/ids";
 import type { FieldValue } from "@/lib/forms/values";
 
@@ -102,6 +103,9 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
     return { ok: false, error: `Check the highlighted fields on ${first}.`, labelErrors, bottleErrors };
   }
 
+  // A release can only be one of a chosen label's; a new label has none yet.
+  const bottleData = chosenId === null ? { ...bottle.data, releaseId: null } : await settleLabelChoices({ ...bottle.data });
+
   const links = linksFrom(input.links ?? {});
   // Which write a database error came from, so it lands on the right half of the page.
   const progress: { stage: "label" | "bottle" } = { stage: "label" };
@@ -124,7 +128,7 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
       progress.stage = "bottle";
       const [row] = await tx
         .insert(bottles)
-        .values({ ...bottle.data, expressionId, ownerId: user.id })
+        .values({ ...bottleData, expressionId, ownerId: user.id })
         .returning({ id: bottles.id });
       return { expressionId, bottleId: row!.id };
     });

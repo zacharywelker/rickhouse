@@ -59,6 +59,7 @@ export function CatalogBottle({
   colaLookup,
   initialLabel,
   suggestions,
+  releases,
 }: {
   labelOptions: Record<string, Option[]>;
   bottleOptions: Record<string, Option[]>;
@@ -67,6 +68,8 @@ export function CatalogBottle({
   initialLabel: CatalogLabel | null;
   /** Past values for Picked By, Warehouse, Rick / Floor and Where It Lives. */
   suggestions: BottleSuggestions;
+  /** Each label's known releases (by label id), for the Release choice. */
+  releases: Record<number, Array<{ value: string; label: string }>>;
 }) {
   const router = useRouter();
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -156,6 +159,8 @@ export function CatalogBottle({
     }
     focusLater("bottle-pricePaid");
     setErrors(NO_ERRORS);
+    // A release chosen under a previously picked label is not this label's.
+    setBottleValues((prev) => ({ ...prev, releaseId: "" }));
     setPhase({ kind: "existing", label, editing: false });
   };
 
@@ -359,7 +364,9 @@ export function CatalogBottle({
               <span className="mr-2 tabular-nums text-muted-foreground">2</span>The bottle in your hand
             </h2>
             <BottleFields
-              values={bottleValues}
+              // The label is chosen above, not a field here, so the release list is keyed by it.
+              values={phase.kind === "existing" ? { ...bottleValues, expressionId: String(phase.label.id) } : bottleValues}
+              releases={releases}
               onChange={(name, value) => setBottleValues((prev) => ({ ...prev, [name]: value }))}
               options={bottleOptionsState}
               onOptionCreated={(name, option) => setBottleOptions((prev) => withOption(prev, name, option))}
