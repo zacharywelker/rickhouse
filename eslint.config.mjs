@@ -17,6 +17,7 @@ export default defineConfig([
   },
   globalIgnores([
     ".next/**",
+    ".worktrees/**",
     "out/**",
     "build/**",
     "dist/**",
