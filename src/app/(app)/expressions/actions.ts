@@ -26,8 +26,8 @@ import {
   writableValues,
   writeLabel,
 } from "@/lib/expressions/save";
-import { parseReleases } from "@/lib/releases";
-import { syncExpressionReleases } from "@/lib/releases-store";
+import { parseReleaseRows } from "@/lib/releases";
+import { deleteStoredPhotos, releasePhotosOfLabel, syncExpressionReleases, type StoredPhoto } from "@/lib/releases-store";
 import { parseOtherNames } from "@/lib/other-names";
 import { syncExpressionNames } from "@/lib/other-names-store";
 import { pendingTtbIds } from "@/lib/cola/ids";
@@ -67,19 +67,22 @@ export async function saveExpressionAction(
     return { ok: false, error: otherNames.error, fieldErrors: { otherNames: otherNames.error } };
   }
 
-  const releases = formData.has("releases") ? parseReleases(String(formData.get("releases"))) : null;
+  const releases = formData.has("releases") ? parseReleaseRows(String(formData.get("releases"))) : null;
   if (releases?.error) {
     return { ok: false, error: releases.error, fieldErrors: { releases: releases.error } };
   }
 
   try {
     const values = await labelValues(input, user.id, id);
+    let removedPhotos: StoredPhoto[] = [];
     const expressionId = await db.transaction(async (tx) => {
       const target = await writeLabel(tx, user.id, id, values, links);
       if (otherNames) await syncExpressionNames(tx, target, otherNames.names);
-      if (releases) await syncExpressionReleases(tx, target, releases.releases);
+      if (releases) removedPhotos = await syncExpressionReleases(tx, target, releases.releases);
       return target;
     });
+    // Files only once the rows are gone for good.
+    await deleteStoredPhotos(removedPhotos);
 
     // Approvals picked on New Label (SPEC M11), attached once the label exists.
     const approvals = id === null ? await attachPendingColas(expressionId, user.id, pendingTtbIds(formData.get("ttbIds"))) : "";
@@ -280,6 +283,7 @@ export async function deleteExpressionAction(id: number): Promise<ActionResult> 
   try {
     // COLA label images cascade in the database; the files on disk do not.
     const colaFiles = await colaFilesForExpression(id);
+    const releasePhotos = await releasePhotosOfLabel(id);
     const deleted = await db
       .delete(expressions)
       .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
@@ -287,6 +291,7 @@ export async function deleteExpressionAction(id: number): Promise<ActionResult> 
     if (deleted.length === 0) return { ok: false, error: "That label is gone." };
     if (deleted[0]?.photoPath) await deleteStoredImage(deleted[0].photoPath, deleted[0].photoThumbPath);
     await deleteColaFiles(colaFiles);
+    await deleteStoredPhotos(releasePhotos);
     revalidatePath("/expressions");
     return { ok: true, message: "Label deleted." };
   } catch (error: unknown) {
@@ -304,11 +309,17 @@ export async function deleteExpressionsBulkAction(ids: number[]): Promise<BulkSa
   for (const [index, id] of ids.entries()) {
     try {
       const colaFiles = await colaFilesForExpression(id);
+      const releasePhotos = await releasePhotosOfLabel(id);
       const deleted = await db
         .delete(expressions)
         .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)))
-        .returning({ id: expressions.id });
-      if (deleted.length > 0) await deleteColaFiles(colaFiles);
+        .returning({ id: expressions.id, photoPath: expressions.photoPath, photoThumbPath: expressions.photoThumbPath });
+      if (deleted.length > 0) {
+        // The label's own photo too, which this path used to leave on disk.
+        if (deleted[0]!.photoPath) await deleteStoredImage(deleted[0]!.photoPath, deleted[0]!.photoThumbPath);
+        await deleteColaFiles(colaFiles);
+        await deleteStoredPhotos(releasePhotos);
+      }
       results.push(
         deleted.length > 0 ? { index, ok: true, id } : { index, ok: false, error: "That label is gone.", fieldErrors: {} },
       );

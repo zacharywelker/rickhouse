@@ -490,7 +490,8 @@ export async function tastingNotesFor(bottleId: number) {
  * its life. Proof is the bottle's own override only; blank means it reads
  * as the label's.
  */
-export async function bottlesOfLabel(expressionId: number, ownerId: number) {
+/** A label's bottles; with `releaseId`, only that release's. */
+export async function bottlesOfLabel(expressionId: number, ownerId: number, releaseId?: number) {
   return db
     .select({
       id: bottles.id,
@@ -528,12 +529,18 @@ export async function bottlesOfLabel(expressionId: number, ownerId: number) {
     .from(bottles)
     .leftJoin(stores, eq(bottles.storeId, stores.id))
     .leftJoin(expressionReleases, eq(expressionReleases.id, bottles.releaseId))
-    .where(and(eq(bottles.expressionId, expressionId), eq(bottles.ownerId, ownerId)))
+    .where(
+      and(
+        eq(bottles.expressionId, expressionId),
+        eq(bottles.ownerId, ownerId),
+        releaseId === undefined ? undefined : eq(bottles.releaseId, releaseId),
+      ),
+    )
     .orderBy(sql`${bottles.dateAcquired} desc nulls last`, desc(bottles.id));
 }
 
 /** Tasting notes from every bottle of a label, newest first, each knowing its bottle. */
-export async function tastingNotesForLabel(expressionId: number, ownerId: number) {
+export async function tastingNotesForLabel(expressionId: number, ownerId: number, releaseId?: number) {
   return db
     .select({
       id: tastingNotes.id,
@@ -551,6 +558,12 @@ export async function tastingNotesForLabel(expressionId: number, ownerId: number
     .from(tastingNotes)
     .innerJoin(bottles, eq(tastingNotes.bottleId, bottles.id))
     .leftJoin(expressionReleases, eq(expressionReleases.id, bottles.releaseId))
-    .where(and(eq(bottles.expressionId, expressionId), eq(bottles.ownerId, ownerId)))
+    .where(
+      and(
+        eq(bottles.expressionId, expressionId),
+        eq(bottles.ownerId, ownerId),
+        releaseId === undefined ? undefined : eq(bottles.releaseId, releaseId),
+      ),
+    )
     .orderBy(desc(tastingNotes.tastedOn), desc(tastingNotes.id));
 }

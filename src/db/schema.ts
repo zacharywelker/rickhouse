@@ -409,6 +409,10 @@ export const expressionReleases = pgTable(
     ageDays: integer("age_days"),
     ageStatement: text("age_statement"),
     msrp: money("msrp"),
+    /** The release's own label photo, relative to the uploads volume. */
+    photoPath: text("photo_path"),
+    photoThumbPath: text("photo_thumb_path"),
+    notes: text("notes"),
     position: integer("position").notNull().default(0),
   },
   (t) => [

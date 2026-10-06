@@ -1,16 +1,11 @@
 /**
- * Known releases of a label, typed one per line. Everything after the name is
- * optional and separated by `|`, in a fixed order:
+ * Known releases of a label, as the label form's rows and the release page's
+ * form submit them: one object per release, every value a string as typed.
+ * Pure, so both forms, the server and the tests share one reading.
  *
- *   name | year | proof | age | msrp
- *
- *   2024-01 Springfield | 2024 | 124.6 | 7y 2m 3d | 99.99
- *   Bourbon War | 2020 | | 4
- *   Batch C923
- *
- * Age is "7y 2m 3d" (any of the parts), a bare number of years, or any other
- * text, kept as the age statement. Pure, so the label form and the tests share
- * one reading of the text.
+ * A row carries the release's id once it exists, so renaming a release edits
+ * it in place rather than replacing it — bottles, its photo and its notes all
+ * hang off that id.
  */
 
 export type Release = {
@@ -20,128 +15,124 @@ export type Release = {
   ageYears: string | null;
   ageMonths: number | null;
   ageDays: number | null;
+  /** Wording only; not shown on the forms, but kept when they save. */
   ageStatement: string | null;
   msrp: string | null;
+};
+
+/** A release as submitted: its id when it already exists. */
+export type ReleaseInput = Release & { id: number | null };
+
+/** What the forms hold for one release. */
+export type ReleaseRow = {
+  id: string;
+  name: string;
+  year: string;
+  proof: string;
+  ageYears: string;
+  ageMonths: string;
+  ageDays: string;
+  ageStatement: string;
+  msrp: string;
 };
 
 export const MAX_RELEASES = 100;
 const MAX_NAME_LENGTH = 160;
 
-const AGE_PARTS = /^(?:(\d+(?:\.\d)?)\s*y)?\s*(?:(\d+)\s*m)?\s*(?:(\d+)\s*d)?$/i;
-
 type Parsed<T> = { value: T; error: null } | { value: null; error: string };
+const ok = <T,>(value: T): Parsed<T> => ({ value, error: null });
+const fail = <T,>(error: string): Parsed<T> => ({ value: null, error });
 
-function parseAge(text: string): Parsed<Pick<Release, "ageYears" | "ageMonths" | "ageDays" | "ageStatement">> {
-  const none = { ageYears: null, ageMonths: null, ageDays: null, ageStatement: null };
-  if (text === "") return { value: none, error: null };
-  if (/^\d+(?:\.\d)?$/.test(text)) {
-    if (Number(text) > 100) return { value: null, error: `"${text}" is not a believable age.` };
-    return { value: { ...none, ageYears: text }, error: null };
-  }
-  const parts = AGE_PARTS.exec(text);
-  if (parts && (parts[1] || parts[2] || parts[3])) {
-    if (Number(parts[1] ?? 0) > 100) return { value: null, error: `"${text}" is not a believable age.` };
-    return {
-      value: {
-        ...none,
-        ageYears: parts[1] ?? null,
-        ageMonths: parts[2] ? Number(parts[2]) : null,
-        ageDays: parts[3] ? Number(parts[3]) : null,
-      },
-      error: null,
-    };
-  }
-  if (text.length > 200) return { value: null, error: "Keep each age under 200 characters." };
-  return { value: { ...none, ageStatement: text }, error: null };
+function decimal(text: string, what: string, max: number, places: number): Parsed<string | null> {
+  const cleaned = text.replace(/^\$/, "").trim();
+  if (cleaned === "") return ok(null);
+  const shape = new RegExp(`^\\d+(?:\\.\\d{1,${places}})?$`);
+  if (!shape.test(cleaned) || Number(cleaned) > max) return fail(`"${text}" is not ${what}.`);
+  return ok(cleaned);
 }
 
-function parseDecimal(text: string, what: string, max: number): Parsed<string | null> {
-  const cleaned = text.replace(/^\$/, "").replace(/°$/, "").trim();
-  if (cleaned === "") return { value: null, error: null };
-  if (!/^\d+(?:\.\d{1,2})?$/.test(cleaned) || Number(cleaned) > max) {
-    return { value: null, error: `"${text}" is not a ${what}.` };
-  }
-  return { value: cleaned, error: null };
+function whole(text: string, what: string, max: number): Parsed<number | null> {
+  const cleaned = text.trim();
+  if (cleaned === "") return ok(null);
+  if (!/^\d+$/.test(cleaned) || Number(cleaned) > max) return fail(`"${text}" is not ${what}.`);
+  return ok(Number(cleaned));
 }
 
-export type ParsedReleases = { releases: Release[]; error: string | null };
+/** One row, checked. Errors name the release so a list of them reads clearly. */
+export function parseReleaseRow(row: Partial<ReleaseRow>): Parsed<ReleaseInput> {
+  const name = (row.name ?? "").trim();
+  if (name === "") return fail("Every release needs a name.");
+  if (name.length > MAX_NAME_LENGTH) return fail(`Keep each name under ${MAX_NAME_LENGTH} characters.`);
+  const named = (error: string) => fail<ReleaseInput>(`${error} (${name})`);
 
-/** Reads the typed lines. Blank lines and repeated names are dropped; a bad line is an error, not a guess. */
-export function parseReleases(text: string | null | undefined): ParsedReleases {
-  const releases: Release[] = [];
+  const idText = (row.id ?? "").trim();
+  const id = /^\d+$/.test(idText) ? Number(idText) : null;
+
+  let releaseYear: number | null = null;
+  const year = (row.year ?? "").trim();
+  if (year !== "") {
+    if (!/^\d{4}$/.test(year) || Number(year) < 1700 || Number(year) > 2200) return named(`"${year}" is not a year.`);
+    releaseYear = Number(year);
+  }
+  const proof = decimal(row.proof ?? "", "a proof", 200, 2);
+  if (proof.error) return named(proof.error);
+  const ageYears = decimal(row.ageYears ?? "", "a number of years", 100, 1);
+  if (ageYears.error) return named(ageYears.error);
+  const ageMonths = whole(row.ageMonths ?? "", "a number of months", 1200);
+  if (ageMonths.error) return named(ageMonths.error);
+  const ageDays = whole(row.ageDays ?? "", "a number of days", 40000);
+  if (ageDays.error) return named(ageDays.error);
+  const msrp = decimal(row.msrp ?? "", "a price", 99_999_999, 2);
+  if (msrp.error) return named(msrp.error);
+  const ageStatement = (row.ageStatement ?? "").trim().slice(0, 200) || null;
+
+  return ok({
+    id,
+    name,
+    releaseYear,
+    proof: proof.value,
+    ageYears: ageYears.value,
+    ageMonths: ageMonths.value,
+    ageDays: ageDays.value,
+    ageStatement,
+    msrp: msrp.value,
+  });
+}
+
+export type ParsedReleases = { releases: ReleaseInput[]; error: string | null };
+
+/** The label form's rows, sent as JSON. Rows with no name are skipped; a bad row is an error, not a guess. */
+export function parseReleaseRows(raw: string | null | undefined): ParsedReleases {
+  let rows: unknown;
+  try {
+    rows = JSON.parse(raw ?? "[]");
+  } catch {
+    return { releases: [], error: "The releases could not be read." };
+  }
+  if (!Array.isArray(rows)) return { releases: [], error: "The releases could not be read." };
+  const releases: ReleaseInput[] = [];
   const seen = new Set<string>();
-  for (const line of (text ?? "").split(/\r?\n/)) {
-    if (line.trim() === "") continue;
-    const cells = line.split("|").map((cell) => cell.trim());
-    if (cells.length > 5) return { releases: [], error: `"${line.trim()}" has more than five parts.` };
-    const [name = "", year = "", proofText = "", ageText = "", msrpText = ""] = cells;
-    if (name === "") return { releases: [], error: `"${line.trim()}" has no name.` };
-    if (name.length > MAX_NAME_LENGTH) return { releases: [], error: `Keep each name under ${MAX_NAME_LENGTH} characters.` };
-
-    let releaseYear: number | null = null;
-    if (year !== "") {
-      if (!/^\d{4}$/.test(year) || Number(year) < 1700 || Number(year) > 2200) {
-        return { releases: [], error: `"${year}" is not a year (${name}).` };
-      }
-      releaseYear = Number(year);
-    }
-    const proof = parseDecimal(proofText, "proof", 200);
-    if (proof.error) return { releases: [], error: `${proof.error} (${name})` };
-    const age = parseAge(ageText);
-    if (age.error) return { releases: [], error: `${age.error} (${name})` };
-    const msrp = parseDecimal(msrpText, "price", 99_999_999);
-    if (msrp.error) return { releases: [], error: `${msrp.error} (${name})` };
-
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
+  for (const row of rows) {
+    if (typeof row !== "object" || row === null) continue;
+    const shaped = Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [key, typeof value === "string" ? value : ""]),
+    ) as Partial<ReleaseRow>;
+    if ((shaped.name ?? "").trim() === "") continue;
+    const parsed = parseReleaseRow(shaped);
+    if (parsed.error !== null) return { releases: [], error: parsed.error };
+    const key = parsed.value.name.toLowerCase();
+    if (seen.has(key)) return { releases: [], error: `Two releases are both called "${parsed.value.name}".` };
     seen.add(key);
-    releases.push({ name, releaseYear, proof: proof.value, ...age.value!, msrp: msrp.value });
+    releases.push(parsed.value);
   }
   if (releases.length > MAX_RELEASES) return { releases: [], error: `At most ${MAX_RELEASES} releases.` };
   return { releases, error: null };
 }
 
-/** "7y 2m 3d", the statement, or "". */
-export function releaseAgeText(r: Pick<Release, "ageYears" | "ageMonths" | "ageDays" | "ageStatement">): string {
-  const parts = [
-    r.ageYears !== null ? `${Number(r.ageYears)}y` : "",
-    r.ageMonths !== null ? `${r.ageMonths}m` : "",
-    r.ageDays !== null ? `${r.ageDays}d` : "",
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(" ") : (r.ageStatement ?? "");
-}
-
-/** One release as a line `parseReleases` reads back; trailing blanks dropped. */
-export function releaseLine(r: Release): string {
-  const cells = [
-    r.name,
-    r.releaseYear !== null ? String(r.releaseYear) : "",
-    r.proof !== null ? String(Number(r.proof)) : "",
-    releaseAgeText(r),
-    r.msrp !== null ? String(Number(r.msrp)) : "",
-  ];
-  while (cells.length > 1 && cells.at(-1) === "") cells.pop();
-  // An empty cell is "| |", not "|  |".
-  return cells.map((cell, i) => (i === 0 ? cell : cell === "" ? " |" : ` | ${cell}`)).join("");
-}
-
-/** The inverse of `parseReleases`, for loading a form. */
-export function releasesText(releases: ReadonlyArray<Release>): string {
-  return releases.map(releaseLine).join("\n");
-}
-
-/** The name with its year, as a choice on the bottle form: "2024-01 Springfield (2024)". */
-export function releaseLabel(r: Pick<Release, "name" | "releaseYear">): string {
-  return r.releaseYear !== null && !r.name.includes(String(r.releaseYear)) ? `${r.name} (${r.releaseYear})` : r.name;
-}
-
-/**
- * One release as the label form's row of strings. Age is split the way every
- * other age field is; a wording-only age rides along unseen in `ageStatement`
- * so saving the form does not drop it.
- */
-export function releaseRow(r: Release): Record<string, string> {
+/** One stored release as the forms' row of strings. */
+export function releaseRow(r: Release & { id: number }): ReleaseRow {
   return {
+    id: String(r.id),
     name: r.name,
     year: r.releaseYear !== null ? String(r.releaseYear) : "",
     proof: r.proof !== null ? String(Number(r.proof)) : "",
@@ -153,18 +144,7 @@ export function releaseRow(r: Release): Record<string, string> {
   };
 }
 
-/** The label form's rows (strings as typed) as the lines `parseReleases` reads. */
-export function releaseRowsText(rows: ReadonlyArray<Record<string, string>>): string {
-  return rows
-    .map((row) => {
-      const cell = (key: string) => (row[key] ?? "").trim();
-      const parts = [
-        cell("ageYears") && `${cell("ageYears")}y`,
-        cell("ageMonths") && `${cell("ageMonths")}m`,
-        cell("ageDays") && `${cell("ageDays")}d`,
-      ].filter(Boolean);
-      const age = parts.length > 0 ? parts.join(" ") : cell("ageStatement");
-      return [cell("name"), cell("year"), cell("proof"), age, cell("msrp")].join(" | ").replace(/( \| )+$/, "");
-    })
-    .join("\n");
+/** The name with its year, as a choice on the bottle form: "2024-01 Springfield (2024)". */
+export function releaseLabel(r: Pick<Release, "name" | "releaseYear">): string {
+  return r.releaseYear !== null && !r.name.includes(String(r.releaseYear)) ? `${r.name} (${r.releaseYear})` : r.name;
 }
