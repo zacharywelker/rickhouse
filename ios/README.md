@@ -2,7 +2,7 @@
 
 A native SwiftUI companion to the self-hosted web app: browse the collection, open a bottle, add one with photos from the camera.
 
-Requires iOS 17+ and Xcode 15+. It talks to your own server; there is no cloud service.
+Requires iOS 26+ and Xcode 26+. It talks to your own server; there is no cloud service.
 
 ## Build
 

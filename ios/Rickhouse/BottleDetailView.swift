@@ -169,7 +169,7 @@ struct BottleDetailView: View {
                             }
                         }
                         ForEach(lines(of: note), id: \.0) { label, text in
-                            (Text(label + " ").font(.inter(14, .medium)).foregroundStyle(Theme.muted) + Text(text).font(.inter(14)))
+                            Text("\(Text(label + " ").font(.inter(14, .medium)).foregroundStyle(Theme.muted))\(Text(text).font(.inter(14)))")
                                 .foregroundStyle(Theme.ink)
                         }
                     }
