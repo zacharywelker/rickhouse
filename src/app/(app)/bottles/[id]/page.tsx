@@ -23,6 +23,8 @@ import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
 import { nameWithYears } from "@/lib/other-names";
 import { expressionOtherNames } from "@/lib/other-names-store";
+import { releaseLabel } from "@/lib/releases";
+import { releaseById } from "@/lib/releases-store";
 import { getCurrency } from "@/lib/preferences";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { describeMarkup, markup } from "@/lib/bottles/markup";
@@ -70,21 +72,32 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
       ? null
       : ((await expressionOtherNames(row.expression.id)).find((name) => name.id === row.bottle.expressionNameId) ?? null);
 
+  // The known release this bottle is, if one was chosen. Its proof, age and
+  // MSRP sit between the bottle's own and the label's, as in bottle_list.
+  const release = row.bottle.releaseId === null ? null : await releaseById(row.bottle.releaseId);
+  const releaseHasAge =
+    release !== null &&
+    (release.ageYears !== null || release.ageMonths !== null || release.ageDays !== null || release.ageStatement !== null);
+  const ageSource = releaseHasAge ? release : row.expression;
+
   const ownHero = images.find((image) => image.isPrimary) ?? images[0] ?? null;
   // No photo of its own: show the label's.
   const hero = ownHero ?? (row.expression.photoPath ? { filePath: row.expression.photoPath } : null);
   const e = row.expression;
   const b = row.bottle;
   const group = row.category.fieldGroup;
-  const paidVsMsrp = markup(b.pricePaid, e.msrp);
+  const proof = b.proof ?? release?.proof ?? e.proof;
+  const msrp = release?.msrp ?? e.msrp;
+  const batch = release ? releaseLabel(release) : b.batch;
+  const paidVsMsrp = markup(b.pricePaid, msrp);
 
-  // The bottle's own age where it has one, the label's otherwise — the same
-  // per-field inheritance as bottle_list.
+  // The bottle's own age where it has one, then the release's or the label's
+  // — the same inheritance as bottle_list.
   const age = ageLabel({
-    ageYears: b.ageYears ?? e.ageYears,
-    ageMonths: b.ageMonths ?? e.ageMonths,
-    ageDays: b.ageDays ?? e.ageDays,
-    ageStatement: b.ageStatement ?? e.ageStatement,
+    ageYears: b.ageYears ?? ageSource.ageYears,
+    ageMonths: b.ageMonths ?? ageSource.ageMonths,
+    ageDays: b.ageDays ?? ageSource.ageDays,
+    ageStatement: b.ageStatement ?? ageSource.ageStatement,
   });
 
   // The pen this bottle's entry was "filled in" with — one hand for the
@@ -93,7 +106,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
   const stamps: StampSpec[] = [
     { kind: "bottled-in-bond", ownerId: e.id, active: e.isBottledInBond },
-    { kind: "cask-strength", ownerId: e.id, active: e.isCaskStrength, detail: e.proof ? `${formatNumeric(e.proof)}°` : undefined },
+    { kind: "cask-strength", ownerId: e.id, active: e.isCaskStrength, detail: proof ? `${formatNumeric(proof)}°` : undefined },
     { kind: "straight", ownerId: e.id, active: e.isStraight },
     { kind: "nas", ownerId: e.id, active: e.isNas },
     { kind: "single-barrel", ownerId: bottleId, active: b.isSingleBarrel, detail: b.barrelNumber ? `No. ${b.barrelNumber}` : undefined },
@@ -160,7 +173,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Polaroid
               seed={bottleId}
               backdropClassName={categoryBackdropClass(group)}
-              caption={b.batch ? `${row.brand.name} — ${b.batch}` : row.brand.name}
+              caption={batch ? `${row.brand.name} — ${batch}` : row.brand.name}
             >
               <div className="flex size-full items-center justify-center p-6">
                 {hero ? (
@@ -199,11 +212,11 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
         <div className="flex flex-col gap-6 pb-6">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-4 py-2 sm:grid-cols-3">
-            <Spec label="Proof" value={formatNumeric(e.proof)} />
-            <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
+            <Spec label="Proof" value={formatNumeric(proof)} />
+            <Spec label="ABV" value={proof ? `${formatNumeric((Number(proof) / 2).toFixed(2))}%` : null} />
             <Spec label="Age" value={age} />
             <Spec label="Size" value={`${e.sizeMl} ml`} />
-            <Spec label="MSRP" value={e.msrp ? formatMoney(e.msrp, currency) : null} />
+            <Spec label="MSRP" value={msrp ? formatMoney(msrp, currency) : null} />
             <Spec
               label="Paid"
               value={
@@ -243,7 +256,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             <Spec label="How" value={humanise(row.bottle.acquisition)} />
             <Spec label="Status" value={humanise(row.bottle.status)} />
             <Spec label="Where" value={row.bottle.location} />
-            <Spec label="Batch" value={b.batch} />
+            <Spec label={release ? "Release" : "Batch"} value={batch} />
             <Spec label="UPC" value={e.upc} />
           </dl>
           <CharLevelSpec value={e.charLevel} />

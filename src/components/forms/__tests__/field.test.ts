@@ -24,6 +24,17 @@ describe("initialFieldValues", () => {
     expect(initialFieldValues([spec], { batch: "B524" }).batch).toBe("B524");
   });
 
+  it("loads a select of rows from its stored id", () => {
+    const spec: FieldSpec = {
+      kind: "select",
+      name: "releaseId",
+      label: "Release",
+      options: [{ value: "", label: "Not listed" }],
+    };
+    expect(initialFieldValues([spec], { releaseId: 7 }).releaseId).toBe("7");
+    expect(initialFieldValues([spec], { releaseId: null }).releaseId).toBe("");
+  });
+
   it("reads a null as blank rather than the string 'null'", () => {
     expect(initialFieldValues([numberField], { proof: null }).proof).toBe("");
   });

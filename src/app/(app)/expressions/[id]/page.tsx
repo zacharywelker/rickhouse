@@ -18,6 +18,8 @@ import { T8keHint } from "@/components/expressions/t8ke-hint";
 import { requireSession } from "@/lib/auth";
 import { nameWithYears } from "@/lib/other-names";
 import { expressionOtherNames } from "@/lib/other-names-store";
+import { releaseLabel } from "@/lib/releases";
+import { expressionReleaseList } from "@/lib/releases-store";
 import { getCurrency } from "@/lib/preferences";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
@@ -70,12 +72,13 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
   const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
 
-  const [links, owned, notes, colas, otherNames] = await Promise.all([
+  const [links, owned, notes, colas, otherNames, releases] = await Promise.all([
     expressionLinks(expressionId),
     bottlesOfLabel(expressionId, user.id),
     tastingNotesForLabel(expressionId, user.id),
     colasForExpression(expressionId, user.id),
     expressionOtherNames(expressionId),
+    expressionReleaseList(expressionId),
   ]);
   const distilleryMatches = await distilleriesByPermit(
     user.id,
@@ -210,6 +213,32 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
               </dl>
             ) : null}
           </div>
+
+          {releases.length > 0 ? (
+            <div className="border-t border-border pt-6">
+              <h2 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Known releases</h2>
+              <table className="w-full text-sm tabular-nums">
+                <thead className="text-left text-xs text-muted-foreground">
+                  <tr>
+                    <th className="py-1 font-normal">Release</th>
+                    <th className="py-1 font-normal">Proof</th>
+                    <th className="py-1 font-normal">Age</th>
+                    <th className="py-1 font-normal">MSRP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {releases.map((r) => (
+                    <tr key={r.id} className="border-t border-border">
+                      <td className="py-1">{releaseLabel(r)}</td>
+                      <td className="py-1">{r.proof ? formatNumeric(r.proof) : "—"}</td>
+                      <td className="py-1">{ageLabel(r) || "—"}</td>
+                      <td className="py-1">{r.msrp ? formatMoney(r.msrp, currency) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
 
           {e.description ? <p className="border-t border-border pt-6 text-sm">{e.description}</p> : null}
 

@@ -26,6 +26,8 @@ import {
   writableValues,
   writeLabel,
 } from "@/lib/expressions/save";
+import { parseReleases } from "@/lib/releases";
+import { syncExpressionReleases } from "@/lib/releases-store";
 import { parseOtherNames } from "@/lib/other-names";
 import { syncExpressionNames } from "@/lib/other-names-store";
 import { pendingTtbIds } from "@/lib/cola/ids";
@@ -65,11 +67,17 @@ export async function saveExpressionAction(
     return { ok: false, error: otherNames.error, fieldErrors: { otherNames: otherNames.error } };
   }
 
+  const releases = formData.has("releases") ? parseReleases(String(formData.get("releases"))) : null;
+  if (releases?.error) {
+    return { ok: false, error: releases.error, fieldErrors: { releases: releases.error } };
+  }
+
   try {
     const values = await labelValues(input, user.id, id);
     const expressionId = await db.transaction(async (tx) => {
       const target = await writeLabel(tx, user.id, id, values, links);
       if (otherNames) await syncExpressionNames(tx, target, otherNames.names);
+      if (releases) await syncExpressionReleases(tx, target, releases.releases);
       return target;
     });
 

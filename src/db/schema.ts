@@ -387,6 +387,36 @@ export const expressionNames = pgTable(
   ],
 );
 
+/**
+ * Known releases of a label — Booker's quarterly batches, a yearly vertical.
+ * Each may carry its own proof, age and MSRP; blank inherits from the label.
+ * A bottle may point at one (`bottles.release_id`), and its own overrides
+ * still win over the release's.
+ */
+export const expressionReleases = pgTable(
+  "expression_releases",
+  {
+    id: serial("id").primaryKey(),
+    expressionId: integer("expression_id")
+      .notNull()
+      .references(() => expressions.id, { onDelete: "cascade" }),
+    name: citext("name").notNull(),
+    releaseYear: integer("release_year"),
+    proof: pct("proof"),
+    abv: pct("abv").generatedAlwaysAs(sql`(proof / 2.0)`),
+    ageYears: numeric("age_years", { precision: 4, scale: 1 }),
+    ageMonths: integer("age_months"),
+    ageDays: integer("age_days"),
+    ageStatement: text("age_statement"),
+    msrp: money("msrp"),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [
+    index("expression_releases_expression_idx").on(t.expressionId),
+    unique("expression_releases_expression_name_unique").on(t.expressionId, t.name),
+  ],
+);
+
 /** The same for distilleries. */
 export const distilleryNames = pgTable(
   "distillery_names",
@@ -529,6 +559,9 @@ export const bottles = pgTable(
       onDelete: "set null",
     }),
 
+    /** Which known release of the label this is; NULL = none chosen (batch below may still say). */
+    releaseId: integer("release_id").references((): AnyPgColumn => expressionReleases.id, { onDelete: "set null" }),
+
     // ---- Release identity (M7). Here, not on the label, because these vary
     // barrel to barrel — six picks of one Weller 12 are six bottles of one
     // product, and putting these upstream forced a duplicate product per pick.
@@ -581,6 +614,7 @@ export const bottles = pgTable(
   (t) => [
     index("bottles_expression_idx").on(t.expressionId),
     index("bottles_expression_name_idx").on(t.expressionNameId),
+    index("bottles_release_idx").on(t.releaseId),
     index("bottles_store_idx").on(t.storeId),
     index("bottles_status_idx").on(t.status),
     index("bottles_owner_idx").on(t.ownerId),
@@ -980,6 +1014,7 @@ export const bottleList = pgView("bottle_list", {
   dateOpened: date("date_opened"),
   isFavorite: boolean("is_favorite").notNull(),
   storeId: integer("store_id"),
+  /** The release's name when one is chosen, else the bottle's own batch. */
   batch: text("batch"),
   releaseYear: integer("release_year"),
   isSingleBarrel: boolean("is_single_barrel").notNull(),
@@ -989,14 +1024,14 @@ export const bottleList = pgView("bottle_list", {
   bottledOn: date("bottled_on"),
   expressionId: integer("expression_id").notNull(),
   expressionName: citext("expression_name").notNull(),
-  /** Already resolved: the bottle's own value, or the label's. */
+  /** Already resolved: the bottle's own value, then its release's, then the label's. */
   proof: pct("proof"),
   abv: pct("abv"),
   ageYears: numeric("age_years", { precision: 4, scale: 1 }),
   ageMonths: integer("age_months"),
   ageDays: integer("age_days"),
   ageStatement: text("age_statement"),
-  /** True when the value above came from the label rather than the bottle. */
+  /** True when the value above came from the release or label rather than the bottle. */
   proofInherited: boolean("proof_inherited").notNull(),
   ageInherited: boolean("age_inherited").notNull(),
   msrp: money("msrp"),
@@ -1022,6 +1057,9 @@ export const bottleList = pgView("bottle_list", {
   search: text("search"),
   /** The same corpus as plain text, for the substring arm of the search. */
   searchText: text("search_text"),
+  releaseId: integer("release_id"),
+  /** The chosen release's name; `batch` above already falls back to it. */
+  releaseName: citext("release_name"),
 }).existing();
 
 // ------------------------------------------------------------

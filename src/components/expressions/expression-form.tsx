@@ -195,6 +195,7 @@ export function ExpressionForm({
   initialValues,
   initialLinks,
   initialOtherNames = "",
+  initialReleases = "",
   options,
   categoryGroups,
   colaLookup = false,
@@ -204,6 +205,8 @@ export function ExpressionForm({
   initialLinks: { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
   /** Older names, one per line, as `otherNamesText` writes them. */
   initialOtherNames?: string;
+  /** Known releases, one per line, as `releasesText` writes them. */
+  initialReleases?: string;
   options: Record<string, Option[]>;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
@@ -215,6 +218,7 @@ export function ExpressionForm({
   const [optionsByField, setOptionsByField] = React.useState(options);
   const [links, setLinks] = React.useState(initialLinks);
   const [otherNames, setOtherNames] = React.useState(initialOtherNames);
+  const [releases, setReleases] = React.useState(initialReleases);
 
   const action = saveExpressionAction.bind(null, expressionId);
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
@@ -271,6 +275,34 @@ export function ExpressionForm({
             One per line. Years in brackets are optional: (1980–1995), (from 1996) or (until 1985).
           </p>
           {fieldErrors.otherNames ? <p className="text-sm text-destructive">{fieldErrors.otherNames}</p> : null}
+        </SectionContent>
+      </Section>
+
+      <Section>
+        <SectionHeader>
+          <SectionTitle>Known releases</SectionTitle>
+          <SectionDescription>
+            Batches or yearly editions of this label. A bottle can say which one it is, and takes its proof, age and
+            MSRP unless the bottle says otherwise.
+          </SectionDescription>
+        </SectionHeader>
+        <SectionContent>
+          <Label htmlFor="expression-releases">Releases</Label>
+          <Textarea
+            id="expression-releases"
+            name="releases"
+            rows={4}
+            value={releases}
+            onChange={(event) => setReleases(event.target.value)}
+            placeholder={"2024-01 Springfield | 2024 | 124.6 | 7y 2m 3d | 99.99\nBourbon War | 2020 | | 4y"}
+            aria-invalid={fieldErrors.releases ? true : undefined}
+            className="font-mono text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            One per line: name | year | proof | age | MSRP. Only the name is required; leave a part blank to use the
+            label&apos;s. Age is 7y 2m 3d, a number of years, or any wording.
+          </p>
+          {fieldErrors.releases ? <p className="text-sm text-destructive">{fieldErrors.releases}</p> : null}
         </SectionContent>
       </Section>
 
