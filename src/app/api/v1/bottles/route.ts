@@ -8,6 +8,7 @@ import { mapDbError } from "@/lib/db-errors";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { parseFilters } from "@/lib/bottles/filters";
 import { bottleSchema } from "@/lib/expressions/schema";
+import { nameBelongsToExpression } from "@/lib/other-names-store";
 
 export const dynamic = "force-dynamic";
 
@@ -74,10 +75,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return apiError(422, "invalid", parsed.error.issues[0]?.message ?? "Check the fields.", fields);
   }
 
+  const data = parsed.data;
   try {
+    // The composite (ref, owner_id) keys stop a bottle pointing at another
+    // account's label or store, but a version name has a plain key: it has to
+    // be one of this label's own, as in the web action.
+    if (data.expressionNameId !== null && !(await nameBelongsToExpression(data.expressionNameId, data.expressionId))) {
+      data.expressionNameId = null;
+    }
     const [row] = await db
       .insert(bottles)
-      .values({ ...parsed.data, ownerId: user.id })
+      .values({ ...data, ownerId: user.id })
       .returning({ id: bottles.id });
     revalidatePath("/bottles");
     revalidatePath("/");
