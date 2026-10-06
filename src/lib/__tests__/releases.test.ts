@@ -78,18 +78,26 @@ describe("releaseLabel", () => {
 });
 
 describe("releaseRowsText", () => {
+  const blank = { year: "", proof: "", ageYears: "", ageMonths: "", ageDays: "", ageStatement: "", msrp: "" };
   it("reads back exactly the rows the label form holds", () => {
     const rows = [
-      { name: "2024-01 Springfield", year: "2024", proof: "124.6", age: "7y 2m 3d", msrp: "$99.99" },
-      { name: "Bourbon War", year: "2020", proof: "", age: "4", msrp: "" },
-      { name: "Batch C923", year: "", proof: "", age: "", msrp: "" },
+      { ...blank, name: "2024-01 Springfield", year: "2024", proof: "124.6", ageYears: "7", ageMonths: "2", ageDays: "3", msrp: "$99.99" },
+      { ...blank, name: "Bourbon War", year: "2020", ageYears: "4" },
+      { ...blank, name: "Months Only", ageMonths: "18" },
+      { ...blank, name: "Batch C923" },
     ];
     const { releases, error } = parseReleases(releaseRowsText(rows));
     expect(error).toBeNull();
     expect(releases.map(releaseRow)).toEqual([
-      { name: "2024-01 Springfield", year: "2024", proof: "124.6", age: "7y 2m 3d", msrp: "99.99" },
-      { name: "Bourbon War", year: "2020", proof: "", age: "4y", msrp: "" },
-      { name: "Batch C923", year: "", proof: "", age: "", msrp: "" },
+      { ...rows[0], msrp: "99.99" },
+      rows[1],
+      rows[2],
+      rows[3],
     ]);
+  });
+
+  it("keeps a wording-only age the form does not show", () => {
+    const [row] = parseReleases("Old Stock | | | at least 6 years").releases.map(releaseRow);
+    expect(parseReleases(releaseRowsText([row!])).releases[0]!.ageStatement).toBe("at least 6 years");
   });
 });
