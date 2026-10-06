@@ -9,19 +9,15 @@ struct CollectionView: View {
     @State private var query = ""
     @State private var loading = false
     @State private var error: String?
-    @State private var adding = false
+    /// Bumped by the shell after a bottle is added, so the list reloads.
+    var reloadSignal = 0
+    @AppStorage("gridColumns") private var gridColumns = 3
+    @AppStorage("inDepthView") private var inDepth = false
 
     var body: some View {
-        List {
-            if let error {
-                Text(error).foregroundStyle(.red)
-            }
-            ForEach(bottles) { bottle in
-                NavigationLink(value: bottle) { BottleRow(bottle: bottle) }
-                    .task { if bottle.id == bottles.last?.id { await loadMore() } }
-            }
+        Group {
+            if inDepth { inDepthList } else { gallery }
         }
-        .listStyle(.plain)
         .overlay {
             if bottles.isEmpty && !loading && error == nil {
                 ContentUnavailableView(query.isEmpty ? "No bottles yet" : "No matches",
@@ -29,7 +25,10 @@ struct CollectionView: View {
                                        description: Text(query.isEmpty ? "Tap + to add your first bottle." : "Try a different search."))
             }
         }
-        .navigationTitle(total > 0 ? "Collection · \(total)" : "Collection")
+        .overlay(alignment: .bottomTrailing) { inDepthToggle }
+        .background(Theme.paper)
+        .toolbarBackground(Theme.paper, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: BottleSummary.self) { BottleDetailView(id: $0.id) }
         .searchable(text: $query, prompt: "Search bottles")
         .task(id: query) {
@@ -37,21 +36,66 @@ struct CollectionView: View {
             try? await Task.sleep(for: .milliseconds(250))
             if !Task.isCancelled { await reload() }
         }
+        .onChange(of: reloadSignal) { Task { await reload() } }
         .refreshable { await reload() }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Menu {
-                    if let user = session.user { Text(user.name) }
-                    Button("Sign out", role: .destructive) { session.signOut() }
-                } label: { Image(systemName: "person.crop.circle") }
+    }
+
+    /// The gallery: the headline scrolls away with the bottles.
+    private var gallery: some View {
+        let columns = gridColumns == 2 ? 2 : 3
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                headline
+                if let error {
+                    Text(error).font(.inter(14)).foregroundStyle(.red)
+                }
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top), count: columns),
+                          alignment: .leading, spacing: 16) {
+                    ForEach(bottles) { bottle in
+                        NavigationLink(value: bottle) { BottleCard(bottle: bottle, factCount: columns == 2 ? 2 : 1) }
+                            .buttonStyle(.plain)
+                            .task { if bottle.id == bottles.last?.id { await loadMore() } }
+                    }
+                }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { adding = true } label: { Image(systemName: "plus") }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 80)  // clear of the in-depth button
+        }
+    }
+
+    private var headline: some View {
+        Text(total == 1 ? "1 bottle" : "\(total) bottles")
+            .font(.headline())
+            .foregroundStyle(Theme.ink)
+    }
+
+    private var inDepthList: some View {
+        List {
+            if let error {
+                Text(error).foregroundStyle(.red)
             }
+            ForEach(bottles) { bottle in
+                NavigationLink(value: bottle) { BottleRow(bottle: bottle) }
+                    .listRowBackground(Theme.paper)
+                    .task { if bottle.id == bottles.last?.id { await loadMore() } }
+            }
+            Color.clear.frame(height: 56).listRowSeparator(.hidden).listRowBackground(Theme.paper)  // clear of the in-depth button
         }
-        .sheet(isPresented: $adding) {
-            AddBottleView { Task { await reload() } }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    private var inDepthToggle: some View {
+        Button { inDepth.toggle() } label: {
+            Image(systemName: inDepth ? "square.grid.2x2" : "tablecells")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(Theme.ink)
+                .frame(width: 44, height: 44)
+                .background(Theme.paper, in: Circle())
+                .overlay(Circle().strokeBorder(Theme.ink, lineWidth: 1))
         }
+        .accessibilityLabel(inDepth ? "Gallery view" : "In-depth view")
+        .padding(16)
     }
 
     private func reload() async {
@@ -88,6 +132,7 @@ struct CollectionView: View {
     }
 }
 
+/// One line per bottle, for the in-depth view.
 struct BottleRow: View {
     let bottle: BottleSummary
 
@@ -95,16 +140,24 @@ struct BottleRow: View {
         HStack(spacing: 12) {
             AuthenticatedImage(path: bottle.thumbPath)
                 .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
             VStack(alignment: .leading, spacing: 2) {
-                Text(bottle.brand).font(.caption).foregroundStyle(.secondary)
-                Text(bottle.name).font(.headline)
-                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                Text(bottle.brand).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                Text(bottle.name).font(.inter(16, .semibold, relativeTo: .headline)).foregroundStyle(Theme.ink)
+                HStack(spacing: 5) {
+                    Rectangle().fill(CategoryPalette.color(for: bottle.category))
+                        .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
+                        .frame(width: 9, height: 9)
+                        .accessibilityHidden(true)
+                    Text(subtitle).font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted).monospacedDigit()
+                }
             }
             Spacer()
-            FillBar(percent: bottle.fillPct)
-                .frame(width: 8, height: 40)
+            FillGauge(percent: bottle.fillPct, track: Theme.ink.opacity(0.15))
+                .frame(width: 4, height: 40)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(bottle.brand) \(bottle.name), \(subtitle), \(bottle.fillPct) percent full")
     }
 
     private var subtitle: String {
@@ -112,21 +165,5 @@ struct BottleRow: View {
         if let proof = bottle.proof, let value = Double(proof) { parts.append("\(value.formatted()) proof") }
         if let age = bottle.ageStatement, !age.isEmpty { parts.append(age) }
         return parts.joined(separator: " · ")
-    }
-}
-
-/// A thin vertical gauge, full at the bottom up.
-struct FillBar: View {
-    let percent: Int
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 3).fill(Color(.secondarySystemFill))
-                RoundedRectangle(cornerRadius: 3).fill(.orange)
-                    .frame(height: geo.size.height * CGFloat(max(0, min(100, percent))) / 100)
-            }
-        }
-        .accessibilityLabel("\(percent) percent full")
     }
 }
