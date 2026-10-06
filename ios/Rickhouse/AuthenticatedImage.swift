@@ -6,15 +6,19 @@ import UIKit
 struct AuthenticatedImage: View {
     @Environment(Session.self) private var session
     let path: String?
+    /// `.fit` keeps the whole picture, as a cut-out bottle needs; `.fill` crops to the frame.
+    var contentMode: ContentMode = .fill
+    /// What shows behind a picture that doesn't fill its frame.
+    var background: Color = Color(.secondarySystemFill)
     @State private var image: UIImage?
 
     private static let cache = NSCache<NSString, UIImage>()
 
     var body: some View {
         ZStack {
-            Color(.secondarySystemFill)
+            background
             if let image {
-                Image(uiImage: image).resizable().scaledToFill()
+                Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
             } else {
                 Image(systemName: "wineglass").foregroundStyle(.secondary)
             }

@@ -39,7 +39,7 @@ struct BottleDetailView: View {
                 Text(b.brand).font(.subheadline).foregroundStyle(.secondary)
                 Text(b.name).font(.title2.bold())
                 HStack {
-                    FillBar(percent: b.fillPct).frame(width: 10, height: 28)
+                    FillGauge(percent: b.fillPct, track: Theme.ink.opacity(0.15)).frame(width: 4, height: 28)
                     Text("\(b.fillPct)% full" + (b.isOpen ? " · open" : ""))
                 }
             }

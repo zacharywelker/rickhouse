@@ -41,6 +41,10 @@ Every `/api/v1` response carries `x-rickhouse-api` (currently `1`). Within a ver
 
 Errors from `/api/v1` look like `{ "error": { "code", "message", "fields?" } }`.
 
+## Look
+
+The app follows the design-language spec (`docs/superpowers/specs/`): paper and ink, a frame coloured by category on every bottle photo, Inter for the interface and Source Serif 4 for headlines. Both fonts are bundled unmodified in `ios/Rickhouse/Fonts/` under the SIL Open Font License; the licence texts sit beside them. The gallery shows three columns by default; Account → Preferences switches to two, which add a second fact under each bottle. Light mode only for now.
+
 ## Not yet
 
-Editing fill level, tasting notes, creating new labels, groups, Numbers, passkeys (they need the paid Apple Developer Program) and SSO.
+Editing fill level, tasting notes, creating new labels, groups, Numbers, the Labels tab, marks (open date, gifted by, store pick), category facts such as rum age or gin style, dark mode, passkeys (they need the paid Apple Developer Program) and SSO.
