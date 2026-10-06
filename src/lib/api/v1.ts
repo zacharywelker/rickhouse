@@ -36,3 +36,29 @@ export function parseId(raw: string): number | null {
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
+
+/**
+ * A request's JSON object body, or the error to answer with. It insists on
+ * `application/json`, which a cross-site form can't send, so a cookie-carrying
+ * browser can't be made to write through the API by a page on another site.
+ */
+export async function readJsonObject(request: Request): Promise<{ body: Record<string, unknown> } | { error: NextResponse<ApiErrorBody> }> {
+  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+    return { error: apiError(415, "unsupported_media_type", "Send application/json.") };
+  }
+  const body: unknown = await request.json().catch(() => null);
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return { error: apiError(400, "bad_request", "Send a JSON object.") };
+  }
+  return { body: body as Record<string, unknown> };
+}
+
+/** Zod issues as the `{ field: message }` map the error body carries (first message per field). */
+export function issueFields(issues: { path: PropertyKey[]; message: string }[]): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const issue of issues) {
+    const key = issue.path[0];
+    if (typeof key === "string" && !(key in fields)) fields[key] = issue.message;
+  }
+  return fields;
+}
