@@ -74,7 +74,7 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
 
   // The known release this bottle is, if one was chosen. Its proof, age and
   // MSRP sit between the bottle's own and the label's, as in bottle_list.
-  const release = row.bottle.releaseId === null ? null : await releaseById(row.bottle.releaseId);
+  const release = row.bottle.releaseId === null ? null : await releaseById(row.bottle.releaseId, user.id);
   const releaseHasAge =
     release !== null &&
     (release.ageYears !== null || release.ageMonths !== null || release.ageDays !== null || release.ageStatement !== null);

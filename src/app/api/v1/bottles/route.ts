@@ -8,7 +8,7 @@ import { mapDbError } from "@/lib/db-errors";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { parseFilters } from "@/lib/bottles/filters";
 import { bottleSchema } from "@/lib/expressions/schema";
-import { nameBelongsToExpression } from "@/lib/other-names-store";
+import { settleLabelChoices } from "@/lib/expressions/label-choices";
 
 export const dynamic = "force-dynamic";
 
@@ -78,11 +78,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const data = parsed.data;
   try {
     // The composite (ref, owner_id) keys stop a bottle pointing at another
-    // account's label or store, but a version name has a plain key: it has to
-    // be one of this label's own, as in the web action.
-    if (data.expressionNameId !== null && !(await nameBelongsToExpression(data.expressionNameId, data.expressionId))) {
-      data.expressionNameId = null;
-    }
+    // account's label or store, but a version name and a release have plain
+    // keys: each has to be one of this label's own, as in the web action.
+    await settleLabelChoices(data);
     const [row] = await db
       .insert(bottles)
       .values({ ...data, ownerId: user.id })

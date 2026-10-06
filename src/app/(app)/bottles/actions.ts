@@ -9,10 +9,9 @@ import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
-import { nameBelongsToExpression } from "@/lib/other-names-store";
-import { releaseBelongsToExpression } from "@/lib/releases-store";
+import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { z } from "zod";
-import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema, type BottleInput } from "@/lib/expressions/schema";
+import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
 
 /**
  * Every write below is scoped to the signed-in account. A bottle id that is
@@ -20,28 +19,6 @@ import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchem
  * deleted bottle gets, which gives nothing away. Label and store ids on a
  * bottle are held to the same owner by composite foreign keys in Postgres.
  */
-/**
- * A chosen version or release has to be one of the bottle's own label's;
- * anything else means the label changed after it was picked (or the id was
- * never the caller's), and falls back to none. A chosen release replaces the
- * free-text batch and year, so the two can never disagree.
- */
-async function settleLabelChoices<T extends Pick<BottleInput, "expressionId" | "expressionNameId" | "releaseId" | "batch" | "releaseYear">>(
-  input: T,
-): Promise<T> {
-  if (input.expressionNameId !== null && !(await nameBelongsToExpression(input.expressionNameId, input.expressionId))) {
-    input.expressionNameId = null;
-  }
-  if (input.releaseId !== null && !(await releaseBelongsToExpression(input.releaseId, input.expressionId))) {
-    input.releaseId = null;
-  }
-  if (input.releaseId !== null) {
-    input.batch = null;
-    input.releaseYear = null;
-  }
-  return input;
-}
-
 function ownedBottle(id: number, ownerId: number) {
   return and(eq(bottles.id, id), eq(bottles.ownerId, ownerId));
 }

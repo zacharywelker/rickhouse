@@ -62,9 +62,13 @@ export async function expressionReleaseList(expressionId: number) {
     .orderBy(expressionReleases.position, expressionReleases.id);
 }
 
-/** One release by id, for a bottle's page. */
-export async function releaseById(id: number) {
-  const [row] = await db.select(columns).from(expressionReleases).where(eq(expressionReleases.id, id));
+/** One release by id, for a bottle's page; only if its label is `ownerId`'s. */
+export async function releaseById(id: number, ownerId: number) {
+  const [row] = await db
+    .select(columns)
+    .from(expressionReleases)
+    .innerJoin(expressions, eq(expressions.id, expressionReleases.expressionId))
+    .where(and(eq(expressionReleases.id, id), eq(expressions.ownerId, ownerId)));
   return row ?? null;
 }
 
