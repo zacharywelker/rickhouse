@@ -7,6 +7,7 @@ import { bottleSuggestions } from "@/lib/bottles/suggestions-query";
 import { colaLookupEnabled } from "@/lib/cola/store";
 import { loadCatalogLabel } from "@/lib/expressions/catalog";
 import { expressionFormData } from "@/lib/expressions/form-data";
+import { releaseChoices } from "@/lib/releases-store";
 import { getPreferences } from "@/lib/preferences";
 
 export const metadata: Metadata = { title: "Add a bottle" };
@@ -61,6 +62,7 @@ export default async function CatalogBottlePage({
         colaLookup={colaLookupEnabled()}
         initialLabel={initialLabel}
         suggestions={suggestions}
+        releases={await releaseChoices(user.id)}
       />
     </div>
   );
