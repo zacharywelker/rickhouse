@@ -75,3 +75,18 @@ export function nameWithYears(name: OtherName): string {
 export function otherNamesText(names: ReadonlyArray<OtherName>): string {
   return names.map(nameWithYears).join("\n");
 }
+
+/** The label form's rows (strings as typed) as the lines `parseOtherNames` reads. */
+export function otherNamesRowsText(rows: ReadonlyArray<Record<string, string>>): string {
+  return rows
+    .map((row) => {
+      const name = (row.name ?? "").trim();
+      const from = (row.yearFrom ?? "").trim();
+      const to = (row.yearTo ?? "").trim();
+      if (from !== "" && to !== "") return from === to ? `${name} (${from})` : `${name} (${from}–${to})`;
+      if (from !== "") return `${name} (from ${from})`;
+      if (to !== "") return `${name} (until ${to})`;
+      return name;
+    })
+    .join("\n");
+}

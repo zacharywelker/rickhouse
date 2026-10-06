@@ -134,3 +134,26 @@ export function releasesText(releases: ReadonlyArray<Release>): string {
 export function releaseLabel(r: Pick<Release, "name" | "releaseYear">): string {
   return r.releaseYear !== null && !r.name.includes(String(r.releaseYear)) ? `${r.name} (${r.releaseYear})` : r.name;
 }
+
+/** One release as the label form's row of strings. */
+export function releaseRow(r: Release): Record<string, string> {
+  return {
+    name: r.name,
+    year: r.releaseYear !== null ? String(r.releaseYear) : "",
+    proof: r.proof !== null ? String(Number(r.proof)) : "",
+    age: releaseAgeText(r),
+    msrp: r.msrp !== null ? String(Number(r.msrp)) : "",
+  };
+}
+
+/** The label form's rows (strings as typed) as the lines `parseReleases` reads. */
+export function releaseRowsText(rows: ReadonlyArray<Record<string, string>>): string {
+  return rows
+    .map((row) =>
+      [row.name, row.year, row.proof, row.age, row.msrp]
+        .map((cell) => (cell ?? "").trim())
+        .join(" | ")
+        .replace(/( \| )+$/, ""),
+    )
+    .join("\n");
+}
