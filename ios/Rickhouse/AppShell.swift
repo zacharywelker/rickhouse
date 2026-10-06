@@ -16,17 +16,13 @@ struct AppShell: View {
     var body: some View {
         TabView(selection: selection) {
             NavigationStack { CollectionView(reloadSignal: reloadSignal) }
-                .tabItem { Label("Collection", systemImage: "square.grid.2x2").labelStyle(.iconOnly) }
+                .tabItem { Self.icon("square.grid.2x2.fill", label: "Collection") }
                 .tag(Tab.collection)
             Color.clear
-                .tabItem {
-                    // The bar fills symbols on its own; the outline is the point here.
-                    Label("Add a bottle", systemImage: "plus.circle").labelStyle(.iconOnly)
-                        .environment(\.symbolVariants, .none)
-                }
+                .tabItem { Self.icon("plus.circle", label: "Add a bottle") }
                 .tag(Tab.add)
             AccountView()
-                .tabItem { Label("Account", systemImage: "person.circle.fill").labelStyle(.iconOnly) }
+                .tabItem { Self.icon("person.circle.fill", label: "Account") }
                 .tag(Tab.account)
         }
         .background(Theme.paper)
@@ -44,5 +40,13 @@ struct AppShell: View {
                 if new == .add { adding = true } else { tab = new }
             }
         )
+    }
+
+    /// The bar sizes symbols itself and ignores imageScale, so each icon is drawn at a set size (24 pt setting, about 28 pt drawn).
+    /// A template image, so the bar still tints it and fills the selection highlight behind it.
+    private static func icon(_ symbol: String, label: String) -> some View {
+        let config = UIImage.SymbolConfiguration(pointSize: 24, weight: .regular)
+        let image = UIImage(systemName: symbol, withConfiguration: config) ?? UIImage()
+        return Image(uiImage: image.withRenderingMode(.alwaysTemplate)).accessibilityLabel(label)
     }
 }
