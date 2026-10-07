@@ -126,6 +126,14 @@ struct APIClient {
         return found.filter { label in label.upc.map(wanted.contains) ?? false }
     }
 
+    func tastings(page: Int) async throws -> TastingsPage {
+        try await get("api/v1/tastings", query: [.init(name: "page", value: String(page)), .init(name: "size", value: "30")], as: TastingsPage.self)
+    }
+
+    func label(id: Int) async throws -> LabelDetail {
+        try await get("api/v1/expressions/\(id)", as: LabelDetail.self)
+    }
+
     func categories() async throws -> [CategoryOption] {
         try await get("api/v1/categories", as: CategoriesResponse.self).categories
     }

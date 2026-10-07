@@ -75,14 +75,14 @@ struct BottleDetailView: View {
             }
             Section("Bottle") {
                 row("Status", b.status.capitalized)
-                row("Opened", b.dateOpened.map(Self.day))
+                row("Opened", b.dateOpened.map(Format.day))
                 row("Batch", b.batch)
                 row("Barrel", b.barrelNumber)
                 row("Pick", b.pickName)
-                row("Paid", b.pricePaid.map(Self.money))
-                row("MSRP", b.msrp.map(Self.money))
+                row("Paid", b.pricePaid.map(Format.money))
+                row("MSRP", b.msrp.map(Format.money))
                 row("Store", b.store)
-                row("Acquired", b.dateAcquired.map(Self.day))
+                row("Acquired", b.dateAcquired.map(Format.day))
                 row("Location", b.location)
             }
             if let notes = b.notes, !notes.isEmpty {
@@ -162,7 +162,7 @@ struct BottleDetailView: View {
                 Button { editing = NoteEdit(note: note) } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text(Self.day(note.tastedOn)).font(.inter(15, .semibold)).monospacedDigit()
+                            Text(Format.day(note.tastedOn)).font(.inter(15, .semibold)).monospacedDigit()
                             Spacer()
                             if let rating = note.rating.flatMap(Double.init) {
                                 Text("\(rating.formatted()) / 10").font(.inter(15, .medium)).monospacedDigit()
@@ -190,17 +190,6 @@ struct BottleDetailView: View {
     }
 
     // MARK: Loading
-
-    /// "2026-10-06" as the reader's short date. Built from parts, not parsed, so the day never shifts with the time zone.
-    private static func day(_ iso: String) -> String {
-        let parts = iso.prefix(10).split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3, let date = Calendar.current.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) else { return iso }
-        return date.formatted(date: .abbreviated, time: .omitted)
-    }
-
-    private static func money(_ amount: String) -> String {
-        Double(amount).map { $0.formatted(.currency(code: "USD")) } ?? "$" + amount
-    }
 
     /// Hidden when there is nothing to say, so the sheet only shows what is recorded.
     @ViewBuilder

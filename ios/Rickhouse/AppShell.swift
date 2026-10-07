@@ -20,7 +20,7 @@ struct AppShell: View {
             NavigationStack { CollectionView(reloadSignal: reloadSignal) }
                 .tabItem { Self.icon("square.grid.2x2", label: "Collection") }
                 .tag(Tab.collection)
-            NavigationStack { PlaceholderScreen(title: "Labels") }
+            LabelsView()
                 .tabItem { Self.icon("text.magnifyingglass", label: "Labels") }
                 .tag(Tab.labels)
             Color.clear

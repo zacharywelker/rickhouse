@@ -102,6 +102,95 @@ struct LabelOption: Decodable, Identifiable, Hashable {
 
 struct LabelsResponse: Decodable { let expressions: [LabelOption] }
 
+/// One row of the tasting history: a note, with the label and bottle it belongs to.
+struct TastingEntry: Decodable, Identifiable {
+    let id: Int
+    let bottleId: Int
+    let expressionId: Int
+    let brand: String
+    let name: String
+    let category: String
+    let tastedOn: String
+    let rating: String?
+    let nose: String?
+    let palate: String?
+    let finish: String?
+    let overall: String?
+    let thumbPath: String?
+
+    var title: String { "\(brand) \(name)" }
+
+    /// The first line worth showing: the overall impression, else whatever was written.
+    var summary: String? {
+        [overall, nose, palate, finish].compactMap { $0 }.first { !$0.isEmpty }
+    }
+}
+
+struct TastingsPage: Decodable {
+    let page: Int
+    let pageCount: Int
+    let total: Int
+    let tastings: [TastingEntry]
+}
+
+/// A label read on its own page: specs, releases, the bottles you have of it and the tastings on them.
+struct LabelDetail: Decodable {
+    let id: Int
+    let brand: String
+    let name: String
+    let category: String
+    let upc: String?
+    let proof: String?
+    let ageStatement: String?
+    let ageYears: String?
+    let sizeMl: Int
+    let msrp: String?
+    let photoPath: String?
+    let photoThumbPath: String?
+    let distilleries: [String]
+    let finishes: [String]
+    let mashbills: [String]
+    let releases: [LabelRelease]
+    let bottles: [LabelBottle]
+    let tastings: [LabelTasting]
+}
+
+struct LabelRelease: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let releaseYear: Int?
+    let proof: String?
+    let ageStatement: String?
+    let msrp: String?
+    let photoThumbPath: String?
+}
+
+struct LabelBottle: Decodable, Identifiable {
+    let id: Int
+    let status: String
+    let isOpen: Bool
+    let fillPct: Int
+    let release: String?
+    let releaseYear: Int?
+    let pickName: String?
+    let barrelNumber: String?
+    let pricePaid: String?
+    let dateAcquired: String?
+    let store: String?
+    let thumbPath: String?
+}
+
+struct LabelTasting: Decodable, Identifiable {
+    let id: Int
+    let bottleId: Int
+    let tastedOn: String
+    let rating: String?
+    let nose: String?
+    let palate: String?
+    let finish: String?
+    let overall: String?
+}
+
 /// A 409 from creating a label: the label that is already there.
 struct DuplicateAnswer: Decodable { let existing: LabelOption? }
 
