@@ -11,8 +11,8 @@ Builds on `SPEC.md` M9 ("Tastings beyond the shelf") and section 11.4 and 11.5 o
 | What does a tasting belong to? | A label (expression), always. A bottle is optional. (M9, unchanged) |
 | Where is the tasting from? | A **source**: owned, bar, bottle share, sample, store pour. Picking one of your own bottles sets *owned* automatically. |
 | Where was it drunk? | **Tasted at**, free text (a bar, a friend's kitchen). Optional. |
-| How is it written? | One flat set of **flavor tags**, plus optional free text. Nose, palate, finish and overall stay as optional text, as today. |
-| Which tags? | A fixed list **per spirit family**, the eight families the label form already uses: whiskey, rum, agave, brandy, gin, vodka, liqueur, other. Lists in section 5. |
+| How is it written? | **Descriptors** (the wheel's own words, such as lemon or cinnamon) chosen from the family's official flavor wheel, plus optional free text. Nose, palate, finish and overall stay as optional text, as today. A tasting stores a flat list of descriptor keys; the wheel's category and subcategory are known from the key and are how the phone groups them. |
+| Which wheel? | One **official flavor wheel per spirit family** (the families the label form already uses), not lists we write ourselves. Sources and status in section 5. |
 | Rating | Unchanged: 0 to 10 in half steps, optional. Nothing is converted. |
 | Searching | The Labels tab searches labels only (decided with the tab). Searching inside tasting text is not part of this. |
 
@@ -51,24 +51,35 @@ Nothing already recorded moves: every existing note gets its label, owner and `o
    - Source (only when no bottle was chosen), and *tasted at* beside it for the non-owned sources.
    - Date, today by default.
    - Rating, 0 to 10 in half steps, optional.
-   - Flavor tags for the label's family, tapped from a grid.
+   - Flavor descriptors for the label's family: pick a category, then tap descriptors inside it.
    - Notes: one free-text box, with "More" for nose, palate and finish.
 4. **Save** closes the sheet; the Labels tab history picks it up.
 
 Editing an existing note uses the same form, with tags.
 
-## 5. Draft tag lists (for review and editing)
+## 5. The wheels: sources and status
 
-The lists are the content of this milestone and should be edited by someone who drinks the stuff. Keys are the lowercase words; labels are the words as shown.
+Tags are the wheels' own descriptors. Each wheel is a tree (category, then subcategory, then descriptors), so
+the phone picks in two steps and the data is a flat list of descriptor keys.
 
-- **whiskey:** caramel, vanilla, toffee, honey, brown sugar, maple, oak, charred oak, toasted nuts, almond, peanut, cinnamon, baking spice, clove, pepper, mint, tobacco, leather, cherry, dried fruit, apple, orange peel, citrus, banana, chocolate, coffee, corn, rye bread, malt, smoke, peat, brine, floral, grassy
-- **rum:** molasses, brown sugar, caramel, vanilla, banana, tropical fruit, pineapple, coconut, dried fruit, raisin, orange peel, oak, cinnamon, clove, pepper, coffee, chocolate, tobacco, leather, funk, grassy, sugarcane, brine, smoke, nutty
-- **agave:** cooked agave, citrus, lime, grapefruit, black pepper, herbal, mint, vegetal, earthy, mineral, smoke, brine, olive, vanilla, caramel, oak, butter, tropical fruit, floral, cinnamon
-- **brandy:** grape, apple, pear, apricot, peach, dried fruit, raisin, fig, citrus, floral, honey, vanilla, caramel, oak, cinnamon, spice, nutty, almond, chocolate, tobacco, leather
-- **gin:** juniper, citrus, lemon peel, orange peel, grapefruit, coriander, cardamom, angelica, orris, licorice, pine, floral, lavender, rose, cucumber, herbal, pepper, cinnamon, mint, earthy, sweet
-- **vodka:** clean, neutral, creamy, oily, sweet, grain, bread, earthy, citrus, mineral, peppery, heat
-- **liqueur:** sweet, bitter, citrus, orange, herbal, medicinal, floral, coffee, chocolate, cream, nutty, almond, vanilla, caramel, cherry, berry, spice, mint, anise, honey, gentian, rhubarb
-- **other:** sweet, bitter, citrus, fruit, floral, herbal, spice, oak, smoke, nutty, vanilla, caramel, earthy
+| Family | Wheel | Status |
+| --- | --- | --- |
+| whiskey: bourbon, rye and American | The Council of Whiskey Masters, Bourbon Flavor Wheel: 16 categories (Herbal, Spicy, Floral, Fruity, Finished, Aged, Flawed, Industrial, Primary Tastes, Textural Aspects, Woody, Sweet, Lactic, Nutty, Grainy, Earthy), over 200 descriptors | Read in full |
+| whiskey: Scotch, Irish and the rest | The Council's Whisky Flavor Wheel: 8 categories (Cereal, Fruity, Floral, Peaty, Feinty, Sulphury, Woody, Winey) | Read in full |
+| rum | "That Rum Drinker" flavour wheel (one blogger's personal wheel, published as an embedded chart) | Not machine-readable from the article; needs the author's data or a picture of the wheel, and their permission |
+| agave | Patron Academy tequila flavor wheel (a PDF on Google Drive) | Not read yet; needs the Drive connection re-authorized, or the wheel pasted |
+| brandy | SA Brandy Foundation aroma wheels (PDF) | Downloaded but not read: this machine has no PDF renderer and cannot install one (the network replaces certificates, and certificate checks are not being switched off) |
+| gin | Gin Foundry botanical flavour wheel | Published in their book, *Gin: Distilled*; not online, so it needs the book or a copy from the Foundry |
+| vodka | None chosen; the spirit is meant to be neutral | Open: a short texture and character list, or no tag list and free text only |
+| liqueur, other | None chosen | Open |
+
+Which whiskey categories use which wheel (for example Bourbon, Rye, Wheat and American whiskey on the Bourbon wheel;
+Scotch, Irish, Japanese, Canadian and International on the Whisky wheel) is still to be fixed.
+
+**Licensing.** Every one of these wheels is someone's published work (the Council's pages say all rights reserved).
+The plan is to use only category names and descriptor words, with a visible attribution, and not to copy their
+explanatory text or artwork. Asking each owner for permission before release is recommended and is for the
+project owner to do.
 
 ## 6. Order of work
 
@@ -81,6 +92,6 @@ Tonight's flavors step (at least 25 tastings overall, gated per spirit) reads th
 ## 7. Not decided here
 
 - Whether a bottle delete keeps its notes (section 2).
-- The tag lists' final content (section 5).
+- The wheel for rum, agave, brandy, gin, vodka, liqueur and other, and the whiskey category mapping (section 5).
 - A web tastings timeline page.
 - Searching inside tasting text.
