@@ -62,3 +62,17 @@ export function issueFields(issues: { path: PropertyKey[]; message: string }[]):
   }
   return fields;
 }
+
+/** `page` and `size` from a query string: a positive page (default 1) and a size from 1 to `max` (default `fallback`). */
+export function pageParams(searchParams: URLSearchParams, fallback = 30, max = 100): { page: number; size: number } {
+  const whole = (raw: string | null): number | null => {
+    const n = Number(raw);
+    return raw !== null && raw.trim() !== "" && Number.isInteger(n) ? n : null;
+  };
+  const page = whole(searchParams.get("page"));
+  const size = whole(searchParams.get("size"));
+  return {
+    page: page !== null && page >= 1 ? page : 1,
+    size: size !== null && size >= 1 ? Math.min(size, max) : fallback,
+  };
+}
