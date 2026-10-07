@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { setFill } from "@/lib/bottles/state";
 import { releaseById } from "@/lib/releases-store";
+import { categoryWheels } from "@/lib/tasting-wheel-for";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   return NextResponse.json({
     id: bottle.id,
+    expressionId: expression.id,
+    // The flavor wheel its label uses (null where the family has none), for logging a tasting on this bottle.
+    wheel: (await categoryWheels()).get(expression.categoryId) ?? null,
     brand: row.brand.name,
     name: expression.name,
     category: row.category.name,
@@ -80,6 +84,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           })),
     tastingNotes: notes.map((n) => ({
       id: n.id,
+      source: n.source,
+      tastedAt: n.tastedAt,
+      tags: n.tags,
       tastedOn: n.tastedOn,
       rating: n.rating,
       nose: n.nose,

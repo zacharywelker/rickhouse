@@ -41,8 +41,13 @@ export type TastingNoteInput = z.infer<typeof tastingNoteSchema>;
 
 /** The new note's id, or null when the bottle isn't this account's. */
 export async function addTastingNote(bottleId: number, ownerId: number, data: TastingNoteInput): Promise<number | null> {
-  if (!(await ownsBottle(bottleId, ownerId))) return null;
-  const [row] = await db.insert(tastingNotes).values({ bottleId, ...data }).returning({ id: tastingNotes.id });
+  const [bottle] = await db.select({ expressionId: bottles.expressionId }).from(bottles).where(ownedBottle(bottleId, ownerId)).limit(1);
+  if (!bottle) return null;
+  // A note on one of your own bottles takes its label from the bottle and is "owned".
+  const [row] = await db
+    .insert(tastingNotes)
+    .values({ ownerId, expressionId: bottle.expressionId, bottleId, source: "owned", ...data })
+    .returning({ id: tastingNotes.id });
   return row?.id ?? null;
 }
 

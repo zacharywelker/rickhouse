@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bottleGridEditSchema, bottleSchema, bottleStateSchema, expressionGridEditSchema } from "../schema";
+import { bottleGridEditSchema, bottleSchema, bottleStateSchema, expressionGridEditSchema, tastingEditSchema, tastingSchema } from "../schema";
 
 describe("expressionGridEditSchema", () => {
   it("leaves out what was not sent, rather than clearing it", () => {
@@ -69,5 +69,62 @@ describe("bottle dates", () => {
   it("refuses a barrel bottled in the future, and accepts one bottled in the past", () => {
     expect(futureIssue(bottleSchema.safeParse({ expressionId: "1", bottledOn: "2999-06-01" }))).toEqual(["bottledOn"]);
     expect(futureIssue(bottleSchema.safeParse({ expressionId: "1", bottledOn: "2020-06-01" }))).toBeUndefined();
+  });
+});
+
+describe("tastingSchema", () => {
+  it("takes a label alone, with the owned source and no flavors by default", () => {
+    const parsed = tastingSchema.parse({ expressionId: 4 });
+    expect(parsed).toMatchObject({ expressionId: 4, bottleId: null, source: "owned", tastedAt: null, tags: [], rating: null });
+    expect(parsed.tastedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("reads a pour from elsewhere: source, place, rating, flavors and the texts", () => {
+    const parsed = tastingSchema.parse({
+      expressionId: 4,
+      source: "bottle_share",
+      tastedAt: "  Dave's place ",
+      tastedOn: "2026-10-06",
+      rating: 8.5,
+      tags: ["bourbon/fruity/citrus/lemon"],
+      overall: " Bright ",
+    });
+    expect(parsed).toMatchObject({ source: "bottle_share", tastedAt: "Dave's place", rating: "8.5", overall: "Bright" });
+    expect(parsed.tags).toEqual(["bourbon/fruity/citrus/lemon"]);
+  });
+
+  it("keeps a repeated flavor once, in order", () => {
+    expect(tastingSchema.parse({ expressionId: 1, tags: ["a/b", "c/d", "a/b"] }).tags).toEqual(["a/b", "c/d"]);
+  });
+
+  it("names the field that is wrong", () => {
+    const fields = (body: object) => {
+      const result = tastingSchema.safeParse(body);
+      return result.success ? [] : result.error.issues.map((issue) => issue.path[0]);
+    };
+    expect(fields({})).toContain("expressionId");
+    expect(fields({ expressionId: 0 })).toContain("expressionId");
+    expect(fields({ expressionId: 1, source: "tavern" })).toContain("source");
+    expect(fields({ expressionId: 1, rating: 11 })).toContain("rating");
+    expect(fields({ expressionId: 1, tastedOn: "yesterday" })).toContain("tastedOn");
+    expect(fields({ expressionId: 1, tags: [""] })).toContain("tags");
+    expect(fields({ expressionId: 1, bottleId: 1.5 })).toContain("bottleId");
+  });
+
+  it("allows a missing bottle either way it is sent", () => {
+    expect(tastingSchema.parse({ expressionId: 1, bottleId: null }).bottleId).toBeNull();
+    expect(tastingSchema.parse({ expressionId: 1, bottleId: 7 }).bottleId).toBe(7);
+  });
+});
+
+describe("tastingEditSchema", () => {
+  it("cannot move a tasting to another label or bottle", () => {
+    const parsed = tastingEditSchema.parse({ expressionId: 9, bottleId: 9, overall: "x" });
+    expect(parsed).not.toHaveProperty("expressionId");
+    expect(parsed).not.toHaveProperty("bottleId");
+  });
+
+  it("clears what is left out, as a note does", () => {
+    expect(tastingEditSchema.parse({})).toMatchObject({ rating: null, nose: null, tastedAt: null, tags: [], source: "owned" });
   });
 });

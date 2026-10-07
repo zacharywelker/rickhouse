@@ -47,8 +47,8 @@ export function DeleteBottleButton({ bottleId, name }: { bottleId: number; name:
           <DialogHeader>
             <DialogTitle>Delete this bottle?</DialogTitle>
             <DialogDescription>
-              This removes its historical record — photos, tasting notes, and pour log — for good. The label itself is not
-              affected.
+              This removes the bottle and its photos and pour log for good. Its tasting notes stay on the label, which is
+              not affected.
             </DialogDescription>
           </DialogHeader>
           <div className="px-6 py-4">

@@ -30,8 +30,21 @@ struct BottleDetailView: View {
         .background(Theme.paper)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .task { await session.loadWheels() }
         .sheet(item: $editing) { edit in
-            NoteEditorView(bottleId: id, note: edit.note) { Task { await load() } }
+            if let bottle, let expressionId = bottle.expressionId {
+                NavigationStack {
+                    TastingFormView(
+                        label: TastingLabel(id: expressionId, title: "\(bottle.brand) \(bottle.name)", category: bottle.category, wheel: bottle.wheel),
+                        bottle: TastingBottle(id: id, title: Self.title(of: bottle)),
+                        existing: edit.note.map { LabelTasting($0, bottleId: id) }
+                    ) {
+                        editing = nil
+                        Task { await load() }
+                    }
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editing = nil } } }
+                }
+            }
         }
     }
 
@@ -75,14 +88,14 @@ struct BottleDetailView: View {
             }
             Section("Bottle") {
                 row("Status", b.status.capitalized)
-                row("Opened", b.dateOpened.map(Self.day))
+                row("Opened", b.dateOpened.map(Format.day))
                 row("Batch", b.batch)
                 row("Barrel", b.barrelNumber)
                 row("Pick", b.pickName)
-                row("Paid", b.pricePaid.map(Self.money))
-                row("MSRP", b.msrp.map(Self.money))
+                row("Paid", b.pricePaid.map(Format.money))
+                row("MSRP", b.msrp.map(Format.money))
                 row("Store", b.store)
-                row("Acquired", b.dateAcquired.map(Self.day))
+                row("Acquired", b.dateAcquired.map(Format.day))
                 row("Location", b.location)
             }
             if let notes = b.notes, !notes.isEmpty {
@@ -162,11 +175,17 @@ struct BottleDetailView: View {
                 Button { editing = NoteEdit(note: note) } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text(Self.day(note.tastedOn)).font(.inter(15, .semibold)).monospacedDigit()
+                            Text(Format.day(note.tastedOn)).font(.inter(15, .semibold)).monospacedDigit()
                             Spacer()
                             if let rating = note.rating.flatMap(Double.init) {
                                 Text("\(rating.formatted()) / 10").font(.inter(15, .medium)).monospacedDigit()
                             }
+                        }
+                        if let pour = Format.pour(source: note.source, tastedAt: note.tastedAt) {
+                            Text(pour).font(.inter(13)).foregroundStyle(Theme.muted)
+                        }
+                        if let flavors = note.tags, !flavors.isEmpty {
+                            Text(flavors.map(session.flavorName).joined(separator: ", ")).font(.inter(14, .medium)).foregroundStyle(Theme.ink)
                         }
                         ForEach(lines(of: note), id: \.0) { label, text in
                             Text("\(Text(label + " ").font(.inter(14, .medium)).foregroundStyle(Theme.muted))\(Text(text).font(.inter(14)))")
@@ -178,10 +197,23 @@ struct BottleDetailView: View {
                 }
                 .buttonStyle(.plain)
             }
-            Button { editing = NoteEdit(note: nil) } label: {
-                Label("Add a tasting note", systemImage: "plus")
+            if b.expressionId != nil {
+                Button { editing = NoteEdit(note: nil) } label: {
+                    Label("Add a tasting note", systemImage: "plus")
+                }
             }
         }
+    }
+
+    /// What tells this bottle from another of its label, in a few words.
+    private static func title(of b: BottleDetail) -> String {
+        let parts = [
+            b.pickName.map { "“\($0)”" },
+            b.barrelNumber.map { "barrel \($0)" },
+            b.batch,
+            b.releaseYear.map(String.init),
+        ].compactMap { $0 }
+        return parts.isEmpty ? "Standard release" : parts.joined(separator: ", ")
     }
 
     private func lines(of note: TastingNote) -> [(String, String)] {
@@ -190,17 +222,6 @@ struct BottleDetailView: View {
     }
 
     // MARK: Loading
-
-    /// "2026-10-06" as the reader's short date. Built from parts, not parsed, so the day never shifts with the time zone.
-    private static func day(_ iso: String) -> String {
-        let parts = iso.prefix(10).split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3, let date = Calendar.current.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) else { return iso }
-        return date.formatted(date: .abbreviated, time: .omitted)
-    }
-
-    private static func money(_ amount: String) -> String {
-        Double(amount).map { $0.formatted(.currency(code: "USD")) } ?? "$" + amount
-    }
 
     /// Hidden when there is nothing to say, so the sheet only shows what is recorded.
     @ViewBuilder

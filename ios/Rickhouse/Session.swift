@@ -15,6 +15,28 @@ final class Session {
 
     var isSignedIn: Bool { token != nil && serverURL != nil }
 
+    /// The flavor wheels by id, loaded once when first needed. A tasting stores descriptor keys, and these say what
+    /// each one is called.
+    private(set) var wheels: [String: TastingWheel] = [:]
+    private var flavorNames: [String: String] = [:]
+
+    func loadWheels() async {
+        guard wheels.isEmpty, let api, let list = try? await api.tastingWheels() else { return }
+        wheels = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
+        flavorNames = Dictionary(
+            list.flatMap { $0.categories.flatMap(\.descriptors) }.map { ($0.key, $0.label) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    /// "Caramel" for "bourbon/sweet/confectionary/caramel". Before the wheels have loaded, or for a word no longer
+    /// on its wheel, it is made from the key.
+    func flavorName(_ key: String) -> String {
+        if let name = flavorNames[key] { return name }
+        let word = (key.split(separator: "/").last.map(String.init) ?? key).replacingOccurrences(of: "-", with: " ")
+        return word.prefix(1).uppercased() + word.dropFirst()
+    }
+
     var api: APIClient? {
         guard let serverURL, let token else { return nil }
         return APIClient(baseURL: serverURL, token: token)

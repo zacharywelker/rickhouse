@@ -399,19 +399,28 @@ CREATE TABLE bottle_images (
 CREATE UNIQUE INDEX bottle_images_one_primary
     ON bottle_images(bottle_id) WHERE is_primary;
 
--- Tasting notes. Attached to the bottle, so you can compare batches.
+-- Tasting notes. A tasting belongs to a label; the bottle is optional, so a pour of a
+-- bottle you do not own can be kept (SPEC M9). Composite foreign keys (added below with the
+-- owner keys) hold the label to the owner and the bottle to the label.
 CREATE TABLE tasting_notes (
-    id          serial PRIMARY KEY,
-    bottle_id   integer NOT NULL REFERENCES bottles(id) ON DELETE CASCADE,
-    tasted_on   date NOT NULL DEFAULT CURRENT_DATE,
-    rating      numeric(3,1) CHECK (rating BETWEEN 0 AND 10),
-    nose        text,
-    palate      text,
-    finish      text,
-    overall     text,
-    created_at  timestamptz NOT NULL DEFAULT now()
+    id            serial PRIMARY KEY,
+    expression_id integer NOT NULL,
+    bottle_id     integer,
+    source        text NOT NULL DEFAULT 'owned'
+                  CHECK (source IN ('owned', 'bar', 'bottle_share', 'sample', 'store_pour')),
+    tasted_at     text,        -- where it was drunk, in the user's words
+    tasted_on     date NOT NULL DEFAULT CURRENT_DATE,
+    rating        numeric(3,1) CHECK (rating BETWEEN 0 AND 10),
+    nose          text,
+    palate        text,
+    finish        text,
+    overall       text,
+    tags          text[] NOT NULL DEFAULT '{}',   -- descriptor keys from the label's flavor wheel
+    created_at    timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX tasting_notes_bottle_idx ON tasting_notes(bottle_id);
+CREATE INDEX tasting_notes_bottle_idx     ON tasting_notes(bottle_id);
+CREATE INDEX tasting_notes_expression_idx ON tasting_notes(expression_id, tasted_on DESC);
+-- owner_id and its index come with the other owner columns below.
 
 -- Optional pour log. If you use it, fill_pct can be recomputed from it.
 CREATE TABLE pours (
@@ -695,6 +704,9 @@ ALTER TABLE expressions ADD CONSTRAINT expressions_id_owner_unique UNIQUE (id, o
 ALTER TABLE bottles ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX bottles_owner_idx ON bottles(owner_id);
 ALTER TABLE bottles ADD CONSTRAINT bottles_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE bottles ADD CONSTRAINT bottles_id_expression_unique UNIQUE (id, expression_id);
+ALTER TABLE tasting_notes ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX tasting_notes_owner_idx ON tasting_notes(owner_id, tasted_on DESC, id DESC);
 ALTER TABLE groups ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX groups_owner_idx ON groups(owner_id);
 ALTER TABLE groups ADD CONSTRAINT groups_id_owner_unique UNIQUE (id, owner_id);
@@ -730,6 +742,11 @@ ALTER TABLE bottles DROP CONSTRAINT bottles_expression_id_fkey,
     ADD FOREIGN KEY (expression_id, owner_id) REFERENCES expressions(id, owner_id) ON DELETE NO ACTION;
 ALTER TABLE bottles DROP CONSTRAINT bottles_store_id_fkey,
     ADD FOREIGN KEY (store_id, owner_id) REFERENCES stores(id, owner_id) ON DELETE SET NULL (store_id);
+-- A tasting's label is the owner's own, and its bottle (when it has one) is a bottle of that label.
+-- Deleting a bottle keeps its tastings on the label.
+ALTER TABLE tasting_notes
+    ADD FOREIGN KEY (expression_id, owner_id) REFERENCES expressions(id, owner_id) ON DELETE CASCADE,
+    ADD FOREIGN KEY (bottle_id, expression_id) REFERENCES bottles(id, expression_id) ON DELETE SET NULL (bottle_id);
 
 -- Link tables have no owner of their own; every row they point at must share
 -- one. Arguments are (column, table) pairs; NULL references are skipped.

@@ -11,6 +11,7 @@ import { BottleStamps, StampDesignations, type StampSpec } from "@/components/bo
 import { FillGauge } from "@/components/bottles/fill-gauge";
 import { StatusMark } from "@/components/bottles/status-mark";
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
+import { NoteWhen, pourNote } from "@/components/expressions/note-when";
 import { DeleteExpressionButton } from "@/components/expressions/delete-expression-button";
 import { LabelPhotoControls } from "@/components/expressions/label-photo-controls";
 import { CharLevelSpec, Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
@@ -350,7 +351,7 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
                 {notes.map((note) => (
                   <li key={note.id} className="flex flex-col gap-1 py-3 first:pt-0">
                     <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                      <Link href={`/bottles/${note.bottleId}`} className="font-medium hover:text-accent hover:underline">
+                      <NoteWhen bottleId={note.bottleId}>
                         {formatDate(note.tastedOn)}
                         {note.pickName || note.barrelNumber || note.batch ? (
                           <span className="font-normal text-muted-foreground">
@@ -358,7 +359,13 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
                             {note.pickName ?? (note.barrelNumber ? `barrel ${note.barrelNumber}` : note.batch)}
                           </span>
                         ) : null}
-                      </Link>
+                        {pourNote(note.source, note.tastedAt) ? (
+                          <span className="font-normal text-muted-foreground">
+                            {" · "}
+                            {pourNote(note.source, note.tastedAt)}
+                          </span>
+                        ) : null}
+                      </NoteWhen>
                       {note.rating !== null ? <span className="tabular-nums">{formatNumeric(note.rating)} / 10</span> : null}
                     </div>
                     {[

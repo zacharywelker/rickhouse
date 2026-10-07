@@ -9,6 +9,8 @@ struct FindLabelView: View {
     @Environment(Session.self) private var session
     @Environment(\.dismiss) private var dismiss
 
+    /// What the screen is called: Add a bottle, or Log a tasting.
+    var title = "Add a bottle"
     /// A label was chosen, with the barcode to save onto it when the scan found no label.
     var onPick: (LabelOption, String?) -> Void
     /// Nothing fits: start a label with the held barcode and whatever was typed.
@@ -86,7 +88,7 @@ struct FindLabelView: View {
                 }
             }
         }
-        .navigationTitle("Add a bottle")
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Brand or name")
         .toolbar {

@@ -648,25 +648,45 @@ export const bottleImages = pgTable(
   ],
 );
 
-/** Attached to the bottle, so you can compare batches. */
+/** Where a tasting happened. A bottle of your own is "owned"; the rest are pours from elsewhere. */
+export const TASTING_SOURCES = ["owned", "bar", "bottle_share", "sample", "store_pour"] as const;
+export type TastingSource = (typeof TASTING_SOURCES)[number];
+
+/**
+ * A tasting belongs to a label; the bottle is optional, so a pour of a bottle you do not own can be kept (SPEC M9).
+ * Composite foreign keys in the migration hold the label to the owner and the bottle to the label. Deleting a bottle
+ * keeps its tastings on the label (the bottle id is cleared); deleting the label deletes them.
+ */
 export const tastingNotes = pgTable(
   "tasting_notes",
   {
     id: serial("id").primaryKey(),
-    bottleId: integer("bottle_id")
+    ownerId: integer("owner_id")
       .notNull()
-      .references(() => bottles.id, { onDelete: "cascade" }),
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+    /** Held to the owner by a composite FK to expressions(id, owner_id) in the migration. */
+    expressionId: integer("expression_id").notNull(),
+    /** Held to the label by a composite FK to bottles(id, expression_id) in the migration. */
+    bottleId: integer("bottle_id"),
+    source: text("source").notNull().default("owned").$type<TastingSource>(),
+    /** Where it was drunk, in the user's words: a bar, a friend's kitchen. */
+    tastedAt: text("tasted_at"),
     tastedOn: date("tasted_on").notNull().default(sql`CURRENT_DATE`),
     rating: numeric("rating", { precision: 3, scale: 1 }),
     nose: text("nose"),
     palate: text("palate"),
     finish: text("finish"),
     overall: text("overall"),
+    /** Descriptor keys from the label's flavor wheel (src/lib/tasting-wheels). */
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("tasting_notes_bottle_idx").on(t.bottleId),
+    index("tasting_notes_expression_idx").on(t.expressionId, t.tastedOn.desc()),
+    index("tasting_notes_owner_idx").on(t.ownerId, t.tastedOn.desc(), t.id.desc()),
     check("tasting_notes_rating_check", sql`${t.rating} BETWEEN 0 AND 10`),
+    check("tasting_notes_source_check", sql`${t.source} IN ('owned', 'bar', 'bottle_share', 'sample', 'store_pour')`),
   ],
 );
 

@@ -14,13 +14,15 @@ struct AppShell: View {
     @State private var chosen: AddChoice?
     @State private var flow: AddChoice?
     @State private var reloadSignal = 0
+    /// Bumped when a tasting is logged, so the Labels tab reloads its history.
+    @State private var tastingSignal = 0
 
     var body: some View {
         TabView(selection: selection) {
             NavigationStack { CollectionView(reloadSignal: reloadSignal) }
                 .tabItem { Self.icon("square.grid.2x2", label: "Collection") }
                 .tag(Tab.collection)
-            NavigationStack { PlaceholderScreen(title: "Labels") }
+            LabelsView(reloadSignal: tastingSignal)
                 .tabItem { Self.icon("text.magnifyingglass", label: "Labels") }
                 .tag(Tab.labels)
             Color.clear
@@ -40,7 +42,8 @@ struct AppShell: View {
         .sheet(item: $flow) { choice in
             switch choice {
             case .addBottle: AddBottleView { reloadSignal += 1; tab = .collection }
-            case .logTasting, .tonight: ComingSoonSheet(title: choice.title)
+            case .logTasting: LogTastingFlow { tastingSignal += 1; tab = .labels }
+            case .tonight: ComingSoonSheet(title: choice.title)
             }
         }
     }
