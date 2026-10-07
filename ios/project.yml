@@ -14,11 +14,19 @@ targets:
     type: application
     platform: iOS
     sources: [Rickhouse]
+    # The launch screen is the app's ivory paper (#FFF8E7, the LaunchBackground color in Assets.xcassets), so there is no
+    # white or black flash before the first screen. A generated Info.plist can't name the color, so this one key lives here;
+    # everything else is still generated from the INFOPLIST_KEY settings below.
+    info:
+      path: Rickhouse/Info.plist
+      properties:
+        UILaunchScreen:
+          UIColorName: LaunchBackground
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zacharywelker.rickhouse
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_CFBundleDisplayName: Rickhouse

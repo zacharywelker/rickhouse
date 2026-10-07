@@ -53,6 +53,12 @@ Errors from `/api/v1` look like `{ "error": { "code", "message", "fields?" } }`.
 
 The app follows the design-language spec (`docs/superpowers/specs/`): paper and ink, a frame coloured by category on every bottle photo, Inter for the interface and Source Serif 4 for headlines. Both fonts are bundled unmodified in `ios/Rickhouse/Fonts/` under the SIL Open Font License; the licence texts sit beside them. The gallery shows three columns by default; Account → Preferences switches to two, which add a second fact under each bottle. Light mode only for now.
 
+### Icon and launch screen
+
+The app icon is the brand kit's `docs/brand/app-icon-dark-square.svg` (see `docs/brand/README.md`), rendered to a 1024 px PNG at `ios/Rickhouse/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png`. iOS applies its own corner mask, so the tile is full-bleed. If the SVG changes, render it again (on a Mac, `qlmanage -t -s 1024 -o <dir> app-icon-dark-square.svg`) and **remove the alpha channel**: the App Store rejects an icon that has one. The colors should come out exactly navy `#14213D`, ivory `#FFF8E7` and orange `#FC9350`.
+
+The launch screen is plain ivory paper (`#FFF8E7`, the `LaunchBackground` color in the same asset catalog), so there is no white or black flash before the first screen. The key that names the color is the one entry in `project.yml`'s `info:` block; the rest of the Info.plist is generated from the `INFOPLIST_KEY_` settings, and XcodeGen writes `ios/Rickhouse/Info.plist` (not committed) on each generate.
+
 ## Not yet
 
 Finishing a bottle (marking it killed), editing a bottle's other fields, creating new labels, groups, Numbers, the Labels tab, marks (open date, gifted by, store pick), category facts such as rum age or gin style, dark mode, passkeys (they need the paid Apple Developer Program) and SSO.

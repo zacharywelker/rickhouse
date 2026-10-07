@@ -25,6 +25,8 @@ playwright/.cache/
 
 # iOS
 ios/*.xcodeproj
+# Written by XcodeGen from ios/project.yml on every generate.
+ios/Rickhouse/Info.plist
 ios/build/
 xcuserdata/
 .DS_Store
