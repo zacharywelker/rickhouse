@@ -29,13 +29,14 @@ ALTER TABLE "tasting_notes" ADD CONSTRAINT "tasting_notes_expression_owner_fk"
 	FOREIGN KEY ("expression_id", "owner_id") REFERENCES "expressions"("id", "owner_id") ON DELETE CASCADE;
 --> statement-breakpoint
 -- A note's bottle must be a bottle of the note's label. With no bottle the key is not checked (MATCH SIMPLE).
--- Together with the key above this also keeps the bottle in the owner's account.
+-- Together with the key above this also keeps the bottle in the owner's account. Deleting a bottle keeps its
+-- tastings: they stay on the label, with no bottle (SET NULL on bottle_id only; the label column stays).
 ALTER TABLE "bottles" ADD CONSTRAINT "bottles_id_expression_unique" UNIQUE ("id", "expression_id");
 --> statement-breakpoint
 ALTER TABLE "tasting_notes" DROP CONSTRAINT "tasting_notes_bottle_id_bottles_id_fk";
 --> statement-breakpoint
 ALTER TABLE "tasting_notes" ADD CONSTRAINT "tasting_notes_bottle_expression_fk"
-	FOREIGN KEY ("bottle_id", "expression_id") REFERENCES "bottles"("id", "expression_id") ON DELETE CASCADE;
+	FOREIGN KEY ("bottle_id", "expression_id") REFERENCES "bottles"("id", "expression_id") ON DELETE SET NULL ("bottle_id");
 --> statement-breakpoint
 CREATE INDEX "tasting_notes_expression_idx" ON "tasting_notes" ("expression_id", "tasted_on" DESC);
 --> statement-breakpoint

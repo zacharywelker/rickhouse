@@ -30,7 +30,7 @@ One migration, written by hand (drizzle-kit generate does not work here), with i
 
 `bottle_id` becomes nullable. A note's bottle must be a bottle of the note's label: a composite key if the schema can carry one, otherwise a check in the write path (to be settled when the migration is written).
 
-**Decision to confirm before merging the migration:** deleting a bottle currently deletes its notes (`ON DELETE CASCADE`). With label-level notes that destroys history you may want to keep. The default here is **no change** (cascade stays), so the migration does not alter behavior. Switching to `ON DELETE SET NULL (bottle_id)` is possible on Postgres 16 and would keep the note on its label.
+**Decided: deleting a bottle keeps its tastings.** The bottle key is `ON DELETE SET NULL (bottle_id)` (Postgres 15 and later), so a note stays on its label with no bottle and keeps its source. This changes today's behavior, where deleting a bottle deleted its notes, and the delete confirmation says so. Deleting a label still deletes its tastings.
 
 Nothing already recorded moves: every existing note gets its label, owner and `owned` source from its bottle.
 
@@ -90,7 +90,6 @@ Tonight's flavors step (at least 25 tastings overall, gated per spirit) reads th
 
 ## 7. Not decided here
 
-- Whether a bottle delete keeps its notes (section 2).
 - A generic list for vodka, liqueur and other (section 5). A family with no wheel yet shows no tag picker, only free text, and the server refuses flavor keys for it.
 - A web tastings timeline page.
 - Searching inside tasting text.

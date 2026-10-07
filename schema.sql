@@ -743,9 +743,10 @@ ALTER TABLE bottles DROP CONSTRAINT bottles_expression_id_fkey,
 ALTER TABLE bottles DROP CONSTRAINT bottles_store_id_fkey,
     ADD FOREIGN KEY (store_id, owner_id) REFERENCES stores(id, owner_id) ON DELETE SET NULL (store_id);
 -- A tasting's label is the owner's own, and its bottle (when it has one) is a bottle of that label.
+-- Deleting a bottle keeps its tastings on the label.
 ALTER TABLE tasting_notes
     ADD FOREIGN KEY (expression_id, owner_id) REFERENCES expressions(id, owner_id) ON DELETE CASCADE,
-    ADD FOREIGN KEY (bottle_id, expression_id) REFERENCES bottles(id, expression_id) ON DELETE CASCADE;
+    ADD FOREIGN KEY (bottle_id, expression_id) REFERENCES bottles(id, expression_id) ON DELETE SET NULL (bottle_id);
 
 -- Link tables have no owner of their own; every row they point at must share
 -- one. Arguments are (column, table) pairs; NULL references are skipped.

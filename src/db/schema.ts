@@ -654,7 +654,8 @@ export type TastingSource = (typeof TASTING_SOURCES)[number];
 
 /**
  * A tasting belongs to a label; the bottle is optional, so a pour of a bottle you do not own can be kept (SPEC M9).
- * Composite foreign keys in the migration hold the label to the owner and the bottle to the label.
+ * Composite foreign keys in the migration hold the label to the owner and the bottle to the label. Deleting a bottle
+ * keeps its tastings on the label (the bottle id is cleared); deleting the label deletes them.
  */
 export const tastingNotes = pgTable(
   "tasting_notes",
