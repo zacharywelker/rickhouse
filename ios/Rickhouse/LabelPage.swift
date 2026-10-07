@@ -7,6 +7,8 @@ struct LabelPage: View {
     let id: Int
     @State private var label: LabelDetail?
     @State private var error: String?
+    /// The tasting being edited, in a sheet.
+    @State private var editing: LabelTasting?
 
     var body: some View {
         Group {
@@ -27,6 +29,22 @@ struct LabelPage: View {
         .background(Theme.paper)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .task { await session.loadWheels() }
+        .sheet(item: $editing) { tasting in
+            if let label {
+                NavigationStack {
+                    TastingFormView(
+                        label: TastingLabel(label),
+                        bottle: label.bottles.first { $0.id == tasting.bottleId }.map(TastingBottle.init),
+                        existing: tasting
+                    ) {
+                        editing = nil
+                        Task { await load() }
+                    }
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editing = nil } } }
+                }
+            }
+        }
     }
 
     private func content(_ l: LabelDetail) -> some View {
@@ -89,7 +107,10 @@ struct LabelPage: View {
             }
             if !l.tastings.isEmpty {
                 Section("Tastings") {
-                    ForEach(l.tastings) { tasting in tastingRow(tasting) }
+                    ForEach(l.tastings) { tasting in
+                        Button { editing = tasting } label: { tastingRow(tasting) }
+                            .buttonStyle(.plain)
+                    }
                 }
             }
         }
@@ -110,7 +131,7 @@ struct LabelPage: View {
                 .frame(width: 44, height: 44)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
             VStack(alignment: .leading, spacing: 2) {
-                Text(bottleTitle(bottle)).font(.inter(16, .medium))
+                Text(bottle.title).font(.inter(16, .medium))
                 Text([bottle.status.capitalized, bottle.dateAcquired.map(Format.day)].compactMap { $0 }.joined(separator: " · "))
                     .font(.inter(13)).foregroundStyle(Theme.muted)
             }
@@ -118,18 +139,7 @@ struct LabelPage: View {
             FillGauge(percent: bottle.fillPct, track: Theme.ink.opacity(0.15)).frame(width: 4, height: 32)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(bottleTitle(bottle)), \(bottle.status), \(bottle.fillPct) percent full")
-    }
-
-    /// What tells one bottle of the label from another, in a few words.
-    private func bottleTitle(_ bottle: LabelBottle) -> String {
-        let parts = [
-            bottle.pickName.map { "“\($0)”" },
-            bottle.barrelNumber.map { "barrel \($0)" },
-            bottle.release,
-            bottle.releaseYear.map(String.init),
-        ].compactMap { $0 }
-        return parts.isEmpty ? "Standard release" : parts.joined(separator: ", ")
+        .accessibilityLabel("\(bottle.title), \(bottle.status), \(bottle.fillPct) percent full")
     }
 
     private func tastingRow(_ tasting: LabelTasting) -> some View {
@@ -138,6 +148,12 @@ struct LabelPage: View {
                 Text(Format.day(tasting.tastedOn)).font(.inter(15, .semibold)).monospacedDigit()
                 Spacer()
                 if let rating = Format.rating(tasting.rating) { Text(rating).font(.inter(15, .medium)).monospacedDigit() }
+            }
+            if let pour = Format.pour(source: tasting.source, tastedAt: tasting.tastedAt) {
+                Text(pour).font(.inter(13)).foregroundStyle(Theme.muted)
+            }
+            if let flavors = tasting.tags, !flavors.isEmpty {
+                Text(flavors.map(session.flavorName).joined(separator: ", ")).font(.inter(14, .medium)).foregroundStyle(Theme.ink)
             }
             ForEach(lines(of: tasting), id: \.0) { title, text in
                 Text("\(Text(title + " ").font(.inter(14, .medium)).foregroundStyle(Theme.muted))\(Text(text).font(.inter(14)))")

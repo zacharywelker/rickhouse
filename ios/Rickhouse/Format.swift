@@ -22,4 +22,27 @@ enum Format {
     static func proof(_ raw: String?) -> String? {
         raw.flatMap(Double.init).map { "\($0.formatted()) proof" }
     }
+
+    private static let isoDay: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    /// A date as the server's "2026-10-06".
+    static func isoDay(_ date: Date) -> String { isoDay.string(from: date) }
+
+    /// The server's "2026-10-06" as a date, or nil.
+    static func date(fromISO iso: String) -> Date? { isoDay.date(from: String(iso.prefix(10))) }
+
+    /// How a pour from elsewhere reads: "At a bar, The Whiskey Bar". A tasting of your own bottle says nothing unless it
+    /// has a place. Nil when there is nothing to say.
+    static func pour(source: String?, tastedAt: String?) -> String? {
+        let place = tastedAt.flatMap { $0.isEmpty ? nil : $0 }
+        let kind = source.flatMap(TastingSource.init(rawValue:))
+        guard let kind, kind != .owned else { return place }
+        return [kind.title, place].compactMap { $0 }.joined(separator: ", ")
+    }
 }

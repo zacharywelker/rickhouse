@@ -134,6 +134,10 @@ struct APIClient {
         try await get("api/v1/expressions/\(id)", as: LabelDetail.self)
     }
 
+    func tastingWheels() async throws -> [TastingWheel] {
+        try await get("api/v1/tasting-wheels", as: WheelsResponse.self).wheels
+    }
+
     func categories() async throws -> [CategoryOption] {
         try await get("api/v1/categories", as: CategoriesResponse.self).categories
     }
@@ -154,6 +158,23 @@ struct APIClient {
         let (data, response) = try await Self.send(req)
         try Self.check(response, data)
         return try Self.decoder.decode(CreatedBottle.self, from: data).id
+    }
+
+    /// Logs a tasting of one of your labels. The server checks the flavors against the label's wheel.
+    func createTasting(_ tasting: TastingBody) async throws -> Int {
+        try await sendJSON("POST", "api/v1/tastings", body: tasting, as: CreatedTasting.self).id
+    }
+
+    /// Replaces what a tasting says; its label and bottle stay.
+    func updateTasting(id: Int, _ tasting: TastingBody) async throws {
+        _ = try await sendJSON("PATCH", "api/v1/tastings/\(id)", body: tasting, as: CreatedTasting.self)
+    }
+
+    func deleteTasting(id: Int) async throws {
+        var req = request(path: "api/v1/tastings/\(id)")
+        req.httpMethod = "DELETE"
+        let (data, response) = try await Self.send(req)
+        try Self.check(response, data)
     }
 
     /// Starts a label. A label the brand already has comes back as `APIError.duplicateLabel`, carrying it.
@@ -179,21 +200,6 @@ struct APIClient {
     /// Sets the fill level. The answer says what else changed: below full opens a sealed bottle.
     func setFill(bottleId: Int, to percent: Int) async throws -> FillResult {
         try await sendJSON("PATCH", "api/v1/bottles/\(bottleId)", body: ["fillPct": percent], as: FillResult.self)
-    }
-
-    func addNote(bottleId: Int, _ note: NoteBody) async throws {
-        _ = try await sendJSON("POST", "api/v1/bottles/\(bottleId)/tasting-notes", body: note, as: CreatedBottle.self)
-    }
-
-    func updateNote(bottleId: Int, noteId: Int, _ note: NoteBody) async throws {
-        _ = try await sendJSON("PATCH", "api/v1/bottles/\(bottleId)/tasting-notes/\(noteId)", body: note, as: CreatedBottle.self)
-    }
-
-    func deleteNote(bottleId: Int, noteId: Int) async throws {
-        var req = request(path: "api/v1/bottles/\(bottleId)/tasting-notes/\(noteId)")
-        req.httpMethod = "DELETE"
-        let (data, response) = try await Self.send(req)
-        try Self.check(response, data)
     }
 
     /// Multipart upload to the web route; the first photo becomes the bottle's hero shot.

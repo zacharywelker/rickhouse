@@ -30,8 +30,21 @@ struct BottleDetailView: View {
         .background(Theme.paper)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .task { await session.loadWheels() }
         .sheet(item: $editing) { edit in
-            NoteEditorView(bottleId: id, note: edit.note) { Task { await load() } }
+            if let bottle, let expressionId = bottle.expressionId {
+                NavigationStack {
+                    TastingFormView(
+                        label: TastingLabel(id: expressionId, title: "\(bottle.brand) \(bottle.name)", category: bottle.category, wheel: bottle.wheel),
+                        bottle: TastingBottle(id: id, title: Self.title(of: bottle)),
+                        existing: edit.note.map { LabelTasting($0, bottleId: id) }
+                    ) {
+                        editing = nil
+                        Task { await load() }
+                    }
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editing = nil } } }
+                }
+            }
         }
     }
 
@@ -168,6 +181,12 @@ struct BottleDetailView: View {
                                 Text("\(rating.formatted()) / 10").font(.inter(15, .medium)).monospacedDigit()
                             }
                         }
+                        if let pour = Format.pour(source: note.source, tastedAt: note.tastedAt) {
+                            Text(pour).font(.inter(13)).foregroundStyle(Theme.muted)
+                        }
+                        if let flavors = note.tags, !flavors.isEmpty {
+                            Text(flavors.map(session.flavorName).joined(separator: ", ")).font(.inter(14, .medium)).foregroundStyle(Theme.ink)
+                        }
                         ForEach(lines(of: note), id: \.0) { label, text in
                             Text("\(Text(label + " ").font(.inter(14, .medium)).foregroundStyle(Theme.muted))\(Text(text).font(.inter(14)))")
                                 .foregroundStyle(Theme.ink)
@@ -178,10 +197,23 @@ struct BottleDetailView: View {
                 }
                 .buttonStyle(.plain)
             }
-            Button { editing = NoteEdit(note: nil) } label: {
-                Label("Add a tasting note", systemImage: "plus")
+            if b.expressionId != nil {
+                Button { editing = NoteEdit(note: nil) } label: {
+                    Label("Add a tasting note", systemImage: "plus")
+                }
             }
         }
+    }
+
+    /// What tells this bottle from another of its label, in a few words.
+    private static func title(of b: BottleDetail) -> String {
+        let parts = [
+            b.pickName.map { "“\($0)”" },
+            b.barrelNumber.map { "barrel \($0)" },
+            b.batch,
+            b.releaseYear.map(String.init),
+        ].compactMap { $0 }
+        return parts.isEmpty ? "Standard release" : parts.joined(separator: ", ")
     }
 
     private func lines(of note: TastingNote) -> [(String, String)] {

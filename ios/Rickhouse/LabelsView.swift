@@ -5,6 +5,8 @@ import SwiftUI
 /// Both kinds of row open the label's page.
 struct LabelsView: View {
     @Environment(Session.self) private var session
+    /// Bumped by the shell after a tasting is logged, so the history reloads.
+    var reloadSignal = 0
 
     @State private var query = ""
     @State private var results: [LabelOption] = []
@@ -45,6 +47,8 @@ struct LabelsView: View {
             .searchable(text: $query, prompt: "Search labels")
             .task(id: query) { await search() }
             .task(id: attempt) { await reloadHistory() }
+            .task { await session.loadWheels() }
+            .onChange(of: reloadSignal) { attempt += 1 }
             .refreshable { await reloadHistory() }
         }
     }
@@ -164,6 +168,7 @@ struct LabelRow: View {
 
 /// One tasting in the history: when, how it rated, and the first line of what was written.
 struct TastingRow: View {
+    @Environment(Session.self) private var session
     let entry: TastingEntry
 
     var body: some View {
@@ -175,8 +180,15 @@ struct TastingRow: View {
                 Text(entry.title).font(.inter(16, .semibold, relativeTo: .headline)).foregroundStyle(Theme.ink)
                 Text([Format.day(entry.tastedOn), Format.rating(entry.rating)].compactMap { $0 }.joined(separator: " · "))
                     .font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted).monospacedDigit()
+                if let pour = Format.pour(source: entry.source, tastedAt: entry.tastedAt) {
+                    Text(pour).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                }
+                if let flavors = entry.tags, !flavors.isEmpty {
+                    Text(flavors.map(session.flavorName).joined(separator: ", "))
+                        .font(.inter(13, .medium, relativeTo: .footnote)).foregroundStyle(Theme.ink).lineLimit(2)
+                }
                 if let summary = entry.summary {
-                    Text(summary).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.ink).lineLimit(2)
+                    Text(summary).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.muted).lineLimit(2)
                 }
             }
             Spacer(minLength: 0)
