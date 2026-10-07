@@ -427,6 +427,12 @@ different and more interesting page than a list of what is on the shelf.
   enough tastings (at least 25 overall, gated per spirit).
 - The rating scale is still to be decided; ratings themselves are planned.
 
+**Decided 2026-10-06** (full design in
+`docs/superpowers/specs/2026-10-06-tasting-log-design.md`): tags are one flat
+set per note, from a fixed list per spirit family (the eight field groups); the
+rating stays 0 to 10 in half steps; the sources are owned, bar, bottle share,
+sample and store pour, with a free-text "tasted at".
+
 ### ~~M10 — Accounts~~ ✅
 
 Replaces the single shared `APP_PASSWORD`. The plan and the decisions behind
