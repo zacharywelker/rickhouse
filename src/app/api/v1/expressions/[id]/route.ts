@@ -74,6 +74,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     tastings: tastings.map((t) => ({
       id: t.id,
       bottleId: t.bottleId,
+      source: t.source,
+      tastedAt: t.tastedAt,
+      tags: t.tags,
       tastedOn: t.tastedOn,
       rating: t.rating,
       nose: t.nose,

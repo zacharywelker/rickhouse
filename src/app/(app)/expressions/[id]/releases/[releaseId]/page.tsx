@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { Polaroid } from "@/components/ui/polaroid";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { FillGauge } from "@/components/bottles/fill-gauge";
+import { NoteWhen } from "@/components/expressions/note-when";
 import { StatusMark } from "@/components/bottles/status-mark";
 import { LabelPhotoControls } from "@/components/expressions/label-photo-controls";
 import { Spec } from "@/components/expressions/label-specs";
@@ -172,9 +173,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                 {notes.map((note) => (
                   <li key={note.id} className="flex flex-col gap-1 py-3 first:pt-0">
                     <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                      <Link href={`/bottles/${note.bottleId}`} className="font-medium hover:text-accent hover:underline">
-                        {formatDate(note.tastedOn)}
-                      </Link>
+                      <NoteWhen bottleId={note.bottleId}>{formatDate(note.tastedOn)}</NoteWhen>
                       {note.rating !== null ? <span className="tabular-nums">{formatNumeric(note.rating)} / 10</span> : null}
                     </div>
                     {[

@@ -541,14 +541,20 @@ export async function bottlesOfLabel(expressionId: number, ownerId: number, rele
     .orderBy(sql`${bottles.dateAcquired} desc nulls last`, desc(bottles.id));
 }
 
-/** Tasting notes from every bottle of a label, newest first, each knowing its bottle. */
+/**
+ * Every tasting of a label, newest first: those on its bottles and (unless a release is asked for) pours of bottles
+ * the owner does not have. Each knows its bottle, when it has one.
+ */
 export async function tastingNotesForLabel(expressionId: number, ownerId: number, releaseId?: number) {
   return db
     .select({
       id: tastingNotes.id,
       bottleId: tastingNotes.bottleId,
+      source: tastingNotes.source,
+      tastedAt: tastingNotes.tastedAt,
       tastedOn: tastingNotes.tastedOn,
       rating: tastingNotes.rating,
+      tags: tastingNotes.tags,
       nose: tastingNotes.nose,
       palate: tastingNotes.palate,
       finish: tastingNotes.finish,
@@ -558,12 +564,12 @@ export async function tastingNotesForLabel(expressionId: number, ownerId: number
       pickName: bottles.pickName,
     })
     .from(tastingNotes)
-    .innerJoin(bottles, eq(tastingNotes.bottleId, bottles.id))
+    .leftJoin(bottles, eq(tastingNotes.bottleId, bottles.id))
     .leftJoin(expressionReleases, eq(expressionReleases.id, bottles.releaseId))
     .where(
       and(
-        eq(bottles.expressionId, expressionId),
-        eq(bottles.ownerId, ownerId),
+        eq(tastingNotes.expressionId, expressionId),
+        eq(tastingNotes.ownerId, ownerId),
         releaseId === undefined ? undefined : eq(bottles.releaseId, releaseId),
       ),
     )

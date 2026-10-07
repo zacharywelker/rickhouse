@@ -6,7 +6,7 @@
  * for Postgres `numeric` columns leave here as strings — never floats.
  */
 import { z } from "zod";
-import { ACQUISITIONS, BOTTLE_STATUSES, CHAR_LEVELS, STILL_TYPES } from "@/db/schema";
+import { ACQUISITIONS, BOTTLE_STATUSES, CHAR_LEVELS, STILL_TYPES, TASTING_SOURCES } from "@/db/schema";
 
 const trimmed = z.string().trim();
 
@@ -312,4 +312,32 @@ export const tastingNoteSchema = z.object({
   palate: optionalText(),
   finish: optionalText(),
   overall: optionalText(),
+});
+
+/** A whole number id as JSON sends it (or absent). */
+const optionalId = z
+  .number()
+  .int()
+  .positive()
+  .nullish()
+  .transform((v) => v ?? null);
+
+/**
+ * What can change on a tasting of a label (SPEC M9): the note's own fields, where it happened, and the flavor
+ * descriptors (keys from the label's wheel, checked on write). A repeated key is kept once.
+ */
+export const tastingEditSchema = tastingNoteSchema.extend({
+  source: z.enum(TASTING_SOURCES, { message: "Pick where it was tasted." }).default("owned"),
+  tastedAt: optionalText(120),
+  tags: z
+    .array(z.string().trim().min(1).max(160))
+    .max(60, "That is too many flavors.")
+    .default([])
+    .transform((tags) => [...new Set(tags)]),
+});
+
+/** A new tasting: the label it belongs to, and the bottle when it was one of yours. */
+export const tastingSchema = tastingEditSchema.extend({
+  expressionId: z.number({ message: "Pick a label." }).int().positive("Pick a label."),
+  bottleId: optionalId,
 });

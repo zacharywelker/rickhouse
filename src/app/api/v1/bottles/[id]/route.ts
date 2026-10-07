@@ -80,6 +80,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           })),
     tastingNotes: notes.map((n) => ({
       id: n.id,
+      source: n.source,
+      tastedAt: n.tastedAt,
+      tags: n.tags,
       tastedOn: n.tastedOn,
       rating: n.rating,
       nose: n.nose,

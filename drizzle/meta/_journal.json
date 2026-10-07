@@ -239,6 +239,13 @@
       "when": 1791548974639,
       "tag": "0033_bottle_list_release_photo",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791635374639,
+      "tag": "0034_label_tastings",
+      "breakpoints": true
     }
   ]
 }

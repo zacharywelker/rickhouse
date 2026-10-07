@@ -67,11 +67,10 @@ the phone picks in two steps and the data is a flat list of descriptor keys.
 | whiskey: bourbon, rye and American | The Council of Whiskey Masters, Bourbon Flavor Wheel: 16 categories (Herbal, Spicy, Floral, Fruity, Finished, Aged, Flawed, Industrial, Primary Tastes, Textural Aspects, Woody, Sweet, Lactic, Nutty, Grainy, Earthy), over 200 descriptors | Read in full |
 | whiskey: Scotch, Irish and the rest | The Council's Whisky Flavor Wheel: 8 categories (Cereal, Fruity, Floral, Peaty, Feinty, Sulphury, Woody, Winey) | Read in full |
 | rum | "That Rum Drinker" flavour wheel (one blogger's personal wheel, published as an embedded chart): 7 categories (Fruity, Floral, Vegetal, Spicy, Woody, Rich, Sulphurs) | Read in full from screenshots; a few outer slices are unlabeled. Needs the author's permission |
-| agave | Patron Academy tequila flavor wheel (a PDF on Google Drive) | Not read yet; needs the Drive connection re-authorized, or the wheel pasted |
+| agave | Academia Patron tequila flavor wheel: 8 categories (Flowers, Plants, Earth, Wood, Spice, Dessert, Fruit, Chemical) | Read in full from an image; the grouping under subcategories is read from position and should be checked against the original |
 | brandy | SA Brandy Foundation "SA Brandy Aroma Wheel": 9 categories (Woody, Nutty, Muscat, Sweet, Fruity, Floral, Herbaceous, Spicy, Earthy) | Read in full from an image; the PDF holds other wheels that are unread |
 | gin | Gin Foundry botanical flavour wheel: 13 categories (Heat, Spicy, Rooty, Nutty, Sweet, Piney, Herbal, Grassy, Floral, Red Fruits, Fresh Fruity, Fleshy Fruity, Citrus), each with character words and botanicals | Read in full from an image (also in their book, *Gin: Distilled*) |
-| vodka | None chosen; the spirit is meant to be neutral | Open: a short texture and character list, or no tag list and free text only |
-| liqueur, other | None chosen | Open |
+| vodka, liqueur, other | None chosen | **To do later:** a generic list of tasting notes for these three families. Until then a tasting of one has free text only, and the server refuses flavor keys for them |
 
 **Whiskey mapping (agreed 2026-10-06):** Bourbon, Rye, Wheat Whiskey, Single Malt (American), Light Whiskey and other American whiskey use the
 Bourbon wheel; Scotch, Irish, Japanese, Canadian and International whiskey use the Whisky wheel.
@@ -92,6 +91,6 @@ Tonight's flavors step (at least 25 tastings overall, gated per spirit) reads th
 ## 7. Not decided here
 
 - Whether a bottle delete keeps its notes (section 2).
-- The wheel for agave (Patron Academy PDF, still unread), vodka, liqueur and other (section 5). A family with no wheel yet shows no tag picker, only free text.
+- A generic list for vodka, liqueur and other (section 5). A family with no wheel yet shows no tag picker, only free text, and the server refuses flavor keys for it.
 - A web tastings timeline page.
 - Searching inside tasting text.

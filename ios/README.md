@@ -41,7 +41,10 @@ The app uses a small JSON API under `/api/v1`, plus two web routes that accept t
 | `PATCH /api/v1/expressions/:id` | Save a scanned barcode (`{ "upc": "…" }`) onto a label that has none, so the next scan finds it. Never overwrites: a label with a different code is a `409` `has_barcode`; the same code again is a no-op |
 | `GET /api/v1/expressions/:id` | One label, read rather than edited: its specs and photo, known releases, your bottles of it and the tastings on them |
 | `GET /api/v1/tastings` | Your tasting history, newest first (`page`, `size`): each note names its label and bottle |
-| `GET /api/v1/categories` | The categories a label can have (`id`, `name`, `parent`), in the web form's order |
+| `POST /api/v1/tastings` | Log a tasting of one of your labels: `expressionId`, optional `bottleId` (your bottle of that label; makes the source "owned"), `source` (owned, bar, bottle_share, sample, store_pour), `tastedAt`, `tastedOn`, `rating`, `tags` and the four texts. A pour of a bottle you don't own has no `bottleId` |
+| `PATCH` / `DELETE /api/v1/tastings/:id` | Replace (send every field) or delete a tasting. Its label and bottle don't change |
+| `GET /api/v1/tasting-wheels` | The flavor wheels a tasting's `tags` come from: categories, then subcategories, then descriptors with the `key` to store. A label's category names its wheel (see below) |
+| `GET /api/v1/categories` | The categories a label can have (`id`, `name`, `parent`, `wheel`), in the web form's order. `wheel` is the flavor wheel its labels use, or null where the family has none yet (vodka, liqueur, other) |
 | `POST /api/bottles/:id/images` | Multipart photo upload (`images` field) |
 | `GET /api/images/<path>` | A photo or thumbnail |
 
