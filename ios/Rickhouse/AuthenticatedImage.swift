@@ -10,6 +10,8 @@ struct AuthenticatedImage: View {
     var contentMode: ContentMode = .fill
     /// What shows behind a picture that doesn't fill its frame.
     var background: Color = Color(.secondarySystemFill)
+    /// Where a picture that doesn't fill its frame sits; `.bottom` stands a cut-out bottle on its base.
+    var alignment: Alignment = .center
     @State private var image: UIImage?
     /// The fetch failed; shows a different glyph. It runs again when the view is next created.
     @State private var failed = false
@@ -21,6 +23,7 @@ struct AuthenticatedImage: View {
             background
             if let image {
                 Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
             } else {
                 Image(systemName: failed ? "photo.badge.exclamationmark" : "wineglass").foregroundStyle(.secondary)
             }
