@@ -3,6 +3,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { AcquisitionMix, CategoryShare, SealedByYear, SpendByMonth } from "@/components/dashboard/charts";
+import { ChapterNav } from "@/components/dashboard/chapter-nav";
 import { buildNumbers, type Chapter, type Finding } from "@/lib/dashboard/findings";
 import { acquiring, money, shelf, stockpile } from "@/lib/dashboard/numbers";
 import { requireSession } from "@/lib/auth";
@@ -14,9 +15,10 @@ export const dynamic = "force-dynamic";
 /**
  * Numbers as a chapter of the collector's own field guide (surface brief:
  * .impeccable/surfaces/src-app-app-numbers-page-tsx.md). One surprising
- * finding at display scale, then four chapters that each open on a finding,
- * prove it with one chart, and end at the bottles behind it. Not a dashboard:
- * no tiles, no cards, rules and type only.
+ * finding written as a headline sentence, then four chapters that each open on
+ * a finding, prove it with one chart, and end at the bottles behind it. Not a
+ * dashboard: no tiles, no cards, rules and type only. From `xl` the chapter
+ * index is a sticky rail on the left; below that it is a bar under the lead.
  */
 export default async function NumbersPage() {
   const user = await requireSession();
@@ -66,37 +68,35 @@ export default async function NumbersPage() {
     <div className="flex flex-col">
       <h1 className="text-xl">Numbers</h1>
 
-      {lead ? (
-        <section aria-label="Lead finding" className="mt-6 border-t-2 border-foreground pb-10 pt-6 sm:pb-14">
-          <p className="max-w-[34ch] text-2xl leading-snug sm:text-3xl">
-            <span className="block text-[clamp(4.5rem,15vw,6rem)] font-bold leading-[0.9] tracking-[-0.04em] tabular-nums">
-              {lead.figure}
-            </span>
-            <span className="mt-3 block text-balance">{lead.sentence}</span>
-          </p>
-          <BottlesLink href={lead.href} className="mt-5 text-base" />
-        </section>
-      ) : null}
+      <div className="xl:grid xl:grid-cols-[14rem_minmax(0,1fr)] xl:grid-rows-[auto_1fr] xl:gap-x-14">
+        {lead ? (
+          <section
+            aria-label="Lead finding"
+            className="mt-6 border-t-2 border-foreground pb-8 pt-6 sm:pb-10 xl:col-start-2 xl:row-start-1"
+          >
+            <p className="max-w-[24ch] text-balance font-display text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+              <span className="tabular-nums">{lead.figure}</span> {lead.sentence}
+            </p>
+            <BottlesLink href={lead.href} className="mt-5 text-base" />
+          </section>
+        ) : null}
 
-      <nav
-        aria-label="Chapters"
-        className="sticky top-0 z-10 -mx-4 overflow-x-auto border-y border-foreground bg-background px-4 sm:-mx-6 sm:px-6"
-      >
-        <ol className="flex min-w-max gap-6 py-2.5 text-sm">
+        <ChapterNav
+          items={chapters.map((chapter) => ({
+            id: chapter.id,
+            number: chapter.number,
+            title: chapter.title,
+            figure: chapter.findings[0]?.figure ?? null,
+          }))}
+          className="sticky top-0 z-10 -mx-4 overflow-x-auto border-y border-foreground bg-background px-4 sm:-mx-6 sm:px-6 xl:col-start-1 xl:row-span-2 xl:row-start-1 xl:mx-0 xl:mt-6 xl:self-start xl:overflow-visible xl:border-b-0 xl:border-t-2 xl:px-0 xl:top-6"
+        />
+
+        <div className="xl:col-start-2 xl:row-start-2">
           {chapters.map((chapter) => (
-            <li key={chapter.id}>
-              <a href={`#${chapter.id}`} className="hover:underline hover:underline-offset-4">
-                <span className="mr-1.5 tabular-nums text-muted-foreground">{chapter.number}</span>
-                {chapter.title}
-              </a>
-            </li>
+            <ChapterSection key={chapter.id} chapter={chapter} chart={charts[chapter.id]} />
           ))}
-        </ol>
-      </nav>
-
-      {chapters.map((chapter) => (
-        <ChapterSection key={chapter.id} chapter={chapter} chart={charts[chapter.id]} />
-      ))}
+        </div>
+      </div>
     </div>
   );
 }
