@@ -74,7 +74,7 @@ Hierarchy comes from size, weight, spacing and alignment, not from more fonts.
 
 ## 3.1 Surfaces
 
-Light mode is the default: warm paper `#F6F1E7` ground, navy ink `#14213D`.
+Light mode is the default: warm ivory paper `#FFF8E7` ground, navy ink `#14213D`.
 Dark mode is a designed sibling; its palette is *(undecided)*.
 
 ## 3.2 Category palette
@@ -111,8 +111,8 @@ are deliberately quieter than the named kinds.
   **ink-on-color** token, about `#0A1226` *(proposed; verify the value)*.
 - The category name is always printed with the color. Color is never the only
   cue. Red-green color blindness makes Amaro/Agave and Amaro/Rye close.
-- Several colors are faint on paper (Gin, Bourbon, Irish, Intl whiskey, Other
-  are under 2:1). Every frame carries a 1px ink hairline *(proposed)*.
+- Several colors are faint on paper (Gin, Irish, Intl whiskey, Other are under
+  2:1). Every frame carries a 1px ink hairline *(proposed)*.
 - Do not use category colors as text on light backgrounds.
 
 ---
@@ -263,3 +263,39 @@ Marker typeface and tape look; dark-mode palette; brandy and Other card facts;
 outline vs filled tab icons; Android and web icon sets; frame thickness;
 voice guide; whether desktop has a gallery view. The owner and trigger for each
 are listed in section 15 of the design-language spec.
+
+---
+
+# 14. Brand mark
+
+The logo is a barrel head: a circle of five equal vertical planks with the
+center plank in orange, set beside the name in capitals. It follows section 1:
+flat, no gradients, no mascot, no decoration.
+
+- **Mark.** Five equal planks, with a gap of 7.6% of the radius. The outer four
+  are ink (ivory on dark); the center plank is Bourbon orange `#FC9350`.
+- **Wordmark.** RICKHOUSE in capitals, Source Serif 4 SemiBold (600), optical
+  size 36, tracking +0.038 em. It is the one use of the serif that is not a
+  headline. The files carry it as outlines, so no font is needed to display it.
+  The display optical size (60) was tried and rejected: its hairlines are too
+  thin at small sizes.
+- **Color.** Ink `#14213D` and paper `#FFF8E7`. The same ivory is the app's light
+  ground and the "white" of the dark logo, so the logo and the app share one
+  white.
+- **Default.** The light logo (ink on ivory) is the default. The dark logo is
+  ivory on ink. Its navy ground belongs to the logo; it is not the dark-mode
+  palette, which is still *(undecided)* (section 13).
+- **Lockup.** Head diameter is 1.96 times the wordmark's cap height, the gap to
+  the wordmark is 0.62 times the cap height, and clear space is one head radius
+  on every side. Checked at 180 px wide (lockup) and 32 px (head alone); smaller
+  sizes are untested.
+- **App icon.** The head alone, centered, on ivory (light, the default) or ink
+  (dark).
+- **Secondary icons** *(proposed uses)*. The key, with the head inside its bow
+  and drawn dark, for connecting to or unlocking a server. A card with spin
+  arrows for *What to drink tonight*. A wheel with a pointer for *Spin the
+  bottle*. Each is centered in its icon box and uses only ink, ivory and orange.
+
+The source files and a usage table are in `docs/brand/`. They were generated,
+not drawn in a design tool; have a designer redraw them in a vector tool before
+print or trademark use.

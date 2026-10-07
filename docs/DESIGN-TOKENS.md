@@ -108,7 +108,7 @@ Target primitives (light mode):
 
 ```css
 :root {
-  --color-paper: #f6f1e7;
+  --color-paper: #fff8e7;
   --color-ink: #14213d;
   --color-ink-on-color: #0a1226; /* proposed: text on colored frames */
   --color-rule: #14213d2e;       /* hairlines on paper */
@@ -263,8 +263,8 @@ deliberately quieter than the named kinds.
 * Amaro and Liqueur (9.6 apart) and Scotch and Amaro (9.9 apart) are the
   closest pairs in normal vision. Amaro with Agave (3.7) and Amaro with Rye
   (4.0) are close for red-green color blindness.
-* Vodka, Gin, Bourbon, Irish, International whiskey and Other have 1.1 to 2.0
-  contrast against paper, and American whiskey, Rye, Scotch and Agave are under
+* Gin, Irish, International whiskey and Other have 1.2 to 1.8 contrast against
+  paper, and Vodka, Bourbon, American whiskey, Rye, Scotch and Agave are under
   3. Every frame therefore carries a 1px ink hairline *(proposed)*.
 
 ---

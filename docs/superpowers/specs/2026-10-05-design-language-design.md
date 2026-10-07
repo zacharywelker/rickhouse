@@ -113,7 +113,10 @@ large.
 
 ### 6.1 Surfaces (Decided direction, values proposed)
 
-Light mode is the default: warm paper `#F6F1E7` ground, navy ink `#14213D`.
+Light mode is the default: warm ivory paper `#FFF8E7` ground, navy ink `#14213D`.
+(Updated 2026-10-07: the ground moved from `#F6F1E7` to `#FFF8E7` when the brand
+mark was chosen, so the logo and the app share one white. The contrast figures
+in section 6.4 were recalculated against it.)
 Dark mode is designed as a sibling (section 6.5).
 
 ### 6.2 Category palette (Decided)
@@ -163,8 +166,8 @@ group in the database.
 - Red-green color blindness: Amaro with Agave (3.7) and Amaro with Rye (4.0)
   are close. The category name is therefore always printed with the color.
   Color is never the only cue.
-- Vodka, Gin, Bourbon, Irish, International whiskey and Other have only 1.1 to
-  2.0 contrast against paper, and American whiskey, Rye, Scotch and Agave are
+- Gin, Irish, International whiskey and Other have only 1.2 to 1.8 contrast
+  against paper, and Vodka, Bourbon, American whiskey, Rye, Scotch and Agave are
   under 3. Frames must be thick enough to read, and every frame carries a
   1px ink hairline outline for consistency (Proposed).
 - Residual categories (American whiskey, International whiskey, Other) are
