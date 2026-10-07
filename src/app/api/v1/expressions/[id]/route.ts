@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { attachBarcodeSchema, upcCandidates } from "@/lib/api/labels";
 import { pickerLabel } from "@/lib/expressions/picker";
+import { categoryWheels } from "@/lib/tasting-wheel-for";
 import { bottlesOfLabel, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
 import { expressionReleaseList } from "@/lib/releases-store";
 
@@ -31,9 +32,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     tastingNotesForLabel(row.expression.id, user.id),
   ]);
   const { expression } = row;
+  const wheel = (await categoryWheels()).get(expression.categoryId) ?? null;
 
   return NextResponse.json({
     id: expression.id,
+    wheel,
     brand: row.brand.name,
     name: expression.name,
     category: row.category.name,

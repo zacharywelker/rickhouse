@@ -9,7 +9,7 @@ import { newLabelSchema, normalizeUpc, upcCandidates } from "@/lib/api/labels";
 import { mapDbError } from "@/lib/db-errors";
 import { findOrCreateBrand } from "@/lib/expressions/brand";
 import { expressionSchema } from "@/lib/expressions/schema";
-import { labelColumns, pickerLabel } from "@/lib/expressions/picker";
+import { labelColumns, pickerLabel, withWheels } from "@/lib/expressions/picker";
 import { labelValues, writeLabel } from "@/lib/expressions/save";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .orderBy(asc(brands.name), asc(expressions.name))
     .limit(LIMIT);
 
-  return NextResponse.json({ expressions: rows });
+  return NextResponse.json({ expressions: await withWheels(rows) });
 }
 
 /**
