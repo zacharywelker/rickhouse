@@ -4,11 +4,11 @@ import SwiftUI
 /// The design language's paper, ink and type (docs/superpowers/specs/2026-10-05-design-language-design.md).
 /// Light only for now: dark mode is designed alongside it, not derived, and isn't drawn yet.
 enum Theme {
-    static let paper = Color(hex: 0xF6F1E7)
+    static let paper = Color(hex: 0xFFF8E7)
     static let ink = Color(hex: 0x14213D)
-    /// Secondary text. About 5.2:1 on paper.
+    /// Secondary text. About 5.6:1 on paper.
     static let muted = Color(hex: 0x5B6478)
-    /// Error text. About 5.8:1 on paper; system red is about 3.2:1.
+    /// Error text. About 6.2:1 on paper; system red is about 3.2:1.
     static let error = Color(hex: 0xB3261E)
 }
 
