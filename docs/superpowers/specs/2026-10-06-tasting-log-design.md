@@ -1,6 +1,6 @@
 # Tasting log (M9): design
 
-Status: decided in conversation on 2026-10-06; nothing is built yet.
+Status: decided in conversation on 2026-10-06; the phone's Labels tab and label page were refined on 2026-10-07 (section 8).
 Builds on `SPEC.md` M9 ("Tastings beyond the shelf") and section 11.4 and 11.5 of
 `2026-10-05-design-language-design.md`. Where this file and M9 disagree, this file is newer.
 
@@ -14,7 +14,7 @@ Builds on `SPEC.md` M9 ("Tastings beyond the shelf") and section 11.4 and 11.5 o
 | How is it written? | **Descriptors** (the wheel's own words, such as lemon or cinnamon) chosen from the family's official flavor wheel, plus optional free text. Nose, palate, finish and overall stay as optional text, as today. A tasting stores a flat list of descriptor keys; the wheel's category and subcategory are known from the key and are how the phone groups them. |
 | Which wheel? | One **official flavor wheel per spirit family** (the families the label form already uses), not lists we write ourselves. Sources and status in section 5. |
 | Rating | Unchanged: 0 to 10 in half steps, optional. Nothing is converted. |
-| Searching | The Labels tab searches labels only (decided with the tab). Searching inside tasting text is not part of this. |
+| Searching | The Labels tab searches labels only (decided with the tab), in its second segment. Searching inside tasting text is not part of this. |
 
 ## 2. Data model
 
@@ -51,7 +51,7 @@ Nothing already recorded moves: every existing note gets its label, owner and `o
    - Source (only when no bottle was chosen), and *tasted at* beside it for the non-owned sources.
    - Date, today by default.
    - Rating, 0 to 10 in half steps, optional.
-   - Flavor descriptors for the label's family: pick a category, then tap descriptors inside it.
+   - Flavor descriptors for the label's family, chosen on the wheel picker (section 8.3): tap a category on the wheel, then tap descriptors under it.
    - Notes: one free-text box, with "More" for nose, palate and finish.
 4. **Save** closes the sheet; the Labels tab history picks it up.
 
@@ -87,6 +87,50 @@ project owner to do.
 3. The phone: Log a tasting, the shared note form with tags, and the new fields in the Labels tab and label page.
 
 Tonight's flavors step (at least 25 tastings overall, gated per spirit) reads these tags and is a later milestone.
+
+## 8. The phone: Labels tab and label page (decided 2026-10-07)
+
+Decided in a mockup review; the images are in `assets/`. They are sketches: the bottles are drawn stand-ins and
+the wheel is a plain coloured ring, not the Council's artwork.
+
+![Label page](assets/labels-tab-label-page.png)
+![Tastings list and wheel picker](assets/labels-tab-history-and-wheel.png)
+
+### 8.1 Labels tab
+
+- The tab has a segmented control at the top: **Tastings | Find a label**. Tastings is the default. Searching lives
+  in the second segment, so the history gets the whole screen. This replaces the search bar above the history.
+- The tab bar is the existing five tabs (Collection, Labels, Add, Numbers, Account).
+- A tasting row, newest first, grouped under month headers: a portrait (3:4) photo on the spirit's colour,
+  the label name, the date and source on one line, one line of flavors, and the **score** large at the right edge in the
+  headline serif, with "/ 10" beneath it. Notes text is not shown in the row. Rows open the label page.
+- The photo is portrait so a tall bottle fills the frame; the current square thumbnail makes it small.
+
+### 8.2 Label page
+
+Reached from a tasting row or from Find a label. Top to bottom:
+
+1. **Header block**: photo, brand, name, category swatch and proof. If the label is in your collection the block is
+   the link into the collection and its right edge says where it goes: "1 bottle ›" opens that bottle's page;
+   "3 bottles ›" opens a list of your bottles of this label. If it is not in your collection the block is not a link.
+2. **Log a tasting** button. The form opens with this label already chosen.
+3. **Your tastings**: newest first, at most three, each with the large score. More than three adds a
+   **See all N tastings** button that opens the full list. Fewer adds nothing.
+4. If the label is not in your collection: a dashed box reading "Not in your collection" with an
+   **Add this bottle** button, under the tastings. An owned label shows no extra buttons.
+5. **About this label**: a tinted panel (age, size, MSRP, distilleries, mashbill, finishes, a Releases row). It sits
+   after the tastings and the add box, and the panel's background is what separates reference facts from your own log.
+
+Bottle facts (fill, price paid, status) are not on this page; they live in the Collection tab. An empty label shows
+"No tastings yet" in place of the list; the button and the facts stay.
+
+### 8.3 Flavor picker
+
+The wheel, as a full screen pushed from the form with Back and Done. A small bottle photo and name stay at the
+top. Tapping a slice chooses a **category**; its **descriptors** show as chips below the wheel, and the picked ones
+are listed at the bottom. Slices are never the target for descriptors, because the bourbon wheel has 16 categories
+and over 200 descriptors, too small to tap. Drawing the wheel needs the Council's artwork or a redraw of it, which the
+permission note in section 5 covers.
 
 ## 7. Not decided here
 

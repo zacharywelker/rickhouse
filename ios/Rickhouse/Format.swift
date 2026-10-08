@@ -18,6 +18,19 @@ enum Format {
         raw.flatMap(Double.init).map { "\($0.formatted()) / 10" }
     }
 
+    /// "8.0" as "8" and "7.5" as "7.5", without the "/ 10": the big score on a row. Nil when there is no rating.
+    static func score(_ raw: String?) -> String? {
+        raw.flatMap(Double.init).map { $0.formatted() }
+    }
+
+    /// "2026-10-06" as its month header: "October", or "October 2025" when it isn't this year.
+    static func month(_ iso: String, now: Date = Date()) -> String {
+        let parts = iso.prefix(10).split(separator: "-").compactMap { Int($0) }
+        guard parts.count >= 2, let date = Calendar.current.date(from: DateComponents(year: parts[0], month: parts[1], day: 1)) else { return iso }
+        let sameYear = Calendar.current.component(.year, from: now) == parts[0]
+        return date.formatted(sameYear ? .dateTime.month(.wide) : .dateTime.month(.wide).year())
+    }
+
     /// Proof as the label prints it ("131.84 proof"); nil when it isn't a number.
     static func proof(_ raw: String?) -> String? {
         raw.flatMap(Double.init).map { "\($0.formatted()) proof" }

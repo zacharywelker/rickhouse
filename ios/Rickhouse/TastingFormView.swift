@@ -115,7 +115,7 @@ struct TastingFormView: View {
                 }
             }
             if let wheel {
-                FlavorSection(wheel: wheel, chosen: $chosen)
+                FlavorSection(wheel: wheel, subject: label.title, chosen: $chosen)
             } else if label.wheel == nil {
                 Section {
                     Text("There isn't a flavor list for \(label.category) yet. Write what you taste below.")

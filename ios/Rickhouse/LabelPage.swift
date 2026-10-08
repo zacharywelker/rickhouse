@@ -1,14 +1,18 @@
 import SwiftUI
 
-/// One label, read rather than edited: its photo and specs, its known releases,
-/// the bottles you have of it and the tastings on them.
+/// One label, read rather than edited. Top to bottom: its header (the way into your bottles of it, if you have any),
+/// a button to log a tasting, your tastings, a box offering the bottle if you don't have it, and the label's facts.
+/// Bottle details live in the Collection tab, so none are shown here.
 struct LabelPage: View {
+    /// How many tastings sit on the page before "See all".
+    static let shownTastings = 3
+
     @Environment(Session.self) private var session
     let id: Int
     @State private var label: LabelDetail?
     @State private var error: String?
-    /// The tasting being edited, in a sheet.
-    @State private var editing: LabelTasting?
+    @State private var loggingTasting = false
+    @State private var addingBottle = false
 
     var body: some View {
         Group {
@@ -30,141 +34,207 @@ struct LabelPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .task { await session.loadWheels() }
-        .sheet(item: $editing) { tasting in
+        .sheet(isPresented: $loggingTasting) {
+            if let label {
+                LogTastingForLabel(label: label) {
+                    loggingTasting = false
+                    Task { await load() }
+                }
+            }
+        }
+        .sheet(isPresented: $addingBottle) {
             if let label {
                 NavigationStack {
-                    TastingFormView(
-                        label: TastingLabel(label),
-                        bottle: label.bottles.first { $0.id == tasting.bottleId }.map(TastingBottle.init),
-                        existing: tasting
-                    ) {
-                        editing = nil
+                    BottleFormView(label: LabelOption(label)) {
+                        addingBottle = false
                         Task { await load() }
                     }
-                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editing = nil } } }
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { addingBottle = false } } }
                 }
             }
         }
     }
 
     private func content(_ l: LabelDetail) -> some View {
-        let plate = CategoryPalette.color(for: l.category)
-        return List {
-            if let photo = l.photoPath {
-                // The label's own photo in the same frame as the gallery: the whole picture, on the category's colour.
-                Color.clear
-                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                    .overlay { AuthenticatedImage(path: photo, contentMode: .fit, background: plate).padding(6) }
-                    .clipped()
-                    .frame(width: 210)
-                    .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
-                    .accessibilityLabel("Label photo")
-            }
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(l.brand).font(.inter(13, .medium, relativeTo: .subheadline)).foregroundStyle(Theme.muted)
-                    Text(l.name).font(.headline(26)).foregroundStyle(Theme.ink)
-                    HStack(spacing: 5) {
-                        Rectangle().fill(plate)
-                            .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
-                            .frame(width: 8, height: 8)
-                            .accessibilityHidden(true)
-                        Text(l.category).font(.inter(13, .medium, relativeTo: .footnote)).foregroundStyle(Theme.muted)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                header(l)
+                Button { loggingTasting = true } label: {
+                    Text("Log a tasting")
+                        .font(.inter(16, .semibold))
+                        .foregroundStyle(Theme.paper)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .background(Theme.ink, in: RoundedRectangle(cornerRadius: 4))
                 }
-                .padding(.vertical, 4)
+                .padding(.top, 12)
+
+                sectionTitle("Your tastings")
+                tastings(l)
+
+                if l.bottles.isEmpty { notOwned }
+                about(l)
             }
-            Section("Specs") {
-                row("Proof", Format.proof(l.proof)?.replacingOccurrences(of: " proof", with: ""))
-                row("Age", l.ageStatement ?? l.ageYears.flatMap(Double.init).map { "\($0.formatted()) years" })
-                row("Size", "\(l.sizeMl) mL")
-                row("MSRP", l.msrp.map(Format.money))
-                row("Distilleries", l.distilleries.joined(separator: ", "))
-                row("Mashbill", l.mashbills.joined(separator: ", "))
-                row("Finishes", l.finishes.joined(separator: ", "))
-                row("Barcode", l.upc)
-            }
-            if !l.releases.isEmpty {
-                Section("Releases") {
-                    ForEach(l.releases) { release in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(release.name).font(.inter(16, .medium))
-                            let detail = [release.releaseYear.map(String.init), Format.proof(release.proof)].compactMap { $0 }.joined(separator: " · ")
-                            if !detail.isEmpty { Text(detail).font(.inter(13)).foregroundStyle(Theme.muted) }
-                        }
-                    }
-                }
-            }
-            Section("Your bottles") {
-                if l.bottles.isEmpty {
-                    Text("You don't have a bottle of this label.").font(.inter(14)).foregroundStyle(Theme.muted)
-                }
-                ForEach(l.bottles) { bottle in
-                    NavigationLink { BottleDetailView(id: bottle.id) } label: { bottleRow(bottle, plate: plate) }
-                }
-            }
-            if !l.tastings.isEmpty {
-                Section("Tastings") {
-                    ForEach(l.tastings) { tasting in
-                        Button { editing = tasting } label: { tastingRow(tasting) }
-                            .buttonStyle(.plain)
-                    }
-                }
-            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
         }
-        .font(.inter(16))
-        .scrollContentBackground(.hidden)
-        .navigationTitle(l.name)
     }
 
-    /// Hidden when there is nothing to say, so the page only shows what is recorded.
-    @ViewBuilder
-    private func row(_ title: String, _ value: String?) -> some View {
-        if let value, !value.isEmpty { LabeledContent(title, value: value) }
-    }
+    // MARK: Header
 
-    private func bottleRow(_ bottle: LabelBottle, plate: Color) -> some View {
-        HStack(spacing: 12) {
-            AuthenticatedImage(path: bottle.thumbPath, contentMode: .fit, background: plate)
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+    private func header(_ l: LabelDetail) -> some View {
+        let plate = CategoryPalette.color(for: l.category)
+        let block = HStack(spacing: 12) {
+            LabelThumb(path: l.photoThumbPath ?? l.photoPath, category: l.category, width: 54)
             VStack(alignment: .leading, spacing: 2) {
-                Text(bottle.title).font(.inter(16, .medium))
-                Text([bottle.status.capitalized, bottle.dateAcquired.map(Format.day)].compactMap { $0 }.joined(separator: " · "))
-                    .font(.inter(13)).foregroundStyle(Theme.muted)
+                Text(l.brand).font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                Text(l.name).font(.headline(21)).foregroundStyle(Theme.ink)
+                HStack(spacing: 5) {
+                    Rectangle().fill(plate)
+                        .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
+                        .frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
+                    Text([l.category, Format.proof(l.proof)].compactMap { $0 }.joined(separator: " · "))
+                        .font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                }
             }
             Spacer(minLength: 0)
-            FillGauge(percent: bottle.fillPct, track: Theme.ink.opacity(0.15)).frame(width: 4, height: 32)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(bottle.title), \(bottle.status), \(bottle.fillPct) percent full")
-    }
-
-    private func tastingRow(_ tasting: LabelTasting) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(Format.day(tasting.tastedOn)).font(.inter(15, .semibold)).monospacedDigit()
-                Spacer()
-                if let rating = Format.rating(tasting.rating) { Text(rating).font(.inter(15, .medium)).monospacedDigit() }
-            }
-            if let pour = Format.pour(source: tasting.source, tastedAt: tasting.tastedAt) {
-                Text(pour).font(.inter(13)).foregroundStyle(Theme.muted)
-            }
-            if let flavors = tasting.tags, !flavors.isEmpty {
-                Text(flavors.map(session.flavorName).joined(separator: ", ")).font(.inter(14, .medium)).foregroundStyle(Theme.ink)
-            }
-            ForEach(lines(of: tasting), id: \.0) { title, text in
-                Text("\(Text(title + " ").font(.inter(14, .medium)).foregroundStyle(Theme.muted))\(Text(text).font(.inter(14)))")
-                    .foregroundStyle(Theme.ink)
+            if !l.bottles.isEmpty {
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(l.bottles.count)").font(.inter(20, .semibold)).monospacedDigit()
+                    Text(l.bottles.count == 1 ? "bottle ›" : "bottles ›").font(.inter(11, .semibold, relativeTo: .caption2))
+                }
+                .foregroundStyle(Theme.ink)
+                .accessibilityHidden(true)
             }
         }
+        .padding(10)
+        .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
+        .contentShape(Rectangle())
+
+        return Group {
+            if let only = l.bottles.first, l.bottles.count == 1 {
+                NavigationLink { BottleDetailView(id: only.id) } label: { block }
+                    .accessibilityLabel("\(l.brand) \(l.name), 1 bottle in your collection")
+                    .accessibilityHint("Opens the bottle")
+            } else if !l.bottles.isEmpty {
+                NavigationLink { LabelBottlesView(title: "\(l.brand) \(l.name)", category: l.category, bottles: l.bottles) } label: { block }
+                    .accessibilityLabel("\(l.brand) \(l.name), \(l.bottles.count) bottles in your collection")
+                    .accessibilityHint("Opens the list of your bottles")
+            } else {
+                block.accessibilityElement(children: .combine)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
-    private func lines(of tasting: LabelTasting) -> [(String, String)] {
-        [("Nose", tasting.nose), ("Palate", tasting.palate), ("Finish", tasting.finish), ("Overall", tasting.overall)]
-            .compactMap { title, text in text.flatMap { $0.isEmpty ? nil : (title, $0) } }
+    // MARK: Tastings
+
+    private func sectionTitle(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Rectangle().fill(Theme.ink).frame(height: 2)
+            Text(text).font(.headline(20)).foregroundStyle(Theme.ink).padding(.top, 10)
+        }
+        .padding(.top, 18)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder
+    private func tastings(_ l: LabelDetail) -> some View {
+        if l.tastings.isEmpty {
+            VStack(spacing: 4) {
+                Text("No tastings yet").font(.headline(18)).foregroundStyle(Theme.ink)
+                Text("Log one and it shows up here and in your history.").font(.inter(13)).foregroundStyle(Theme.muted)
+            }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
+        } else {
+            ForEach(l.tastings.prefix(Self.shownTastings)) { TastingBlock(tasting: $0) }
+            if l.tastings.count > Self.shownTastings {
+                NavigationLink {
+                    LabelTastingsList(label: l) { Task { await load() } }
+                } label: {
+                    Text("See all \(l.tastings.count) tastings")
+                        .font(.inter(15, .semibold))
+                        .foregroundStyle(Theme.ink)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.ink, lineWidth: 1))
+                }
+                .padding(.top, 10)
+            }
+        }
+    }
+
+    // MARK: Not owned
+
+    private var notOwned: some View {
+        VStack(spacing: 10) {
+            Text("Not in your collection").font(.inter(15, .semibold)).foregroundStyle(Theme.ink)
+            Button { addingBottle = true } label: {
+                Text("Add this bottle")
+                    .font(.inter(16, .semibold))
+                    .foregroundStyle(Theme.paper)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(Theme.ink, in: RoundedRectangle(cornerRadius: 4))
+            }
+        }
+        .padding(12)
+        .overlay(Rectangle().strokeBorder(Theme.ink, style: StrokeStyle(lineWidth: 2, dash: [5, 4])))
+        .padding(.top, 14)
+    }
+
+    // MARK: About
+
+    private func about(_ l: LabelDetail) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("About this label")
+                .font(.inter(12, .semibold, relativeTo: .caption))
+                .textCase(.uppercase)
+                .tracking(0.8)
+                .foregroundStyle(Theme.muted)
+                .padding(.bottom, 4)
+                .accessibilityAddTraits(.isHeader)
+            fact("Age", l.ageStatement ?? l.ageYears.flatMap(Double.init).map { "\($0.formatted()) years" })
+            fact("Size", "\(l.sizeMl) mL")
+            fact("MSRP", l.msrp.map(Format.money))
+            fact("Distilleries", l.distilleries.joined(separator: ", "))
+            fact("Mashbill", l.mashbills.joined(separator: ", "))
+            fact("Finishes", l.finishes.joined(separator: ", "))
+            fact("Barcode", l.upc)
+            if !l.releases.isEmpty {
+                NavigationLink { LabelReleasesList(title: "\(l.brand) \(l.name)", releases: l.releases) } label: {
+                    HStack {
+                        Text("Releases").foregroundStyle(Theme.muted)
+                        Spacer()
+                        Text("\(l.releases.count) ›").foregroundStyle(Theme.ink)
+                    }
+                    .font(.inter(15))
+                    .frame(minHeight: 40)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(12)
+        .background(Theme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.top, 20)
+    }
+
+    /// Hidden when there is nothing to say, so the panel only shows what is recorded.
+    @ViewBuilder
+    private func fact(_ title: String, _ value: String?) -> some View {
+        if let value, !value.isEmpty {
+            VStack(spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title).foregroundStyle(Theme.muted)
+                    Spacer(minLength: 12)
+                    Text(value).foregroundStyle(Theme.ink).multilineTextAlignment(.trailing)
+                }
+                .font(.inter(15))
+                .frame(minHeight: 40)
+                Rectangle().fill(Theme.ink.opacity(0.15)).frame(height: 1)
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 
     private func load() async {
@@ -177,5 +247,177 @@ struct LabelPage: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+}
+
+/// One tasting on the label page: date, where it was, the flavors and what was written, with the score at the right.
+struct TastingBlock: View {
+    @Environment(Session.self) private var session
+    let tasting: LabelTasting
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Format.day(tasting.tastedOn)).font(.inter(15, .semibold)).foregroundStyle(Theme.ink).monospacedDigit()
+                    if let pour = Format.pour(source: tasting.source, tastedAt: tasting.tastedAt) ?? ownedLabel {
+                        Text(pour).font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                    }
+                    if let flavors = tasting.tags, !flavors.isEmpty {
+                        Text(flavors.map(session.flavorName).joined(separator: ", "))
+                            .font(.inter(13, .medium, relativeTo: .footnote)).foregroundStyle(Theme.ink)
+                    }
+                    ForEach(lines, id: \.0) { title, text in
+                        Text("\(Text(title + " ").font(.inter(13, .medium)).foregroundStyle(Theme.muted))\(Text(text).font(.inter(13)))")
+                            .foregroundStyle(Theme.ink)
+                    }
+                }
+                Spacer(minLength: 4)
+                TastingScore(rating: tasting.rating)
+            }
+            .padding(.vertical, 10)
+            Rectangle().fill(Theme.ink.opacity(0.15)).frame(height: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var ownedLabel: String? { tasting.source == TastingSource.owned.rawValue ? TastingSource.owned.title : nil }
+
+    private var lines: [(String, String)] {
+        [("Nose", tasting.nose), ("Palate", tasting.palate), ("Finish", tasting.finish), ("Overall", tasting.overall)]
+            .compactMap { title, text in text.flatMap { $0.isEmpty ? nil : (title, $0) } }
+    }
+}
+
+/// Every tasting of the label, newest first; tap one to edit it.
+struct LabelTastingsList: View {
+    let label: LabelDetail
+    var onChanged: () -> Void
+    @State private var editing: LabelTasting?
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(label.tastings) { tasting in
+                    Button { editing = tasting } label: { TastingBlock(tasting: tasting) }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Edits this tasting")
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .background(Theme.paper)
+        .navigationTitle("\(label.tastings.count) tastings")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $editing) { tasting in
+            NavigationStack {
+                TastingFormView(
+                    label: TastingLabel(label),
+                    bottle: label.bottles.first { $0.id == tasting.bottleId }.map(TastingBottle.init),
+                    existing: tasting
+                ) {
+                    editing = nil
+                    onChanged()
+                }
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editing = nil } } }
+            }
+        }
+    }
+}
+
+/// Log a tasting of this label, from its page: pick which bottle if you have any of it, then fill in the form.
+struct LogTastingForLabel: View {
+    let label: LabelDetail
+    var onSaved: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private enum Step: Hashable { case form(LabelBottle?) }
+    @State private var path: [Step] = []
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            Group {
+                if label.bottles.isEmpty {
+                    form(bottle: nil)
+                } else {
+                    BottleChoiceView(label: LabelOption(label)) { bottle, _ in path.append(.form(bottle)) }
+                }
+            }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .navigationDestination(for: Step.self) { step in
+                if case .form(let bottle) = step { form(bottle: bottle) }
+            }
+        }
+    }
+
+    private func form(bottle: LabelBottle?) -> some View {
+        TastingFormView(label: TastingLabel(label), bottle: bottle.map(TastingBottle.init)) { onSaved() }
+    }
+}
+
+/// The bottles you have of a label. They open in the Collection's bottle page.
+struct LabelBottlesView: View {
+    let title: String
+    let category: String
+    let bottles: [LabelBottle]
+
+    var body: some View {
+        List(bottles) { bottle in
+            NavigationLink { BottleDetailView(id: bottle.id) } label: {
+                HStack(spacing: 12) {
+                    LabelThumb(path: bottle.thumbPath, category: category, width: 40)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(bottle.title).font(.inter(16, .medium)).foregroundStyle(Theme.ink)
+                        Text([bottle.status.capitalized, bottle.dateAcquired.map(Format.day)].compactMap { $0 }.joined(separator: " · "))
+                            .font(.inter(13)).foregroundStyle(Theme.muted)
+                    }
+                    Spacer(minLength: 0)
+                    FillGauge(percent: bottle.fillPct, track: Theme.ink.opacity(0.15)).frame(width: 4, height: 32)
+                }
+                .frame(minHeight: 56)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(bottle.title), \(bottle.status), \(bottle.fillPct) percent full")
+            }
+            .listRowBackground(Theme.paper)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Theme.paper)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// The known releases of a label.
+struct LabelReleasesList: View {
+    let title: String
+    let releases: [LabelRelease]
+
+    var body: some View {
+        List(releases) { release in
+            VStack(alignment: .leading, spacing: 2) {
+                Text(release.name).font(.inter(16, .medium)).foregroundStyle(Theme.ink)
+                let detail = [release.releaseYear.map(String.init), Format.proof(release.proof)].compactMap { $0 }.joined(separator: " · ")
+                if !detail.isEmpty { Text(detail).font(.inter(13)).foregroundStyle(Theme.muted) }
+            }
+            .frame(minHeight: 44, alignment: .leading)
+            .listRowBackground(Theme.paper)
+            .accessibilityElement(children: .combine)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Theme.paper)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+extension LabelOption {
+    /// A label read in full, as the pickers and the bottle form take one.
+    init(_ detail: LabelDetail) {
+        self.init(
+            id: detail.id, name: detail.name, brand: detail.brand, category: detail.category, proof: detail.proof,
+            upc: detail.upc, thumbPath: detail.photoThumbPath, wheel: detail.wheel
+        )
     }
 }
