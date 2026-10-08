@@ -67,6 +67,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         bottleId,
         filePath: stored.filePath,
         thumbPath: stored.thumbPath,
+        isCutout: stored.isCutout,
         isPrimary: isFirst,
         // The hero photo is always the catalog photo; everything else is life.
         kind: isFirst ? "catalog" : "life",
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const labelCopy = await copyToBottleImage(stored.filePath);
         await db
           .update(expressions)
-          .set({ photoPath: labelCopy.filePath, photoThumbPath: labelCopy.thumbPath })
+          .set({ photoPath: labelCopy.filePath, photoThumbPath: labelCopy.thumbPath, photoIsCutout: labelCopy.isCutout })
           .where(and(eq(expressions.id, owned.expressionId), eq(expressions.ownerId, user.id)));
         revalidatePath(`/expressions/${owned.expressionId}`);
       }

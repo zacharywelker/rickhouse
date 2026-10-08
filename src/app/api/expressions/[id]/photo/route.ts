@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     await db
       .update(expressions)
-      .set({ photoPath: stored.filePath, photoThumbPath: stored.thumbPath })
+      .set({ photoPath: stored.filePath, photoThumbPath: stored.thumbPath, photoIsCutout: stored.isCutout })
       .where(and(eq(expressions.id, expressionId), eq(expressions.ownerId, user.id)));
     if (existing.photoPath) await deleteStoredImage(existing.photoPath, existing.photoThumbPath);
 

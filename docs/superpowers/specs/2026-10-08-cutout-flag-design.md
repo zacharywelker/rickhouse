@@ -1,6 +1,6 @@
 # Cutout flag: design
 
-Status: proposed on 2026-10-08; nothing is built yet.
+Status: proposed on 2026-10-08. Step 1 of section 7 (migration, upload code, API field, tests) is built; the backfill and both clients are not.
 Builds on section 8 of `2026-10-05-design-language-design.md` (photography and the plate). Where this file and that one disagree, this file is newer.
 
 ## 1. Why
@@ -26,14 +26,14 @@ One migration, written by hand, with its journal entry.
 
 - `bottle_images.is_cutout`, `expression_releases.photo_is_cutout` and `expressions.photo_is_cutout`: `boolean`, nullable, no default.
 - The flag must be nullable, not `false` by default. The view picks a photo by taking the first of the bottle's own, the release's, then the label's. A default of `false` on a release with no photo would win that comparison and hide the label's flag. Null is skipped, so the flag follows the same photo as the path.
-- `bottle_list` gains `thumb_is_cutout` as its last column, so the view is replaced in place. It is chosen in the same order as `thumb_path`: the bottle's primary image, then the release, then the label.
+- `bottle_list` gains `thumb_is_cutout` as its last column, so the view is replaced in place. It follows the same source as `thumb_path` (the bottle's primary image, then the release, then the label) with a `CASE` on which source supplies the path. It must not `COALESCE` the three flags: a bottle photo whose flag is still unknown would then borrow the label photo's flag.
 - Removing a photo sets its flag back to null along with its paths.
 
 ## 4. Where it is computed
 
 `transparentCropBox` in `src/lib/trim-transparent.ts` already walks every alpha value. It also counts the transparent ones and returns the count with the box, so there is no second pass. `storeImageBytes` in `src/lib/images.ts` returns `isCutout` on `StoredImage`. Each caller that writes a photo path writes the flag with it: the bottle image routes, the label photo route, the release photo route and the COLA copy.
 
-COLA label art and group covers go through the same function. Their flag is computed and ignored, since only bottle photos draw a plate.
+COLA label art skips the analysis and reports `isCutout: false`, since a label scan is never a cutout and a 6000px walk is not free. Group covers go through the photo path and get a flag nobody reads.
 
 ## 5. Backfill
 

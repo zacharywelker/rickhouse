@@ -75,7 +75,7 @@ export async function removeReleasePhotoAction(releaseId: number): Promise<Actio
   try {
     await db
       .update(expressionReleases)
-      .set({ photoPath: null, photoThumbPath: null })
+      .set({ photoPath: null, photoThumbPath: null, photoIsCutout: null })
       .where(eq(expressionReleases.id, releaseId));
     if (release.photoPath) await deleteStoredImage(release.photoPath, release.photoThumbPath);
     revalidateRelease(release.expressionId, releaseId);

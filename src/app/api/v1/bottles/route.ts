@@ -50,6 +50,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       dateAcquired: r.dateAcquired,
       avgRating: r.avgRating,
       thumbPath: r.thumbPath,
+      thumbIsCutout: r.thumbIsCutout,
     })),
   });
 }
