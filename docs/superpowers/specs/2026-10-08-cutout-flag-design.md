@@ -1,6 +1,6 @@
 # Cutout flag: design
 
-Status: proposed on 2026-10-08. Step 1 of section 7 (migration, upload code, API field, tests) is built; the backfill and both clients are not.
+Status: proposed on 2026-10-08. Steps 1 and 2 of section 7 (the migration, upload code, API field and tests; the backfill script) are built. Running the backfill on the real collection and both clients are not.
 Builds on section 8 of `2026-10-05-design-language-design.md` (photography and the plate). Where this file and that one disagree, this file is newer.
 
 ## 1. Why

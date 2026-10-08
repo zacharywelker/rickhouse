@@ -260,6 +260,15 @@ docker exec rickhouse-app node dist/reset-password.mjs admin
 
 It accepts a username or an email, prints a temporary password and signs that account out everywhere. Add `--make-admin` to promote the account at the same time.
 
+**Photos stored before cutout detection:** the app records whether each photo is a cutout (a bottle with a transparent background) when it is uploaded. Older photos are checked once, by hand:
+
+```sh
+docker exec rickhouse-app node dist/backfill-cutout-flag.mjs --dry-run
+docker exec rickhouse-app node dist/backfill-cutout-flag.mjs
+```
+
+The first command only reports. The second writes the flags, and it is safe to run again. Both list the photos worth a second look.
+
 **Photos vanish after a restart:** make sure `UPLOADS_PATH` points at a directory on the array.
 
 **Changed `POSTGRES_PASSWORD` and the app can't connect:** the password is only used when the database is first created. Change it inside PostgreSQL with `ALTER USER`, or put back the old value.

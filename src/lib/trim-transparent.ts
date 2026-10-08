@@ -9,13 +9,15 @@ const PADDING = 0.04;
 /** Not worth re-cropping if it would only shave off this much. */
 const MIN_SAVING = 0.03;
 /** A photo is a cutout once this share of its pixels is empty. Opaque photos have none. */
-const CUTOUT_MIN_TRANSPARENT = 0.02;
+export const CUTOUT_MIN_TRANSPARENT = 0.02;
 
 export type AlphaAnalysis = {
   /** Where to crop, or null when there is nothing to do. */
   box: CropBox | null;
   /** Whether the photo is a cutout: it has real transparency, not just an alpha channel. */
   isCutout: boolean;
+  /** The share of pixels that are transparent, 0 to 1. Zero when there is no alpha channel. */
+  transparentShare: number;
 };
 
 /**
@@ -28,7 +30,7 @@ export type AlphaAnalysis = {
  */
 export async function analyzeAlpha(oriented: Sharp): Promise<AlphaAnalysis> {
   const meta = await oriented.clone().metadata();
-  if (!meta.hasAlpha) return { box: null, isCutout: false };
+  if (!meta.hasAlpha) return { box: null, isCutout: false, transparentShare: 0 };
 
   const { data, info } = await oriented
     .clone()
@@ -56,9 +58,10 @@ export async function analyzeAlpha(oriented: Sharp): Promise<AlphaAnalysis> {
       }
     }
   }
+  const transparentShare = empty / (width * height);
   // A blank image has transparency but no subject, so it is not a cutout of anything.
-  if (maxX < 0) return { box: null, isCutout: false };
-  const isCutout = empty / (width * height) >= CUTOUT_MIN_TRANSPARENT;
+  if (maxX < 0) return { box: null, isCutout: false, transparentShare };
+  const isCutout = transparentShare >= CUTOUT_MIN_TRANSPARENT;
 
   const padX = Math.round((maxX - minX + 1) * PADDING);
   const padY = Math.round((maxY - minY + 1) * PADDING);
@@ -68,8 +71,8 @@ export async function analyzeAlpha(oriented: Sharp): Promise<AlphaAnalysis> {
   const bottom = Math.min(height - 1, maxY + padY);
   const box = { left, top, width: right - left + 1, height: bottom - top + 1 };
 
-  if (box.width * box.height > width * height * (1 - MIN_SAVING)) return { box: null, isCutout };
-  return { box, isCutout };
+  if (box.width * box.height > width * height * (1 - MIN_SAVING)) return { box: null, isCutout, transparentShare };
+  return { box, isCutout, transparentShare };
 }
 
 /** Where to crop away transparent margins, or null when there is nothing to crop. */

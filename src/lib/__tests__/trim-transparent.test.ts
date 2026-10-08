@@ -37,6 +37,8 @@ describe("analyzeAlpha isCutout", () => {
     const result = await analyzeAlpha(sharp(await canvas(1000, { x: 400, y: 100, w: 100, h: 800 })));
     expect(result.isCutout).toBe(true);
     expect(result.box).not.toBeNull();
+    // 100 x 800 opaque on a 1000 x 1000 canvas leaves 92% empty.
+    expect(result.transparentShare).toBeCloseTo(0.92, 2);
   });
 
   it("calls a tight rectangular bottle a cutout when its neck leaves room around it", async () => {
@@ -59,7 +61,9 @@ describe("analyzeAlpha isCutout", () => {
 
   it("does not call an opaque photo a cutout", async () => {
     const jpeg = await sharp({ create: { width: 50, height: 50, channels: 3, background: "#888" } }).jpeg().toBuffer();
-    expect((await analyzeAlpha(sharp(jpeg))).isCutout).toBe(false);
+    const result = await analyzeAlpha(sharp(jpeg));
+    expect(result.isCutout).toBe(false);
+    expect(result.transparentShare).toBe(0);
   });
 
   it("does not call a PNG with an unused alpha channel a cutout", async () => {
