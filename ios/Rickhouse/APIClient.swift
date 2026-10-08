@@ -134,6 +134,36 @@ struct APIClient {
         try await get("api/v1/expressions/\(id)", as: LabelDetail.self)
     }
 
+    /// What each step of What to drink tonight shows for the choices so far.
+    func tonightOptions(categories: Set<Int>, sealed: Bool) async throws -> TonightOptions {
+        var items: [URLQueryItem] = []
+        if !categories.isEmpty { items.append(.init(name: "category", value: categories.sorted().map(String.init).joined(separator: ","))) }
+        if sealed { items.append(.init(name: "sealed", value: "1")) }
+        return try await get("api/v1/tonight", query: items, as: TonightOptions.self)
+    }
+
+    /// Draws one bottle, or nil when nothing is left that fits.
+    func tonightPick(_ request: TonightPickRequest) async throws -> TonightPick? {
+        try await sendJSON("POST", "api/v1/tonight/pick", body: request, as: TonightPickResponse.self).pick
+    }
+
+    /// The muted bottles still muted, with the end dates a new mute may have.
+    func mutes() async throws -> MutesResponse {
+        try await get("api/v1/mutes", as: MutesResponse.self)
+    }
+
+    /// Mutes a bottle until a date from `mutes().window`, or changes the date of one already muted.
+    func mute(bottleId: Int, until: String) async throws {
+        _ = try await sendJSON("PUT", "api/v1/bottles/\(bottleId)/mute", body: ["until": until], as: MuteAnswer.self)
+    }
+
+    func unmute(bottleId: Int) async throws {
+        var req = request(path: "api/v1/bottles/\(bottleId)/mute")
+        req.httpMethod = "DELETE"
+        let (data, response) = try await Self.send(req)
+        try Self.check(response, data)
+    }
+
     func tastingWheels() async throws -> [TastingWheel] {
         try await get("api/v1/tasting-wheels", as: WheelsResponse.self).wheels
     }

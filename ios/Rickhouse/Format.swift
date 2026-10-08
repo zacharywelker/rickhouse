@@ -9,6 +9,18 @@ enum Format {
         return date.formatted(date: .abbreviated, time: .omitted)
     }
 
+    /// "Mar 2025" for "2025-03-27", built from parts like `day`; the input when it isn't a date.
+    static func monthYear(_ iso: String) -> String {
+        guard let value = date(fromISO: iso) else { return iso }
+        return value.formatted(.dateTime.month(.abbreviated).year())
+    }
+
+    /// "August" for "2026-08-14"; the input when it isn't a date.
+    static func monthName(_ iso: String) -> String {
+        guard let value = date(fromISO: iso) else { return iso }
+        return value.formatted(.dateTime.month(.wide))
+    }
+
     static func money(_ amount: String) -> String {
         Double(amount).map { $0.formatted(.currency(code: "USD")) } ?? "$" + amount
     }
