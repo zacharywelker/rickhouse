@@ -41,7 +41,7 @@ export async function POST(
     }
     await db
       .update(expressionReleases)
-      .set({ photoPath: stored.filePath, photoThumbPath: stored.thumbPath })
+      .set({ photoPath: stored.filePath, photoThumbPath: stored.thumbPath, photoIsCutout: stored.isCutout })
       .where(eq(expressionReleases.id, releaseId));
     if (release.photoPath) await deleteStoredImage(release.photoPath, release.photoThumbPath);
 

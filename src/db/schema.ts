@@ -310,6 +310,8 @@ export const expressions = pgTable(
     /** The label's own photo, relative to the uploads volume. */
     photoPath: text("photo_path"),
     photoThumbPath: text("photo_thumb_path"),
+    /** Whether the photo is a cutout. Null: no photo, or not yet known. */
+    photoIsCutout: boolean("photo_is_cutout"),
 
     // ---- Rum-specific (shown when category.field_group = 'rum')
     stillType: text("still_type"),
@@ -412,6 +414,8 @@ export const expressionReleases = pgTable(
     /** The release's own label photo, relative to the uploads volume. */
     photoPath: text("photo_path"),
     photoThumbPath: text("photo_thumb_path"),
+    /** Whether the photo is a cutout. Null: no photo, or not yet known. */
+    photoIsCutout: boolean("photo_is_cutout"),
     notes: text("notes"),
     position: integer("position").notNull().default(0),
   },
@@ -636,6 +640,8 @@ export const bottleImages = pgTable(
     /** Relative to the uploads volume. */
     filePath: text("file_path").notNull(),
     thumbPath: text("thumb_path"),
+    /** Whether the photo is a cutout. Null: not yet known. */
+    isCutout: boolean("is_cutout"),
     caption: text("caption"),
     /** Label/product shot vs. a personal photo (SPEC §19: catalog info vs. photos of the object's life). */
     kind: text("kind").notNull().default("life").$type<PhotoKind>(),
@@ -1072,6 +1078,8 @@ export const bottleList = pgView("bottle_list", {
   finishes: text("finishes"),
   avgRating: numeric("avg_rating", { precision: 3, scale: 1 }),
   thumbPath: text("thumb_path"),
+  /** Whether the photo behind `thumbPath` is a cutout. Null: no photo, or not yet known. */
+  thumbIsCutout: boolean("thumb_is_cutout"),
   /**
    * Weighted tsvector over brand, expression, distilleries, finishes, store
    * and every note attached to the bottle (SPEC M6). Declared as text because

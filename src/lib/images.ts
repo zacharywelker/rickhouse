@@ -4,7 +4,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { env } from "./env";
-import { transparentCropBox } from "./trim-transparent";
+import { analyzeAlpha } from "./trim-transparent";
 
 /**
  * Bottle photos live on a mounted volume, not in the database and not in
@@ -45,6 +45,8 @@ export type StoredImage = {
   displayPath?: string;
   width: number;
   height: number;
+  /** Real transparency around the subject, so a card may stand it on a plate. */
+  isCutout: boolean;
 };
 
 /** How the full-size file is encoded, and whether a mid-size rendition is kept too. */
@@ -115,7 +117,8 @@ async function storeImageBytes(
 
   // Cut-out photos often arrive on a big transparent canvas that leaves the
   // bottle tiny. Crop to the visible pixels (rotate runs before extract).
-  const box = encoding.trimTransparent ? await transparentCropBox(oriented) : null;
+  // Label scans skip this: they are never cutouts, and a 6000px walk is not free.
+  const { box, isCutout } = encoding.trimTransparent ? await analyzeAlpha(oriented) : { box: null, isCutout: false };
   const pipeline = box ? oriented.clone().extract(box) : oriented;
 
   const fileRelative = path.posix.join(originalsDir, `${id}.webp`);
@@ -154,6 +157,7 @@ async function storeImageBytes(
     ...(displayRelative ? { displayPath: displayRelative } : {}),
     width: full.info.width,
     height: full.info.height,
+    isCutout,
   };
 }
 

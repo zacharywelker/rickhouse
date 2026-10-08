@@ -36,7 +36,7 @@ export async function setLabelPhotoFromBottleImageAction(imageId: number): Promi
     const stored = await copyStored(row.filePath);
     await db
       .update(expressions)
-      .set({ photoPath: stored.filePath, photoThumbPath: stored.thumbPath })
+      .set({ photoPath: stored.filePath, photoThumbPath: stored.thumbPath, photoIsCutout: stored.isCutout })
       .where(and(eq(expressions.id, row.expressionId), eq(expressions.ownerId, user.id)));
     if (previous?.photoPath) await deleteStoredImage(previous.photoPath, previous.photoThumbPath);
 
@@ -59,7 +59,7 @@ export async function removeLabelPhotoAction(expressionId: number): Promise<Acti
     if (!previous) return { ok: false, error: "That label is gone." };
     await db
       .update(expressions)
-      .set({ photoPath: null, photoThumbPath: null })
+      .set({ photoPath: null, photoThumbPath: null, photoIsCutout: null })
       .where(and(eq(expressions.id, expressionId), eq(expressions.ownerId, user.id)));
     if (previous.photoPath) await deleteStoredImage(previous.photoPath, previous.photoThumbPath);
     revalidatePath(`/expressions/${expressionId}`);

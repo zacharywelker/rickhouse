@@ -103,6 +103,7 @@ export async function copyColaImageToBottleAction(colaImageId: number, bottleId:
       bottleId,
       filePath: stored.filePath,
       thumbPath: stored.thumbPath,
+      isCutout: stored.isCutout,
       caption: found.image.panel,
       kind: "catalog",
       // The first photo becomes the hero, as with an upload.
