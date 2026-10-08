@@ -47,6 +47,8 @@ struct BottleDetail: Decodable {
     var status: String
     var isOpen: Bool
     let isFavorite: Bool
+    /// Set while the bottle is muted from What to drink tonight (a date in the future); absent from an older server.
+    var mutedUntil: String?
     var fillPct: Int
     let proof: String?
     let ageStatement: String?

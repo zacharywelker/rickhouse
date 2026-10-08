@@ -363,6 +363,8 @@ Both begin with a search box and a barcode scan button (`barcode.viewfinder`).
 
 ### 11.5 What to drink tonight
 
+> Decided 2026-10-07: see `2026-10-08-tonight-design.md`, which settles the open items below (phone only; open bottles by default with a sealed switch; 10 tastings per spirit; weighted draw; Roulette; mutes).
+
 A mobile-first flow: **Spirit**, then **proof point**, then **flavors**. Each
 step offers multi-choice boxes. At the bottom is **Spin the bottle**, a fully
 random choice.

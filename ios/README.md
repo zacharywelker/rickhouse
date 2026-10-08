@@ -45,6 +45,10 @@ The app uses a small JSON API under `/api/v1`, plus two web routes that accept t
 | `PATCH` / `DELETE /api/v1/tastings/:id` | Replace (send every field) or delete a tasting. Its label and bottle don't change |
 | `GET /api/v1/tasting-wheels` | The flavor wheels a tasting's `tags` come from: categories, then subcategories, then descriptors with the `key` to store. A label's category names its wheel (see below) |
 | `GET /api/v1/categories` | The categories a label can have (`id`, `name`, `parent`, `wheel`), in the web form's order. `wheel` is the flavor wheel its labels use, or null where the family has none yet (vodka, liqueur, other) |
+| `GET /api/v1/tonight?category=1,2&sealed=1` | What each step of What to drink tonight shows for the choices so far: the spirits with open, sealed and muted counts, whether the proof step applies and its bands, whether flavors apply and which, or the "time to open a new bottle" fallback |
+| `POST /api/v1/tonight/pick` | Draw one bottle: `mode` (`flow` or `roulette`), `categories`, `sealed`, `bands`, `flavors`, `only` (`sealed` or `open`, for the fallback) and `exclude` (ids already shown). A weighted draw, not a filter; muted bottles are never drawn. Answers `{ pick: { bottle, why, left } \| null }` |
+| `GET /api/v1/mutes` | The muted bottles still muted, soonest to return first, with the `window` of end dates a new mute may have and the `presets` (1 week, 1 month, 3 months) as dates in the server's calendar |
+| `PUT` / `DELETE /api/v1/bottles/:id/mute` | Mute a bottle until `{ "until": "YYYY-MM-DD" }` (after today, at most three months out; again to change the date), or clear it |
 | `POST /api/bottles/:id/images` | Multipart photo upload (`images` field) |
 | `GET /api/images/<path>` | A photo or thumbnail |
 

@@ -80,17 +80,3 @@ struct PlaceholderScreen: View {
             .navigationTitle(title)
     }
 }
-
-/// Log a tasting and What to drink tonight, until their flows are built.
-struct ComingSoonSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let title: String
-
-    var body: some View {
-        NavigationStack {
-            PlaceholderScreen(title: title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
-        }
-    }
-}

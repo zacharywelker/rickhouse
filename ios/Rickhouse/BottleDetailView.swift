@@ -76,6 +76,9 @@ struct BottleDetailView: View {
                 }
                 .padding(.vertical, 4)
             }
+            if let until = b.mutedUntil {
+                mutedSection(b, until: until)
+            }
             fillSection(b)
             Section("Label") {
                 row("Category", b.category)
@@ -110,6 +113,35 @@ struct BottleDetailView: View {
         .font(.inter(16))
         .scrollContentBackground(.hidden)
         .navigationTitle(b.name)
+    }
+
+    // MARK: Muted
+
+    /// The bottle is held out of What to drink tonight and Roulette until a date; this says so and lets it back in.
+    private func mutedSection(_ b: BottleDetail, until: String) -> some View {
+        Section {
+            HStack {
+                Label("Muted until \(Format.day(until))", systemImage: "bell.slash")
+                    .font(.inter(16, .medium))
+                Spacer()
+                Button("Unmute") { Task { await unmute() } }
+                    .frame(minHeight: 44)
+            }
+        } footer: {
+            Text("Out of tonight's picks, Roulette included. Change the date in Account, Muted bottles.")
+        }
+    }
+
+    private func unmute() async {
+        guard let api = session.api else { return }
+        do {
+            try await api.unmute(bottleId: id)
+            await load()
+        } catch APIError.unauthorized {
+            session.signOut()
+        } catch {
+            actionError = error.localizedDescription
+        }
     }
 
     // MARK: Fill level

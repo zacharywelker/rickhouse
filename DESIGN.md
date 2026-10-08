@@ -216,10 +216,15 @@ name, then Account, Preferences, Groups and Config (admins only *(proposed)*).
   scan button. Lookup is local to the user's own data for now. A tasting
   belongs to a label and optionally to a bottle. Tasting notes are chosen from a
   fixed vocabulary per category; free text stays with the user.
-- **What to drink tonight:** spirit, then proof point, then flavors, with
-  "Spin the bottle" as a fully random option. Flavors appear only once the user
-  has at least 25 tastings, gated per spirit; otherwise the screen asks "Time
-  to open a new bottle?".
+- **What to drink tonight** *(phone only)*: spirit, then proof point, then
+  flavors, one step per screen, ending on one bottle. **Roulette** is the fully
+  random option at the foot of every step. Flavors appear only once the user has
+  at least 25 tastings, and 10 of the chosen spirit; otherwise the screen asks
+  "Time to open a new bottle?". Flavors and freshness only nudge a weighted
+  draw. A pick can be declined (**Not this one**) or **muted** for up to three
+  months, synced with the account. Open bottles by default; sealed ones are an
+  explicit switch. Decisions and rules:
+  `docs/superpowers/specs/2026-10-08-tonight-design.md`.
 
 ---
 
@@ -298,8 +303,10 @@ flat, no gradients, no mascot, no decoration.
   (dark).
 - **Secondary icons** *(proposed uses)*. The key, with the head inside its bow
   and drawn dark, for connecting to or unlocking a server. A card with spin
-  arrows for *What to drink tonight*. A wheel with a pointer for *Spin the
-  bottle*. Each is centered in its icon box and uses only ink, ivory and orange.
+  arrows for *Roulette*, in What to drink tonight (its button, and its loading
+  screen, where the card spins). A wheel with a pointer is spare, and the + sheet's
+  *What to drink tonight* row needs art of its own *(undecided)*. Each is centered in
+  its icon box and uses only ink, ivory and orange.
 
 The source files and a usage table are in `docs/brand/`. They were generated,
 not drawn in a design tool; have a designer redraw them in a vector tool before

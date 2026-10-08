@@ -615,7 +615,9 @@ app. Details and reasoning are in `PRODUCT.md` and
   Free text never leaves the user's data.
 - **State of the work:** a bearer-token JSON API and an online-only SwiftUI
   client were started on the unmerged `claude/ios-app` branch. The server
-  already has a `roulette` route that Spin the Bottle can reuse. Android and
+  already has a `roulette` route that Spin the Bottle can reuse; What to drink tonight
+  and Roulette on the phone use their own `/api/v1/tonight` routes instead (design in
+  `docs/superpowers/specs/2026-10-08-tonight-design.md`). Android and
   the on-device database choice are open.
 
 ---
