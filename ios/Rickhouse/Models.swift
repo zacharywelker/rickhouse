@@ -23,6 +23,10 @@ struct BottleSummary: Decodable, Identifiable, Hashable {
     let pricePaid: String?
     let store: String?
     let thumbPath: String?
+    /// Whether the photo is a cut-out (transparent around the bottle). Nil from an
+    /// older server, or for a photo the server hasn't checked yet; the card treats
+    /// nil as a cut-out, as it drew every photo before the flag existed.
+    let thumbIsCutout: Bool?
 }
 
 struct BottlePage: Decodable {

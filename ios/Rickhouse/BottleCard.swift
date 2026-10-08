@@ -1,24 +1,28 @@
 import SwiftUI
 
-/// The bottle card: the bottle standing on a floor in a frame coloured by
-/// category, the name, the category's name beside its swatch, and one or two
-/// facts. A bottle that isn't full carries a "40% left" chip.
+/// The bottle card: the photo in a frame coloured by category (a cut-out
+/// stands on a floor, any other photo fills a mat), the name, the category's
+/// name beside its swatch, and one or two facts. A bottle that isn't full
+/// carries a "40% left" chip.
 struct BottleCard: View {
     let bottle: BottleSummary
     /// 1 in the three-column gallery, 2 in the two-column one.
     let factCount: Int
 
     private var color: Color { CategoryPalette.color(for: bottle.category) }
+    /// Unknown counts as a cut-out, which is how every photo was drawn before the server said.
+    private var isCutout: Bool { bottle.thumbIsCutout ?? true }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // A fixed 3:4 slot with the photo drawn into it. The photo is an
             // overlay so its own shape (wide, tall, square) never reaches the
-            // layout. Cut-out bottles, the usual photo here, are trimmed to the
-            // bottle itself, so their bottom edge is the bottle's base.
+            // layout, and a cut-out and a plain photo take the same footprint.
+            // Cut-out bottles are trimmed to the bottle itself, so their bottom
+            // edge is the bottle's base.
             Color.clear
                 .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                .overlay { plate }
+                .overlay { if isCutout { plate } else { framedPhoto } }
                 .clipped()
                 .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
                 .shadow(color: Theme.ink.opacity(0.18), radius: 0, x: 2, y: 2)
@@ -80,6 +84,15 @@ struct BottleCard: View {
                     .padding(.horizontal, 6)
                     .padding(.bottom, geo.size.height * 0.07)
             }
+        }
+    }
+
+    /// A photo that kept its background: it fills a category-coloured mat, with no floor.
+    private var framedPhoto: some View {
+        ZStack {
+            color
+            AuthenticatedImage(path: bottle.thumbPath, contentMode: .fill, background: .clear)
+                .padding(6)
         }
     }
 
