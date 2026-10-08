@@ -375,6 +375,9 @@ CREATE TABLE bottles (
     location        text,          -- "Bar cart", "Basement shelf 3"
     is_favorite     boolean NOT NULL DEFAULT false,
     notes           text,
+    -- Muted from What to drink tonight and Roulette while this date is after today (at most three months out).
+    -- It lapses by itself: nothing needs to clear it.
+    muted_until     date,
 
     created_at      timestamptz NOT NULL DEFAULT now(),
     updated_at      timestamptz NOT NULL DEFAULT now()

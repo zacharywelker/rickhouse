@@ -612,6 +612,8 @@ export const bottles = pgTable(
     location: text("location"),
     isFavorite: boolean("is_favorite").notNull().default(false),
     notes: text("notes"),
+    /** Muted from What to drink tonight and Roulette while this is after today; it lapses by itself. */
+    mutedUntil: date("muted_until"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
