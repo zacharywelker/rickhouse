@@ -1,13 +1,18 @@
 import SwiftUI
 
-/// The Labels tab: a search bar for labels on top and, below it, the tasting history.
-/// While there is text in the bar the list is the matching labels; clearing it brings the history back.
+/// The Labels tab, in two parts chosen by a segmented control: the tasting history (the default) and a search for labels.
 /// Both kinds of row open the label's page.
 struct LabelsView: View {
+    private enum Mode: String, CaseIterable, Identifiable {
+        case tastings = "Tastings", find = "Find a label"
+        var id: String { rawValue }
+    }
+
     @Environment(Session.self) private var session
     /// Bumped by the shell after a tasting is logged, so the history reloads.
     var reloadSignal = 0
 
+    @State private var mode = Mode.tastings
     @State private var query = ""
     @State private var results: [LabelOption] = []
     @State private var searched = false
@@ -21,42 +26,95 @@ struct LabelsView: View {
     @State private var historyFailure: String?
     @State private var attempt = 0
 
-    private var searching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var searching: Bool { mode == .find && !query.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    /// The history in the order it came, cut into months.
+    private var months: [(title: String, entries: [TastingEntry])] {
+        var out: [(title: String, entries: [TastingEntry])] = []
+        for entry in history {
+            let title = Format.month(entry.tastedOn)
+            if out.last?.title == title { out[out.count - 1].entries.append(entry) } else { out.append((title, [entry])) }
+        }
+        return out
+    }
 
     var body: some View {
         NavigationStack {
-            List {
-                if searching {
-                    ForEach(results) { label in
-                        NavigationLink { LabelPage(id: label.id) } label: { LabelRow(label: label) }
-                            .listRowBackground(Theme.paper)
-                    }
-                } else {
-                    ForEach(history) { entry in
-                        NavigationLink { LabelPage(id: entry.expressionId) } label: { TastingRow(entry: entry) }
-                            .listRowBackground(Theme.paper)
-                            .task { if entry.id == history.last?.id { await loadMoreHistory() } }
+            VStack(spacing: 0) {
+                Picker("Show", selection: $mode) {
+                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+
+                if mode == .find { searchField }
+
+                List {
+                    switch mode {
+                    case .tastings:
+                        ForEach(months, id: \.title) { month in
+                            Section {
+                                ForEach(month.entries) { entry in
+                                    NavigationLink { LabelPage(id: entry.expressionId) } label: { TastingRow(entry: entry) }
+                                        .listRowBackground(Theme.paper)
+                                        .task { if entry.id == history.last?.id { await loadMoreHistory() } }
+                                }
+                            } header: {
+                                Text(month.title)
+                                    .font(.inter(12, .semibold, relativeTo: .caption))
+                                    .textCase(.uppercase)
+                                    .tracking(0.8)
+                                    .foregroundStyle(Theme.muted)
+                            }
+                        }
+                    case .find:
+                        ForEach(results) { label in
+                            NavigationLink { LabelPage(id: label.id) } label: { LabelRow(label: label) }
+                                .listRowBackground(Theme.paper)
+                        }
                     }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .overlay { stateOverlay }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
             .background(Theme.paper)
-            .overlay { stateOverlay }
             .navigationTitle("Labels")
-            .searchable(text: $query, prompt: "Search labels")
             .task(id: query) { await search() }
             .task(id: attempt) { await reloadHistory() }
             .task { await session.loadWheels() }
             .onChange(of: reloadSignal) { attempt += 1 }
-            .refreshable { await reloadHistory() }
+            .refreshable { if mode == .tastings { await reloadHistory() } }
         }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted).accessibilityHidden(true)
+            TextField("Brand or name", text: $query)
+                .font(.inter(16))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !query.isEmpty {
+                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted) }
+                    .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 40)
+        .background(Theme.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
     private var stateOverlay: some View {
-        if searching {
-            if let searchFailure {
+        if mode == .find {
+            if !searching {
+                ContentUnavailableView("Find a label", systemImage: "text.magnifyingglass", description: Text("Type a brand or name to open its page."))
+            } else if let searchFailure {
                 ContentUnavailableView("Couldn't search", systemImage: "wifi.slash", description: Text(searchFailure))
             } else if results.isEmpty && searched {
                 ContentUnavailableView("No label found", systemImage: "magnifyingglass", description: Text("Nothing matches that search."))
@@ -75,7 +133,7 @@ struct LabelsView: View {
             ContentUnavailableView(
                 "No tastings yet",
                 systemImage: "wineglass",
-                description: Text("Tasting notes you add to your bottles show up here. Search above to find a label.")
+                description: Text("Log a tasting with the + tab, or find a label to see what you have written about it.")
             )
         }
     }
@@ -144,9 +202,7 @@ struct LabelRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AuthenticatedImage(path: label.thumbPath, contentMode: .fit, background: CategoryPalette.color(for: label.category))
-                .frame(width: 48, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+            LabelThumb(path: label.thumbPath, category: label.category)
             VStack(alignment: .leading, spacing: 2) {
                 Text(label.brand).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
                 Text(label.name).font(.inter(16, .semibold, relativeTo: .headline)).foregroundStyle(Theme.ink)
@@ -161,39 +217,38 @@ struct LabelRow: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(minHeight: 44)
+        .frame(minHeight: 60)
         .accessibilityElement(children: .combine)
     }
 }
 
-/// One tasting in the history: when, how it rated, and the first line of what was written.
+/// One tasting in the history: the photo, the label, when and where, one line of flavors, and the score large at the right.
 struct TastingRow: View {
     @Environment(Session.self) private var session
     let entry: TastingEntry
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            AuthenticatedImage(path: entry.thumbPath, contentMode: .fit, background: CategoryPalette.color(for: entry.category))
-                .frame(width: 48, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(entry.title).font(.inter(16, .semibold, relativeTo: .headline)).foregroundStyle(Theme.ink)
-                Text([Format.day(entry.tastedOn), Format.rating(entry.rating)].compactMap { $0 }.joined(separator: " · "))
-                    .font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted).monospacedDigit()
-                if let pour = Format.pour(source: entry.source, tastedAt: entry.tastedAt) {
-                    Text(pour).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
-                }
+        HStack(spacing: 12) {
+            LabelThumb(path: entry.thumbPath, category: entry.category)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.title).font(.inter(16, .semibold, relativeTo: .headline)).foregroundStyle(Theme.ink).lineLimit(1)
+                Text([Format.day(entry.tastedOn), sourceName].compactMap { $0 }.joined(separator: " · "))
+                    .font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted).monospacedDigit().lineLimit(1)
                 if let flavors = entry.tags, !flavors.isEmpty {
                     Text(flavors.map(session.flavorName).joined(separator: ", "))
-                        .font(.inter(13, .medium, relativeTo: .footnote)).foregroundStyle(Theme.ink).lineLimit(2)
-                }
-                if let summary = entry.summary {
-                    Text(summary).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.muted).lineLimit(2)
+                        .font(.inter(13, .medium, relativeTo: .footnote)).foregroundStyle(Theme.ink).lineLimit(1)
                 }
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 4)
+            TastingScore(rating: entry.rating)
         }
+        .frame(minHeight: 60)
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
+    }
+
+    /// "Bottle share" or "Owned"; a place, when there is one, is on the label page.
+    private var sourceName: String? {
+        entry.source.flatMap(TastingSource.init(rawValue:))?.title
     }
 }
