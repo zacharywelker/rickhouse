@@ -10,8 +10,13 @@ import { cn, formatNumeric } from "@/lib/utils";
 import type { GridRow } from "@/lib/bottles/grid";
 import { FillGauge } from "./fill-gauge";
 
-/** A slight, deterministic stagger per stack position — never dead straight. */
-const STACK_TILT = ["-rotate-3", "rotate-2", "-rotate-1"];
+/** A slight, deterministic stagger per stack position, never more than 2 degrees (DESIGN.md §5). */
+const STACK_TILT = ["-rotate-2", "rotate-1", "-rotate-1"];
+
+/** What the floor is darkened with. Fixed, so the floor is a darker shade of its wall in either theme. */
+const FLOOR_INK = "#14213D";
+/** A flat offset shadow: depth without blur (DESIGN.md §4.2). */
+const FRAME_SHADOW = "shadow-[2px_2px_0_rgb(20_33_61/0.18)]";
 
 /** The brand is dropped from the title when the name already starts with it. */
 function tileTitle(row: GridRow): string {
@@ -32,47 +37,58 @@ function tileFacts(row: GridRow): string[] {
 }
 
 /**
- * The photo in a category-coloured plate with an ink hairline, in a fixed 3:4
- * slot. The photo is scaled to fit (never cropped), so the whole bottle shows
- * whatever its own shape. A thin gauge on the right edge shows how full it is.
+ * The photo in a category-coloured frame with an ink hairline, in a fixed 3:4
+ * slot (DESIGN.md §4.2). A cutout stands on a floor: a wall in the category's
+ * colour over a darker floor, every bottle's base on the same line, so bottles
+ * of different shapes read as one set. Any other photo fills a mat of the
+ * category's colour instead, with no floor. A bottle with no photo shows its
+ * fill gauge. Unknown counts as a cutout, as every photo was drawn before the
+ * server said.
  */
 function Frame({ row, children }: { row: GridRow; children?: React.ReactNode }) {
   const color = categoryColor(row.category);
+  const standing = Boolean(row.thumbPath) && (row.thumbIsCutout ?? true);
   return (
     <div
-      className="relative aspect-[3/4] border border-foreground p-2"
+      className={cn(
+        "relative aspect-[3/4] overflow-hidden border border-foreground",
+        FRAME_SHADOW,
+        !standing && "p-1.5",
+      )}
       style={{ backgroundColor: color.hex }}
     >
-      <div className="relative size-full overflow-hidden">
-        {row.thumbPath ? (
-          <Image
-            src={`/api/images/${row.thumbPath}`}
-            alt=""
-            fill
-            unoptimized
-            className="object-contain p-1"
+      {standing ? (
+        <>
+          <span
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 h-[24%] border-t border-foreground"
+            style={{ backgroundColor: `color-mix(in srgb, ${color.hex} 78%, ${FLOOR_INK})` }}
           />
-        ) : (
-          <div className="flex size-full items-center justify-center">
-            <FillGauge
-              value={row.fillPct}
-              readOnly
-              fieldGroup={row.fieldGroup}
-              height={130}
-              label={`${row.expressionName} fill`}
+          <div className="absolute inset-x-1.5 bottom-[7%] top-[9%]">
+            <Image
+              src={`/api/images/${row.thumbPath}`}
+              alt=""
+              fill
+              unoptimized
+              className="object-contain object-bottom"
             />
           </div>
-        )}
-      </div>
-      <span
-        aria-hidden
-        className="absolute bottom-2 right-0.5 top-2 w-[3px] overflow-hidden rounded-full bg-paper/75"
-      >
-        <span
-          className="absolute inset-x-0 bottom-0 bg-foreground"
-          style={{ height: `${Math.max(0, Math.min(100, row.fillPct))}%` }}
-        />
-      </span>
+        </>
+      ) : row.thumbPath ? (
+        <div className="relative size-full overflow-hidden">
+          <Image src={`/api/images/${row.thumbPath}`} alt="" fill unoptimized className="object-cover" />
+        </div>
+      ) : (
+        <div className="flex size-full items-center justify-center">
+          <FillGauge
+            value={row.fillPct}
+            readOnly
+            fieldGroup={row.fieldGroup}
+            height={130}
+            label={`${row.expressionName} fill`}
+          />
+        </div>
+      )}
       {row.isFavorite ? (
         <Star className="absolute left-2 top-2 size-4 fill-foreground text-foreground" aria-label="Favorite" />
       ) : null}
@@ -114,6 +130,11 @@ function BottleTile({ row }: { row: GridRow }) {
           {fact}
         </p>
       ))}
+      {row.fillPct < 100 ? (
+        <span className="mt-1 self-start border border-foreground px-1 text-[10px] font-semibold leading-[14px] tabular-nums">
+          {row.fillPct}% left
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -134,12 +155,12 @@ function FamilyCluster({ rows, onExpand }: { rows: GridRow[]; onExpand: () => vo
         {behind.map((row, i) => (
           <div
             key={row.id}
-            className={cn("absolute inset-0 shadow-md", STACK_TILT[i % STACK_TILT.length])}
+            className={cn("absolute inset-0", STACK_TILT[i % STACK_TILT.length])}
           >
             <Frame row={row} />
           </div>
         ))}
-        <div className="absolute inset-0 shadow-lg">
+        <div className="absolute inset-0">
           <Frame row={front}>
             <span className="absolute bottom-3 left-3 rounded-full bg-black/70 px-2 py-0.5 text-xs font-medium tabular-nums text-white">
               {rows.length} bottles
