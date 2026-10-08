@@ -1,35 +1,31 @@
 import SwiftUI
 
-/// The bottle card: the photo in a frame coloured by category, the name, the
-/// category's name beside its swatch, and one or two facts. A fill gauge runs
-/// down the frame's right edge.
+/// The bottle card: the photo in a frame coloured by category (a cut-out
+/// stands on a floor, any other photo fills a mat), the name, the category's
+/// name beside its swatch, and one or two facts. A bottle that isn't full
+/// carries a "40% left" chip.
 struct BottleCard: View {
     let bottle: BottleSummary
     /// 1 in the three-column gallery, 2 in the two-column one.
     let factCount: Int
 
     private var color: Color { CategoryPalette.color(for: bottle.category) }
+    /// Unknown counts as a cut-out, which is how every photo was drawn before the server said.
+    private var isCutout: Bool { bottle.thumbIsCutout ?? true }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // A fixed 3:4 slot with the photo drawn into it. The photo is an
             // overlay so its own shape (wide, tall, square) never reaches the
-            // layout. Cut-out bottles, the usual photo here, are trimmed to the
-            // bottle itself, so they scale to fit and sit on a plate of the
-            // category's colour; the slot clips anything that still overflows.
+            // layout, and a cut-out and a plain photo take the same footprint.
+            // Cut-out bottles are trimmed to the bottle itself, so their bottom
+            // edge is the bottle's base.
             Color.clear
                 .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                .overlay { AuthenticatedImage(path: bottle.thumbPath, contentMode: .fit, background: .clear).padding(4) }
+                .overlay { if isCutout { plate } else { framedPhoto } }
                 .clipped()
-                .padding(8)
-                .background(color)
                 .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
-                .overlay(alignment: .trailing) {
-                    FillGauge(percent: bottle.fillPct)
-                        .frame(width: 3)
-                        .padding(.vertical, 8)
-                        .padding(.trailing, 2)
-                }
+                .shadow(color: Theme.ink.opacity(0.18), radius: 0, x: 2, y: 2)
 
             Text(title)
                 .font(.inter(12.5, .semibold, relativeTo: .footnote))
@@ -57,9 +53,47 @@ struct BottleCard: View {
                     .lineLimit(1)
                     .padding(.top, index == 0 ? 4 : 0)
             }
+
+            if bottle.fillPct < 100 {
+                Text("\(bottle.fillPct)% left")
+                    .font(.inter(10, .semibold, relativeTo: .caption2))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
+                    .padding(.top, 4)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(([title, bottle.category] + facts + ["\(bottle.fillPct) percent full"]).joined(separator: ", "))
+    }
+
+    /// A wall in the category's colour and a darker floor. Every bottle's base
+    /// sits on the same line inside the floor, so a squat flask and a tall
+    /// decanter read as one set.
+    private var plate: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .bottom) {
+                color
+                Rectangle().fill(color.mix(with: Theme.ink, by: 0.22))
+                    .frame(height: geo.size.height * 0.24)
+                    .overlay(alignment: .top) { Rectangle().fill(Theme.ink).frame(height: 1) }
+                AuthenticatedImage(path: bottle.thumbPath, contentMode: .fit, background: .clear, alignment: .bottom)
+                    .frame(height: geo.size.height * 0.87)
+                    .padding(.horizontal, 6)
+                    .padding(.bottom, geo.size.height * 0.07)
+            }
+        }
+    }
+
+    /// A photo that kept its background: it fills a category-coloured mat, with no floor.
+    private var framedPhoto: some View {
+        ZStack {
+            color
+            AuthenticatedImage(path: bottle.thumbPath, contentMode: .fill, background: .clear)
+                .padding(6)
+        }
     }
 
     private var title: String {

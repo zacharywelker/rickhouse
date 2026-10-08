@@ -129,9 +129,14 @@ stripped, uploads are resized, and thumbnails are cached.
 ## 4.2 Frame and plate
 
 The photo sits in a category-colored frame, thick enough to read as a mat
-(6 to 8 px at card scale, to be tested *(proposed)*). When background removal
-ships, the frame's interior fills with the same color and becomes a plate. A
-plate means a cutout succeeded; otherwise the card shows the plain frame.
+(6 to 8 px at card scale, to be tested *(proposed)*). A cutout fills the frame
+and becomes a plate: a wall in the category color over a floor in a darker
+shade of it. Every bottle's base sits on the same line inside the floor, so
+bottles of different shapes read as one set. This needs the cutout trimmed to
+the bottle, so its bottom edge is the base. A plate means a cutout succeeded;
+otherwise the card shows the photo in the plain frame, with no floor. Each
+frame carries a flat 2 px offset shadow in ink at 18%, with no blur
+*(proposed)*, so the grid has depth without gradients.
 
 ## 4.3 The card
 
@@ -142,7 +147,7 @@ plate means a cutout succeeded; otherwise the card shows the plain frame.
 | Category name | Printed on or beside the frame |
 | Fact slot | One fact of about 14 characters *(proposed)* |
 | Mark slot | Optional; only when a mark applies |
-| Fill cue | A thin gauge along the frame edge |
+| Fill cue | A "40% left" chip under the facts, only when the bottle is under full *(proposed)* |
 
 Default fact per category: whiskey (all kinds) proof, then age statement, then
 mashbill; rum age; agave expression (blanco, reposado, anejo); gin style;
