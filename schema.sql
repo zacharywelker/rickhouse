@@ -621,6 +621,16 @@ CREATE TABLE two_factors (
 CREATE INDEX two_factors_user_idx ON two_factors(user_id);
 CREATE INDEX two_factors_secret_idx ON two_factors(secret);
 
+-- Attempts through the iOS app's own sign-in route, which has no Turnstile check: the guessing is slowed instead.
+-- `key` is a hash of the lowercased username, kept for names that don't exist too.
+CREATE TABLE app_sign_in_attempts (
+    key             text PRIMARY KEY,
+    failures        integer NOT NULL DEFAULT 0,
+    last_attempt_at timestamptz NOT NULL,
+    locked_until    timestamptz
+);
+CREATE INDEX app_sign_in_attempts_last_attempt_idx ON app_sign_in_attempts(last_attempt_at);
+
 -- Better Auth's passkey plugin: one row per WebAuthn credential.
 CREATE TABLE passkeys (
     id            serial PRIMARY KEY,
