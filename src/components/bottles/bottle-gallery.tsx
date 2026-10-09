@@ -37,6 +37,33 @@ function tileFacts(row: GridRow): string[] {
 }
 
 /**
+ * A cutout standing on the floor. The server bakes the bottle, its cleaned edge and its floor
+ * shadow into one tile the size of the slot, so this is a single plain image. A photo with no
+ * tile (one the server never called a cutout) falls back to the thumbnail, bottom-aligned.
+ */
+function CutoutPhoto({ thumbPath }: { thumbPath: string }) {
+  const [noTile, setNoTile] = React.useState(false);
+  const tile = thumbPath.includes("/thumbs/") ? thumbPath.replace("/thumbs/", "/tiles/") : null;
+  if (tile && !noTile) {
+    return (
+      <Image
+        src={`/api/images/${tile}`}
+        alt=""
+        fill
+        unoptimized
+        className="object-fill"
+        onError={() => setNoTile(true)}
+      />
+    );
+  }
+  return (
+    <div className="absolute inset-x-1.5 bottom-[7%] top-[9%]">
+      <Image src={`/api/images/${thumbPath}`} alt="" fill unoptimized className="object-contain object-bottom" />
+    </div>
+  );
+}
+
+/**
  * The photo in a category-coloured frame with an ink hairline, in a fixed 3:4
  * slot (DESIGN.md §4.2). A cutout stands on a floor: a wall in the category's
  * colour over a darker floor, every bottle's base on the same line, so bottles
@@ -64,15 +91,7 @@ function Frame({ row, children }: { row: GridRow; children?: React.ReactNode }) 
             className="absolute inset-x-0 bottom-0 h-[24%] border-t border-foreground"
             style={{ backgroundColor: `color-mix(in srgb, ${color.hex} 78%, ${FLOOR_INK})` }}
           />
-          <div className="absolute inset-x-1.5 bottom-[7%] top-[9%]">
-            <Image
-              src={`/api/images/${row.thumbPath}`}
-              alt=""
-              fill
-              unoptimized
-              className="object-contain object-bottom"
-            />
-          </div>
+          <CutoutPhoto thumbPath={row.thumbPath!} />
         </>
       ) : row.thumbPath ? (
         <div className="relative size-full overflow-hidden">

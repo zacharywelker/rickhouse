@@ -12,6 +12,13 @@ struct BottleCard: View {
     private var color: Color { CategoryPalette.color(for: bottle.category) }
     /// Unknown counts as a cut-out, which is how every photo was drawn before the server said.
     private var isCutout: Bool { bottle.thumbIsCutout ?? true }
+    /// The server's tile for a cut-out: the bottle and its floor shadow in one picture the size of the slot.
+    private var tilePath: String? {
+        guard let thumb = bottle.thumbPath, thumb.contains("/thumbs/") else { return nil }
+        return thumb.replacingOccurrences(of: "/thumbs/", with: "/tiles/")
+    }
+    /// The tile didn't load (a photo the server never called a cut-out), so the thumbnail stands in.
+    @State private var noTile = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -79,10 +86,15 @@ struct BottleCard: View {
                 Rectangle().fill(color.mix(with: Theme.ink, by: 0.22))
                     .frame(height: geo.size.height * 0.24)
                     .overlay(alignment: .top) { Rectangle().fill(Theme.ink).frame(height: 1) }
-                AuthenticatedImage(path: bottle.thumbPath, contentMode: .fit, background: .clear, alignment: .bottom)
-                    .frame(height: geo.size.height * 0.87)
-                    .padding(.horizontal, 6)
-                    .padding(.bottom, geo.size.height * 0.07)
+                if let tilePath, !noTile {
+                    AuthenticatedImage(path: tilePath, contentMode: .fill, background: .clear, onFailure: { noTile = true })
+                        .frame(width: geo.size.width, height: geo.size.height)
+                } else {
+                    AuthenticatedImage(path: bottle.thumbPath, contentMode: .fit, background: .clear, alignment: .bottom)
+                        .frame(height: geo.size.height * 0.87)
+                        .padding(.horizontal, 6)
+                        .padding(.bottom, geo.size.height * 0.07)
+                }
             }
         }
     }

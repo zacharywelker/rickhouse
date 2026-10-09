@@ -4,7 +4,11 @@ import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleImages, bottles, colaImages, expressionColas, expressionReleases, expressions, groups } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
-import { ImageError, contentTypeFor, resolveUpload } from "@/lib/images";
+import { thumbPathForTile } from "@/lib/cutout-tile";
+import { ImageError, contentTypeFor, ensureTile, resolveUpload } from "@/lib/images";
+
+/** A bottle cutout's gallery tile: `bottles/tiles/<uuid>.webp`, owned by whoever owns the thumbnail with the same name. */
+const TILE_PATH = /^bottles\/tiles\/([0-9a-f-]{36})\.webp$/;
 
 /**
  * Serves bottle photos from the uploads volume.
@@ -69,8 +73,20 @@ export async function GET(
 
   try {
     // Same answer for "not yours" as for "not there".
-    if (!(await ownsUpload(relative, user.id))) return new NextResponse("Not found", { status: 404 });
+    const tile = TILE_PATH.exec(relative);
+    const ownedPath = tile ? thumbPathForTile(relative) : relative;
+    if (!ownedPath || !(await ownsUpload(ownedPath, user.id))) return new NextResponse("Not found", { status: 404 });
     const absolute = resolveUpload(relative);
+    // Photos from before tiles existed get theirs on first request; a photo that is no cutout has none.
+    if (tile) {
+      try {
+        await stat(absolute);
+      } catch (error: unknown) {
+        if ((error as { code?: string }).code !== "ENOENT" || !(await ensureTile(tile[1]!))) {
+          return new NextResponse("Not found", { status: 404 });
+        }
+      }
+    }
     const info = await stat(absolute);
     if (!info.isFile()) return new NextResponse("Not found", { status: 404 });
 
