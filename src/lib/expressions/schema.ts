@@ -184,7 +184,8 @@ export function parseLinks(raw: unknown): LinkRow[] {
   }
 }
 
-export const bottleSchema = z.object({
+/** The bottle form's fields, before the cross-field checks, so the API can validate a subset of them. */
+export const bottleBase = z.object({
   expressionId: requiredRef,
   /** Which older name of the label this bottle carries; blank is the current name. */
   expressionNameId: optionalRef,
@@ -218,7 +219,9 @@ export const bottleSchema = z.object({
   ageMonths: optionalInt(0, 1200),
   ageDays: optionalInt(0, 40000),
   ageStatement: optionalText(200),
-}).superRefine((value, ctx) => {
+});
+
+export const bottleSchema = bottleBase.superRefine((value, ctx) => {
   if (value.barrelFilledOn && value.bottledOn && value.bottledOn < value.barrelFilledOn) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
