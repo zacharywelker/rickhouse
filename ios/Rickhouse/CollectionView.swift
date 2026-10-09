@@ -125,8 +125,9 @@ struct CollectionView: View {
             ForEach(bottles) { bottle in
                 NavigationLink(value: bottle) { BottleRow(bottle: bottle) }
                     .listRowBackground(Theme.paper)
-                    .swipeActions(edge: .trailing) {
-                        Button("Delete", role: .destructive) { ask(bottle) }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        // Not `role: .destructive`: that tells the List the row is about to go, but the row stays until the sheet is confirmed.
+                        Button("Delete") { ask(bottle) }.tint(Theme.error)
                     }
                     .contextMenu { menu(for: bottle) }
                     .task { if bottle.id == bottles.last?.id { await loadMore() } }

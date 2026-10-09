@@ -443,34 +443,38 @@ private struct MuteSheet: View {
     let onChoose: (MutePreset) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title).font(.headline(24)).foregroundStyle(Theme.ink)
-            Text("It stays out of every pick, Roulette included. Settings shows it, and lets you change the date or clear it.")
-                .font(.inter(14, relativeTo: .subheadline))
-                .foregroundStyle(Theme.muted)
-                .padding(.top, 6)
-                .padding(.bottom, 8)
-            ForEach(presets) { preset in
-                Divider()
-                Button { onChoose(preset) } label: {
-                    HStack {
-                        Text(preset.label).font(.inter(17, .semibold, relativeTo: .headline))
-                        Spacer(minLength: 12)
-                        Text("until \(Format.day(preset.until))").font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.muted)
+        // Scrolls, and opens at a height that always has room for the options: a fixed height clipped them
+        // below the explanation, leaving only the heading and the subtitle.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title).font(.headline(24)).foregroundStyle(Theme.ink)
+                Text("It stays out of every pick, Roulette included. Settings shows it, and lets you change the date or clear it.")
+                    .font(.inter(14, relativeTo: .subheadline))
+                    .foregroundStyle(Theme.muted)
+                    .padding(.top, 6)
+                    .padding(.bottom, 8)
+                ForEach(presets) { preset in
+                    Divider()
+                    Button { onChoose(preset) } label: {
+                        HStack {
+                            Text(preset.label).font(.inter(17, .semibold, relativeTo: .headline))
+                            Spacer(minLength: 12)
+                            Text("until \(Format.day(preset.until))").font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.muted)
+                        }
+                        .foregroundStyle(Theme.ink)
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    .foregroundStyle(Theme.ink)
-                    .padding(.vertical, 14)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 28)
+            .padding(.bottom, 24)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 28)
-        .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.paper)
-        .presentationDetents([.height(150 + CGFloat(presets.count) * 52), .large])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 }
