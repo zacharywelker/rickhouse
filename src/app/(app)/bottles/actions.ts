@@ -9,7 +9,7 @@ import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
-import { addTastingNote, deleteTastingNote, ownedBottle, ownsBottle, setFill, updateTastingNote } from "@/lib/bottles/state";
+import { addTastingNote, deleteTastingNote, ownedBottle, ownsBottle, setFill, updateBottle, updateTastingNote } from "@/lib/bottles/state";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { z } from "zod";
 import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
@@ -444,13 +444,16 @@ export async function setBottleOpenAction(bottleId: number, isOpen: boolean): Pr
  * Corrects a stamped date (SPEC M8). Opening a bottle stamps today, which is
  * wrong for the one you opened three months ago and are only now logging.
  *
- * A blank clears it. Clearing the opened date also closes the bottle, because
- * "open, opened on no date" is a state the rest of the app does not mean.
+ * A blank clears it. Clearing the opened date of a bottle that is open does not
+ * guess: it answers `needsChoice` until `ifCleared` says whether the bottle stays
+ * open with no date or is marked sealed (which sets the level back to full). The
+ * rules are the phone's (`lib/bottles/opened-rules`), so the two cannot disagree.
  */
 export async function setBottleDateAction(
   bottleId: number,
   field: "dateOpened" | "dateKilled",
   value: string | null,
+  ifCleared?: "keep_open" | "seal",
 ): Promise<ActionResult> {
   const user = await requireSession();
 
@@ -466,33 +469,35 @@ export async function setBottleDateAction(
   }
 
   try {
+    if (field === "dateOpened") {
+      const outcome = await updateBottle(bottleId, user.id, {
+        dateOpened: date === "" ? null : date,
+        ifOpenedCleared: ifCleared,
+      });
+      if (!outcome) return { ok: false, error: "That bottle is gone." };
+      if (!outcome.ok) {
+        return outcome.code === "opened_cleared"
+          ? { ok: false, error: outcome.message, needsChoice: "opened_cleared" }
+          : { ok: false, error: outcome.message };
+      }
+      revalidatePath(`/bottles/${bottleId}`);
+      revalidatePath("/bottles");
+      return { ok: true, message: date === "" ? "Date cleared." : "Date updated." };
+    }
+
     const [current] = await db
-      .select({ dateOpened: bottles.dateOpened, dateKilled: bottles.dateKilled, status: bottles.status })
+      .select({ dateOpened: bottles.dateOpened })
       .from(bottles)
       .where(ownedBottle(bottleId, user.id))
       .limit(1);
     if (!current) return { ok: false, error: "That bottle is gone." };
 
     const next = date === "" ? null : date;
-    const other = field === "dateOpened" ? current.dateKilled : current.dateOpened;
-
     // A bottle cannot be killed before it was opened.
-    if (next && other) {
-      const [opened, killed] = field === "dateOpened" ? [next, other] : [other, next];
-      if (killed < opened) {
-        return { ok: false, error: "Killed before it was opened — check these dates." };
-      }
+    if (next && current.dateOpened && next < current.dateOpened) {
+      return { ok: false, error: "Killed before it was opened — check these dates." };
     }
-
-    await db
-      .update(bottles)
-      .set({
-        [field]: next,
-        ...(field === "dateOpened" && next === null
-          ? { isOpen: false, ...(current.status === "open" ? { status: "owned" as const } : {}) }
-          : {}),
-      })
-      .where(ownedBottle(bottleId, user.id));
+    await db.update(bottles).set({ dateKilled: next }).where(ownedBottle(bottleId, user.id));
 
     revalidatePath(`/bottles/${bottleId}`);
     revalidatePath("/bottles");
