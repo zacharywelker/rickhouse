@@ -917,6 +917,21 @@ export const verifications = pgTable(
   (t) => [index("verifications_identifier_idx").on(t.identifier)],
 );
 
+/**
+ * Attempts through the iOS app's own sign-in route (no Turnstile check), so the guessing itself is slowed. `key` is a
+ * hash of the lowercased username, kept for names that don't exist too.
+ */
+export const appSignInAttempts = pgTable(
+  "app_sign_in_attempts",
+  {
+    key: text("key").primaryKey(),
+    failures: integer("failures").notNull().default(0),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }).notNull(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  },
+  (t) => [index("app_sign_in_attempts_last_attempt_idx").on(t.lastAttemptAt)],
+);
+
 /** Better Auth's two-factor plugin: the TOTP secret and hashed backup codes. */
 export const twoFactors = pgTable(
   "two_factors",

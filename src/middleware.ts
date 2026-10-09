@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       return respond(response);
     };
     // Sign-in is the one thing the app does before it has a session.
-    if (pathname === "/api/v1/server") return v1(NextResponse.next());
+    if (pathname === "/api/v1/server" || pathname === "/api/v1/auth/sign-in") return v1(NextResponse.next());
     if (!session) return v1(apiError(401, "unauthorized", "Sign in first."));
     if (session.user.mustChangePassword) {
       return v1(apiError(403, "password_change_required", "Choose your own password in the web app first."));
