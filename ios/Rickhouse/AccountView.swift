@@ -27,6 +27,8 @@ struct AccountView: View {
             }
             .font(.inter(17))
             .scrollContentBackground(.hidden)
+            // A grouped list leaves a tall gap under an inline title; pull the first row up to it.
+            .contentMargins(.top, 0, for: .scrollContent)
             .background(Theme.paper)
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
@@ -36,10 +38,22 @@ struct AccountView: View {
 
 /// App-only settings, kept on the device.
 struct PreferencesView: View {
+    @Environment(Session.self) private var session
     @AppStorage("gridColumns") private var gridColumns = 3
+    @State private var problem: String?
 
     var body: some View {
         Form {
+            if !session.currencies.isEmpty {
+                Section {
+                    Picker("Currency", selection: Binding(get: { session.currency }, set: changeCurrency)) {
+                        ForEach(session.currencies) { Text("\($0.code) — \($0.name)").tag($0.code) }
+                    }
+                    if let problem { ErrorText(problem) }
+                } footer: {
+                    Text("Prices are shown and entered in this currency, on the web too. Nothing is converted.")
+                }
+            }
             Section {
                 Picker("Gallery density", selection: $gridColumns) {
                     Text("3 columns").tag(3)
@@ -58,5 +72,13 @@ struct PreferencesView: View {
         .background(Theme.paper)
         .navigationTitle("Preferences")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await session.loadPreferences() }
+    }
+
+    private func changeCurrency(_ code: String) {
+        problem = nil
+        Task {
+            do { try await session.setCurrency(code) } catch { problem = error.localizedDescription }
+        }
     }
 }

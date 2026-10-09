@@ -72,7 +72,7 @@ struct MutedBottlesView: View {
                     Button { editing = bottle } label: { row(bottle) }
                         .buttonStyle(.plain)
                         .swipeActions {
-                            Button("Clear", role: .destructive) { clear(bottle) }
+                            Button("Clear", role: .destructive) { clear(bottle) }.tint(Theme.error)
                         }
                 }
             } header: {
