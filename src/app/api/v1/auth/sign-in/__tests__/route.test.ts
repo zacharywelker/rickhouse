@@ -45,6 +45,19 @@ describe("POST /api/v1/auth/sign-in", () => {
     expect(clearAttempts).toHaveBeenCalledWith("key:zach");
   });
 
+  it("refuses a body that isn't declared JSON (a cross-site form can send text/plain), before touching the back-off", async () => {
+    const res = await POST(
+      new NextRequest("https://rickhouse.example.com/api/v1/auth/sign-in", {
+        method: "POST",
+        headers: { "content-type": "text/plain", origin: "https://evil.example" },
+        body: JSON.stringify({ username: "zach", password: "right" }),
+      }),
+    );
+    expect(res.status).toBe(415);
+    expect(reserveAttempt).not.toHaveBeenCalled();
+    expect(signInUsername).not.toHaveBeenCalled();
+  });
+
   it("passes the second-step answer through", async () => {
     signInUsername.mockResolvedValue(betterAuthSays(200, { twoFactorRedirect: true }, { "set-cookie": "rickhouse.two_factor=x; Path=/" }));
     const res = await post({ username: "zach", password: "right" });
