@@ -48,7 +48,7 @@ struct LabelsView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
 
-                if mode == .find { searchField }
+                if mode == .find { SearchField(prompt: "Brand or name", text: $query) }
 
                 List {
                     switch mode {
@@ -81,32 +81,13 @@ struct LabelsView: View {
             }
             .background(Theme.paper)
             .navigationTitle("Labels")
+            .navigationBarTitleDisplayMode(.inline)
             .task(id: query) { await search() }
             .task(id: attempt) { await reloadHistory() }
             .task { await session.loadWheels() }
             .onChange(of: reloadSignal) { attempt += 1 }
             .refreshable { if mode == .tastings { await reloadHistory() } }
         }
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted).accessibilityHidden(true)
-            TextField("Brand or name", text: $query)
-                .font(.inter(16))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-            if !query.isEmpty {
-                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted) }
-                    .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, 10)
-        .frame(minHeight: 40)
-        .background(Theme.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
     }
 
     @ViewBuilder

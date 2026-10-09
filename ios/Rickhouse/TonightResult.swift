@@ -33,7 +33,7 @@ struct TonightResultView: View {
     var body: some View {
         Group {
             if let pick = model.pick {
-                ScrollView { content(pick).padding(20) }
+                ScrollView { content(pick).padding(EdgeInsets(top: 4, leading: 20, bottom: 20, trailing: 20)) }
                     .id(pick.bottle.id)
                     .safeAreaInset(edge: .bottom) { footer(pick) }
             } else {

@@ -294,7 +294,7 @@ struct SpiritStep: View {
                     TonightLoading(error: model.loadError) { Task { await model.loadOptions(api: session.api) } }
                 }
             }
-            .padding(20)
+            .padding(EdgeInsets(top: 4, leading: 20, bottom: 20, trailing: 20))
         }
         .background(Theme.paper)
         .navigationBarTitleDisplayMode(.inline)
@@ -338,7 +338,7 @@ struct ProofStep: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(EdgeInsets(top: 4, leading: 20, bottom: 20, trailing: 20))
         }
         .background(Theme.paper)
         .navigationBarTitleDisplayMode(.inline)
@@ -379,7 +379,7 @@ struct FlavorsStep: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(EdgeInsets(top: 4, leading: 20, bottom: 20, trailing: 20))
         }
         .background(Theme.paper)
         .navigationBarTitleDisplayMode(.inline)
@@ -445,7 +445,7 @@ struct FallbackStep: View {
                         .overlay(alignment: .leading) { Rectangle().fill(Theme.ink).frame(width: 2) }
                 }
             }
-            .padding(20)
+            .padding(EdgeInsets(top: 4, leading: 20, bottom: 20, trailing: 20))
         }
         .background(Theme.paper)
         .navigationBarTitleDisplayMode(.inline)

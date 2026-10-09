@@ -112,6 +112,7 @@ struct BottleDetailView: View {
         }
         .font(.inter(16))
         .scrollContentBackground(.hidden)
+        .contentMargins(.top, 8, for: .scrollContent)  // the grouped list adds its own gap under the navigation bar
         .navigationTitle(b.name)
     }
 

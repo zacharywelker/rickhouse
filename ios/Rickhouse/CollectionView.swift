@@ -18,7 +18,8 @@ struct CollectionView: View {
     @AppStorage("inDepthView") private var inDepth = false
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            SearchField(prompt: "Search bottles", text: $query)
             if inDepth { inDepthList } else { gallery }
         }
         .overlay {
@@ -42,12 +43,10 @@ struct CollectionView: View {
         }
         .overlay(alignment: .bottomTrailing) { inDepthToggle }
         .background(Theme.paper)
-        .toolbarBackground(Theme.paper, for: .navigationBar)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbarVisibility(.hidden, for: .navigationBar)  // the bar would be empty: no title, and search is in the page
         .navigationDestination(for: BottleSummary.self) { bottle in
             BottleDetailView(id: bottle.id, onChanged: { Task { await reload() } })
         }
-        .searchable(text: $query, prompt: "Search bottles")
         .task(id: query) {
             // Debounce typing; .task(id:) cancels the previous run.
             try? await Task.sleep(for: .milliseconds(250))

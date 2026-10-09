@@ -66,6 +66,7 @@ struct FindLabelView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .contentMargins(.top, 0, for: .scrollContent)  // the grouped list adds its own gap under the search field
         .background(Theme.paper)
         .overlay {
             if let failure {
