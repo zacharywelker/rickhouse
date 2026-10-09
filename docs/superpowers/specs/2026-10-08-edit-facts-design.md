@@ -47,7 +47,7 @@ The bottle's open state is three columns that must agree: `is_open`, `date_opene
 | `dateOpened` cleared, bottle already sealed | Nothing to do. |
 | `fillPct` | As today: below full opens a sealed bottle. |
 
-**A conflict to resolve before the app ships.** The web's `setBottleDateAction` treats clearing Opened as *closing the bottle*, because "open with no date" is a state the rest of the app was written not to mean. "Keep it open, no date" creates exactly that state. This change does not touch the web action. Before the iOS work, someone needs to check what the collection table, the Tonight pool and the stats do with an open bottle that has no date (most likely nothing, since `is_open` is what they read), and decide whether the web should offer the same choice.
+**Decided: the web does the same.** The web's `setBottleDateAction` used to close a bottle when its Opened date was cleared, because "open with no date" was a state the rest of the app was written not to mean. That state already arose from the bulk grid, and nothing reads it as an error (the collection and Tonight read `is_open`, and the median-wait number skips rows with no date), so the web now asks the same question as the phone and shares the same rules (`lib/bottles/opened-rules`). An open bottle with no date shows "No date. Add one" so a date can be put back. This is a separate PR from the API one (#200).
 
 ## 4. Merge
 
@@ -100,7 +100,6 @@ Items 2 to 4 are independent, so they can be reviewed and merged in any order.
 
 ## 8. Not decided here
 
-- Whether the web should offer "keep open or mark sealed" (section 3).
 - Merging from places other than a name clash (the endpoint allows any two of your labels; no screen offers it).
 - Restoring a merged label. If it is wanted later, the removed label would be kept hidden for a period; it was considered and left out.
 - Editing a bottle's own proof and age overrides, and its photos, from this screen.
