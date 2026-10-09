@@ -12,6 +12,8 @@ struct AuthenticatedImage: View {
     var background: Color = Color(.secondarySystemFill)
     /// Where a picture that doesn't fill its frame sits; `.bottom` stands a cut-out bottle on its base.
     var alignment: Alignment = .center
+    /// Called when the fetch fails, so a caller can fall back to another picture.
+    var onFailure: (() -> Void)?
     @State private var image: UIImage?
     /// The fetch failed; shows a different glyph. It runs again when the view is next created.
     @State private var failed = false
@@ -38,6 +40,7 @@ struct AuthenticatedImage: View {
         if let cached = Self.cache.object(forKey: path as NSString) { image = cached; return }
         guard let data = try? await api.imageData(path: path), let loaded = UIImage(data: data) else {
             failed = !Task.isCancelled
+            if failed { onFailure?() }
             return
         }
         Self.cache.setObject(loaded, forKey: path as NSString)
