@@ -29,6 +29,7 @@ struct AccountView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.paper)
             .navigationTitle("Account")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
