@@ -34,6 +34,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     summary,
     bottles: rows.map((r) => ({
       id: r.id,
+      expressionId: r.expressionId,
       brand: r.brand,
       name: r.expressionName,
       category: r.category,

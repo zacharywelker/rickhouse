@@ -21,8 +21,11 @@ enum Format {
         return value.formatted(.dateTime.month(.wide))
     }
 
+    /// The account's currency, set by `Session` when its preferences load. Prices are labelled with it, never converted.
+    nonisolated(unsafe) static var currencyCode = "USD"
+
     static func money(_ amount: String) -> String {
-        Double(amount).map { $0.formatted(.currency(code: "USD")) } ?? "$" + amount
+        Double(amount).map { $0.formatted(.currency(code: currencyCode)) } ?? amount
     }
 
     /// "8.0" as "8" and "7.5" as "7.5"; nil when there is no rating.

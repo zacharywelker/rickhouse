@@ -11,6 +11,12 @@ struct BottleDetailView: View {
     @State private var actionError: String?
     @State private var settingFill = false
     @State private var editing: NoteEdit?
+    @State private var viewing: PhotoStart?
+
+    private struct PhotoStart: Identifiable {
+        let id = UUID()
+        let selection: Int
+    }
 
     // Editing the bottle's and the label's facts (docs/superpowers/specs/2026-10-08-edit-facts-design.md). The views are in
     // BottleDetailEditing.swift; the state is here because an extension can't hold it.
@@ -76,6 +82,18 @@ struct BottleDetailView: View {
         .sheet(item: $merging) { setup in
             MergeReview(plan: MergePlan(mine: setup.mine, theirs: setup.theirs)) { finishMerge($0, into: setup.theirs) }
         }
+        .fullScreenCover(item: $viewing) { start in
+            if let bottle {
+                PhotoViewer(
+                    subject: .bottle,
+                    title: Self.title(of: bottle) == "Standard release" ? "\(bottle.brand) \(bottle.name)" : bottle.name,
+                    photos: bottle.images.map { ViewerPhoto(id: $0.id, path: $0.path, isHero: $0.isPrimary) },
+                    selection: start.selection
+                ) {
+                    Task { await load(); onChanged() }
+                }
+            }
+        }
         .sheet(item: $editing) { edit in
             if let bottle, let expressionId = bottle.expressionId {
                 NavigationStack {
@@ -101,12 +119,17 @@ struct BottleDetailView: View {
                     HStack(spacing: 10) {
                         ForEach(b.images) { image in
                             // Same slot as the gallery: whole picture, on the category's colour.
-                            Color.clear
-                                .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                                .overlay { AuthenticatedImage(path: image.path, contentMode: .fit, background: plate).padding(6) }
-                                .clipped()
-                                .frame(width: 210)
-                                .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
+                            Button { viewing = PhotoStart(selection: image.id) } label: {
+                                Color.clear
+                                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                                    .overlay { AuthenticatedImage(path: image.path, contentMode: .fit, background: plate).padding(6) }
+                                    .clipped()
+                                    .frame(width: 210)
+                                    .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Photo of \(b.name)")
+                            .accessibilityHint("Opens it full screen")
                         }
                     }
                     .padding(.horizontal, 16)

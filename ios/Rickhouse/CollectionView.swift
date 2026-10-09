@@ -16,6 +16,18 @@ struct CollectionView: View {
     var reloadSignal = 0
     @AppStorage("gridColumns") private var gridColumns = 3
     @AppStorage("inDepthView") private var inDepth = false
+    @State private var deleting: BottleSummary?
+    @State private var confirmingDelete = false
+    @State private var openedBottle: BottleSummary?
+    @State private var openedLabel: Int?
+    @State private var logging: LogTarget?
+    @State private var problem: String?
+
+    private struct LogTarget: Identifiable {
+        let id = UUID()
+        let label: TastingLabel
+        let bottle: TastingBottle
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,6 +59,24 @@ struct CollectionView: View {
         .navigationDestination(for: BottleSummary.self) { bottle in
             BottleDetailView(id: bottle.id, onChanged: { Task { await reload() } })
         }
+        .navigationDestination(item: $openedBottle) { bottle in
+            BottleDetailView(id: bottle.id, onChanged: { Task { await reload() } })
+        }
+        .navigationDestination(item: $openedLabel) { LabelPage(id: $0) }
+        .confirmSheet("Delete this bottle?", message: deleteMessage, confirm: "Delete bottle", isPresented: $confirmingDelete) {
+            if let bottle = deleting { delete(bottle) }
+        }
+        .sheet(item: $logging) { target in
+            NavigationStack {
+                TastingFormView(label: target.label, bottle: target.bottle) { logging = nil; Task { await reload() } }
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { logging = nil } } }
+            }
+        }
+        .alert("Something went wrong", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(problem ?? "")
+        }
         .task(id: query) {
             // Debounce typing; .task(id:) cancels the previous run.
             try? await Task.sleep(for: .milliseconds(250))
@@ -71,6 +101,7 @@ struct CollectionView: View {
                     ForEach(bottles) { bottle in
                         NavigationLink(value: bottle) { BottleCard(bottle: bottle, factCount: columns == 3 ? 1 : 2) }
                             .buttonStyle(.plain)
+                            .contextMenu { menu(for: bottle) }
                             .task { if bottle.id == bottles.last?.id { await loadMore() } }
                     }
                 }
@@ -94,6 +125,11 @@ struct CollectionView: View {
             ForEach(bottles) { bottle in
                 NavigationLink(value: bottle) { BottleRow(bottle: bottle) }
                     .listRowBackground(Theme.paper)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        // Not `role: .destructive`: that tells the List the row is about to go, but the row stays until the sheet is confirmed.
+                        Button("Delete") { ask(bottle) }.tint(Theme.error)
+                    }
+                    .contextMenu { menu(for: bottle) }
                     .task { if bottle.id == bottles.last?.id { await loadMore() } }
             }
             Color.clear.frame(height: 56).listRowSeparator(.hidden).listRowBackground(Theme.paper)  // clear of the in-depth button
@@ -113,6 +149,64 @@ struct CollectionView: View {
         }
         .accessibilityLabel(inDepth ? "Gallery view" : "In-depth view")
         .padding(16)
+    }
+
+    // MARK: Bottle actions
+
+    /// What long-pressing a bottle offers, like an app icon on the home screen.
+    @ViewBuilder
+    private func menu(for bottle: BottleSummary) -> some View {
+        Button("Log a tasting", systemImage: "wineglass") { startLog(bottle) }
+        Button("View bottle", systemImage: "books.vertical") { openedBottle = bottle }
+        if let labelId = bottle.expressionId {
+            Button("View label", systemImage: "tag") { openedLabel = labelId }
+        }
+        Divider()
+        Button("Delete this bottle", systemImage: "trash", role: .destructive) { ask(bottle) }
+    }
+
+    private var deleteMessage: String {
+        guard let deleting else { return "This can't be undone." }
+        return "\(deleting.brand) \(deleting.name) and its photos are removed. Tastings you logged stay on the label."
+    }
+
+    private func ask(_ bottle: BottleSummary) {
+        deleting = bottle
+        confirmingDelete = true
+    }
+
+    private func delete(_ bottle: BottleSummary) {
+        guard let api = session.api else { return }
+        Task {
+            do {
+                try await api.deleteBottle(id: bottle.id)
+                bottles.removeAll { $0.id == bottle.id }
+                total = max(0, total - 1)
+            } catch APIError.unauthorized {
+                session.signOut()
+            } catch {
+                problem = error.localizedDescription
+            }
+        }
+    }
+
+    private func startLog(_ bottle: BottleSummary) {
+        guard let api = session.api else { return }
+        Task {
+            do {
+                // The bottle page knows the label's flavor wheel, which a tasting needs.
+                let detail = try await api.bottle(id: bottle.id)
+                await session.loadWheels()
+                logging = LogTarget(
+                    label: TastingLabel(id: detail.expressionId ?? bottle.expressionId ?? 0, title: "\(bottle.brand) \(bottle.name)", category: bottle.category, wheel: detail.wheel),
+                    bottle: TastingBottle(id: bottle.id, title: "\(bottle.brand) \(bottle.name)")
+                )
+            } catch APIError.unauthorized {
+                session.signOut()
+            } catch {
+                problem = error.localizedDescription
+            }
+        }
     }
 
     private func reload() async {

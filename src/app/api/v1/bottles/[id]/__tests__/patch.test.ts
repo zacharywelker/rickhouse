@@ -7,6 +7,8 @@ const updateBottle = vi.fn();
 vi.mock("@/lib/auth", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/bottles/state", () => ({ updateBottle: (...args: unknown[]) => updateBottle(...args) }));
+// The route also serves DELETE through the web action, which this file never calls.
+vi.mock("@/app/(app)/bottles/actions", () => ({ deleteBottleAction: vi.fn() }));
 // The GET half of the route reads these; the PATCH tests never reach them.
 vi.mock("@/lib/releases-store", () => ({ releaseById: vi.fn() }));
 vi.mock("@/lib/tasting-wheel-for", () => ({ categoryWheels: vi.fn() }));

@@ -8,9 +8,25 @@ struct User: Decodable, Equatable {
 
 struct MeResponse: Decodable { let user: User }
 
+/// A currency the account may pick. Display only: the server never converts amounts.
+struct CurrencyOption: Decodable, Identifiable, Equatable {
+    let code: String
+    let name: String
+    let symbol: String
+    let decimals: Int
+    var id: String { code }
+}
+
+struct PreferencesAnswer: Decodable {
+    let currency: String
+    let currencies: [CurrencyOption]
+}
+
 /// Numeric columns (proof, price, rating) arrive as strings, exactly as Postgres holds them.
 struct BottleSummary: Decodable, Identifiable, Hashable {
     let id: Int
+    /// The label's id; absent from an older server's answer.
+    let expressionId: Int?
     let brand: String
     let name: String
     let category: String
@@ -71,6 +87,9 @@ struct BottleDetail: Decodable {
     let mashbills: [String]
     let images: [BottleImage]
     var tastingNotes: [TastingNote]
+    /// Single barrel, and a private select of one; absent from an older server's answer.
+    let isSingleBarrel: Bool?
+    let isSingleBarrelPick: Bool?
 }
 
 /// What the server changed besides the level when one is set.
