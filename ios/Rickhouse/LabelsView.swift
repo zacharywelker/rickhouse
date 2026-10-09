@@ -25,6 +25,12 @@ struct LabelsView: View {
     @State private var loadingHistory = false
     @State private var historyFailure: String?
     @State private var attempt = 0
+    @State private var deletingTasting: Int?
+    /// The name typed in the search, while its new label is being made; and the label to show once it is.
+    @State private var creating: NewLabelStart?
+    @State private var openedLabel: Int?
+
+    private struct NewLabelStart: Hashable { let name: String }
 
     private var searching: Bool { mode == .find && !query.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -58,6 +64,10 @@ struct LabelsView: View {
                                 ForEach(month.entries) { entry in
                                     NavigationLink { LabelPage(id: entry.expressionId) } label: { TastingRow(entry: entry) }
                                         .listRowBackground(Theme.paper)
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            Button("Delete") { deletingTasting = entry.id }.tint(Theme.error)
+                                        }
+                                        .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { deletingTasting = entry.id } }
                                         .task { if entry.id == history.last?.id { await loadMoreHistory() } }
                                 }
                             } header: {
@@ -73,6 +83,9 @@ struct LabelsView: View {
                             NavigationLink { LabelPage(id: label.id) } label: { LabelRow(label: label) }
                                 .listRowBackground(Theme.paper)
                         }
+                        if searching && searched && !results.isEmpty {
+                            createButton.listRowBackground(Theme.paper)
+                        }
                     }
                 }
                 .listStyle(.plain)
@@ -82,9 +95,17 @@ struct LabelsView: View {
             .background(Theme.paper)
             .navigationTitle("Labels")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(item: $creating) { start in
+                NewLabelView(code: nil, name: start.name) { label in
+                    creating = nil
+                    openedLabel = label.id
+                }
+            }
+            .navigationDestination(item: $openedLabel) { LabelPage(id: $0) }
             .task(id: query) { await search() }
             .task(id: attempt) { await reloadHistory() }
             .task { await session.loadWheels() }
+            .confirmsTastingDeletion($deletingTasting) { id in history.removeAll { $0.id == id } }
             .onChange(of: reloadSignal) { attempt += 1 }
             .refreshable { if mode == .tastings { await reloadHistory() } }
         }
@@ -98,7 +119,13 @@ struct LabelsView: View {
             } else if let searchFailure {
                 ContentUnavailableView("Couldn't search", systemImage: "wifi.slash", description: Text(searchFailure))
             } else if results.isEmpty && searched {
-                ContentUnavailableView("No label found", systemImage: "magnifyingglass", description: Text("Nothing matches that search."))
+                ContentUnavailableView {
+                    Label("No label found", systemImage: "magnifyingglass")
+                } description: {
+                    Text("Nothing matches that search.")
+                } actions: {
+                    createButton
+                }
             }
         } else if let historyFailure, history.isEmpty {
             ContentUnavailableView {
@@ -117,6 +144,19 @@ struct LabelsView: View {
                 description: Text("Log a tasting with the + tab, or find a label to see what you have written about it.")
             )
         }
+    }
+
+    /// Starts a new label from what was typed, for a bottle the search can't find.
+    private var createButton: some View {
+        Button {
+            creating = NewLabelStart(name: query.trimmingCharacters(in: .whitespaces))
+        } label: {
+            Label("Create a new label", systemImage: "plus")
+                .font(.inter(16, .semibold, relativeTo: .headline))
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Loading

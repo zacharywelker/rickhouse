@@ -59,7 +59,17 @@ struct BottleFormView: View {
             }
             Section {
                 DisclosureGroup("More details", isExpanded: $showDetails) {
-                    TextField("Price paid", text: $price).keyboardType(.decimalPad)
+                    HStack {
+                        Text("Price paid")
+                        Spacer(minLength: 8)
+                        Text(session.currencySymbol).foregroundStyle(Theme.muted)
+                        TextField("0.00", text: $price)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 120)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Price paid, in \(session.currency)")
                     Toggle("Date acquired", isOn: $includeDate)
                     if includeDate { DatePicker("Date", selection: $acquired, in: ...Date(), displayedComponents: .date) }
                     TextField("Batch", text: $batch)
