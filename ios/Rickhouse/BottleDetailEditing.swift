@@ -74,7 +74,11 @@ extension BottleDetailView {
 
             Section {
                 EditRow(title: "Paid", field: bottleField(.paid), placeholder: "Add price", keyboard: .decimalPad, prefix: "$", error: fieldErrors[BottleFact.paid.rawValue])
-                FixedRow(title: "Store", value: b.store ?? "None", reason: "Change stores on the web for now")
+                PickerRow(
+                    title: "Store", value: draft.storeName ?? "None", changed: draft[.store].changed,
+                    onOpen: { picking = .store },
+                    onRevert: { bottleDraft?[.store].revert(); bottleDraft?.storeName = b.store }
+                )
                 if let msrp = b.msrp { FixedRow(title: "MSRP", value: Format.money(msrp), reason: "A fact of the label, edited under Label") }
                 DateEditRow(title: "Acquired", field: bottleField(.acquired), error: fieldErrors[BottleFact.acquired.rawValue])
             } header: {
@@ -179,7 +183,7 @@ extension BottleDetailView {
 
     @ViewBuilder
     func labelEditSection(_ b: BottleDetail) -> some View {
-        if labelDraft != nil {
+        if let draft = labelDraft {
             Section {
                 if labelBottleCount > 1 {
                     VStack(alignment: .leading, spacing: 2) {
@@ -192,7 +196,11 @@ extension BottleDetailView {
                     .listRowBackground(Theme.ink)
                     .accessibilityElement(children: .combine)
                 }
-                FixedRow(title: "Brand", value: b.brand)
+                PickerRow(
+                    title: "Brand", value: draft.brandName, changed: draft[.brand].changed,
+                    onOpen: { picking = .brand },
+                    onRevert: { labelDraft?[.brand].revert(); labelDraft?.brandName = b.brand }
+                )
                 EditRow(title: "Name", field: labelField(.name), error: fieldErrors[LabelFact.name.rawValue])
                 Picker(selection: categoryChoice) {
                     ForEach(categories) { option in Text(option.parent.map { "\($0) · \(option.name)" } ?? option.name).tag(option.id) }
@@ -204,14 +212,19 @@ extension BottleDetailView {
                 EditRow(title: "Age statement", field: labelField(.ageStatement), placeholder: "Add age statement", error: fieldErrors[LabelFact.ageStatement.rawValue])
                 EditRow(title: "Size (mL)", field: labelField(.size), keyboard: .numberPad, error: fieldErrors[LabelFact.size.rawValue])
                 EditRow(title: "MSRP", field: labelField(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: "$", error: fieldErrors[LabelFact.msrp.rawValue])
+                ForEach(LinkList.allCases, id: \.self) { list in
+                    LinkChipsRow(
+                        title: Self.listTitle(list), rows: draft.rows(list), changed: draft.listChanged(list),
+                        onRemove: { labelDraft?.remove(list, id: $0.id) },
+                        onAdd: { picking = .list(list) }
+                    )
+                }
                 EditRow(title: "Barcode", field: labelField(.barcode), placeholder: "Scan or type", keyboard: .numberPad, error: fieldErrors[LabelFact.barcode.rawValue])
             } header: {
                 VStack(alignment: .leading, spacing: 4) {
                     EditHeader(saving: savingFacts, canSave: fieldErrors.isEmpty, onCancel: cancelEditing, onSave: saveLabel)
                     Text("Label")
                 }
-            } footer: {
-                Text("Distilleries, mashbill and finishes are changed from their pickers.")
             }
             if let factError { Section { ErrorText(factError) } }
         }
@@ -267,6 +280,61 @@ extension BottleDetailView {
         }
     }
 
+    // MARK: Pickers
+
+    static func listTitle(_ list: LinkList) -> String {
+        switch list {
+        case .distilleries: "Distilleries"
+        case .mashbills: "Mashbill"
+        case .finishes: "Finishes"
+        }
+    }
+
+    private static func kind(_ list: LinkList) -> LookupKind {
+        switch list {
+        case .distilleries: .distilleries
+        case .mashbills: .mashbills
+        case .finishes: .finishes
+        }
+    }
+
+    /// The list a picker opens on, and what it does with the answer.
+    @ViewBuilder
+    func pickerSheet(for target: PickTarget) -> some View {
+        switch target {
+        case .brand:
+            if let draft = labelDraft {
+                PickerSheet(
+                    kind: .brands, title: "Brand", multiple: false,
+                    initial: Int(draft[.brand].text).map { [LookupItem(id: $0, name: draft.brandName)] } ?? []
+                ) { chosen in
+                    guard let item = chosen.first else { return }
+                    labelDraft?[.brand].text = String(item.id)
+                    labelDraft?.brandName = item.name
+                    fieldErrors[LabelFact.name.rawValue] = nil
+                }
+            }
+        case .store:
+            if let draft = bottleDraft {
+                PickerSheet(
+                    kind: .stores, title: "Store", multiple: false,
+                    initial: Int(draft[.store].text).map { [LookupItem(id: $0, name: draft.storeName ?? "")] } ?? [],
+                    allowNone: true
+                ) { chosen in
+                    bottleDraft?[.store].text = chosen.first.map { String($0.id) } ?? ""
+                    bottleDraft?.storeName = chosen.first?.name
+                }
+            }
+        case .list(let list):
+            if let draft = labelDraft {
+                PickerSheet(
+                    kind: Self.kind(list), title: Self.listTitle(list), multiple: true,
+                    initial: draft.rows(list).map { LookupItem(id: $0.id, name: $0.name) }
+                ) { chosen in labelDraft?.setList(list, to: chosen) }
+            }
+        }
+    }
+
     // MARK: Leaving, errors, undo
 
     func cancelEditing() {
@@ -274,6 +342,7 @@ extension BottleDetailView {
     }
 
     func stopEditing() {
+        picking = nil
         bottleDraft = nil
         labelDraft = nil
         labelId = nil

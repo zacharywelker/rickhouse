@@ -263,6 +263,16 @@ struct APIClient {
         _ = try await sendObject("PATCH", "api/v1/expressions/\(id)", json: changes, as: LabelOption.self)
     }
 
+    /// Your own brands, distilleries, mashbills, finishes or stores, by name, for the pickers.
+    func lookups(_ kind: LookupKind) async throws -> [LookupItem] {
+        try await get("api/v1/lookups/\(kind.rawValue)", as: LookupsResponse.self).items
+    }
+
+    /// Makes a brand, distillery or finish by name, or hands back the one already under that name in any case.
+    func createLookup(_ kind: LookupKind, name: String) async throws -> CreatedLookup {
+        try await sendObject("POST", "api/v1/lookups/\(kind.rawValue)", json: ["name": name], as: CreatedLookup.self)
+    }
+
     /// Multipart upload to the web route; the first photo becomes the bottle's hero shot.
     func uploadImages(bottleId: Int, images: [UploadImage]) async throws {
         let boundary = "rickhouse-\(UUID().uuidString)"

@@ -62,6 +62,7 @@ enum BottleFact: String, CaseIterable {
     case pick = "pickName"
     case location
     case notes
+    case store = "storeId"
     case opened = "dateOpened"
 }
 
@@ -71,8 +72,11 @@ struct BottleDraft {
     let fromRelease: Bool
     let wasOpen: Bool
     let originalFill: Int
+    /// The store's name for display; the field holds its id.
+    var storeName: String?
 
     init(_ bottle: BottleDetail) {
+        storeName = bottle.store
         fromRelease = bottle.releaseId != nil
         wasOpen = bottle.isOpen
         originalFill = bottle.fillPct
@@ -85,6 +89,7 @@ struct BottleDraft {
             .pick: Field(bottle.pickName),
             .location: Field(bottle.location),
             .notes: Field(bottle.notes),
+            .store: Field(bottle.storeId.map(String.init)),
             .opened: Field(bottle.dateOpened.map { String($0.prefix(10)) }),
         ]
     }
@@ -115,10 +120,16 @@ struct BottleDraft {
         return found
     }
 
+    /// A fact as the request carries it: the store as its id, everything else as typed, and nothing as null.
+    private func sent(_ fact: BottleFact, _ text: String) -> Any {
+        if text.isEmpty { return NSNull() }
+        return fact == .store ? (Int(text) ?? NSNull()) : text
+    }
+
     /// The request that saves the changes. `choice` is required when the Opened date of an open bottle is cleared.
     func patch(choice: OpenedChoice? = nil) -> [String: Any] {
         var body: [String: Any] = [:]
-        for fact in changedFacts { body[fact.rawValue] = self[fact].json }
+        for fact in changedFacts { body[fact.rawValue] = sent(fact, self[fact].trimmed) }
         if clearsOpened, let choice { body["ifOpenedCleared"] = choice.rawValue }
         return body
     }
@@ -126,7 +137,7 @@ struct BottleDraft {
     /// The request that puts the bottle back as it was before `patch(choice:)` was applied.
     func undoPatch(choice: OpenedChoice? = nil) -> [String: Any] {
         var body: [String: Any] = [:]
-        for fact in changedFacts where fact != .opened { body[fact.rawValue] = self[fact].originalJSON }
+        for fact in changedFacts where fact != .opened { body[fact.rawValue] = sent(fact, self[fact].original) }
         if self[.opened].changed {
             body["dateOpened"] = self[.opened].originalJSON
             // Taking a date away from a bottle the edit had opened: say how, as the first time.
@@ -141,6 +152,7 @@ struct BottleDraft {
 // MARK: Label
 
 enum LabelFact: String, CaseIterable {
+    case brand = "brandId"
     case name
     case category = "categoryId"
     case proof
@@ -150,14 +162,24 @@ enum LabelFact: String, CaseIterable {
     case barcode = "upc"
 }
 
+/// The three ordered lists a label carries.
+enum LinkList: CaseIterable { case distilleries, mashbills, finishes }
+
 struct LabelDraft {
     private(set) var fields: [LabelFact: Field]
-    /// The category's name for display; the field holds its id.
+    /// The category's and brand's names for display; the fields hold their ids.
     var categoryName: String
+    var brandName: String
+    private(set) var links: LabelLinks
+    private let originalLinks: LabelLinks
 
     init(_ label: LabelDetail) {
         categoryName = label.category
+        brandName = label.brand
+        links = label.links ?? LabelLinks(distilleries: [], mashbills: [], finishes: [])
+        originalLinks = links
         fields = [
+            .brand: Field(label.brandId.map(String.init)),
             .name: Field(label.name),
             .category: Field(label.categoryId.map(String.init)),
             .proof: Field(plainNumber(label.proof)),
@@ -174,7 +196,53 @@ struct LabelDraft {
     }
 
     var changedFacts: [LabelFact] { LabelFact.allCases.filter { self[$0].changed } }
-    var isDirty: Bool { !changedFacts.isEmpty }
+    var linksChanged: Bool { links != originalLinks }
+    var isDirty: Bool { !changedFacts.isEmpty || linksChanged }
+
+    func rows(_ list: LinkList) -> [LinkRow] {
+        switch list {
+        case .distilleries: links.distilleries
+        case .mashbills: links.mashbills
+        case .finishes: links.finishes
+        }
+    }
+
+    /// Makes a list exactly `items`, in that order. A row already on the label keeps its share and the rest of what it
+    /// carries; one just ticked starts with none, and the server fills in what follows from the label.
+    mutating func setList(_ list: LinkList, to items: [LookupItem]) {
+        let current = rows(list)
+        let next = items.map { item in current.first { $0.id == item.id } ?? LinkRow(id: item.id, name: item.name) }
+        switch list {
+        case .distilleries: links.distilleries = next
+        case .mashbills: links.mashbills = next
+        case .finishes: links.finishes = next
+        }
+    }
+
+    /// Whether a list differs from what the label had, by which rows and in what order.
+    func listChanged(_ list: LinkList) -> Bool {
+        let before: [LinkRow] = switch list {
+        case .distilleries: originalLinks.distilleries
+        case .mashbills: originalLinks.mashbills
+        case .finishes: originalLinks.finishes
+        }
+        return rows(list) != before
+    }
+
+    /// Takes one row off a list.
+    mutating func remove(_ list: LinkList, id: Int) {
+        setList(list, to: rows(list).filter { $0.id != id }.map { LookupItem(id: $0.id, name: $0.name) })
+    }
+
+    /// A list as the request carries it: ids and shares in order, and what a row of that kind also says.
+    private static func request(_ list: LinkList, _ rows: [LinkRow]) -> [[String: Any]] {
+        rows.map { row in
+            var entry: [String: Any] = ["id": row.id, "amount": row.amount ?? NSNull()]
+            if list == .mashbills { entry["distilleryId"] = row.distilleryId ?? NSNull() }
+            if list == .distilleries { entry["inferred"] = row.inferred ?? false }
+            return entry
+        }
+    }
 
     /// A barcode typed with spaces or dashes, as digits.
     static func digits(_ raw: String) -> String { raw.filter { !$0.isWhitespace && $0 != "-" } }
@@ -197,15 +265,25 @@ struct LabelDraft {
 
     private func value(_ fact: LabelFact, of field: Field) -> Any {
         switch fact {
-        case .size, .category: Int(field.trimmed) ?? field.json
+        case .size, .category, .brand: Int(field.trimmed) ?? field.json
         case .barcode: field.isEmpty ? NSNull() : Self.digits(field.trimmed)
         default: field.json
+        }
+    }
+
+    private static func key(_ list: LinkList) -> String {
+        switch list {
+        case .distilleries: "distilleries"
+        case .mashbills: "mashbills"
+        case .finishes: "finishes"
         }
     }
 
     func patch() -> [String: Any] {
         var body: [String: Any] = [:]
         for fact in changedFacts { body[fact.rawValue] = value(fact, of: self[fact]) }
+        // The three lists are rewritten together (which distillery made each mashbill depends on the distillery list).
+        if linksChanged { for list in LinkList.allCases { body[Self.key(list)] = Self.request(list, rows(list)) } }
         return body
     }
 
@@ -214,6 +292,16 @@ struct LabelDraft {
         for fact in changedFacts {
             let field = self[fact]
             body[fact.rawValue] = field.original.isEmpty ? NSNull() : value(fact, of: Field(field.original))
+        }
+        if linksChanged {
+            for list in LinkList.allCases {
+                let before: [LinkRow] = switch list {
+                case .distilleries: originalLinks.distilleries
+                case .mashbills: originalLinks.mashbills
+                case .finishes: originalLinks.finishes
+                }
+                body[Self.key(list)] = Self.request(list, before)
+            }
         }
         return body
     }

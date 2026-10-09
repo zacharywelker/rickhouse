@@ -28,6 +28,7 @@ struct BottleDetailView: View {
     @State var categories: [CategoryOption] = []
     @State var undoOffer: UndoOffer?
     @State var undoTimer: Task<Void, Never>?
+    @State var picking: PickTarget?
 
     private struct NoteEdit: Identifiable {
         let id = UUID()
@@ -65,6 +66,7 @@ struct BottleDetailView: View {
             if let offer = undoOffer { UndoBar(offer: offer) { runUndo(offer) } }
         }
         .animation(.default, value: undoOffer?.id)
+        .sheet(item: $picking) { pickerSheet(for: $0) }
         .sheet(item: $editing) { edit in
             if let bottle, let expressionId = bottle.expressionId {
                 NavigationStack {

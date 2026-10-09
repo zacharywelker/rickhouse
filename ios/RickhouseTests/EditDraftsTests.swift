@@ -184,4 +184,76 @@ final class EditDraftsTests: XCTestCase {
         draft[.ageStatement].text = ""
         same(draft.patch(), ["ageStatement": NSNull()])
     }
+
+    // MARK: Pickers
+
+    private func linked() throws -> LabelDetail {
+        try label([
+            "links": [
+                "distilleries": [["id": 1, "name": "Wild Turkey", "amount": 100, "inferred": false]],
+                "mashbills": [["id": 5, "name": "75% Corn", "amount": NSNull(), "distilleryId": 1]],
+                "finishes": [["id": 9, "name": "Port", "amount": 6]],
+            ],
+        ])
+    }
+
+    func testStoreIsSentAsItsIdAndClearedAsNull() throws {
+        var draft = BottleDraft(try bottle(["storeId": 3, "store": "Total Wine"]))
+        XCTAssertEqual(draft.storeName, "Total Wine")
+        draft[.store].text = "8"
+        same(draft.patch(), ["storeId": 8])
+        same(draft.undoPatch(), ["storeId": 3])
+        draft[.store].text = ""
+        same(draft.patch(), ["storeId": NSNull()])
+    }
+
+    func testBrandIsSentAsItsIdAndUndone() throws {
+        var draft = LabelDraft(try label())
+        draft[.brand].text = "4"
+        draft.brandName = "Russell's Reserve"
+        same(draft.patch(), ["brandId": 4])
+        same(draft.undoPatch(), ["brandId": 1])
+    }
+
+    func testChangingAListSendsAllThreeAndKeepsWhatARowCarried() throws {
+        var draft = LabelDraft(try linked())
+        XCTAssertFalse(draft.linksChanged)
+        draft.setList(.distilleries, to: [LookupItem(id: 2, name: "Buffalo Trace"), LookupItem(id: 1, name: "Wild Turkey")])
+        XCTAssertTrue(draft.linksChanged)
+        XCTAssertTrue(draft.isDirty)
+        let body = draft.patch()
+        XCTAssertEqual(Set(body.keys), ["distilleries", "mashbills", "finishes"])
+        let distilleries = body["distilleries"] as! [[String: Any]]
+        XCTAssertEqual(distilleries.map { $0["id"] as! Int }, [2, 1], "in the order chosen")
+        XCTAssertTrue(distilleries[0]["amount"] is NSNull, "a new row has no share yet")
+        XCTAssertEqual(distilleries[1]["amount"] as? Double, 100, "an existing row keeps its share")
+        let mashbills = body["mashbills"] as! [[String: Any]]
+        XCTAssertEqual(mashbills[0]["distilleryId"] as? Int, 1)
+        XCTAssertEqual((body["finishes"] as! [[String: Any]])[0]["amount"] as? Double, 6)
+    }
+
+    func testRemovingARowAndUndoingIt() throws {
+        var draft = LabelDraft(try linked())
+        draft.remove(.finishes, id: 9)
+        XCTAssertTrue(draft.rows(.finishes).isEmpty)
+        XCTAssertEqual((draft.patch()["finishes"] as! [[String: Any]]).count, 0)
+        let undo = draft.undoPatch()
+        XCTAssertEqual((undo["finishes"] as! [[String: Any]]).map { $0["id"] as! Int }, [9])
+        XCTAssertEqual((undo["distilleries"] as! [[String: Any]]).map { $0["id"] as! Int }, [1])
+    }
+
+    func testTakingARowOffAndPuttingItBackLosesItsShare() throws {
+        var draft = LabelDraft(try linked())
+        draft.setList(.distilleries, to: [])
+        XCTAssertTrue(draft.linksChanged)
+        draft.setList(.distilleries, to: [LookupItem(id: 1, name: "Wild Turkey")])
+        XCTAssertTrue(draft.linksChanged, "the share it had is gone, so this is not what it was")
+    }
+
+    func testALabelWithoutListsFromAnOlderServerStillEdits() throws {
+        var draft = LabelDraft(try label())
+        XCTAssertTrue(draft.rows(.distilleries).isEmpty)
+        draft.setList(.finishes, to: [LookupItem(id: 9, name: "Port")])
+        XCTAssertTrue(draft.linksChanged)
+    }
 }
