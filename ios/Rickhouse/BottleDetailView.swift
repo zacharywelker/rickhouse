@@ -35,6 +35,10 @@ struct BottleDetailView: View {
     @State var undoOffer: UndoOffer?
     @State var undoTimer: Task<Void, Never>?
     @State var picking: PickTarget?
+    @State var nameClash: LabelRef?
+    @State var merging: MergeSetup?
+    @State var notice: String?
+    @State var noticeTimer: Task<Void, Never>?
 
     private struct NoteEdit: Identifiable {
         let id = UUID()
@@ -70,9 +74,14 @@ struct BottleDetailView: View {
         }
         .overlay(alignment: .bottom) {
             if let offer = undoOffer { UndoBar(offer: offer) { runUndo(offer) } }
+            else if let notice { NoticeBar(message: notice) }
         }
         .animation(.default, value: undoOffer?.id)
+        .animation(.default, value: notice)
         .sheet(item: $picking) { pickerSheet(for: $0) }
+        .sheet(item: $merging) { setup in
+            MergeReview(plan: MergePlan(mine: setup.mine, theirs: setup.theirs)) { finishMerge($0, into: setup.theirs) }
+        }
         .fullScreenCover(item: $viewing) { start in
             if let bottle {
                 PhotoViewer(
