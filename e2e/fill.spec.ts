@@ -85,6 +85,52 @@ test("opening a bottle stamps the date", async ({ page }) => {
   await expect(page.getByRole("definition").first()).toHaveText(/[A-Z][a-z]{2} \d{1,2}, \d{4}/);
 });
 
+test("clearing the opened date asks, and keeping it open leaves the bottle open with no date", async ({ page }) => {
+  await addFreshBottle(page);
+  await page.getByLabel("Opened", { exact: true }).check();
+  await expect(page.getByRole("definition").first()).toHaveText(/[A-Z][a-z]{2} \d{1,2}, \d{4}/);
+
+  await page.getByRole("button", { name: /^Change the opened date/ }).click();
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+
+  const prompt = page.getByRole("dialog");
+  await expect(prompt).toContainText("Keep the bottle open or mark it sealed?");
+  await page.getByRole("button", { name: "Keep it open, no date" }).click();
+  await expect(prompt).toBeHidden();
+
+  // Still open, no date, and a date can be put back.
+  await expect(page.getByLabel("Opened", { exact: true })).toBeChecked();
+  const add = page.getByRole("button", { name: "Add the opened date" });
+  await expect(add).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Opened", { exact: true })).toBeChecked();
+  await expect(page.getByRole("button", { name: "Add the opened date" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Add the opened date" }).click();
+  const input = page.locator("#date-dateOpened");
+  await input.fill("2020-03-14");
+  await input.blur();
+  await expect(page.getByRole("button", { name: /^Change the opened date/ })).toHaveText("Mar 14, 2020");
+});
+
+test("clearing the opened date and marking it sealed closes the bottle at full", async ({ page }) => {
+  await addFreshBottle(page);
+  await page.getByText("½", { exact: true }).click();
+  const gauge = page.getByRole("slider", { name: "Fill level" });
+  await expect(gauge).toHaveAttribute("aria-valuenow", "50");
+  // Pouring opens a sealed bottle and stamps today.
+  await expect(page.getByRole("definition").first()).toHaveText(/[A-Z][a-z]{2} \d{1,2}, \d{4}/, { timeout: 10000 });
+
+  await page.getByRole("button", { name: /^Change the opened date/ }).click();
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await page.getByRole("button", { name: "Mark it sealed" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByLabel("Opened", { exact: true })).not.toBeChecked();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuenow", "100");
+});
+
 test("emptying a bottle offers to mark it killed", async ({ page }) => {
   await openSeededBottle(page);
   const gauge = page.getByRole("slider", { name: "Fill level" });

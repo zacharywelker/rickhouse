@@ -122,7 +122,7 @@ export type AdminRow = {
 
 export type ActionResult =
   | { ok: true; message: string; createdId?: number; bottleId?: number }
-  | { ok: false; error: string; fieldErrors?: Record<string, string> };
+  | { ok: false; error: string; fieldErrors?: Record<string, string>; needsChoice?: "opened_cleared" };
 
 export type QuickCreateResult = { ok: true; option: Option } | { ok: false; error: string };
 
