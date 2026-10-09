@@ -3,7 +3,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
-import { setFill } from "@/lib/bottles/state";
+import { updateBottle } from "@/lib/bottles/state";
+import { bottleBase } from "@/lib/expressions/schema";
 import { releaseById } from "@/lib/releases-store";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
@@ -54,6 +55,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     msrp: release?.msrp ?? expression.msrp,
     pricePaid: bottle.pricePaid,
     store: row.store?.name ?? null,
+    storeId: bottle.storeId,
     dateAcquired: bottle.dateAcquired,
     dateOpened: bottle.dateOpened,
     acquisition: bottle.acquisition,
@@ -99,12 +101,25 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   });
 }
 
-/** Only these fields can change here; anything else is refused rather than quietly ignored. */
-const patchSchema = z.object({ fillPct: z.number().int().min(0).max(100) }).strict();
+/**
+ * What can change here. A field that is not listed is refused rather than quietly ignored, and a field sent
+ * as `null` clears it. Status is never set directly: it follows the level and the Opened date.
+ */
+const patchSchema = bottleBase
+  .pick({ pricePaid: true, storeId: true, dateAcquired: true, location: true, notes: true, batch: true, releaseYear: true, barrelNumber: true, pickName: true })
+  .extend({
+    fillPct: z.number().int().min(0).max(100),
+    dateOpened: z.string().nullable(),
+    ifOpenedCleared: z.enum(["keep_open", "seal"]),
+  })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "Send at least one field to change.");
 
 /**
- * Sets the fill level, with the web app's rules: below full opens a sealed
- * bottle. The answer says what else changed, so the app doesn't have to guess.
+ * Changes a bottle: its level (with the web app's rules: below full opens a sealed bottle), its Opened date
+ * (clearing it on an open bottle needs `ifOpenedCleared`: "keep_open" or "seal", which sets the level to full)
+ * and its own facts. The answer says what else changed, so the app doesn't have to guess.
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const user = await getCurrentUser();
@@ -120,10 +135,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return apiError(422, "invalid", parsed.error.issues[0]?.message ?? "Check the fields.", issueFields(parsed.error.issues));
   }
 
-  const result = await setFill(id, user.id, parsed.data.fillPct);
-  if (!result) return apiError(404, "not_found", "That bottle is gone.");
+  const { fillPct, dateOpened, ifOpenedCleared, ...columns } = parsed.data;
+  const outcome = await updateBottle(id, user.id, { fillPct, dateOpened, ifOpenedCleared, columns });
+  if (!outcome) return apiError(404, "not_found", "That bottle is gone.");
+  if (!outcome.ok) {
+    return apiError(422, outcome.code, outcome.message, outcome.field ? { [outcome.field]: outcome.message } : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : undefined);
+  }
   revalidatePath(`/bottles/${id}`);
   revalidatePath("/bottles");
   revalidatePath("/");
-  return NextResponse.json(result);
+  return NextResponse.json(outcome.result);
 }
