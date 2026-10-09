@@ -10,8 +10,8 @@ struct TonightResultView: View {
     let onLogged: () -> Void
     let onDone: () -> Void
 
-    @State private var presets: [MutePreset] = []
-    @State private var choosingMute = false
+    /// The lengths on offer, handed to the sheet when it opens so it never shows a copy from before they arrived.
+    @State private var muteChoice: MuteChoice?
     @State private var toast: Toast?
     @State private var logging: LogTarget?
     @State private var busy = false
@@ -24,6 +24,11 @@ struct TonightResultView: View {
         let message: String
         /// The bottle to unmute, when the toast offers Undo.
         var undoBottleId: Int?
+    }
+
+    private struct MuteChoice: Identifiable {
+        let id = UUID()
+        let presets: [MutePreset]
     }
 
     private struct LogTarget: Identifiable {
@@ -51,9 +56,9 @@ struct TonightResultView: View {
         }
         .task(id: model.pick?.bottle.id) { await loadDetail() }
         .overlay(alignment: .top) { toastView }
-        .sheet(isPresented: $choosingMute) {
-            MuteSheet(title: muteTitle, presets: presets) { preset in
-                choosingMute = false
+        .sheet(item: $muteChoice) { choice in
+            MuteSheet(title: muteTitle, presets: choice.presets) { preset in
+                muteChoice = nil
                 mute(until: preset.until)
             }
         }
@@ -342,8 +347,7 @@ struct TonightResultView: View {
         guard let api = session.api else { return }
         Task {
             do {
-                presets = try await api.mutes().presets
-                choosingMute = true
+                muteChoice = MuteChoice(presets: try await api.mutes().presets)
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
@@ -443,34 +447,42 @@ private struct MuteSheet: View {
     let onChoose: (MutePreset) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title).font(.headline(24)).foregroundStyle(Theme.ink)
-            Text("It stays out of every pick, Roulette included. Settings shows it, and lets you change the date or clear it.")
-                .font(.inter(14, relativeTo: .subheadline))
-                .foregroundStyle(Theme.muted)
-                .padding(.top, 6)
-                .padding(.bottom, 8)
-            ForEach(presets) { preset in
-                Divider()
-                Button { onChoose(preset) } label: {
-                    HStack {
-                        Text(preset.label).font(.inter(17, .semibold, relativeTo: .headline))
-                        Spacer(minLength: 12)
-                        Text("until \(Format.day(preset.until))").font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.muted)
-                    }
-                    .foregroundStyle(Theme.ink)
-                    .padding(.vertical, 14)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .contentShape(Rectangle())
+        // Scrolls, and opens at a height that always has room for the options: a fixed height clipped them
+        // below the explanation, leaving only the heading and the subtitle.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title).font(.headline(24)).foregroundStyle(Theme.ink)
+                Text("It stays out of every pick, Roulette included. Settings shows it, and lets you change the date or clear it.")
+                    .font(.inter(14, relativeTo: .subheadline))
+                    .foregroundStyle(Theme.muted)
+                    .padding(.top, 6)
+                    .padding(.bottom, 8)
+                if presets.isEmpty {
+                    Text("No lengths came back from the server. Close this and try again.")
+                        .font(.inter(15, relativeTo: .body)).foregroundStyle(Theme.error).padding(.top, 16)
                 }
-                .buttonStyle(.plain)
+                ForEach(presets) { preset in
+                    Divider()
+                    Button { onChoose(preset) } label: {
+                        HStack {
+                            Text(preset.label).font(.inter(17, .semibold, relativeTo: .headline))
+                            Spacer(minLength: 12)
+                            Text("until \(Format.day(preset.until))").font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.muted)
+                        }
+                        .foregroundStyle(Theme.ink)
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 28)
+            .padding(.bottom, 24)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 28)
-        .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.paper)
-        .presentationDetents([.height(150 + CGFloat(presets.count) * 52), .large])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 }

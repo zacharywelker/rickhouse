@@ -325,8 +325,8 @@ struct LabelTastingsList: View {
                 .accessibilityHint("Edits this tasting")
                 .listRowBackground(Theme.paper)
                 .listRowSeparator(.hidden)
-                .swipeActions(edge: .trailing) {
-                    Button("Delete", role: .destructive) { deleting = tasting.id }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button("Delete") { deleting = tasting.id }.tint(Theme.error)
                 }
                 .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { deleting = tasting.id } }
         }

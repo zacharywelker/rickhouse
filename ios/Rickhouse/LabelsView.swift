@@ -64,8 +64,8 @@ struct LabelsView: View {
                                 ForEach(month.entries) { entry in
                                     NavigationLink { LabelPage(id: entry.expressionId) } label: { TastingRow(entry: entry) }
                                         .listRowBackground(Theme.paper)
-                                        .swipeActions(edge: .trailing) {
-                                            Button("Delete", role: .destructive) { deletingTasting = entry.id }
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            Button("Delete") { deletingTasting = entry.id }.tint(Theme.error)
                                         }
                                         .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { deletingTasting = entry.id } }
                                         .task { if entry.id == history.last?.id { await loadMoreHistory() } }

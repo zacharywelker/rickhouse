@@ -9,7 +9,7 @@ enum Theme {
     /// Secondary text. About 5.6:1 on paper.
     static let muted = Color(hex: 0x5B6478)
     /// Error text. About 6.2:1 on paper; system red is about 3.2:1.
-    static let error = Color(hex: 0xB3261E)
+    static let error = Color(hex: 0xBA0C2F)
 }
 
 /// An error message: the icon keeps colour from being the only cue.
