@@ -417,3 +417,6 @@ struct LookupItem: Decodable, Identifiable, Hashable {
 
 struct LookupsResponse: Decodable { let items: [LookupItem] }
 struct CreatedLookup: Decodable { let id: Int; let name: String; let created: Bool }
+
+/// What a merge did: how many bottles and tastings moved to the label it was merged into.
+struct MergeAnswer: Decodable { let bottles: Int; let tastings: Int }
