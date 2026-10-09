@@ -174,6 +174,9 @@ struct FlavorWheelScreen: View {
                         .scaleEffect(isSelected ? 1.0 : 0.97)
                         .zIndex(isSelected ? 1 : 0)
                 }
+                ForEach(Array(wheel.categories.enumerated()), id: \.element.id) { index, category in
+                    sliceLabel(category.name, index: index, count: count, side: side)
+                }
                 VStack(spacing: 2) {
                     Text(current?.name ?? "").font(.headline(18)).foregroundStyle(Theme.ink).multilineTextAlignment(.center)
                     if let current {
@@ -197,6 +200,26 @@ struct FlavorWheelScreen: View {
             }
         }
         .frame(height: 300)
+    }
+
+    /// A category's name along its slice's middle, running outward and turned so it never reads upside down.
+    private func sliceLabel(_ name: String, index: Int, count: Int, side: CGFloat) -> some View {
+        let outer = side / 2
+        let degrees = -90 + 360 / Double(count) * (Double(index) + 0.5)
+        let mid = outer * (1 + Self.innerRatio) / 2
+        let radians = degrees * .pi / 180
+        let flip = cos(radians) < 0
+        return Text(name)
+            .font(.inter(10, .semibold, relativeTo: .caption2))
+            .foregroundStyle(Theme.ink)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.7)
+            .frame(width: outer * (1 - Self.innerRatio) - 8)
+            .rotationEffect(.degrees(flip ? degrees + 180 : degrees))
+            .offset(x: mid * cos(radians), y: mid * sin(radians))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     /// The category under a point in the ring, nil in the hole or outside.
