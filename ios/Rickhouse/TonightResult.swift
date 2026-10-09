@@ -15,6 +15,8 @@ struct TonightResultView: View {
     @State private var toast: Toast?
     @State private var logging: LogTarget?
     @State private var busy = false
+    /// The shown bottle's full record, for what the draw doesn't carry (release, bottling, age, distillery, mashbill).
+    @State private var detail: BottleDetail?
     @State private var problem: String?
 
     private struct Toast: Equatable, Identifiable {
@@ -47,14 +49,13 @@ struct TonightResultView: View {
                 Text("Tonight").font(.inter(13, relativeTo: .footnote)).foregroundStyle(Theme.muted)
             }
         }
+        .task(id: model.pick?.bottle.id) { await loadDetail() }
         .overlay(alignment: .top) { toastView }
-        .confirmationDialog(muteTitle, isPresented: $choosingMute, titleVisibility: .visible) {
-            ForEach(presets) { preset in
-                Button("\(preset.label), until \(Format.day(preset.until))") { mute(until: preset.until) }
+        .sheet(isPresented: $choosingMute) {
+            MuteSheet(title: muteTitle, presets: presets) { preset in
+                choosingMute = false
+                mute(until: preset.until)
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("It stays out of every pick, Roulette included. Settings shows it, and lets you change the date or clear it.")
         }
         .sheet(item: $logging) { target in
             NavigationStack {
@@ -149,6 +150,11 @@ struct TonightResultView: View {
 
     private func facts(_ bottle: TonightPick.Bottle) -> some View {
         VStack(spacing: 6) {
+            fact("Release", detail.flatMap(releaseText))
+            fact("Bottling", detail.map(bottlingText))
+            fact("Age", detail?.ageStatement)
+            fact("Distillery", detail.flatMap { joined($0.distilleries) })
+            fact("Mashbill", detail.flatMap { joined($0.mashbills) })
             fact("Proof", bottle.proof.map { $0.formatted() })
             fact("Fill", bottle.sealed ? "Sealed" : FillState.of(bottle.fillPct).text)
             fact("Bought", bottle.dateAcquired.map(Format.day))
@@ -161,10 +167,10 @@ struct TonightResultView: View {
     @ViewBuilder
     private func fact(_ name: String, _ value: String?) -> some View {
         if let value {
-            HStack {
+            HStack(alignment: .firstTextBaseline, spacing: 16) {
                 Text(name).foregroundStyle(Theme.muted)
-                Spacer()
-                Text(value).fontWeight(.medium).foregroundStyle(Theme.ink)
+                Spacer(minLength: 0)
+                Text(value).fontWeight(.medium).foregroundStyle(Theme.ink).multilineTextAlignment(.trailing)
             }
             .font(.inter(15, relativeTo: .subheadline))
             .monospacedDigit()
@@ -199,20 +205,32 @@ struct TonightResultView: View {
                 tile(symbol: "arrow.clockwise", title: "Not this one", detail: "Draw another now") { drawAnother() }
                 tile(symbol: "bell.slash", title: "Mute for a while", detail: "Hide it from picks") { chooseMute() }
             }
-            HStack {
-                Button("Open bottle") { onOpenBottle(pick.bottle.id) }
-                    .frame(minHeight: 44)
-                Spacer()
-                Button("Done", action: onDone).frame(minHeight: 44)
+            HStack(spacing: 10) {
+                outlined("See bottle details", symbol: "chevron.right") { onOpenBottle(pick.bottle.id) }
+                outlined("Done", symbol: nil, action: onDone)
             }
-            .font(.inter(16, .medium, relativeTo: .body))
-            .foregroundStyle(Theme.ink)
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
         .padding(.bottom, 4)
         .background(Theme.paper)
         .overlay(alignment: .top) { Divider() }
+    }
+
+    /// A ticket-style secondary button: ink outline on paper, like the tiles above it.
+    private func outlined(_ title: String, symbol: String?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(title)
+                if let symbol { Image(systemName: symbol).font(.system(size: 12, weight: .semibold)).accessibilityHidden(true) }
+            }
+            .font(.inter(15, .semibold, relativeTo: .subheadline))
+            .foregroundStyle(Theme.ink)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.ink, lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 
     private func tile(symbol: String, title: String, detail: String, action: @escaping () -> Void) -> some View {
@@ -259,6 +277,28 @@ struct TonightResultView: View {
             Spacer(minLength: 0)
         }
         .padding(20)
+    }
+
+    // MARK: Detail
+
+    private func loadDetail() async {
+        detail = nil
+        guard let api = session.api, let id = model.pick?.bottle.id else { return }
+        // The facts are extra: if they don't load, the pick still stands without them.
+        detail = try? await api.bottle(id: id)
+    }
+
+    private func joined(_ values: [String]) -> String? { values.isEmpty ? nil : values.joined(separator: ", ") }
+
+    private func releaseText(_ d: BottleDetail) -> String? {
+        joined([d.batch, d.releaseYear.map(String.init)].compactMap { $0 })
+    }
+
+    /// How this bottle was bottled: a private select, a single barrel, or the standard run.
+    private func bottlingText(_ d: BottleDetail) -> String {
+        let kind = d.isSingleBarrelPick == true ? "Private select" : d.isSingleBarrel == true ? "Single barrel" : nil
+        let parts = [kind, d.pickName.map { "“\($0)”" }, d.barrelNumber.map { "barrel \($0)" }].compactMap { $0 }
+        return parts.isEmpty ? "Standard bottling" : parts.joined(separator: ", ")
     }
 
     // MARK: Actions
@@ -393,5 +433,44 @@ extension TonightPick.Bottle {
             return "You last tasted it in \(month)."
         }
         return "Open, and never tasted. Fix that."
+    }
+}
+
+/// The mute lengths, as a bottom sheet in the app's own look; it rises from the button that opens it.
+private struct MuteSheet: View {
+    let title: String
+    let presets: [MutePreset]
+    let onChoose: (MutePreset) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(.headline(24)).foregroundStyle(Theme.ink)
+            Text("It stays out of every pick, Roulette included. Settings shows it, and lets you change the date or clear it.")
+                .font(.inter(14, relativeTo: .subheadline))
+                .foregroundStyle(Theme.muted)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+            ForEach(presets) { preset in
+                Divider()
+                Button { onChoose(preset) } label: {
+                    HStack {
+                        Text(preset.label).font(.inter(17, .semibold, relativeTo: .headline))
+                        Spacer(minLength: 12)
+                        Text("until \(Format.day(preset.until))").font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.muted)
+                    }
+                    .foregroundStyle(Theme.ink)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 28)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(Theme.paper)
+        .presentationDetents([.height(150 + CGFloat(presets.count) * 52), .large])
+        .presentationDragIndicator(.visible)
     }
 }

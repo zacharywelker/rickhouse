@@ -15,6 +15,24 @@ final class Session {
 
     var isSignedIn: Bool { token != nil && serverURL != nil }
 
+    /// The account's currency, kept on the server so the web and the phone agree. USD until it loads.
+    private(set) var currency = "USD" { didSet { Format.currencyCode = currency } }
+    private(set) var currencies: [CurrencyOption] = []
+
+    var currencySymbol: String { currencies.first { $0.code == currency }?.symbol ?? currency }
+
+    func loadPreferences() async {
+        guard let api, let answer = try? await api.preferences() else { return }
+        currencies = answer.currencies
+        currency = answer.currency
+    }
+
+    /// Saves a new currency on the server first, so the phone never shows one the web doesn't.
+    func setCurrency(_ code: String) async throws {
+        guard let api else { return }
+        currency = try await api.setCurrency(code).currency
+    }
+
     /// The flavor wheels by id, loaded once when first needed. A tasting stores descriptor keys, and these say what
     /// each one is called.
     private(set) var wheels: [String: TastingWheel] = [:]
@@ -104,6 +122,7 @@ final class Session {
         Keychain.delete(Self.tokenAccount)
         token = nil
         user = nil
+        currency = "USD"
     }
 
     /// "rickhouse.example.com" -> https://rickhouse.example.com. Release builds

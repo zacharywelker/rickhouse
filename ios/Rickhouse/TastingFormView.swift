@@ -143,9 +143,7 @@ struct TastingFormView: View {
                 Button(saving ? "Saving…" : error == nil ? "Save" : "Retry", action: save).disabled(saving)
             }
         }
-        .confirmationDialog("Delete this tasting?", isPresented: $confirmingDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive, action: delete)
-        }
+        .confirmSheet("Delete this tasting?", message: "This can't be undone.", confirm: "Delete tasting", isPresented: $confirmingDelete, perform: delete)
         .task { await session.loadWheels() }
         .onAppear(perform: fill)
     }

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { setFill } from "@/lib/bottles/state";
+import { deleteBottleAction } from "@/app/(app)/bottles/actions";
 import { releaseById } from "@/lib/releases-store";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
@@ -126,4 +127,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   revalidatePath("/bottles");
   revalidatePath("/");
   return NextResponse.json(result);
+}
+
+/** Deletes one of your bottles and its photos. Its tastings stay on the label. Someone else's bottle is simply not found. */
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+  const user = await getCurrentUser();
+  if (!user) return apiError(401, "unauthorized", "Sign in first.");
+  const id = parseId((await params).id);
+  if (id === null) return apiError(404, "not_found", "That bottle is gone.");
+  const result = await deleteBottleAction(id);
+  if (!result.ok) return apiError(404, "not_found", result.error);
+  return NextResponse.json({ id });
 }

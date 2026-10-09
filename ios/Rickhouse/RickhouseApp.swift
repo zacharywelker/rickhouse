@@ -28,5 +28,6 @@ struct RootView: View {
             }
         }
         .task { await session.restore() }
+        .task(id: session.isSignedIn) { if session.isSignedIn { await session.loadPreferences() } }
     }
 }

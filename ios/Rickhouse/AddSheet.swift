@@ -52,7 +52,7 @@ struct AddSheet: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 20)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
                 }
@@ -65,7 +65,7 @@ struct AddSheet: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.paper)
         // Fixed height for the default text size; the large detent is there for bigger text.
-        .presentationDetents([.height(320), .large])
+        .presentationDetents([.height(292), .large])
         .presentationDragIndicator(.visible)
     }
 }
