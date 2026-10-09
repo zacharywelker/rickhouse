@@ -29,6 +29,12 @@ const WRONG = "Wrong username or password.";
  * second step, which the app finishes at /api/auth/two-factor/* as before.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Better Auth's Origin check doesn't run on a direct call, and the answer sets a
+  // session cookie. A page on another site can send text/plain without a preflight
+  // and sign a browser in as someone else; application/json can't cross sites.
+  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
+    return apiError(415, "unsupported_media_type", "Send JSON.");
+  }
   const body: unknown = await request.json().catch(() => null);
   const username = (body as { username?: unknown } | null)?.username;
   const password = (body as { password?: unknown } | null)?.password;
