@@ -59,6 +59,9 @@ export function FillControl({
   const [askKill, setAskKill] = React.useState(false);
   const [dateError, setDateError] = React.useState<string | null>(null);
   const [killing, setKilling] = React.useState(false);
+  // Clearing the opened date of an open bottle asks what to do with it, as the phone does.
+  const [askOpened, setAskOpened] = React.useState(false);
+  const [answering, setAnswering] = React.useState(false);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const killed = status === "killed";
 
@@ -104,6 +107,16 @@ export function FillControl({
     setOpen(next);
     await setBottleOpenAction(bottleId, next);
     router.refresh();
+  }
+
+  function answerOpened(choice: "keep_open" | "seal") {
+    setAnswering(true);
+    void setBottleDateAction(bottleId, "dateOpened", "", choice).then((result) => {
+      setAnswering(false);
+      setAskOpened(false);
+      setDateError(result.ok ? null : result.error);
+      router.refresh();
+    });
   }
 
   return (
@@ -156,13 +169,14 @@ export function FillControl({
         </div>
 
         <dl className="flex flex-col gap-1 text-xs text-muted-foreground">
-          {open && dateOpened ? (
+          {open ? (
             <EditableDate
               bottleId={bottleId}
               field="dateOpened"
               label="Opened"
               value={dateOpened}
               onError={setDateError}
+              onNeedsChoice={() => setAskOpened(true)}
             />
           ) : null}
           {dateKilled ? (
@@ -172,6 +186,7 @@ export function FillControl({
               label="Killed"
               value={dateKilled}
               onError={setDateError}
+              onNeedsChoice={() => {}}
             />
           ) : null}
         </dl>
@@ -181,6 +196,36 @@ export function FillControl({
           </p>
         ) : null}
       </div>
+
+      <Dialog open={askOpened} onOpenChange={setAskOpened}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Keep the bottle open or mark it sealed?</DialogTitle>
+            <DialogDescription>
+              You cleared the date it was opened. It is at about {pct}%. Marking it sealed sets the level back to full.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={answering}>
+                Keep the date
+              </Button>
+            </DialogClose>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={answering}
+              onClick={() => answerOpened("seal")}
+            >
+              Mark it sealed
+            </Button>
+            <Button type="button" disabled={answering} onClick={() => answerOpened("keep_open")}>
+              {answering ? <Loader2 className="size-4 animate-spin" /> : null}
+              Keep it open, no date
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={askKill} onOpenChange={setAskKill}>
         <DialogContent className="max-w-md">
@@ -231,13 +276,17 @@ function EditableDate({
   label,
   value,
   onError,
+  onNeedsChoice,
 }: {
   bottleId: number;
   field: "dateOpened" | "dateKilled";
   label: string;
-  value: string;
+  /** Null for an open bottle with no date: it can stay that way, and a date can be added. */
+  value: string | null;
   /** Reports a failed save, or null to clear it; FillControl shows the message. */
   onError: (error: string | null) => void;
+  /** The server wants to know what to do with the bottle before it drops this date. */
+  onNeedsChoice: () => void;
 }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState(false);
@@ -256,9 +305,13 @@ function EditableDate({
             className="px-1 tabular-nums underline decoration-dotted underline-offset-2 hover:text-foreground"
             // Not "${label} …": that would collide with the Opened
             // checkbox's own accessible name and make both ambiguous.
-            aria-label={`Change the ${label.toLowerCase()} date, currently ${formatDate(value)}`}
+            aria-label={
+              value
+                ? `Change the ${label.toLowerCase()} date, currently ${formatDate(value)}`
+                : `Add the ${label.toLowerCase()} date`
+            }
           >
-            {formatDate(value)}
+            {value ? formatDate(value) : "No date. Add one"}
           </button>
         </dd>
       </div>
@@ -274,13 +327,13 @@ function EditableDate({
         <input
           id={`date-${field}`}
           type="date"
-          defaultValue={value}
+          defaultValue={value ?? ""}
           max={new Date().toISOString().slice(0, 10)}
           autoFocus
           onBlur={(event) => {
             const next = event.target.value;
             setEditing(false);
-            if (next === value) return;
+            if (next === (value ?? "")) return;
             void setBottleDateAction(bottleId, field, next).then((result) => {
               onError(result.ok ? null : result.error);
               router.refresh();
@@ -288,6 +341,7 @@ function EditableDate({
           }}
           className="h-7 border border-input bg-card px-2 text-xs tabular-nums"
         />
+        {value ? (
         <button
           type="button"
           // A mousedown fires before the input's blur, so clearing does not
@@ -296,6 +350,11 @@ function EditableDate({
             event.preventDefault();
             setEditing(false);
             void setBottleDateAction(bottleId, field, "").then((result) => {
+              if (!result.ok && result.needsChoice) {
+                onError(null);
+                onNeedsChoice();
+                return;
+              }
               onError(result.ok ? null : result.error);
               router.refresh();
             });
@@ -304,6 +363,7 @@ function EditableDate({
         >
           Clear
         </button>
+        ) : null}
       </dd>
     </div>
   );
