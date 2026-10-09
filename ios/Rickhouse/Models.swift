@@ -72,6 +72,8 @@ struct BottleDetail: Decodable {
     let msrp: String?
     let pricePaid: String?
     let store: String?
+    let storeId: Int?
+    let releaseId: Int?
     let dateAcquired: String?
     var dateOpened: String?
     let batch: String?
@@ -176,6 +178,8 @@ struct TastingsPage: Decodable {
 struct LabelDetail: Decodable {
     let id: Int
     let wheel: String?
+    let brandId: Int?
+    let categoryId: Int?
     let brand: String
     let name: String
     let category: String
@@ -193,6 +197,8 @@ struct LabelDetail: Decodable {
     let releases: [LabelRelease]
     let bottles: [LabelBottle]
     let tastings: [LabelTasting]
+    /// The distillery, mashbill and finish lists with ids and shares, for editing them. Absent from an older server.
+    let links: LabelLinks?
 }
 
 struct LabelRelease: Decodable, Identifiable {
@@ -378,3 +384,55 @@ extension LabelTasting {
         )
     }
 }
+
+/// One row of a label's ordered distillery, mashbill or finish list, as the server reads and writes it.
+struct LinkRow: Decodable, Equatable, Identifiable {
+    let id: Int
+    let name: String
+    /// A share (distilleries, mashbills) or months (finishes); nil when none is recorded.
+    var amount: Double?
+    /// Mashbills only: which of the label's distilleries made this recipe.
+    var distilleryId: Int?
+    /// Distilleries only: identified from outside the label.
+    var inferred: Bool?
+
+    init(id: Int, name: String, amount: Double? = nil, distilleryId: Int? = nil, inferred: Bool? = nil) {
+        self.id = id; self.name = name; self.amount = amount; self.distilleryId = distilleryId; self.inferred = inferred
+    }
+}
+
+struct LabelLinks: Decodable, Equatable {
+    var distilleries: [LinkRow]
+    var mashbills: [LinkRow]
+    var finishes: [LinkRow]
+}
+
+/// A list the pickers draw from: your own names for one kind of thing.
+enum LookupKind: String {
+    case brands, distilleries, mashbills, finishes, stores
+
+    var singular: String {
+        switch self {
+        case .brands: "brand"
+        case .distilleries: "distillery"
+        case .mashbills: "mashbill"
+        case .finishes: "finish"
+        case .stores: "store"
+        }
+    }
+
+    /// A name is enough to make these; a mashbill is a recipe and a store has a place, so they are made on the web.
+    var creatable: Bool { self == .brands || self == .distilleries || self == .finishes }
+}
+
+struct LookupItem: Decodable, Identifiable, Hashable {
+    let id: Int
+    let name: String
+    /// A place, where there is one.
+    let detail: String?
+
+    init(id: Int, name: String, detail: String? = nil) { self.id = id; self.name = name; self.detail = detail }
+}
+
+struct LookupsResponse: Decodable { let items: [LookupItem] }
+struct CreatedLookup: Decodable { let id: Int; let name: String; let created: Bool }

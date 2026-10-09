@@ -9,6 +9,10 @@ enum APIError: LocalizedError {
     case appTooOld
     case server(String)
     case duplicateLabel(LabelOption)
+    /// The server refused a value; `fields` names which, by the API's own field names.
+    case invalid(code: String, message: String, fields: [String: String])
+    /// A brand and name another of your labels already has.
+    case nameTaken(existing: LabelRef)
     case transport(Error)
 
     var errorDescription: String? {
@@ -21,6 +25,8 @@ enum APIError: LocalizedError {
         case .appTooOld: "Your Rickhouse server is newer than this app. Update the app."
         case .server(let message): message
         case .duplicateLabel(let label): "You already have \(label.title)."
+        case .invalid(_, let message, _): message
+        case .nameTaken(let existing): "You already have \(existing.title)."
         case .transport(let error): error.localizedDescription
         }
     }
@@ -275,6 +281,28 @@ struct APIClient {
         try await sendJSON("PATCH", "api/v1/bottles/\(bottleId)", body: ["fillPct": percent], as: FillResult.self)
     }
 
+    /// Changes a bottle's own facts, its Opened date and/or its level in one request. A key set to NSNull clears that
+    /// fact. Clearing Opened on an open bottle needs `ifOpenedCleared`; without it the server answers
+    /// `APIError.invalid(code: "opened_cleared", …)`. The answer says what else changed.
+    func updateBottle(id: Int, _ changes: [String: Any]) async throws -> FillResult {
+        try await sendObject("PATCH", "api/v1/bottles/\(id)", json: changes, as: FillResult.self)
+    }
+
+    /// Changes a label's facts. A brand and name another label already has is `APIError.nameTaken`, carrying it.
+    func updateLabel(id: Int, _ changes: [String: Any]) async throws {
+        _ = try await sendObject("PATCH", "api/v1/expressions/\(id)", json: changes, as: LabelOption.self)
+    }
+
+    /// Your own brands, distilleries, mashbills, finishes or stores, by name, for the pickers.
+    func lookups(_ kind: LookupKind) async throws -> [LookupItem] {
+        try await get("api/v1/lookups/\(kind.rawValue)", as: LookupsResponse.self).items
+    }
+
+    /// Makes a brand, distillery or finish by name, or hands back the one already under that name in any case.
+    func createLookup(_ kind: LookupKind, name: String) async throws -> CreatedLookup {
+        try await sendObject("POST", "api/v1/lookups/\(kind.rawValue)", json: ["name": name], as: CreatedLookup.self)
+    }
+
     /// Multipart upload to the web route; the first photo becomes the bottle's hero shot.
     func uploadImages(bottleId: Int, images: [UploadImage]) async throws {
         let boundary = "rickhouse-\(UUID().uuidString)"
@@ -307,6 +335,17 @@ struct APIClient {
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await Self.send(req)
+        try Self.check(response, data)
+        return try Self.decoder.decode(Answer.self, from: data)
+    }
+
+    /// A JSON object body built by hand, because a fact cleared with `null` has to be sent as `null`.
+    private func sendObject<Answer: Decodable>(_ method: String, _ path: String, json: [String: Any], as type: Answer.Type) async throws -> Answer {
+        var req = request(path: path)
+        req.httpMethod = method
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: json)
         let (data, response) = try await Self.send(req)
         try Self.check(response, data)
         return try Self.decoder.decode(Answer.self, from: data)
@@ -349,8 +388,24 @@ struct APIClient {
         switch http.statusCode {
         case 200..<300: return
         case 401: throw APIError.unauthorized
+        case 409, 422:
+            if let refusal = refusal(from: data) { throw refusal }
+            fallthrough
         default: throw APIError.server(message(from: data) ?? "The server answered \(http.statusCode).")
         }
+    }
+
+    /// The API's structured refusals: a name another label has (409), or a value it won't take (422), with the field.
+    fileprivate static func refusal(from data: Data) -> APIError? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let error = object["error"] as? [String: Any],
+              let code = error["code"] as? String, let message = error["message"] as? String else { return nil }
+        if code == "name_taken", let existing = object["existing"] as? [String: Any],
+           let id = existing["id"] as? Int, let title = existing["title"] as? String {
+            return .nameTaken(existing: LabelRef(id: id, title: title))
+        }
+        guard code == "invalid" || code == "opened_cleared" else { return nil }
+        return .invalid(code: code, message: message, fields: error["fields"] as? [String: String] ?? [:])
     }
 
     /// `{ "error": { "message": … } }` from /api/v1, or Better Auth's `{ "message": … }`.

@@ -14,6 +14,8 @@ targets:
     type: application
     platform: iOS
     sources: [Rickhouse]
+    scheme:
+      testTargets: [RickhouseTests]
     # The launch screen is the app's ivory paper (#FFF8E7, the LaunchBackground color in Assets.xcassets), so there is no
     # white or black flash before the first screen. A generated Info.plist can't name the color, so this one key lives here;
     # everything else is still generated from the INFOPLIST_KEY settings below.
@@ -36,3 +38,12 @@ targets:
       configs:
         Debug:
           INFOPLIST_KEY_NSLocalNetworkUsageDescription: Rickhouse connects to a development server on the local network.
+  RickhouseTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [RickhouseTests]
+    dependencies:
+      - target: Rickhouse
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct BottleDetailView: View {
-    @Environment(Session.self) private var session
+    @Environment(Session.self) var session
     let id: Int
     /// Told when something on the bottle changed that the collection shows (its level).
     var onChanged: () -> Void = {}
 
-    @State private var bottle: BottleDetail?
+    @State var bottle: BottleDetail?
     @State private var error: String?
     @State private var actionError: String?
     @State private var settingFill = false
@@ -17,6 +17,24 @@ struct BottleDetailView: View {
         let id = UUID()
         let selection: Int
     }
+
+    // Editing the bottle's and the label's facts (docs/superpowers/specs/2026-10-08-edit-facts-design.md). The views are in
+    // BottleDetailEditing.swift; the state is here because an extension can't hold it.
+    @State var bottleDraft: BottleDraft?
+    @State var labelDraft: LabelDraft?
+    @State var labelId: Int?
+    @State var labelBottleCount = 0
+    @State var revealed: Set<BottleFact> = []
+    @State var lastRevealed: BottleFact?
+    @State var savingFacts = false
+    @State var factError: String?
+    @State var fieldErrors: [String: String] = [:]
+    @State var askOpened = false
+    @State var discarding = false
+    @State var categories: [CategoryOption] = []
+    @State var undoOffer: UndoOffer?
+    @State var undoTimer: Task<Void, Never>?
+    @State var picking: PickTarget?
 
     private struct NoteEdit: Identifiable {
         let id = UUID()
@@ -37,6 +55,24 @@ struct BottleDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .task { await session.loadWheels() }
+        .confirmationDialog("Discard your changes?", isPresented: $discarding, titleVisibility: .visible) {
+            Button("Discard changes", role: .destructive) { stopEditing() }
+            Button("Keep editing", role: .cancel) {}
+        } message: {
+            Text("Nothing you changed has been saved.")
+        }
+        .confirmationDialog("Keep the bottle open or mark it sealed?", isPresented: $askOpened, titleVisibility: .visible) {
+            Button("Keep it open, no date") { saveBottle(choice: .keepOpen) }
+            Button("Mark it sealed") { saveBottle(choice: .seal) }
+            Button("Keep the date", role: .cancel) { bottleDraft?[.opened].revert() }
+        } message: {
+            Text("You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.")
+        }
+        .overlay(alignment: .bottom) {
+            if let offer = undoOffer { UndoBar(offer: offer) { runUndo(offer) } }
+        }
+        .animation(.default, value: undoOffer?.id)
+        .sheet(item: $picking) { pickerSheet(for: $0) }
         .fullScreenCover(item: $viewing) { start in
             if let bottle {
                 PhotoViewer(
@@ -103,27 +139,8 @@ struct BottleDetailView: View {
                 mutedSection(b, until: until)
             }
             fillSection(b)
-            Section("Label") {
-                row("Category", b.category)
-                row("Proof", b.proof.flatMap(Double.init).map { $0.formatted() })
-                row("Age", b.ageStatement)
-                row("Size", "\(b.sizeMl) mL")
-                row("Distilleries", b.distilleries.joined(separator: ", "))
-                row("Mashbill", b.mashbills.joined(separator: ", "))
-                row("Finishes", b.finishes.joined(separator: ", "))
-            }
-            Section("Bottle") {
-                row("Status", b.status.capitalized)
-                row("Opened", b.dateOpened.map(Format.day))
-                row("Batch", b.batch)
-                row("Barrel", b.barrelNumber)
-                row("Pick", b.pickName)
-                row("Paid", b.pricePaid.map(Format.money))
-                row("MSRP", b.msrp.map(Format.money))
-                row("Store", b.store)
-                row("Acquired", b.dateAcquired.map(Format.day))
-                row("Location", b.location)
-            }
+            labelSection(b)
+            bottleSection(b)
             if let notes = b.notes, !notes.isEmpty {
                 // Free text gets the full width; a trailing LabeledContent value squeezes it.
                 VStack(alignment: .leading, spacing: 4) {
@@ -281,13 +298,13 @@ struct BottleDetailView: View {
 
     /// Hidden when there is nothing to say, so the sheet only shows what is recorded.
     @ViewBuilder
-    private func row(_ label: String, _ value: String?) -> some View {
+    func row(_ label: String, _ value: String?) -> some View {
         if let value, !value.isEmpty {
             LabeledContent(label, value: value)
         }
     }
 
-    private func load() async {
+    func load() async {
         guard let api = session.api else { return }
         do {
             bottle = try await api.bottle(id: id)
