@@ -56,6 +56,8 @@ struct BottleDetail: Decodable {
     let msrp: String?
     let pricePaid: String?
     let store: String?
+    let storeId: Int?
+    let releaseId: Int?
     let dateAcquired: String?
     var dateOpened: String?
     let batch: String?
@@ -157,6 +159,8 @@ struct TastingsPage: Decodable {
 struct LabelDetail: Decodable {
     let id: Int
     let wheel: String?
+    let brandId: Int?
+    let categoryId: Int?
     let brand: String
     let name: String
     let category: String

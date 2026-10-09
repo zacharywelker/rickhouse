@@ -32,13 +32,13 @@ The app uses a small JSON API under `/api/v1`, plus two web routes that accept t
 | `GET /api/v1/me` | Who the token belongs to |
 | `GET /api/v1/bottles` | The collection; takes the web grid's `q`, `status`, `sort`, `desc`, `page`, `size`, … |
 | `GET /api/v1/bottles/:id` | One bottle with label specs, photos and tasting notes |
-| `PATCH /api/v1/bottles/:id` | Set the fill level (`{ "fillPct": 0-100 }`). Below full opens a sealed bottle, as on the web; the answer says what else changed |
+| `PATCH /api/v1/bottles/:id` | Change a bottle: its level (`fillPct`, below full opens a sealed bottle), its Opened date (`dateOpened`; clearing it on an open bottle needs `ifOpenedCleared`: `keep_open` or `seal`, which sets the level to full) and its own facts (`pricePaid`, `storeId`, `dateAcquired`, `batch`, `releaseYear`, `barrelNumber`, `pickName`, `location`, `notes`). `null` clears a fact; an unlisted field is a `422`. The answer says what else changed |
 | `POST /api/v1/bottles/:id/tasting-notes` | Add a tasting note: `tastedOn`, `rating` (0 to 10), `nose`, `palate`, `finish`, `overall` |
 | `PATCH` / `DELETE /api/v1/bottles/:id/tasting-notes/:noteId` | Replace (send every field) or delete a note |
 | `POST /api/v1/bottles` | Add a bottle of an existing label (`expressionId` required) |
 | `GET /api/v1/expressions?q=&upc=` | Search labels for the picker. `upc` finds a label by barcode (exact; a 12-digit UPC-A and its 13-digit EAN form match each other); a bad code is a 422. Each label carries its `upc` |
 | `POST /api/v1/expressions` | Start a label: `brand` (a name, created if new), `name`, `categoryId`, optional `upc`. Answers `201` with the label; a label the brand already has is a `409` `duplicate` that carries it as `existing` |
-| `PATCH /api/v1/expressions/:id` | Save a scanned barcode (`{ "upc": "…" }`) onto a label that has none, so the next scan finds it. Never overwrites: a label with a different code is a `409` `has_barcode`; the same code again is a no-op |
+| `PATCH /api/v1/expressions/:id` | A body of only `{ "upc": "…" }` saves a scanned barcode onto a label that has none and never overwrites (a different code is a `409` `has_barcode`). Anything else edits the label: `name`, `brandId` or `brand`, `categoryId`, `proof`, `ageStatement`, `ageYears`, `sizeMl`, `msrp`, `upc`, and the three link lists together. A brand and name another label already has is a `409` `name_taken` carrying it as `existing` |
 | `GET /api/v1/expressions/:id` | One label, read rather than edited: its specs and photo, known releases, your bottles of it and the tastings on them |
 | `GET /api/v1/tastings` | Your tasting history, newest first (`page`, `size`): each note names its label and bottle |
 | `POST /api/v1/tastings` | Log a tasting of one of your labels: `expressionId`, optional `bottleId` (your bottle of that label; makes the source "owned"), `source` (owned, bar, bottle_share, sample, store_pour), `tastedAt`, `tastedOn`, `rating`, `tags` and the four texts. A pour of a bottle you don't own has no `bottleId` |
@@ -69,3 +69,7 @@ The launch screen is plain ivory paper (`#FFF8E7`, the `LaunchBackground` color 
 ## Not yet
 
 Finishing a bottle (marking it killed), editing a bottle's other fields, creating new labels, groups, Numbers, the Labels tab, marks (open date, gifted by, store pick), category facts such as rum age or gin style, dark mode, passkeys (they need the paid Apple Developer Program) and SSO.
+
+## Tests
+
+`xcodegen generate`, then run the `Rickhouse` scheme's tests (`RickhouseTests`). They cover the logic of editing facts (`EditDrafts.swift`): what changed, what is sent, what an undo sends back, and the checks made before the server is asked. Screens are checked by hand on the Simulator.
