@@ -12,7 +12,9 @@ struct LabelPage: View {
     @State private var label: LabelDetail?
     @State private var error: String?
     @State private var loggingTasting = false
+    @State private var deletingTasting: Int?
     @State private var addingBottle = false
+    @State private var viewingPhoto = false
 
     var body: some View {
         Group {
@@ -34,6 +36,17 @@ struct LabelPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .task { await session.loadWheels() }
+        .confirmsTastingDeletion($deletingTasting) { _ in Task { await load() } }
+        .fullScreenCover(isPresented: $viewingPhoto) {
+            if let label, let path = label.photoPath {
+                PhotoViewer(
+                    subject: .label(expressionId: label.id),
+                    title: "\(label.brand) \(label.name)",
+                    photos: [ViewerPhoto(id: 0, path: path, isHero: true)],
+                    selection: 0
+                ) { Task { await load() } }
+            }
+        }
         .sheet(isPresented: $loggingTasting) {
             if let label {
                 LogTastingForLabel(label: label) {
@@ -84,7 +97,13 @@ struct LabelPage: View {
     private func header(_ l: LabelDetail) -> some View {
         let plate = CategoryPalette.color(for: l.category)
         let block = HStack(spacing: 12) {
-            LabelThumb(path: l.photoThumbPath ?? l.photoPath, category: l.category, width: 54)
+            Button { viewingPhoto = true } label: {
+                LabelThumb(path: l.photoThumbPath ?? l.photoPath, category: l.category, width: 54)
+            }
+            .buttonStyle(.plain)
+            .disabled(l.photoPath == nil)
+            .accessibilityLabel("Photo of \(l.brand) \(l.name)")
+            .accessibilityHint(l.photoPath == nil ? "" : "Opens it full screen")
             VStack(alignment: .leading, spacing: 2) {
                 Text(l.brand).font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted)
                 Text(l.name).font(.headline(21)).foregroundStyle(Theme.ink)
@@ -149,7 +168,10 @@ struct LabelPage: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
         } else {
-            ForEach(l.tastings.prefix(Self.shownTastings)) { TastingBlock(tasting: $0) }
+            ForEach(l.tastings.prefix(Self.shownTastings)) { tasting in
+                TastingBlock(tasting: tasting)
+                    .swipeToDelete { deletingTasting = tasting.id }
+            }
             if l.tastings.count > Self.shownTastings {
                 NavigationLink {
                     LabelTastingsList(label: l) { Task { await load() } }
@@ -294,21 +316,25 @@ struct LabelTastingsList: View {
     let label: LabelDetail
     var onChanged: () -> Void
     @State private var editing: LabelTasting?
+    @State private var deleting: Int?
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(label.tastings) { tasting in
-                    Button { editing = tasting } label: { TastingBlock(tasting: tasting) }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Edits this tasting")
+        List(label.tastings) { tasting in
+            Button { editing = tasting } label: { TastingBlock(tasting: tasting) }
+                .buttonStyle(.plain)
+                .accessibilityHint("Edits this tasting")
+                .listRowBackground(Theme.paper)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .trailing) {
+                    Button("Delete", role: .destructive) { deleting = tasting.id }
                 }
-            }
-            .padding(.horizontal, 16)
+                .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { deleting = tasting.id } }
         }
+        .listStyle(.plain)
         .background(Theme.paper)
         .navigationTitle("\(label.tastings.count) tastings")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmsTastingDeletion($deleting) { _ in onChanged() }
         .sheet(item: $editing) { tasting in
             NavigationStack {
                 TastingFormView(
@@ -323,6 +349,7 @@ struct LabelTastingsList: View {
             }
         }
     }
+
 }
 
 /// Log a tasting of this label, from its page: pick which bottle if you have any of it, then fill in the form.
@@ -419,5 +446,46 @@ extension LabelOption {
             id: detail.id, name: detail.name, brand: detail.brand, category: detail.category, proof: detail.proof,
             upc: detail.upc, thumbPath: detail.photoThumbPath, wheel: detail.wheel
         )
+    }
+}
+
+/// Asks before deleting a tasting, deletes it on the server, then tells the screen. One place for every list of tastings.
+private struct DeleteTastingConfirmation: ViewModifier {
+    @Environment(Session.self) private var session
+    @Binding var pending: Int?
+    let onDeleted: (Int) -> Void
+    @State private var problem: String?
+
+    func body(content: Content) -> some View {
+        content
+            .confirmSheet("Delete this tasting?", message: "This can't be undone.", confirm: "Delete tasting", isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } })) {
+                if let id = pending { delete(id) }
+            }
+            .alert("Couldn't delete", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(problem ?? "")
+            }
+    }
+
+    private func delete(_ id: Int) {
+        guard let api = session.api else { return }
+        Task {
+            do {
+                try await api.deleteTasting(id: id)
+                onDeleted(id)
+            } catch APIError.unauthorized {
+                session.signOut()
+            } catch {
+                problem = error.localizedDescription
+            }
+        }
+    }
+}
+
+extension View {
+    /// Confirms and performs the deletion of the tasting whose id is put in `pending`.
+    func confirmsTastingDeletion(_ pending: Binding<Int?>, onDeleted: @escaping (Int) -> Void) -> some View {
+        modifier(DeleteTastingConfirmation(pending: pending, onDeleted: onDeleted))
     }
 }

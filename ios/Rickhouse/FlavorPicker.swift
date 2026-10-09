@@ -176,6 +176,7 @@ struct FlavorWheelScreen: View {
                 }
                 ForEach(Array(wheel.categories.enumerated()), id: \.element.id) { index, category in
                     sliceLabel(category.name, index: index, count: count, side: side)
+                        .zIndex(2) // above the chosen slice, which is lifted to 1
                 }
                 VStack(spacing: 2) {
                     Text(current?.name ?? "").font(.headline(18)).foregroundStyle(Theme.ink).multilineTextAlignment(.center)
