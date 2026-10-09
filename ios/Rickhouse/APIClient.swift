@@ -145,6 +145,36 @@ struct APIClient {
         return found.filter { label in label.upc.map(wanted.contains) ?? false }
     }
 
+    /// The account's currency and the ones it may pick; the web's Preferences page shows the same setting.
+    func preferences() async throws -> PreferencesAnswer {
+        try await get("api/v1/me/preferences", as: PreferencesAnswer.self)
+    }
+
+    func setCurrency(_ code: String) async throws -> PreferencesAnswer {
+        try await sendJSON("PUT", "api/v1/me/preferences", body: ["currency": code], as: PreferencesAnswer.self)
+    }
+
+    func deleteBottle(id: Int) async throws { try await delete("api/v1/bottles/\(id)") }
+
+    func deleteBottlePhoto(id: Int) async throws { try await delete("api/v1/bottle-images/\(id)") }
+
+    func deleteLabelPhoto(expressionId: Int) async throws { try await delete("api/v1/expressions/\(expressionId)/photo") }
+
+    /// Makes one of a bottle's photos its hero shot.
+    func setHeroPhoto(id: Int) async throws {
+        var req = request(path: "api/v1/bottle-images/\(id)/primary")
+        req.httpMethod = "PUT"
+        let (data, response) = try await Self.send(req)
+        try Self.check(response, data)
+    }
+
+    private func delete(_ path: String) async throws {
+        var req = request(path: path)
+        req.httpMethod = "DELETE"
+        let (data, response) = try await Self.send(req)
+        try Self.check(response, data)
+    }
+
     func tastings(page: Int) async throws -> TastingsPage {
         try await get("api/v1/tastings", query: [.init(name: "page", value: String(page)), .init(name: "size", value: "30")], as: TastingsPage.self)
     }
