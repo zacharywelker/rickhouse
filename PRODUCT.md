@@ -35,7 +35,7 @@ The product grows in stages: bottle management, then the tasting log, then a cen
 
 ## Capabilities and Constraints
 
-- Surfaces: Collection (gallery and dense table, search, sort, fill level on every bottle), Labels, Groups, Numbers, tastings, What to drink tonight, linked entity pages (brands, distilleries, mashbills, finishes, stores), Accounts, Backups. Camera capture and barcode scanning on phones.
+- Surfaces: Collection (gallery and dense table, search, sort, fill level on every bottle), Labels, Groups, Numbers, tastings, What to drink tonight (phone only; the web keeps its own Spin the Bottle), linked entity pages (brands, distilleries, mashbills, finishes, stores), Accounts, Backups. Camera capture and barcode scanning on phones.
 - Source of truth: with a server, the server holds the truth. Standalone, the device holds it.
 - Standalone is full core: bottles, photos, labels and tastings all work on the device. Without a server there is no web or desktop app, no sync across devices, no household accounts, no Config and no server backups.
 - Standalone backup is manual export only. The export is a human-readable CSV of bottles that Rickhouse can import. It excludes tastings and has no standalone label records. The app says so at export time.

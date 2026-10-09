@@ -43,7 +43,7 @@ struct AppShell: View {
             switch choice {
             case .addBottle: AddBottleView { reloadSignal += 1; tab = .collection }
             case .logTasting: LogTastingFlow { tastingSignal += 1; tab = .labels }
-            case .tonight: ComingSoonSheet(title: choice.title)
+            case .tonight: TonightFlow { tastingSignal += 1; tab = .labels }
             }
         }
     }

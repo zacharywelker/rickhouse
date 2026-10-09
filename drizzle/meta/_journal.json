@@ -253,6 +253,13 @@
       "when": 1791721774639,
       "tag": "0035_photo_is_cutout",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791808174639,
+      "tag": "0036_bottle_mutes",
+      "breakpoints": true
     }
   ]
 }

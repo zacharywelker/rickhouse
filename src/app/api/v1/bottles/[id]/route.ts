@@ -43,6 +43,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     status: bottle.status,
     isOpen: bottle.isOpen,
     isFavorite: bottle.isFavorite,
+    // Set while the bottle is muted from tonight's picks (a date in the future); null otherwise.
+    mutedUntil: bottle.mutedUntil,
     fillPct: bottle.fillPct,
     // The bottle's own value when it overrides the label, otherwise the label's.
     proof: bottle.proof ?? release?.proof ?? expression.proof,

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The account tab: who is signed in, Preferences, and sign out. Groups and
+/// The account tab: who is signed in, Muted bottles, Preferences, and sign out. Groups and
 /// Config join the list when they have mobile screens.
 struct AccountView: View {
     @Environment(Session.self) private var session
@@ -18,6 +18,7 @@ struct AccountView: View {
                     }
                 }
                 Section {
+                    NavigationLink("Muted bottles") { MutedBottlesView() }
                     NavigationLink("Preferences") { PreferencesView() }
                 }
                 Section {
