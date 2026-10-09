@@ -2,6 +2,7 @@ import Foundation
 
 enum APIError: LocalizedError {
     case badServer
+    case serverNotFound
     case unauthorized
     case insecureServer
     case serverTooOld
@@ -13,6 +14,7 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .badServer: "That doesn't look like a server address."
+        case .serverNotFound: "Can't reach that server. Check the address and try again."
         case .unauthorized: "Your session has ended. Sign in again."
         case .insecureServer: "Use an https:// address. Rickhouse only signs in over an encrypted connection."
         case .serverTooOld: "Your Rickhouse server is older than this app. Update the server."
@@ -44,23 +46,35 @@ struct APIClient {
         case needsSecondFactor(TwoFactorChallenge)
     }
 
-    /// What the server says before sign-in: its API version and, when it asks
-    /// for a Turnstile check, the site key for the widget.
+    /// What the server says before sign-in: who it is and whether it can email a code.
     struct ServerInfo: Decodable {
-        let turnstileSiteKey: String?
+        let app: String?
+        /// Whether the server can email a two-step code. Absent on older servers, which read as no.
+        let emailCodes: Bool?
     }
 
-    static func serverInfo(baseURL: URL) async throws -> ServerInfo {
-        let (data, response) = try await send(URLRequest(url: baseURL.appending(path: "api/v1/server")))
+    /// Asks the address who it is. Any failure to reach a Rickhouse server reads
+    /// the same ("can't reach"), so a typo that lands on another site is refused;
+    /// only a real Rickhouse on the wrong API version says so.
+    static func verifyServer(baseURL: URL) async throws -> ServerInfo {
+        let data: Data, response: URLResponse
+        do { (data, response) = try await send(URLRequest(url: baseURL.appending(path: "api/v1/server"))) }
+        catch { throw APIError.serverNotFound }
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let info = try? decoder.decode(ServerInfo.self, from: data) else { throw APIError.serverNotFound }
+        guard info.app == "rickhouse" else {
+            // Servers from before the `app` field still send the version header.
+            throw http.value(forHTTPHeaderField: "x-rickhouse-api") != nil ? APIError.serverTooOld : APIError.serverNotFound
+        }
         try check(response, data)
-        return try decoder.decode(ServerInfo.self, from: data)
+        return info
     }
 
-    /// `captchaToken` is the Turnstile result; the server refuses sign-in
-    /// without one when it has Turnstile switched on.
-    static func signIn(baseURL: URL, username: String, password: String, captchaToken: String? = nil) async throws -> SignInOutcome {
-        let (data, response) = try await post(baseURL, "api/auth/sign-in/username", json: ["username": username, "password": password], captchaToken: captchaToken)
+    /// The app has no Turnstile check; the server slows guessing instead (429 with a wait).
+    static func signIn(baseURL: URL, username: String, password: String, emailCodes: Bool = false) async throws -> SignInOutcome {
+        let (data, response) = try await post(baseURL, "api/v1/auth/sign-in", json: ["username": username, "password": password])
         guard let http = response as? HTTPURLResponse else { throw APIError.badServer }
+        if http.statusCode == 404 { throw APIError.serverTooOld }
         guard http.statusCode == 200 else { throw APIError.server(message(from: data) ?? "Wrong username or password.") }
 
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -69,7 +83,7 @@ struct APIClient {
             let cookies = HTTPCookie.cookies(withResponseHeaderFields: http.allHeaderFields as? [String: String] ?? [:], for: baseURL)
             let header = HTTPCookie.requestHeaderFields(with: cookies)["Cookie"] ?? ""
             guard !header.isEmpty else { throw APIError.server("The server didn't start a two-step sign-in. Is it up to date?") }
-            return .needsSecondFactor(TwoFactorChallenge(baseURL: baseURL, cookie: header))
+            return .needsSecondFactor(TwoFactorChallenge(baseURL: baseURL, cookie: header, emailCodes: emailCodes))
         }
         return try await finish(baseURL: baseURL, http: http)
     }
@@ -83,7 +97,7 @@ struct APIClient {
         return .signedIn(token: token, user: me)
     }
 
-    fileprivate static func post(_ baseURL: URL, _ path: String, json: [String: Any], cookie: String? = nil, captchaToken: String? = nil) async throws -> (Data, URLResponse) {
+    fileprivate static func post(_ baseURL: URL, _ path: String, json: [String: Any], cookie: String? = nil) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: baseURL.appending(path: path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -92,7 +106,6 @@ struct APIClient {
         // Cookies are passed by hand, so nothing leaks between sign-in attempts.
         request.httpShouldHandleCookies = false
         if let cookie { request.setValue(cookie, forHTTPHeaderField: "Cookie") }
-        if let captchaToken { request.setValue(captchaToken, forHTTPHeaderField: "x-captcha-response") }
         request.httpBody = try JSONSerialization.data(withJSONObject: json)
         return try await send(request)
     }
@@ -322,6 +335,8 @@ struct APIClient {
 struct TwoFactorChallenge {
     let baseURL: URL
     fileprivate let cookie: String
+    /// Offered only when the server says it can send mail.
+    let emailCodes: Bool
 
     enum Method { case authenticator, backupCode, emailCode }
 

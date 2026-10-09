@@ -49,6 +49,19 @@ final class Session {
         token = Keychain.read(Self.tokenAccount)
     }
 
+    /// Remembers a server that passed `APIClient.verifyServer`, so later launches skip the address step.
+    func saveServer(_ url: URL) {
+        UserDefaults.standard.set(url.absoluteString, forKey: Self.serverKey)
+        serverURL = url
+    }
+
+    /// "Change" on the sign-in screen. A token only works on the server that issued it, so it goes too.
+    func forgetServer() {
+        signOut()
+        UserDefaults.standard.removeObject(forKey: Self.serverKey)
+        serverURL = nil
+    }
+
     /// On launch, drop a token the server no longer accepts.
     func restore() async {
         guard let api else { return }
@@ -62,8 +75,8 @@ final class Session {
     }
 
     /// Signs in, or returns the second-factor step for the caller to finish with `complete`.
-    func signIn(baseURL url: URL, username: String, password: String, captchaToken: String?) async throws -> TwoFactorChallenge? {
-        let outcome = try await APIClient.signIn(baseURL: url, username: username, password: password, captchaToken: captchaToken)
+    func signIn(baseURL url: URL, username: String, password: String, emailCodes: Bool) async throws -> TwoFactorChallenge? {
+        let outcome = try await APIClient.signIn(baseURL: url, username: username, password: password, emailCodes: emailCodes)
         return accept(outcome, baseURL: url)
     }
 
