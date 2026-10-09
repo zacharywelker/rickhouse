@@ -10,7 +10,7 @@ struct BottleFormView: View {
     /// Closes the whole Add a bottle sheet after a save.
     var onSaved: () -> Void
 
-    @State private var photos: [UIImage] = []
+    @State private var photos: [FormPhoto] = []
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showCamera = false
     @State private var showDetails = false
@@ -46,17 +46,8 @@ struct BottleFormView: View {
                 if !photos.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            ForEach(photos.indices, id: \.self) { i in
-                                Image(uiImage: photos[i]).resizable().scaledToFill()
-                                    .frame(width: 80, height: 100).clipShape(RoundedRectangle(cornerRadius: 6))
-                                    .overlay(alignment: .topTrailing) {
-                                        Button { photos.remove(at: i) } label: {
-                                            Image(systemName: "xmark.circle.fill").symbolRenderingMode(.palette)
-                                                .foregroundStyle(Theme.paper, Theme.ink)
-                                        }
-                                        .accessibilityLabel("Remove photo \\(i + 1)")
-                                        .padding(2)
-                                    }
+                            ForEach($photos) { $photo in
+                                PhotoThumb(photo: $photo) { photos.removeAll { $0.id == photo.id } }
                             }
                         }
                     }
@@ -88,17 +79,29 @@ struct BottleFormView: View {
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
-            CameraPicker { photos.append($0) }.ignoresSafeArea()
+            CameraPicker { add($0) }.ignoresSafeArea()
         }
         .onChange(of: pickerItems) { _, items in
             Task {
                 for item in items {
                     if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                        photos.append(image)
+                        add(image)
                     }
                 }
                 pickerItems = []
             }
+        }
+    }
+
+    /// Shows the photo at once, then swaps in the cutout if Vision can make one.
+    private func add(_ image: UIImage) {
+        let photo = FormPhoto(original: image)
+        photos.append(photo)
+        Task {
+            let cut = await Task.detached { image.cutout() }.value
+            guard let i = photos.firstIndex(where: { $0.id == photo.id }) else { return }
+            photos[i].cutout = cut
+            photos[i].working = false
         }
     }
 
@@ -123,8 +126,8 @@ struct BottleFormView: View {
                 }
                 if !photos.isEmpty {
                     // Downscaled so a 12 MP photo doesn't cross the home network at full size.
-                    let jpegs = photos.compactMap { $0.scaled(maxEdge: 2000).jpegData(compressionQuality: 0.85) }
-                    try await api.uploadImages(bottleId: id, jpegs: jpegs)
+                    // A cutout goes as PNG so the server keeps its transparency and crops to the bottle.
+                    try await api.uploadImages(bottleId: id, images: photos.compactMap { $0.encoded() })
                 }
                 onSaved()
             } catch APIError.unauthorized {
@@ -146,4 +149,36 @@ struct BottleFormView: View {
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
+}
+
+/// A photo thumbnail: remove at the top right, and once a cutout exists a scissors badge that flips cutout and original.
+private struct PhotoThumb: View {
+    @Binding var photo: FormPhoto
+    var onRemove: () -> Void
+
+    var body: some View {
+        Image(uiImage: photo.chosen).resizable().scaledToFill()
+            .frame(width: 80, height: 100).clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay { if photo.working { ProgressView() } }
+            .overlay(alignment: .topTrailing) {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill").symbolRenderingMode(.palette)
+                        .foregroundStyle(Theme.paper, Theme.ink)
+                }
+                .accessibilityLabel("Remove photo")
+                .padding(2)
+            }
+            .overlay(alignment: .bottomLeading) {
+                if photo.cutout != nil {
+                    Button { photo.useCutout.toggle() } label: {
+                        Image(systemName: "scissors").font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(photo.useCutout ? Theme.paper : Theme.ink)
+                            .frame(width: 28, height: 28)
+                            .background(photo.useCutout ? Theme.ink : Theme.paper, in: Circle())
+                    }
+                    .accessibilityLabel(photo.useCutout ? "Background removed. Use original" : "Original. Remove background")
+                    .padding(2)
+                }
+            }
+    }
 }

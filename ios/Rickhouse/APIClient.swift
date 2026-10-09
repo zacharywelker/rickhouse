@@ -246,18 +246,18 @@ struct APIClient {
     }
 
     /// Multipart upload to the web route; the first photo becomes the bottle's hero shot.
-    func uploadImages(bottleId: Int, jpegs: [Data]) async throws {
+    func uploadImages(bottleId: Int, images: [UploadImage]) async throws {
         let boundary = "rickhouse-\(UUID().uuidString)"
         var req = request(path: "api/bottles/\(bottleId)/images")
         req.httpMethod = "POST"
         req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
         var body = Data()
-        for (index, jpeg) in jpegs.enumerated() {
+        for (index, image) in images.enumerated() {
             body.append(Data("--\(boundary)\r\n".utf8))
-            body.append(Data("Content-Disposition: form-data; name=\"images\"; filename=\"photo-\(index).jpg\"\r\n".utf8))
-            body.append(Data("Content-Type: image/jpeg\r\n\r\n".utf8))
-            body.append(jpeg)
+            body.append(Data("Content-Disposition: form-data; name=\"images\"; filename=\"photo-\(index).\(image.ext)\"\r\n".utf8))
+            body.append(Data("Content-Type: \(image.mime)\r\n\r\n".utf8))
+            body.append(image.data)
             body.append(Data("\r\n".utf8))
         }
         body.append(Data("--\(boundary)--\r\n".utf8))
