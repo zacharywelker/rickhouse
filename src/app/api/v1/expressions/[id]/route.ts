@@ -44,6 +44,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     brandId: expression.brandId,
     name: expression.name,
     category: row.category.name,
+    categoryId: expression.categoryId,
     upc: expression.upc,
     proof: expression.proof,
     ageStatement: expression.ageStatement,
