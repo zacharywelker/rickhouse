@@ -4,6 +4,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { env } from "./env";
+import { buildTile, tilePathFor } from "./cutout-tile";
 import { analyzeAlpha } from "./trim-transparent";
 
 /**
@@ -17,6 +18,7 @@ import { analyzeAlpha } from "./trim-transparent";
 
 const ORIGINALS = "bottles";
 const THUMBS = "bottles/thumbs";
+const TILES = "bottles/tiles";
 const GROUP_ORIGINALS = "groups";
 const GROUP_THUMBS = "groups/thumbs";
 const COLA_ORIGINALS = "colas";
@@ -138,6 +140,10 @@ async function storeImageBytes(
 
   await writeFile(resolveUpload(fileRelative), full.data);
   await writeFile(resolveUpload(thumbRelative), thumb);
+  // A bottle cutout also gets its gallery tile now. A failure here must not lose the upload: the tile is built on first request instead.
+  if (isCutout && originalsDir === ORIGINALS) {
+    await writeTile(id, full.data).catch((error: unknown) => console.warn("[rickhouse] could not build tile", id, error));
+  }
 
   let displayRelative: string | undefined;
   if (encoding.display) {
@@ -159,6 +165,42 @@ async function storeImageBytes(
     height: full.info.height,
     isCutout,
   };
+}
+
+/** Builds and stores a bottle cutout's tile next to its photo. False when the photo is not a cutout. */
+async function writeTile(id: string, source: Buffer): Promise<boolean> {
+  const tile = await buildTile(source);
+  if (!tile) return false;
+  await mkdir(path.join(uploadRoot(), TILES), { recursive: true });
+  await writeFile(resolveUpload(path.posix.join(TILES, `${id}.webp`)), tile);
+  return true;
+}
+
+const tilesInFlight = new Map<string, Promise<boolean>>();
+let tileJobs = 0;
+const tileQueue: Array<() => void> = [];
+
+/**
+ * Makes a tile that does not exist yet, from the stored photo with the same id: photos uploaded
+ * before tiles existed get theirs the first time a gallery asks. One build per id at a time, and
+ * two at once overall, so opening a big gallery for the first time cannot flatten the server.
+ */
+export function ensureTile(id: string): Promise<boolean> {
+  let job = tilesInFlight.get(id);
+  if (!job) {
+    job = (async () => {
+      if (tileJobs >= 2) await new Promise<void>((resolve) => tileQueue.push(resolve));
+      tileJobs++;
+      try {
+        return await writeTile(id, await readFile(resolveUpload(path.posix.join(ORIGINALS, `${id}.webp`))));
+      } finally {
+        tileJobs--;
+        tileQueue.shift()?.();
+      }
+    })().finally(() => tilesInFlight.delete(id));
+    tilesInFlight.set(id, job);
+  }
+  return job;
 }
 
 export async function storeBottleImage(file: File): Promise<StoredImage> {
@@ -207,7 +249,7 @@ export async function deleteStoredImage(
   thumbPath: string | null,
   displayPath: string | null = null,
 ): Promise<void> {
-  for (const relative of [filePath, thumbPath, displayPath]) {
+  for (const relative of [filePath, thumbPath, thumbPath && tilePathFor(thumbPath), displayPath]) {
     if (!relative) continue;
     try {
       await unlink(resolveUpload(relative));

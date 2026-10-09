@@ -27,8 +27,9 @@ export type AlphaAnalysis = {
  * Takes already-oriented pixels (sharp's `.rotate()` applied) so the box is in
  * the same coordinate space the crop will run in. The box is null when there
  * is nothing to do: no alpha channel, fully transparent, or already tight.
+ * `padding` is the margin kept around the subject, as a fraction of its size.
  */
-export async function analyzeAlpha(oriented: Sharp): Promise<AlphaAnalysis> {
+export async function analyzeAlpha(oriented: Sharp, padding = PADDING): Promise<AlphaAnalysis> {
   const meta = await oriented.clone().metadata();
   if (!meta.hasAlpha) return { box: null, isCutout: false, transparentShare: 0 };
 
@@ -63,8 +64,8 @@ export async function analyzeAlpha(oriented: Sharp): Promise<AlphaAnalysis> {
   if (maxX < 0) return { box: null, isCutout: false, transparentShare };
   const isCutout = transparentShare >= CUTOUT_MIN_TRANSPARENT;
 
-  const padX = Math.round((maxX - minX + 1) * PADDING);
-  const padY = Math.round((maxY - minY + 1) * PADDING);
+  const padX = Math.round((maxX - minX + 1) * padding);
+  const padY = Math.round((maxY - minY + 1) * padding);
   const left = Math.max(0, minX - padX);
   const top = Math.max(0, minY - padY);
   const right = Math.min(width - 1, maxX + padX);
