@@ -124,6 +124,8 @@ Reached from a tasting row or from Find a label. Top to bottom:
 Bottle facts (fill, price paid, status) are not on this page; they live in the Collection tab. An empty label shows
 "No tastings yet" in place of the list; the button and the facts stay.
 
+*Revised in 8.4: the Find a label segment and the page for a label you own.*
+
 ### 8.3 Flavor picker
 
 The wheel, as a full screen pushed from the form with Back and Done. A small bottle photo and name stay at the
@@ -131,6 +133,54 @@ top. Tapping a slice chooses a **category**; its **descriptors** show as chips b
 are listed at the bottom. Slices are never the target for descriptors, because the bourbon wheel has 16 categories
 and over 200 descriptors, too small to tap. Drawing the wheel needs the Council's artwork or a redraw of it, which the
 permission note in section 5 covers.
+
+### 8.4 Revision: a label index, and the bottle first (decided 2026-10-11)
+
+Decided in a second mockup review. Find a label looked too much like the Tastings feed, and for a label you own,
+the bottle mattered more than the tasting history. Scores in the images are sample data.
+
+![Labels index](assets/labels-tab-index.png)
+![Label page, owned](assets/label-page-owned.png)
+![Label page, not owned](assets/label-page-unowned.png)
+
+**Labels tab.** The segments are **Tastings | Labels**. Tastings is 8.1, unchanged. Labels replaces Find a label:
+
+- An index of every label you own or have tasted, A to Z by brand. The brand is printed once, on a shaded bar, and
+  each label under it is one line: name, proof, and your average score ("–" when there is none). No photos and no
+  large serif scores, so the index never reads as the feed.
+- A small boxed number after the name is the count of bottles you own.
+- Letters on the right edge jump through the index. Search, above the list, filters it in place and matches brand
+  and name. When nothing matches it offers **New label "…"**, as Find a label did.
+
+**Label page, owned.** Top to bottom:
+
+1. Header: photo, brand, name, category swatch, proof and age. It is no longer a bordered link.
+2. **One bottle:** a "Your bottle" box with its status, a fill bar, the amount left, the date opened, price paid
+   and store, and "Bottle ›" into its page. **Several bottles:** "Your N bottles", one row each, open bottles first,
+   each with a fill bar and one line (status, then the level and opened date, or price and store, or the gift),
+   each opening that bottle.
+3. **Log a tasting** beside **Update fill** (one bottle) or **Add another** (several).
+4. The average, with "average of N · range a to b", and from 3 tastings a line of every score over time with the
+   average as a dashed rule. Under 3 tastings, only the average.
+5. One "Latest" line (date, score, flavors) and "N ›" to the full list.
+6. **Flavors you note**: the most frequent flavors as plain bars with counts. From 3 tastings.
+7. **About this label**, as in 8.2.
+
+This reverses 8.2's rule that bottle facts stay in the Collection tab, for owned labels only.
+
+**Label page, not owned.** The 8.2 order (header, Log a tasting, tastings, the add box, About). Empty facts show
+"Add" instead of being hidden.
+
+**Edit** (#210) is in the navigation bar on every label page, owned or not. The not-owned image shows it on the
+About panel; that sketch is older than this decision.
+
+**Before building:**
+
+- The index needs each label's average, tasting count and bottle count. No endpoint returns them per label yet.
+- The opened date is not in `LabelBottle`; add it or leave it out of the box.
+- **Update fill** must use the bottle page's fill logic, not a copy of it.
+- The average needs a rule for tastings with no score.
+- The letter strip needs its own space at the right edge; in the sketch it crowds the score column.
 
 ## 7. Not decided here
 
