@@ -15,6 +15,8 @@ struct FindLabelView: View {
     var onPick: (LabelOption, String?) -> Void
     /// Nothing fits: start a label with the held barcode and whatever was typed.
     var onNewLabel: (_ code: String?, _ typed: String) -> Void
+    /// Opens the scanner straight away, for the + menu's barcode lookup.
+    var scanOnAppear = false
 
     @State private var query = ""
     @State private var results: [LabelOption] = []
@@ -28,6 +30,7 @@ struct FindLabelView: View {
     @State private var scanning = false
     @State private var typingCode = false
     @State private var typedCode = ""
+    @State private var openedScanner = false
 
     private var shown: [LabelOption] { scanMatches ?? results }
 
@@ -98,6 +101,11 @@ struct FindLabelView: View {
                 Button { scanning = true } label: { Image(systemName: "barcode.viewfinder") }
                     .accessibilityLabel("Scan a barcode")
             }
+        }
+        .onAppear {
+            guard scanOnAppear, !openedScanner else { return }
+            openedScanner = true
+            scanning = true
         }
         .onChange(of: query) { scanMatches = nil }
         .task(id: "\(query)#\(attempt)") { await search() }

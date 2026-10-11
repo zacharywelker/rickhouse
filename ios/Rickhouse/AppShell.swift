@@ -42,6 +42,7 @@ struct AppShell: View {
         .sheet(item: $flow) { choice in
             switch choice {
             case .addBottle: AddBottleView { reloadSignal += 1; tab = .collection }
+            case .scan: BarcodeLookupView { reloadSignal += 1 }
             case .logTasting: LogTastingFlow { tastingSignal += 1; tab = .labels }
             case .tonight: TonightFlow { tastingSignal += 1; tab = .labels }
             }

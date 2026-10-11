@@ -36,6 +36,11 @@ struct LabelPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .task { await session.loadWheels() }
+        .addsPhotos(label?.photoPath == nil ? "Add a label photo" : "Replace the label photo") { image in
+            guard let api = session.api else { return }
+            try await api.uploadLabelPhoto(expressionId: id, image: image)
+            await load()
+        }
         .confirmsTastingDeletion($deletingTasting) { _ in Task { await load() } }
         .fullScreenCover(isPresented: $viewingPhoto) {
             if let label, let path = label.photoPath {

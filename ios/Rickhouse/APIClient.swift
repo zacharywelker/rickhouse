@@ -311,15 +311,24 @@ struct APIClient {
 
     /// Multipart upload to the web route; the first photo becomes the bottle's hero shot.
     func uploadImages(bottleId: Int, images: [UploadImage]) async throws {
+        try await upload("api/bottles/\(bottleId)/images", field: "images", images: images)
+    }
+
+    /// Sets a label's photo through the web route, replacing the one it had.
+    func uploadLabelPhoto(expressionId: Int, image: UploadImage) async throws {
+        try await upload("api/expressions/\(expressionId)/photo", field: "photo", images: [image])
+    }
+
+    private func upload(_ path: String, field: String, images: [UploadImage]) async throws {
         let boundary = "rickhouse-\(UUID().uuidString)"
-        var req = request(path: "api/bottles/\(bottleId)/images")
+        var req = request(path: path)
         req.httpMethod = "POST"
         req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
         var body = Data()
         for (index, image) in images.enumerated() {
             body.append(Data("--\(boundary)\r\n".utf8))
-            body.append(Data("Content-Disposition: form-data; name=\"images\"; filename=\"photo-\(index).\(image.ext)\"\r\n".utf8))
+            body.append(Data("Content-Disposition: form-data; name=\"\(field)\"; filename=\"photo-\(index).\(image.ext)\"\r\n".utf8))
             body.append(Data("Content-Type: \(image.mime)\r\n\r\n".utf8))
             body.append(image.data)
             body.append(Data("\r\n".utf8))

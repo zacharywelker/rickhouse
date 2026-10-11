@@ -59,6 +59,12 @@ struct BottleDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .task { await session.loadWheels() }
+        .addsPhotos("Add a photo") { image in
+            guard let api = session.api else { return }
+            try await api.uploadImages(bottleId: id, images: [image])
+            await load()
+            onChanged()
+        }
         .confirmationDialog("Discard your changes?", isPresented: $discarding, titleVisibility: .visible) {
             Button("Discard changes", role: .destructive) { stopEditing() }
             Button("Keep editing", role: .cancel) {}
