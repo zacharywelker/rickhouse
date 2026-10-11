@@ -509,6 +509,7 @@ export async function bottlesOfLabel(expressionId: number, ownerId: number, rele
       ageStatement: bottles.ageStatement,
       pricePaid: bottles.pricePaid,
       dateAcquired: bottles.dateAcquired,
+      dateOpened: bottles.dateOpened,
       fillPct: bottles.fillPct,
       status: bottles.status,
       isOpen: bottles.isOpen,
@@ -539,6 +540,32 @@ export async function bottlesOfLabel(expressionId: number, ownerId: number, rele
       ),
     )
     .orderBy(sql`${bottles.dateAcquired} desc nulls last`, desc(bottles.id));
+}
+
+/**
+ * Every label of the owner, A to Z by brand then name, with what the phone's label index shows: how many bottles
+ * of it they have, how many tastings, the average of the scored ones (unscored tastings count, but don't drag the
+ * average), and the newest tasting date.
+ */
+export async function labelIndex(ownerId: number) {
+  // ponytail: the whole catalog in one answer; page it if a collection reaches thousands of labels.
+  return db
+    .select({
+      id: expressions.id,
+      brand: brands.name,
+      name: expressions.name,
+      category: categories.name,
+      proof: expressions.proof,
+      bottleCount: sql<number>`(select count(*) from ${bottles} where ${bottles.expressionId} = ${expressions.id} and ${bottles.ownerId} = ${ownerId})`.mapWith(Number),
+      tastingCount: sql<number>`(select count(*) from ${tastingNotes} where ${tastingNotes.expressionId} = ${expressions.id} and ${tastingNotes.ownerId} = ${ownerId})`.mapWith(Number),
+      averageRating: sql<string | null>`(select round(avg(${tastingNotes.rating}), 1)::text from ${tastingNotes} where ${tastingNotes.expressionId} = ${expressions.id} and ${tastingNotes.ownerId} = ${ownerId})`,
+      lastTastedOn: sql<string | null>`(select max(${tastingNotes.tastedOn})::text from ${tastingNotes} where ${tastingNotes.expressionId} = ${expressions.id} and ${tastingNotes.ownerId} = ${ownerId})`,
+    })
+    .from(expressions)
+    .innerJoin(brands, eq(brands.id, expressions.brandId))
+    .innerJoin(categories, eq(categories.id, expressions.categoryId))
+    .where(eq(expressions.ownerId, ownerId))
+    .orderBy(sql`lower(${brands.name})`, sql`lower(${expressions.name})`, asc(expressions.id));
 }
 
 /**

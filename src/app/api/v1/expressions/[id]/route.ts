@@ -82,6 +82,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       barrelNumber: b.barrelNumber,
       pricePaid: b.pricePaid,
       dateAcquired: b.dateAcquired,
+      dateOpened: b.dateOpened,
       store: b.store?.name ?? null,
       thumbPath: b.thumbPath,
     })),
