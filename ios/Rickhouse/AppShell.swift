@@ -13,6 +13,8 @@ struct AppShell: View {
     /// The flow chosen in the Add sheet; set while it closes, shown once it has.
     @State private var chosen: AddChoice?
     @State private var flow: AddChoice?
+    /// The barcode lookup, full screen so its scanner is the first thing to slide up.
+    @State private var scanning = false
     @State private var reloadSignal = 0
     /// Bumped when a tasting is logged, so the Labels tab reloads its history.
     @State private var tastingSignal = 0
@@ -37,18 +39,16 @@ struct AppShell: View {
         }
         .background(Theme.paper)
         .sheet(isPresented: $showingAddSheet, onDismiss: {
-            // The lookup's own scanner slides up at once; the page under it comes in without a slide of its own.
-            var t = Transaction()
-            t.disablesAnimations = chosen == .scan
-            withTransaction(t) { flow = chosen }
+            if chosen == .scan { scanning = true } else { flow = chosen }
             chosen = nil
         }) {
             AddSheet { chosen = $0; showingAddSheet = false }
         }
+        .fullScreenCover(isPresented: $scanning) { BarcodeLookupView { reloadSignal += 1 } }
         .sheet(item: $flow) { choice in
             switch choice {
             case .addBottle: AddBottleView { reloadSignal += 1; tab = .collection }
-            case .scan: BarcodeLookupView { reloadSignal += 1 }
+            case .scan: EmptyView()
             case .logTasting: LogTastingFlow { tastingSignal += 1; tab = .labels }
             case .tonight: TonightFlow { tastingSignal += 1; tab = .labels }
             }

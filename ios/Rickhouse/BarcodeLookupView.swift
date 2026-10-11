@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The + menu's barcode lookup: scan, then land on the label's page, where your bottles of it are
+/// The + menu's barcode lookup: the scanner first, with the search coming in behind it once the scanner has
+/// slid up. Then land on the label's page, where your bottles of it are
 /// and a bottle can be added. A code no label has falls back to the name search (the label picked
 /// there remembers the code) or to starting a new label with it.
 struct BarcodeLookupView: View {
@@ -14,8 +15,31 @@ struct BarcodeLookupView: View {
     }
 
     @State private var path: [Step] = []
+    @State private var scannerUp = true
+    @State private var searchReady = false
+    @State private var code: String?
+    @State private var typing = false
 
     var body: some View {
+        ZStack {
+            Theme.paper.ignoresSafeArea()
+            if searchReady { search }
+            if scannerUp {
+                // Its Cancel closes the whole lookup.
+                ScanScreen(
+                    onCode: { code = $0; searchReady = true; scannerUp = false },
+                    onType: { typing = true; searchReady = true; scannerUp = false }
+                )
+            }
+        }
+        .task {
+            // About the length of the full-screen slide; building the search during it would stutter the slide.
+            try? await Task.sleep(for: .milliseconds(500))
+            searchReady = true
+        }
+    }
+
+    private var search: some View {
         NavigationStack(path: $path) {
             FindLabelView(
                 title: "Look up a barcode",
@@ -26,7 +50,8 @@ struct BarcodeLookupView: View {
                     path.append(.label(label.id))
                 },
                 onNewLabel: { code, name in path.append(.newLabel(code: code, name: name)) },
-                scanOnAppear: true
+                scannedCode: code,
+                startTyping: typing
             )
             .navigationDestination(for: Step.self) { step in
                 switch step {
