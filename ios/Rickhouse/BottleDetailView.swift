@@ -204,23 +204,8 @@ struct BottleDetailView: View {
                 Text(state.text + (b.isOpen ? " · open" : "")).font(.inter(16, .medium))
             }
             .accessibilityElement(children: .combine)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                ForEach(FillState.all) { option in
-                    Button { Task { await setFill(option.percent) } } label: {
-                        Text(option.label)
-                            .font(.inter(15, .medium))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .foregroundStyle(option == state ? Theme.paper : Theme.ink)
-                            .background(option == state ? Theme.ink : Color.clear, in: RoundedRectangle(cornerRadius: 8))
-                            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(settingFill)
-                    .accessibilityLabel(option.spoken)
-                    .accessibilityAddTraits(option == state ? .isSelected : [])
-                }
-            }
-            .padding(.vertical, 4)
+            FillPicker(percent: b.fillPct, disabled: settingFill) { percent in Task { await setFill(percent) } }
+                .padding(.vertical, 4)
             if let actionError {
                 ErrorText(actionError)
             }

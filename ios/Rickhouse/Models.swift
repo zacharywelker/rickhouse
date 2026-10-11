@@ -138,6 +138,28 @@ struct LabelOption: Decodable, Identifiable, Hashable {
 
 struct LabelsResponse: Decodable { let expressions: [LabelOption] }
 
+/// One line of the Labels index: a label of yours with how many bottles and tastings you have of it.
+struct LabelIndexEntry: Decodable, Identifiable, Hashable {
+    let id: Int
+    let brand: String
+    let name: String
+    let category: String
+    let proof: String?
+    let bottleCount: Int
+    let tastingCount: Int
+    /// The average of the scored tastings, one decimal; nil when none is scored.
+    let averageRating: String?
+    let lastTastedOn: String?
+
+    /// Every typed word has to appear in the brand, the name or the category, as the server's label search does.
+    func matches(_ query: String) -> Bool {
+        let haystack = "\(brand) \(name) \(category)"
+        return query.split(whereSeparator: \.isWhitespace).allSatisfy { haystack.localizedStandardContains($0) }
+    }
+}
+
+struct LabelIndexResponse: Decodable { let labels: [LabelIndexEntry] }
+
 /// One row of the tasting history: a note, with the label and bottle it belongs to.
 struct TastingEntry: Decodable, Identifiable {
     let id: Int
@@ -222,6 +244,8 @@ struct LabelBottle: Decodable, Identifiable, Hashable {
     let barrelNumber: String?
     let pricePaid: String?
     let dateAcquired: String?
+    /// Absent from an older server.
+    let dateOpened: String?
     let store: String?
     let thumbPath: String?
 }

@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// The Labels tab, in two parts chosen by a segmented control: the tasting history (the default) and a search for labels.
-/// Both kinds of row open the label's page.
+/// The Labels tab, in two parts chosen by a segmented control: the tasting history (the default) and an index of every
+/// label of yours, A to Z by brand, that the search above it filters. Both kinds of row open the label's page.
 struct LabelsView: View {
     private enum Mode: String, CaseIterable, Identifiable {
-        case tastings = "Tastings", find = "Find a label"
+        case tastings = "Tastings", labels = "Labels"
         var id: String { rawValue }
     }
 
@@ -14,9 +14,9 @@ struct LabelsView: View {
 
     @State private var mode = Mode.tastings
     @State private var query = ""
-    @State private var results: [LabelOption] = []
-    @State private var searched = false
-    @State private var searchFailure: String?
+    @State private var index: [LabelIndexEntry] = []
+    @State private var indexLoaded = false
+    @State private var indexFailure: String?
 
     @State private var history: [TastingEntry] = []
     @State private var historyPage = 1
@@ -32,7 +32,20 @@ struct LabelsView: View {
 
     private struct NewLabelStart: Hashable { let name: String }
 
-    private var searching: Bool { mode == .find && !query.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
+
+    /// The index after the search, cut into brands. Brands are already in order; a brand's labels stay together.
+    private var brands: [(brand: String, labels: [LabelIndexEntry])] {
+        var out: [(brand: String, labels: [LabelIndexEntry])] = []
+        for label in index where trimmedQuery.isEmpty || label.matches(trimmedQuery) {
+            if out.last?.brand.localizedCaseInsensitiveCompare(label.brand) == .orderedSame {
+                out[out.count - 1].labels.append(label)
+            } else {
+                out.append((label.brand, [label]))
+            }
+        }
+        return out
+    }
 
     /// The history in the order it came, cut into months.
     private var months: [(title: String, entries: [TastingEntry])] {
@@ -54,7 +67,7 @@ struct LabelsView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
 
-                if mode == .find { SearchField(prompt: "Brand or name", text: $query) }
+                if mode == .labels { SearchField(prompt: "Search your labels", text: $query) }
 
                 List {
                     switch mode {
@@ -78,17 +91,38 @@ struct LabelsView: View {
                                     .foregroundStyle(Theme.muted)
                             }
                         }
-                    case .find:
-                        ForEach(results) { label in
-                            NavigationLink { LabelPage(id: label.id) } label: { LabelRow(label: label) }
-                                .listRowBackground(Theme.paper)
+                    case .labels:
+                        ForEach(brands, id: \.brand) { group in
+                            Section {
+                                ForEach(group.labels) { label in
+                                    NavigationLink { LabelPage(id: label.id) } label: { LabelIndexRow(label: label) }
+                                        .listRowBackground(Theme.paper)
+                                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                                }
+                            } header: {
+                                Text(group.brand)
+                                    .font(.inter(12, .semibold, relativeTo: .caption))
+                                    .textCase(.uppercase)
+                                    .tracking(0.8)
+                                    .foregroundStyle(Theme.muted)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 5)
+                                    .background(Theme.ink.opacity(0.07))
+                                    .listRowInsets(EdgeInsets())
+                                    .accessibilityAddTraits(.isHeader)
+                            }
+                            .sectionIndexLabel(String(group.brand.prefix(1)).uppercased())
                         }
-                        if searching && searched && !results.isEmpty {
+                        if !trimmedQuery.isEmpty && !brands.isEmpty {
                             createButton.listRowBackground(Theme.paper)
                         }
                     }
                 }
                 .listStyle(.plain)
+                .listSectionIndexVisibility(mode == .labels && trimmedQuery.isEmpty ? .visible : .hidden)
+                .listSectionSpacing(0)
+                .environment(\.defaultMinListHeaderHeight, mode == .labels ? 0 : nil)
                 .scrollContentBackground(.hidden)
                 .overlay { stateOverlay }
             }
@@ -102,29 +136,35 @@ struct LabelsView: View {
                 }
             }
             .navigationDestination(item: $openedLabel) { LabelPage(id: $0) }
-            .task(id: query) { await search() }
             .task(id: attempt) { await reloadHistory() }
+            .task(id: "\(mode)#\(attempt)") { if mode == .labels { await loadIndex() } }
             .task { await session.loadWheels() }
             .confirmsTastingDeletion($deletingTasting) { id in history.removeAll { $0.id == id } }
             .onChange(of: reloadSignal) { attempt += 1 }
-            .refreshable { if mode == .tastings { await reloadHistory() } }
+            .refreshable { if mode == .tastings { await reloadHistory() } else { await loadIndex() } }
         }
     }
 
     @ViewBuilder
     private var stateOverlay: some View {
-        if mode == .find {
-            if !searching {
-                ContentUnavailableView("Find a label", systemImage: "text.magnifyingglass", description: Text("Type a brand or name to open its page."))
-            } else if let searchFailure {
-                ContentUnavailableView("Couldn't search", systemImage: "wifi.slash", description: Text(searchFailure))
-            } else if results.isEmpty && searched {
+        if mode == .labels {
+            if let indexFailure, index.isEmpty {
                 ContentUnavailableView {
-                    Label("No label found", systemImage: "magnifyingglass")
+                    Label("Couldn't load labels", systemImage: "wifi.slash")
                 } description: {
-                    Text("Nothing matches that search.")
+                    Text(indexFailure)
                 } actions: {
-                    createButton
+                    Button("Try again") { attempt += 1 }
+                }
+            } else if !indexLoaded {
+                ProgressView()
+            } else if brands.isEmpty {
+                ContentUnavailableView {
+                    Label(trimmedQuery.isEmpty ? "No labels yet" : "No label found", systemImage: "magnifyingglass")
+                } description: {
+                    Text(trimmedQuery.isEmpty ? "Add a bottle or log a tasting with the + tab." : "Nothing of yours matches that search.")
+                } actions: {
+                    if !trimmedQuery.isEmpty { createButton }
                 }
             }
         } else if let historyFailure, history.isEmpty {
@@ -149,9 +189,9 @@ struct LabelsView: View {
     /// Starts a new label from what was typed, for a bottle the search can't find.
     private var createButton: some View {
         Button {
-            creating = NewLabelStart(name: query.trimmingCharacters(in: .whitespaces))
+            creating = NewLabelStart(name: trimmedQuery)
         } label: {
-            Label("Create a new label", systemImage: "plus")
+            Label("New label \u{201C}\(trimmedQuery)\u{201D}", systemImage: "plus")
                 .font(.inter(16, .semibold, relativeTo: .headline))
                 .foregroundStyle(Theme.ink)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -161,26 +201,16 @@ struct LabelsView: View {
 
     // MARK: Loading
 
-    private func search() async {
-        guard searching else {
-            results = []
-            searched = false
-            searchFailure = nil
-            return
-        }
-        try? await Task.sleep(for: .milliseconds(250))
-        guard !Task.isCancelled, let api = session.api else { return }
+    private func loadIndex() async {
+        guard let api = session.api else { return }
         do {
-            results = try await api.labels(matching: query)
-            searchFailure = nil
-            searched = true
+            index = try await api.labelIndex()
+            indexLoaded = true
+            indexFailure = nil
         } catch APIError.unauthorized {
             session.signOut()
         } catch {
-            // A newer keystroke cancels this request; that isn't a failure.
-            guard !Task.isCancelled else { return }
-            results = []
-            searchFailure = error.localizedDescription
+            if !(error is CancellationError) { indexFailure = error.localizedDescription }
         }
     }
 
@@ -217,29 +247,47 @@ struct LabelsView: View {
     }
 }
 
-/// A label in the search results.
-struct LabelRow: View {
-    let label: LabelOption
+/// One line of the Labels index: the name with a boxed count of bottles you own, the proof, and your average.
+/// No photo and no large score, so it never reads as the tasting history.
+struct LabelIndexRow: View {
+    let label: LabelIndexEntry
 
     var body: some View {
-        HStack(spacing: 12) {
-            LabelThumb(path: label.thumbPath, category: label.category)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label.brand).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
-                Text(label.name).font(.inter(16, .semibold, relativeTo: .headline)).foregroundStyle(Theme.ink)
-                HStack(spacing: 4) {
-                    Rectangle().fill(CategoryPalette.color(for: label.category))
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(label.name).font(.inter(16, .medium, relativeTo: .body)).foregroundStyle(Theme.ink).lineLimit(1)
+                if label.bottleCount > 0 {
+                    Text("\(label.bottleCount)")
+                        .font(.inter(11, .semibold, relativeTo: .caption2)).monospacedDigit()
+                        .padding(.horizontal, 4)
                         .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
-                        .frame(width: 8, height: 8)
-                        .accessibilityHidden(true)
-                    Text([label.category, Format.proof(label.proof)].compactMap { $0 }.joined(separator: " · "))
-                        .font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                        .foregroundStyle(Theme.ink)
+                        .layoutPriority(1)
                 }
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            Text(Format.proof(label.proof) ?? "")
+                .font(.inter(13, relativeTo: .footnote)).foregroundStyle(Theme.muted).monospacedDigit()
+            Text(Format.score(label.averageRating) ?? "–")
+                .font(.inter(16, label.averageRating == nil ? .regular : .semibold, relativeTo: .body)).monospacedDigit()
+                .foregroundStyle(label.averageRating == nil ? Theme.muted : Theme.ink)
+                .frame(minWidth: 32, alignment: .trailing)
         }
-        .frame(minHeight: 60)
-        .accessibilityElement(children: .combine)
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+    }
+
+    private var spoken: String {
+        var parts = [label.name]
+        if let proof = Format.proof(label.proof) { parts.append(proof) }
+        if label.bottleCount > 0 { parts.append(label.bottleCount == 1 ? "1 bottle" : "\(label.bottleCount) bottles") }
+        if let score = Format.score(label.averageRating) {
+            parts.append("average \(score) of \(label.tastingCount) \(label.tastingCount == 1 ? "tasting" : "tastings")")
+        } else if label.tastingCount == 0 {
+            parts.append("no tastings")
+        }
+        return parts.joined(separator: ", ")
     }
 }
 
