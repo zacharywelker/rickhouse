@@ -6,6 +6,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ImagePlus, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Inferred } from "@/components/ui/inferred";
 import { initialFieldValues } from "@/components/forms/field";
@@ -200,6 +202,7 @@ export function CatalogBottle({
   const [bottleOptionsState, setBottleOptions] = React.useState(bottleOptions);
   const [bottleValues, setBottleValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, null));
   const [photos, setPhotos] = React.useState<Staged[]>([]);
+  const [photoLink, setPhotoLink] = React.useState("");
   // Previews are object URLs; let them go when the page does.
   const photosRef = React.useRef(photos);
   React.useEffect(() => {
@@ -254,13 +257,20 @@ export function CatalogBottle({
     }
 
     // Photos go up once the bottle exists, through the bottle page's own route.
-    if (photos.length > 0) {
+    // The bottle is saved either way; a failed upload is said on its page, not lost.
+    let photosFailed = false;
+    const link = photoLink.trim();
+    if (photos.length > 0 || link !== "") {
       const body = new FormData();
       for (const photo of photos) body.append("images", photo.file);
-      await fetch(`/api/bottles/${result.bottleId}/images`, { method: "POST", body }).catch(() => null);
+      if (link !== "") body.append("imageUrl", link);
+      const uploaded = await fetch(`/api/bottles/${result.bottleId}/images`, { method: "POST", body })
+        .then((response) => response.json() as Promise<{ ok: boolean }>)
+        .catch(() => null);
+      photosFailed = !uploaded?.ok;
     }
 
-    router.push(`/bottles/${result.bottleId}`);
+    router.push(`/bottles/${result.bottleId}${photosFailed ? "?photos=failed" : ""}`);
     router.refresh();
   };
 
@@ -414,6 +424,18 @@ export function CatalogBottle({
                   }}
                 />
               </label>
+              <div className="flex w-full flex-col gap-1.5">
+                <Label htmlFor="photo-link">Or a link to a photo</Label>
+                <Input
+                  id="photo-link"
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://"
+                  value={photoLink}
+                  onChange={(event) => setPhotoLink(event.target.value)}
+                  className="max-w-md"
+                />
+              </div>
             </SectionContent>
           </Section>
         </>
