@@ -36,7 +36,13 @@ struct AppShell: View {
                 .tag(Tab.account)
         }
         .background(Theme.paper)
-        .sheet(isPresented: $showingAddSheet, onDismiss: { flow = chosen; chosen = nil }) {
+        .sheet(isPresented: $showingAddSheet, onDismiss: {
+            // The lookup's own scanner slides up at once; the page under it comes in without a slide of its own.
+            var t = Transaction()
+            t.disablesAnimations = chosen == .scan
+            withTransaction(t) { flow = chosen }
+            chosen = nil
+        }) {
             AddSheet { chosen = $0; showingAddSheet = false }
         }
         .sheet(item: $flow) { choice in
