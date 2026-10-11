@@ -293,6 +293,12 @@ struct APIClient {
         _ = try await sendObject("PATCH", "api/v1/expressions/\(id)", json: changes, as: LabelOption.self)
     }
 
+    /// Merges one of your labels into another: its bottles and tastings move across, the other label's facts win
+    /// unless `keepMine` names one to carry over, and this label is removed. It cannot be undone.
+    func mergeLabel(id: Int, into target: Int, keepMine: [String]) async throws -> MergeAnswer {
+        try await sendObject("POST", "api/v1/expressions/\(id)/merge", json: ["into": target, "keepMine": keepMine], as: MergeAnswer.self)
+    }
+
     /// Your own brands, distilleries, mashbills, finishes or stores, by name, for the pickers.
     func lookups(_ kind: LookupKind) async throws -> [LookupItem] {
         try await get("api/v1/lookups/\(kind.rawValue)", as: LookupsResponse.self).items

@@ -166,7 +166,11 @@ extension BottleDetailView {
     func labelField(_ fact: LabelFact) -> Binding<Field> {
         Binding(
             get: { labelDraft?[fact] ?? Field(nil) },
-            set: { labelDraft?[fact] = $0; fieldErrors[fact.rawValue] = nil }
+            set: {
+                labelDraft?[fact] = $0
+                fieldErrors[fact.rawValue] = nil
+                if fact == .name { nameClash = nil }
+            }
         )
     }
 
@@ -202,6 +206,19 @@ extension BottleDetailView {
                     onRevert: { labelDraft?[.brand].revert(); labelDraft?.brandName = b.brand }
                 )
                 EditRow(title: "Name", field: labelField(.name), error: fieldErrors[LabelFact.name.rawValue])
+                if let clash = nameClash, fieldErrors[LabelFact.name.rawValue] != nil {
+                    Button { Task { await startMerge(clash) } } label: {
+                        HStack {
+                            Text("Merge into that label").font(.inter(15, .semibold))
+                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                            Spacer()
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityHint("Moves this label's bottles and tastings to \(clash.title) and removes this label")
+                }
                 Picker(selection: categoryChoice) {
                     ForEach(categories) { option in Text(option.parent.map { "\($0) · \(option.name)" } ?? option.name).tag(option.id) }
                 } label: {
@@ -272,11 +289,56 @@ extension BottleDetailView {
                 session.signOut()
             } catch APIError.nameTaken(let existing) {
                 fieldErrors[LabelFact.name.rawValue] = "You already have \(existing.title)."
+                nameClash = existing
             } catch APIError.invalid(_, let message, let fields) {
                 show(message: message, fields: fields)
             } catch {
                 factError = error.localizedDescription
             }
+        }
+    }
+
+    // MARK: Merge
+
+    /// Reads both labels fresh, so the review shows what the server holds, then opens it.
+    func startMerge(_ existing: LabelRef) async {
+        guard let api = session.api, let labelId else { return }
+        factError = nil
+        do {
+            async let mine = api.label(id: labelId)
+            async let theirs = api.label(id: existing.id)
+            merging = MergeSetup(mine: try await mine, theirs: try await theirs)
+        } catch APIError.unauthorized {
+            session.signOut()
+        } catch {
+            factError = error.localizedDescription
+        }
+    }
+
+    /// The label is gone and its bottles are on the other: leave edit mode, read the bottle again, say what happened.
+    func finishMerge(_ answer: MergeAnswer, into theirs: LabelDetail) {
+        merging = nil
+        stopEditing()
+        undoTimer?.cancel()
+        undoOffer = nil
+        Task {
+            await load()
+            onChanged()
+            let moved = [answer.bottles > 0 ? (answer.bottles == 1 ? "1 bottle" : "\(answer.bottles) bottles") : nil,
+                         answer.tastings > 0 ? (answer.tastings == 1 ? "1 tasting" : "\(answer.tastings) tastings") : nil]
+                .compactMap { $0 }.joined(separator: " and ")
+            showNotice("Merged into \(theirs.brand) \(theirs.name)." + (moved.isEmpty ? "" : " \(moved) moved."))
+        }
+    }
+
+    /// A few seconds of words at the foot of the page, for what cannot be undone.
+    func showNotice(_ message: String) {
+        noticeTimer?.cancel()
+        notice = message
+        AccessibilityNotification.Announcement(message).post()
+        noticeTimer = Task {
+            try? await Task.sleep(for: .seconds(6))
+            if !Task.isCancelled { notice = nil }
         }
     }
 
@@ -312,6 +374,7 @@ extension BottleDetailView {
                     labelDraft?[.brand].text = String(item.id)
                     labelDraft?.brandName = item.name
                     fieldErrors[LabelFact.name.rawValue] = nil
+                    nameClash = nil
                 }
             }
         case .store:
@@ -343,6 +406,7 @@ extension BottleDetailView {
 
     func stopEditing() {
         picking = nil
+        nameClash = nil
         bottleDraft = nil
         labelDraft = nil
         labelId = nil
