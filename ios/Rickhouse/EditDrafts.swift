@@ -37,6 +37,30 @@ struct Field: Equatable {
     mutating func revert() { text = original }
 }
 
+extension Field {
+    init(original: String, text: String) {
+        self.init(original)
+        self.text = text
+    }
+}
+
+/// Proof is what is stored; ABV is half of it. Decimal, so 50.5 stays 101 and not 100.99999.
+enum Strength {
+    static func abv(fromProof proof: String) -> String {
+        guard let p = Decimal(string: proof.trimmingCharacters(in: .whitespaces)) else { return "" }
+        return plainNumber("\(p / 2)") ?? ""
+    }
+
+    static func proof(fromABV abv: String) -> String {
+        let t = abv.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty, var a = Decimal(string: t) else { return t.isEmpty ? "" : t }
+        a *= 2
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &a, 2, .plain)  // proof is saved with two places
+        return plainNumber("\(rounded)") ?? ""
+    }
+}
+
 /// "116.80" as "116.8" and "100.00" as "100": a proof as a person would type it back.
 func plainNumber(_ raw: String?) -> String? {
     guard var s = raw, s.contains(".") else { return raw }
@@ -172,6 +196,16 @@ struct LabelDraft {
     var brandName: String
     private(set) var links: LabelLinks
     private let originalLinks: LabelLinks
+
+    /// A label not made yet: nothing filled in, the usual 750 mL. `patch()` then holds only what was typed.
+    init() {
+        categoryName = ""
+        brandName = ""
+        links = LabelLinks(distilleries: [], mashbills: [], finishes: [])
+        originalLinks = links
+        fields = Dictionary(uniqueKeysWithValues: LabelFact.allCases.map { ($0, Field(nil)) })
+        fields[.size] = Field("750")
+    }
 
     init(_ label: LabelDetail) {
         categoryName = label.category

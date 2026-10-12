@@ -21,9 +21,6 @@ struct BottleDetailView: View {
     // Editing the bottle's and the label's facts (docs/superpowers/specs/2026-10-08-edit-facts-design.md). The views are in
     // BottleDetailEditing.swift; the state is here because an extension can't hold it.
     @State var bottleDraft: BottleDraft?
-    @State var labelDraft: LabelDraft?
-    @State var labelId: Int?
-    @State var labelBottleCount = 0
     @State var revealed: Set<BottleFact> = []
     @State var lastRevealed: BottleFact?
     @State var savingFacts = false
@@ -31,14 +28,9 @@ struct BottleDetailView: View {
     @State var fieldErrors: [String: String] = [:]
     @State var askOpened = false
     @State var discarding = false
-    @State var categories: [CategoryOption] = []
-    @State var undoOffer: UndoOffer?
-    @State var undoTimer: Task<Void, Never>?
     @State var picking: PickTarget?
-    @State var nameClash: LabelRef?
-    @State var merging: MergeSetup?
-    @State var notice: String?
-    @State var noticeTimer: Task<Void, Never>?
+    @State var editingLabel = false
+    @State var foot = FootBar()
 
     private struct NoteEdit: Identifiable {
         let id = UUID()
@@ -59,28 +51,45 @@ struct BottleDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .task { await session.loadWheels() }
-        .confirmationDialog("Discard your changes?", isPresented: $discarding, titleVisibility: .visible) {
-            Button("Discard changes", role: .destructive) { stopEditing() }
-            Button("Keep editing", role: .cancel) {}
-        } message: {
-            Text("Nothing you changed has been saved.")
+        .footBar(foot) { runUndo($0) }
+        .sheet(isPresented: editingBottle) {
+            NavigationStack {
+                if let bottle {
+                    List { bottleEditSections(bottle) }
+                        .scrollContentBackground(.hidden)
+                        .background(Theme.paper)
+                        .navigationTitle("Edit bottle")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: cancelEditing) }
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button(savingFacts ? "Saving…" : "Save") { saveBottle(choice: nil) }
+                                    .fontWeight(.semibold)
+                                    .disabled(savingFacts || !fieldErrors.isEmpty)
+                            }
+                        }
+                }
+            }
+            .interactiveDismissDisabled(bottleDraft?.isDirty ?? false)
+            .confirmationDialog("Discard your changes?", isPresented: $discarding, titleVisibility: .visible) {
+                Button("Discard changes", role: .destructive) { stopEditing() }
+                Button("Keep editing", role: .cancel) {}
+            } message: {
+                Text("Nothing you changed has been saved.")
+            }
+            .confirmationDialog("Keep the bottle open or mark it sealed?", isPresented: $askOpened, titleVisibility: .visible) {
+                Button("Keep it open, no date") { saveBottle(choice: .keepOpen) }
+                Button("Mark it sealed") { saveBottle(choice: .seal) }
+                Button("Keep the date", role: .cancel) { bottleDraft?[.opened].revert() }
+            } message: {
+                Text("You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.")
+            }
+            .sheet(item: $picking) { pickerSheet(for: $0) }
         }
-        .confirmationDialog("Keep the bottle open or mark it sealed?", isPresented: $askOpened, titleVisibility: .visible) {
-            Button("Keep it open, no date") { saveBottle(choice: .keepOpen) }
-            Button("Mark it sealed") { saveBottle(choice: .seal) }
-            Button("Keep the date", role: .cancel) { bottleDraft?[.opened].revert() }
-        } message: {
-            Text("You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.")
-        }
-        .overlay(alignment: .bottom) {
-            if let offer = undoOffer { UndoBar(offer: offer) { runUndo(offer) } }
-            else if let notice { NoticeBar(message: notice) }
-        }
-        .animation(.default, value: undoOffer?.id)
-        .animation(.default, value: notice)
-        .sheet(item: $picking) { pickerSheet(for: $0) }
-        .sheet(item: $merging) { setup in
-            MergeReview(plan: MergePlan(mine: setup.mine, theirs: setup.theirs)) { finishMerge($0, into: setup.theirs) }
+        .sheet(isPresented: $editingLabel) {
+            if let expressionId = bottle?.expressionId {
+                LabelEditor(id: expressionId, onSaved: labelSaved, onMerged: labelMerged)
+            }
         }
         .fullScreenCover(item: $viewing) { start in
             if let bottle {

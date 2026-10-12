@@ -1,7 +1,7 @@
 import Charts
 import SwiftUI
 
-/// One label, read rather than edited (spec 8.4). A label you own leads with your bottle: its fill and facts, then how
+/// One label (spec 8.4). Its facts are edited from "About this label", with or without a bottle of it (#210). A label you own leads with your bottle: its fill and facts, then how
 /// you score it over time, the latest tasting, the flavors you note, and the label's facts. A label you don't own leads
 /// with your tastings, then a box offering the bottle, then the facts.
 struct LabelPage: View {
@@ -9,14 +9,19 @@ struct LabelPage: View {
     static let shownTastings = 3
 
     @Environment(Session.self) private var session
-    let id: Int
+    /// Changes when the label is merged into another: the page follows the label that survived.
+    @State private var id: Int
     @State private var label: LabelDetail?
+    @State private var editing = false
+    @State private var foot = FootBar()
     @State private var error: String?
     @State private var loggingTasting = false
     @State private var deletingTasting: Int?
     @State private var addingBottle = false
     @State private var viewingPhoto = false
     @State private var fillingBottle: LabelBottle?
+
+    init(id: Int) { _id = State(initialValue: id) }
 
     var body: some View {
         Group {
@@ -66,6 +71,16 @@ struct LabelPage: View {
                     }
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { addingBottle = false } } }
                 }
+            }
+        }
+        .footBar(foot) { undo($0) }
+        .sheet(isPresented: $editing) {
+            LabelEditor(id: id) { offer in
+                Task { await load(); foot.offer(offer) }
+            } onMerged: { answer, theirs in
+                foot.dropUndo()
+                id = theirs.id
+                Task { await load(); foot.show(FootBar.merged(answer, into: theirs)) }
             }
         }
         .sheet(item: $fillingBottle) { bottle in
@@ -327,13 +342,20 @@ struct LabelPage: View {
 
     private func about(_ l: LabelDetail) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("About this label")
-                .font(.inter(12, .semibold, relativeTo: .caption))
-                .textCase(.uppercase)
-                .tracking(0.8)
-                .foregroundStyle(Theme.muted)
-                .padding(.bottom, 4)
-                .accessibilityAddTraits(.isHeader)
+            HStack {
+                Text("About this label")
+                    .font(.inter(12, .semibold, relativeTo: .caption))
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .foregroundStyle(Theme.muted)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button("Edit") { editing = true }
+                    .font(.inter(15, .semibold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityLabel("Edit label")
+            }
             fact("Age", l.ageStatement ?? l.ageYears.flatMap(Double.init).map { "\($0.formatted()) years" })
             fact("Size", "\(l.sizeMl) mL")
             fact("MSRP", l.msrp.map(Format.money))
@@ -374,6 +396,21 @@ struct LabelPage: View {
                 Rectangle().fill(Theme.ink.opacity(0.15)).frame(height: 1)
             }
             .accessibilityElement(children: .combine)
+        }
+    }
+
+    private func undo(_ offer: UndoOffer) {
+        foot.dropUndo()
+        Task {
+            do {
+                try await offer.run()
+                await load()
+                AccessibilityNotification.Announcement("Put back.").post()
+            } catch APIError.unauthorized {
+                session.signOut()
+            } catch {
+                foot.show("Couldn't put it back: \(error.localizedDescription)")
+            }
         }
     }
 

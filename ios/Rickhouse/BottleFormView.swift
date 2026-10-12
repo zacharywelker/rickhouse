@@ -65,6 +65,7 @@ struct BottleFormView: View {
                         Text(session.currencySymbol).foregroundStyle(Theme.muted)
                         TextField("0.00", text: $price)
                             .keyboardType(.decimalPad)
+                            .onChange(of: price) { _, text in let clean = Format.moneyInput(text); if clean != text { price = clean } }
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 120)
                     }

@@ -2,7 +2,8 @@ import PhotosUI
 import SwiftUI
 
 /// Start a label from the phone: a brand from your list, a name, a category, the scanned barcode and a photo.
-/// The rest of the label is filled in on the web (docs/superpowers/specs/2026-10-11-add-label-parity-design.md).
+/// The rest of the label's facts are on the same page (strength, age, size, MSRP, distilleries, mashbill, finishes),
+/// saved onto the label right after it is made.
 struct NewLabelView: View {
     @Environment(Session.self) private var session
 
@@ -24,8 +25,14 @@ struct NewLabelView: View {
     @State private var photo: FormPhoto?
     @State private var pickerItem: PhotosPickerItem?
     @State private var showCamera = false
-    /// The label is saved but its photo isn't: Save becomes Retry photo, and the label can be used without it.
+    /// The label is saved but its details or photo aren't: Save retries them, and the label can be used without them.
     @State private var made: LabelOption?
+    /// The facts past brand, name and category. Sent as a second request once the label exists.
+    @State private var draft = LabelDraft()
+    @State private var fieldErrors: [String: String] = [:]
+    @State private var picking: PickTarget?
+    /// The label is made and its facts are saved; only the photo can still be outstanding.
+    @State private var factsSaved = false
 
     init(code: String?, name: String, onDone: @escaping (LabelOption) -> Void) {
         self.code = code
@@ -70,6 +77,14 @@ struct NewLabelView: View {
             }
             .disabled(made != nil)
             Section {
+                LabelFactRows(draft: $draft, errors: fieldErrors, tracksChanges: false, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
+            } header: {
+                Text("About the label")
+            } footer: {
+                Text("Optional. Anything left out can be added later from the label's page.")
+            }
+            .disabled(factsSaved)
+            Section {
                 TextField("Barcode", text: $barcode).keyboardType(.numberPad)
             } footer: {
                 Text("Optional. The digits under the barcode, so a scan finds this label next time.")
@@ -100,7 +115,7 @@ struct NewLabelView: View {
             }
             if let made {
                 Section {
-                    Button("Continue without the photo") { onDone(made) }
+                    Button(factsSaved ? "Continue without the photo" : "Continue without them") { onDone(made) }
                 } footer: {
                     Text("The label is saved.")
                 }
@@ -113,7 +128,15 @@ struct NewLabelView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button(saving ? "Saving…" : made != nil ? "Retry photo" : "Save", action: save).disabled(!canSave)
+                Button(saving ? "Saving…" : made == nil ? "Save" : factsSaved ? "Retry photo" : "Retry", action: save).disabled(!canSave)
+            }
+        }
+        .sheet(item: $picking) { target in
+            if case .list(let list) = target {
+                PickerSheet(
+                    kind: LabelEditor.kind(list), title: LabelEditor.listTitle(list), multiple: true,
+                    initial: draft.rows(list).map { LookupItem(id: $0.id, name: $0.name) }
+                ) { chosen in draft.setList(list, to: chosen) }
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -162,10 +185,15 @@ struct NewLabelView: View {
         Task {
             defer { saving = false }
             if let made {
-                await uploadPhoto(to: made, api: api)
+                await finish(made, api: api)
                 return
             }
             guard let brand, let categoryId else { return }
+            let found = draft.errors()
+            guard found.isEmpty else {
+                fieldErrors = Dictionary(uniqueKeysWithValues: found.map { ($0.key.rawValue, $0.value) })
+                return
+            }
             existing = nil
             let typed = barcode.trimmingCharacters(in: .whitespaces)
             let upc = typed.isEmpty ? nil : Barcode.normalise(typed)
@@ -180,7 +208,7 @@ struct NewLabelView: View {
                     categoryId: categoryId,
                     upc: upc
                 ))
-                if photo == nil { onDone(label) } else { await uploadPhoto(to: label, api: api) }
+                await finish(label, api: api)
             } catch APIError.duplicateLabel(let label) {
                 // Already there: offer it, and teach it the code if it has none (the server never overwrites).
                 // The photo is not put on it: that would replace whatever photo it has.
@@ -194,8 +222,26 @@ struct NewLabelView: View {
         }
     }
 
-    /// The label exists; its photo follows. A failure keeps the screen, the photo and the label.
-    private func uploadPhoto(to label: LabelOption, api: APIClient) async {
+    /// The label exists; its facts, then its photo, follow. A failure keeps the screen and the label, and Save retries
+    /// what is left.
+    private func finish(_ label: LabelOption, api: APIClient) async {
+        let changes = draft.patch()
+        if !factsSaved, !changes.isEmpty {
+            do {
+                try await api.updateLabel(id: label.id, changes)
+            } catch APIError.unauthorized {
+                session.signOut(); return
+            } catch APIError.invalid(_, let message, let fields) {
+                made = label
+                if fields.isEmpty { error = "The label is saved, but not its details: \(message)" } else { fieldErrors = fields }
+                return
+            } catch {
+                made = label
+                self.error = "The label is saved, but not its details: \(error.localizedDescription)"
+                return
+            }
+        }
+        factsSaved = true
         guard let image = photo?.encoded() else { onDone(label); return }
         do {
             try await api.uploadLabelPhoto(expressionId: label.id, image: image)
@@ -310,4 +356,5 @@ struct BrandSearchField: View {
             }
         }
     }
+
 }

@@ -2,6 +2,22 @@ import Foundation
 
 /// How the server's plain values read on screen.
 enum Format {
+    /// A price as it is typed: digits and one decimal mark, never more than two places after it. Extra keys are dropped
+    /// instead of shown and then refused.
+    static func moneyInput(_ typed: String) -> String {
+        var out = "", places: Int?
+        for ch in typed {
+            if ch.isASCII, ch.isNumber {
+                if let p = places { if p == 2 { continue }; places = p + 1 }
+                out.append(ch)
+            } else if (ch == "." || ch == ","), places == nil {
+                places = 0
+                out.append(ch)
+            }
+        }
+        return out
+    }
+
     /// "2026-10-06" as the reader's short date. Built from parts, not parsed, so the day never shifts with the time zone.
     static func day(_ iso: String) -> String {
         let parts = iso.prefix(10).split(separator: "-").compactMap { Int($0) }
