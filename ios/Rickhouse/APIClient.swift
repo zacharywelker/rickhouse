@@ -179,6 +179,11 @@ struct APIClient {
         try await get("api/v1/tastings", query: [.init(name: "page", value: String(page)), .init(name: "size", value: "30")], as: TastingsPage.self)
     }
 
+    /// Every label of yours, A to Z by brand, for the Labels index.
+    func labelIndex() async throws -> [LabelIndexEntry] {
+        try await get("api/v1/expressions/index", as: LabelIndexResponse.self).labels
+    }
+
     func label(id: Int) async throws -> LabelDetail {
         try await get("api/v1/expressions/\(id)", as: LabelDetail.self)
     }

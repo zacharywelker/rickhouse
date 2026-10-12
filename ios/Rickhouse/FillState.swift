@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// Fill level is read as "about half", not 63%: the stored value stays a
 /// percentage, but these six are what people set it with. Mirrors
@@ -40,6 +40,33 @@ struct FillState: Identifiable, Equatable {
         case "half": "Half full"
         case "quarter": "A quarter full"
         default: label
+        }
+    }
+}
+
+/// The fill levels as a grid of buttons, the chosen one filled. The bottle page and the label page's Update fill use it.
+struct FillPicker: View {
+    let percent: Int
+    var disabled = false
+    let onPick: (Int) -> Void
+
+    var body: some View {
+        let state = FillState.of(percent)
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+            ForEach(FillState.all) { option in
+                Button { onPick(option.percent) } label: {
+                    Text(option.label)
+                        .font(.inter(15, .medium))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .foregroundStyle(option == state ? Theme.paper : Theme.ink)
+                        .background(option == state ? Theme.ink : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(disabled)
+                .accessibilityLabel(option.spoken)
+                .accessibilityAddTraits(option == state ? .isSelected : [])
+            }
         }
     }
 }
