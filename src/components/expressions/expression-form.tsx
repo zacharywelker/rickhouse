@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { withOption } from "@/lib/forms/values";
@@ -225,24 +227,89 @@ export function ExpressionForm({
   const action = saveExpressionAction.bind(null, expressionId);
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
 
+  // A new label's photo, held until the label exists: the photo route needs its id.
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [photoLink, setPhotoLink] = React.useState("");
+  const photo = React.useRef({ file: photoFile, link: photoLink });
+  React.useEffect(() => {
+    photo.current = { file: photoFile, link: photoLink.trim() };
+  }, [photoFile, photoLink]);
+
   const saved = state.ok && state.message !== "";
   const bottleId = state.ok ? state.bottleId : undefined;
   const savedId = state.ok ? state.createdId : undefined;
   React.useEffect(() => {
     if (!saved) return;
-    // With a bottle just added, land on its edit page to fill in price, store,
-    // etc.; otherwise on the label's own page.
-    router.push(
-      bottleId !== undefined ? `/bottles/${bottleId}/edit` : savedId !== undefined ? `/expressions/${savedId}` : "/expressions",
-    );
-    router.refresh();
-  }, [saved, bottleId, savedId, state, router]);
+    let cancelled = false;
+    void (async () => {
+      const { file, link } = photo.current;
+      let photoFailed = false;
+      if (expressionId === null && savedId !== undefined && (file || link !== "")) {
+        const body = new FormData();
+        if (file) body.append("photo", file);
+        else body.append("imageUrl", link);
+        const result = await fetch(`/api/expressions/${savedId}/photo`, { method: "POST", body })
+          .then((response) => response.json() as Promise<ActionResult>)
+          .catch(() => null);
+        photoFailed = !result?.ok;
+      }
+      if (cancelled) return;
+      // A failed photo lands on the label's page, which says so; the label is kept.
+      // With a bottle just added, land on its edit page to fill in price, store,
+      // etc.; otherwise on the label's own page.
+      router.push(
+        photoFailed
+          ? `/expressions/${savedId}?photo=failed`
+          : bottleId !== undefined
+            ? `/bottles/${bottleId}/edit`
+            : savedId !== undefined
+              ? `/expressions/${savedId}`
+              : "/expressions",
+      );
+      router.refresh();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [saved, bottleId, savedId, state, router, expressionId]);
 
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
   const set = (name: string, value: FieldValue) => setValues((prev) => withLabelChange(prev, name, value));
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
+      {expressionId === null ? (
+        <Section>
+          <SectionHeader>
+            <SectionTitle>Photo</SectionTitle>
+            <SectionDescription>Optional. A file or a link; it is cut out from its background once the label is saved.</SectionDescription>
+          </SectionHeader>
+          <SectionContent className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="expression-photo">Upload</Label>
+              <Input
+                id="expression-photo"
+                type="file"
+                accept="image/*"
+                disabled={photoLink.trim() !== ""}
+                onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="expression-photo-link">Or a link</Label>
+              <Input
+                id="expression-photo-link"
+                type="url"
+                inputMode="url"
+                placeholder="https://"
+                disabled={photoFile !== null}
+                value={photoLink}
+                onChange={(event) => setPhotoLink(event.target.value)}
+              />
+            </div>
+          </SectionContent>
+        </Section>
+      ) : null}
       <ExpressionFields
         values={values}
         onChange={set}

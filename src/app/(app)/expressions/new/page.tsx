@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ExpressionForm } from "@/components/expressions/expression-form";
+import { NewLabelStart } from "@/components/expressions/new-label-start";
 import { expressionFormData } from "@/lib/expressions/form-data";
 import { requireSession } from "@/lib/auth";
 import { colaLookupEnabled } from "@/lib/cola/store";
@@ -16,9 +16,7 @@ export default async function NewExpressionPage() {
       <div className="max-w-2xl">
         <h1 className="text-3xl text-accent">New Label</h1>
       </div>
-      <ExpressionForm
-        expressionId={null}
-        initialValues={null}
+      <NewLabelStart
         initialLinks={links}
         options={options}
         categoryGroups={categoryGroups}

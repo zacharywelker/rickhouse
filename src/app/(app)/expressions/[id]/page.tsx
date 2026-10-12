@@ -62,8 +62,14 @@ function releaseOf(bottle: Awaited<ReturnType<typeof bottlesOfLabel>>[number]): 
  * alongside — which, for single barrels and picks, is a side-by-side of every
  * barrel. Laid out like a bottle's page, so the two read as one world.
  */
-export default async function LabelPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function LabelPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ photo?: string }>;
+}) {
+  const [{ id }, { photo }] = await Promise.all([params, searchParams]);
   const expressionId = Number(id);
   if (!Number.isInteger(expressionId)) notFound();
 
@@ -166,7 +172,11 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
               )}
             </div>
           </Polaroid>
-          <LabelPhotoControls expressionId={expressionId} hasPhoto={e.photoPath !== null} />
+          <LabelPhotoControls
+            expressionId={expressionId}
+            hasPhoto={e.photoPath !== null}
+            initialError={photo === "failed" ? "The label saved, but its photo didn't upload. Try again here." : null}
+          />
         </div>
 
         <div className="flex flex-col gap-6 pb-6">
