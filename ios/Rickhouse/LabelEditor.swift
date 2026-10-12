@@ -319,14 +319,13 @@ struct StrengthRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 HStack(spacing: 6) {
                     if tracksChanges && proof.changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
-                    Text("Strength").foregroundStyle(Theme.muted)
+                    Text("Strength").foregroundStyle(Theme.muted).lineLimit(1).fixedSize()
                 }
                 Spacer(minLength: 8)
                 number("Proof", text: $proof.text, side: .proof)
-                Text("proof").foregroundStyle(Theme.muted)
                 Text("|").foregroundStyle(Theme.muted.opacity(0.6)).accessibilityHidden(true)
                 number("ABV", text: $abv, side: .abv)
-                Text("% ABV").foregroundStyle(Theme.muted)
+                Text("%").foregroundStyle(Theme.muted)
                 if tracksChanges && proof.changed {
                     Button { proof.revert() } label: {
                         Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20)).frame(width: 44, height: 44)
