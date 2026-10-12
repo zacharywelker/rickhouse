@@ -15,6 +15,9 @@ struct FindLabelView: View {
     var onPick: (LabelOption, String?) -> Void
     /// Nothing fits: start a label with the held barcode and whatever was typed.
     var onNewLabel: (_ code: String?, _ typed: String) -> Void
+    /// A code scanned before this screen showed (the + menu's lookup scans first), and whether to ask for one typed.
+    var scannedCode: String?
+    var startTyping = false
 
     @State private var query = ""
     @State private var results: [LabelOption] = []
@@ -99,6 +102,8 @@ struct FindLabelView: View {
                     .accessibilityLabel("Scan a barcode")
             }
         }
+        .task(id: scannedCode) { if let scannedCode { await look(up: scannedCode) } }
+        .onAppear { if startTyping { typingCode = true } }
         .onChange(of: query) { scanMatches = nil }
         .task(id: "\(query)#\(attempt)") { await search() }
         .fullScreenCover(isPresented: $scanning) {

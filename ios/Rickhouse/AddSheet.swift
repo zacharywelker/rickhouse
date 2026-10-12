@@ -2,13 +2,14 @@ import SwiftUI
 
 /// What the + offers (design spec section 11.3).
 enum AddChoice: String, Identifiable, CaseIterable {
-    case addBottle, logTasting, tonight
+    case addBottle, scan, logTasting, tonight
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .addBottle: "Add a bottle"
+        case .scan: "Look up a barcode"
         case .logTasting: "Log a tasting"
         case .tonight: "What to drink tonight"
         }
@@ -17,6 +18,7 @@ enum AddChoice: String, Identifiable, CaseIterable {
     var detail: String {
         switch self {
         case .addBottle: "Put a new bottle in your collection."
+        case .scan: "Scan a bottle to find its label."
         case .logTasting: "Record a pour, yours or not."
         case .tonight: "Let the collection pick for you."
         }
@@ -25,13 +27,14 @@ enum AddChoice: String, Identifiable, CaseIterable {
     var symbol: String {
         switch self {
         case .addBottle: "plus.circle"
+        case .scan: "barcode.viewfinder"
         case .logTasting: "wineglass"
         case .tonight: "moon.stars"
         }
     }
 }
 
-/// The small sheet the + opens: three plain rows. Choosing one closes the sheet;
+/// The small sheet the + opens: one plain row per choice. Choosing one closes the sheet;
 /// the shell then presents that flow.
 struct AddSheet: View {
     var onChoose: (AddChoice) -> Void
@@ -65,7 +68,7 @@ struct AddSheet: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.paper)
         // Fixed height for the default text size; the large detent is there for bigger text.
-        .presentationDetents([.height(292), .large])
+        .presentationDetents([.height(380), .large])
         .presentationDragIndicator(.visible)
     }
 }

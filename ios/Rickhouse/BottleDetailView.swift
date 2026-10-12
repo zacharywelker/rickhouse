@@ -114,29 +114,34 @@ struct BottleDetailView: View {
     private func content(_ b: BottleDetail) -> some View {
         let plate = CategoryPalette.color(for: b.category)
         return List {
-            if !b.images.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(b.images) { image in
-                            // Same slot as the gallery: whole picture, on the category's colour.
-                            Button { viewing = PhotoStart(selection: image.id) } label: {
-                                Color.clear
-                                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                                    .overlay { AuthenticatedImage(path: image.path, contentMode: .fit, background: plate).padding(6) }
-                                    .clipped()
-                                    .frame(width: 210)
-                                    .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Photo of \(b.name)")
-                            .accessibilityHint("Opens it full screen")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(b.images) { image in
+                        // Same slot as the gallery: whole picture, on the category's colour.
+                        Button { viewing = PhotoStart(selection: image.id) } label: {
+                            Color.clear
+                                .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                                .overlay { AuthenticatedImage(path: image.path, contentMode: .fit, background: plate).padding(6) }
+                                .clipped()
+                                .frame(width: 210)
+                                .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Photo of \(b.name)")
+                        .accessibilityHint("Opens it full screen")
                     }
-                    .padding(.horizontal, 16)
+                    // Last in the row; smaller when it is the only thing there.
+                    AddPhotoTile(title: "Add a photo", size: b.images.isEmpty ? CGSize(width: 90, height: 120) : CGSize(width: 120, height: 280)) { image in
+                        guard let api = session.api else { return }
+                        try await api.uploadImages(bottleId: id, images: [image])
+                        await load()
+                        onChanged()
+                    }
                 }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
+                .padding(.horizontal, 16)
             }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(b.brand).font(.inter(13, .medium, relativeTo: .subheadline)).foregroundStyle(Theme.muted)

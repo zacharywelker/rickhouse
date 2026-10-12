@@ -139,6 +139,11 @@ struct LabelPage: View {
             .disabled(l.photoPath == nil)
             .accessibilityLabel("Photo of \(l.brand) \(l.name)")
             .accessibilityHint(l.photoPath == nil ? "" : "Opens it full screen")
+            AddPhotoTile(title: l.photoPath == nil ? "Add a label photo" : "Replace the label photo", size: CGSize(width: 54, height: 72)) { image in
+                guard let api = session.api else { return }
+                try await api.uploadLabelPhoto(expressionId: id, image: image)
+                await load()
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(l.brand).font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted)
                 Text(l.name).font(.headline(21)).foregroundStyle(Theme.ink)
