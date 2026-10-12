@@ -14,14 +14,19 @@ export function LabelPhotoControls({
   expressionId,
   releaseId,
   hasPhoto,
+  initialError = null,
 }: {
   expressionId: number;
   releaseId?: number;
   hasPhoto: boolean;
+  /** Said on arrival, as when New Label saved the label but not its photo. */
+  initialError?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
-  const [message, setMessage] = React.useState<{ error: boolean; text: string } | null>(null);
+  const [message, setMessage] = React.useState<{ error: boolean; text: string } | null>(
+    initialError ? { error: true, text: initialError } : null,
+  );
   const [linking, setLinking] = React.useState(false);
   const [link, setLink] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);

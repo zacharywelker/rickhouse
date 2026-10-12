@@ -1,5 +1,6 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { openNewLabelForm } from "./support/new-label";
 import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
 
@@ -42,7 +43,7 @@ async function pickCreate(page: Page, comboboxLabel: string, name: string) {
 }
 
 test("the expression form reveals sections for the chosen category", async ({ page }) => {
-  await page.goto("/expressions/new");
+  await openNewLabelForm(page);
 
   // Bourbon is a whiskey category: process fields, no rum fields.
   await pick(page, "Category", "Bourbon");
@@ -60,7 +61,7 @@ test("the expression form reveals sections for the chosen category", async ({ pa
 // The pick block lives on the bottle since M7 — a label does not know whether
 // any given bottle of it was a store pick.
 test("single barrel reveals the pick detail on the bottle, not the label", async ({ page }) => {
-  await page.goto("/expressions/new");
+  await openNewLabelForm(page);
   await expect(page.getByLabel("Single Barrel", { exact: true })).toBeHidden();
 
   await page.goto("/bottles/new");
@@ -92,7 +93,7 @@ test("creates a blended expression with ordered distilleries, then a bottle, the
   const newDistillery = `Inline Cooperage ${suffix}`;
 
   // --- the expression ---
-  await page.goto("/expressions/new");
+  await openNewLabelForm(page);
   await pick(page, "Brand", "Pursuit Spirits");
   await pick(page, "Category", "Bourbon");
   await page.getByLabel("Label Name").fill(name);
@@ -193,7 +194,7 @@ test("recategorising does not silently wipe the hidden fields", async ({ page })
   const name = `Ester Keeper ${stamp()}`;
 
   // A rum, with a value that only the rum section can write.
-  await page.goto("/expressions/new");
+  await openNewLabelForm(page);
   await pick(page, "Brand", "Pursuit Spirits");
   await pick(page, "Category", "Rum");
   await page.getByLabel("Label Name").fill(name);
@@ -217,4 +218,44 @@ test("recategorising does not silently wipe the hidden fields", async ({ page })
   await pick(page, "Category", "Rum");
   await expect(page.getByLabel("Esters (g/hLAA)")).toHaveValue("1500");
   await expect(page.getByLabel("Marque")).toHaveValue("DOK");
+});
+
+test("New Label searches first: a match opens its edit page", async ({ page }) => {
+  await page.goto("/expressions/new");
+  await page.getByRole("combobox", { name: "Find the label" }).fill("Pursuit Double Oak");
+  await page.getByRole("option", { name: /Double Oak Spirit/ }).click();
+  await expect(page).toHaveURL(/\/expressions\/\d+\/edit$/);
+});
+
+test("New Label carries the typed name into the form", async ({ page }) => {
+  const name = `Typed Through ${stamp()}`;
+  await page.goto("/expressions/new");
+  await page.getByRole("combobox", { name: "Find the label" }).fill(`Pursuit ${name}`);
+  await page.getByRole("option", { name: `New label: Pursuit Spirits · ${name}` }).click();
+  await expect(page.getByLabel("Label Name")).toHaveValue(name);
+  await page.getByRole("button", { name: "Back to the search" }).click();
+  await expect(page.getByRole("combobox", { name: "Find the label" })).toBeVisible();
+});
+
+test("a new label's photo goes up after it saves, and a failure is said on its page", async ({ page }) => {
+  await openNewLabelForm(page);
+  await pick(page, "Brand", "Pursuit Spirits");
+  await pick(page, "Category", "Bourbon");
+  await page.getByLabel("Label Name").fill(`Photo Later ${stamp()}`);
+  // A private address is refused by the server, so the label saves without it.
+  await page.getByLabel("Or a link").fill("http://127.0.0.1/label.jpg");
+  await page.getByRole("button", { name: "Create Label", exact: true }).click();
+  await expect(page).toHaveURL(/\/expressions\/\d+\?photo=failed$/);
+  await expect(page.getByText("The label saved, but its photo didn't upload.", { exact: false })).toBeVisible();
+});
+
+test("a new label can be created with an uploaded photo", async ({ page }) => {
+  await openNewLabelForm(page);
+  await pick(page, "Brand", "Pursuit Spirits");
+  await pick(page, "Category", "Bourbon");
+  await page.getByLabel("Label Name").fill(`Photo Now ${stamp()}`);
+  await page.getByLabel("Upload").setInputFiles(path.join(__dirname, "fixtures", "bottle.jpg"));
+  await page.getByRole("button", { name: "Create Label", exact: true }).click();
+  await expect(page).toHaveURL(/\/expressions\/\d+$/);
+  await expect(page.getByRole("button", { name: "Replace photo" })).toBeVisible();
 });

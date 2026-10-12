@@ -65,6 +65,22 @@ test("picking a label and saving adds a bottle of it, photos and all", async ({ 
   await expect(page.getByRole("link", { name: "Standard release" })).toBeVisible();
 });
 
+test("a photo link is sent with the bottle, and a failed upload is said on its page", async ({ page }) => {
+  await page.goto("/bottles/add");
+  const search = page.getByRole("combobox", { name: "Find the label" });
+  await search.fill("Pursuit Double Oak");
+  await expect(page.getByRole("option", { name: /Double Oak Spirit/ })).toBeVisible();
+  await search.press("Enter");
+  await expect(page.getByText(/You have \d+ bottles? of this/)).toBeVisible();
+
+  // A private address is refused by the server, so the bottle saves without it.
+  await page.getByLabel("Or a link to a photo").fill("http://127.0.0.1/bottle.jpg");
+  await page.getByRole("button", { name: "Save bottle" }).click();
+
+  await expect(page).toHaveURL(/\/bottles\/\d+\?photos=failed$/);
+  await expect(page.getByText("The bottle saved, but its photos didn't upload.", { exact: false })).toBeVisible();
+});
+
 test("a new label starts from the search, and both save together", async ({ page }) => {
   // No category in the name, so the category is left to be chosen.
   const name = `Toasted Barrel ${stamp()}`;

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openNewLabelForm } from "./support/new-label";
 import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
 
@@ -34,7 +35,7 @@ test("filtering by a distillery finds the blends it contributed to", async ({ pa
 
   // A second expression made by Finger Lakes alone. The seeded Pursuit bottle
   // is a blend of Bardstown, Tennessee Distilling and Finger Lakes.
-  await page.goto("/expressions/new");
+  await openNewLabelForm(page);
   await pick(page, "Brand", "Pursuit Spirits");
   await pick(page, "Category", "Bourbon");
   await page.getByLabel("Label Name").fill(soloName);

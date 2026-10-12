@@ -162,7 +162,7 @@ struct BottleFormView: View {
 }
 
 /// A photo thumbnail: remove at the top right, and once a cutout exists a scissors badge that flips cutout and original.
-private struct PhotoThumb: View {
+struct PhotoThumb: View {
     @Binding var photo: FormPhoto
     var onRemove: () -> Void
 

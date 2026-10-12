@@ -311,15 +311,15 @@ struct APIClient {
 
     /// Multipart upload to the web route; the first photo becomes the bottle's hero shot.
     func uploadImages(bottleId: Int, images: [UploadImage]) async throws {
-        try await upload("api/bottles/\(bottleId)/images", field: "images", images: images)
+        try await postImages("api/bottles/\(bottleId)/images", field: "images", images: images)
     }
 
-    /// Sets a label's photo through the web route, replacing the one it had.
+    /// A label's own photo, through the web route the label page uses; it replaces any photo the label had.
     func uploadLabelPhoto(expressionId: Int, image: UploadImage) async throws {
-        try await upload("api/expressions/\(expressionId)/photo", field: "photo", images: [image])
+        try await postImages("api/expressions/\(expressionId)/photo", field: "photo", images: [image])
     }
 
-    private func upload(_ path: String, field: String, images: [UploadImage]) async throws {
+    private func postImages(_ path: String, field: String, images: [UploadImage]) async throws {
         let boundary = "rickhouse-\(UUID().uuidString)"
         var req = request(path: path)
         req.httpMethod = "POST"
