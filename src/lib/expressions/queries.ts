@@ -3,6 +3,7 @@ import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, inArray, sql } from
 import { db } from "@/db";
 import { describeMashbill, mashbillTitle } from "@/lib/mashbills";
 import { shareText } from "./links";
+import { categoryKinds, type CategoryKind } from "./rules";
 import {
   bottleImages,
   bottles,
@@ -434,6 +435,12 @@ export async function expressionOptions(ownerId: number) {
 export async function categoryFieldGroups(): Promise<Record<number, FieldGroup>> {
   const rows = await db.select({ id: categories.id, fieldGroup: categories.fieldGroup }).from(categories);
   return Object.fromEntries(rows.map((row) => [row.id, row.fieldGroup]));
+}
+
+/** Which whiskey each category is (American, Scotch, other), by category id. */
+export async function categoryKindsById(): Promise<Record<number, CategoryKind>> {
+  const rows = await db.select({ id: categories.id, slug: categories.slug, parentId: categories.parentId }).from(categories);
+  return categoryKinds(rows);
 }
 
 export async function fieldGroupForCategory(categoryId: number): Promise<FieldGroup> {

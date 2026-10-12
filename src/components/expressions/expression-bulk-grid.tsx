@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { BulkGrid, type BulkSection, type CustomColumn } from "@/components/bulk/bulk-grid";
 import { saveExpressionsBulkAction } from "@/app/(app)/expressions/actions";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
-import { offeredAgeStatement } from "@/lib/bottles/age";
+import { withAgeDefaults } from "@/lib/bottles/age";
 import type { FieldGroup } from "@/db/schema";
 import type { Option } from "@/lib/admin/types";
 import { LINK_KINDS, linksPayload, type LinkKind } from "@/lib/expressions/links";
@@ -93,10 +93,7 @@ export function ExpressionBulkGrid({
       sections={sections}
       options={options}
       fieldGroupFor={(values) => categoryGroups[Number(values.categoryId)] ?? null}
-      onChanged={(prev, next, name) => {
-        const offered = offeredAgeStatement(prev, next, name);
-        return offered === null ? next : { ...next, ageStatement: offered };
-      }}
+      onChanged={(prev, next, name) => withAgeDefaults(prev, next, name)}
       save={saveExpressionsBulkAction}
       noun="label"
       storageKey="rickhouse:bulk-labels:hidden"

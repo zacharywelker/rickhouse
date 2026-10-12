@@ -25,6 +25,7 @@ export function ProofAbvFields({
   hint = true,
   className = "sm:col-span-1",
   labelClassName,
+  locked = false,
 }: {
   idPrefix: string;
   value: FieldValue;
@@ -37,6 +38,8 @@ export function ProofAbvFields({
   /** Wrapper classes for each of the two fields. */
   className?: string;
   labelClassName?: string;
+  /** Fixed at the given value (Bottled In Bond): both cells grey out, and proof is still submitted. */
+  locked?: boolean;
 }) {
   const proofValue = String(value ?? "");
   const [source, setSource] = React.useState<"proof" | "abv" | null>(proofValue === "" ? null : "proof");
@@ -49,8 +52,8 @@ export function ProofAbvFields({
 
   const proofId = `${idPrefix}-proof`;
   const abvId = `${idPrefix}-abv`;
-  const proofDisabled = source === "abv" && abvText !== "";
-  const abvDisabled = source === "proof" && proofValue !== "";
+  const proofDisabled = locked || (source === "abv" && abvText !== "");
+  const abvDisabled = locked || (source === "proof" && proofValue !== "");
 
   return (
     <>
@@ -60,7 +63,7 @@ export function ProofAbvFields({
         </Label>
         <Input
           id={proofId}
-          name={name ?? undefined}
+          name={locked ? undefined : (name ?? undefined)}
           type="number"
           min={0}
           max={200}
@@ -75,6 +78,7 @@ export function ProofAbvFields({
           aria-invalid={error ? true : undefined}
           className={cn(error && "border-destructive")}
         />
+        {locked && name ? <input type="hidden" name={name} value={proofValue} /> : null}
         {error ? (
           <p role="alert" className="text-sm text-destructive">
             {error}
@@ -102,7 +106,9 @@ export function ProofAbvFields({
           }}
         />
         {hint ? (
-          <p className="text-xs text-muted-foreground">Half of proof, with a % sign. Calculates the other way too.</p>
+          <p className="text-xs text-muted-foreground">
+            {locked ? "Bottled In Bond is always 100 proof." : "Half of proof, with a % sign. Calculates the other way too."}
+          </p>
         ) : null}
       </div>
     </>

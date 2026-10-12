@@ -6,6 +6,7 @@ import { resolveSlug } from "@/lib/slug";
 import { attachCola, colaLookupEnabled, refreshCola } from "@/lib/cola/store";
 import { writableFields } from "./fields";
 import { fieldGroupForCategory } from "./queries";
+import { BOND_PROOF } from "./rules";
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 
@@ -36,6 +37,8 @@ export function writableValues(values: Record<string, unknown>, allowed: Set<str
     if (value === undefined) continue;
     if (key === "slug" || COMMON_FIELDS.has(key) || allowed.has(key)) kept[key] = value;
   }
+  // Bottled In Bond is 100 proof by definition, whatever else was sent.
+  if (kept.isBottledInBond === true) kept.proof = BOND_PROOF;
   return kept;
 }
 

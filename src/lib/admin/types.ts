@@ -12,6 +12,8 @@ export type Option = {
   hint?: string;
   /** Distilleries only: a placeholder for a place a label names and no distillery. */
   undisclosed?: boolean;
+  /** Distilleries only: the Scotch region it sits in, copied onto a label that links it. */
+  region?: string;
   /** Set on self-referencing resources, so the form can exclude descendants. */
   parentId?: number | null;
 };
@@ -34,6 +36,10 @@ export type FieldSpec =
       help?: string;
       /** Prefilled when creating. Mirror the column default where there is one. */
       defaultValue?: string;
+      /** A size in mL: shown as a choice of these, with "Other size…" for any other whole number. */
+      presets?: ReadonlyArray<number>;
+      /** With presets: the choice that leaves it blank, e.g. "Same as the label". */
+      blankLabel?: string;
     })
   | (FieldBase & { kind: "textarea"; placeholder?: string; help?: string })
   | (FieldBase & {
@@ -54,6 +60,10 @@ export type FieldSpec =
       help?: string;
       /** Prefilled when creating. Mirror the column default where there is one. */
       defaultValue?: string;
+      /** A size in mL: shown as a choice of these, with "Other size…" for any other whole number. */
+      presets?: ReadonlyArray<number>;
+      /** With presets: the choice that leaves it blank, e.g. "Same as the label". */
+      blankLabel?: string;
     })
   | (FieldBase & { kind: "checkbox"; help?: string })
   | (FieldBase & {

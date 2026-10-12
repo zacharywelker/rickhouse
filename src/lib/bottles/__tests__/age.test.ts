@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageBetween, defaultAgeStatement, describeAge, offeredAgeStatement } from "../age";
+import { ageBetween, defaultAgeStatement, describeAge, offeredAgeStatement, withImpliedAge } from "../age";
 
 describe("ageBetween", () => {
   it("counts whole years by the calendar, not by dividing days", () => {
@@ -45,26 +45,12 @@ describe("describeAge", () => {
 
 describe("defaultAgeStatement", () => {
   it("is blank when nothing is checked", () => {
-    expect(defaultAgeStatement({ isStraight: false, isBottledInBond: false, isNas: false })).toBe("");
+    expect(defaultAgeStatement({ isBottledInBond: false, isNas: false })).toBe("");
   });
 
   it("names the designation that was checked", () => {
-    expect(defaultAgeStatement({ isStraight: true, isBottledInBond: false, isNas: false })).toBe(
-      "Straight (at least 2 years)",
-    );
-    expect(defaultAgeStatement({ isStraight: false, isBottledInBond: true, isNas: false })).toBe(
-      "Bottled-in-Bond (at least 4 years)",
-    );
-    expect(defaultAgeStatement({ isStraight: false, isBottledInBond: false, isNas: true })).toBe("NAS");
-  });
-
-  it("prefers the more specific designation when more than one is checked", () => {
-    // Bottled-in-Bond (>= 4 years) is the stronger, more specific claim over
-    // Straight (>= 2 years) — Old Grand Dad 7 is both, and BiB is the one
-    // that would matter if the statement were left to fill itself in.
-    expect(defaultAgeStatement({ isStraight: true, isBottledInBond: true, isNas: false })).toBe(
-      "Bottled-in-Bond (at least 4 years)",
-    );
+    expect(defaultAgeStatement({ isBottledInBond: true, isNas: false })).toBe("Bottled-in-Bond (at least 4 years)");
+    expect(defaultAgeStatement({ isBottledInBond: false, isNas: true })).toBe("NAS");
   });
 });
 
@@ -81,20 +67,9 @@ describe("offeredAgeStatement", () => {
     expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: true }, "isBottledInBond")).toBeNull();
   });
 
-  it("upgrades its own default when a stronger designation is ticked", () => {
-    const prev = { isStraight: true, isBottledInBond: false, ageStatement: "Straight (at least 2 years)" };
-    expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: true }, "isBottledInBond")).toBe(
-      "Bottled-in-Bond (at least 4 years)",
-    );
-  });
-
   it("takes its own default back out when the designation is unticked", () => {
-    const prev = { isStraight: true, ageStatement: "Straight (at least 2 years)" };
-    expect(offeredAgeStatement(prev, { ...prev, isStraight: false }, "isStraight")).toBe("");
-    const both = { isStraight: true, isBottledInBond: true, ageStatement: "Bottled-in-Bond (at least 4 years)" };
-    expect(offeredAgeStatement(both, { ...both, isBottledInBond: false }, "isBottledInBond")).toBe(
-      "Straight (at least 2 years)",
-    );
+    const prev = { isBottledInBond: true, ageStatement: "Bottled-in-Bond (at least 4 years)" };
+    expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: false }, "isBottledInBond")).toBe("");
   });
 
   it("leaves typed text alone when a designation is unticked", () => {
@@ -102,9 +77,43 @@ describe("offeredAgeStatement", () => {
     expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: false }, "isBottledInBond")).toBeNull();
   });
 
+  it("offers nothing once an age is filled in", () => {
+    const prev = { isNas: false, ageStatement: "", ageYears: "6" };
+    expect(offeredAgeStatement(prev, { ...prev, isNas: true }, "isNas")).toBeNull();
+  });
+
   it("offers nothing when switching one off, or for other fields", () => {
-    const prev = { isStraight: true, ageStatement: "" };
-    expect(offeredAgeStatement(prev, { ...prev, isStraight: false }, "isStraight")).toBeNull();
+    const prev = { isNas: true, ageStatement: "" };
+    expect(offeredAgeStatement(prev, { ...prev, isNas: false }, "isNas")).toBeNull();
     expect(offeredAgeStatement(prev, { ...prev, proof: "100" }, "proof")).toBeNull();
+  });
+});
+
+describe("withImpliedAge", () => {
+  const blankAge = { isStraight: false, isNas: false, ageYears: "", ageMonths: "", ageDays: "", proof: "" };
+
+  it("fills 2 years for Straight and 4 for Straight with NAS", () => {
+    const straight = withImpliedAge(blankAge, { ...blankAge, isStraight: true }, "isStraight");
+    expect(straight.ageYears).toBe("2");
+    const nas = withImpliedAge(straight, { ...straight, isNas: true }, "isNas");
+    expect(nas.ageYears).toBe("4");
+  });
+
+  it("takes its own number back out when unticked", () => {
+    const both = { ...blankAge, isStraight: true, isNas: true, ageYears: "4" };
+    expect(withImpliedAge(both, { ...both, isNas: false }, "isNas").ageYears).toBe("2");
+    const straight = { ...blankAge, isStraight: true, ageYears: "2" };
+    expect(withImpliedAge(straight, { ...straight, isStraight: false }, "isStraight").ageYears).toBe("");
+  });
+
+  it("changes nothing when any age was typed", () => {
+    const typed = { ...blankAge, ageYears: "7" };
+    expect(withImpliedAge(typed, { ...typed, isStraight: true }, "isStraight").ageYears).toBe("7");
+    const months = { ...blankAge, ageMonths: "30" };
+    expect(withImpliedAge(months, { ...months, isStraight: true }, "isStraight").ageYears).toBe("");
+  });
+
+  it("ignores other fields", () => {
+    expect(withImpliedAge(blankAge, { ...blankAge, proof: "90" }, "proof").ageYears).toBe("");
   });
 });

@@ -1,3 +1,4 @@
+import { formatSize } from "@/lib/expressions/sizes";
 import type { Metadata } from "next";
 import type { Route } from "next";
 import Image from "next/image";
@@ -184,7 +185,7 @@ export default async function LabelPage({
             <Spec label="Proof" value={formatNumeric(e.proof)} />
             <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
             <Spec label="Age" value={ageLabel(e)} />
-            <Spec label="Size" value={`${e.sizeMl} ml`} />
+            <Spec label="Size" value={formatSize(e.sizeMl)} />
             <Spec label="UPC" value={e.upc} />
             <Spec label="Entry Proof" value={e.entryProof ? formatNumeric(e.entryProof) : null} />
             <Spec label="Chill Filtered" value={yesNo(e.isChillFiltered)} />

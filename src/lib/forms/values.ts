@@ -30,7 +30,8 @@ export function initialFieldValues(
             : (spec.options[0]?.value ?? "");
     } else if (current === null || current === undefined) {
       const hasDefault = spec.kind === "text" || spec.kind === "date" || spec.kind === "number";
-      values[spec.name] = existing === null && hasDefault ? (spec.defaultValue ?? "") : "";
+      // Defaults fill what was never given, but an explicit null (a saved row with nothing there) stays blank.
+      values[spec.name] = hasDefault && (existing === null || current === undefined) ? (spec.defaultValue ?? "") : "";
     } else if (spec.kind === "number") {
       // Postgres numerics come back padded ("108.00", "1500.00"). A number
       // input showing that reads like a price, not a proof.

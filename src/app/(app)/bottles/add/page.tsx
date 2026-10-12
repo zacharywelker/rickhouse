@@ -24,7 +24,7 @@ export default async function CatalogBottlePage({
   searchParams: Promise<{ expression?: string }>;
 }) {
   const user = await requireSession();
-  const [{ expression }, { options, categoryGroups }, stores, preferences] = await Promise.all([
+  const [{ expression }, { options, categoryGroups, categoryKinds }, stores, preferences] = await Promise.all([
     searchParams,
     expressionFormData(null, user.id),
     REFERENCE_OPTION_LOADERS.stores(user.id),
@@ -59,6 +59,7 @@ export default async function CatalogBottlePage({
         labelOptions={options}
         bottleOptions={{ storeId: stores }}
         categoryGroups={categoryGroups}
+        categoryKinds={categoryKinds}
         colaLookup={colaLookupEnabled()}
         initialLabel={initialLabel}
         suggestions={suggestions}

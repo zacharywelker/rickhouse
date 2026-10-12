@@ -39,10 +39,15 @@ const CATEGORY_TREE = [
   { name: "Rum", slug: "rum", parent: null, fieldGroup: "rum", sortOrder: 2 },
   { name: "Agave", slug: "agave", parent: null, fieldGroup: "agave", sortOrder: 3 },
   { name: "Brandy", slug: "brandy", parent: null, fieldGroup: "brandy", sortOrder: 4 },
+  { name: "Gin", slug: "gin", parent: null, fieldGroup: "gin", sortOrder: 5 },
+  { name: "Vodka", slug: "vodka", parent: null, fieldGroup: "vodka", sortOrder: 6 },
 
   { name: "American Whiskey", slug: "american-whiskey", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 1 },
   { name: "Scotch", slug: "scotch", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 2 },
   { name: "Irish Whiskey", slug: "irish-whiskey", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 3 },
+
+  { name: "Single Malt Scotch", slug: "single-malt-scotch", parent: "scotch", fieldGroup: "whiskey", sortOrder: 1 },
+  { name: "Blended Scotch", slug: "blended-scotch", parent: "scotch", fieldGroup: "whiskey", sortOrder: 2 },
 
   { name: "Bourbon", slug: "bourbon", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 1 },
   { name: "Rye", slug: "rye", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 2 },
