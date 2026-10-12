@@ -32,11 +32,20 @@ const STAMP_MARGIN_X = 9;
 const STAMP_MARGIN_TOP = 9;
 const STAMP_MARGIN_BOTTOM = 16;
 
-export function BottleImages({ bottleId, images }: { bottleId: number; images: BottleImage[] }) {
+export function BottleImages({
+  bottleId,
+  images,
+  initialError = null,
+}: {
+  bottleId: number;
+  images: BottleImage[];
+  /** Said on arrival, as when the add page saved the bottle but not its photos. */
+  initialError?: string | null;
+}) {
   const router = useRouter();
   const [order, setOrder] = React.useState(images);
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(initialError);
   const [dragging, setDragging] = React.useState<number | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 

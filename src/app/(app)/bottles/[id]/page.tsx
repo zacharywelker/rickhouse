@@ -41,8 +41,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: row ? `${row.brand.name} ${row.expression.name}` : "Bottle" };
 }
 
-export default async function BottlePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function BottlePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ photos?: string }>;
+}) {
+  const [{ id }, { photos }] = await Promise.all([params, searchParams]);
   const bottleId = Number(id);
   if (!Number.isInteger(bottleId)) notFound();
 
@@ -208,7 +214,11 @@ export default async function BottlePage({ params }: { params: Promise<{ id: str
             dateOpened={row.bottle.dateOpened}
             dateKilled={row.bottle.dateKilled}
           />
-          <BottleImages bottleId={bottleId} images={images} />
+          <BottleImages
+            bottleId={bottleId}
+            images={images}
+            initialError={photos === "failed" ? "The bottle saved, but its photos didn't upload. Add them again here." : null}
+          />
         </div>
 
         <div className="flex flex-col gap-6 pb-6">
