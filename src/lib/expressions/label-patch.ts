@@ -2,8 +2,12 @@ import "server-only";
 import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { brands, categories, expressions } from "@/db/schema";
+import { syncExpressionNames } from "@/lib/other-names-store";
+import type { OtherName } from "@/lib/other-names";
 import { findOrCreateBrand } from "./brand";
-import { replaceLinks, type Links } from "./save";
+import { writableFields } from "./fields";
+import { withBondProof } from "./rules";
+import { replaceLinks, writableValues, type Links } from "./save";
 import { expressionSchema } from "./schema";
 
 /**
@@ -18,7 +22,15 @@ export const labelFactsSchema = expressionSchema.pick({
   name: true,
   proof: true,
   ageYears: true,
+  ageMonths: true,
+  ageDays: true,
   ageStatement: true,
+  isNas: true,
+  isStraight: true,
+  isCaskStrength: true,
+  isBottledInBond: true,
+  molassesOrCane: true,
+  labelNotes: true,
   sizeMl: true,
   msrp: true,
   upc: true,
@@ -32,6 +44,8 @@ export type LabelPatch = {
   brand?: string;
   /** The three ordered lists together, as `replaceLinks` rewrites them. */
   links?: Links;
+  /** The label's older names, exactly; see `syncExpressionNames`. */
+  otherNames?: OtherName[];
 };
 
 export type LabelPatchResult =
@@ -65,7 +79,7 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
   try {
     return await db.transaction(async (tx): Promise<LabelPatchResult> => {
       const [current] = await tx
-        .select({ brandId: expressions.brandId, name: expressions.name })
+        .select({ brandId: expressions.brandId, name: expressions.name, categoryId: expressions.categoryId, isBottledInBond: expressions.isBottledInBond })
         .from(expressions)
         .where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)))
         .for("update")
@@ -102,12 +116,21 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       }
       if (newBrandName !== null) brandId = await findOrCreateBrand(tx, ownerId, newBrandName);
 
-      const { brandId: _ignored, ...columns } = facts;
-      const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) };
+      // The same category rules as the web form's save: only the columns the category writes (vodka has no aging),
+      // and Bottled In Bond is 100 proof whatever was sent, including on a label that already is.
+      const [category] = await tx
+        .select({ fieldGroup: categories.fieldGroup })
+        .from(categories)
+        .where(eq(categories.id, facts.categoryId ?? current.categoryId))
+        .limit(1);
+      const { brandId: _ignored, ...sent } = facts;
+      const columns = withBondProof(writableValues(sent, writableFields(category?.fieldGroup ?? "other")), current.isBottledInBond);
+      const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) } as Partial<typeof expressions.$inferInsert>;
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));
       }
       if (patch.links) await replaceLinks(tx, ownerId, id, patch.links);
+      if (patch.otherNames) await syncExpressionNames(tx, id, patch.otherNames);
       return { ok: true };
     });
   } catch (error: unknown) {

@@ -12,7 +12,11 @@ vi.mock("@/lib/expressions/picker", () => ({ pickerLabel: (...args: unknown[]) =
 vi.mock("@/lib/expressions/label-patch", async () => {
   const { expressionSchema } = await import("@/lib/expressions/schema");
   return {
-    labelFactsSchema: expressionSchema.pick({ brandId: true, categoryId: true, name: true, proof: true, ageYears: true, ageStatement: true, sizeMl: true, msrp: true, upc: true }),
+    labelFactsSchema: expressionSchema.pick({
+      brandId: true, categoryId: true, name: true, proof: true, ageYears: true, ageMonths: true, ageDays: true, ageStatement: true,
+      isNas: true, isStraight: true, isCaskStrength: true, isBottledInBond: true, molassesOrCane: true, labelNotes: true,
+      sizeMl: true, msrp: true, upc: true,
+    }),
     patchLabel: (...args: unknown[]) => patchLabel(...args),
   };
 });
@@ -67,6 +71,23 @@ describe("PATCH /api/v1/expressions/:id: editing the label", () => {
     const res = await patch("10", { name: "  Rare Breed Barrel Proof ", proof: 116.8, msrp: "69.99", sizeMl: 1000 });
     expect(res.status).toBe(200);
     expect(patchLabel).toHaveBeenCalledWith(7, 10, { facts: { name: "Rare Breed Barrel Proof", proof: "116.8", msrp: "69.99", sizeMl: 1000 } });
+  });
+
+  it("takes age in parts, the four ticks, the rum base and label notes", async () => {
+    const res = await patch("10", { ageYears: 4, ageMonths: 6, ageDays: null, isStraight: true, isBottledInBond: false, molassesOrCane: "molasses", labelNotes: " Kentucky " });
+    expect(res.status).toBe(200);
+    expect(patchLabel.mock.calls[0]![2].facts).toEqual({ ageYears: "4", ageMonths: 6, ageDays: null, isStraight: true, isBottledInBond: false, molassesOrCane: "molasses", labelNotes: "Kentucky" });
+  });
+
+  it("reads other names as the web form's lines, and refuses a bad line", async () => {
+    await patch("10", { otherNames: "Old Grand-Dad Bonded (1980–1995)\nHirsch" });
+    expect(patchLabel.mock.calls[0]![2].otherNames).toEqual([
+      { name: "Old Grand-Dad Bonded", yearFrom: 1980, yearTo: 1995 },
+      { name: "Hirsch", yearFrom: null, yearTo: null },
+    ]);
+    const bad = await patch("10", { otherNames: "(1990)" });
+    expect(bad.status).toBe(422);
+    expect((await bad.json()).error.fields.otherNames).toBeDefined();
   });
 
   it("changes the barcode inside a larger edit, and clears a fact sent as null", async () => {

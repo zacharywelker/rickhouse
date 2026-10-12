@@ -33,6 +33,7 @@ struct NewLabelView: View {
     @State private var picking: PickTarget?
     /// The label is made and its facts are saved; only the photo can still be outstanding.
     @State private var factsSaved = false
+    @State private var ginAged = false
 
     init(code: String?, name: String, onDone: @escaping (LabelOption) -> Void) {
         self.code = code
@@ -77,7 +78,9 @@ struct NewLabelView: View {
             }
             .disabled(made != nil)
             Section {
-                LabelFactRows(draft: $draft, errors: fieldErrors, tracksChanges: false, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
+                LabelFactRows(
+                    draft: $draft, errors: fieldErrors, rules: LabelRules(category: categories.first { $0.id == categoryId }, ginAged: ginAged),
+                    ginAged: $ginAged, tracksChanges: false, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
             } header: {
                 Text("About the label")
             } footer: {
@@ -225,7 +228,7 @@ struct NewLabelView: View {
     /// The label exists; its facts, then its photo, follow. A failure keeps the screen and the label, and Save retries
     /// what is left.
     private func finish(_ label: LabelOption, api: APIClient) async {
-        let changes = draft.patch()
+        let changes = LabelRules(category: categories.first { $0.id == categoryId }, ginAged: ginAged).prepared(draft).patch()
         if !factsSaved, !changes.isEmpty {
             do {
                 try await api.updateLabel(id: label.id, changes)
