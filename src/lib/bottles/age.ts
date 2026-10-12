@@ -49,44 +49,80 @@ export function describeAge(age: Age): string {
 }
 
 /**
- * The age statement a designation implies, most specific first (SPEC #12).
- * Bottled-in-Bond (>= 4 years) is a stronger claim than Straight (>= 2), and
- * a bottle is never both NAS and one of the others. Used only to fill in a
+ * The age statement a designation implies (SPEC #12). Bottled-in-Bond is a
+ * stronger claim than NAS and a bottle is never both. Used only to fill in a
  * blank statement — a real one, like Old Grand Dad's "7 Year", always wins.
+ * Straight has no statement of its own: it implies a number of years instead
+ * (see `impliedYears`).
  */
-export function defaultAgeStatement(flags: { isStraight: boolean; isBottledInBond: boolean; isNas: boolean }): string {
+export function defaultAgeStatement(flags: { isBottledInBond: boolean; isNas: boolean }): string {
   if (flags.isBottledInBond) return "Bottled-in-Bond (at least 4 years)";
-  if (flags.isStraight) return "Straight (at least 2 years)";
   if (flags.isNas) return "NAS";
   return "";
 }
 
+const blank = (value: unknown) => String(value ?? "").trim() === "";
+
+/** Whether any of years, months or days has something in it. */
+export function ageFilled(values: Record<string, unknown>): boolean {
+  return !(blank(values.ageYears) && blank(values.ageMonths) && blank(values.ageDays));
+}
+
+/**
+ * Years a Straight whiskey is at least: 2, or 4 when it also carries no age
+ * statement (a straight whiskey younger than 4 years has to say so). Blank
+ * when it is not Straight.
+ */
+export function impliedYears(flags: { isStraight: boolean; isNas: boolean }): string {
+  if (!flags.isStraight) return "";
+  return flags.isNas ? "4" : "2";
+}
+
+/**
+ * Switching Straight or NAS fills in the age, but only over a blank age or the
+ * number the previous ticks produced — anything typed is left exactly as it
+ * is. Returns `next`, with the years changed when they should be.
+ */
+export function withImpliedAge<T extends Record<string, unknown>>(prev: T, next: T, name: string): T {
+  if ((name !== "isStraight" && name !== "isNas") || prev[name] === next[name]) return next;
+  const was = impliedYears({ isStraight: prev.isStraight === true, isNas: prev.isNas === true });
+  const years = String(prev.ageYears ?? "").trim();
+  if (!blank(prev.ageMonths) || !blank(prev.ageDays) || (years !== "" && years !== was)) return next;
+  return { ...next, ageYears: impliedYears({ isStraight: next.isStraight === true, isNas: next.isNas === true }) };
+}
+
 /** Fields whose checkbox, when switched on, offers a default age statement. */
-const AGE_DESIGNATION_FIELDS: ReadonlySet<string> = new Set(["isStraight", "isBottledInBond", "isNas"]);
+const AGE_DESIGNATION_FIELDS: ReadonlySet<string> = new Set(["isBottledInBond", "isNas"]);
 
 const designations = (values: Record<string, unknown>) => ({
-  isStraight: values.isStraight === true,
   isBottledInBond: values.isBottledInBond === true,
   isNas: values.isNas === true,
 });
 
 /**
  * The age statement to fill in after `name` changed from `prev` to `next`, or
- * null to leave it alone. Switching Straight, Bottled In Bond or NAS on or off
- * offers the default, but only over a blank statement or the default the
- * previous ticks produced — so ticking Straight then Bottled In Bond upgrades
- * to the BiB default, and unticking takes the text back out, while Old Grand
- * Dad 7 is bottled-in-bond and still reads "7 Year". Shared by the label form
- * and the bulk grid so the two never disagree.
+ * null to leave it alone. Switching Bottled In Bond or NAS on or off offers the
+ * default, but only over a blank statement or the default the previous ticks
+ * produced — so unticking takes the text back out, while Old Grand Dad 7 is
+ * bottled-in-bond and still reads "7 Year". Nothing is offered once an age is
+ * filled in: the statement is greyed out then. Shared by the label form and
+ * the bulk grid so the two never disagree.
  */
 export function offeredAgeStatement(
   prev: Record<string, unknown>,
   next: Record<string, unknown>,
   name: string,
 ): string | null {
-  if (!AGE_DESIGNATION_FIELDS.has(name) || prev[name] === next[name]) return null;
+  if (!AGE_DESIGNATION_FIELDS.has(name) || prev[name] === next[name] || ageFilled(next)) return null;
   const current = String(prev.ageStatement ?? "").trim();
   if (current !== "" && current !== defaultAgeStatement(designations(prev))) return null;
   const offered = defaultAgeStatement(designations(next));
   return offered === current ? null : offered;
+}
+
+/** One label field changed: the age Straight implies, then the statement a designation offers. */
+export function withAgeDefaults<T extends Record<string, unknown>>(prev: T, next: T, name: string): T {
+  const aged = withImpliedAge(prev, next, name);
+  const offered = offeredAgeStatement(prev, aged, name);
+  return offered === null ? aged : { ...aged, ageStatement: offered };
 }

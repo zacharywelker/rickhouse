@@ -23,7 +23,7 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
   const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
 
-  const [{ options, categoryGroups, links }, colas, otherNames, releases, releaseImpact] = await Promise.all([
+  const [{ options, categoryGroups, categoryKinds, links }, colas, otherNames, releases, releaseImpact] = await Promise.all([
     expressionFormData(expressionId, user.id),
     colasForExpression(expressionId, user.id),
     expressionOtherNames(expressionId),
@@ -51,6 +51,7 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
         releaseImpact={releaseImpact}
         options={options}
         categoryGroups={categoryGroups}
+        categoryKinds={categoryKinds}
       />
       {/* Below the form: what TTB approved for this label, saved as it is added (SPEC M11). */}
       <ColaApprovals

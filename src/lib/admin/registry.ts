@@ -7,6 +7,7 @@ import { describeMashbill, mashbillTitle, orderGrains, recipeKey } from "@/lib/m
 import {
   FIELD_GROUPS,
   FINISH_TYPES,
+  SCOTCH_REGIONS,
   type DistilleryDisclosure,
   brands,
   bottleTags,
@@ -531,6 +532,14 @@ const distilleriesConfig: ResourceConfig = {
     { kind: "reference", name: "companyId", label: "Company", resource: "companies", span: "half" },
     { kind: "number", name: "founded", label: "Founded", min: 1600, max: 2200, step: 1, span: "half" },
     ...placeFields({ countryRequired: true }),
+    {
+      kind: "select",
+      name: "region",
+      label: "Scotch Region",
+      options: [{ value: "", label: "None" }, ...SCOTCH_REGIONS.map((r) => ({ value: r, label: r }))],
+      help: "Linking this distillery to a Scotch label adds its region to the label.",
+      span: "half",
+    },
     { kind: "text", name: "dspNumber", label: "DSP Number", placeholder: "DSP-KY-95", span: "half" },
     {
       kind: "select",
@@ -578,6 +587,7 @@ const distilleriesConfig: ResourceConfig = {
         city: distilleries.city,
         state: distilleries.state,
         country: distilleries.country,
+        region: distilleries.region,
         dspNumber: distilleries.dspNumber,
         founded: distilleries.founded,
         disclosure: distilleries.disclosure,
@@ -606,6 +616,7 @@ const distilleriesConfig: ResourceConfig = {
         city: r.city,
         state: r.state,
         country: r.country,
+        region: r.region,
         dspNumber: r.dspNumber,
         founded: r.founded,
         disclosure: r.disclosure,
@@ -635,6 +646,7 @@ const distilleriesConfig: ResourceConfig = {
       slug,
       companyId: input.companyId,
       ...normalizePlace(input),
+      region: input.region,
       dspNumber: input.dspNumber,
       founded: input.founded,
       disclosure: input.disclosure,
@@ -678,6 +690,7 @@ async function distilleryOptions(ownerId: number): Promise<Option[]> {
       value: distilleries.id,
       label: distilleries.name,
       state: distilleries.state,
+      region: distilleries.region,
       disclosure: distilleries.disclosure,
     })
     .from(distilleries)
@@ -686,7 +699,13 @@ async function distilleryOptions(ownerId: number): Promise<Option[]> {
   // A named distillery's hint stays its state; a placeholder says what it is.
   return rows.map((r) => {
     const hint = r.disclosure === "named" ? r.state : [DISCLOSURE_LABELS[r.disclosure], r.state].filter(Boolean).join(" · ");
-    return { value: r.value, label: r.label, ...(hint ? { hint } : {}), ...(r.disclosure === "undisclosed" ? { undisclosed: true } : {}) };
+    return {
+      value: r.value,
+      label: r.label,
+      ...(hint ? { hint } : {}),
+      ...(r.disclosure === "undisclosed" ? { undisclosed: true } : {}),
+      ...(r.region ? { region: r.region } : {}),
+    };
   });
 }
 

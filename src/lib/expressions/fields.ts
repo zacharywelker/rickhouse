@@ -1,5 +1,7 @@
-import { CHAR_LEVELS, CHAR_LEVEL_LABELS, FIELD_GROUPS, STILL_TYPES, type FieldGroup } from "@/db/schema";
+import { CHAR_LEVELS, CHAR_LEVEL_LABELS, FIELD_GROUPS, RUM_BASES, STILL_TYPES, type FieldGroup } from "@/db/schema";
 import type { FieldSpec } from "@/lib/admin/types";
+import { AGING_FIELDS } from "./rules";
+import { SIZE_PRESETS } from "./sizes";
 
 /**
  * The expression form, described as data.
@@ -57,12 +59,14 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     title: "Strength and age",
     description:
       "As the product is normally sold; a bottle can override both. Proof and ABV calculate each other — enter " +
-      "either one. Straight, Bottled In Bond and NAS fill in the age statement below when it is blank.",
+      "either one. Straight fills in the age when it is blank, and an age filled in greys out the age statement.",
     fields: [
       // Proof renders as two linked cells (Proof, ABV), so this row is
       // already a full pair — the age triplet below is a full-span row of
-      // its own, and everything after it pairs up cleanly again.
+      // its own, and everything after it pairs up cleanly again. Bottled In
+      // Bond is drawn after Cask Strength, from the Process section.
       { kind: "number", name: "proof", label: "Proof", min: 0, max: 200, step: 0.01, span: "half" },
+      { kind: "checkbox", name: "isCaskStrength", label: "Cask Strength", span: "half" },
       { kind: "number", name: "ageYears", label: "Age — Years", min: 0, max: 100, step: 0.1, span: "half" },
       { kind: "number", name: "ageMonths", label: "Age — Months", min: 0, max: 1200, step: 1, span: "half" },
       {
@@ -75,7 +79,6 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         help: "For a single barrel with an exact fill-to-bottling age.",
         span: "half",
       },
-      { kind: "checkbox", name: "isCaskStrength", label: "Cask Strength", span: "half" },
       {
         kind: "text",
         name: "ageStatement",
@@ -105,7 +108,15 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     title: "Process",
     fieldGroups: ["whiskey"],
     fields: [
-      { kind: "checkbox", name: "isBottledInBond", label: "Bottled In Bond", span: "half" },
+      // Drawn in Strength and age, beside Cask Strength; it lives here so only whiskey writes it.
+      { kind: "checkbox", name: "isBottledInBond", label: "Bottled In Bond", help: "Bottled In Bond — 100 proof", span: "half" },
+      {
+        kind: "text",
+        name: "regions",
+        label: "Regions",
+        placeholder: "Speyside, Islay",
+        help: "Scotch regions, comma separated. Drawn with the distilleries.",
+      },
       { kind: "number", name: "entryProof", label: "Entry Proof", min: 0, max: 200, step: 0.01, span: "half" },
       { kind: "select", name: "isChillFiltered", label: "Chill Filtered", options: TRISTATE, span: "half" },
       { kind: "select", name: "colorAdded", label: "Colour Added", options: TRISTATE, span: "half" },
@@ -138,9 +149,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         label: "Base",
         options: [
           { value: "", label: "Unknown" },
-          { value: "molasses", label: "Molasses" },
-          { value: "cane juice", label: "Cane juice" },
-          { value: "honey", label: "Honey" },
+          ...RUM_BASES.map((v) => ({ value: v, label: titleCase(v) })),
         ],
         span: "half",
       },
@@ -190,7 +199,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     title: "On the shelf",
     fields: [
       { kind: "number", name: "msrp", label: "MSRP", money: true, min: 0, step: 0.01, span: "half" },
-      { kind: "number", name: "sizeMl", label: "Size (ml)", min: 1, max: 20000, step: 1, defaultValue: "750", span: "half" },
+      { kind: "number", name: "sizeMl", label: "Size", min: 1, max: 20000, step: 1, defaultValue: "750", presets: SIZE_PRESETS, help: "A bottle can be a different size from this.", span: "half" },
       {
         kind: "text",
         name: "upc",
@@ -235,13 +244,14 @@ export function fieldVisible(field: FieldSpec, values: Record<string, unknown>):
   return true;
 }
 
-/** Field names a given field group is allowed to write. */
+/** Field names a given field group is allowed to write. Vodka never ages, so aging is not one of them. */
 export function writableFields(fieldGroup: FieldGroup): Set<string> {
   const names = new Set<string>();
   for (const section of EXPRESSION_SECTIONS) {
     if (section.fieldGroups && !section.fieldGroups.includes(fieldGroup)) continue;
     for (const field of section.fields) names.add(field.name);
   }
+  if (fieldGroup === "vodka") for (const name of AGING_FIELDS) names.delete(name);
   return names;
 }
 

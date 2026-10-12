@@ -1,5 +1,6 @@
 import { ACQUISITIONS, BOTTLE_STATUSES } from "@/db/schema";
 import { FILL_STATES } from "@/lib/bottles/fill-state";
+import { SIZE_PRESETS } from "./sizes";
 import type { FormSection } from "./fields";
 
 const titleCase = (value: string) => value[0]!.toUpperCase() + value.slice(1);
@@ -126,11 +127,22 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
   },
   {
     id: "override",
-    title: "This bottle's own proof and age",
+    title: "This bottle's own proof, age and size",
     description:
-      "Leave these blank to use the label's. A single barrel almost always differs on exactly these two, " +
-      "which is why they are here at all.",
+      "Leave these blank to use the label's. A single barrel almost always differs on proof and age, and one " +
+      "release can come in several sizes, which is why they are here at all.",
     fields: [
+      {
+        kind: "number",
+        name: "sizeMl",
+        label: "Size",
+        min: 1,
+        max: 20000,
+        step: 1,
+        presets: SIZE_PRESETS,
+        blankLabel: "Same as the label",
+        span: "half",
+      },
       { kind: "number", name: "proof", label: "Proof", min: 0, max: 200, step: 0.01, span: "half" },
       // Surfaced for every bottle, not only picks (SPEC M8): a standard
       // release has a bottling date too, and the pair derives the age.

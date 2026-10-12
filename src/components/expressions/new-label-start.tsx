@@ -8,6 +8,7 @@ import { ExpressionForm } from "@/components/expressions/expression-form";
 import { guessNewLabel } from "@/lib/expressions/label-search";
 import { searchCatalogLabelsAction, type CatalogHit, type CatalogSearch } from "@/app/(app)/bottles/add/actions";
 import type { FieldGroup } from "@/db/schema";
+import type { CategoryKind } from "@/lib/expressions/rules";
 import type { Option } from "@/lib/admin/types";
 
 type Links = React.ComponentProps<typeof ExpressionForm>["initialLinks"];
@@ -20,11 +21,13 @@ type Links = React.ComponentProps<typeof ExpressionForm>["initialLinks"];
 export function NewLabelStart({
   options,
   categoryGroups,
+  categoryKinds,
   initialLinks,
   colaLookup,
 }: {
   options: Record<string, Option[]>;
   categoryGroups: Record<number, FieldGroup>;
+  categoryKinds: Record<number, CategoryKind>;
   initialLinks: Links;
   colaLookup: boolean;
 }) {
@@ -100,6 +103,7 @@ export function NewLabelStart({
           initialLinks={initialLinks}
           options={options}
           categoryGroups={categoryGroups}
+          categoryKinds={categoryKinds}
           colaLookup={colaLookup}
         />
       </div>
@@ -107,7 +111,7 @@ export function NewLabelStart({
   }
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <LabelSearchBox
         query={query}
         onQueryChange={setQuery}

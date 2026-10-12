@@ -7,7 +7,7 @@
  * should be parsing form values by hand.
  */
 import { z } from "zod";
-import { DISTILLERY_DISCLOSURES, FIELD_GROUPS, FINISH_TYPES } from "@/db/schema";
+import { DISTILLERY_DISCLOSURES, FIELD_GROUPS, FINISH_TYPES, SCOTCH_REGIONS } from "@/db/schema";
 import { normalizeGrainName } from "@/lib/mashbills";
 
 const trimmed = z.string().trim();
@@ -102,6 +102,7 @@ export const distillerySchema = z.object({
   companyId: optionalRef,
   ...placeFields,
   country: requiredText(80),
+  region: blankIfAbsent(z.enum(["", ...SCOTCH_REGIONS]).transform((v) => (v === "" ? null : v))),
   dspNumber: optionalText(40),
   founded: optionalYear,
   // Absent means named, so the inline "create new" path (a name and nothing else) still works.

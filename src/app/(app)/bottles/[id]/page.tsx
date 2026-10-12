@@ -1,3 +1,4 @@
+import { formatSize } from "@/lib/expressions/sizes";
 import type { Metadata } from "next";
 import Image from "next/image";
 import type { Route } from "next";
@@ -226,7 +227,7 @@ export default async function BottlePage({
             <Spec label="Proof" value={formatNumeric(proof)} />
             <Spec label="ABV" value={proof ? `${formatNumeric((Number(proof) / 2).toFixed(2))}%` : null} />
             <Spec label="Age" value={age} />
-            <Spec label="Size" value={`${e.sizeMl} ml`} />
+            <Spec label="Size" value={formatSize(row.bottle.sizeMl ?? e.sizeMl)} />
             <Spec label="MSRP" value={msrp ? formatMoney(msrp, currency) : null} />
             <Spec
               label="Paid"

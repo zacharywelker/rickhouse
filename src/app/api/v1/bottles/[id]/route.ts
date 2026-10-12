@@ -52,7 +52,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     proof: bottle.proof ?? release?.proof ?? expression.proof,
     ageStatement: bottle.ageStatement ?? ageSource.ageStatement,
     ageYears: bottle.ageYears ?? ageSource.ageYears,
-    sizeMl: expression.sizeMl,
+    sizeMl: bottle.sizeMl ?? expression.sizeMl,
     msrp: release?.msrp ?? expression.msrp,
     pricePaid: bottle.pricePaid,
     store: row.store?.name ?? null,
