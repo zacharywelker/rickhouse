@@ -369,7 +369,20 @@ function PhotoPreview({ file, link }: { file: File | null; link: string }) {
     return () => reader.abort();
   }, [file]);
 
-  const src = file ? (read?.file === file ? read.url : null) : /^https?:\/\//i.test(link) ? link : null;
+  const safeExternalImageUrl = (() => {
+    const trimmed = link.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+      if (!/\.(apng|avif|gif|jpe?g|png|svg|webp)$/i.test(parsed.pathname)) return null;
+      return parsed.toString();
+    } catch {
+      return null;
+    }
+  })();
+
+  const src = file ? (read?.file === file ? read.url : null) : safeExternalImageUrl;
   if (!src) return null;
   if (!file && brokenLink === link) {
     return <p className="col-span-full text-sm text-muted-foreground">That link does not show a picture.</p>;
