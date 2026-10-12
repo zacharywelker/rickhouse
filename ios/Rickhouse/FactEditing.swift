@@ -54,6 +54,10 @@ struct EditRow: View {
         }
         .padding(.vertical, 2)
         .onAppear { if focusOnAppear { focused = true } }
+        .onChange(of: field.text) { _, text in
+            // "$" marks a price: stop at the cents rather than refuse the save.
+            if prefix == "$" { let clean = Format.moneyInput(text); if clean != text { field.text = clean } }
+        }
     }
 }
 

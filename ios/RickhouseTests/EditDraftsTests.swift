@@ -256,4 +256,21 @@ final class EditDraftsTests: XCTestCase {
         draft.setList(.finishes, to: [LookupItem(id: 9, name: "Port")])
         XCTAssertTrue(draft.linksChanged)
     }
+
+    func testMoneyInputStopsAtTwoPlaces() {
+        XCTAssertEqual(Format.moneyInput("49.999"), "49.99")
+        XCTAssertEqual(Format.moneyInput("1.2.3"), "1.23")
+        XCTAssertEqual(Format.moneyInput("12,5"), "12,5")
+        XCTAssertEqual(Format.moneyInput("$1a0"), "10")
+        XCTAssertEqual(Format.moneyInput("120"), "120")
+    }
+
+    func testStrengthConvertsBothWays() {
+        XCTAssertEqual(Strength.abv(fromProof: "101"), "50.5")
+        XCTAssertEqual(Strength.abv(fromProof: "116.8"), "58.4")
+        XCTAssertEqual(Strength.proof(fromABV: "50.5"), "101")
+        XCTAssertEqual(Strength.proof(fromABV: "58.45"), "116.9")
+        XCTAssertEqual(Strength.proof(fromABV: ""), "")
+        XCTAssertEqual(Strength.abv(fromProof: ""), "")
+    }
 }

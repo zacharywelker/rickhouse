@@ -2,7 +2,7 @@ import PhotosUI
 import SwiftUI
 
 /// Start a label from the phone: a brand from your list, a name, a category, the scanned barcode and a photo.
-/// The rest of the label is filled in on the web (docs/superpowers/specs/2026-10-11-add-label-parity-design.md).
+/// Once it is made, the label editor opens on it for the rest of its facts (#210); closing that carries on.
 struct NewLabelView: View {
     @Environment(Session.self) private var session
 
@@ -26,6 +26,10 @@ struct NewLabelView: View {
     @State private var showCamera = false
     /// The label is saved but its photo isn't: Save becomes Retry photo, and the label can be used without it.
     @State private var made: LabelOption?
+    /// The label just made, open in the editor; closing the editor carries on with it.
+    @State private var detailing: LabelOption?
+    @State private var detailed: LabelOption?
+    @State private var mergedInto: LabelOption?
 
     init(code: String?, name: String, onDone: @escaping (LabelOption) -> Void) {
         self.code = code
@@ -100,7 +104,7 @@ struct NewLabelView: View {
             }
             if let made {
                 Section {
-                    Button("Continue without the photo") { onDone(made) }
+                    Button("Continue without the photo") { openDetails(made) }
                 } footer: {
                     Text("The label is saved.")
                 }
@@ -115,6 +119,9 @@ struct NewLabelView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button(saving ? "Saving…" : made != nil ? "Retry photo" : "Save", action: save).disabled(!canSave)
             }
+        }
+        .sheet(item: $detailing, onDismiss: finishDetails) { label in
+            LabelEditor(id: label.id) { _ in } onMerged: { _, theirs in mergedInto = LabelOption(theirs) }
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { add($0) }.ignoresSafeArea()
@@ -180,7 +187,7 @@ struct NewLabelView: View {
                     categoryId: categoryId,
                     upc: upc
                 ))
-                if photo == nil { onDone(label) } else { await uploadPhoto(to: label, api: api) }
+                if photo == nil { openDetails(label) } else { await uploadPhoto(to: label, api: api) }
             } catch APIError.duplicateLabel(let label) {
                 // Already there: offer it, and teach it the code if it has none (the server never overwrites).
                 // The photo is not put on it: that would replace whatever photo it has.
@@ -196,15 +203,29 @@ struct NewLabelView: View {
 
     /// The label exists; its photo follows. A failure keeps the screen, the photo and the label.
     private func uploadPhoto(to label: LabelOption, api: APIClient) async {
-        guard let image = photo?.encoded() else { onDone(label); return }
+        guard let image = photo?.encoded() else { openDetails(label); return }
         do {
             try await api.uploadLabelPhoto(expressionId: label.id, image: image)
-            onDone(label)
+            openDetails(label)
         } catch APIError.unauthorized {
             session.signOut()
         } catch {
             made = label
             self.error = "The label is saved, but its photo didn't upload: \(error.localizedDescription)"
+        }
+    }
+
+    /// Carries on with the label as it now is: renamed in the editor, or the one it was merged into.
+    private func openDetails(_ label: LabelOption) {
+        detailed = label
+        detailing = label
+    }
+
+    private func finishDetails() {
+        guard let made = detailed else { return }
+        if let mergedInto { onDone(mergedInto); return }
+        Task {
+            if let api = session.api, let fresh = try? await api.label(id: made.id) { onDone(LabelOption(fresh)) } else { onDone(made) }
         }
     }
 }
@@ -310,4 +331,5 @@ struct BrandSearchField: View {
             }
         }
     }
+
 }

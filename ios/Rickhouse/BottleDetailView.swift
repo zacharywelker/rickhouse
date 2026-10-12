@@ -51,21 +51,33 @@ struct BottleDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .task { await session.loadWheels() }
-        .confirmationDialog("Discard your changes?", isPresented: $discarding, titleVisibility: .visible) {
-            Button("Discard changes", role: .destructive) { stopEditing() }
-            Button("Keep editing", role: .cancel) {}
-        } message: {
-            Text("Nothing you changed has been saved.")
-        }
-        .confirmationDialog("Keep the bottle open or mark it sealed?", isPresented: $askOpened, titleVisibility: .visible) {
-            Button("Keep it open, no date") { saveBottle(choice: .keepOpen) }
-            Button("Mark it sealed") { saveBottle(choice: .seal) }
-            Button("Keep the date", role: .cancel) { bottleDraft?[.opened].revert() }
-        } message: {
-            Text("You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.")
-        }
         .footBar(foot) { runUndo($0) }
-        .sheet(item: $picking) { pickerSheet(for: $0) }
+        .sheet(isPresented: editingBottle) {
+            NavigationStack {
+                if let bottle {
+                    List { bottleEditSections(bottle) }
+                        .scrollContentBackground(.hidden)
+                        .background(Theme.paper)
+                        .navigationTitle("Edit bottle")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+            }
+            .interactiveDismissDisabled(bottleDraft?.isDirty ?? false)
+            .confirmationDialog("Discard your changes?", isPresented: $discarding, titleVisibility: .visible) {
+                Button("Discard changes", role: .destructive) { stopEditing() }
+                Button("Keep editing", role: .cancel) {}
+            } message: {
+                Text("Nothing you changed has been saved.")
+            }
+            .confirmationDialog("Keep the bottle open or mark it sealed?", isPresented: $askOpened, titleVisibility: .visible) {
+                Button("Keep it open, no date") { saveBottle(choice: .keepOpen) }
+                Button("Mark it sealed") { saveBottle(choice: .seal) }
+                Button("Keep the date", role: .cancel) { bottleDraft?[.opened].revert() }
+            } message: {
+                Text("You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.")
+            }
+            .sheet(item: $picking) { pickerSheet(for: $0) }
+        }
         .sheet(isPresented: $editingLabel) {
             if let expressionId = bottle?.expressionId {
                 LabelEditor(id: expressionId, onSaved: labelSaved, onMerged: labelMerged)

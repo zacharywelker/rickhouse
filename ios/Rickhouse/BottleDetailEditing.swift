@@ -22,11 +22,12 @@ extension BottleDetailView {
             }
     }
 
-    @ViewBuilder
+    /// The bottle edit opens as its own page over this one, like the label's.
+    var editingBottle: Binding<Bool> {
+        Binding(get: { bottleDraft != nil }, set: { if !$0 { stopEditing() } })
+    }
+
     func bottleSection(_ b: BottleDetail) -> some View {
-        if bottleDraft != nil {
-            bottleEditSections(b)
-        } else {
             Section {
                 row("Status", b.status.capitalized)
                 row("Opened", b.dateOpened.map(Format.day))
@@ -42,7 +43,6 @@ extension BottleDetailView {
             } header: {
                 SectionTitle(title: "Bottle", canEdit: !editingSomething) { startBottleEdit(b) }
             }
-        }
     }
 
     // MARK: Bottle edit

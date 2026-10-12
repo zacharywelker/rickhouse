@@ -21,6 +21,10 @@ struct LabelEditor: View {
     @State private var nameClash: LabelRef?
     @State private var merging: MergeSetup?
     @State private var discarding = false
+    @State private var scanning = false
+    /// Strength typed as ABV instead of proof. Proof is still what is saved (ABV × 2).
+    @State private var asABV = false
+    @State private var abvText = ""
 
     var body: some View {
         NavigationStack {
@@ -49,6 +53,14 @@ struct LabelEditor: View {
             Text("Nothing you changed has been saved.")
         }
         .sheet(item: $picking) { pickerSheet(for: $0) }
+        .fullScreenCover(isPresented: $scanning) {
+            ScanScreen { code in
+                field(.barcode).wrappedValue.text = Barcode.normalise(code) ?? code
+                scanning = false
+            } onType: {
+                scanning = false
+            }
+        }
         .sheet(item: $merging) { setup in
             MergeReview(plan: MergePlan(mine: setup.mine, theirs: setup.theirs)) { answer in
                 merging = nil
@@ -67,6 +79,18 @@ struct LabelEditor: View {
                 draft?[fact] = $0
                 fieldErrors[fact.rawValue] = nil
                 if fact == .name { nameClash = nil }
+            }
+        )
+    }
+
+    /// ABV typed here is kept as typed (so "50." survives) and saved as proof.
+    private var abvField: Binding<Field> {
+        Binding(
+            get: { Field(original: Strength.abv(fromProof: draft?[.proof].original ?? ""), text: abvText) },
+            set: {
+                abvText = $0.text
+                draft?[.proof].text = Strength.proof(fromABV: $0.text)
+                fieldErrors[LabelFact.proof.rawValue] = nil
             }
         )
     }
@@ -111,7 +135,17 @@ struct LabelEditor: View {
                     Text("Category").foregroundStyle(Theme.muted)
                 }
                 .tint(Theme.ink)
-                EditRow(title: "Proof", field: field(.proof), placeholder: "Add proof", keyboard: .decimalPad, error: fieldErrors[LabelFact.proof.rawValue])
+                Picker("Strength as", selection: $asABV) {
+                    Text("Proof").tag(false)
+                    Text("ABV %").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: asABV) { _, on in if on { abvText = Strength.abv(fromProof: draft[.proof].text) } }
+                if asABV {
+                    EditRow(title: "ABV %", field: abvField, placeholder: "Add ABV", keyboard: .decimalPad, error: fieldErrors[LabelFact.proof.rawValue])
+                } else {
+                    EditRow(title: "Proof", field: field(.proof), placeholder: "Add proof", keyboard: .decimalPad, error: fieldErrors[LabelFact.proof.rawValue])
+                }
                 EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: fieldErrors[LabelFact.ageStatement.rawValue])
                 EditRow(title: "Size (mL)", field: field(.size), keyboard: .numberPad, error: fieldErrors[LabelFact.size.rawValue])
                 EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: "$", error: fieldErrors[LabelFact.msrp.rawValue])
@@ -123,6 +157,13 @@ struct LabelEditor: View {
                     )
                 }
                 EditRow(title: "Barcode", field: field(.barcode), placeholder: "Scan or type", keyboard: .numberPad, error: fieldErrors[LabelFact.barcode.rawValue])
+                Button { scanning = true } label: {
+                    Label("Scan barcode", systemImage: "barcode.viewfinder")
+                        .font(.inter(15, .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .foregroundStyle(Theme.ink)
             } header: {
                 EditHeader(saving: saving, canSave: fieldErrors.isEmpty, onCancel: cancel, onSave: save)
             }
