@@ -221,7 +221,7 @@ export async function shelf(ownerId: number): Promise<Shelf> {
       SELECT count(*)::int AS "onShelf",
              count(*) FILTER (WHERE e.is_cask_strength)::int AS "caskStrength",
              count(*) FILTER (WHERE e.is_bottled_in_bond)::int AS "bottledInBond",
-             coalesce(sum(b.fill_pct * e.size_ml / 100.0), 0)::float8 AS "liquidMl",
+             coalesce(sum(b.fill_pct * coalesce(b.size_ml, e.size_ml) / 100.0), 0)::float8 AS "liquidMl",
              (percentile_cont(0.5) WITHIN GROUP (ORDER BY bl.age_years))::float8 AS "medianAge",
              count(bl.age_years)::int AS "ageSample",
              count(bl.proof)::int AS "proofSample"

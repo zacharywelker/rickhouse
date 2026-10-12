@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StopSlider } from "@/components/forms/stop-slider";
+import { SizeField } from "@/components/forms/size-field";
 import { Textarea } from "@/components/ui/textarea";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { descendantsOf } from "@/lib/admin/tree";
@@ -28,6 +29,8 @@ export function Field({
   onOptionCreated,
   excludeId,
   suggestions,
+  locked = false,
+  onUnlock,
 }: {
   spec: FieldSpec;
   idPrefix: string;
@@ -44,6 +47,10 @@ export function Field({
    * phone's suggestion bar, and never stops you typing something new.
    */
   suggestions?: string[] | undefined;
+  /** Text fields only: greyed out and read-only, though still submitted so nothing saved is lost. */
+  locked?: boolean;
+  /** With `locked`: called when the field is triple-clicked, to make it editable again. */
+  onUnlock?: () => void;
 }) {
   const moneyStep = useMoneyStep();
   const inputId = `${idPrefix}-${spec.name}`;
@@ -64,7 +71,19 @@ export function Field({
         ) : null}
       </div>
 
-      {spec.kind === "text" || spec.kind === "number" || spec.kind === "date" ? (
+      {spec.kind === "number" && spec.presets ? (
+        <SizeField
+          id={inputId}
+          name={spec.name}
+          value={value}
+          onChange={onChange}
+          presets={spec.presets}
+          blankLabel={spec.blankLabel}
+          error={error}
+        />
+      ) : null}
+
+      {(spec.kind === "text" || spec.kind === "number" || spec.kind === "date") && !(spec.kind === "number" && spec.presets) ? (
         <MaybeMoney money={spec.kind === "number" && spec.money === true}>
         <Input
           id={inputId}
@@ -73,8 +92,16 @@ export function Field({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           placeholder={"placeholder" in spec ? spec.placeholder : undefined}
+          readOnly={locked}
+          aria-readonly={locked || undefined}
+          title={locked ? "Triple-click to edit" : undefined}
+          onClick={locked && onUnlock ? (e) => e.detail >= 3 && onUnlock() : undefined}
           aria-invalid={error ? true : undefined}
-          className={cn(error && "border-destructive", spec.kind === "number" && spec.money && "pl-8")}
+          className={cn(
+            error && "border-destructive",
+            spec.kind === "number" && spec.money && "pl-8",
+            locked && "cursor-not-allowed bg-muted text-muted-foreground",
+          )}
           {...(spec.kind === "number" ? { min: spec.min, max: spec.max, step: spec.money ? moneyStep : (spec.step ?? 1) } : {})}
           {...(spec.kind === "text" && suggestions && suggestions.length > 0
             ? { list: `${inputId}-suggestions`, autoComplete: "off" }

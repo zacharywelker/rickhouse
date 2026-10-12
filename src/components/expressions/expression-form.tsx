@@ -15,10 +15,21 @@ import { saveExpressionAction } from "@/app/(app)/expressions/actions";
 import { EXPRESSION_SECTIONS, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type FieldSpec, type Option } from "@/lib/admin/types";
 import type { FieldGroup } from "@/db/schema";
-import { offeredAgeStatement } from "@/lib/bottles/age";
+import { ageFilled, withAgeDefaults } from "@/lib/bottles/age";
+import {
+  BOND_PROOF,
+  baseReplacesMashbills,
+  hiddenFields,
+  looksAged,
+  parseRegions,
+  showsFinishes,
+  showsRegions,
+  type CategoryKind,
+} from "@/lib/expressions/rules";
+import { SCOTCH_REGIONS } from "@/db/schema";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
-import { OrderedPicker, type LinkedRow } from "./ordered-picker";
+import { OrderedPicker, serializeLinks, type LinkedRow } from "./ordered-picker";
 import { DeleteExpressionButton } from "./delete-expression-button";
 import { PendingColas } from "./cola-approvals";
 import { RowListEditor } from "./row-list-editor";
@@ -32,22 +43,68 @@ export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; fi
 
 export const EMPTY_LINKS: LabelLinks = { distilleries: [], mashbills: [], finishes: [] };
 
-/** One field changed, with an age statement offered as the age is typed. */
+/**
+ * One field changed, with what follows from it: Straight fills in an age, an
+ * age statement is offered as a designation is ticked, and Bottled In Bond
+ * sets 100 proof.
+ */
 export function withLabelChange(
   prev: Record<string, FieldValue>,
   name: string,
   value: FieldValue,
 ): Record<string, FieldValue> {
-  const next = { ...prev, [name]: value };
-  const offered = offeredAgeStatement(prev, next, name);
-  if (offered !== null) next.ageStatement = offered;
+  const next = withAgeDefaults(prev, { ...prev, [name]: value }, name);
+  if (name === "isBottledInBond" && value === true) next.proof = BOND_PROOF;
   return next;
+}
+
+/** The Scotch regions, as buttons: a blend comes from several. */
+function RegionPicker({
+  idPrefix,
+  value,
+  onChange,
+}: {
+  idPrefix: string;
+  value: string[];
+  onChange: (regions: string[]) => void;
+}) {
+  return (
+    <fieldset className="col-span-full flex flex-col gap-2 border border-border p-4">
+      <legend className="px-1 text-sm font-medium">Regions</legend>
+      <p className="-mt-1 text-xs text-muted-foreground">
+        Where the whisky comes from; pick several for a blend. Linking a distillery that has a region adds it here.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {SCOTCH_REGIONS.map((region) => {
+          const on = value.includes(region);
+          return (
+            <Button
+              key={region}
+              id={`${idPrefix}-region-${region}`}
+              type="button"
+              size="sm"
+              variant={on ? "default" : "outline"}
+              aria-pressed={on}
+              onClick={() => onChange(on ? value.filter((r) => r !== region) : [...value, region])}
+            >
+              {region}
+            </Button>
+          );
+        })}
+      </div>
+      <input type="hidden" name="regions" value={value.join(", ")} />
+    </fieldset>
+  );
 }
 
 /**
  * The label's fields and its three ordered lists, without a form around
  * them: New Label and Edit Label wrap them in their own form, and the
  * search-first Add bottle page puts them above the bottle's in one save.
+ *
+ * What shows depends on the category (see `rules`): vodka and unaged gin have
+ * no age, Straight is American, Scotch has regions, and rum records its base
+ * where other spirits list a mashbill.
  */
 export function ExpressionFields({
   values,
@@ -57,6 +114,7 @@ export function ExpressionFields({
   options,
   onOptionCreated,
   categoryGroups,
+  categoryKinds,
   errors,
   idPrefix = "expression",
 }: {
@@ -68,12 +126,100 @@ export function ExpressionFields({
   onOptionCreated: (name: string, option: Option) => void;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
+  /** categoryId -> which whiskey it is; without it Straight is always offered. */
+  categoryKinds?: Record<number, CategoryKind>;
   errors: Record<string, string>;
   idPrefix?: string;
 }) {
   const categoryRaw = values.categoryId;
   const categoryId = typeof categoryRaw === "string" && categoryRaw !== "" ? Number(categoryRaw) : null;
   const fieldGroup: FieldGroup = (categoryId !== null ? categoryGroups[categoryId] : undefined) ?? "other";
+  const kind: CategoryKind | null = categoryKinds ? (categoryId !== null ? (categoryKinds[categoryId] ?? "other") : "other") : null;
+
+  // A gin is unaged until it is marked aged; one that already has an age opens as aged.
+  const [ginChoice, setGinChoice] = React.useState<boolean | null>(null);
+  const ginAged = ginChoice ?? looksAged(values, links.finishes.length);
+  const context = { group: fieldGroup, kind, values, ginAged };
+  const hidden = hiddenFields(context);
+  const regions = parseRegions(values.regions);
+  // With an age filled in the statement is greyed out; triple-clicking it makes it editable again.
+  const [statementOpen, setStatementOpen] = React.useState(false);
+  const ageGreyed = ageFilled(values) && !statementOpen;
+
+  const bondField = LABEL_FIELDS.find((field) => field.name === "isBottledInBond");
+  const baseField = LABEL_FIELDS.find((field) => field.name === "molassesOrCane");
+  const bonded = fieldGroup === "whiskey" && !hidden.has("isBottledInBond") && values.isBottledInBond === true;
+
+  /** A linked distillery brings its Scotch region along. */
+  const changeLinks = (next: LabelLinks) => {
+    onLinksChange(next);
+    if (!showsRegions(context)) return;
+    const known = new Set(links.distilleries.map((row) => row.id));
+    const brought = next.distilleries
+      .filter((row) => !known.has(row.id))
+      .map((row) => options.distilleryLinks?.find((option) => option.value === row.id)?.region)
+      .filter((region): region is string => region !== undefined && !regions.includes(region));
+    if (brought.length > 0) onChange("regions", [...new Set([...regions, ...brought])].join(", "));
+  };
+
+  const renderField = (field: FieldSpec) => {
+    // Proof/ABV and the age triplet render as linked composites
+    // rather than the generic field, but stay in `fields` above
+    // so validation and per-category writability still see them.
+    if (field.name === "proof") {
+      return (
+        <ProofAbvFields
+          key={field.name}
+          idPrefix={idPrefix}
+          value={values.proof ?? ""}
+          onChange={(next) => onChange("proof", next)}
+          error={errors.proof}
+          locked={bonded}
+        />
+      );
+    }
+    if (field.name === "ageMonths" || field.name === "ageDays") return null;
+    if (hidden.has(field.name)) return null;
+    // The slug is made from the name, so it is not asked for; a saved one is carried through unchanged.
+    if (field.name === "slug") return <input key="slug" type="hidden" name="slug" value={String(values.slug ?? "")} />;
+    if (field.name === "ageYears") {
+      return (
+        <AgeFields
+          key="age"
+          idPrefix={idPrefix}
+          values={{
+            ageYears: values.ageYears ?? "",
+            ageMonths: values.ageMonths ?? "",
+            ageDays: values.ageDays ?? "",
+          }}
+          onChange={(name, next) => onChange(name, next)}
+          errors={{
+            ageYears: errors.ageYears,
+            ageMonths: errors.ageMonths,
+            ageDays: errors.ageDays,
+          }}
+        />
+      );
+    }
+    return (
+      <Field
+        key={field.name}
+        spec={
+          field.name === "ageStatement" && ageGreyed
+            ? { ...field, help: "Greyed out while an age is filled in. Triple-click to edit anyway." }
+            : field
+        }
+        idPrefix={idPrefix}
+        value={values[field.name] ?? ""}
+        onChange={(next) => onChange(field.name, next)}
+        error={errors[field.name]}
+        options={options[field.name] ?? []}
+        onOptionCreated={(option) => onOptionCreated(field.name, option)}
+        locked={field.name === "ageStatement" && ageGreyed}
+        onUnlock={() => setStatementOpen(true)}
+      />
+    );
+  };
 
   return (
     <>
@@ -86,53 +232,44 @@ export function ExpressionFields({
               {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
             </SectionHeader>
             <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {section.id === "strength" && fieldGroup === "gin" ? (
+                <div className="col-span-full flex items-center gap-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={ginAged ? "default" : "outline"}
+                    aria-pressed={ginAged}
+                    onClick={() => setGinChoice(!ginAged)}
+                  >
+                    Aged
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {ginAged ? "Age, age statement and finishes apply." : "Gin is unaged unless you say it was aged."}
+                  </span>
+                </div>
+              ) : null}
               {section.fields.map((field) => {
-                // Proof/ABV and the age triplet render as linked composites
-                // rather than the generic field, but stay in `fields` above
-                // so validation and per-category writability still see them.
-                if (field.name === "proof") {
+                // Bottled In Bond and Regions belong to the whiskey section but are drawn elsewhere;
+                // rum's Base is drawn with the origin lists.
+                if (field.name === "regions" || field.name === "isBottledInBond" || field.name === "molassesOrCane") {
+                  return null;
+                }
+                const drawn = renderField(field);
+                if (field.name === "isCaskStrength" && bondField && fieldGroup === "whiskey" && !hidden.has("isBottledInBond")) {
                   return (
-                    <ProofAbvFields
-                      key={field.name}
-                      idPrefix={idPrefix}
-                      value={values.proof ?? ""}
-                      onChange={(next) => onChange("proof", next)}
-                      error={errors.proof}
-                    />
+                    <React.Fragment key={field.name}>
+                      {drawn}
+                      <Field
+                        spec={bondField}
+                        idPrefix={idPrefix}
+                        value={values.isBottledInBond ?? false}
+                        onChange={(next) => onChange("isBottledInBond", next)}
+                        error={errors.isBottledInBond}
+                      />
+                    </React.Fragment>
                   );
                 }
-                if (field.name === "ageMonths" || field.name === "ageDays") return null;
-                if (field.name === "ageYears") {
-                  return (
-                    <AgeFields
-                      key="age"
-                      idPrefix={idPrefix}
-                      values={{
-                        ageYears: values.ageYears ?? "",
-                        ageMonths: values.ageMonths ?? "",
-                        ageDays: values.ageDays ?? "",
-                      }}
-                      onChange={(name, next) => onChange(name, next)}
-                      errors={{
-                        ageYears: errors.ageYears,
-                        ageMonths: errors.ageMonths,
-                        ageDays: errors.ageDays,
-                      }}
-                    />
-                  );
-                }
-                return (
-                  <Field
-                    key={field.name}
-                    spec={field}
-                    idPrefix={idPrefix}
-                    value={values[field.name] ?? ""}
-                    onChange={(next) => onChange(field.name, next)}
-                    error={errors[field.name]}
-                    options={options[field.name] ?? []}
-                    onOptionCreated={(option) => onOptionCreated(field.name, option)}
-                  />
-                );
+                return drawn;
               })}
             </SectionContent>
           </Section>
@@ -148,6 +285,9 @@ export function ExpressionFields({
           </SectionDescription>
         </SectionHeader>
         <SectionContent className="grid grid-cols-1 gap-4">
+          {showsRegions(context) ? (
+            <RegionPicker idPrefix={idPrefix} value={regions} onChange={(next) => onChange("regions", next.join(", "))} />
+          ) : null}
           <OrderedPicker
             name="distilleryLinks"
             label="Distilleries"
@@ -160,36 +300,92 @@ export function ExpressionFields({
             inferable
             undisclosable
             value={links.distilleries}
-            onChange={(rows) => onLinksChange({ ...links, distilleries: rows })}
+            onChange={(rows) => changeLinks({ ...links, distilleries: rows })}
           />
-          <OrderedPicker
-            name="mashbillLinks"
-            label="Mashbills"
-            description="One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
-            resource={null}
-            emptyHint="No mashbills yet — add a new one from here."
-            options={options.mashbillLinks ?? []}
-            amountLabel="Share"
-            amountSuffix="%"
-            amountMax={100}
-            value={links.mashbills}
-            onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
-            distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
-          />
-          <OrderedPicker
-            name="finishLinks"
-            label="Finishes"
-            description="In sequence, for a double or triple finish."
-            resource="finishes"
-            options={options.finishLinks ?? []}
-            amountLabel="Months"
-            amountSuffix="mo"
-            value={links.finishes}
-            onChange={(rows) => onLinksChange({ ...links, finishes: rows })}
-          />
+          {baseReplacesMashbills(fieldGroup) && baseField ? (
+            <>
+              <Field
+                spec={{ ...baseField, help: "What the rum is made from." }}
+                idPrefix={idPrefix}
+                value={values.molassesOrCane ?? ""}
+                onChange={(next) => onChange("molassesOrCane", next)}
+                error={errors.molassesOrCane}
+              />
+              {/* Rum has no mashbill list, but one it already has is kept. */}
+              <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
+            </>
+          ) : (
+            <OrderedPicker
+              name="mashbillLinks"
+              label="Mashbills"
+              description="One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
+              resource={null}
+              emptyHint="No mashbills yet — add a new one from here."
+              options={options.mashbillLinks ?? []}
+              amountLabel="Share"
+              amountSuffix="%"
+              amountMax={100}
+              value={links.mashbills}
+              onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
+              distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
+            />
+          )}
+          {showsFinishes(context) ? (
+            <OrderedPicker
+              name="finishLinks"
+              label="Finishes"
+              description="In sequence, for a double or triple finish."
+              resource="finishes"
+              options={options.finishLinks ?? []}
+              amountLabel="Months"
+              amountSuffix="mo"
+              value={links.finishes}
+              onChange={(rows) => onLinksChange({ ...links, finishes: rows })}
+            />
+          ) : (
+            // Vodka never has finishes, but any it already has are kept; an unaged gin has none.
+            <input
+              type="hidden"
+              name="finishLinks"
+              value={serializeLinks(fieldGroup === "vodka" ? links.finishes : [])}
+            />
+          )}
         </SectionContent>
       </Section>
     </>
+  );
+}
+
+/** The photo about to be saved: the chosen file, or the linked picture, so a wrong pick is seen before it is kept. */
+function PhotoPreview({ file, link }: { file: File | null; link: string }) {
+  const [read, setRead] = React.useState<{ file: File; url: string } | null>(null);
+  const [brokenLink, setBrokenLink] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!file) return;
+    // A data URL rather than an object URL: it needs no revoking, and survives the effect running twice.
+    const reader = new FileReader();
+    reader.onload = () => setRead({ file, url: String(reader.result) });
+    reader.readAsDataURL(file);
+    return () => reader.abort();
+  }, [file]);
+
+  const src = file ? (read?.file === file ? read.url : null) : /^https?:\/\//i.test(link) ? link : null;
+  if (!src) return null;
+  if (!file && brokenLink === link) {
+    return <p className="col-span-full text-sm text-muted-foreground">That link does not show a picture.</p>;
+  }
+  return (
+    <div className="col-span-full flex flex-col gap-1.5">
+      <span className="text-xs text-muted-foreground">Preview</span>
+      {/* A plain img: the source is a blob or someone else's URL, which next/image cannot optimise. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="Label photo preview"
+        className="max-h-64 w-fit max-w-full border border-border bg-muted/30 object-contain"
+        onError={() => setBrokenLink(link)}
+      />
+    </div>
   );
 }
 
@@ -202,6 +398,7 @@ export function ExpressionForm({
   releaseImpact = {},
   options,
   categoryGroups,
+  categoryKinds,
   colaLookup = false,
 }: {
   expressionId: number | null;
@@ -216,6 +413,8 @@ export function ExpressionForm({
   options: Record<string, Option[]>;
   /** categoryId -> field group, so sections react without a round trip. */
   categoryGroups: Record<number, FieldGroup>;
+  /** categoryId -> which whiskey it is, for Straight and Scotch regions. */
+  categoryKinds?: Record<number, CategoryKind>;
   /** Whether TTB's registry can be searched; on New Label, for picking approvals to attach. */
   colaLookup?: boolean;
 }) {
@@ -278,38 +477,6 @@ export function ExpressionForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      {expressionId === null ? (
-        <Section>
-          <SectionHeader>
-            <SectionTitle>Photo</SectionTitle>
-            <SectionDescription>Optional. A file or a link; it is cut out from its background once the label is saved.</SectionDescription>
-          </SectionHeader>
-          <SectionContent className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="expression-photo">Upload</Label>
-              <Input
-                id="expression-photo"
-                type="file"
-                accept="image/*"
-                disabled={photoLink.trim() !== ""}
-                onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="expression-photo-link">Or a link</Label>
-              <Input
-                id="expression-photo-link"
-                type="url"
-                inputMode="url"
-                placeholder="https://"
-                disabled={photoFile !== null}
-                value={photoLink}
-                onChange={(event) => setPhotoLink(event.target.value)}
-              />
-            </div>
-          </SectionContent>
-        </Section>
-      ) : null}
       <ExpressionFields
         values={values}
         onChange={set}
@@ -318,6 +485,7 @@ export function ExpressionForm({
         options={optionsByField}
         onOptionCreated={(name, option) => setOptionsByField((prev) => withOption(prev, name, option))}
         categoryGroups={categoryGroups}
+        {...(categoryKinds ? { categoryKinds } : {})}
         errors={fieldErrors}
       />
 
@@ -390,6 +558,40 @@ export function ExpressionForm({
           distilleryIds={links.distilleries.map((row) => row.id).filter((id) => id > 0)}
           lookupEnabled={colaLookup}
         />
+      ) : null}
+
+      {expressionId === null ? (
+        <Section>
+          <SectionHeader>
+            <SectionTitle>Photo</SectionTitle>
+            <SectionDescription>Optional. A file or a link; it is cut out from its background once the label is saved.</SectionDescription>
+          </SectionHeader>
+          <SectionContent className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="expression-photo">Upload</Label>
+              <Input
+                id="expression-photo"
+                type="file"
+                accept="image/*"
+                disabled={photoLink.trim() !== ""}
+                onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="expression-photo-link">Or a link</Label>
+              <Input
+                id="expression-photo-link"
+                type="url"
+                inputMode="url"
+                placeholder="https://"
+                disabled={photoFile !== null}
+                value={photoLink}
+                onChange={(event) => setPhotoLink(event.target.value)}
+              />
+            </div>
+            <PhotoPreview file={photoFile} link={photoLink.trim()} />
+          </SectionContent>
+        </Section>
       ) : null}
 
       {!state.ok && state.error ? (

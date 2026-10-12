@@ -6,7 +6,7 @@
  * for Postgres `numeric` columns leave here as strings — never floats.
  */
 import { z } from "zod";
-import { ACQUISITIONS, BOTTLE_STATUSES, CHAR_LEVELS, STILL_TYPES, TASTING_SOURCES } from "@/db/schema";
+import { ACQUISITIONS, BOTTLE_STATUSES, CHAR_LEVELS, RUM_BASES, SCOTCH_REGIONS, STILL_TYPES, TASTING_SOURCES } from "@/db/schema";
 
 const trimmed = z.string().trim();
 
@@ -93,12 +93,30 @@ export const expressionSchema = z
     isChillFiltered: tristate,
     colorAdded: tristate,
     charLevel: optionalEnum(CHAR_LEVELS),
+    /** Scotch regions as comma-separated text; kept as a list, in the order given. */
+    regions: blankIfAbsent(
+      trimmed
+        .max(200)
+        .transform((v, ctx) => {
+          const known = new Map(SCOTCH_REGIONS.map((r) => [r.toLowerCase(), r]));
+          const list: string[] = [];
+          for (const part of v.split(",").map((p) => p.trim().toLowerCase()).filter((p) => p !== "")) {
+            const region = known.get(part);
+            if (!region) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Pick from the Scotch regions." });
+              return z.NEVER;
+            }
+            if (!list.includes(region)) list.push(region);
+          }
+          return list.length === 0 ? null : list;
+        }),
+    ),
 
     // Rum
     stillType: optionalEnum(STILL_TYPES),
     estate: optionalText(120),
     marque: optionalText(80),
-    molassesOrCane: optionalEnum(["molasses", "cane juice", "honey"] as const),
+    molassesOrCane: optionalEnum(RUM_BASES),
     esterGl: optionalDecimal(0, 999999),
     sugarGPerL: optionalDecimal(0, 9999),
     tropicalYears: optionalDecimal(0, 100),
@@ -214,6 +232,7 @@ export const bottleBase = z.object({
   rickFloor: optionalText(80),
 
   // Overrides. Blank inherits from the label.
+  sizeMl: optionalInt(1, 20000),
   proof: optionalDecimal(0, 200),
   ageYears: optionalDecimal(0, 100),
   ageMonths: optionalInt(0, 1200),

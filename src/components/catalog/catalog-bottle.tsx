@@ -1,5 +1,6 @@
 "use client";
 
+import { formatSize } from "@/lib/expressions/sizes";
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -24,6 +25,7 @@ import { serializeLinks } from "@/components/expressions/ordered-picker";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { guessNewLabel } from "@/lib/expressions/label-search";
 import { withOption } from "@/lib/forms/values";
+import type { CategoryKind } from "@/lib/expressions/rules";
 import { formatNumeric } from "@/lib/utils";
 import type { BottleSuggestions } from "@/lib/bottles/suggestions";
 import type { FieldGroup } from "@/db/schema";
@@ -58,6 +60,7 @@ export function CatalogBottle({
   labelOptions,
   bottleOptions,
   categoryGroups,
+  categoryKinds,
   colaLookup,
   initialLabel,
   suggestions,
@@ -66,6 +69,7 @@ export function CatalogBottle({
   labelOptions: Record<string, Option[]>;
   bottleOptions: Record<string, Option[]>;
   categoryGroups: Record<number, FieldGroup>;
+  categoryKinds: Record<number, CategoryKind>;
   colaLookup: boolean;
   initialLabel: CatalogLabel | null;
   /** Past values for Picked By, Warehouse, Rick / Floor and Where It Lives. */
@@ -347,6 +351,7 @@ export function CatalogBottle({
             options={labelOptionsState}
             onOptionCreated={(name, option) => setLabelOptions((prev) => withOption(prev, name, option))}
             categoryGroups={categoryGroups}
+            categoryKinds={categoryKinds}
             errors={errors.label}
           />
           {phase.kind === "new" ? (
@@ -480,7 +485,7 @@ function ChosenLabel({
     label.category,
     label.proof ? `${formatNumeric(label.proof)} proof` : null,
     label.age,
-    `${label.sizeMl} ml`,
+    formatSize(label.sizeMl),
   ].filter(Boolean);
 
   return (

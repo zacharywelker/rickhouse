@@ -267,6 +267,13 @@
       "when": 1791894574639,
       "tag": "0037_app_sign_in_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791980974639,
+      "tag": "0038_scotch_regions_rum_base",
+      "breakpoints": true
     }
   ]
 }

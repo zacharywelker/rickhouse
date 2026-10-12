@@ -138,6 +138,8 @@ export const distilleries = pgTable(
     city: text("city"),
     state: text("state"),
     country: text("country").notNull().default("USA"),
+    /** Scotch region (Speyside, Islay…), copied onto a label's regions when the distillery is linked. */
+    region: text("region"),
     dspNumber: text("dsp_number"),
     founded: integer("founded"),
     /** How much the label told us; see DISTILLERY_DISCLOSURES. */
@@ -305,6 +307,8 @@ export const expressions = pgTable(
     msrp: money("msrp"),
     sizeMl: integer("size_ml").notNull().default(750),
     upc: text("upc"),
+    /** Scotch regions the whisky comes from (SCOTCH_REGIONS); several for a blend. Null: none given. */
+    regions: text("regions").array(),
     labelNotes: text("label_notes"),
     description: text("description"),
     /** The label's own photo, relative to the uploads volume. */
@@ -588,6 +592,8 @@ export const bottles = pgTable(
 
     // ---- Overrides. NULL inherits from the label, resolved in bottle_list
     // rather than copied on save, so correcting the label still flows through.
+    /** In mL; one release can come in several sizes, so a bottle may differ from its label. */
+    sizeMl: integer("size_ml"),
     proof: pct("proof"),
     abv: pct("abv").generatedAlwaysAs(sql`(proof / 2.0)`),
     ageYears: numeric("age_years", { precision: 4, scale: 1 }),
@@ -1128,7 +1134,11 @@ export type Acquisition = (typeof ACQUISITIONS)[number];
 export const BOTTLE_STATUSES = ["owned", "open", "killed", "sold", "traded", "wishlist", "sampled"] as const;
 export type BottleStatus = (typeof BOTTLE_STATUSES)[number];
 
-export const STILL_TYPES = ["pot", "column", "blend", "coffey"] as const;
+export const STILL_TYPES = ["pot", "column", "blend", "coffey", "3-chamber"] as const;
+/** Scotch whisky regions, as a label or a distillery names them. */
+export const SCOTCH_REGIONS = ["Speyside", "Highland", "Lowland", "Islay", "Campbeltown", "Islands"] as const;
+/** What the rum is made from. */
+export const RUM_BASES = ["molasses", "sugarcane", "honey", "other"] as const;
 /** Barrel char, lightest to heaviest. Null in the database means unknown. */
 export const CHAR_LEVELS = ["none", "toasted", "1", "2", "3", "4"] as const;
 export type CharLevel = (typeof CHAR_LEVELS)[number];

@@ -12,7 +12,7 @@ import { saveBottleAction } from "@/app/(app)/bottles/actions";
 import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "@/lib/expressions/bottle-fields";
 import { fieldVisible, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type Option } from "@/lib/admin/types";
-import { ageBetween, describeAge } from "@/lib/bottles/age";
+import { ageBetween, ageFilled, describeAge } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
 import { withOption } from "@/lib/forms/values";
 import { AgeFields } from "./age-fields";
@@ -94,6 +94,9 @@ export function BottleFields({
   omit?: string[];
   idPrefix?: string;
 }) {
+  // With an age filled in the statement is greyed out; triple-clicking it makes it editable again.
+  const [statementOpen, setStatementOpen] = React.useState(false);
+  const statementLocked = ageFilled(values) && !statementOpen;
   return (
     <>
       {BOTTLE_SECTIONS.map((section) => {
@@ -186,6 +189,8 @@ export function BottleFields({
                 options={options[field.name] ?? []}
                 onOptionCreated={(option) => onOptionCreated(field.name, option)}
                 suggestions={suggestions?.[field.name]}
+                locked={field.name === "ageStatement" && statementLocked}
+                onUnlock={() => setStatementOpen(true)}
               />
             );
           })}

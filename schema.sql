@@ -71,6 +71,7 @@ CREATE TABLE distilleries (
     city        text,
     state       text,
     country     text NOT NULL DEFAULT 'USA',
+    region      text,          -- Scotch region (Speyside, Islay…); copied onto a label's regions
     dsp_number  text,          -- e.g. DSP-KY-95
     founded     integer,
     -- 'named' = a real distillery; 'undisclosed' = a placeholder for a place
@@ -197,13 +198,14 @@ CREATE TABLE expressions (
     msrp            numeric(10,2),
     size_ml         integer NOT NULL DEFAULT 750,
     upc             text,
+    regions         text[],    -- Scotch regions, several for a blend
     label_notes     text,
     photo_path      text,
     photo_thumb_path text,
     description     text,
 
     -- ---- Rum-specific (nullable; shown when category.field_group = 'rum')
-    still_type      text,      -- 'pot' | 'column' | 'blend' | 'coffey'
+    still_type      text,      -- 'pot' | 'column' | 'blend' | 'coffey' | '3-chamber'
     estate          text,      -- Hampden, Foursquare, Worthy Park
     marque          text,      -- LROK, DOK, <>H
     ester_gl        numeric(8,2),
@@ -212,7 +214,7 @@ CREATE TABLE expressions (
     solera_range    text,
     tropical_years  numeric(4,1),
     continental_years numeric(4,1),
-    molasses_or_cane text,     -- 'molasses' | 'cane juice' | 'honey'
+    molasses_or_cane text,     -- 'molasses' | 'sugarcane' | 'honey' | 'other'
 
     -- ---- Agave-specific
     agave_type      text,
@@ -347,7 +349,8 @@ CREATE TABLE bottles (
     -- ---- Overrides. NULL means "inherit from the label", resolved at read
     -- time in bottle_list rather than copied on save — so correcting the
     -- label still flows through to every bottle that did not override it.
-    -- A single barrel almost always differs on exactly these two.
+    -- A single barrel almost always differs on proof and age; one release can come in several sizes.
+    size_ml         integer,   -- mL; NULL is the label's size
     proof           numeric(5,2),
     abv             numeric(5,2) GENERATED ALWAYS AS (proof / 2.0) STORED,
     age_years       numeric(4,1),
@@ -960,7 +963,9 @@ INSERT INTO categories (name, slug, parent_id, field_group, sort_order) VALUES
     ('Whiskey', 'whiskey', NULL, 'whiskey', 1),
     ('Rum',     'rum',     NULL, 'rum',     2),
     ('Agave',   'agave',   NULL, 'agave',   3),
-    ('Brandy',  'brandy',  NULL, 'brandy',  4);
+    ('Brandy',  'brandy',  NULL, 'brandy',  4),
+    ('Gin',     'gin',     NULL, 'gin',     5),
+    ('Vodka',   'vodka',   NULL, 'vodka',   6);
 
 INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
 SELECT v.name, v.slug, (SELECT id FROM categories WHERE slug = 'whiskey'),
@@ -969,6 +974,14 @@ FROM (VALUES
     ('American Whiskey', 'american-whiskey', 1),
     ('Scotch',           'scotch',           2),
     ('Irish Whiskey',    'irish-whiskey',    3)
+) AS v(name, slug, ord);
+
+INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
+SELECT v.name, v.slug, (SELECT id FROM categories WHERE slug = 'scotch'),
+       'whiskey', v.ord
+FROM (VALUES
+    ('Single Malt Scotch', 'single-malt-scotch', 1),
+    ('Blended Scotch',     'blended-scotch',     2)
 ) AS v(name, slug, ord);
 
 INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
