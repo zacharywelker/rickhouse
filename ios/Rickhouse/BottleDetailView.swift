@@ -21,9 +21,6 @@ struct BottleDetailView: View {
     // Editing the bottle's and the label's facts (docs/superpowers/specs/2026-10-08-edit-facts-design.md). The views are in
     // BottleDetailEditing.swift; the state is here because an extension can't hold it.
     @State var bottleDraft: BottleDraft?
-    @State var labelDraft: LabelDraft?
-    @State var labelId: Int?
-    @State var labelBottleCount = 0
     @State var revealed: Set<BottleFact> = []
     @State var lastRevealed: BottleFact?
     @State var savingFacts = false
@@ -31,14 +28,9 @@ struct BottleDetailView: View {
     @State var fieldErrors: [String: String] = [:]
     @State var askOpened = false
     @State var discarding = false
-    @State var categories: [CategoryOption] = []
-    @State var undoOffer: UndoOffer?
-    @State var undoTimer: Task<Void, Never>?
     @State var picking: PickTarget?
-    @State var nameClash: LabelRef?
-    @State var merging: MergeSetup?
-    @State var notice: String?
-    @State var noticeTimer: Task<Void, Never>?
+    @State var editingLabel = false
+    @State var foot = FootBar()
 
     private struct NoteEdit: Identifiable {
         let id = UUID()
@@ -72,15 +64,12 @@ struct BottleDetailView: View {
         } message: {
             Text("You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.")
         }
-        .overlay(alignment: .bottom) {
-            if let offer = undoOffer { UndoBar(offer: offer) { runUndo(offer) } }
-            else if let notice { NoticeBar(message: notice) }
-        }
-        .animation(.default, value: undoOffer?.id)
-        .animation(.default, value: notice)
+        .footBar(foot) { runUndo($0) }
         .sheet(item: $picking) { pickerSheet(for: $0) }
-        .sheet(item: $merging) { setup in
-            MergeReview(plan: MergePlan(mine: setup.mine, theirs: setup.theirs)) { finishMerge($0, into: setup.theirs) }
+        .sheet(isPresented: $editingLabel) {
+            if let expressionId = bottle?.expressionId {
+                LabelEditor(id: expressionId, onSaved: labelSaved, onMerged: labelMerged)
+            }
         }
         .fullScreenCover(item: $viewing) { start in
             if let bottle {
