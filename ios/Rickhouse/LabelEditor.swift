@@ -22,9 +22,6 @@ struct LabelEditor: View {
     @State private var merging: MergeSetup?
     @State private var discarding = false
     @State private var scanning = false
-    /// Strength typed as ABV instead of proof. Proof is still what is saved (ABV × 2).
-    @State private var asABV = false
-    @State private var abvText = ""
 
     var body: some View {
         NavigationStack {
@@ -41,7 +38,12 @@ struct LabelEditor: View {
             .navigationTitle("Edit label")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if draft == nil { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: cancel) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "Saving…" : "Save", action: save)
+                        .fontWeight(.semibold)
+                        .disabled(draft == nil || saving || !fieldErrors.isEmpty)
+                }
             }
         }
         .interactiveDismissDisabled(draft?.isDirty ?? false)
@@ -79,18 +81,6 @@ struct LabelEditor: View {
                 draft?[fact] = $0
                 fieldErrors[fact.rawValue] = nil
                 if fact == .name { nameClash = nil }
-            }
-        )
-    }
-
-    /// ABV typed here is kept as typed (so "50." survives) and saved as proof.
-    private var abvField: Binding<Field> {
-        Binding(
-            get: { Field(original: Strength.abv(fromProof: draft?[.proof].original ?? ""), text: abvText) },
-            set: {
-                abvText = $0.text
-                draft?[.proof].text = Strength.proof(fromABV: $0.text)
-                fieldErrors[LabelFact.proof.rawValue] = nil
             }
         )
     }
@@ -135,27 +125,7 @@ struct LabelEditor: View {
                     Text("Category").foregroundStyle(Theme.muted)
                 }
                 .tint(Theme.ink)
-                Picker("Strength as", selection: $asABV) {
-                    Text("Proof").tag(false)
-                    Text("ABV %").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: asABV) { _, on in if on { abvText = Strength.abv(fromProof: draft[.proof].text) } }
-                if asABV {
-                    EditRow(title: "ABV %", field: abvField, placeholder: "Add ABV", keyboard: .decimalPad, error: fieldErrors[LabelFact.proof.rawValue])
-                } else {
-                    EditRow(title: "Proof", field: field(.proof), placeholder: "Add proof", keyboard: .decimalPad, error: fieldErrors[LabelFact.proof.rawValue])
-                }
-                EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: fieldErrors[LabelFact.ageStatement.rawValue])
-                EditRow(title: "Size (mL)", field: field(.size), keyboard: .numberPad, error: fieldErrors[LabelFact.size.rawValue])
-                EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: "$", error: fieldErrors[LabelFact.msrp.rawValue])
-                ForEach(LinkList.allCases, id: \.self) { list in
-                    LinkChipsRow(
-                        title: Self.listTitle(list), rows: draft.rows(list), changed: draft.listChanged(list),
-                        onRemove: { self.draft?.remove(list, id: $0.id) },
-                        onAdd: { picking = .list(list) }
-                    )
-                }
+                LabelFactRows(draft: Binding($draft)!, errors: fieldErrors, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
                 EditRow(title: "Barcode", field: field(.barcode), placeholder: "Scan or type", keyboard: .numberPad, error: fieldErrors[LabelFact.barcode.rawValue])
                 Button { scanning = true } label: {
                     Label("Scan barcode", systemImage: "barcode.viewfinder")
@@ -164,8 +134,6 @@ struct LabelEditor: View {
                         .contentShape(Rectangle())
                 }
                 .foregroundStyle(Theme.ink)
-            } header: {
-                EditHeader(saving: saving, canSave: fieldErrors.isEmpty, onCancel: cancel, onSave: save)
             }
             if let factError { Section { ErrorText(factError) } }
         }
@@ -272,7 +240,7 @@ struct LabelEditor: View {
         }
     }
 
-    private static func kind(_ list: LinkList) -> LookupKind {
+    static func kind(_ list: LinkList) -> LookupKind {
         switch list {
         case .distilleries: .distilleries
         case .mashbills: .mashbills
@@ -304,6 +272,94 @@ struct LabelEditor: View {
                 EmptyView()
             }
         }
+    }
+}
+
+/// The label's facts after brand, name and category: strength, age, size, MSRP and the three lists. The label editor
+/// and New Label show the same rows.
+struct LabelFactRows: View {
+    @Binding var draft: LabelDraft
+    var errors: [String: String]
+    /// Off on New Label, where there is nothing to put back.
+    var tracksChanges = true
+    var onEdit: (LabelFact) -> Void
+    var onPick: (LinkList) -> Void
+
+    private func field(_ fact: LabelFact) -> Binding<Field> {
+        Binding(get: { draft[fact] }, set: { draft[fact] = $0; onEdit(fact) })
+    }
+
+    var body: some View {
+        StrengthRow(proof: field(.proof), error: errors[LabelFact.proof.rawValue], tracksChanges: tracksChanges)
+        EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: errors[LabelFact.ageStatement.rawValue], tracksChanges: tracksChanges)
+        EditRow(title: "Size (mL)", field: field(.size), keyboard: .numberPad, error: errors[LabelFact.size.rawValue], tracksChanges: tracksChanges)
+        EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: "$", error: errors[LabelFact.msrp.rawValue])
+        ForEach(LinkList.allCases, id: \.self) { list in
+            LinkChipsRow(
+                title: LabelEditor.listTitle(list), rows: draft.rows(list), changed: tracksChanges && draft.listChanged(list),
+                onRemove: { draft.remove(list, id: $0.id) },
+                onAdd: { onPick(list) }
+            )
+        }
+    }
+}
+
+/// Proof and ABV side by side: type either and the other follows. Proof is what is saved (ABV × 2).
+struct StrengthRow: View {
+    @Binding var proof: Field
+    var error: String?
+    var tracksChanges = true
+
+    private enum Side { case proof, abv }
+    @FocusState private var focus: Side?
+    @State private var abv = ""
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(spacing: 6) {
+                    if tracksChanges && proof.changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
+                    Text("Strength").foregroundStyle(Theme.muted)
+                }
+                Spacer(minLength: 8)
+                number("Proof", text: $proof.text, side: .proof)
+                Text("proof").foregroundStyle(Theme.muted)
+                Text("|").foregroundStyle(Theme.muted.opacity(0.6)).accessibilityHidden(true)
+                number("ABV", text: $abv, side: .abv)
+                Text("% ABV").foregroundStyle(Theme.muted)
+                if tracksChanges && proof.changed {
+                    Button { proof.revert() } label: {
+                        Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20)).frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityLabel("Put back \(proof.original.isEmpty ? "nothing" : proof.original) for proof")
+                }
+            }
+            if tracksChanges, proof.changed, !proof.original.isEmpty {
+                Text("was \(proof.original) proof").font(.inter(11, relativeTo: .caption2)).foregroundStyle(Theme.muted).strikethrough()
+            }
+            if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
+        }
+        .padding(.vertical, 2)
+        .onAppear { abv = Strength.abv(fromProof: proof.text) }
+        // Whichever side is being typed in drives the other.
+        .onChange(of: abv) { _, typed in if focus == .abv { proof.text = Strength.proof(fromABV: typed) } }
+        .onChange(of: proof.text) { _, typed in if focus != .abv { abv = Strength.abv(fromProof: typed) } }
+    }
+
+    private func number(_ title: String, text: Binding<String>, side: Side) -> some View {
+        TextField(title, text: text)
+            .keyboardType(.decimalPad)
+            .multilineTextAlignment(.trailing)
+            .fixedSize()
+            .frame(minWidth: 44, alignment: .trailing)
+            .focused($focus, equals: side)
+            .foregroundStyle(error == nil ? Theme.ink : Theme.error)
+            .overlay(alignment: .bottom) {
+                if focus == side || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 2) }
+            }
+            .accessibilityLabel(side == .proof ? "Proof" : "ABV percent")
     }
 }
 

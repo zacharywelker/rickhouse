@@ -53,8 +53,11 @@ enum Strength {
 
     static func proof(fromABV abv: String) -> String {
         let t = abv.trimmingCharacters(in: .whitespaces)
-        guard !t.isEmpty, let a = Decimal(string: t) else { return t.isEmpty ? "" : t }
-        return plainNumber("\(a * 2)") ?? ""
+        guard !t.isEmpty, var a = Decimal(string: t) else { return t.isEmpty ? "" : t }
+        a *= 2
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &a, 2, .plain)  // proof is saved with two places
+        return plainNumber("\(rounded)") ?? ""
     }
 }
 
@@ -193,6 +196,16 @@ struct LabelDraft {
     var brandName: String
     private(set) var links: LabelLinks
     private let originalLinks: LabelLinks
+
+    /// A label not made yet: nothing filled in, the usual 750 mL. `patch()` then holds only what was typed.
+    init() {
+        categoryName = ""
+        brandName = ""
+        links = LabelLinks(distilleries: [], mashbills: [], finishes: [])
+        originalLinks = links
+        fields = Dictionary(uniqueKeysWithValues: LabelFact.allCases.map { ($0, Field(nil)) })
+        fields[.size] = Field("750")
+    }
 
     init(_ label: LabelDetail) {
         categoryName = label.category

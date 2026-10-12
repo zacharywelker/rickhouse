@@ -60,6 +60,14 @@ struct BottleDetailView: View {
                         .background(Theme.paper)
                         .navigationTitle("Edit bottle")
                         .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: cancelEditing) }
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button(savingFacts ? "Saving…" : "Save") { saveBottle(choice: nil) }
+                                    .fontWeight(.semibold)
+                                    .disabled(savingFacts || !fieldErrors.isEmpty)
+                            }
+                        }
                 }
             }
             .interactiveDismissDisabled(bottleDraft?.isDirty ?? false)

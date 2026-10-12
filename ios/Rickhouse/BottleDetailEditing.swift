@@ -77,10 +77,7 @@ extension BottleDetailView {
                 if let msrp = b.msrp { FixedRow(title: "MSRP", value: Format.money(msrp), reason: "A fact of the label, edited under Label") }
                 DateEditRow(title: "Acquired", field: bottleField(.acquired), error: fieldErrors[BottleFact.acquired.rawValue])
             } header: {
-                VStack(alignment: .leading, spacing: 4) {
-                    EditHeader(saving: savingFacts, canSave: fieldErrors.isEmpty, onCancel: cancelEditing, onSave: { saveBottle(choice: nil) })
-                    Text("Where it came from")
-                }
+                Text("Where it came from")
             }
 
             Section {

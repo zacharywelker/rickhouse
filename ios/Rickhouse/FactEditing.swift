@@ -13,14 +13,18 @@ struct EditRow: View {
     var error: String?
     /// Set on a row the person just asked for, so they can type at once.
     var focusOnAppear = false
+    /// Off on a form for something new, where there is nothing to put back.
+    var tracksChanges = true
 
     @FocusState private var focused: Bool
+    /// A price changes in place: no ↺ and no "was", which would resize the row as you type.
+    private var showsChange: Bool { tracksChanges && prefix != "$" && field.changed }
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
             HStack(alignment: multiline ? .top : .firstTextBaseline, spacing: 8) {
                 HStack(spacing: 6) {
-                    if field.changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
+                    if showsChange { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
                     Text(title).foregroundStyle(Theme.muted)
                 }
                 Spacer(minLength: 8)
@@ -37,7 +41,7 @@ struct EditRow: View {
                         if focused || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 2) }
                     }
                     .accessibilityLabel(title)
-                if field.changed {
+                if showsChange {
                     Button { field.revert() } label: {
                         Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20))
                             .frame(width: 44, height: 44)
@@ -47,7 +51,7 @@ struct EditRow: View {
                     .accessibilityLabel("Put back \(field.original.isEmpty ? "nothing" : field.original) for \(title)")
                 }
             }
-            if field.changed, !field.original.isEmpty {
+            if showsChange, !field.original.isEmpty {
                 Text("was \(field.original)").font(.inter(11, relativeTo: .caption2)).foregroundStyle(Theme.muted).strikethrough()
             }
             if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
@@ -128,32 +132,6 @@ struct FixedRow: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// The section header while editing: Cancel on the left, Save on the right.
-struct EditHeader: View {
-    var saving: Bool
-    var canSave: Bool
-    var onCancel: () -> Void
-    var onSave: () -> Void
-
-    var body: some View {
-        HStack {
-            Button("Cancel", action: onCancel).frame(minHeight: 44)
-            Spacer()
-            Button(action: onSave) {
-                Text(saving ? "Saving…" : "Save")
-                    .font(.inter(15, .semibold))
-                    .padding(.horizontal, 14).frame(minHeight: 44)
-                    .foregroundStyle(Theme.paper)
-                    .background(Theme.ink.opacity(canSave && !saving ? 1 : 0.4), in: RoundedRectangle(cornerRadius: 4))
-            }
-            .disabled(!canSave || saving)
-        }
-        .font(.inter(15, .semibold))
-        .textCase(nil)
-        .foregroundStyle(Theme.ink)
     }
 }
 
