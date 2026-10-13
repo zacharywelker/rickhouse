@@ -211,6 +211,8 @@ enum LabelFact: String, CaseIterable {
     case nas = "isNas"
     case stillProof = "isStillProof"
     case straight = "isStraight"
+    /// Not a row of its own: Bottled In Bond fills it.
+    case ageYears
 
     /// A yes/no fact, held in its field as "true" or "false".
     var isFlag: Bool {
@@ -271,7 +273,19 @@ struct LabelDraft {
             .nas: Field(String(label.isNas ?? false)),
             .stillProof: Field(String(label.isStillProof ?? false)),
             .straight: Field(String(label.isStraight ?? false)),
+            .ageYears: Field(plainNumber(label.ageYears)),
         ]
+    }
+
+    /// The name has started to say something it did not before: tick that, as the web form does. Only on the change, so
+    /// a switch turned off by hand stays off while the name still says it.
+    mutating func apply(_ said: NameSays, after previous: NameSays) {
+        if said.isCaskStrength, !previous.isCaskStrength { self[.caskStrength].text = "true" }
+        if said.isBottledInBond, !previous.isBottledInBond {
+            self[.bottledInBond].text = "true"
+            if let proof = said.proof { self[.proof].text = proof }
+            if let years = said.ageYears, self[.ageYears].isEmpty { self[.ageYears].text = years }
+        }
     }
 
     subscript(fact: LabelFact) -> Field {

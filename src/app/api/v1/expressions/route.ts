@@ -82,7 +82,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!parsed.success) {
     return apiError(422, "invalid", parsed.error.issues[0]?.message ?? "Check the fields.", issueFields(parsed.error.issues));
   }
-  const { brand, name, categoryId, upc } = parsed.data;
+  const { brand, name, categoryId, upc, applyNameRules } = parsed.data;
 
   const [category] = await db.select({ id: categories.id }).from(categories).where(eq(categories.id, categoryId)).limit(1);
   if (!category) return apiError(422, "invalid", "Pick a category.", { categoryId: "Pick a category." });
@@ -99,7 +99,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const input = expressionSchema.parse({ brandId, categoryId, name, upc: upc ?? "" });
       const values = await labelValues(input, user.id, null);
       const created = await writeLabel(tx, user.id, null, values, { distilleries: [], mashbills: [], finishes: [] });
-      // A name that says Cask Strength, Bonded or Full Proof is ticked as on the web form; the app's later edit may override it.
+      // A name that says Cask Strength, Bonded or Full Proof is ticked as on the web form, unless the app already settled that.
+      if (!applyNameRules) return created;
       const [groups, kinds] = await Promise.all([categoryFieldGroups(), categoryKindsById()]);
       const blank = { name: "", categoryId: null, proof: null, entryProof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, isNas: false, isStraight: false, isBottledInBond: false, isCaskStrength: false };
       const byName = nameRuleColumns(blank, { name, categoryId }, (values) => nameContextFor(values, groups, kinds));

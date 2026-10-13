@@ -315,6 +315,16 @@ struct NewLabel: Encodable {
     var name: String
     var categoryId: Int
     var upc: String?
+    /// The form has already applied what the name says (and the person may have turned some off), so the server should not.
+    var applyNameRules = false
+}
+
+/// What a name says for a category (the server's name rules): flags to tick and the values that go with them.
+struct NameSays: Decodable, Equatable {
+    var isCaskStrength = false
+    var isBottledInBond = false
+    var proof: String?
+    var ageYears: String?
 }
 
 /// Barcodes as the server stores and matches them.

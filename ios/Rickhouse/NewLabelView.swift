@@ -33,6 +33,8 @@ struct NewLabelView: View {
     @State private var picking: PickTarget?
     /// The label is made and its facts are saved; only the photo can still be outstanding.
     @State private var factsSaved = false
+    /// What the name last said, so a switch is ticked only when the name starts to say something.
+    @State private var said = NameSays()
 
     init(code: String?, name: String, onDone: @escaping (LabelOption) -> Void) {
         self.code = code
@@ -152,6 +154,7 @@ struct NewLabelView: View {
             }
         }
         .task { await loadCategories() }
+        .task(id: "\(name)|\(categoryId.map(String.init) ?? "")") { await followName() }
     }
 
     /// Shows the photo at once, then swaps in the cutout if Vision can make one.
@@ -206,7 +209,8 @@ struct NewLabelView: View {
                     brand: brand.name,
                     name: name.trimmingCharacters(in: .whitespaces),
                     categoryId: categoryId,
-                    upc: upc
+                    upc: upc,
+                    applyNameRules: false
                 ))
                 await finish(label, api: api)
             } catch APIError.duplicateLabel(let label) {
@@ -220,6 +224,15 @@ struct NewLabelView: View {
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    /// Asks the server what the name says, a moment after typing stops, and ticks what it newly says.
+    private func followName() async {
+        guard made == nil, let api = session.api else { return }
+        try? await Task.sleep(for: .milliseconds(400))
+        guard !Task.isCancelled, let now = try? await api.nameSays(name: name.trimmingCharacters(in: .whitespaces), categoryId: categoryId) else { return }
+        draft.apply(now, after: said)
+        said = now
     }
 
     /// The label exists; its facts, then its photo, follow. A failure keeps the screen and the label, and Save retries

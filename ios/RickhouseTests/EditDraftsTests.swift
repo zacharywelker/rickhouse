@@ -212,6 +212,18 @@ final class EditDraftsTests: XCTestCase {
         same(draft.patch(), ["isStraight": true])
     }
 
+    func testANameThatStartsToSayBondedTicksItOnce() {
+        var draft = LabelDraft()
+        let bonded = NameSays(isCaskStrength: false, isBottledInBond: true, proof: "100", ageYears: "4")
+        draft.apply(bonded, after: NameSays())
+        XCTAssertEqual(draft[.bottledInBond].text, "true")
+        XCTAssertEqual(draft[.proof].text, "100")
+        XCTAssertEqual(draft[.ageYears].text, "4")
+        draft[.bottledInBond].text = "false"
+        draft.apply(bonded, after: bonded)
+        XCTAssertEqual(draft[.bottledInBond].text, "false")
+    }
+
     func testStrengthTierMatchesTheServer() {
         XCTAssertEqual(Strength.tier(group: "rum", proof: "108"), "Navy Strength")
         XCTAssertEqual(Strength.tier(group: "rum", proof: "114"), "Overproof")

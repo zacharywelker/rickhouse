@@ -222,6 +222,13 @@ struct APIClient {
         try await get("api/v1/tasting-wheels", as: WheelsResponse.self).wheels
     }
 
+    /// What the name says for that category, to tick the label's switches as it is typed.
+    func nameSays(name: String, categoryId: Int?) async throws -> NameSays {
+        var query = [URLQueryItem(name: "name", value: name)]
+        if let categoryId { query.append(URLQueryItem(name: "categoryId", value: String(categoryId))) }
+        return try await get("api/v1/expressions/name-rules", query: query, as: NameSays.self)
+    }
+
     func categories() async throws -> [CategoryOption] {
         try await get("api/v1/categories", as: CategoriesResponse.self).categories
     }
