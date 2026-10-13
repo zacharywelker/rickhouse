@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
+import { strengthTier } from "@/lib/expressions/rules";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { updateBottle } from "@/lib/bottles/state";
 import { deleteBottleAction } from "@/app/(app)/bottles/actions";
@@ -50,6 +51,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     fillPct: bottle.fillPct,
     // The bottle's own value when it overrides the label, otherwise the label's.
     proof: bottle.proof ?? release?.proof ?? expression.proof,
+    // Navy Strength / Overproof, derived from that proof; null when neither.
+    strength: strengthTier(row.category.fieldGroup, bottle.proof ?? release?.proof ?? expression.proof),
     ageStatement: bottle.ageStatement ?? ageSource.ageStatement,
     ageYears: bottle.ageYears ?? ageSource.ageYears,
     sizeMl: bottle.sizeMl ?? expression.sizeMl,

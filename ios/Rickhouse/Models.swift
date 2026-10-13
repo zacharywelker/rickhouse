@@ -67,6 +67,8 @@ struct BottleDetail: Decodable {
     var mutedUntil: String?
     var fillPct: Int
     let proof: String?
+    /// "navy" or "overproof" from this bottle's proof; absent from an older server's answer.
+    var strength: String? = nil
     let ageStatement: String?
     let sizeMl: Int
     let msrp: String?

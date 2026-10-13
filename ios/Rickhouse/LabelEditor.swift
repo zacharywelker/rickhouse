@@ -344,6 +344,7 @@ struct LabelFactRows: View {
         if rules.showsAging {
             EditRow(title: "Distilled / barrel filled", field: field(.distilled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.distilled.rawValue], tracksChanges: tracksChanges)
             EditRow(title: "Bottled", field: field(.bottled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.bottled.rawValue], tracksChanges: tracksChanges)
+            DeriveAgeRow(draft: $draft) { onEdit(.ageYears) }
         }
         if bonded {
             Text("Bottled in Bond is 100 proof.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
@@ -598,5 +599,32 @@ extension View {
         }
         .animation(.default, value: bar.undo?.id)
         .animation(.default, value: bar.notice)
+    }
+}
+
+/// Under the two dates: how far apart they are, with a button that puts it in the age. Nothing moves until it is tapped,
+/// since silently rewriting the age while a date is typed is how an age someone entered gets lost.
+struct DeriveAgeRow: View {
+    @Binding var draft: LabelDraft
+    var onFilled: () -> Void
+
+    var body: some View {
+        if let age = DatedAge(filled: draft[.distilled].trimmed, bottled: draft[.bottled].trimmed) {
+            let already = draft[.ageYears].trimmed == String(age.years) && draft[.ageMonths].trimmed == String(age.months) && draft[.ageDays].trimmed == String(age.days)
+            HStack {
+                Text("Those dates are \(age.described) apart.").font(.inter(13, relativeTo: .footnote)).foregroundStyle(Theme.muted)
+                Spacer(minLength: 8)
+                Button(already ? "Age filled in" : "Use as the age") {
+                    draft[.ageYears].text = String(age.years)
+                    draft[.ageMonths].text = String(age.months)
+                    draft[.ageDays].text = String(age.days)
+                    onFilled()
+                }
+                .font(.inter(15, .semibold))
+                .frame(minHeight: 44)
+                .foregroundStyle(Theme.ink)
+                .disabled(already)
+            }
+        }
     }
 }
