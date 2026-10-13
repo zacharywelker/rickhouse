@@ -48,12 +48,7 @@ struct MutedBottlesView: View {
             }
         }
         .overlay(alignment: .bottom) { toastView }
-        .confirmationDialog("Clear every mute?", isPresented: $confirmingClearAll, titleVisibility: .visible) {
-            Button("Clear all mutes", role: .destructive) { clearAll() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("They can all come up in picks again.")
-        }
+        .confirmSheet("Clear every mute?", message: "They can all come up in picks again.", confirm: "Clear all mutes", isPresented: $confirmingClearAll) { clearAll() }
         .sheet(item: $editing) { bottle in
             if let window = response?.window {
                 MuteDateSheet(bottle: bottle, window: window) { until in

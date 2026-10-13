@@ -78,12 +78,7 @@ struct MergeReview: View {
             .navigationTitle("Merge labels")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(merging) } }
-            .confirmationDialog("Merge \(plan.mine.name) into \(plan.theirsTitle)?", isPresented: $confirming, titleVisibility: .visible) {
-                Button("Merge labels", role: .destructive, action: merge)
-                Button("Keep them separate", role: .cancel) {}
-            } message: {
-                Text("\(plan.summary) This cannot be undone.")
-            }
+            .confirmSheet("Merge \(plan.mine.name) into \(plan.theirsTitle)?", message: "\(plan.summary) This cannot be undone.", confirm: "Merge labels", cancel: "Keep them separate", isPresented: $confirming, perform: merge)
         }
         .interactiveDismissDisabled(merging)
     }

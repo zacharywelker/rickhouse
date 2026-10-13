@@ -71,19 +71,18 @@ struct BottleDetailView: View {
                 }
             }
             .interactiveDismissDisabled(bottleDraft?.isDirty ?? false)
-            .confirmationDialog("Discard your changes?", isPresented: $discarding, titleVisibility: .visible) {
-                Button("Discard changes", role: .destructive) { stopEditing() }
-                Button("Keep editing", role: .cancel) {}
-            } message: {
-                Text("Nothing you changed has been saved.")
-            }
-            .confirmationDialog("Keep the bottle open or mark it sealed?", isPresented: $askOpened, titleVisibility: .visible) {
-                Button("Keep it open, no date") { saveBottle(choice: .keepOpen) }
-                Button("Mark it sealed") { saveBottle(choice: .seal) }
-                Button("Keep the date", role: .cancel) { bottleDraft?[.opened].revert() }
-            } message: {
-                Text("You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.")
-            }
+            .confirmSheet("Discard your changes?", message: "Nothing you changed has been saved.", confirm: "Discard changes", cancel: "Keep editing", isPresented: $discarding) { stopEditing() }
+            .choiceSheet(
+                "Keep the bottle open or mark it sealed?",
+                message: "You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.",
+                answers: [
+                    SheetAnswer(title: "Keep it open, no date") { saveBottle(choice: .keepOpen) },
+                    SheetAnswer(title: "Mark it sealed") { saveBottle(choice: .seal) },
+                ],
+                cancel: "Keep the date",
+                onCancel: { bottleDraft?[.opened].revert() },
+                isPresented: $askOpened
+            )
             .sheet(item: $picking) { pickerSheet(for: $0) }
         }
         .sheet(isPresented: $editingLabel) {

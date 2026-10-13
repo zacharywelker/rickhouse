@@ -53,12 +53,7 @@ struct LabelEditor: View {
         }
         .interactiveDismissDisabled(draft?.isDirty ?? false)
         .task { await load() }
-        .confirmationDialog("Discard your changes?", isPresented: $discarding, titleVisibility: .visible) {
-            Button("Discard changes", role: .destructive) { dismiss() }
-            Button("Keep editing", role: .cancel) {}
-        } message: {
-            Text("Nothing you changed has been saved.")
-        }
+        .confirmSheet("Discard your changes?", message: "Nothing you changed has been saved.", confirm: "Discard changes", cancel: "Keep editing", isPresented: $discarding) { dismiss() }
         .sheet(item: $picking) { pickerSheet(for: $0) }
         .fullScreenCover(isPresented: $scanning) {
             ScanScreen { code in
