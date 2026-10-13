@@ -295,8 +295,7 @@ struct LabelFactRows: View {
             Text(tier).font(.inter(12, .semibold, relativeTo: .caption)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .trailing)
         }
         EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: errors[LabelFact.ageStatement.rawValue], tracksChanges: tracksChanges)
-        if tracksChanges {
-            // Not offered on New Label yet: the create route does not take them (#222).
+        do {
             FlagRow(title: "Cask Strength", field: field(.caskStrength))
             FlagRow(title: "Bottled In Bond", field: field(.bottledInBond))
             FlagRow(title: "NAS (no age statement)", field: field(.nas))

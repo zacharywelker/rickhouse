@@ -9,6 +9,8 @@ import { newLabelSchema, normalizeUpc, upcCandidates } from "@/lib/api/labels";
 import { mapDbError } from "@/lib/db-errors";
 import { findOrCreateBrand } from "@/lib/expressions/brand";
 import { expressionSchema } from "@/lib/expressions/schema";
+import { categoryFieldGroups, categoryKindsById } from "@/lib/expressions/queries";
+import { nameContextFor, nameRuleColumns } from "@/lib/expressions/rules";
 import { labelColumns, pickerLabel, withWheels } from "@/lib/expressions/picker";
 import { labelValues, writeLabel } from "@/lib/expressions/save";
 
@@ -96,7 +98,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (same) throw new DuplicateLabel(same.id);
       const input = expressionSchema.parse({ brandId, categoryId, name, upc: upc ?? "" });
       const values = await labelValues(input, user.id, null);
-      return writeLabel(tx, user.id, null, values, { distilleries: [], mashbills: [], finishes: [] });
+      const created = await writeLabel(tx, user.id, null, values, { distilleries: [], mashbills: [], finishes: [] });
+      // A name that says Cask Strength, Bonded or Full Proof is ticked as on the web form; the app's later edit may override it.
+      const [groups, kinds] = await Promise.all([categoryFieldGroups(), categoryKindsById()]);
+      const blank = { name: "", categoryId: null, proof: null, entryProof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, isNas: false, isStraight: false, isBottledInBond: false, isCaskStrength: false };
+      const byName = nameRuleColumns(blank, { name, categoryId }, (values) => nameContextFor(values, groups, kinds));
+      if (Object.keys(byName).length > 0) await tx.update(expressions).set(byName).where(eq(expressions.id, created));
+      return created;
     });
 
     revalidatePath("/expressions");
