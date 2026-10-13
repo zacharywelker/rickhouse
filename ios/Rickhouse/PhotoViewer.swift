@@ -28,7 +28,7 @@ struct PhotoViewer: View {
     @State private var shareImage: UIImage?
     @State private var confirmingDelete = false
     @State private var busy = false
-    @State private var problem: String?
+    @State private var foot = FootBar()
 
     private var current: ViewerPhoto? { photos.first { $0.id == selection } }
 
@@ -74,11 +74,7 @@ struct PhotoViewer: View {
             }
             .task(id: current?.path) { await loadShareImage() }
             .confirmSheet("Delete this photo?", message: "This can't be undone.", confirm: "Delete photo", isPresented: $confirmingDelete, perform: delete)
-            .alert("Something went wrong", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(problem ?? "")
-            }
+            .footBar(foot)
         }
     }
 
@@ -120,7 +116,7 @@ struct PhotoViewer: View {
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
-                problem = error.localizedDescription
+                foot.fail(error) { run(work) }
             }
         }
     }

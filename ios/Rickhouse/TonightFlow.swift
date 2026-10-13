@@ -14,7 +14,7 @@ struct TonightFlow: View {
     @State private var path: [TonightStep] = []
     @State private var spinning = false
     @State private var collapsing = false
-    @State private var problem: String?
+    @State private var foot = FootBar()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -37,11 +37,7 @@ struct TonightFlow: View {
         }
         .background(Theme.paper)
         .overlay { if spinning { RouletteSpinner(collapsing: collapsing).transition(.opacity) } }
-        .alert("Couldn't pick a bottle", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(problem ?? "")
-        }
+        .footBar(foot)
         .task { await model.loadOptions(api: session.api) }
     }
 
@@ -69,7 +65,7 @@ struct TonightFlow: View {
         } catch APIError.unauthorized {
             session.signOut()
         } catch {
-            problem = error.localizedDescription
+            foot.fail(error) { Task { await draw(request) } }
         }
     }
 
@@ -92,7 +88,7 @@ struct TonightFlow: View {
             spinning = false
             collapsing = false
             if let failure {
-                if case APIError.unauthorized = failure { session.signOut() } else { problem = failure.localizedDescription }
+                if case APIError.unauthorized = failure { session.signOut() } else { foot.fail(failure) { roulette() } }
             } else {
                 show()
             }

@@ -543,60 +543,6 @@ struct StrengthRow: View {
     }
 }
 
-/// The undo bar and the notice at the foot of a page, with the timers that take them away.
-@Observable @MainActor
-final class FootBar {
-    private(set) var undo: UndoOffer?
-    private(set) var notice: String?
-    private var undoTimer: Task<Void, Never>?
-    private var noticeTimer: Task<Void, Never>?
-
-    /// Eight seconds to take a save back. The previous values are sent in a new request; nothing is kept on the server.
-    func offer(_ offer: UndoOffer) {
-        undoTimer?.cancel()
-        undo = offer
-        AccessibilityNotification.Announcement("\(offer.message). Undo is available for a few seconds.").post()
-        undoTimer = Task {
-            try? await Task.sleep(for: .seconds(8))
-            if !Task.isCancelled { undo = nil }
-        }
-    }
-
-    func dropUndo() {
-        undoTimer?.cancel()
-        undo = nil
-    }
-
-    /// A few seconds of words, for what cannot be undone.
-    func show(_ message: String) {
-        noticeTimer?.cancel()
-        notice = message
-        AccessibilityNotification.Announcement(message).post()
-        noticeTimer = Task {
-            try? await Task.sleep(for: .seconds(6))
-            if !Task.isCancelled { notice = nil }
-        }
-    }
-
-    static func merged(_ answer: MergeAnswer, into theirs: LabelDetail) -> String {
-        let moved = [answer.bottles > 0 ? (answer.bottles == 1 ? "1 bottle" : "\(answer.bottles) bottles") : nil,
-                     answer.tastings > 0 ? (answer.tastings == 1 ? "1 tasting" : "\(answer.tastings) tastings") : nil]
-            .compactMap { $0 }.joined(separator: " and ")
-        return "Merged into \(theirs.brand) \(theirs.name)." + (moved.isEmpty ? "" : " \(moved) moved.")
-    }
-}
-
-extension View {
-    func footBar(_ bar: FootBar, onUndo: @escaping (UndoOffer) -> Void) -> some View {
-        overlay(alignment: .bottom) {
-            if let offer = bar.undo { UndoBar(offer: offer) { onUndo(offer) } }
-            else if let notice = bar.notice { NoticeBar(message: notice) }
-        }
-        .animation(.default, value: bar.undo?.id)
-        .animation(.default, value: bar.notice)
-    }
-}
-
 /// Under the two dates: how far apart they are, with a button that puts it in the age. Nothing moves until it is tapped,
 /// since silently rewriting the age while a date is typed is how an age someone entered gets lost.
 struct DeriveAgeRow: View {

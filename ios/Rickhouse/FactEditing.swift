@@ -189,26 +189,3 @@ struct UndoOffer: Identifiable {
     let message: String
     let run: () async throws -> Void
 }
-
-struct UndoBar: View {
-    let offer: UndoOffer
-    var onUndo: () -> Void
-
-    var body: some View {
-        HStack(spacing: 0) {
-            Text(offer.message).font(.inter(15, .medium)).padding(.leading, 14)
-            Spacer(minLength: 8)
-            Button("Undo", action: onUndo)
-                .font(.inter(15, .semibold))
-                .frame(minWidth: 64, minHeight: 48)
-                .overlay(alignment: .leading) { Rectangle().fill(Theme.paper.opacity(0.3)).frame(width: 1) }
-                .accessibilityHint("Puts back what was there before")
-        }
-        .foregroundStyle(Theme.paper)
-        .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
-        .shadow(color: .black.opacity(0.18), radius: 0, x: 0, y: 2)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-    }
-}

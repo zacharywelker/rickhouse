@@ -12,19 +12,11 @@ struct TonightResultView: View {
 
     /// The lengths on offer, handed to the sheet when it opens so it never shows a copy from before they arrived.
     @State private var muteChoice: MuteChoice?
-    @State private var toast: Toast?
+    @State private var foot = FootBar()
     @State private var logging: LogTarget?
     @State private var busy = false
     /// The shown bottle's full record, for what the draw doesn't carry (release, bottling, age, distillery, mashbill).
     @State private var detail: BottleDetail?
-    @State private var problem: String?
-
-    private struct Toast: Equatable, Identifiable {
-        let id = UUID()
-        let message: String
-        /// The bottle to unmute, when the toast offers Undo.
-        var undoBottleId: Int?
-    }
 
     private struct MuteChoice: Identifiable {
         let id = UUID()
@@ -55,7 +47,7 @@ struct TonightResultView: View {
             }
         }
         .task(id: model.pick?.bottle.id) { await loadDetail() }
-        .overlay(alignment: .top) { toastView }
+        .footBar(foot) { runUndo($0) }
         .sheet(item: $muteChoice) { choice in
             MuteSheet(title: muteTitle, presets: choice.presets) { preset in
                 muteChoice = nil
@@ -67,11 +59,6 @@ struct TonightResultView: View {
                 TastingFormView(label: target.label, bottle: target.bottle) { logging = nil; onLogged() }
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { logging = nil } } }
             }
-        }
-        .alert("Something went wrong", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(problem ?? "")
         }
     }
 
@@ -324,7 +311,7 @@ struct TonightResultView: View {
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
-                problem = error.localizedDescription
+                foot.fail(error) { startLog(bottle) }
             }
         }
     }
@@ -338,7 +325,7 @@ struct TonightResultView: View {
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
-                problem = error.localizedDescription
+                foot.fail(error) { drawAnother() }
             }
         }
     }
@@ -351,7 +338,7 @@ struct TonightResultView: View {
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
-                problem = error.localizedDescription
+                foot.fail(error) { chooseMute() }
             }
         }
     }
@@ -363,27 +350,26 @@ struct TonightResultView: View {
             do {
                 try await api.mute(bottleId: current.id, until: until)
                 try await model.drawAgain(api: api)
-                show(Toast(message: "Muted \(current.title) until \(Format.day(until)).", undoBottleId: current.id))
+                foot.offer(UndoOffer(message: "Muted \(current.title) until \(Format.day(until)).") { try await api.unmute(bottleId: current.id) })
                 announce()
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
-                problem = error.localizedDescription
+                foot.fail(error) { mute(until: until) }
             }
         }
     }
 
-    private func undoMute(_ bottleId: Int) {
-        guard let api = session.api else { return }
-        toast = nil
+    private func runUndo(_ offer: UndoOffer) {
+        foot.dropUndo()
         Task {
             do {
-                try await api.unmute(bottleId: bottleId)
-                show(Toast(message: "Unmuted."))
+                try await offer.run()
+                foot.show("Unmuted.")
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
-                problem = error.localizedDescription
+                foot.fail(error) { runUndo(offer) }
             }
         }
     }
@@ -391,35 +377,6 @@ struct TonightResultView: View {
     private func announce() {
         guard let pick = model.pick else { return }
         AccessibilityNotification.Announcement("Now showing \(pick.bottle.title). \(pick.bottle.quip)").post()
-    }
-
-    // MARK: Toast
-
-    private func show(_ new: Toast) {
-        withAnimation { toast = new }
-        Task {
-            try? await Task.sleep(for: .seconds(new.undoBottleId == nil ? 2.6 : 6))
-            if toast?.id == new.id { withAnimation { toast = nil } }
-        }
-    }
-
-    @ViewBuilder
-    private var toastView: some View {
-        if let toast {
-            HStack(spacing: 12) {
-                Text(toast.message).font(.inter(14, relativeTo: .subheadline)).frame(maxWidth: .infinity, alignment: .leading)
-                if let id = toast.undoBottleId {
-                    Button("Undo") { undoMute(id) }.font(.inter(14, .semibold, relativeTo: .subheadline)).frame(minHeight: 44)
-                }
-            }
-            .foregroundStyle(Theme.paper)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 2)
-            .background(Theme.ink, in: RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .transition(.move(edge: .top).combined(with: .opacity))
-        }
     }
 }
 

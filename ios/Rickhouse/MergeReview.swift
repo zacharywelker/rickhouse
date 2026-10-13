@@ -119,21 +119,3 @@ struct MergeReview: View {
         }
     }
 }
-
-/// A short message after something that cannot be undone, with nothing to press.
-struct NoticeBar: View {
-    let message: String
-
-    var body: some View {
-        Text(message)
-            .font(.inter(15, .medium))
-            .foregroundStyle(Theme.paper)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-            .accessibilityAddTraits(.updatesFrequently)
-    }
-}

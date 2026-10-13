@@ -139,7 +139,7 @@ struct BottleDetailView: View {
                         .accessibilityHint("Opens it full screen")
                     }
                     // Last in the row; smaller when it is the only thing there.
-                    AddPhotoTile(title: "Add a photo", size: b.images.isEmpty ? CGSize(width: 90, height: 120) : CGSize(width: 120, height: 280)) { image in
+                    AddPhotoTile(foot: foot, title: "Add a photo", size: b.images.isEmpty ? CGSize(width: 90, height: 120) : CGSize(width: 120, height: 280)) { image in
                         guard let api = session.api else { return }
                         try await api.uploadImages(bottleId: id, images: [image])
                         await load()

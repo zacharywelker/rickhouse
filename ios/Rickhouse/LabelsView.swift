@@ -13,6 +13,7 @@ struct LabelsView: View {
     var reloadSignal = 0
 
     @State private var mode = Mode.tastings
+    @State private var foot = FootBar()
     @State private var query = ""
     @State private var index: [LabelIndexEntry] = []
     @State private var indexLoaded = false
@@ -139,7 +140,8 @@ struct LabelsView: View {
             .task(id: attempt) { await reloadHistory() }
             .task(id: "\(mode)#\(attempt)") { if mode == .labels { await loadIndex() } }
             .task { await session.loadWheels() }
-            .confirmsTastingDeletion($deletingTasting) { id in history.removeAll { $0.id == id } }
+            .confirmsTastingDeletion($deletingTasting, foot: foot) { id in history.removeAll { $0.id == id } }
+            .footBar(foot)
             .onChange(of: reloadSignal) { attempt += 1 }
             .refreshable { if mode == .tastings { await reloadHistory() } else { await loadIndex() } }
         }
