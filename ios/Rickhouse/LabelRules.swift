@@ -24,6 +24,8 @@ struct LabelRules {
     var showsAmerican: Bool { showsAging && (kind == nil || kind == "american") }
     var baseReplacesMashbill: Bool { group == "rum" }
     var isGin: Bool { group == "gin" }
+    /// Tequila and mezcal: unaged ones can be marked still proof.
+    var showsStillProof: Bool { group == "agave" }
 
     /// A gin that already has an age, a statement, NAS or a finish opens as aged.
     static func looksAged(_ draft: LabelDraft) -> Bool {
@@ -55,16 +57,16 @@ enum AgeDefaults {
 
     private static func on(_ draft: LabelDraft, _ fact: LabelFact) -> Bool { draft[fact].trimmed == "true" }
 
-    /// 2 years for Straight, 4 when it also has no age statement; blank when not Straight.
+    /// 4 years for Bottled In Bond; else 2 for Straight, 4 when it also has no age statement; blank otherwise.
     static func impliedYears(_ draft: LabelDraft) -> String {
+        if on(draft, .isBottledInBond) { return "4" }
         guard on(draft, .isStraight) else { return "" }
         return on(draft, .isNas) ? "4" : "2"
     }
 
+    /// Only NAS has a statement of its own; Bottled In Bond and Straight imply years instead.
     static func defaultStatement(_ draft: LabelDraft) -> String {
-        if on(draft, .isBottledInBond) { return "Bottled-in-Bond (at least 4 years)" }
-        if on(draft, .isNas) { return "NAS" }
-        return ""
+        on(draft, .isNas) ? "NAS" : ""
     }
 
     /// `next` is `prev` with `changed` switched; returns it with the age, statement and (for Bottled In Bond) proof that follow.
@@ -72,14 +74,14 @@ enum AgeDefaults {
         var next = next
         guard prev[changed].trimmed != next[changed].trimmed else { return next }
 
-        if changed == .isStraight || changed == .isNas {
+        if changed == .isStraight || changed == .isNas || changed == .isBottledInBond {
             let was = impliedYears(prev)
             let years = prev[.ageYears].trimmed
             if prev[.ageMonths].isEmpty, prev[.ageDays].isEmpty, years.isEmpty || years == was {
                 next[.ageYears].text = impliedYears(next)
             }
         }
-        if changed == .isBottledInBond || changed == .isNas, !ageFilled(next) {
+        if changed == .isNas, !ageFilled(next) {
             let current = prev[.ageStatement].trimmed
             if current.isEmpty || current == defaultStatement(prev) { next[.ageStatement].text = defaultStatement(next) }
         }

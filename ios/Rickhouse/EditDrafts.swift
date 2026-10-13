@@ -61,6 +61,16 @@ enum Strength {
     }
 }
 
+extension Strength {
+    /// Navy Strength or Overproof, worked out from the proof as the server does (rum: 54% ABV and 57%; gin: 54%, no Overproof).
+    static func tier(group: String?, proof: String) -> String? {
+        guard group == "rum" || group == "gin", let p = Decimal(string: proof.trimmingCharacters(in: .whitespaces)) else { return nil }
+        let abv = p / 2
+        if group == "rum", abv >= 57 { return "Overproof" }
+        return abv >= 54 ? "Navy Strength" : nil
+    }
+}
+
 /// "116.80" as "116.8" and "100.00" as "100": a proof as a person would type it back.
 func plainNumber(_ raw: String?) -> String? {
     guard var s = raw, s.contains(".") else { return raw }
@@ -88,6 +98,8 @@ enum BottleFact: String, CaseIterable {
     case notes
     case store = "storeId"
     case opened = "dateOpened"
+    case distilled = "barrelFilledOn"
+    case bottled = "bottledOn"
 }
 
 struct BottleDraft {
@@ -98,9 +110,14 @@ struct BottleDraft {
     let originalFill: Int
     /// The store's name for display; the field holds its id.
     var storeName: String?
+    /// The label's dates, which this bottle goes by unless it has its own.
+    let labelDistilled: String?
+    let labelBottled: String?
 
     init(_ bottle: BottleDetail) {
         storeName = bottle.store
+        labelDistilled = bottle.labelBarrelFilledOn
+        labelBottled = bottle.labelBottledOn
         fromRelease = bottle.releaseId != nil
         wasOpen = bottle.isOpen
         originalFill = bottle.fillPct
@@ -115,6 +132,8 @@ struct BottleDraft {
             .notes: Field(bottle.notes),
             .store: Field(bottle.storeId.map(String.init)),
             .opened: Field(bottle.dateOpened.map { String($0.prefix(10)) }),
+            .distilled: Field(bottle.barrelFilledOn.map { String($0.prefix(10)) }),
+            .bottled: Field(bottle.bottledOn.map { String($0.prefix(10)) }),
         ]
     }
 
@@ -138,7 +157,7 @@ struct BottleDraft {
         if paid.changed, !paid.isEmpty, !matches(paid.trimmed, #"^\d{1,8}(\.\d{1,2})?$"#) { found[.paid] = priceMessage }
         let year = self[.releaseYear]
         if !locked(.releaseYear), year.changed, !year.isEmpty, !matches(year.trimmed, #"^(1[7-9]|2[01])\d\d$"#) { found[.releaseYear] = "Enter a four-digit year." }
-        for date in [BottleFact.acquired, .opened] where self[date].changed && !self[date].isEmpty && self[date].trimmed > today {
+        for date in [BottleFact.acquired, .opened, .distilled, .bottled] where self[date].changed && !self[date].isEmpty && self[date].trimmed > today {
             found[date] = "That date is in the future."
         }
         return found
@@ -187,10 +206,13 @@ enum LabelFact: String, CaseIterable {
     case size = "sizeMl"
     case msrp
     case barcode = "upc"
-    case labelNotes, otherNames
+    case description, otherNames
+    case distilled = "barrelFilledOn"
+    case bottled = "bottledOn"
+    case isStillProof
 
     /// The ticks, held as "true" or "false".
-    static let ticks: [LabelFact] = [.isCaskStrength, .isBottledInBond, .isStraight, .isNas]
+    static let ticks: [LabelFact] = [.isCaskStrength, .isBottledInBond, .isStraight, .isNas, .isStillProof]
 }
 
 /// The three ordered lists a label carries.
@@ -234,7 +256,10 @@ struct LabelDraft {
             .isCaskStrength: Field(String(label.isCaskStrength ?? false)),
             .isBottledInBond: Field(String(label.isBottledInBond ?? false)),
             .base: Field(label.molassesOrCane),
-            .labelNotes: Field(label.labelNotes),
+            .description: Field(label.description),
+            .distilled: Field(label.barrelFilledOn),
+            .bottled: Field(label.bottledOn),
+            .isStillProof: Field(String(label.isStillProof ?? false)),
             .otherNames: Field(label.otherNames),
             .size: Field(String(label.sizeMl)),
             .msrp: Field(label.msrp),
@@ -296,6 +321,26 @@ struct LabelDraft {
         }
     }
 
+    /// A calendar date as the server takes it: year-month-day.
+    static func isDate(_ text: String) -> Bool {
+        guard matches(text, #"^\d{4}-\d{2}-\d{2}$"#) else { return false }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: text) != nil
+    }
+
+    /// The name has started to say something it did not before: tick that, as the web form does. Only on the change, so
+    /// a switch turned off by hand stays off while the name still says it.
+    mutating func apply(_ said: NameSays, after previous: NameSays) {
+        if said.isCaskStrength, !previous.isCaskStrength { self[.isCaskStrength].text = "true" }
+        if said.isBottledInBond, !previous.isBottledInBond {
+            self[.isBottledInBond].text = "true"
+            if let proof = said.proof { self[.proof].text = proof }
+            if let years = said.ageYears, !AgeDefaults.ageFilled(self) { self[.ageYears].text = years }
+        }
+    }
+
     /// A barcode typed with spaces or dashes, as digits.
     static func digits(_ raw: String) -> String { raw.filter { !$0.isWhitespace && $0 != "-" } }
 
@@ -316,6 +361,9 @@ struct LabelDraft {
         if size.changed, !(matches(size.trimmed, #"^\d{1,5}$"#) && (1...20000).contains(Int(size.trimmed) ?? 0)) { found[.size] = "Size is in millilitres, like 750." }
         let msrp = self[.msrp]
         if msrp.changed, !msrp.isEmpty, !matches(msrp.trimmed, #"^\d{1,8}(\.\d{1,2})?$"#) { found[.msrp] = priceMessage }
+        for date in [LabelFact.distilled, .bottled] where self[date].changed && !self[date].isEmpty && !Self.isDate(self[date].trimmed) {
+            found[date] = "Enter a date like 2019-05-14."
+        }
         let upc = self[.barcode]
         if upc.changed, !upc.isEmpty, !matches(Self.digits(upc.trimmed), #"^\d{6,32}$"#) { found[.barcode] = "A barcode is 6 to 32 digits." }
         return found
@@ -324,7 +372,7 @@ struct LabelDraft {
     private func value(_ fact: LabelFact, of field: Field) -> Any {
         switch fact {
         case .size, .category, .brand, .ageMonths, .ageDays: Int(field.trimmed) ?? field.json
-        case .isNas, .isStraight, .isCaskStrength, .isBottledInBond: field.trimmed == "true"
+        case .isNas, .isStraight, .isCaskStrength, .isBottledInBond, .isStillProof: field.trimmed == "true"
         case .barcode: field.isEmpty ? NSNull() : Self.digits(field.trimmed)
         default: field.json
         }

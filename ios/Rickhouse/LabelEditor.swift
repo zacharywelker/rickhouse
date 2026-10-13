@@ -333,10 +333,18 @@ struct LabelFactRows: View {
                 ("Bottled in Bond", tick(.isBottledInBond), rules.showsAmerican),
                 ("Straight", tick(.isStraight), rules.showsAmerican),
                 ("NAS", tick(.isNas), true),
+                ("Still proof", tick(.isStillProof), rules.showsStillProof && !AgeDefaults.ageFilled(draft) && draft[.ageStatement].isEmpty),
             ])
         }
         StrengthRow(proof: field(.proof), error: errors[LabelFact.proof.rawValue], tracksChanges: tracksChanges)
             .disabled(bonded)
+        if let tier = Strength.tier(group: rules.group, proof: draft[.proof].trimmed) {
+            Text(tier).font(.inter(12, .semibold, relativeTo: .caption)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        if rules.showsAging {
+            EditRow(title: "Distilled / barrel filled", field: field(.distilled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.distilled.rawValue], tracksChanges: tracksChanges)
+            EditRow(title: "Bottled", field: field(.bottled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.bottled.rawValue], tracksChanges: tracksChanges)
+        }
         if bonded {
             Text("Bottled in Bond is 100 proof.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
         }
@@ -383,7 +391,7 @@ struct LabelFactRows: View {
                 onRemove: { draft.remove(.finishes, id: $0.id) }, onAdd: { onPick(.finishes) }
             )
         }
-        EditRow(title: "Label notes", field: field(.labelNotes), placeholder: "What the label says", multiline: true, error: errors[LabelFact.labelNotes.rawValue], tracksChanges: tracksChanges)
+        EditRow(title: "Description", field: field(.description), placeholder: "What the label says", multiline: true, error: errors[LabelFact.description.rawValue], tracksChanges: tracksChanges)
         VStack(alignment: .leading, spacing: 2) {
             EditRow(title: "Other names", field: field(.otherNames), placeholder: "Older names", multiline: true, error: errors[LabelFact.otherNames.rawValue], tracksChanges: tracksChanges)
             Text("One per line. Years in brackets: Hirsch (until 1985).").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)

@@ -31,7 +31,7 @@ describe("upcCandidates", () => {
 describe("newLabelSchema", () => {
   it("accepts the minimal body and coerces the category", () => {
     const parsed = newLabelSchema.parse({ brand: "  Pinhook ", name: "Vertical Series", categoryId: "7", upc: "081128012345" });
-    expect(parsed).toEqual({ brand: "Pinhook", name: "Vertical Series", categoryId: 7, upc: "081128012345" });
+    expect(parsed).toEqual({ brand: "Pinhook", name: "Vertical Series", categoryId: 7, upc: "081128012345", applyNameRules: true });
   });
 
   it("treats a missing or blank barcode as none", () => {

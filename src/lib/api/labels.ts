@@ -23,6 +23,8 @@ export const newLabelSchema = z.object({
   brand: z.string().trim().min(1, "Enter a brand.").max(120, "Keep this under 120 characters."),
   name: z.string().trim().min(1, "Enter a name.").max(160, "Keep this under 160 characters."),
   categoryId: z.coerce.number({ message: "Pick a category." }).int("Pick a category.").positive("Pick a category."),
+  /** False when the app has already applied what the name says (and may have turned some off): skip the name rules. */
+  applyNameRules: z.boolean().default(true),
   upc: z
     .string()
     .nullish()

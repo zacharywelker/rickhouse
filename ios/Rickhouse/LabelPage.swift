@@ -167,7 +167,7 @@ struct LabelPage: View {
                         .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
                         .frame(width: 8, height: 8)
                         .accessibilityHidden(true)
-                    Text([l.category, Format.proof(l.proof), age(l)].compactMap { $0 }.joined(separator: " · "))
+                    Text([l.category, l.proofLabel ?? Format.proof(l.proof), l.strengthName, age(l)].compactMap { $0 }.joined(separator: " · "))
                         .font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted)
                 }
             }

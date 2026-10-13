@@ -59,6 +59,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     storeId: bottle.storeId,
     dateAcquired: bottle.dateAcquired,
     dateOpened: bottle.dateOpened,
+    // The bottle's own dates (null: it goes by the label's), and the label's for it to show.
+    barrelFilledOn: bottle.barrelFilledOn,
+    bottledOn: bottle.bottledOn,
+    labelBarrelFilledOn: expression.barrelFilledOn,
+    labelBottledOn: expression.bottledOn,
     acquisition: bottle.acquisition,
     releaseId: bottle.releaseId,
     batch: release?.name ?? bottle.batch,
@@ -107,7 +112,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
  * as `null` clears it. Status is never set directly: it follows the level and the Opened date.
  */
 const patchSchema = bottleBase
-  .pick({ pricePaid: true, storeId: true, dateAcquired: true, location: true, notes: true, batch: true, releaseYear: true, barrelNumber: true, pickName: true })
+  .pick({ pricePaid: true, storeId: true, dateAcquired: true, location: true, notes: true, batch: true, releaseYear: true, barrelNumber: true, pickName: true, barrelFilledOn: true, bottledOn: true })
   .extend({
     fillPct: z.number().int().min(0).max(100),
     dateOpened: z.string().nullable(),
