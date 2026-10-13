@@ -1,3 +1,4 @@
+import { STRENGTH_TIER_LABELS, strengthTier } from "@/lib/expressions/rules";
 import { formatSize } from "@/lib/expressions/sizes";
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -95,6 +96,8 @@ export default async function BottlePage({
   const b = row.bottle;
   const group = row.category.fieldGroup;
   const proof = b.proof ?? release?.proof ?? e.proof;
+  // Worked out from this bottle's own proof, which can differ from its label's.
+  const tier = strengthTier(group, proof);
   const msrp = release?.msrp ?? e.msrp;
   const batch = release ? releaseLabel(release) : b.batch;
   const paidVsMsrp = markup(b.pricePaid, msrp);
@@ -228,6 +231,7 @@ export default async function BottlePage({
         <div className="flex flex-col gap-6 pb-6">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-4 py-2 sm:grid-cols-3">
             <Spec label="Proof" value={formatNumeric(proof)} />
+            {tier ? <Spec label="Strength" value={STRENGTH_TIER_LABELS[tier]} /> : null}
             <Spec label="ABV" value={proof ? `${formatNumeric((Number(proof) / 2).toFixed(2))}%` : null} />
             <Spec label="Age" value={age} />
             <Spec label="Size" value={formatSize(row.bottle.sizeMl ?? e.sizeMl)} />

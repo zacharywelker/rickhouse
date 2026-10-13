@@ -12,6 +12,7 @@ extension BottleDetailView {
             Section {
                 row("Category", b.category)
                 row("Proof", b.proof.flatMap(Double.init).map { $0.formatted() })
+                row("Strength", b.strength == "navy" ? "Navy Strength" : b.strength == "overproof" ? "Overproof" : nil)
                 row("Age", b.ageStatement)
                 row("Size", "\(b.sizeMl) mL")
                 row("Distilleries", b.distilleries.joined(separator: ", "))
