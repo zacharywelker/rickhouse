@@ -257,13 +257,114 @@ text size, reduced motion and contrast preferences. Touch targets of at least
 
 ---
 
-# 12. Not yet revisited
+# 12. Interface rules, and what is not yet revisited
+
+Rules for forms, rows, pickers, questions and messages. They are written for the
+iOS app from the shipped screens (issue #209); Android follows them. Every rule
+is *(proposed)* until the owner confirms it. Where the web differs, it says so.
+The screen-by-screen audit is in
+`docs/superpowers/specs/2026-10-12-ios-uniformity-inventory.md`.
+
+**Shared pieces.** Each rule below names the one component that draws it. A
+screen that needs the thing uses the component; it does not draw its own.
+
+## 12.1 A fact as a row
+
+- One layout for reading and editing: the name on the left in muted Inter 15,
+  the value on the right in ink, at least 44 pt tall. Editing changes the value
+  into a field in the same place; the row does not move.
+- Rows sit in a list section with a hairline between them. No tinted panel,
+  no dashed or ruled box around facts.
+- A changed fact in edit mode shows a dot, the old value ("was ...", struck
+  through) and a put-back button. A form for something new has none of these:
+  there is nothing to put back.
+- A price shows its currency symbol against the amount, focused or not, and
+  stops at two decimals as you type.
+- A fact with no value is not drawn when reading, and is offered under "Add a
+  detail" when editing.
+- Web: the same name-then-value order, but rows are table cells or `Field`
+  blocks (`src/components/forms/field.tsx`) with the label above the input.
+
+## 12.2 Dates
+
+One date row everywhere: "Add date" when empty, then a compact date picker and
+a clear button. No switch-plus-picker. A date never lies in the future unless
+the fact is about the future (a mute's end).
+
+- Web: the native `<input type="date">`, which already matches.
+
+## 12.3 Choosing from a list
+
+- A short, closed set (about seven or fewer, known in advance): a menu or
+  segmented control.
+- A long or open set: a row showing the current value and a chevron, opening a
+  sheet with the system search field. Typing a name that does not exist offers
+  to add it when that kind of thing can be added.
+- The flavor wheel is its own screen because it is a different task, not a
+  different picker.
+- Top-level screens (Collection, Labels) use the in-page `SearchField`. Sheets
+  and pushed pickers use the system search field. Never both on one screen.
+- Web: a combobox popover (`command.tsx`).
+
+## 12.4 Questions and confirmations
+
+- Any question that discards work or deletes something is the bottom
+  `ConfirmSheet`: a serif title, one line of consequence, the destructive
+  button in the error color, then Cancel. The system `confirmationDialog` is
+  not used: on iPhone it can lose its cancel button inside a sheet.
+- A question with more than two answers is a sheet with one button per answer
+  and Cancel last.
+- Deleting from a list is swipe-to-delete, which asks with the same sheet.
+- System alerts are only for a text prompt the system needs (typing a barcode).
+- Web: `window.confirm` today; moves to the dialog component (`ui/dialog.tsx`)
+  in the web redesign.
+
+## 12.5 Saying what happened
+
+One bar at the foot of the screen, one component, three kinds:
+
+| Kind | When | Has |
+|---|---|---|
+| Undo | Something saved that can be put back | message + Undo button |
+| Notice | Something done that cannot be put back | message |
+| Error | An action the person just took failed | warning icon + message + Retry (always) |
+
+- The bar goes away on its own after a few seconds, except Error, which stays
+  until dismissed or the action succeeds. It is announced to VoiceOver.
+- A form that cannot save shows `ErrorText` inline, above the Save button, and
+  keeps what was typed. A field problem shows under that field.
+- No alert for a failure; the person is already looking at the screen.
+- Web: inline `role="alert"` text (`border-destructive` block). There is no
+  toast; the web has no undo.
+
+## 12.6 Section titles
+
+- A section label in a list or form is small uppercase Inter 12 semibold,
+  tracked, in muted ink. It may carry one action on its right ("Edit"), which is
+  a 44 pt target.
+- The serif is for a page's headline and short editorial lines (section 9),
+  never for labels like "Fill level" or "About this label".
+- Web: `ui/section.tsx` titles follow the old direction until migrated.
+
+## 12.7 Shape, chips and touch
+
+- One corner radius, 8 pt, for bars, panels and sheet buttons, with no exceptions. Photo frames
+  follow section 4.
+- A chip is a capsule.
+- The visible shape may be smaller than 44 pt; the tappable area is not
+  (`contentShape`).
+- Loading is a centered spinner. Empty and failed states use the system empty
+  view with one line of cause and, if there is one, one action. A screen never
+  shows "0" or "No ..." before the first fetch finishes.
+- At the largest accessibility text size, a row's name and value stack
+  instead of truncating.
+
+## 12.8 Still not revisited
 
 These topics exist in `archive/DESIGN-2026-09-swiss-field-guide.md` and have not
-been reviewed against this direction: forms, destructive actions, notifications,
-empty states, loading, onboarding, bottle detail and history, fill level,
-locations, search and filtering, motion, sound and data visualization. Until
-revisited, use them as background only.
+been reviewed against this direction: onboarding, bottle detail and history,
+fill level, locations, search and filtering (beyond 12.3), motion, sound and
+data visualization. Until revisited, use them as background only.
 
 ---
 
