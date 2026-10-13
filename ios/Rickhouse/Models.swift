@@ -209,6 +209,17 @@ struct LabelDetail: Decodable {
     let proof: String?
     let ageStatement: String?
     let ageYears: String?
+    var ageMonths: Int? = nil
+    var ageDays: Int? = nil
+    var isNas: Bool? = nil
+    var isStraight: Bool? = nil
+    var isCaskStrength: Bool? = nil
+    var isBottledInBond: Bool? = nil
+    /// Rum's base: molasses, sugarcane, honey or other.
+    var molassesOrCane: String? = nil
+    var labelNotes: String? = nil
+    /// One per line, years in brackets, as the web form takes them.
+    var otherNames: String? = nil
     let sizeMl: Int
     let msrp: String?
     let photoPath: String?
@@ -273,6 +284,10 @@ struct CategoryOption: Decodable, Identifiable, Hashable {
     let name: String
     /// The group it sits in ("American Whiskey"), or nil for a top-level one.
     let parent: String?
+    /// What the label form's rules go by: "whiskey", "rum", "gin", "vodka"… and "american", "scotch" or "other".
+    /// Absent from an older server, which leaves every field showing.
+    var group: String? = nil
+    var kind: String? = nil
 }
 
 struct CategoriesResponse: Decodable { let categories: [CategoryOption] }

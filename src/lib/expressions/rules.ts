@@ -195,6 +195,16 @@ export const showsRegions = (context: Pick<FormContext, "kind">) => context.kind
 /** Bottled in Bond is 100 proof, always: 50% ABV. */
 export const BOND_PROOF = "100";
 
+/**
+ * A partial edit (the phone's) with the bond rule applied: a label that is, or is being made, Bottled In Bond is
+ * 100 proof whenever the edit touches proof or the tick. A proof sent alone for a bonded label is overridden too.
+ */
+export function withBondProof<T extends Record<string, unknown>>(columns: T, wasBonded: boolean): T {
+  const bonded = columns.isBottledInBond === undefined ? wasBonded : columns.isBottledInBond === true;
+  if (bonded && (columns.proof !== undefined || columns.isBottledInBond === true)) return { ...columns, proof: BOND_PROOF };
+  return columns;
+}
+
 /** The comma-separated regions text the form holds, as a list. */
 export function parseRegions(text: unknown): string[] {
   return [...new Set(String(text ?? "").split(",").map((part) => part.trim()).filter((part) => part !== ""))];

@@ -180,10 +180,17 @@ enum LabelFact: String, CaseIterable {
     case name
     case category = "categoryId"
     case proof
+    case ageYears, ageMonths, ageDays
     case ageStatement
+    case isNas, isStraight, isCaskStrength, isBottledInBond
+    case base = "molassesOrCane"
     case size = "sizeMl"
     case msrp
     case barcode = "upc"
+    case labelNotes, otherNames
+
+    /// The ticks, held as "true" or "false".
+    static let ticks: [LabelFact] = [.isCaskStrength, .isBottledInBond, .isStraight, .isNas]
 }
 
 /// The three ordered lists a label carries.
@@ -205,6 +212,7 @@ struct LabelDraft {
         originalLinks = links
         fields = Dictionary(uniqueKeysWithValues: LabelFact.allCases.map { ($0, Field(nil)) })
         fields[.size] = Field("750")
+        for tick in LabelFact.ticks { fields[tick] = Field("false") }
     }
 
     init(_ label: LabelDetail) {
@@ -217,7 +225,17 @@ struct LabelDraft {
             .name: Field(label.name),
             .category: Field(label.categoryId.map(String.init)),
             .proof: Field(plainNumber(label.proof)),
+            .ageYears: Field(plainNumber(label.ageYears)),
+            .ageMonths: Field(label.ageMonths.map(String.init)),
+            .ageDays: Field(label.ageDays.map(String.init)),
             .ageStatement: Field(label.ageStatement),
+            .isNas: Field(String(label.isNas ?? false)),
+            .isStraight: Field(String(label.isStraight ?? false)),
+            .isCaskStrength: Field(String(label.isCaskStrength ?? false)),
+            .isBottledInBond: Field(String(label.isBottledInBond ?? false)),
+            .base: Field(label.molassesOrCane),
+            .labelNotes: Field(label.labelNotes),
+            .otherNames: Field(label.otherNames),
             .size: Field(String(label.sizeMl)),
             .msrp: Field(label.msrp),
             .barcode: Field(label.upc),
@@ -288,6 +306,12 @@ struct LabelDraft {
         if proof.changed, !proof.isEmpty {
             if !matches(proof.trimmed, #"^\d{1,3}(\.\d{1,2})?$"#) || (Double(proof.trimmed) ?? 0) > 200 { found[.proof] = "Proof is a number from 0 to 200." }
         }
+        let years = self[.ageYears]
+        if years.changed, !years.isEmpty, !(matches(years.trimmed, #"^\d{1,3}(\.\d{1,2})?$"#) && (Double(years.trimmed) ?? 101) <= 100) { found[.ageYears] = "Years from 0 to 100." }
+        let months = self[.ageMonths]
+        if months.changed, !months.isEmpty, !(matches(months.trimmed, #"^\d{1,4}$"#) && (Int(months.trimmed) ?? 1201) <= 1200) { found[.ageMonths] = "Months from 0 to 1200." }
+        let days = self[.ageDays]
+        if days.changed, !days.isEmpty, !(matches(days.trimmed, #"^\d{1,5}$"#) && (Int(days.trimmed) ?? 40001) <= 40000) { found[.ageDays] = "Days from 0 to 40000." }
         let size = self[.size]
         if size.changed, !(matches(size.trimmed, #"^\d{1,5}$"#) && (1...20000).contains(Int(size.trimmed) ?? 0)) { found[.size] = "Size is in millilitres, like 750." }
         let msrp = self[.msrp]
@@ -299,7 +323,8 @@ struct LabelDraft {
 
     private func value(_ fact: LabelFact, of field: Field) -> Any {
         switch fact {
-        case .size, .category, .brand: Int(field.trimmed) ?? field.json
+        case .size, .category, .brand, .ageMonths, .ageDays: Int(field.trimmed) ?? field.json
+        case .isNas, .isStraight, .isCaskStrength, .isBottledInBond: field.trimmed == "true"
         case .barcode: field.isEmpty ? NSNull() : Self.digits(field.trimmed)
         default: field.json
         }

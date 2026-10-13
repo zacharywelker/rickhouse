@@ -6,7 +6,7 @@ import { resolveSlug } from "@/lib/slug";
 import { attachCola, colaLookupEnabled, refreshCola } from "@/lib/cola/store";
 import { writableFields } from "./fields";
 import { fieldGroupForCategory } from "./queries";
-import { BOND_PROOF } from "./rules";
+import { AGING_FIELDS, BOND_PROOF } from "./rules";
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 
@@ -21,6 +21,8 @@ import { undisclosedDistilleryId } from "./undisclosed";
  * this set belongs to a section that may be hidden.
  */
 const COMMON_FIELDS = new Set(writableFields("other"));
+// Aging is common to most categories but not to all (vodka has none), so it is kept only where the category allows it.
+for (const name of AGING_FIELDS) COMMON_FIELDS.delete(name);
 
 /**
  * Keeps only the columns this category may write, dropping anything whose

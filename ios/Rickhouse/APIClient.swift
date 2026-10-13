@@ -129,6 +129,18 @@ struct APIClient {
         return try await get("api/v1/bottles", query: items, as: BottlePage.self)
     }
 
+    /// A page of the collection under the web grid's own filter query, as a Numbers finding carries it.
+    func bottles(filter: String, page: Int) async throws -> BottlePage {
+        let items = (URLComponents(string: "?" + filter)?.queryItems ?? []) + [
+            .init(name: "page", value: String(page)), .init(name: "size", value: "50"),
+        ]
+        return try await get("api/v1/bottles", query: items, as: BottlePage.self)
+    }
+
+    func numbers() async throws -> NumbersAnswer {
+        try await get("api/v1/numbers", as: NumbersAnswer.self)
+    }
+
     func bottle(id: Int) async throws -> BottleDetail {
         try await get("api/v1/bottles/\(id)", as: BottleDetail.self)
     }

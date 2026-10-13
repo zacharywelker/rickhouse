@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categoryKinds, hiddenFields, isUnaged, looksAged, parseRegions, showsFinishes, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
+import { categoryKinds, hiddenFields, withBondProof, isUnaged, looksAged, parseRegions, showsFinishes, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
 import { writableFields } from "../fields";
 import { expressionSchema } from "../schema";
 
@@ -250,5 +250,18 @@ describe("spreadLabel", () => {
     expect(spreadLabel(proofSpread(["126.1"], []))).toBe("126.1");
     expect(spreadLabel(proofSpread(["126.1"], ["132.7"]))).toBe("126.1 - 132.7");
     expect(spreadLabel(proofSpread([], []))).toBe("Cask Strength");
+  });
+});
+
+describe("withBondProof", () => {
+  it("forces 100 proof when the tick goes on, or when proof is sent for a bonded label", () => {
+    expect(withBondProof({ isBottledInBond: true }, false)).toEqual({ isBottledInBond: true, proof: "100" });
+    expect(withBondProof({ proof: "90" }, true)).toEqual({ proof: "100" });
+  });
+
+  it("leaves an edit alone when the label is not bonded, is being unbonded, or proof is not touched", () => {
+    expect(withBondProof({ proof: "90" }, false)).toEqual({ proof: "90" });
+    expect(withBondProof({ isBottledInBond: false, proof: "90" }, true)).toEqual({ isBottledInBond: false, proof: "90" });
+    expect(withBondProof({ name: "x" }, true)).toEqual({ name: "x" });
   });
 });
