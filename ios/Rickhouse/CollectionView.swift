@@ -101,7 +101,7 @@ struct CollectionView: View {
                     ForEach(bottles) { bottle in
                         NavigationLink(value: bottle) { BottleCard(bottle: bottle, factCount: columns == 3 ? 1 : 2) }
                             .buttonStyle(.plain)
-                            .contextMenu { menu(for: bottle) } preview: { BottleCard(bottle: bottle, factCount: columns == 3 ? 1 : 2).bottleActivity(bottle) }
+                            .contextMenu { menu(for: bottle) }
                             .task { if bottle.id == bottles.last?.id { await loadMore() } }
                     }
                 }
@@ -129,7 +129,7 @@ struct CollectionView: View {
                         // Not `role: .destructive`: that tells the List the row is about to go, but the row stays until the sheet is confirmed.
                         Button("Delete") { ask(bottle) }.tint(Theme.error)
                     }
-                    .contextMenu { menu(for: bottle) } preview: { BottleRow(bottle: bottle).bottleActivity(bottle) }
+                    .contextMenu { menu(for: bottle) }
                     .task { if bottle.id == bottles.last?.id { await loadMore() } }
             }
             Color.clear.frame(height: 56).listRowSeparator(.hidden).listRowBackground(Theme.paper)  // clear of the in-depth button
@@ -245,17 +245,6 @@ struct CollectionView: View {
 }
 
 /// One line per bottle, for the in-depth view.
-extension View {
-    /// Tells the system's "Ask Siri" menu item which bottle is showing; without it Siri reads whatever is on screen, the top bottle of the list.
-    func bottleActivity(_ bottle: BottleSummary) -> some View {
-        userActivity("com.rickhouse.bottle") { activity in
-            activity.title = "\(bottle.brand) \(bottle.name)"
-            activity.userInfo = ["bottleId": bottle.id]
-            activity.isEligibleForSearch = false
-        }
-    }
-}
-
 struct BottleRow: View {
     let bottle: BottleSummary
 
