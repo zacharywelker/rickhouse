@@ -19,6 +19,16 @@ import type { FieldValue } from "@/lib/forms/values";
  * the larger expression and bottle forms, so a field behaves the same
  * everywhere it appears.
  */
+/** Widths for fields that sit side by side on a line; see `FieldWidth`. */
+const FIELD_WIDTHS: Record<NonNullable<FieldSpec["width"]>, string> = {
+  auto: "w-auto",
+  xxs: "w-24",
+  xs: "w-28",
+  sm: "w-40",
+  md: "w-52",
+  lg: "w-full sm:w-60",
+};
+
 export function Field({
   spec,
   idPrefix,
@@ -57,7 +67,12 @@ export function Field({
   const required = "required" in spec && spec.required === true;
 
   return (
-    <div className={cn("flex flex-col gap-1.5", spec.span === "half" ? "sm:col-span-1" : "col-span-full")}>
+    <div
+      className={cn(
+        "flex flex-col gap-1.5",
+        spec.width ? FIELD_WIDTHS[spec.width] : spec.span === "half" ? "sm:col-span-1" : "col-span-full",
+      )}
+    >
       {/* The asterisk sits outside the <label> so the label's text is exactly
           the field name, for screen readers and for tests. */}
       <div className="flex items-center gap-1">

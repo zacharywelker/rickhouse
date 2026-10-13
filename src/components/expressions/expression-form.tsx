@@ -7,7 +7,6 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { withOption } from "@/lib/forms/values";
@@ -16,17 +15,29 @@ import { EXPRESSION_SECTIONS, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type FieldSpec, type Option } from "@/lib/admin/types";
 import type { FieldGroup } from "@/db/schema";
 import { ageFilled, withAgeDefaults } from "@/lib/bottles/age";
+import { cn } from "@/lib/utils";
 import {
   BOND_PROOF,
+  STRENGTH_TIER_LABELS,
   baseReplacesMashbills,
+  followsProof,
   hiddenFields,
   looksAged,
+  nameContextFor,
+  nameSays,
   parseRegions,
+  proofSpread,
+  spreadLabel,
   showsFinishes,
   showsRegions,
+  strengthTier,
+  withNameRules,
   type CategoryKind,
+  type NameContext,
+  type ProofSpread,
 } from "@/lib/expressions/rules";
-import { SCOTCH_REGIONS } from "@/db/schema";
+import { RUM_BASES, SCOTCH_REGIONS } from "@/db/schema";
+import { DeriveAge } from "./bottle-form";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
 import { OrderedPicker, serializeLinks, type LinkedRow } from "./ordered-picker";
@@ -39,23 +50,30 @@ import type { ReleaseRow } from "@/lib/releases";
 /** Every field on the label form, for seeding state from a row or from nothing. */
 export const LABEL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
 
+/** The section each field belongs to, for the spirit-by-spirit rule when a line draws fields from several. */
+const SECTION_OF: ReadonlyMap<string, (typeof EXPRESSION_SECTIONS)[number]> = new Map(
+  EXPRESSION_SECTIONS.flatMap((section) => section.fields.map((field) => [field.name, section] as const)),
+);
+
 export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
 
 export const EMPTY_LINKS: LabelLinks = { distilleries: [], mashbills: [], finishes: [] };
 
 /**
- * One field changed, with what follows from it: Straight fills in an age, an
- * age statement is offered as a designation is ticked, and Bottled In Bond
- * sets 100 proof.
+ * One field changed, with what follows from it: Straight and Bottled In Bond
+ * fill in an age, NAS offers its age statement, Bottled In Bond sets 100 proof,
+ * and a name that starts to say Cask Strength, Bonded or Full Proof acts on it.
  */
 export function withLabelChange(
   prev: Record<string, FieldValue>,
   name: string,
   value: FieldValue,
+  /** What the name can say depends on the category; without it the name says nothing. */
+  resolve?: (values: Record<string, FieldValue>) => NameContext,
 ): Record<string, FieldValue> {
   const next = withAgeDefaults(prev, { ...prev, [name]: value }, name);
   if (name === "isBottledInBond" && value === true) next.proof = BOND_PROOF;
-  return next;
+  return resolve ? withNameRules(prev, next, resolve) : next;
 }
 
 /** The Scotch regions, as buttons: a blend comes from several. */
@@ -97,6 +115,47 @@ function RegionPicker({
   );
 }
 
+/** The rum's base, as buttons in a box like the distilleries and finishes: one at a time, and again to clear it. */
+function BasePicker({
+  idPrefix,
+  value,
+  onChange,
+  error,
+}: {
+  idPrefix: string;
+  value: string;
+  onChange: (base: string) => void;
+  error?: string | undefined;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2 border border-border p-4">
+      <legend className="px-1 text-sm font-medium">Base</legend>
+      <p className="-mt-1 text-xs text-muted-foreground">What the rum is made from.</p>
+      <div className="flex flex-wrap gap-2">
+        {RUM_BASES.map((base) => (
+          <Button
+            key={base}
+            id={`${idPrefix}-base-${base}`}
+            type="button"
+            size="sm"
+            variant={value === base ? "default" : "outline"}
+            aria-pressed={value === base}
+            onClick={() => onChange(value === base ? "" : base)}
+          >
+            {base[0]!.toUpperCase() + base.slice(1)}
+          </Button>
+        ))}
+      </div>
+      <input type="hidden" name="molassesOrCane" value={value} />
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
 /**
  * The label's fields and its three ordered lists, without a form around
  * them: New Label and Edit Label wrap them in their own form, and the
@@ -117,9 +176,15 @@ export function ExpressionFields({
   categoryKinds,
   errors,
   idPrefix = "expression",
+  photoSlot,
+  spread = null,
 }: {
   values: Record<string, FieldValue>;
   onChange: (name: string, value: FieldValue) => void;
+  /** Drawn at the left of Identity, with the fields beside it: New Label's photo box. */
+  photoSlot?: React.ReactNode;
+  /** Proofs this label's releases and bottles span, for a cask-strength label, whose own proof is not one number. */
+  spread?: ProofSpread | null;
   links: LabelLinks;
   onLinksChange: (links: LabelLinks) => void;
   options: Record<string, Option[]>;
@@ -142,12 +207,23 @@ export function ExpressionFields({
   const context = { group: fieldGroup, kind, values, ginAged };
   const hidden = hiddenFields(context);
   const regions = parseRegions(values.regions);
-  // With an age filled in the statement is greyed out; triple-clicking it makes it editable again.
-  const [statementOpen, setStatementOpen] = React.useState(false);
-  const ageGreyed = ageFilled(values) && !statementOpen;
+  // NAS greys out the age and its statement, and an age filled in greys out the statement; Cask Strength greys out
+  // the proof, and Full Proof the Entry Proof. Triple-clicking a greyed box makes it editable again.
+  const [forced, setForced] = React.useState<ReadonlySet<string>>(new Set());
+  const unlock = (group: string) => setForced((now) => new Set(now).add(group));
+  const nas = values.isNas === true;
+  const ageGreyed = nas && !forced.has("age");
+  const statementGreyed = (nas || ageFilled(values)) && !forced.has("age");
+  const proofGreyed = values.isCaskStrength === true && !hidden.has("isCaskStrength") && !forced.has("proof");
+  const nameContext: NameContext = { group: fieldGroup, kind };
+  const says = nameSays(values.name, nameContext);
+  const entryGreyed = followsProof(values.name, nameContext) && !forced.has("entry");
+  const change = (name: string, value: FieldValue) => {
+    if (name === "isNas") setForced((now) => (now.has("age") ? new Set([...now].filter((g) => g !== "age")) : now));
+    if (name === "isCaskStrength") setForced((now) => (now.has("proof") ? new Set([...now].filter((g) => g !== "proof")) : now));
+    onChange(name, value);
+  };
 
-  const bondField = LABEL_FIELDS.find((field) => field.name === "isBottledInBond");
-  const baseField = LABEL_FIELDS.find((field) => field.name === "molassesOrCane");
   const bonded = fieldGroup === "whiskey" && !hidden.has("isBottledInBond") && values.isBottledInBond === true;
 
   /** A linked distillery brings its Scotch region along. */
@@ -172,9 +248,13 @@ export function ExpressionFields({
           key={field.name}
           idPrefix={idPrefix}
           value={values.proof ?? ""}
-          onChange={(next) => onChange("proof", next)}
+          onChange={(next) => change("proof", next)}
           error={errors.proof}
           locked={bonded}
+          greyed={proofGreyed && !bonded}
+          onUnlock={() => unlock("proof")}
+          hint={false}
+          className="w-28"
         />
       );
     }
@@ -187,12 +267,15 @@ export function ExpressionFields({
         <AgeFields
           key="age"
           idPrefix={idPrefix}
+          compact
+          locked={ageGreyed}
+          onUnlock={() => unlock("age")}
           values={{
             ageYears: values.ageYears ?? "",
             ageMonths: values.ageMonths ?? "",
             ageDays: values.ageDays ?? "",
           }}
-          onChange={(name, next) => onChange(name, next)}
+          onChange={(name, next) => change(name, next)}
           errors={{
             ageYears: errors.ageYears,
             ageMonths: errors.ageMonths,
@@ -201,23 +284,73 @@ export function ExpressionFields({
         />
       );
     }
+    const entry = field.name === "entryProof";
+    const greyed = (field.name === "ageStatement" && statementGreyed) || (entry && entryGreyed);
     return (
       <Field
         key={field.name}
         spec={
-          field.name === "ageStatement" && ageGreyed
-            ? { ...field, help: "Greyed out while an age is filled in. Triple-click to edit anyway." }
-            : field
+          field.name === "ageStatement" && statementGreyed
+            ? {
+                ...field,
+                help: nas
+                  ? "Greyed out for NAS. Triple-click to edit anyway."
+                  : "Greyed out while an age is filled in. Triple-click to edit anyway.",
+              }
+            : entry && entryGreyed
+              ? { ...field, help: "Follows Proof, as the name says Full Proof. Triple-click to edit anyway." }
+              : field
         }
         idPrefix={idPrefix}
         value={values[field.name] ?? ""}
-        onChange={(next) => onChange(field.name, next)}
+        onChange={(next) => change(field.name, next)}
         error={errors[field.name]}
         options={options[field.name] ?? []}
         onOptionCreated={(option) => onOptionCreated(field.name, option)}
-        locked={field.name === "ageStatement" && ageGreyed}
-        onUnlock={() => setStatementOpen(true)}
+        locked={greyed}
+        onUnlock={() => unlock(entry ? "entry" : "age")}
       />
+    );
+  };
+
+  /** One line of a section: the fields it names, side by side, skipping any this spirit does not have. */
+  const renderRow = (names: ReadonlyArray<string>, key: number) => {
+    const tier = strengthTier(fieldGroup, values.proof);
+    const cells = names.map((name) => {
+      if (name === "@dates") {
+        return hidden.has("barrelFilledOn") ? null : <DeriveAge key={name} values={values} set={change} className="" />;
+      }
+      if (name === "@tier") {
+        return tier ? (
+          <span key={name} className="self-end pb-2.5 text-sm font-medium text-accent">
+            {STRENGTH_TIER_LABELS[tier]}
+          </span>
+        ) : null;
+      }
+      const field = LABEL_FIELDS.find((candidate) => candidate.name === name);
+      const owner = SECTION_OF.get(name);
+      if (!field || (owner?.fieldGroups && !owner.fieldGroups.includes(fieldGroup))) return null;
+      // Bottled In Bond is an American whiskey designation; the other spirits never see it.
+      if (name === "isBottledInBond" && (fieldGroup !== "whiskey" || hidden.has(name))) return null;
+      return renderField(field);
+    });
+    if (cells.every((cell) => cell === null)) return null;
+    // Proof's line explains what the name did and, for a cask-strength label, why the proof is greyed.
+    const notes: string[] = [];
+    if (names.includes("proof")) {
+      if (says.isCaskStrength && values.isCaskStrength === true) notes.push(`Cask Strength, as the name says “${says.isCaskStrength}”.`);
+      if (says.isBottledInBond && values.isBottledInBond === true) notes.push(`Bottled In Bond, as the name says “${says.isBottledInBond}”.`);
+      if (proofGreyed && !bonded) notes.push(spreadLabel(spread));
+    }
+    return (
+      <div key={key} className="flex flex-wrap items-start gap-x-4 gap-y-3">
+        {cells}
+        {notes.map((note) => (
+          <p key={note} className="basis-full text-xs text-muted-foreground">
+            {note}
+          </p>
+        ))}
+      </div>
     );
   };
 
@@ -231,47 +364,38 @@ export function ExpressionFields({
               <SectionTitle>{section.title}</SectionTitle>
               {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
             </SectionHeader>
-            <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {section.id === "strength" && fieldGroup === "gin" ? (
-                <div className="col-span-full flex items-center gap-3">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={ginAged ? "default" : "outline"}
-                    aria-pressed={ginAged}
-                    onClick={() => setGinChoice(!ginAged)}
-                  >
-                    Aged
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    {ginAged ? "Age, age statement and finishes apply." : "Gin is unaged unless you say it was aged."}
-                  </span>
+            {section.rows ? (
+              <SectionContent className={cn(section.id === "identity" && photoSlot && "flex flex-col gap-5 sm:flex-row")}>
+                {section.id === "identity" ? photoSlot : null}
+                <div className="flex min-w-0 flex-1 flex-col gap-4">
+                  {section.rows.map((row, index) => renderRow(row, index))}
+                  {section.id === "strength" && fieldGroup === "gin" ? (
+                    <div className="flex items-center gap-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={ginAged ? "default" : "outline"}
+                        aria-pressed={ginAged}
+                        onClick={() => setGinChoice(!ginAged)}
+                      >
+                        Aged
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {ginAged ? "Age, age statement and finishes apply." : "Gin is unaged unless you say it was aged."}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-              {section.fields.map((field) => {
-                // Bottled In Bond and Regions belong to the whiskey section but are drawn elsewhere;
-                // rum's Base is drawn with the origin lists.
-                if (field.name === "regions" || field.name === "isBottledInBond" || field.name === "molassesOrCane") {
-                  return null;
-                }
-                const drawn = renderField(field);
-                if (field.name === "isCaskStrength" && bondField && fieldGroup === "whiskey" && !hidden.has("isBottledInBond")) {
-                  return (
-                    <React.Fragment key={field.name}>
-                      {drawn}
-                      <Field
-                        spec={bondField}
-                        idPrefix={idPrefix}
-                        value={values.isBottledInBond ?? false}
-                        onChange={(next) => onChange("isBottledInBond", next)}
-                        error={errors.isBottledInBond}
-                      />
-                    </React.Fragment>
-                  );
-                }
-                return drawn;
-              })}
-            </SectionContent>
+              </SectionContent>
+            ) : (
+              <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {section.fields.map((field) => {
+                  // Bottled In Bond and Regions belong to the whiskey section but are drawn elsewhere.
+                  if (field.name === "regions" || field.name === "isBottledInBond") return null;
+                  return renderField(field);
+                })}
+              </SectionContent>
+            )}
           </Section>
         );
       })}
@@ -302,13 +426,12 @@ export function ExpressionFields({
             value={links.distilleries}
             onChange={(rows) => changeLinks({ ...links, distilleries: rows })}
           />
-          {baseReplacesMashbills(fieldGroup) && baseField ? (
+          {baseReplacesMashbills(fieldGroup) ? (
             <>
-              <Field
-                spec={{ ...baseField, help: "What the rum is made from." }}
+              <BasePicker
                 idPrefix={idPrefix}
-                value={values.molassesOrCane ?? ""}
-                onChange={(next) => onChange("molassesOrCane", next)}
+                value={String(values.molassesOrCane ?? "")}
+                onChange={(next) => change("molassesOrCane", next)}
                 error={errors.molassesOrCane}
               />
               {/* Rum has no mashbill list, but one it already has is kept. */}
@@ -356,7 +479,7 @@ export function ExpressionFields({
   );
 }
 
-/** The photo about to be saved: the chosen file, or the linked picture, so a wrong pick is seen before it is kept. */
+/** The photo about to be saved, filling its box: the chosen file, or the linked picture, so a wrong pick is seen before it is kept. */
 function PhotoPreview({ file, link }: { file: File | null; link: string }) {
   const [read, setRead] = React.useState<{ file: File; url: string } | null>(null);
   const [brokenLink, setBrokenLink] = React.useState<string | null>(null);
@@ -385,19 +508,97 @@ function PhotoPreview({ file, link }: { file: File | null; link: string }) {
   const src = file ? (read?.file === file ? read.url : null) : safeExternalImageUrl;
   if (!src) return null;
   if (!file && brokenLink === link) {
-    return <p className="col-span-full text-sm text-muted-foreground">That link does not show a picture.</p>;
+    return <p className="absolute inset-0 bg-background p-2 text-xs text-muted-foreground">That link does not show a picture.</p>;
   }
   return (
-    <div className="col-span-full flex flex-col gap-1.5">
-      <span className="text-xs text-muted-foreground">Preview</span>
-      {/* A plain img: the source is a blob or someone else's URL, which next/image cannot optimise. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt="Label photo preview"
-        className="max-h-64 w-fit max-w-full border border-border bg-muted/30 object-contain"
-        onError={() => setBrokenLink(link)}
-      />
+    // A plain img: the source is a blob or someone else's URL, which next/image cannot optimise.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt="Label photo preview"
+      className="absolute inset-0 size-full bg-background object-contain"
+      onError={() => setBrokenLink(link)}
+    />
+  );
+}
+
+/**
+ * New Label's photo, always on show: a box where the picture will be, with Add photo and From a link beside it.
+ * Held until the label is saved, because the photo route needs the label's id.
+ */
+function PhotoBox({
+  file,
+  link,
+  onFile,
+  onLink,
+}: {
+  file: File | null;
+  link: string;
+  onFile: (file: File | null) => void;
+  onLink: (link: string) => void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [linking, setLinking] = React.useState(false);
+  const chosen = file !== null || link.trim() !== "";
+  return (
+    <div className="flex flex-col gap-2 sm:w-56 sm:shrink-0">
+      <div className="flex items-start gap-3">
+        <div className="relative flex aspect-[3/4] w-28 shrink-0 items-center justify-center overflow-hidden border border-dashed border-border bg-muted/30 p-2 text-center text-xs text-muted-foreground">
+          Photo goes here
+          <PhotoPreview file={file} link={link.trim()} />
+        </div>
+        <div className="flex flex-col items-start gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+            {file ? "Replace photo" : "Add photo"}
+          </Button>
+          <Button type="button" variant="outline" size="sm" aria-expanded={linking} onClick={() => setLinking((on) => !on)}>
+            From a link
+          </Button>
+          {chosen ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onFile(null);
+                onLink("");
+                if (inputRef.current) inputRef.current.value = "";
+              }}
+            >
+              Remove
+            </Button>
+          ) : null}
+          <input
+            ref={inputRef}
+            id="expression-photo"
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            aria-label="Upload label photo"
+            onChange={(event) => {
+              onFile(event.target.files?.[0] ?? null);
+              if (event.target.files?.[0]) onLink("");
+            }}
+          />
+        </div>
+      </div>
+      {linking || link.trim() !== "" ? (
+        <Input
+          id="expression-photo-link"
+          type="url"
+          inputMode="url"
+          placeholder="https://"
+          aria-label="Or a link"
+          value={link}
+          onChange={(event) => {
+            onLink(event.target.value);
+            if (event.target.value.trim() !== "") {
+              onFile(null);
+              if (inputRef.current) inputRef.current.value = "";
+            }
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -413,6 +614,7 @@ export function ExpressionForm({
   categoryGroups,
   categoryKinds,
   colaLookup = false,
+  bottleProofs = [],
 }: {
   expressionId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
@@ -430,6 +632,8 @@ export function ExpressionForm({
   categoryKinds?: Record<number, CategoryKind>;
   /** Whether TTB's registry can be searched; on New Label, for picking approvals to attach. */
   colaLookup?: boolean;
+  /** The proofs this label's bottles carry, for the range a cask-strength label shows in place of one proof. */
+  bottleProofs?: string[];
 }) {
   const router = useRouter();
   const [values, setValues] = React.useState(() => initialFieldValues(LABEL_FIELDS, initialValues));
@@ -486,7 +690,14 @@ export function ExpressionForm({
   }, [saved, bottleId, savedId, state, router, expressionId]);
 
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
-  const set = (name: string, value: FieldValue) => setValues((prev) => withLabelChange(prev, name, value));
+  const set = (name: string, value: FieldValue) =>
+    setValues((prev) =>
+      withLabelChange(prev, name, value, (next) => nameContextFor(next, categoryGroups, categoryKinds)),
+    );
+  const spread = React.useMemo(
+    () => proofSpread(initialReleases.map((release) => release.proof), bottleProofs),
+    [initialReleases, bottleProofs],
+  );
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -500,6 +711,10 @@ export function ExpressionForm({
         categoryGroups={categoryGroups}
         {...(categoryKinds ? { categoryKinds } : {})}
         errors={fieldErrors}
+        spread={spread}
+        {...(expressionId === null
+          ? { photoSlot: <PhotoBox file={photoFile} link={photoLink} onFile={setPhotoFile} onLink={setPhotoLink} /> }
+          : {})}
       />
 
       <Section>
@@ -571,40 +786,6 @@ export function ExpressionForm({
           distilleryIds={links.distilleries.map((row) => row.id).filter((id) => id > 0)}
           lookupEnabled={colaLookup}
         />
-      ) : null}
-
-      {expressionId === null ? (
-        <Section>
-          <SectionHeader>
-            <SectionTitle>Photo</SectionTitle>
-            <SectionDescription>Optional. A file or a link; it is cut out from its background once the label is saved.</SectionDescription>
-          </SectionHeader>
-          <SectionContent className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="expression-photo">Upload</Label>
-              <Input
-                id="expression-photo"
-                type="file"
-                accept="image/*"
-                disabled={photoLink.trim() !== ""}
-                onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="expression-photo-link">Or a link</Label>
-              <Input
-                id="expression-photo-link"
-                type="url"
-                inputMode="url"
-                placeholder="https://"
-                disabled={photoFile !== null}
-                value={photoLink}
-                onChange={(event) => setPhotoLink(event.target.value)}
-              />
-            </div>
-            <PhotoPreview file={photoFile} link={photoLink.trim()} />
-          </SectionContent>
-        </Section>
       ) : null}
 
       {!state.ok && state.error ? (

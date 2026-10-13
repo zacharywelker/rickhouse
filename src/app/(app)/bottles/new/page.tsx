@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { BottleForm } from "@/components/expressions/bottle-form";
 import { Button } from "@/components/ui/button";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
-import { expressionOptions } from "@/lib/expressions/queries";
+import { expressionOptions, labelDateChoices } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
 import { labelVersionChoices } from "@/lib/other-names-store";
 import { releaseChoices } from "@/lib/releases-store";
@@ -58,6 +58,7 @@ export default async function NewBottlePage({
           suggestions={suggestions}
           labelVersions={await labelVersionChoices(user.id)}
           releases={await releaseChoices(user.id)}
+        labelDates={await labelDateChoices(user.id)}
         />
       )}
     </div>

@@ -80,10 +80,13 @@ export const expressionSchema = z
     // Strength and age
     proof: optionalDecimal(0, 200),
     isCaskStrength: checkbox,
+    isStillProof: checkbox,
     ageYears: optionalDecimal(0, 100),
     ageMonths: optionalInt(0, 1200),
     ageDays: optionalInt(0, 40000),
     ageStatement: optionalText(200),
+    barrelFilledOn: pastDate,
+    bottledOn: pastDate,
     isStraight: checkbox,
     isNas: checkbox,
 
@@ -142,7 +145,6 @@ export const expressionSchema = z
         .refine((v) => v === "" || /^[0-9]{6,32}$/.test(v), "A barcode is 6–32 digits.")
         .transform((v) => (v === "" ? null : v)),
     ),
-    labelNotes: optionalText(),
   });
 
 export type ExpressionInput = z.infer<typeof expressionSchema>;

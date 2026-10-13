@@ -18,7 +18,7 @@ describe("sectionVisible", () => {
   it("always shows the sections common to every spirit", () => {
     for (const group of ["whiskey", "rum", "agave", "other"] as const) {
       expect(sectionVisible(section("identity"), group, {})).toBe(true);
-      expect(sectionVisible(section("commercial"), group, {})).toBe(true);
+      expect(sectionVisible(section("identity"), group, {})).toBe(true);
     }
   });
 

@@ -7,6 +7,7 @@ import { bottleSuggestions } from "@/lib/bottles/suggestions-query";
 import { colaLookupEnabled } from "@/lib/cola/store";
 import { loadCatalogLabel } from "@/lib/expressions/catalog";
 import { expressionFormData } from "@/lib/expressions/form-data";
+import { labelDateChoices } from "@/lib/expressions/queries";
 import { releaseChoices } from "@/lib/releases-store";
 import { getPreferences } from "@/lib/preferences";
 
@@ -64,6 +65,7 @@ export default async function CatalogBottlePage({
         initialLabel={initialLabel}
         suggestions={suggestions}
         releases={await releaseChoices(user.id)}
+        labelDates={await labelDateChoices(user.id)}
       />
     </div>
   );

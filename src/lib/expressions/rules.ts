@@ -1,5 +1,5 @@
 import type { FieldGroup } from "@/db/schema";
-import { ageFilled } from "@/lib/bottles/age";
+import { ageFilled, withAgeDefaults } from "@/lib/bottles/age";
 
 /**
  * What a label's category decides about its form, as pure functions so the
@@ -42,6 +42,8 @@ export const AGING_FIELDS: ReadonlyArray<string> = [
   "isStraight",
   "isCaskStrength",
   "isBottledInBond",
+  "barrelFilledOn",
+  "bottledOn",
 ];
 
 export type FormContext = {
@@ -73,8 +75,113 @@ export function hiddenFields(context: FormContext): Set<string> {
     hidden.add("isBottledInBond");
   }
   if (context.values.isSolera !== "true") hidden.add("soleraRange");
+  for (const [name, flag] of Object.entries(STRENGTH_FLAGS)) if (!flag.groups.includes(context.group)) hidden.add(name);
+  // Still proof is for the unaged: an age, or a statement, rules it out.
+  if (ageFilled(context.values) || String(context.values.ageStatement ?? "").trim() !== "") hidden.add("isStillProof");
   return hidden;
 }
+
+/** Designations a label ticks for itself, and the spirits that offer each. Still Proof is an unaged agave spirit's. */
+export const STRENGTH_FLAGS: Record<string, { groups: ReadonlyArray<FieldGroup>; label: string }> = {
+  isStillProof: { groups: ["agave"], label: "Still Proof" },
+};
+
+export type StrengthTier = "navy" | "overproof";
+
+export const STRENGTH_TIER_LABELS: Record<StrengthTier, string> = { navy: "Navy Strength", overproof: "Overproof" };
+
+/**
+ * Navy Strength and Overproof, worked out from the proof (ABV is half of it) rather than ticked, so they cannot
+ * go stale when the proof changes and a bottle with a proof of its own gets its own. Rum is Navy Strength from 54%
+ * ABV and Overproof from 57%; gin has no Overproof, so it is Navy Strength from 54% up. Anything else has neither.
+ */
+export function strengthTier(group: FieldGroup | null | undefined, proof: unknown): StrengthTier | null {
+  if (group !== "rum" && group !== "gin") return null;
+  const text = String(proof ?? "").trim();
+  if (text === "") return null;
+  const abv = Number(text) / 2;
+  if (!Number.isFinite(abv)) return null;
+  if (group === "rum" && abv >= 57) return "overproof";
+  return abv >= 54 ? "navy" : null;
+}
+
+/** What a name can say about a label; each ticks or sets something when the name starts to say it. */
+export type NameFlag = "isCaskStrength" | "isBottledInBond" | "fullProof";
+
+const NAME_RULES: ReadonlyArray<{ flag: NameFlag; pattern: RegExp }> = [
+  {
+    flag: "isCaskStrength",
+    pattern: /\b(cask[\s-]strength|barrel[\s-]proof|rickhouse[\s-]proof|barrel[\s-]strength|straight[\s-]from[\s-]the[\s-]barrel)\b/i,
+  },
+  { flag: "isBottledInBond", pattern: /\b(bib|bottled[\s-]in[\s-]bond|bonded)\b/i },
+  { flag: "fullProof", pattern: /\bfull[\s-]proof\b/i },
+];
+
+export type NameContext = { group: FieldGroup; kind: CategoryKind | null };
+
+/** Whether a name's say-so means anything for this spirit: cask strength needs an age, bond and full proof need whiskey. */
+function nameFlagApplies(flag: NameFlag, { group, kind }: NameContext): boolean {
+  if (flag === "isCaskStrength") return group !== "vodka" && group !== "gin";
+  if (flag === "fullProof") return group === "whiskey";
+  return group === "whiskey" && kind !== "scotch" && kind !== "other";
+}
+
+/** The words in `name` that say something about the label, by what they say. */
+export function nameSays(name: unknown, context: NameContext): Partial<Record<NameFlag, string>> {
+  const found: Partial<Record<NameFlag, string>> = {};
+  for (const rule of NAME_RULES) {
+    const match = rule.pattern.exec(String(name ?? ""));
+    if (match && nameFlagApplies(rule.flag, context)) found[rule.flag] = match[0];
+  }
+  return found;
+}
+
+/** The category a label's values name, as the rules read it; no category is "other" and no kinds is unknown. */
+export function nameContextFor(
+  values: Record<string, unknown>,
+  groups: Record<number, FieldGroup>,
+  kinds?: Record<number, CategoryKind>,
+): NameContext {
+  const raw = values.categoryId;
+  const id = typeof raw === "string" && raw !== "" ? Number(raw) : typeof raw === "number" ? raw : null;
+  return {
+    group: (id !== null ? groups[id] : undefined) ?? "other",
+    kind: kinds ? (id !== null ? (kinds[id] ?? "other") : "other") : null,
+  };
+}
+
+const blank = (value: unknown) => String(value ?? "").trim() === "";
+
+/**
+ * What the name does when it starts to say something it did not before: Cask Strength gets ticked, Bottled In
+ * Bond gets ticked with its 100 proof and 4 years, and Full Proof copies the proof into Entry Proof. Only on the
+ * change, so unticking by hand sticks while the name still says it; and the category counts too, so a name typed
+ * before its category still takes effect once the category fits. Entry Proof then keeps following Proof until it
+ * is changed by hand.
+ */
+export function withNameRules<T extends Record<string, unknown>>(
+  prev: T,
+  next: T,
+  resolve: (values: T) => NameContext,
+): T {
+  const before = nameSays(prev.name, resolve(prev));
+  const after = nameSays(next.name, resolve(next));
+  let out = next;
+  if (after.isCaskStrength !== undefined && before.isCaskStrength === undefined) out = { ...out, isCaskStrength: true };
+  if (after.isBottledInBond !== undefined && before.isBottledInBond === undefined) {
+    out = withAgeDefaults(out, { ...out, isBottledInBond: true, proof: BOND_PROOF }, "isBottledInBond");
+  }
+  if (after.fullProof !== undefined) {
+    const justSaid = before.fullProof === undefined;
+    const followed = blank(prev.entryProof) || String(prev.entryProof) === String(prev.proof ?? "");
+    const proofMoved = String(out.proof ?? "") !== String(prev.proof ?? "");
+    if (justSaid ? blank(out.entryProof) : proofMoved && followed) out = { ...out, entryProof: out.proof };
+  }
+  return out;
+}
+
+/** Whether Entry Proof should follow Proof: the name says Full Proof. */
+export const followsProof = (name: unknown, context: NameContext) => nameSays(name, context).fullProof !== undefined;
 
 /** The finishes list: aging matters to it too. */
 export const showsFinishes = (context: Pick<FormContext, "group" | "ginAged">) => !isUnaged(context);
@@ -92,3 +199,25 @@ export const BOND_PROOF = "100";
 export function parseRegions(text: unknown): string[] {
   return [...new Set(String(text ?? "").split(",").map((part) => part.trim()).filter((part) => part !== ""))];
 }
+
+export type ProofSpread = { min: number; max: number; releases: number; bottles: number };
+
+/** The lowest and highest proof across a label's known releases and bottles, or null when none has one. */
+export function proofSpread(releaseProofs: ReadonlyArray<unknown>, bottleProofs: ReadonlyArray<unknown>): ProofSpread | null {
+  const numbers = (list: ReadonlyArray<unknown>) =>
+    list.filter((value) => String(value ?? "").trim() !== "").map(Number).filter(Number.isFinite);
+  const releases = numbers(releaseProofs);
+  const bottles = numbers(bottleProofs);
+  const all = [...releases, ...bottles];
+  if (all.length === 0) return null;
+  return { min: Math.min(...all), max: Math.max(...all), releases: releases.length, bottles: bottles.length };
+}
+
+/** What a cask-strength label shows for its proof: the one known proof, "126.1 - 132.7", or "Cask Strength". */
+export function spreadLabel(spread: ProofSpread | null): string {
+  if (!spread) return "Cask Strength";
+  return spread.min === spread.max ? String(spread.min) : `${spread.min} - ${spread.max}`;
+}
+
+/** A label's usual barrel-fill (distillation) and bottling dates, which a bottle goes by unless it has its own. */
+export type LabelDates = { barrelFilledOn: string | null; bottledOn: string | null };

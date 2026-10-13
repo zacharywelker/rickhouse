@@ -26,6 +26,8 @@ export function ProofAbvFields({
   className = "sm:col-span-1",
   labelClassName,
   locked = false,
+  greyed = false,
+  onUnlock,
 }: {
   idPrefix: string;
   value: FieldValue;
@@ -40,6 +42,9 @@ export function ProofAbvFields({
   labelClassName?: string;
   /** Fixed at the given value (Bottled In Bond): both cells grey out, and proof is still submitted. */
   locked?: boolean;
+  /** Greyed out and read-only, but still submitted; triple-clicking either box calls `onUnlock` (Cask Strength). */
+  greyed?: boolean;
+  onUnlock?: () => void;
 }) {
   const proofValue = String(value ?? "");
   const [source, setSource] = React.useState<"proof" | "abv" | null>(proofValue === "" ? null : "proof");
@@ -54,6 +59,8 @@ export function ProofAbvFields({
   const abvId = `${idPrefix}-abv`;
   const proofDisabled = locked || (source === "abv" && abvText !== "");
   const abvDisabled = locked || (source === "proof" && proofValue !== "");
+  const unlock = greyed && onUnlock ? (e: React.MouseEvent) => e.detail >= 3 && onUnlock() : undefined;
+  const greyedClass = greyed && "cursor-not-allowed bg-muted text-muted-foreground";
 
   return (
     <>
@@ -70,13 +77,17 @@ export function ProofAbvFields({
           step={0.01}
           value={proofValue}
           disabled={proofDisabled}
+          readOnly={greyed}
+          aria-readonly={greyed || undefined}
+          title={greyed ? "Triple-click to edit" : undefined}
+          onClick={unlock}
           onChange={(e) => {
             const next = e.target.value;
             setSource(next === "" ? null : "proof");
             onChange(next);
           }}
           aria-invalid={error ? true : undefined}
-          className={cn(error && "border-destructive")}
+          className={cn(error && "border-destructive", greyedClass)}
         />
         {locked && name ? <input type="hidden" name={name} value={proofValue} /> : null}
         {error ? (
@@ -98,6 +109,11 @@ export function ProofAbvFields({
           step={0.01}
           value={abvText}
           disabled={abvDisabled}
+          readOnly={greyed}
+          aria-readonly={greyed || undefined}
+          title={greyed ? "Triple-click to edit" : undefined}
+          onClick={unlock}
+          className={cn(greyedClass)}
           onChange={(e) => {
             const next = e.target.value;
             setSource(next === "" ? null : "abv");

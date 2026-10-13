@@ -23,21 +23,29 @@ export function AgeFields({
   onChange,
   errors,
   help,
+  compact = false,
+  locked = false,
+  onUnlock,
 }: {
   idPrefix: string;
   values: Record<AgeUnit, FieldValue>;
   onChange: (name: AgeUnit, value: FieldValue) => void;
   errors?: Partial<Record<AgeUnit, string>>;
   help?: string;
+  /** Four characters wide each and part of a line, rather than a row of their own. */
+  compact?: boolean;
+  /** Greyed out and read-only; triple-clicking a box calls `onUnlock`. */
+  locked?: boolean;
+  onUnlock?: () => void;
 }) {
   const firstError = errors?.ageYears ?? errors?.ageMonths ?? errors?.ageDays;
 
   return (
-    <div className="col-span-full flex flex-col gap-1.5">
+    <div className={cn("flex flex-col gap-1.5", !compact && "col-span-full")}>
       <Label id={`${idPrefix}-age-label`}>Age</Label>
       <div className="flex gap-3" role="group" aria-labelledby={`${idPrefix}-age-label`}>
         {UNITS.map((unit) => (
-          <div key={unit.name} className="flex flex-1 flex-col gap-1">
+          <div key={unit.name} className={cn("flex flex-col gap-1", compact ? "w-20" : "flex-1")}>
             <Label htmlFor={`${idPrefix}-${unit.name}`} className="text-xs font-normal text-muted-foreground">
               {unit.label}
             </Label>
@@ -50,8 +58,15 @@ export function AgeFields({
               step={unit.step}
               value={String(values[unit.name] ?? "")}
               onChange={(e) => onChange(unit.name, e.target.value)}
+              readOnly={locked}
+              aria-readonly={locked || undefined}
+              title={locked ? "Triple-click to edit" : undefined}
+              onClick={locked && onUnlock ? (e) => e.detail >= 3 && onUnlock() : undefined}
               aria-invalid={errors?.[unit.name] ? true : undefined}
-              className={cn(errors?.[unit.name] && "border-destructive")}
+              className={cn(
+                errors?.[unit.name] && "border-destructive",
+                locked && "cursor-not-allowed bg-muted text-muted-foreground",
+              )}
             />
           </div>
         ))}

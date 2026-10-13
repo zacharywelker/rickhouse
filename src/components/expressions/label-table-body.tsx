@@ -19,6 +19,7 @@ import { describeAgeParts } from "@/lib/expressions/display";
 import { fieldGroupOf, groupApplies, type LabelEdit } from "@/lib/expressions/label-edits";
 import { describeLinks, LINK_KINDS, type LinkKind } from "@/lib/expressions/links";
 import type { ExpressionRow } from "@/lib/expressions/queries";
+import { STRENGTH_TIER_LABELS, strengthTier } from "@/lib/expressions/rules";
 import type { FieldGroup } from "@/db/schema";
 import type { LinkedRow } from "./ordered-picker";
 import { LinksCell } from "./links-cell";
@@ -148,6 +149,10 @@ export function LabelTableBody({
       const proof = String(values.proof ?? "");
       return proof === "" || Number.isNaN(Number(proof)) ? DASH : `${formatNumeric(String(Number(proof) / 2))}%`;
     }
+    if (column.id === "strength") {
+      const tier = strengthTier(row.fieldGroup, values.proof);
+      return tier ? STRENGTH_TIER_LABELS[tier] : DASH;
+    }
     return (
       <div className="flex items-start gap-1">
         {column.specs.map((spec) => (
@@ -202,6 +207,10 @@ export function LabelTableBody({
         return row.category;
       case "abv":
         return row.abv === null ? DASH : `${formatNumeric(row.abv)}%`;
+      case "strength": {
+        const tier = strengthTier(row.fieldGroup, row.proof);
+        return tier ? STRENGTH_TIER_LABELS[tier] : DASH;
+      }
       case "age":
         // A zero age is no age at all: say what the label does claim instead.
         return (

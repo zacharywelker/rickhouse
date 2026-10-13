@@ -1,6 +1,6 @@
 import { CHAR_LEVELS, CHAR_LEVEL_LABELS, FIELD_GROUPS, RUM_BASES, STILL_TYPES, type FieldGroup } from "@/db/schema";
 import type { FieldSpec } from "@/lib/admin/types";
-import { AGING_FIELDS } from "./rules";
+import { AGING_FIELDS, STRENGTH_FLAGS } from "./rules";
 import { SIZE_PRESETS } from "./sizes";
 
 /**
@@ -21,6 +21,12 @@ export type FormSection = {
   fieldGroups?: ReadonlyArray<FieldGroup>;
   /** Shown only when at least one of these boolean fields is on. */
   showWhenAny?: ReadonlyArray<string>;
+  /**
+   * Drawn as lines of fields sitting side by side, at the `width` each asks for, instead of two columns. Names
+   * only: a field left out is drawn elsewhere (or not at all) but still belongs to the form. `@dates` is the
+   * offer to work the age out from the two dates, and `@tier` the Navy Strength / Overproof badge.
+   */
+  rows?: ReadonlyArray<ReadonlyArray<string>>;
 };
 
 /** Nullable booleans in the database: "unknown" is a real, distinct answer. */
@@ -39,19 +45,33 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     description:
       "Who makes it and what it is called. Batch and single-barrel detail belong to the bottle, not here — " +
       "two batches of one product are two bottles of one label.",
+    rows: [
+      ["brandId", "name", "categoryId", "slug"],
+      ["msrp", "sizeMl", "upc"],
+      ["description"],
+    ],
     fields: [
-      { kind: "reference", name: "brandId", label: "Brand", resource: "brands", required: true, span: "half" },
-      { kind: "reference", name: "categoryId", label: "Category", resource: "categories", required: true, span: "half" },
-      { kind: "text", name: "name", label: "Label Name", required: true, placeholder: "Double Oak Spirit", span: "half" },
+      { kind: "reference", name: "brandId", label: "Brand", resource: "brands", required: true, width: "lg" },
+      { kind: "text", name: "name", label: "Label Name", required: true, placeholder: "Double Oak Spirit", width: "lg" },
+      { kind: "reference", name: "categoryId", label: "Category", resource: "categories", required: true, width: "md" },
+      // Made from the name, so it is not asked for; the form carries a saved one through.
+      { kind: "text", name: "slug", label: "URL Slug", placeholder: "generated from brand and name", span: "half" },
+      { kind: "number", name: "msrp", label: "MSRP", money: true, min: 0, step: 0.01, width: "sm" },
+      { kind: "number", name: "sizeMl", label: "Size", min: 1, max: 20000, step: 1, defaultValue: "750", presets: SIZE_PRESETS, help: "A bottle can be a different size from this.", width: "md" },
       {
         kind: "text",
-        name: "slug",
-        label: "URL Slug",
-        placeholder: "generated from brand and name",
-        help: "Leave blank and one is made for you.",
-        span: "half",
+        name: "upc",
+        label: "UPC / Barcode",
+        placeholder: "Scan it, or type it",
+        help: "A handheld scanner types straight into this field.",
+        width: "md",
       },
-      { kind: "textarea", name: "description", label: "Description" },
+      {
+        kind: "textarea",
+        name: "description",
+        label: "Description",
+        help: "Anything worth knowing, including what the bottle label says as printed: \"Distilled in Indiana\", \"Bottled by …\". Bottlers and places live here, not in their own fields.",
+      },
     ],
   },
   {
@@ -59,16 +79,23 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     title: "Strength and age",
     description:
       "As the product is normally sold; a bottle can override both. Proof and ABV calculate each other — enter " +
-      "either one. Straight fills in the age when it is blank, and an age filled in greys out the age statement.",
+      "either one. Straight and Bottled In Bond fill in the age, and an age filled in greys out the age statement.",
+    rows: [
+      ["proof", "isCaskStrength", "isBottledInBond", "isStillProof", "@tier"],
+      ["barrelFilledOn", "bottledOn", "@dates"],
+      ["ageYears", "ageStatement", "isNas", "isStraight"],
+      ["tropicalYears", "continentalYears", "isSolera", "soleraRange"],
+    ],
     fields: [
-      // Proof renders as two linked cells (Proof, ABV), so this row is
-      // already a full pair — the age triplet below is a full-span row of
-      // its own, and everything after it pairs up cleanly again. Bottled In
-      // Bond is drawn after Cask Strength, from the Process section.
-      { kind: "number", name: "proof", label: "Proof", min: 0, max: 200, step: 0.01, span: "half" },
-      { kind: "checkbox", name: "isCaskStrength", label: "Cask Strength", span: "half" },
-      { kind: "number", name: "ageYears", label: "Age — Years", min: 0, max: 100, step: 0.1, span: "half" },
-      { kind: "number", name: "ageMonths", label: "Age — Months", min: 0, max: 1200, step: 1, span: "half" },
+      // Proof renders as two linked cells (Proof, ABV). Bottled In Bond is drawn after Cask Strength, from the Process section.
+      { kind: "number", name: "proof", label: "Proof", min: 0, max: 200, step: 0.01, width: "xs" },
+      { kind: "checkbox", name: "isCaskStrength", label: "Cask Strength", width: "auto" },
+      { kind: "checkbox", name: "isStillProof", label: "Still Proof", help: "Still Proof — bottled undiluted from the still", width: "auto" },
+      // The two dates sit above the age, and offer to work it out (see `DeriveAge`).
+      { kind: "date", name: "barrelFilledOn", label: "Distilled / Barrel Filled", width: "md" },
+      { kind: "date", name: "bottledOn", label: "Bottled", width: "md" },
+      { kind: "number", name: "ageYears", label: "Age — Years", min: 0, max: 100, step: 0.1, width: "xxs" },
+      { kind: "number", name: "ageMonths", label: "Age — Months", min: 0, max: 1200, step: 1, width: "xxs" },
       {
         kind: "number",
         name: "ageDays",
@@ -77,7 +104,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         max: 40000,
         step: 1,
         help: "For a single barrel with an exact fill-to-bottling age.",
-        span: "half",
+        width: "xxs",
       },
       {
         kind: "text",
@@ -85,21 +112,21 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         label: "Age Statement",
         placeholder: "e.g. 7 Year",
         help: "The human sentence, for when the numbers do not tell the whole story.",
-        span: "half",
-      },
-      {
-        kind: "checkbox",
-        name: "isStraight",
-        label: "Straight",
-        help: "Straight — at least 2 years old",
-        span: "half",
+        width: "md",
       },
       {
         kind: "checkbox",
         name: "isNas",
         label: "NAS",
         help: "NAS — no age statement on the bottle",
-        span: "half",
+        width: "auto",
+      },
+      {
+        kind: "checkbox",
+        name: "isStraight",
+        label: "Straight",
+        help: "Straight — at least 2 years old",
+        width: "auto",
       },
     ],
   },
@@ -133,16 +160,21 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     id: "rum",
     title: "Rum detail",
     fieldGroups: ["rum"],
+    rows: [
+      ["stillType", "estate", "marque"],
+      ["esterGl", "sugarGPerL"],
+    ],
     fields: [
       {
         kind: "select",
         name: "stillType",
         label: "Still Type",
         options: [{ value: "", label: "Unknown" }, ...STILL_TYPES.map((t) => ({ value: t, label: titleCase(t) }))],
-        span: "half",
+        width: "md",
       },
-      { kind: "text", name: "estate", label: "Estate", placeholder: "Hampden, Foursquare, Worthy Park", span: "half" },
-      { kind: "text", name: "marque", label: "Marque", placeholder: "LROK, DOK", span: "half" },
+      { kind: "text", name: "estate", label: "Estate", placeholder: "Hampden, Foursquare, Worthy Park", width: "md" },
+      { kind: "text", name: "marque", label: "Marque", placeholder: "LROK, DOK", width: "md" },
+      // Drawn with the distilleries, as a box of choices.
       {
         kind: "select",
         name: "molassesOrCane",
@@ -153,12 +185,13 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         ],
         span: "half",
       },
-      { kind: "number", name: "esterGl", label: "Esters (g/hLAA)", min: 0, step: 0.01, span: "half" },
-      { kind: "number", name: "sugarGPerL", label: "Added Sugar (g/L)", min: 0, step: 0.01, span: "half" },
-      { kind: "number", name: "tropicalYears", label: "Tropical Years", min: 0, max: 100, step: 0.1, span: "half" },
-      { kind: "number", name: "continentalYears", label: "Continental Years", min: 0, max: 100, step: 0.1, span: "half" },
-      { kind: "select", name: "isSolera", label: "Solera", options: TRISTATE, span: "half" },
-      { kind: "text", name: "soleraRange", label: "Solera Range", placeholder: "1990–2015", span: "half" },
+      { kind: "number", name: "esterGl", label: "Esters (g/hLAA)", min: 0, step: 0.01, width: "sm" },
+      { kind: "number", name: "sugarGPerL", label: "Added Sugar (g/L)", min: 0, step: 0.01, width: "sm" },
+      // These four are drawn in Strength and age, beside the age they describe.
+      { kind: "number", name: "tropicalYears", label: "Tropical Years", min: 0, max: 100, step: 0.1, width: "xs" },
+      { kind: "number", name: "continentalYears", label: "Continental Years", min: 0, max: 100, step: 0.1, width: "xs" },
+      { kind: "select", name: "isSolera", label: "Solera", options: TRISTATE, width: "sm" },
+      { kind: "text", name: "soleraRange", label: "Solera Range", placeholder: "1990–2015", width: "sm" },
     ],
   },
   {
@@ -192,28 +225,6 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         span: "half",
       },
       { kind: "select", name: "isAdditiveFree", label: "Additive Free", options: TRISTATE, span: "half" },
-    ],
-  },
-  {
-    id: "commercial",
-    title: "On the shelf",
-    fields: [
-      { kind: "number", name: "msrp", label: "MSRP", money: true, min: 0, step: 0.01, span: "half" },
-      { kind: "number", name: "sizeMl", label: "Size", min: 1, max: 20000, step: 1, defaultValue: "750", presets: SIZE_PRESETS, help: "A bottle can be a different size from this.", span: "half" },
-      {
-        kind: "text",
-        name: "upc",
-        label: "UPC / Barcode",
-        placeholder: "Scan it, or type it",
-        help: "A handheld scanner types straight into this field.",
-        span: "half",
-      },
-      {
-        kind: "textarea",
-        name: "labelNotes",
-        label: "Notes On The Bottle Label",
-        help: "What it says, as printed: \"Distilled in Indiana\", \"Bottled by …\", \"Made in …\". Bottlers and places live here, not in their own fields.",
-      },
     ],
   },
 ];
@@ -252,6 +263,7 @@ export function writableFields(fieldGroup: FieldGroup): Set<string> {
     for (const field of section.fields) names.add(field.name);
   }
   if (fieldGroup === "vodka") for (const name of AGING_FIELDS) names.delete(name);
+  for (const [name, flag] of Object.entries(STRENGTH_FLAGS)) if (!flag.groups.includes(fieldGroup)) names.delete(name);
   return names;
 }
 

@@ -284,6 +284,8 @@ export const expressions = pgTable(
     abv: pct("abv").generatedAlwaysAs(sql`(proof / 2.0)`),
     isCaskStrength: boolean("is_cask_strength").notNull().default(false),
     isBottledInBond: boolean("is_bottled_in_bond").notNull().default(false),
+    /** An unaged tequila bottled undiluted from the still. Navy Strength and Overproof are worked out from the proof. */
+    isStillProof: boolean("is_still_proof").notNull().default(false),
 
     // Age, as the product is normally sold. A bottle may override it.
     // NULL age_years = NAS; age_statement carries the human text.
@@ -291,6 +293,9 @@ export const expressions = pgTable(
     ageMonths: integer("age_months"),
     ageDays: integer("age_days"),
     ageStatement: text("age_statement"),
+    /** When the product is normally barrel-filled (distilled) and bottled; a bottle inherits them unless it has its own. */
+    barrelFilledOn: date("barrel_filled_on"),
+    bottledOn: date("bottled_on"),
     // Designations that imply a minimum age (SPEC #12): checking one fills in
     // age_statement when it is blank, without overwriting a more specific
     // statement someone already typed — Old Grand Dad 7 is bottled-in-bond
@@ -309,7 +314,6 @@ export const expressions = pgTable(
     upc: text("upc"),
     /** Scotch regions the whisky comes from (SCOTCH_REGIONS); several for a blend. Null: none given. */
     regions: text("regions").array(),
-    labelNotes: text("label_notes"),
     description: text("description"),
     /** The label's own photo, relative to the uploads volume. */
     photoPath: text("photo_path"),

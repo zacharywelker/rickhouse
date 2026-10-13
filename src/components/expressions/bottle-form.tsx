@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { saveBottleAction } from "@/app/(app)/bottles/actions";
 import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "@/lib/expressions/bottle-fields";
 import { fieldVisible, sectionVisible } from "@/lib/expressions/fields";
+import type { LabelDates } from "@/lib/expressions/rules";
 import { IDLE_RESULT, type ActionResult, type Option } from "@/lib/admin/types";
 import { ageBetween, ageFilled, describeAge } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
@@ -24,15 +26,23 @@ import { AgeFields } from "./age-fields";
  * one that should win, and silently rewriting fields as you tab through dates
  * is how people lose what they entered. Nothing moves until this is clicked.
  */
-function DeriveAge({
+export function DeriveAge({
   values,
   set,
+  from = "barrelFilledOn",
+  className = "col-span-full",
+  inherited,
 }: {
   values: Record<string, FieldValue>;
   set: (name: string, value: FieldValue) => void;
+  /** The field holding the earlier date: the barrel fill on a bottle, the distillation on a label. */
+  from?: string;
+  className?: string;
+  /** The label's dates, which a bottle with none of its own goes by. */
+  inherited?: { barrelFilledOn?: string | null; bottledOn?: string | null } | undefined;
 }) {
-  const filled = String(values.barrelFilledOn ?? "");
-  const bottled = String(values.bottledOn ?? "");
+  const filled = String(values[from] || (from === "barrelFilledOn" ? inherited?.barrelFilledOn : "") || "");
+  const bottled = String(values.bottledOn || inherited?.bottledOn || "");
   const age = filled && bottled ? ageBetween(filled, bottled) : null;
   if (!age) return null;
 
@@ -42,7 +52,7 @@ function DeriveAge({
     String(values.ageDays ?? "") === String(age.days);
 
   return (
-    <div className="col-span-full flex flex-wrap items-center gap-3 border border-border bg-muted/40 px-3 py-2">
+    <div className={cn("flex flex-wrap items-center gap-3 border border-border bg-muted/40 px-3 py-2", className)}>
       <p className="text-sm text-muted-foreground">
         Those dates are <span className="text-foreground">{describeAge(age)}</span> apart.
       </p>
@@ -77,6 +87,7 @@ export function BottleFields({
   suggestions,
   labelVersions,
   releases,
+  labelDates,
   omit = [],
   idPrefix = "bottle",
 }: {
@@ -91,6 +102,8 @@ export function BottleFields({
   labelVersions?: Record<number, Array<{ value: string; label: string }>>;
   /** Each label's known releases (by label id), for the Release choice. */
   releases?: Record<number, Array<{ value: string; label: string }>>;
+  /** Each label's dates (by label id): a bottle goes by them unless it has its own. */
+  labelDates?: Record<number, LabelDates>;
   omit?: string[];
   idPrefix?: string;
 }) {
@@ -178,10 +191,14 @@ export function BottleFields({
                 />
               );
             }
+            const labelDate =
+              field.name === "barrelFilledOn" || field.name === "bottledOn"
+                ? labelDates?.[Number(values.expressionId)]?.[field.name]
+                : null;
             return (
               <Field
                 key={field.name}
-                spec={field}
+                spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } : field}
                 idPrefix={idPrefix}
                 value={values[field.name] ?? ""}
                 onChange={(next) => onChange(field.name, next)}
@@ -194,7 +211,9 @@ export function BottleFields({
               />
             );
           })}
-            {section.id === "override" ? <DeriveAge values={values} set={onChange} /> : null}
+            {section.id === "override" ? (
+              <DeriveAge values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} />
+            ) : null}
           </SectionContent>
         </Section>
         );
@@ -210,6 +229,7 @@ export function BottleForm({
   suggestions,
   labelVersions,
   releases,
+  labelDates,
 }: {
   bottleId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
@@ -217,6 +237,7 @@ export function BottleForm({
   suggestions?: Partial<Record<string, string[]>>;
   labelVersions?: Record<number, Array<{ value: string; label: string }>>;
   releases?: Record<number, Array<{ value: string; label: string }>>;
+  labelDates?: Record<number, LabelDates>;
 }) {
   const router = useRouter();
   const [values, setValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, initialValues));
@@ -253,6 +274,7 @@ export function BottleForm({
         suggestions={suggestions}
         labelVersions={labelVersions}
         releases={releases}
+        labelDates={labelDates}
       />
 
       {!state.ok && state.error ? (

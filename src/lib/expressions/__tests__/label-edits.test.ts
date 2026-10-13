@@ -19,6 +19,9 @@ const row: ExpressionRow = {
   ageMonths: null,
   ageDays: null,
   isCaskStrength: false,
+  isStillProof: false,
+  barrelFilledOn: null,
+  bottledOn: null,
   isStraight: true,
   isNas: false,
   isBottledInBond: false,
@@ -44,7 +47,6 @@ const row: ExpressionRow = {
   msrp: "64.99",
   sizeMl: 750,
   upc: null,
-  labelNotes: null,
   bottleCount: 1,
   pickCount: 0,
   links: {

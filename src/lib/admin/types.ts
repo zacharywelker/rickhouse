@@ -18,11 +18,18 @@ export type Option = {
   parentId?: number | null;
 };
 
+/**
+ * A fixed width for a field on a form that lets its fields flow along a line. `xxs` fits about four
+ * characters and `xs` about six; `auto` is as wide as its content (a checkbox); `lg` is a full row on a phone and a fixed width from `sm` up.
+ */
+export type FieldWidth = "auto" | "xxs" | "xs" | "sm" | "md" | "lg";
+
 /** Fields shared by every field kind. */
 type FieldBase = {
   name: string;
   label: string;
   span?: FieldSpan;
+  width?: FieldWidth;
   /** Shown only when at least one of these boolean fields (in the same form) is on. Absent means always. */
   showWhenAny?: ReadonlyArray<string>;
 };
