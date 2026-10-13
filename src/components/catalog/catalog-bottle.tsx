@@ -25,7 +25,7 @@ import { serializeLinks } from "@/components/expressions/ordered-picker";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { guessNewLabel } from "@/lib/expressions/label-search";
 import { withOption } from "@/lib/forms/values";
-import type { CategoryKind } from "@/lib/expressions/rules";
+import { nameContextFor, type CategoryKind, type LabelDates } from "@/lib/expressions/rules";
 import { formatNumeric } from "@/lib/utils";
 import type { BottleSuggestions } from "@/lib/bottles/suggestions";
 import type { FieldGroup } from "@/db/schema";
@@ -65,6 +65,7 @@ export function CatalogBottle({
   initialLabel,
   suggestions,
   releases,
+  labelDates,
 }: {
   labelOptions: Record<string, Option[]>;
   bottleOptions: Record<string, Option[]>;
@@ -76,6 +77,8 @@ export function CatalogBottle({
   suggestions: BottleSuggestions;
   /** Each label's known releases (by label id), for the Release choice. */
   releases: Record<number, Array<{ value: string; label: string }>>;
+  /** Each label's dates (by label id), which the bottle goes by unless it has its own. */
+  labelDates: Record<number, LabelDates>;
 }) {
   const router = useRouter();
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -345,7 +348,11 @@ export function CatalogBottle({
         <div className="flex flex-col gap-6 border-l-2 border-border pl-4 sm:pl-6">
           <ExpressionFields
             values={labelValues}
-            onChange={(name, value) => setLabelValues((prev) => withLabelChange(prev, name, value))}
+            onChange={(name, value) =>
+              setLabelValues((prev) =>
+                withLabelChange(prev, name, value, (next) => nameContextFor(next, categoryGroups, categoryKinds)),
+              )
+            }
             links={labelLinks}
             onLinksChange={setLabelLinks}
             options={labelOptionsState}
@@ -382,6 +389,7 @@ export function CatalogBottle({
               // The label is chosen above, not a field here, so the release list is keyed by it.
               values={phase.kind === "existing" ? { ...bottleValues, expressionId: String(phase.label.id) } : bottleValues}
               releases={releases}
+              labelDates={labelDates}
               onChange={(name, value) => setBottleValues((prev) => ({ ...prev, [name]: value }))}
               options={bottleOptionsState}
               onOptionCreated={(name, option) => setBottleOptions((prev) => withOption(prev, name, option))}

@@ -45,36 +45,33 @@ describe("describeAge", () => {
 
 describe("defaultAgeStatement", () => {
   it("is blank when nothing is checked", () => {
-    expect(defaultAgeStatement({ isBottledInBond: false, isNas: false })).toBe("");
+    expect(defaultAgeStatement({ isNas: false })).toBe("");
   });
 
-  it("names the designation that was checked", () => {
-    expect(defaultAgeStatement({ isBottledInBond: true, isNas: false })).toBe("Bottled-in-Bond (at least 4 years)");
-    expect(defaultAgeStatement({ isBottledInBond: false, isNas: true })).toBe("NAS");
+  it("names NAS, and nothing for Bottled In Bond, which fills in years instead", () => {
+    expect(defaultAgeStatement({ isNas: true })).toBe("NAS");
   });
 });
 
 describe("offeredAgeStatement", () => {
-  it("offers the designation's statement when one is switched on and the statement is blank", () => {
-    const prev = { isBottledInBond: false, ageStatement: "" };
-    expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: true }, "isBottledInBond")).toBe(
-      "Bottled-in-Bond (at least 4 years)",
-    );
+  it("offers NAS when it is switched on and the statement is blank", () => {
+    const prev = { isNas: false, ageStatement: "" };
+    expect(offeredAgeStatement(prev, { ...prev, isNas: true }, "isNas")).toBe("NAS");
   });
 
   it("never overwrites a statement someone typed", () => {
-    const prev = { isBottledInBond: false, ageStatement: "7 Year" };
+    const prev = { isNas: false, ageStatement: "7 Year" };
+    expect(offeredAgeStatement(prev, { ...prev, isNas: true }, "isNas")).toBeNull();
+  });
+
+  it("takes its own default back out when NAS is unticked", () => {
+    const prev = { isNas: true, ageStatement: "NAS" };
+    expect(offeredAgeStatement(prev, { ...prev, isNas: false }, "isNas")).toBe("");
+  });
+
+  it("offers no statement for Bottled In Bond", () => {
+    const prev = { isBottledInBond: false, ageStatement: "" };
     expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: true }, "isBottledInBond")).toBeNull();
-  });
-
-  it("takes its own default back out when the designation is unticked", () => {
-    const prev = { isBottledInBond: true, ageStatement: "Bottled-in-Bond (at least 4 years)" };
-    expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: false }, "isBottledInBond")).toBe("");
-  });
-
-  it("leaves typed text alone when a designation is unticked", () => {
-    const prev = { isBottledInBond: true, ageStatement: "7 Year" };
-    expect(offeredAgeStatement(prev, { ...prev, isBottledInBond: false }, "isBottledInBond")).toBeNull();
   });
 
   it("offers nothing once an age is filled in", () => {
@@ -86,6 +83,23 @@ describe("offeredAgeStatement", () => {
     const prev = { isNas: true, ageStatement: "" };
     expect(offeredAgeStatement(prev, { ...prev, isNas: false }, "isNas")).toBeNull();
     expect(offeredAgeStatement(prev, { ...prev, proof: "100" }, "proof")).toBeNull();
+  });
+});
+
+describe("Bottled In Bond and age", () => {
+  const blank = { isStraight: false, isNas: false, isBottledInBond: false, ageYears: "", ageMonths: "", ageDays: "", ageStatement: "" };
+
+  it("fills 4 years, not an age statement", () => {
+    const next = withImpliedAge(blank, { ...blank, isBottledInBond: true }, "isBottledInBond");
+    expect(next.ageYears).toBe("4");
+    expect(next.ageStatement).toBe("");
+  });
+
+  it("takes the 4 back out when unticked, and leaves a typed age alone", () => {
+    const bonded = { ...blank, isBottledInBond: true, ageYears: "4" };
+    expect(withImpliedAge(bonded, { ...bonded, isBottledInBond: false }, "isBottledInBond").ageYears).toBe("");
+    const typed = { ...blank, isBottledInBond: true, ageYears: "7" };
+    expect(withImpliedAge(typed, { ...typed, isBottledInBond: false }, "isBottledInBond").ageYears).toBe("7");
   });
 });
 

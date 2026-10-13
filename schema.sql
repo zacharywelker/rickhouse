@@ -175,6 +175,7 @@ CREATE TABLE expressions (
     proof           numeric(5,2),
     abv             numeric(5,2) GENERATED ALWAYS AS (proof / 2.0) STORED,
     is_cask_strength boolean NOT NULL DEFAULT false,
+    is_still_proof  boolean NOT NULL DEFAULT false,   -- unaged tequila bottled undiluted; navy/overproof come from proof
     is_bottled_in_bond boolean NOT NULL DEFAULT false,
 
     -- Age, as the product is normally sold. A bottle may override it.
@@ -183,6 +184,8 @@ CREATE TABLE expressions (
     age_months      integer,
     age_days        integer,
     age_statement   text,                      -- "NAS (Straight, so >= 2 years)"
+    barrel_filled_on date,                     -- usual barrel-fill (distillation) date; a bottle inherits it unless its own
+    bottled_on      date,                      -- usual bottling date, inherited the same way
     -- Designations that imply a minimum age. Checking one fills in
     -- age_statement when blank, without clobbering a more specific one
     -- already typed (Old Grand Dad 7 is bottled-in-bond but reads "7 Year").
@@ -199,7 +202,6 @@ CREATE TABLE expressions (
     size_ml         integer NOT NULL DEFAULT 750,
     upc             text,
     regions         text[],    -- Scotch regions, several for a blend
-    label_notes     text,
     photo_path      text,
     photo_thumb_path text,
     description     text,

@@ -49,16 +49,13 @@ export function describeAge(age: Age): string {
 }
 
 /**
- * The age statement a designation implies (SPEC #12). Bottled-in-Bond is a
- * stronger claim than NAS and a bottle is never both. Used only to fill in a
+ * The age statement a designation implies (SPEC #12). Used only to fill in a
  * blank statement — a real one, like Old Grand Dad's "7 Year", always wins.
- * Straight has no statement of its own: it implies a number of years instead
- * (see `impliedYears`).
+ * Straight and Bottled In Bond have no statement of their own: they imply a
+ * number of years instead (see `impliedYears`).
  */
-export function defaultAgeStatement(flags: { isBottledInBond: boolean; isNas: boolean }): string {
-  if (flags.isBottledInBond) return "Bottled-in-Bond (at least 4 years)";
-  if (flags.isNas) return "NAS";
-  return "";
+export function defaultAgeStatement(flags: { isNas: boolean }): string {
+  return flags.isNas ? "NAS" : "";
 }
 
 const blank = (value: unknown) => String(value ?? "").trim() === "";
@@ -69,39 +66,44 @@ export function ageFilled(values: Record<string, unknown>): boolean {
 }
 
 /**
- * Years a Straight whiskey is at least: 2, or 4 when it also carries no age
- * statement (a straight whiskey younger than 4 years has to say so). Blank
- * when it is not Straight.
+ * Years a whiskey is at least. Bottled In Bond is 4. Straight is 2, or 4 when
+ * it also carries no age statement (a straight whiskey younger than 4 years has
+ * to say so). Blank when it is neither.
  */
-export function impliedYears(flags: { isStraight: boolean; isNas: boolean }): string {
+export function impliedYears(flags: { isStraight: boolean; isNas: boolean; isBottledInBond?: boolean }): string {
+  if (flags.isBottledInBond) return "4";
   if (!flags.isStraight) return "";
   return flags.isNas ? "4" : "2";
 }
 
+const IMPLYING_FIELDS: ReadonlySet<string> = new Set(["isStraight", "isNas", "isBottledInBond"]);
+const implying = (values: Record<string, unknown>) => ({
+  isStraight: values.isStraight === true,
+  isNas: values.isNas === true,
+  isBottledInBond: values.isBottledInBond === true,
+});
+
 /**
- * Switching Straight or NAS fills in the age, but only over a blank age or the
+ * Switching Straight, NAS or Bottled In Bond fills in the age, but only over a blank age or the
  * number the previous ticks produced — anything typed is left exactly as it
  * is. Returns `next`, with the years changed when they should be.
  */
 export function withImpliedAge<T extends Record<string, unknown>>(prev: T, next: T, name: string): T {
-  if ((name !== "isStraight" && name !== "isNas") || prev[name] === next[name]) return next;
-  const was = impliedYears({ isStraight: prev.isStraight === true, isNas: prev.isNas === true });
+  if (!IMPLYING_FIELDS.has(name) || prev[name] === next[name]) return next;
+  const was = impliedYears(implying(prev));
   const years = String(prev.ageYears ?? "").trim();
   if (!blank(prev.ageMonths) || !blank(prev.ageDays) || (years !== "" && years !== was)) return next;
-  return { ...next, ageYears: impliedYears({ isStraight: next.isStraight === true, isNas: next.isNas === true }) };
+  return { ...next, ageYears: impliedYears(implying(next)) };
 }
 
 /** Fields whose checkbox, when switched on, offers a default age statement. */
-const AGE_DESIGNATION_FIELDS: ReadonlySet<string> = new Set(["isBottledInBond", "isNas"]);
+const AGE_DESIGNATION_FIELDS: ReadonlySet<string> = new Set(["isNas"]);
 
-const designations = (values: Record<string, unknown>) => ({
-  isBottledInBond: values.isBottledInBond === true,
-  isNas: values.isNas === true,
-});
+const designations = (values: Record<string, unknown>) => ({ isNas: values.isNas === true });
 
 /**
  * The age statement to fill in after `name` changed from `prev` to `next`, or
- * null to leave it alone. Switching Bottled In Bond or NAS on or off offers the
+ * null to leave it alone. Switching NAS on or off offers the
  * default, but only over a blank statement or the default the previous ticks
  * produced — so unticking takes the text back out, while Old Grand Dad 7 is
  * bottled-in-bond and still reads "7 Year". Nothing is offered once an age is

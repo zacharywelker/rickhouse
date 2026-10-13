@@ -50,7 +50,7 @@ function spec(name: string): FieldSpec {
 }
 
 /** Form fields that are too long or too internal to be a table column. */
-const NOT_COLUMNS: ReadonlySet<string> = new Set(["slug", "description", "labelNotes"]);
+const NOT_COLUMNS: ReadonlySet<string> = new Set(["slug", "description"]);
 
 /** Shorter header text for the table than the form's label. */
 const SHORT_LABELS: Readonly<Record<string, string>> = { isBottledInBond: "BiB" };
@@ -87,7 +87,12 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
       // One column over the three fields, the way the form shows them.
       { id: "age", label: "Age", specs: [spec("ageYears"), spec("ageMonths"), spec("ageDays")], sort: "age", numeric: true },
       field("ageStatement"),
+      // Navy Strength or Overproof, worked out from the proof and the category.
+      { id: "strength", label: "Strength", specs: [] },
       field("isCaskStrength"),
+      field("isStillProof"),
+      field("barrelFilledOn"),
+      field("bottledOn"),
       field("isStraight"),
       field("isNas"),
     ],
@@ -98,7 +103,7 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
   {
     id: "commercial",
     title: "On the shelf",
-    section: section("commercial"),
+    section: section("identity"),
     columns: [field("msrp", { sort: "msrp" }), field("sizeMl"), field("upc")],
   },
   {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categoryKinds, hiddenFields, withBondProof, isUnaged, looksAged, parseRegions, showsFinishes } from "../rules";
+import { categoryKinds, hiddenFields, withBondProof, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
 import { writableFields } from "../fields";
 import { expressionSchema } from "../schema";
 
@@ -109,6 +109,162 @@ describe("writableFields", () => {
     expect(writableFields("whiskey").has("isBottledInBond")).toBe(true);
     expect(writableFields("whiskey").has("regions")).toBe(true);
     expect(writableFields("rum").has("isBottledInBond")).toBe(false);
+  });
+});
+
+describe("strength tier", () => {
+  it("is Navy Strength from 54% ABV and Overproof from 57% for rum", () => {
+    expect(strengthTier("rum", "107.9")).toBeNull();
+    expect(strengthTier("rum", "108")).toBe("navy");
+    expect(strengthTier("rum", "113.9")).toBe("navy");
+    expect(strengthTier("rum", "114")).toBe("overproof");
+    expect(strengthTier("rum", "151")).toBe("overproof");
+  });
+
+  it("has no Overproof for gin, which is Navy Strength from 54% up", () => {
+    expect(strengthTier("gin", "107")).toBeNull();
+    expect(strengthTier("gin", "108")).toBe("navy");
+    expect(strengthTier("gin", "130")).toBe("navy");
+  });
+
+  it("is for rum and gin only, and needs a proof", () => {
+    expect(strengthTier("whiskey", "120")).toBeNull();
+    expect(strengthTier("agave", "120")).toBeNull();
+    expect(strengthTier("rum", "")).toBeNull();
+    expect(strengthTier("rum", null)).toBeNull();
+    expect(strengthTier("rum", "abc")).toBeNull();
+    expect(strengthTier(null, "120")).toBeNull();
+  });
+});
+
+describe("designations a label ticks for itself", () => {
+  const ctx = { group: "agave", kind: null, values: {}, ginAged: false } as const;
+
+  it("offers Still Proof to unaged agave only", () => {
+    expect(hiddenFields(ctx).has("isStillProof")).toBe(false);
+    expect(hiddenFields({ ...ctx, values: { ageYears: "2" } }).has("isStillProof")).toBe(true);
+    expect(hiddenFields({ ...ctx, values: { ageStatement: "Reposado" } }).has("isStillProof")).toBe(true);
+    expect(hiddenFields({ ...ctx, group: "rum" }).has("isStillProof")).toBe(true);
+    expect(writableFields("agave").has("isStillProof")).toBe(true);
+    expect(writableFields("rum").has("isStillProof")).toBe(false);
+  });
+
+  it("keeps the two dates with the aging fields, so vodka and unaged gin drop them", () => {
+    expect(hiddenFields({ ...ctx, group: "vodka" }).has("barrelFilledOn")).toBe(true);
+    expect(writableFields("vodka").has("bottledOn")).toBe(false);
+    expect(writableFields("rum").has("barrelFilledOn")).toBe(true);
+  });
+});
+
+describe("what a name says", () => {
+  const whiskey: NameContext = { group: "whiskey", kind: "american" };
+
+  it("hears Cask Strength in its several names, as whole words", () => {
+    for (const name of ["Booker's Cask Strength", "Eagle Rare Barrel Proof", "Rickhouse Proof", "Barrel-Strength Rye", "Straight From the Barrel"]) {
+      expect(nameSays(name, whiskey).isCaskStrength, name).toBeDefined();
+    }
+    expect(nameSays("Barrel Aged Reserve", whiskey).isCaskStrength).toBeUndefined();
+  });
+
+  it("hears Bottled In Bond as BiB, Bonded and both spellings, but not inside another word", () => {
+    for (const name of ["Old Fitz BiB", "Heaven Hill Bottled in Bond", "Larceny Bottled-in-Bond", "Old Overholt Bonded"]) {
+      expect(nameSays(name, whiskey).isBottledInBond, name).toBeDefined();
+    }
+    expect(nameSays("Bibb & Tucker", whiskey).isBottledInBond).toBeUndefined();
+    expect(nameSays("Unbonded Blend", whiskey).isBottledInBond).toBeUndefined();
+  });
+
+  it("hears Full Proof, for whiskey only", () => {
+    expect(nameSays("Old Forester Full Proof", whiskey).fullProof).toBeDefined();
+    expect(nameSays("Full Proof Rum", { group: "rum", kind: null }).fullProof).toBeUndefined();
+  });
+
+  it("leaves Bottled In Bond to American whiskey and Cask Strength to spirits with an age", () => {
+    expect(nameSays("Bonded Malt", { group: "whiskey", kind: "scotch" }).isBottledInBond).toBeUndefined();
+    expect(nameSays("Bonded", { group: "whiskey", kind: null }).isBottledInBond).toBeDefined();
+    expect(nameSays("Cask Strength Gin", { group: "gin", kind: null }).isCaskStrength).toBeUndefined();
+    expect(nameSays("Cask Strength Vodka", { group: "vodka", kind: null }).isCaskStrength).toBeUndefined();
+    expect(nameSays("Cask Strength Rum", { group: "rum", kind: null }).isCaskStrength).toBeDefined();
+  });
+});
+
+describe("withNameRules", () => {
+  const resolve = (): NameContext => ({ group: "whiskey", kind: "american" });
+  const blank = {
+    name: "", proof: "", entryProof: "", isCaskStrength: false, isBottledInBond: false,
+    isStraight: false, isNas: false, ageYears: "", ageMonths: "", ageDays: "", ageStatement: "",
+  } as Record<string, unknown>;
+
+  it("ticks Cask Strength when the name starts to say it", () => {
+    const next = withNameRules(blank, { ...blank, name: "Stagg Barrel Proof" }, resolve);
+    expect(next.isCaskStrength).toBe(true);
+  });
+
+  it("ticks Bottled In Bond with 100 proof and 4 years", () => {
+    const next = withNameRules(blank, { ...blank, name: "Old Fitz Bonded" }, resolve);
+    expect(next).toMatchObject({ isBottledInBond: true, proof: "100", ageYears: "4" });
+  });
+
+  it("does not tick it again once it was unticked by hand", () => {
+    const said = { ...blank, name: "Old Fitz Bonded", isBottledInBond: false };
+    const next = withNameRules(said, { ...said, name: "Old Fitz Bonded Reserve" }, resolve);
+    expect(next.isBottledInBond).toBe(false);
+  });
+
+  it("acts once the category fits a name typed first", () => {
+    const named = { ...blank, name: "Old Fitz Bonded" };
+    const other = (values: Record<string, unknown>): NameContext =>
+      values.categoryId === "1" ? { group: "whiskey", kind: "american" } : { group: "other", kind: null };
+    expect(withNameRules(named, { ...named, categoryId: "" }, other).isBottledInBond).toBe(false);
+    expect(withNameRules(named, { ...named, categoryId: "1" }, other).isBottledInBond).toBe(true);
+  });
+
+  it("copies Proof into Entry Proof for Full Proof, then follows it until Entry Proof is changed", () => {
+    const named: Record<string, unknown> = withNameRules({ ...blank, proof: "100" }, { ...blank, proof: "100", name: "Old Forester Full Proof" }, resolve);
+    expect(named.entryProof).toBe("100");
+    const moved: Record<string, unknown> = withNameRules(named, { ...named, proof: "104" }, resolve);
+    expect(moved.entryProof).toBe("104");
+    const edited: Record<string, unknown> = { ...moved, entryProof: "110" };
+    expect(withNameRules(edited, { ...edited, proof: "90" }, resolve).entryProof).toBe("110");
+  });
+
+  it("leaves an Entry Proof already there alone when the name starts to say Full Proof", () => {
+    const next = withNameRules({ ...blank, proof: "100", entryProof: "115" }, { ...blank, proof: "100", entryProof: "115", name: "Full Proof" }, resolve);
+    expect(next.entryProof).toBe("115");
+  });
+});
+
+describe("proofSpread", () => {
+  it("spans the proofs across releases and bottles, and counts them", () => {
+    expect(proofSpread(["118.4", "", null], ["126.2", "121"])).toEqual({ min: 118.4, max: 126.2, releases: 1, bottles: 2 });
+  });
+
+  it("is null when nothing has a proof", () => {
+    expect(proofSpread([], [])).toBeNull();
+    expect(proofSpread([""], [null])).toBeNull();
+  });
+});
+
+describe("spreadLabel", () => {
+  it("shows the one proof, a range, or just Cask Strength", () => {
+    expect(spreadLabel(proofSpread(["126.1"], []))).toBe("126.1");
+    expect(spreadLabel(proofSpread(["126.1"], ["132.7"]))).toBe("126.1 - 132.7");
+    expect(spreadLabel(proofSpread([], []))).toBe("Cask Strength");
+  });
+});
+
+describe("nameRuleColumns", () => {
+  const stored = { name: "Eagle Rare", categoryId: 1, proof: "90", entryProof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, isNas: false, isStraight: false, isBottledInBond: false, isCaskStrength: false };
+  const american = () => ({ group: "whiskey" as const, kind: "american" as const });
+
+  it("ticks Bonded with its proof and age when a rename starts to say it", () => {
+    expect(nameRuleColumns(stored, { name: "Eagle Rare Bottled in Bond" }, american)).toEqual({ isBottledInBond: true, proof: "100", ageYears: "4" });
+  });
+
+  it("leaves a column the edit sent, and does nothing when the name already said it", () => {
+    expect(nameRuleColumns(stored, { name: "Eagle Rare Barrel Proof", isCaskStrength: false }, american)).toEqual({});
+    const said = { ...stored, name: "Eagle Rare Barrel Proof" };
+    expect(nameRuleColumns(said, { name: "Eagle Rare Barrel Proof 2" }, american)).toEqual({});
   });
 });
 

@@ -1,9 +1,9 @@
 import "server-only";
-import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, asc as sqlAsc, desc, desc as sqlDesc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { describeMashbill, mashbillTitle } from "@/lib/mashbills";
 import { shareText } from "./links";
-import { categoryKinds, type CategoryKind } from "./rules";
+import { categoryKinds, type CategoryKind, type LabelDates } from "./rules";
 import {
   bottleImages,
   bottles,
@@ -235,6 +235,9 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       ageMonths: expressions.ageMonths,
       ageDays: expressions.ageDays,
       isCaskStrength: expressions.isCaskStrength,
+      isStillProof: expressions.isStillProof,
+      barrelFilledOn: expressions.barrelFilledOn,
+      bottledOn: expressions.bottledOn,
       isStraight: expressions.isStraight,
       isNas: expressions.isNas,
       isBottledInBond: expressions.isBottledInBond,
@@ -260,7 +263,6 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       msrp: expressions.msrp,
       sizeMl: expressions.sizeMl,
       upc: expressions.upc,
-      labelNotes: expressions.labelNotes,
       bottleCount,
       pickCount,
     })
@@ -380,6 +382,9 @@ export type ExpressionRow = {
   ageMonths: number | null;
   ageDays: number | null;
   isCaskStrength: boolean;
+  isStillProof: boolean;
+  barrelFilledOn: string | null;
+  bottledOn: string | null;
   isStraight: boolean;
   isNas: boolean;
   isBottledInBond: boolean;
@@ -405,7 +410,6 @@ export type ExpressionRow = {
   msrp: string | null;
   sizeMl: number;
   upc: string | null;
-  labelNotes: string | null;
   bottleCount: number;
   pickCount: number;
   links: LabelLinks;
@@ -608,4 +612,26 @@ export async function tastingNotesForLabel(expressionId: number, ownerId: number
       ),
     )
     .orderBy(desc(tastingNotes.tastedOn), desc(tastingNotes.id));
+}
+
+/**
+ * The proofs a label's bottles carry, their own or their release's: what a cask-strength label varies across,
+ * since its own proof is not one number.
+ */
+export async function labelBottleProofs(expressionId: number, ownerId: number): Promise<string[]> {
+  const rows = await db
+    .select({ proof: sql<string | null>`coalesce(${bottles.proof}, ${expressionReleases.proof})` })
+    .from(bottles)
+    .leftJoin(expressionReleases, eq(expressionReleases.id, bottles.releaseId))
+    .where(and(eq(bottles.expressionId, expressionId), eq(bottles.ownerId, ownerId)));
+  return rows.map((row) => row.proof).filter((proof): proof is string => proof !== null);
+}
+
+/** The dates a bottle inherits from its label, by label id: only labels with a date appear. */
+export async function labelDateChoices(ownerId: number): Promise<Record<number, LabelDates>> {
+  const rows = await db
+    .select({ id: expressions.id, barrelFilledOn: expressions.barrelFilledOn, bottledOn: expressions.bottledOn })
+    .from(expressions)
+    .where(and(eq(expressions.ownerId, ownerId), or(isNotNull(expressions.barrelFilledOn), isNotNull(expressions.bottledOn))));
+  return Object.fromEntries(rows.map((row) => [row.id, { barrelFilledOn: row.barrelFilledOn, bottledOn: row.bottledOn }]));
 }

@@ -146,7 +146,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
       { kind: "number", name: "proof", label: "Proof", min: 0, max: 200, step: 0.01, span: "half" },
       // Surfaced for every bottle, not only picks (SPEC M8): a standard
       // release has a bottling date too, and the pair derives the age.
-      { kind: "date", name: "barrelFilledOn", label: "Barrel Filled", span: "half" },
+      { kind: "date", name: "barrelFilledOn", label: "Distilled / Barrel Filled", span: "half" },
       { kind: "date", name: "bottledOn", label: "Bottled", span: "half" },
       {
         kind: "number",

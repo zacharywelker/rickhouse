@@ -185,6 +185,41 @@ final class EditDraftsTests: XCTestCase {
         same(draft.patch(), ["ageStatement": NSNull()])
     }
 
+    func testFlagsGoAsBooleansAndOnlyWhenChanged() throws {
+        var draft = LabelDraft(try label(["isCaskStrength": false, "isBottledInBond": true]))
+        same(draft.patch(), [:])
+        draft[.isCaskStrength].text = "true"
+        draft[.isBottledInBond].text = "false"
+        same(draft.patch(), ["isCaskStrength": true, "isBottledInBond": false])
+        same(draft.undoPatch(), ["isCaskStrength": false, "isBottledInBond": true])
+    }
+
+    func testDatesAreCheckedAndAnOlderServerReadsAsNoFlags() throws {
+        var draft = LabelDraft(try label())
+        XCTAssertEqual(draft[.isNas].text, "false")
+        draft[.distilled].text = "2019-02-30"
+        draft[.bottled].text = "2024-05-14"
+        XCTAssertEqual(draft.errors()[.distilled], "Enter a date like 2019-05-14.")
+        XCTAssertNil(draft.errors()[.bottled])
+        same(draft.patch(), ["barrelFilledOn": "2019-02-30", "bottledOn": "2024-05-14"])
+    }
+
+    func testStrengthTierMatchesTheServer() {
+        XCTAssertEqual(Strength.tier(group: "rum", proof: "108"), "Navy Strength")
+        XCTAssertEqual(Strength.tier(group: "rum", proof: "114"), "Overproof")
+        XCTAssertNil(Strength.tier(group: "rum", proof: "107.9"))
+        XCTAssertEqual(Strength.tier(group: "gin", proof: "120"), "Navy Strength")
+        XCTAssertNil(Strength.tier(group: "whiskey", proof: "130"))
+    }
+
+    func testABottleGoesByItsLabelsDatesUntilItHasOwn() throws {
+        let bottle = try bottle(["labelBarrelFilledOn": "2015-03-01", "barrelFilledOn": "2016-01-02"])
+        var draft = BottleDraft(bottle)
+        XCTAssertEqual(draft.labelDistilled, "2015-03-01")
+        draft[.distilled].text = ""
+        same(draft.patch(), ["barrelFilledOn": NSNull()])
+    }
+
     // MARK: Pickers
 
     private func linked() throws -> LabelDetail {
@@ -300,8 +335,9 @@ final class EditDraftsTests: XCTestCase {
     func testBondLocksProofAndOffersAStatementOnlyOverItsOwn() {
         let d = ticking(blank(), .isBottledInBond)
         XCTAssertEqual(d[.proof].text, "100")
-        XCTAssertEqual(d[.ageStatement].text, "Bottled-in-Bond (at least 4 years)")
-        XCTAssertEqual(ticking(d, .isBottledInBond, false)[.ageStatement].text, "")
+        XCTAssertEqual(d[.ageYears].text, "4")
+        XCTAssertEqual(d[.ageStatement].text, "")
+        XCTAssertEqual(ticking(d, .isBottledInBond, false)[.ageYears].text, "")
         var seven = blank()
         seven[.ageStatement].text = "7 Year"
         XCTAssertEqual(ticking(seven, .isBottledInBond)[.ageStatement].text, "7 Year")

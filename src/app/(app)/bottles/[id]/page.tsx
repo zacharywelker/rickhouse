@@ -98,6 +98,9 @@ export default async function BottlePage({
   const msrp = release?.msrp ?? e.msrp;
   const batch = release ? releaseLabel(release) : b.batch;
   const paidVsMsrp = markup(b.pricePaid, msrp);
+  // A bottle goes by its label's dates unless it has its own.
+  const filledOn = b.barrelFilledOn ?? e.barrelFilledOn;
+  const bottledOn = b.bottledOn ?? e.bottledOn;
 
   // The bottle's own age where it has one, then the release's or the label's
   // — the same inheritance as bottle_list.
@@ -301,15 +304,15 @@ export default async function BottlePage({
               items={links.finishes}
               hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}
             />
-            {b.pickName || b.pickedBy || b.barrelNumber || b.warehouse || b.barrelFilledOn || b.bottledOn ? (
+            {b.pickName || b.pickedBy || b.barrelNumber || b.warehouse || filledOn || bottledOn ? (
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <Spec label="Pick" value={b.pickName} />
                 <Spec label="Picked By" value={b.pickedBy} />
                 <Spec label="Barrel" value={b.barrelNumber} />
                 <Spec label="Warehouse" value={b.warehouse} />
                 <Spec label="Rick / Floor" value={b.rickFloor} />
-                <Spec label="Filled" value={b.barrelFilledOn ? formatDate(b.barrelFilledOn) : null} />
-                <Spec label="Bottled" value={b.bottledOn ? formatDate(b.bottledOn) : null} />
+                <Spec label="Filled" value={filledOn ? formatDate(filledOn) : null} />
+                <Spec label="Bottled" value={bottledOn ? formatDate(bottledOn) : null} />
               </dl>
             ) : null}
             {group === "rum" ? (

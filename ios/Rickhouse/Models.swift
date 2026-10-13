@@ -82,6 +82,11 @@ struct BottleDetail: Decodable {
     let pickName: String?
     let location: String?
     let notes: String?
+    /// The bottle's own dates (nil: it goes by its label's), and the label's; absent from an older server.
+    let barrelFilledOn: String?
+    let bottledOn: String?
+    let labelBarrelFilledOn: String?
+    let labelBottledOn: String?
     let distilleries: [String]
     let finishes: [String]
     let mashbills: [String]
@@ -217,13 +222,21 @@ struct LabelDetail: Decodable {
     var isBottledInBond: Bool? = nil
     /// Rum's base: molasses, sugarcane, honey or other.
     var molassesOrCane: String? = nil
-    var labelNotes: String? = nil
     /// One per line, years in brackets, as the web form takes them.
     var otherNames: String? = nil
     let sizeMl: Int
     let msrp: String?
     let photoPath: String?
     let photoThumbPath: String?
+    /// The strength flags, dates and notes (#222); absent from an older server's answer.
+    var description: String? = nil
+    var barrelFilledOn: String? = nil
+    var bottledOn: String? = nil
+    var isStillProof: Bool? = nil
+    /// "navy" or "overproof", worked out by the server from the proof; nil when neither.
+    var strength: String? = nil
+    /// What a cask-strength label with no proof shows in its place: one known proof, a range, or "Cask Strength".
+    var proofLabel: String? = nil
     let distilleries: [String]
     let finishes: [String]
     let mashbills: [String]
@@ -232,6 +245,17 @@ struct LabelDetail: Decodable {
     let tastings: [LabelTasting]
     /// The distillery, mashbill and finish lists with ids and shares, for editing them. Absent from an older server.
     let links: LabelLinks?
+}
+
+extension LabelDetail {
+    /// "Navy Strength" or "Overproof" for a proof in that range; nil otherwise.
+    var strengthName: String? {
+        switch strength {
+        case "navy": "Navy Strength"
+        case "overproof": "Overproof"
+        default: nil
+        }
+    }
 }
 
 struct LabelRelease: Decodable, Identifiable {
@@ -298,6 +322,16 @@ struct NewLabel: Encodable {
     var name: String
     var categoryId: Int
     var upc: String?
+    /// The form has already applied what the name says (and the person may have turned some off), so the server should not.
+    var applyNameRules = false
+}
+
+/// What a name says for a category (the server's name rules): flags to tick and the values that go with them.
+struct NameSays: Decodable, Equatable {
+    var isCaskStrength = false
+    var isBottledInBond = false
+    var proof: String?
+    var ageYears: String?
 }
 
 /// Barcodes as the server stores and matches them.

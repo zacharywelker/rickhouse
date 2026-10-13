@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ExpressionForm } from "@/components/expressions/expression-form";
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
 import { expressionFormData } from "@/lib/expressions/form-data";
-import { getExpression } from "@/lib/expressions/queries";
+import { getExpression, labelBottleProofs } from "@/lib/expressions/queries";
 import { otherNamesText } from "@/lib/other-names";
 import { expressionOtherNames } from "@/lib/other-names-store";
 import { releaseRow } from "@/lib/releases";
@@ -23,12 +23,13 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
   const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
 
-  const [{ options, categoryGroups, categoryKinds, links }, colas, otherNames, releases, releaseImpact] = await Promise.all([
+  const [{ options, categoryGroups, categoryKinds, links }, colas, otherNames, releases, releaseImpact, bottleProofs] = await Promise.all([
     expressionFormData(expressionId, user.id),
     colasForExpression(expressionId, user.id),
     expressionOtherNames(expressionId),
     expressionReleaseList(expressionId),
     releaseRemovalImpact(expressionId),
+    labelBottleProofs(expressionId, user.id),
   ]);
   const distilleryMatches = await distilleriesByPermit(
     user.id,
@@ -52,6 +53,7 @@ export default async function EditExpressionPage({ params }: { params: Promise<{
         options={options}
         categoryGroups={categoryGroups}
         categoryKinds={categoryKinds}
+        bottleProofs={bottleProofs}
       />
       {/* Below the form: what TTB approved for this label, saved as it is added (SPEC M11). */}
       <ColaApprovals

@@ -14,7 +14,7 @@ vi.mock("@/lib/expressions/label-patch", async () => {
   return {
     labelFactsSchema: expressionSchema.pick({
       brandId: true, categoryId: true, name: true, proof: true, ageYears: true, ageMonths: true, ageDays: true, ageStatement: true,
-      isNas: true, isStraight: true, isCaskStrength: true, isBottledInBond: true, molassesOrCane: true, labelNotes: true,
+      isNas: true, isStraight: true, isCaskStrength: true, isBottledInBond: true, molassesOrCane: true, description: true,
       sizeMl: true, msrp: true, upc: true,
     }),
     patchLabel: (...args: unknown[]) => patchLabel(...args),
@@ -73,10 +73,10 @@ describe("PATCH /api/v1/expressions/:id: editing the label", () => {
     expect(patchLabel).toHaveBeenCalledWith(7, 10, { facts: { name: "Rare Breed Barrel Proof", proof: "116.8", msrp: "69.99", sizeMl: 1000 } });
   });
 
-  it("takes age in parts, the four ticks, the rum base and label notes", async () => {
-    const res = await patch("10", { ageYears: 4, ageMonths: 6, ageDays: null, isStraight: true, isBottledInBond: false, molassesOrCane: "molasses", labelNotes: " Kentucky " });
+  it("takes age in parts, the four ticks, the rum base and the description", async () => {
+    const res = await patch("10", { ageYears: 4, ageMonths: 6, ageDays: null, isStraight: true, isBottledInBond: false, molassesOrCane: "molasses", description: " Kentucky " });
     expect(res.status).toBe(200);
-    expect(patchLabel.mock.calls[0]![2].facts).toEqual({ ageYears: "4", ageMonths: 6, ageDays: null, isStraight: true, isBottledInBond: false, molassesOrCane: "molasses", labelNotes: "Kentucky" });
+    expect(patchLabel.mock.calls[0]![2].facts).toEqual({ ageYears: "4", ageMonths: 6, ageDays: null, isStraight: true, isBottledInBond: false, molassesOrCane: "molasses", description: "Kentucky" });
   });
 
   it("reads other names as the web form's lines, and refuses a bad line", async () => {

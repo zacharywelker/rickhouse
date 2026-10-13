@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { attachBarcodeSchema, upcCandidates } from "@/lib/api/labels";
 import { pickerLabel } from "@/lib/expressions/picker";
+import { proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
 import { labelFactsSchema, patchLabel } from "@/lib/expressions/label-patch";
 import { linkRowSchema } from "@/lib/expressions/schema";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
@@ -64,9 +65,18 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     isCaskStrength: expression.isCaskStrength,
     isBottledInBond: expression.isBottledInBond,
     molassesOrCane: expression.molassesOrCane,
-    labelNotes: expression.labelNotes,
+    description: expression.description,
     // One per line, with years in brackets: the same text the web form takes, and what PATCH takes back.
     otherNames: otherNamesText(names),
+    barrelFilledOn: expression.barrelFilledOn,
+    bottledOn: expression.bottledOn,
+    isStillProof: expression.isStillProof,
+    // Derived, never stored: Navy Strength / Overproof from the proof, and what a cask-strength label with no proof shows.
+    strength: strengthTier(row.category.fieldGroup, expression.proof),
+    proofLabel:
+      expression.isCaskStrength && !expression.proof
+        ? spreadLabel(proofSpread(releases.map((r) => r.proof), owned.map((b) => b.proof)))
+        : null,
     sizeMl: expression.sizeMl,
     msrp: expression.msrp,
     photoPath: expression.photoPath,

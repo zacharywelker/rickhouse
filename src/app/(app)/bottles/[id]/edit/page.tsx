@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BottleForm } from "@/components/expressions/bottle-form";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
-import { expressionOptions, getBottle } from "@/lib/expressions/queries";
+import { expressionOptions, getBottle, labelDateChoices } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
 import { labelVersionChoices } from "@/lib/other-names-store";
 import { releaseChoices } from "@/lib/releases-store";
@@ -37,6 +37,7 @@ export default async function EditBottlePage({ params }: { params: Promise<{ id:
         suggestions={suggestions}
         labelVersions={await labelVersionChoices(user.id)}
         releases={await releaseChoices(user.id)}
+        labelDates={await labelDateChoices(user.id)}
       />
     </div>
   );

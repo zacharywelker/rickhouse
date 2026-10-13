@@ -243,6 +243,7 @@ test("a new label's photo goes up after it saves, and a failure is said on its p
   await pick(page, "Category", "Bourbon");
   await page.getByLabel("Label Name").fill(`Photo Later ${stamp()}`);
   // A private address is refused by the server, so the label saves without it.
+  await page.getByRole("button", { name: "From a link" }).click();
   await page.getByLabel("Or a link").fill("http://127.0.0.1/label.jpg");
   await page.getByRole("button", { name: "Create Label", exact: true }).click();
   await expect(page).toHaveURL(/\/expressions\/\d+\?photo=failed$/);

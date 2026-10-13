@@ -6,7 +6,8 @@ import { syncExpressionNames } from "@/lib/other-names-store";
 import type { OtherName } from "@/lib/other-names";
 import { findOrCreateBrand } from "./brand";
 import { writableFields } from "./fields";
-import { withBondProof } from "./rules";
+import { categoryFieldGroups, categoryKindsById } from "./queries";
+import { nameContextFor, nameRuleColumns, withBondProof } from "./rules";
 import { replaceLinks, writableValues, type Links } from "./save";
 import { expressionSchema } from "./schema";
 
@@ -30,10 +31,13 @@ export const labelFactsSchema = expressionSchema.pick({
   isCaskStrength: true,
   isBottledInBond: true,
   molassesOrCane: true,
-  labelNotes: true,
+  description: true,
   sizeMl: true,
   msrp: true,
   upc: true,
+  barrelFilledOn: true,
+  bottledOn: true,
+  isStillProof: true,
 });
 
 export type LabelFacts = Partial<ReturnType<typeof labelFactsSchema.parse>>;
@@ -79,7 +83,21 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
   try {
     return await db.transaction(async (tx): Promise<LabelPatchResult> => {
       const [current] = await tx
-        .select({ brandId: expressions.brandId, name: expressions.name, categoryId: expressions.categoryId, isBottledInBond: expressions.isBottledInBond })
+        .select({
+          brandId: expressions.brandId,
+          name: expressions.name,
+          categoryId: expressions.categoryId,
+          proof: expressions.proof,
+          entryProof: expressions.entryProof,
+          ageYears: expressions.ageYears,
+          ageMonths: expressions.ageMonths,
+          ageDays: expressions.ageDays,
+          ageStatement: expressions.ageStatement,
+          isNas: expressions.isNas,
+          isStraight: expressions.isStraight,
+          isBottledInBond: expressions.isBottledInBond,
+          isCaskStrength: expressions.isCaskStrength,
+        })
         .from(expressions)
         .where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)))
         .for("update")
@@ -118,13 +136,22 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
 
       // The same category rules as the web form's save: only the columns the category writes (vodka has no aging),
       // and Bottled In Bond is 100 proof whatever was sent, including on a label that already is.
+      const categoryId = facts.categoryId ?? current.categoryId;
       const [category] = await tx
         .select({ fieldGroup: categories.fieldGroup })
         .from(categories)
-        .where(eq(categories.id, facts.categoryId ?? current.categoryId))
+        .where(eq(categories.id, categoryId))
         .limit(1);
       const { brandId: _ignored, ...sent } = facts;
-      const columns = withBondProof(writableValues(sent, writableFields(category?.fieldGroup ?? "other")), current.isBottledInBond);
+      // A name that starts to say Cask Strength, Bonded or Full Proof (or a category that makes it count) does what the web form does.
+      const byName =
+        facts.name !== undefined || facts.categoryId !== undefined
+          ? nameRuleColumns(current, sent, ((groups, kinds) => (values: Record<string, unknown>) => nameContextFor(values, groups, kinds))(
+              await categoryFieldGroups(),
+              await categoryKindsById(),
+            ))
+          : {};
+      const columns = withBondProof(writableValues({ ...byName, ...sent }, writableFields(category?.fieldGroup ?? "other")), current.isBottledInBond);
       const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) } as Partial<typeof expressions.$inferInsert>;
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));

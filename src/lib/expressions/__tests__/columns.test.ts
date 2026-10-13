@@ -10,7 +10,7 @@ describe("label columns", () => {
     // are deliberately not columns: they are too long to read in a cell.
     const covered = new Set(LABEL_COLUMNS.flatMap((column) => column.specs.map((spec) => spec.name)));
     const missing = EXPRESSION_SECTIONS.flatMap((s) => s.fields.map((f) => f.name)).filter((n) => !covered.has(n));
-    expect(missing).toEqual(["slug", "description", "labelNotes"]);
+    expect(missing).toEqual(["slug", "description"]);
   });
 
   it("shows brand, label, category, proof, MSRP and bottles by default", () => {

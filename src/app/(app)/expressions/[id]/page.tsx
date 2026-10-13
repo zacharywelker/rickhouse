@@ -27,6 +27,7 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { ageLabel } from "@/lib/expressions/display";
 import { bottlesOfLabel, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
+import { STRENGTH_TIER_LABELS, proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
 import { cn, formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -96,6 +97,10 @@ export default async function LabelPage({
   const e = row.expression;
   const group = row.category.fieldGroup;
   const title = `${row.brand.name} ${e.name}`;
+  // A cask-strength label has no one proof: show what its releases and bottles span. Navy Strength and Overproof
+  // come from the proof itself.
+  const spread = e.isCaskStrength && !e.proof ? proofSpread(releases.map((r) => r.proof), owned.map((b) => b.proof)) : null;
+  const tier = strengthTier(group, e.proof);
   const heroPath = e.photoPath ?? owned.find((bottle) => bottle.filePath !== null)?.filePath ?? null;
 
   const onShelf = owned.filter((bottle) => bottle.status === "owned" || bottle.status === "open");
@@ -182,8 +187,14 @@ export default async function LabelPage({
 
         <div className="flex flex-col gap-6 pb-6">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-4 py-2 sm:grid-cols-3">
-            <Spec label="Proof" value={formatNumeric(e.proof)} />
+            <Spec
+              label="Proof"
+              value={
+                e.isCaskStrength && !e.proof ? spreadLabel(spread) : formatNumeric(e.proof)
+              }
+            />
             <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
+            {tier ? <Spec label="Strength" value={STRENGTH_TIER_LABELS[tier]} /> : null}
             <Spec label="Age" value={ageLabel(e)} />
             <Spec label="Size" value={formatSize(e.sizeMl)} />
             <Spec label="UPC" value={e.upc} />
