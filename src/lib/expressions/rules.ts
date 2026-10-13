@@ -180,6 +180,20 @@ export function withNameRules<T extends Record<string, unknown>>(
   return out;
 }
 
+/**
+ * The columns the name rules set on a saved label beyond what the edit itself sent: `current` is the label as
+ * stored, `facts` the change. A column the edit named is left as sent.
+ */
+export function nameRuleColumns(
+  current: Record<string, unknown>,
+  facts: Record<string, unknown>,
+  resolve: (values: Record<string, unknown>) => NameContext,
+): Record<string, unknown> {
+  const next = { ...current, ...facts };
+  const out = withNameRules(current, next, resolve);
+  return Object.fromEntries(Object.entries(out).filter(([key, value]) => value !== next[key] && !(key in facts)));
+}
+
 /** Whether Entry Proof should follow Proof: the name says Full Proof. */
 export const followsProof = (name: unknown, context: NameContext) => nameSays(name, context).fullProof !== undefined;
 

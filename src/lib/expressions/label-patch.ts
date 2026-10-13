@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { brands, categories, expressions } from "@/db/schema";
 import { findOrCreateBrand } from "./brand";
 import { replaceLinks, type Links } from "./save";
+import { categoryFieldGroups, categoryKindsById } from "./queries";
+import { nameContextFor, nameRuleColumns } from "./rules";
 import { expressionSchema } from "./schema";
 
 /**
@@ -22,6 +24,14 @@ export const labelFactsSchema = expressionSchema.pick({
   sizeMl: true,
   msrp: true,
   upc: true,
+  description: true,
+  barrelFilledOn: true,
+  bottledOn: true,
+  isCaskStrength: true,
+  isBottledInBond: true,
+  isNas: true,
+  isStraight: true,
+  isStillProof: true,
 });
 
 export type LabelFacts = Partial<ReturnType<typeof labelFactsSchema.parse>>;
@@ -65,7 +75,21 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
   try {
     return await db.transaction(async (tx): Promise<LabelPatchResult> => {
       const [current] = await tx
-        .select({ brandId: expressions.brandId, name: expressions.name })
+        .select({
+          brandId: expressions.brandId,
+          name: expressions.name,
+          categoryId: expressions.categoryId,
+          proof: expressions.proof,
+          entryProof: expressions.entryProof,
+          ageYears: expressions.ageYears,
+          ageMonths: expressions.ageMonths,
+          ageDays: expressions.ageDays,
+          ageStatement: expressions.ageStatement,
+          isNas: expressions.isNas,
+          isStraight: expressions.isStraight,
+          isBottledInBond: expressions.isBottledInBond,
+          isCaskStrength: expressions.isCaskStrength,
+        })
         .from(expressions)
         .where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)))
         .for("update")
@@ -103,7 +127,15 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       if (newBrandName !== null) brandId = await findOrCreateBrand(tx, ownerId, newBrandName);
 
       const { brandId: _ignored, ...columns } = facts;
-      const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) };
+      // A name that starts to say Cask Strength, Bonded or Full Proof (or a category that makes it count) does what the web form does.
+      const byName =
+        facts.name !== undefined || facts.categoryId !== undefined
+          ? nameRuleColumns(current, columns, ((groups, kinds) => (values: Record<string, unknown>) => nameContextFor(values, groups, kinds))(
+              await categoryFieldGroups(),
+              await categoryKindsById(),
+            ))
+          : {};
+      const set = { ...columns, ...byName, ...(brandId !== current.brandId ? { brandId } : {}) };
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));
       }

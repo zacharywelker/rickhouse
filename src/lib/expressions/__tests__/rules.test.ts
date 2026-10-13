@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categoryKinds, hiddenFields, isUnaged, looksAged, parseRegions, showsFinishes, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
+import { categoryKinds, hiddenFields, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
 import { writableFields } from "../fields";
 import { expressionSchema } from "../schema";
 
@@ -250,5 +250,20 @@ describe("spreadLabel", () => {
     expect(spreadLabel(proofSpread(["126.1"], []))).toBe("126.1");
     expect(spreadLabel(proofSpread(["126.1"], ["132.7"]))).toBe("126.1 - 132.7");
     expect(spreadLabel(proofSpread([], []))).toBe("Cask Strength");
+  });
+});
+
+describe("nameRuleColumns", () => {
+  const stored = { name: "Eagle Rare", categoryId: 1, proof: "90", entryProof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, isNas: false, isStraight: false, isBottledInBond: false, isCaskStrength: false };
+  const american = () => ({ group: "whiskey" as const, kind: "american" as const });
+
+  it("ticks Bonded with its proof and age when a rename starts to say it", () => {
+    expect(nameRuleColumns(stored, { name: "Eagle Rare Bottled in Bond" }, american)).toEqual({ isBottledInBond: true, proof: "100", ageYears: "4" });
+  });
+
+  it("leaves a column the edit sent, and does nothing when the name already said it", () => {
+    expect(nameRuleColumns(stored, { name: "Eagle Rare Barrel Proof", isCaskStrength: false }, american)).toEqual({});
+    const said = { ...stored, name: "Eagle Rare Barrel Proof" };
+    expect(nameRuleColumns(said, { name: "Eagle Rare Barrel Proof 2" }, american)).toEqual({});
   });
 });
