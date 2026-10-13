@@ -78,12 +78,7 @@ struct MergeReview: View {
             .navigationTitle("Merge labels")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(merging) } }
-            .confirmationDialog("Merge \(plan.mine.name) into \(plan.theirsTitle)?", isPresented: $confirming, titleVisibility: .visible) {
-                Button("Merge labels", role: .destructive, action: merge)
-                Button("Keep them separate", role: .cancel) {}
-            } message: {
-                Text("\(plan.summary) This cannot be undone.")
-            }
+            .confirmSheet("Merge \(plan.mine.name) into \(plan.theirsTitle)?", message: "\(plan.summary) This cannot be undone.", confirm: "Merge labels", cancel: "Keep them separate", isPresented: $confirming, perform: merge)
         }
         .interactiveDismissDisabled(merging)
     }
@@ -122,23 +117,5 @@ struct MergeReview: View {
                 self.error = error.localizedDescription
             }
         }
-    }
-}
-
-/// A short message after something that cannot be undone, with nothing to press.
-struct NoticeBar: View {
-    let message: String
-
-    var body: some View {
-        Text(message)
-            .font(.inter(15, .medium))
-            .foregroundStyle(Theme.paper)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-            .accessibilityAddTraits(.updatesFrequently)
     }
 }

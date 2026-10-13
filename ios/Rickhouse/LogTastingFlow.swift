@@ -67,12 +67,12 @@ struct BottleChoiceView: View {
         Group {
             if let bottles, !bottles.isEmpty {
                 List {
-                    Section("Which bottle was it?") {
+                    Section {
                         ForEach(bottles) { bottle in
                             Button { onChoose(bottle, false) } label: { row(bottle) }
                                 .buttonStyle(.plain)
                         }
-                    }
+                    } header: { SectionLabel("Which bottle was it?") }
                     Section {
                         Button("Not from my collection") { onChoose(nil, false) }
                             .frame(minHeight: 44)

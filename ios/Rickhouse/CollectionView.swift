@@ -21,7 +21,7 @@ struct CollectionView: View {
     @State private var openedBottle: BottleSummary?
     @State private var openedLabel: Int?
     @State private var logging: LogTarget?
-    @State private var problem: String?
+    @State private var foot = FootBar()
 
     private struct LogTarget: Identifiable {
         let id = UUID()
@@ -72,11 +72,7 @@ struct CollectionView: View {
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { logging = nil } } }
             }
         }
-        .alert("Something went wrong", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(problem ?? "")
-        }
+        .footBar(foot)
         .task(id: query) {
             // Debounce typing; .task(id:) cancels the previous run.
             try? await Task.sleep(for: .milliseconds(250))
@@ -185,7 +181,7 @@ struct CollectionView: View {
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
-                problem = error.localizedDescription
+                foot.fail(error) { delete(bottle) }
             }
         }
     }
@@ -204,7 +200,7 @@ struct CollectionView: View {
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
-                problem = error.localizedDescription
+                foot.fail(error) { startLog(bottle) }
             }
         }
     }

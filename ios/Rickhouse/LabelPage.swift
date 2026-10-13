@@ -43,7 +43,7 @@ struct LabelPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .task { await session.loadWheels() }
-        .confirmsTastingDeletion($deletingTasting) { _ in Task { await load() } }
+        .confirmsTastingDeletion($deletingTasting, foot: foot) { _ in Task { await load() } }
         .fullScreenCover(isPresented: $viewingPhoto) {
             if let label, let path = label.photoPath {
                 PhotoViewer(
@@ -154,7 +154,7 @@ struct LabelPage: View {
             .disabled(l.photoPath == nil)
             .accessibilityLabel("Photo of \(l.brand) \(l.name)")
             .accessibilityHint(l.photoPath == nil ? "" : "Opens it full screen")
-            AddPhotoTile(title: l.photoPath == nil ? "Add a label photo" : "Replace the label photo", size: CGSize(width: 54, height: 72)) { image in
+            AddPhotoTile(foot: foot, title: l.photoPath == nil ? "Add a label photo" : "Replace the label photo", size: CGSize(width: 54, height: 72)) { image in
                 guard let api = session.api else { return }
                 try await api.uploadLabelPhoto(expressionId: id, image: image)
                 await load()
@@ -220,7 +220,7 @@ struct LabelPage: View {
                     .accessibilityElement(children: .combine)
                     if scores.showsTrend { ScoreLine(scores: scores) }
                 }
-                NavigationLink { LabelTastingsList(label: l) { Task { await load() } } } label: {
+                NavigationLink { TastingsScreen(label: l) { Task { await load() } } } label: {
                     HStack(spacing: 8) {
                         Text(latestLine(latest)).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.ink).lineLimit(1)
                         Spacer(minLength: 4)
@@ -307,7 +307,7 @@ struct LabelPage: View {
             }
             if l.tastings.count > Self.shownTastings {
                 NavigationLink {
-                    LabelTastingsList(label: l) { Task { await load() } }
+                    LabelTastingsList(label: l, foot: foot) { Task { await load() } }
                 } label: {
                     Text("See all \(l.tastings.count) tastings")
                         .font(.inter(15, .semibold))
@@ -469,6 +469,7 @@ struct TastingBlock: View {
 /// Every tasting of the label, newest first; tap one to edit it.
 struct LabelTastingsList: View {
     let label: LabelDetail
+    let foot: FootBar
     var onChanged: () -> Void
     @State private var editing: LabelTasting?
     @State private var deleting: Int?
@@ -489,7 +490,7 @@ struct LabelTastingsList: View {
         .background(Theme.paper)
         .navigationTitle("\(label.tastings.count) tastings")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmsTastingDeletion($deleting) { _ in onChanged() }
+        .confirmsTastingDeletion($deleting, foot: foot) { _ in onChanged() }
         .sheet(item: $editing) { tasting in
             NavigationStack {
                 TastingFormView(
@@ -753,22 +754,26 @@ extension LabelOption {
     }
 }
 
+/// The pushed list of every tasting, with a bar of its own for failures.
+private struct TastingsScreen: View {
+    let label: LabelDetail
+    var onChanged: () -> Void
+    @State private var foot = FootBar()
+
+    var body: some View { LabelTastingsList(label: label, foot: foot, onChanged: onChanged).footBar(foot) }
+}
+
 /// Asks before deleting a tasting, deletes it on the server, then tells the screen. One place for every list of tastings.
 private struct DeleteTastingConfirmation: ViewModifier {
     @Environment(Session.self) private var session
     @Binding var pending: Int?
+    let foot: FootBar
     let onDeleted: (Int) -> Void
-    @State private var problem: String?
 
     func body(content: Content) -> some View {
         content
             .confirmSheet("Delete this tasting?", message: "This can't be undone.", confirm: "Delete tasting", isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } })) {
                 if let id = pending { delete(id) }
-            }
-            .alert("Couldn't delete", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(problem ?? "")
             }
     }
 
@@ -781,7 +786,7 @@ private struct DeleteTastingConfirmation: ViewModifier {
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
-                problem = error.localizedDescription
+                foot.fail(error) { delete(id) }
             }
         }
     }
@@ -789,7 +794,8 @@ private struct DeleteTastingConfirmation: ViewModifier {
 
 extension View {
     /// Confirms and performs the deletion of the tasting whose id is put in `pending`.
-    func confirmsTastingDeletion(_ pending: Binding<Int?>, onDeleted: @escaping (Int) -> Void) -> some View {
-        modifier(DeleteTastingConfirmation(pending: pending, onDeleted: onDeleted))
+    /// A failure goes to `foot`, with Retry.
+    func confirmsTastingDeletion(_ pending: Binding<Int?>, foot: FootBar, onDeleted: @escaping (Int) -> Void) -> some View {
+        modifier(DeleteTastingConfirmation(pending: pending, foot: foot, onDeleted: onDeleted))
     }
 }

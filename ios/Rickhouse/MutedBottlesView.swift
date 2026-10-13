@@ -9,19 +9,7 @@ struct MutedBottlesView: View {
     @State private var error: String?
     @State private var editing: MutedBottle?
     @State private var confirmingClearAll = false
-    @State private var toast: Toast?
-
-    private struct Toast: Equatable, Identifiable {
-        let id = UUID()
-        let message: String
-        /// What Undo puts back: each bottle and the date it was muted until.
-        var restore: [Restore] = []
-    }
-
-    private struct Restore: Equatable {
-        let bottleId: Int
-        let until: String
-    }
+    @State private var foot = FootBar()
 
     var body: some View {
         Group {
@@ -47,13 +35,8 @@ struct MutedBottlesView: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("Clear all") { confirmingClearAll = true } }
             }
         }
-        .overlay(alignment: .bottom) { toastView }
-        .confirmationDialog("Clear every mute?", isPresented: $confirmingClearAll, titleVisibility: .visible) {
-            Button("Clear all mutes", role: .destructive) { clearAll() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("They can all come up in picks again.")
-        }
+        .footBar(foot) { runUndo($0) }
+        .confirmSheet("Clear every mute?", message: "They can all come up in picks again.", confirm: "Clear all mutes", isPresented: $confirmingClearAll) { clearAll() }
         .sheet(item: $editing) { bottle in
             if let window = response?.window {
                 MuteDateSheet(bottle: bottle, window: window) { until in
@@ -130,10 +113,10 @@ struct MutedBottlesView: View {
         guard let api = session.api else { return }
         let before = bottle.mutedUntil
         Task {
-            await attempt {
+            await attempt(retry: { change(bottle, to: until) }) {
                 try await api.mute(bottleId: bottle.bottleId, until: until)
                 await load()
-                show(Toast(message: "\(bottle.title) is muted until \(Format.day(until)).", restore: [Restore(bottleId: bottle.bottleId, until: before)]))
+                foot.offer(UndoOffer(message: "\(bottle.title) is muted until \(Format.day(until)).") { try await api.mute(bottleId: bottle.bottleId, until: before) })
             }
         }
     }
@@ -141,10 +124,10 @@ struct MutedBottlesView: View {
     private func clear(_ bottle: MutedBottle) {
         guard let api = session.api else { return }
         Task {
-            await attempt {
+            await attempt(retry: { clear(bottle) }) {
                 try await api.unmute(bottleId: bottle.bottleId)
                 await load()
-                show(Toast(message: "Cleared the mute on \(bottle.title).", restore: [Restore(bottleId: bottle.bottleId, until: bottle.mutedUntil)]))
+                foot.offer(UndoOffer(message: "Cleared the mute on \(bottle.title).") { try await api.mute(bottleId: bottle.bottleId, until: bottle.mutedUntil) })
             }
         }
     }
@@ -152,62 +135,34 @@ struct MutedBottlesView: View {
     private func clearAll() {
         guard let api = session.api, let mutes = response?.mutes else { return }
         Task {
-            await attempt {
+            await attempt(retry: { clearAll() }) {
                 for bottle in mutes { try await api.unmute(bottleId: bottle.bottleId) }
                 await load()
-                show(Toast(message: "Cleared all mutes.", restore: mutes.map { Restore(bottleId: $0.bottleId, until: $0.mutedUntil) }))
+                foot.offer(UndoOffer(message: "Cleared all mutes.") {
+                    for item in mutes { try await api.mute(bottleId: item.bottleId, until: item.mutedUntil) }
+                })
             }
         }
     }
 
-    private func undo(_ toast: Toast) {
-        guard let api = session.api else { return }
-        self.toast = nil
+    private func runUndo(_ offer: UndoOffer) {
+        foot.dropUndo()
         Task {
-            await attempt {
-                for item in toast.restore { try await api.mute(bottleId: item.bottleId, until: item.until) }
+            await attempt(retry: { runUndo(offer) }) {
+                try await offer.run()
                 await load()
             }
         }
     }
 
-    private func attempt(_ work: () async throws -> Void) async {
+    private func attempt(retry: @escaping () -> Void, _ work: () async throws -> Void) async {
         do {
             try await work()
         } catch APIError.unauthorized {
             session.signOut()
         } catch {
-            show(Toast(message: error.localizedDescription))
+            foot.fail(error, retry: retry)
             await load()
-        }
-    }
-
-    // MARK: Toast
-
-    private func show(_ new: Toast) {
-        withAnimation { toast = new }
-        Task {
-            try? await Task.sleep(for: .seconds(new.restore.isEmpty ? 3 : 6))
-            if toast?.id == new.id { withAnimation { toast = nil } }
-        }
-    }
-
-    @ViewBuilder
-    private var toastView: some View {
-        if let toast {
-            HStack(spacing: 12) {
-                Text(toast.message).font(.inter(14, relativeTo: .subheadline)).frame(maxWidth: .infinity, alignment: .leading)
-                if !toast.restore.isEmpty {
-                    Button("Undo") { undo(toast) }.font(.inter(14, .semibold, relativeTo: .subheadline)).frame(minHeight: 44)
-                }
-            }
-            .foregroundStyle(Theme.paper)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 2)
-            .background(Theme.ink, in: RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal, 20)
-            .padding(.bottom, 12)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 }

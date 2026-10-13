@@ -39,15 +39,15 @@ struct PickerSheet: View {
                     }
                 }
                 if multiple && typed.isEmpty && !selected.isEmpty {
-                    Section("On this label") { ForEach(selected) { row($0) } }
+                    Section { ForEach(selected) { row($0) } } header: { SectionLabel("On this label") }
                 }
                 let rest = PickerLogic.matching(typed, in: items).filter { !(multiple && typed.isEmpty && isSelected($0)) }
                 if !rest.isEmpty {
-                    Section(typed.isEmpty ? "Your \(kind.rawValue)" : "Matches") { ForEach(rest) { row($0) } }
+                    Section { ForEach(rest) { row($0) } } header: { SectionLabel(typed.isEmpty ? "Your \(kind.rawValue)" : "Matches") }
                 }
                 if PickerLogic.exact(typed, in: items) == nil {
                     let near = PickerLogic.nearMatches(typed, in: items).filter { n in !rest.contains { $0.id == n.id } }
-                    if !near.isEmpty { Section("Did you mean") { ForEach(near) { row($0) } } }
+                    if !near.isEmpty { Section { ForEach(near) { row($0) } } header: { SectionLabel("Did you mean") } }
                 }
                 if PickerLogic.offersNew(typed, kind: kind, in: items) {
                     Section {
@@ -184,7 +184,7 @@ struct PickerRow: View {
     let value: String
     var changed = false
     var onOpen: () -> Void
-    var onRevert: () -> Void
+    var onRevert: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 8) {

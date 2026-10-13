@@ -71,19 +71,18 @@ struct BottleDetailView: View {
                 }
             }
             .interactiveDismissDisabled(bottleDraft?.isDirty ?? false)
-            .confirmationDialog("Discard your changes?", isPresented: $discarding, titleVisibility: .visible) {
-                Button("Discard changes", role: .destructive) { stopEditing() }
-                Button("Keep editing", role: .cancel) {}
-            } message: {
-                Text("Nothing you changed has been saved.")
-            }
-            .confirmationDialog("Keep the bottle open or mark it sealed?", isPresented: $askOpened, titleVisibility: .visible) {
-                Button("Keep it open, no date") { saveBottle(choice: .keepOpen) }
-                Button("Mark it sealed") { saveBottle(choice: .seal) }
-                Button("Keep the date", role: .cancel) { bottleDraft?[.opened].revert() }
-            } message: {
-                Text("You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.")
-            }
+            .confirmSheet("Discard your changes?", message: "Nothing you changed has been saved.", confirm: "Discard changes", cancel: "Keep editing", isPresented: $discarding) { stopEditing() }
+            .choiceSheet(
+                "Keep the bottle open or mark it sealed?",
+                message: "You cleared the date it was opened. It is at about \(bottle?.fillPct ?? 0)%. Sealed sets the level back to full.",
+                answers: [
+                    SheetAnswer(title: "Keep it open, no date") { saveBottle(choice: .keepOpen) },
+                    SheetAnswer(title: "Mark it sealed") { saveBottle(choice: .seal) },
+                ],
+                cancel: "Keep the date",
+                onCancel: { bottleDraft?[.opened].revert() },
+                isPresented: $askOpened
+            )
             .sheet(item: $picking) { pickerSheet(for: $0) }
         }
         .sheet(isPresented: $editingLabel) {
@@ -140,7 +139,7 @@ struct BottleDetailView: View {
                         .accessibilityHint("Opens it full screen")
                     }
                     // Last in the row; smaller when it is the only thing there.
-                    AddPhotoTile(title: "Add a photo", size: b.images.isEmpty ? CGSize(width: 90, height: 120) : CGSize(width: 120, height: 280)) { image in
+                    AddPhotoTile(foot: foot, title: "Add a photo", size: b.images.isEmpty ? CGSize(width: 90, height: 120) : CGSize(width: 120, height: 280)) { image in
                         guard let api = session.api else { return }
                         try await api.uploadImages(bottleId: id, images: [image])
                         await load()
@@ -212,7 +211,7 @@ struct BottleDetailView: View {
 
     private func fillSection(_ b: BottleDetail) -> some View {
         let state = FillState.of(b.fillPct)
-        return Section("Fill level") {
+        return Section {
             HStack(spacing: 10) {
                 FillGauge(percent: b.fillPct, track: Theme.ink.opacity(0.15)).frame(width: 4, height: 28)
                 Text(state.text + (b.isOpen ? " · open" : "")).font(.inter(16, .medium))
@@ -223,7 +222,7 @@ struct BottleDetailView: View {
             if let actionError {
                 ErrorText(actionError)
             }
-        }
+        } header: { SectionLabel("Fill level") }
     }
 
     /// The level moves at once; if the server says no, it goes back and says why.
@@ -251,7 +250,7 @@ struct BottleDetailView: View {
     // MARK: Tasting notes
 
     private func notesSection(_ b: BottleDetail) -> some View {
-        Section("Tasting notes") {
+        Section {
             ForEach(b.tastingNotes) { note in
                 Button { editing = NoteEdit(note: note) } label: {
                     VStack(alignment: .leading, spacing: 4) {
@@ -283,7 +282,7 @@ struct BottleDetailView: View {
                     Label("Add a tasting note", systemImage: "plus")
                 }
             }
-        }
+        } header: { SectionLabel("Tasting notes") }
     }
 
     /// What tells this bottle from another of its label, in a few words.
@@ -308,7 +307,7 @@ struct BottleDetailView: View {
     @ViewBuilder
     func row(_ label: String, _ value: String?) -> some View {
         if let value, !value.isEmpty {
-            LabeledContent(label, value: value)
+            FactRow(title: label, value: value)
         }
     }
 

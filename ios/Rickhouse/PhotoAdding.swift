@@ -3,8 +3,9 @@ import SwiftUI
 
 /// The last slot in a page's photos: a dashed tile that offers the camera (when there is one) or the photo
 /// library, lifts the bottle off its background the way the add form does, and hands over the upload bytes.
-/// `upload` throws to show its message.
+/// `upload` throws; the message goes to `foot`, the page's bar, because a tile this small cannot show its own.
 struct AddPhotoTile: View {
+    let foot: FootBar
     let title: String
     let size: CGSize
     let upload: (UploadImage) async throws -> Void
@@ -13,7 +14,6 @@ struct AddPhotoTile: View {
     @State private var showLibrary = false
     @State private var pickerItem: PhotosPickerItem?
     @State private var uploading = false
-    @State private var failure: String?
 
     var body: some View {
         Menu {
@@ -46,14 +46,9 @@ struct AddPhotoTile: View {
                 if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
                     send(image)
                 } else {
-                    failure = "That photo couldn't be opened."
+                    foot.fail("That photo couldn't be opened.") { showLibrary = true }
                 }
             }
-        }
-        .alert("The photo wasn't saved", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(failure ?? "")
         }
     }
 
@@ -65,8 +60,8 @@ struct AddPhotoTile: View {
             let cut = await Task.detached { image.cutout() }.value
             var photo = FormPhoto(original: image)
             photo.cutout = cut
-            guard let bytes = photo.encoded() else { failure = "That photo couldn't be read."; return }
-            do { try await upload(bytes) } catch { failure = error.localizedDescription }
+            guard let bytes = photo.encoded() else { foot.fail("That photo couldn't be read.") { showLibrary = true }; return }
+            do { try await upload(bytes) } catch { foot.fail("The photo wasn't saved: \(error.localizedDescription)") { send(image) } }
         }
     }
 }
