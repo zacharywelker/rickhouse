@@ -104,16 +104,7 @@ extension BottleDetailView {
                 Text("This bottle")
             }
 
-            Section {
-                DateEditRow(title: "Distilled / barrel filled", field: bottleField(.distilled), error: fieldErrors[BottleFact.distilled.rawValue])
-                if draft[.distilled].isEmpty, let label = draft.labelDistilled { InheritedNote(date: label) }
-                DateEditRow(title: "Bottled", field: bottleField(.bottled), error: fieldErrors[BottleFact.bottled.rawValue])
-                if draft[.bottled].isEmpty, let label = draft.labelBottled { InheritedNote(date: label) }
-            } header: {
-                Text("Dates")
-            } footer: {
-                Text("Left blank, a bottle goes by its label's dates. Set one only if this bottle differs.")
-            }
+            bottleDatesSection(draft)
 
             Section {
                 DateEditRow(title: "Opened", field: bottleField(.opened), error: fieldErrors[BottleFact.opened.rawValue])
@@ -126,6 +117,21 @@ extension BottleDetailView {
 
             if let factError { Section { ErrorText(factError) } }
         }
+    }
+
+    /// Distilled and bottled dates: blank means the bottle goes by its label's.
+    @ViewBuilder
+    func bottleDatesSection(_ draft: BottleDraft) -> some View {
+            Section {
+                DateEditRow(title: "Distilled / barrel filled", field: bottleField(.distilled), error: fieldErrors[BottleFact.distilled.rawValue])
+                if draft[.distilled].isEmpty, let label = draft.labelDistilled { InheritedNote(date: label) }
+                DateEditRow(title: "Bottled", field: bottleField(.bottled), error: fieldErrors[BottleFact.bottled.rawValue])
+                if draft[.bottled].isEmpty, let label = draft.labelBottled { InheritedNote(date: label) }
+            } header: {
+                Text("Dates")
+            } footer: {
+                Text("Left blank, a bottle goes by its label's dates. Set one only if this bottle differs.")
+            }
     }
 
     func startBottleEdit(_ b: BottleDetail) {

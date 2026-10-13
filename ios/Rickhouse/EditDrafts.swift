@@ -63,7 +63,7 @@ enum Strength {
 
 extension Strength {
     /// Navy Strength or Overproof, worked out from the proof as the server does (rum: 54% ABV and 57%; gin: 54%, no Overproof).
-    static func tier(group: String, proof: String) -> String? {
+    static func tier(group: String?, proof: String) -> String? {
         guard group == "rum" || group == "gin", let p = Decimal(string: proof.trimmingCharacters(in: .whitespaces)) else { return nil }
         let abv = p / 2
         if group == "rum", abv >= 57 { return "Overproof" }
@@ -199,28 +199,20 @@ enum LabelFact: String, CaseIterable {
     case name
     case category = "categoryId"
     case proof
+    case ageYears, ageMonths, ageDays
     case ageStatement
+    case isNas, isStraight, isCaskStrength, isBottledInBond
+    case base = "molassesOrCane"
     case size = "sizeMl"
     case msrp
     case barcode = "upc"
-    case description
+    case description, otherNames
     case distilled = "barrelFilledOn"
     case bottled = "bottledOn"
-    case caskStrength = "isCaskStrength"
-    case bottledInBond = "isBottledInBond"
-    case nas = "isNas"
-    case stillProof = "isStillProof"
-    case straight = "isStraight"
-    /// Not a row of its own: Bottled In Bond fills it.
-    case ageYears
+    case isStillProof
 
-    /// A yes/no fact, held in its field as "true" or "false".
-    var isFlag: Bool {
-        switch self {
-        case .caskStrength, .bottledInBond, .nas, .stillProof, .straight: true
-        default: false
-        }
-    }
+    /// The ticks, held as "true" or "false".
+    static let ticks: [LabelFact] = [.isCaskStrength, .isBottledInBond, .isStraight, .isNas, .isStillProof]
 }
 
 /// The three ordered lists a label carries.
@@ -230,11 +222,6 @@ struct LabelDraft {
     private(set) var fields: [LabelFact: Field]
     /// The category's and brand's names for display; the fields hold their ids.
     var categoryName: String
-    /// The category's kind of spirit, as the server names it ("agave", "rum"…); empty before it is known.
-    var fieldGroup = ""
-    var isAgave: Bool { fieldGroup == "agave" }
-    var kind = ""
-    var isAmerican: Bool { fieldGroup == "whiskey" && kind == "american" }
     var brandName: String
     private(set) var links: LabelLinks
     private let originalLinks: LabelLinks
@@ -245,14 +232,13 @@ struct LabelDraft {
         brandName = ""
         links = LabelLinks(distilleries: [], mashbills: [], finishes: [])
         originalLinks = links
-        fields = Dictionary(uniqueKeysWithValues: LabelFact.allCases.map { ($0, Field($0.isFlag ? "false" : nil)) })
+        fields = Dictionary(uniqueKeysWithValues: LabelFact.allCases.map { ($0, Field(nil)) })
         fields[.size] = Field("750")
+        for tick in LabelFact.ticks { fields[tick] = Field("false") }
     }
 
     init(_ label: LabelDetail) {
         categoryName = label.category
-        fieldGroup = label.fieldGroup ?? ""
-        kind = label.kind ?? ""
         brandName = label.brand
         links = label.links ?? LabelLinks(distilleries: [], mashbills: [], finishes: [])
         originalLinks = links
@@ -261,31 +247,24 @@ struct LabelDraft {
             .name: Field(label.name),
             .category: Field(label.categoryId.map(String.init)),
             .proof: Field(plainNumber(label.proof)),
+            .ageYears: Field(plainNumber(label.ageYears)),
+            .ageMonths: Field(label.ageMonths.map(String.init)),
+            .ageDays: Field(label.ageDays.map(String.init)),
             .ageStatement: Field(label.ageStatement),
-            .size: Field(String(label.sizeMl)),
-            .msrp: Field(label.msrp),
-            .barcode: Field(label.upc),
+            .isNas: Field(String(label.isNas ?? false)),
+            .isStraight: Field(String(label.isStraight ?? false)),
+            .isCaskStrength: Field(String(label.isCaskStrength ?? false)),
+            .isBottledInBond: Field(String(label.isBottledInBond ?? false)),
+            .base: Field(label.molassesOrCane),
             .description: Field(label.description),
             .distilled: Field(label.barrelFilledOn),
             .bottled: Field(label.bottledOn),
-            .caskStrength: Field(String(label.isCaskStrength ?? false)),
-            .bottledInBond: Field(String(label.isBottledInBond ?? false)),
-            .nas: Field(String(label.isNas ?? false)),
-            .stillProof: Field(String(label.isStillProof ?? false)),
-            .straight: Field(String(label.isStraight ?? false)),
-            .ageYears: Field(plainNumber(label.ageYears)),
+            .isStillProof: Field(String(label.isStillProof ?? false)),
+            .otherNames: Field(label.otherNames),
+            .size: Field(String(label.sizeMl)),
+            .msrp: Field(label.msrp),
+            .barcode: Field(label.upc),
         ]
-    }
-
-    /// The name has started to say something it did not before: tick that, as the web form does. Only on the change, so
-    /// a switch turned off by hand stays off while the name still says it.
-    mutating func apply(_ said: NameSays, after previous: NameSays) {
-        if said.isCaskStrength, !previous.isCaskStrength { self[.caskStrength].text = "true" }
-        if said.isBottledInBond, !previous.isBottledInBond {
-            self[.bottledInBond].text = "true"
-            if let proof = said.proof { self[.proof].text = proof }
-            if let years = said.ageYears, self[.ageYears].isEmpty { self[.ageYears].text = years }
-        }
     }
 
     subscript(fact: LabelFact) -> Field {
@@ -351,6 +330,17 @@ struct LabelDraft {
         return formatter.date(from: text) != nil
     }
 
+    /// The name has started to say something it did not before: tick that, as the web form does. Only on the change, so
+    /// a switch turned off by hand stays off while the name still says it.
+    mutating func apply(_ said: NameSays, after previous: NameSays) {
+        if said.isCaskStrength, !previous.isCaskStrength { self[.isCaskStrength].text = "true" }
+        if said.isBottledInBond, !previous.isBottledInBond {
+            self[.isBottledInBond].text = "true"
+            if let proof = said.proof { self[.proof].text = proof }
+            if let years = said.ageYears, !AgeDefaults.ageFilled(self) { self[.ageYears].text = years }
+        }
+    }
+
     /// A barcode typed with spaces or dashes, as digits.
     static func digits(_ raw: String) -> String { raw.filter { !$0.isWhitespace && $0 != "-" } }
 
@@ -361,6 +351,12 @@ struct LabelDraft {
         if proof.changed, !proof.isEmpty {
             if !matches(proof.trimmed, #"^\d{1,3}(\.\d{1,2})?$"#) || (Double(proof.trimmed) ?? 0) > 200 { found[.proof] = "Proof is a number from 0 to 200." }
         }
+        let years = self[.ageYears]
+        if years.changed, !years.isEmpty, !(matches(years.trimmed, #"^\d{1,3}(\.\d{1,2})?$"#) && (Double(years.trimmed) ?? 101) <= 100) { found[.ageYears] = "Years from 0 to 100." }
+        let months = self[.ageMonths]
+        if months.changed, !months.isEmpty, !(matches(months.trimmed, #"^\d{1,4}$"#) && (Int(months.trimmed) ?? 1201) <= 1200) { found[.ageMonths] = "Months from 0 to 1200." }
+        let days = self[.ageDays]
+        if days.changed, !days.isEmpty, !(matches(days.trimmed, #"^\d{1,5}$"#) && (Int(days.trimmed) ?? 40001) <= 40000) { found[.ageDays] = "Days from 0 to 40000." }
         let size = self[.size]
         if size.changed, !(matches(size.trimmed, #"^\d{1,5}$"#) && (1...20000).contains(Int(size.trimmed) ?? 0)) { found[.size] = "Size is in millilitres, like 750." }
         let msrp = self[.msrp]
@@ -375,9 +371,9 @@ struct LabelDraft {
 
     private func value(_ fact: LabelFact, of field: Field) -> Any {
         switch fact {
-        case .size, .category, .brand: Int(field.trimmed) ?? field.json
+        case .size, .category, .brand, .ageMonths, .ageDays: Int(field.trimmed) ?? field.json
+        case .isNas, .isStraight, .isCaskStrength, .isBottledInBond, .isStillProof: field.trimmed == "true"
         case .barcode: field.isEmpty ? NSNull() : Self.digits(field.trimmed)
-        case .caskStrength, .bottledInBond, .nas, .stillProof, .straight: field.trimmed == "true"
         default: field.json
         }
     }

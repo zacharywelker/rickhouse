@@ -12,8 +12,11 @@ import { proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules"
 import { labelFactsSchema, patchLabel } from "@/lib/expressions/label-patch";
 import { linkRowSchema } from "@/lib/expressions/schema";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
-import { categoryKindsById, bottlesOfLabel, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
+import { bottlesOfLabel, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
 import { expressionReleaseList } from "@/lib/releases-store";
+import { expressionNames } from "@/db/schema";
+import { asc } from "drizzle-orm";
+import { otherNamesText, parseOtherNames } from "@/lib/other-names";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +32,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const row = id === null ? null : await getExpression(id, user.id);
   if (!row) return apiError(404, "not_found", "That label is gone.");
 
-  const [links, releases, owned, tastings] = await Promise.all([
+  const [links, releases, owned, tastings, names] = await Promise.all([
     expressionLinks(row.expression.id),
     expressionReleaseList(row.expression.id),
     bottlesOfLabel(row.expression.id, user.id),
     tastingNotesForLabel(row.expression.id, user.id),
+    db
+      .select({ name: expressionNames.name, yearFrom: expressionNames.yearFrom, yearTo: expressionNames.yearTo })
+      .from(expressionNames)
+      .where(eq(expressionNames.expressionId, row.expression.id))
+      .orderBy(asc(expressionNames.position)),
   ]);
   const { expression } = row;
   const wheel = (await categoryWheels()).get(expression.categoryId) ?? null;
@@ -50,18 +58,20 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     proof: expression.proof,
     ageStatement: expression.ageStatement,
     ageYears: expression.ageYears,
-    description: expression.description,
-    barrelFilledOn: expression.barrelFilledOn,
-    bottledOn: expression.bottledOn,
-    isCaskStrength: expression.isCaskStrength,
-    isBottledInBond: expression.isBottledInBond,
+    ageMonths: expression.ageMonths,
+    ageDays: expression.ageDays,
     isNas: expression.isNas,
     isStraight: expression.isStraight,
+    isCaskStrength: expression.isCaskStrength,
+    isBottledInBond: expression.isBottledInBond,
+    molassesOrCane: expression.molassesOrCane,
+    description: expression.description,
+    // One per line, with years in brackets: the same text the web form takes, and what PATCH takes back.
+    otherNames: otherNamesText(names),
+    barrelFilledOn: expression.barrelFilledOn,
+    bottledOn: expression.bottledOn,
     isStillProof: expression.isStillProof,
     // Derived, never stored: Navy Strength / Overproof from the proof, and what a cask-strength label with no proof shows.
-    fieldGroup: row.category.fieldGroup,
-    // American, Scotch or other whiskey: Straight is an American designation.
-    kind: (await categoryKindsById())[expression.categoryId] ?? "other",
     strength: strengthTier(row.category.fieldGroup, expression.proof),
     proofLabel:
       expression.isCaskStrength && !expression.proof
@@ -130,7 +140,24 @@ const linkList = z.array(linkRow).max(50).refine((rows) => new Set(rows.map((r) 
 
 const patchBody = labelFactsSchema
   .partial()
-  .extend({ brand: z.string().trim().min(1, "Enter a brand.").max(120, "Keep this under 120 characters."), distilleries: linkList, mashbills: linkList, finishes: linkList })
+  .extend({
+    brand: z.string().trim().min(1, "Enter a brand.").max(120, "Keep this under 120 characters."),
+    distilleries: linkList,
+    mashbills: linkList,
+    finishes: linkList,
+    otherNames: z
+      .string()
+      .max(10_000)
+      .nullable()
+      .transform((text, ctx) => {
+        const parsed = parseOtherNames(text);
+        if (parsed.error) {
+          ctx.addIssue({ code: "custom", message: parsed.error });
+          return z.NEVER;
+        }
+        return parsed.names;
+      }),
+  })
   .partial()
   .strict()
   .superRefine((value, ctx) => {
@@ -164,11 +191,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!parsed.success) {
     return apiError(422, "invalid", parsed.error.issues[0]?.message ?? "Check the fields.", issueFields(parsed.error.issues));
   }
-  const { brand, distilleries, mashbills, finishes, ...facts } = parsed.data;
+  const { brand, distilleries, mashbills, finishes, otherNames, ...facts } = parsed.data;
   const outcome = await patchLabel(user.id, id, {
     facts,
     ...(brand !== undefined ? { brand } : {}),
     ...(distilleries && mashbills && finishes ? { links: { distilleries, mashbills, finishes } } : {}),
+    ...(otherNames !== undefined ? { otherNames } : {}),
   });
   if (!outcome.ok) {
     if (outcome.kind === "gone") return apiError(404, "not_found", "That label is gone.");

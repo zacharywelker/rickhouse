@@ -22,6 +22,11 @@ struct LabelEditor: View {
     @State private var merging: MergeSetup?
     @State private var discarding = false
     @State private var scanning = false
+    @State private var ginAged = false
+
+    private var rules: LabelRules {
+        LabelRules(category: categories.first { $0.id == Int(draft?[.category].text ?? "") }, ginAged: ginAged)
+    }
 
     var body: some View {
         NavigationStack {
@@ -125,7 +130,7 @@ struct LabelEditor: View {
                     Text("Category").foregroundStyle(Theme.muted)
                 }
                 .tint(Theme.ink)
-                LabelFactRows(draft: Binding($draft)!, errors: fieldErrors, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
+                LabelFactRows(draft: Binding($draft)!, errors: fieldErrors, rules: rules, ginAged: $ginAged, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
                 EditRow(title: "Barcode", field: field(.barcode), placeholder: "Scan or type", keyboard: .numberPad, error: fieldErrors[LabelFact.barcode.rawValue])
                 Button { scanning = true } label: {
                     Label("Scan barcode", systemImage: "barcode.viewfinder")
@@ -170,7 +175,9 @@ struct LabelEditor: View {
             categories = try await api.categories()
             let fresh = try await detail
             label = fresh
-            draft = LabelDraft(fresh)
+            let made = LabelDraft(fresh)
+            ginAged = LabelRules.looksAged(made)
+            draft = made
         } catch APIError.unauthorized {
             session.signOut()
         } catch {
@@ -183,7 +190,8 @@ struct LabelEditor: View {
     }
 
     private func save() {
-        guard let draft, let api = session.api, !saving else { return }
+        guard let edited = draft, let api = session.api, !saving else { return }
+        let draft = rules.prepared(edited)
         let found = draft.errors()
         guard found.isEmpty else {
             fieldErrors = Dictionary(uniqueKeysWithValues: found.map { ($0.key.rawValue, $0.value) })
@@ -275,67 +283,208 @@ struct LabelEditor: View {
     }
 }
 
-/// The label's facts after brand, name and category: strength, age, size, MSRP and the three lists. The label editor
-/// and New Label show the same rows.
+/// The label's facts after brand, name and category, as the category's rules allow (LabelRules.swift). The label
+/// editor and New Label show the same rows.
 struct LabelFactRows: View {
     @Binding var draft: LabelDraft
     var errors: [String: String]
+    var rules: LabelRules
+    /// Gin only: "Aged" pressed.
+    @Binding var ginAged: Bool
     /// Off on New Label, where there is nothing to put back.
     var tracksChanges = true
     var onEdit: (LabelFact) -> Void
     var onPick: (LinkList) -> Void
 
+    /// An age greys the statement out; this opens it again (the web's triple-click).
+    @State private var statementUnlocked = false
+
     private func field(_ fact: LabelFact) -> Binding<Field> {
         Binding(get: { draft[fact] }, set: { draft[fact] = $0; onEdit(fact) })
     }
 
+    private func tick(_ fact: LabelFact) -> Binding<Bool> {
+        Binding(
+            get: { draft[fact].trimmed == "true" },
+            set: { on in
+                var next = draft
+                next[fact].text = on ? "true" : "false"
+                draft = AgeDefaults.apply(prev: draft, next: next, changed: fact)
+                onEdit(fact)
+            }
+        )
+    }
+
+    private var bonded: Bool { rules.showsAmerican && draft[.isBottledInBond].trimmed == "true" }
+
     var body: some View {
+        if rules.isGin && !ginAged {
+            Button { ginAged = true } label: {
+                Label("Aged gin? Add age and finishes", systemImage: "plus.circle")
+                    .font(.inter(15, .semibold))
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .foregroundStyle(Theme.ink)
+        }
+        if rules.showsAging {
+            TickGrid(items: [
+                ("Cask Strength", tick(.isCaskStrength), true),
+                ("Bottled in Bond", tick(.isBottledInBond), rules.showsAmerican),
+                ("Straight", tick(.isStraight), rules.showsAmerican),
+                ("NAS", tick(.isNas), true),
+                ("Still proof", tick(.isStillProof), rules.showsStillProof && !AgeDefaults.ageFilled(draft) && draft[.ageStatement].isEmpty),
+            ])
+        }
         StrengthRow(proof: field(.proof), error: errors[LabelFact.proof.rawValue], tracksChanges: tracksChanges)
-        if let tier = Strength.tier(group: draft.fieldGroup, proof: draft[.proof].trimmed) {
+            .disabled(bonded)
+        if let tier = Strength.tier(group: rules.group, proof: draft[.proof].trimmed) {
             Text(tier).font(.inter(12, .semibold, relativeTo: .caption)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .trailing)
         }
-        EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: errors[LabelFact.ageStatement.rawValue], tracksChanges: tracksChanges)
-        do {
-            FlagRow(title: "Cask Strength", field: field(.caskStrength))
-            FlagRow(title: "Bottled In Bond", field: field(.bottledInBond))
-            if draft.isAmerican { FlagRow(title: "Straight", field: field(.straight)) }
-            FlagRow(title: "NAS (no age statement)", field: field(.nas))
-            if draft.isAgave { FlagRow(title: "Still proof (unaged)", field: field(.stillProof)) }
-            EditRow(title: "Distilled / barrel filled", field: field(.distilled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.distilled.rawValue])
-            EditRow(title: "Bottled", field: field(.bottled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.bottled.rawValue])
-            EditRow(title: "Description", field: field(.description), placeholder: "What the label says", multiline: true, error: errors[LabelFact.description.rawValue])
+        if rules.showsAging {
+            EditRow(title: "Distilled / barrel filled", field: field(.distilled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.distilled.rawValue], tracksChanges: tracksChanges)
+            EditRow(title: "Bottled", field: field(.bottled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.bottled.rawValue], tracksChanges: tracksChanges)
         }
-        EditRow(title: "Size (mL)", field: field(.size), keyboard: .numberPad, error: errors[LabelFact.size.rawValue], tracksChanges: tracksChanges)
+        if bonded {
+            Text("Bottled in Bond is 100 proof.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+        }
+        if rules.showsAging {
+            AgeRow(years: field(.ageYears), months: field(.ageMonths), days: field(.ageDays),
+                   error: errors[LabelFact.ageYears.rawValue] ?? errors[LabelFact.ageMonths.rawValue] ?? errors[LabelFact.ageDays.rawValue])
+            let locked = AgeDefaults.ageFilled(draft) && !statementUnlocked
+            HStack {
+                EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: errors[LabelFact.ageStatement.rawValue], tracksChanges: tracksChanges)
+                    .disabled(locked)
+                    .opacity(locked ? 0.5 : 1)
+                if locked {
+                    Button("Edit") { statementUnlocked = true }
+                        .font(.inter(15, .semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .foregroundStyle(Theme.ink)
+                        .accessibilityLabel("Edit the age statement anyway")
+                }
+            }
+        }
+        SizeRow(field: field(.size), error: errors[LabelFact.size.rawValue])
         EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: "$", error: errors[LabelFact.msrp.rawValue])
-        ForEach(LinkList.allCases, id: \.self) { list in
+        LinkChipsRow(
+            title: LabelEditor.listTitle(.distilleries), rows: draft.rows(.distilleries), changed: tracksChanges && draft.listChanged(.distilleries),
+            onRemove: { draft.remove(.distilleries, id: $0.id) }, onAdd: { onPick(.distilleries) }
+        )
+        if rules.baseReplacesMashbill {
+            Picker(selection: field(.base).text) {
+                Text("Not set").tag("")
+                ForEach(LabelRules.rumBases, id: \.value) { Text($0.title).tag($0.value) }
+            } label: {
+                Text("Base").foregroundStyle(Theme.muted)
+            }
+            .tint(Theme.ink)
+        } else {
             LinkChipsRow(
-                title: LabelEditor.listTitle(list), rows: draft.rows(list), changed: tracksChanges && draft.listChanged(list),
-                onRemove: { draft.remove(list, id: $0.id) },
-                onAdd: { onPick(list) }
+                title: LabelEditor.listTitle(.mashbills), rows: draft.rows(.mashbills), changed: tracksChanges && draft.listChanged(.mashbills),
+                onRemove: { draft.remove(.mashbills, id: $0.id) }, onAdd: { onPick(.mashbills) }
             )
+        }
+        if rules.showsFinishes {
+            LinkChipsRow(
+                title: LabelEditor.listTitle(.finishes), rows: draft.rows(.finishes), changed: tracksChanges && draft.listChanged(.finishes),
+                onRemove: { draft.remove(.finishes, id: $0.id) }, onAdd: { onPick(.finishes) }
+            )
+        }
+        EditRow(title: "Description", field: field(.description), placeholder: "What the label says", multiline: true, error: errors[LabelFact.description.rawValue], tracksChanges: tracksChanges)
+        VStack(alignment: .leading, spacing: 2) {
+            EditRow(title: "Other names", field: field(.otherNames), placeholder: "Older names", multiline: true, error: errors[LabelFact.otherNames.rawValue], tracksChanges: tracksChanges)
+            Text("One per line. Years in brackets: Hirsch (until 1985).").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
         }
     }
 }
 
-/// A yes/no fact: a switch, with the same dot and ↺ as any other row once it differs from what the label had.
-struct FlagRow: View {
-    let title: String
-    @Binding var field: Field
+/// The four ticks, two to a line, each a 44 pt target. A tick the category doesn't have is left out.
+struct TickGrid: View {
+    let items: [(String, Binding<Bool>, Bool)]
 
     var body: some View {
-        HStack(spacing: 6) {
-            if field.changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
-            Toggle(title, isOn: Binding(get: { field.trimmed == "true" }, set: { field.text = $0 ? "true" : "false" }))
-                .foregroundStyle(Theme.muted)
-                .tint(Theme.ink)
-            if field.changed {
-                Button { field.revert() } label: {
-                    Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20)).frame(width: 44, height: 44)
+        let shown = items.filter(\.2)
+        LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 0) {
+            ForEach(shown.indices, id: \.self) { i in
+                let (title, on, _) = shown[i]
+                Button { on.wrappedValue.toggle() } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: on.wrappedValue ? "checkmark.square.fill" : "square").font(.system(size: 20))
+                        Text(title).font(.inter(15)).lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Theme.ink)
-                .accessibilityLabel("Put back \(title)")
+                .accessibilityAddTraits(on.wrappedValue ? .isSelected : [])
             }
+        }
+    }
+}
+
+/// Age as years, months and days on one line.
+struct AgeRow: View {
+    @Binding var years: Field
+    @Binding var months: Field
+    @Binding var days: Field
+    var error: String?
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("Age").foregroundStyle(Theme.muted).lineLimit(1).fixedSize()
+                Spacer(minLength: 8)
+                part($years.text, "Y", keyboard: .decimalPad, label: "Years")
+                part($months.text, "M", keyboard: .numberPad, label: "Months")
+                part($days.text, "D", keyboard: .numberPad, label: "Days")
+            }
+            if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func part(_ text: Binding<String>, _ unit: String, keyboard: UIKeyboardType, label: String) -> some View {
+        HStack(spacing: 2) {
+            TextField("0", text: text)
+                .keyboardType(keyboard)
+                .multilineTextAlignment(.trailing)
+                .fixedSize()
+                .frame(minWidth: 32, minHeight: 44, alignment: .trailing)
+                .foregroundStyle(error == nil ? Theme.ink : Theme.error)
+                .accessibilityLabel(label)
+            Text(unit).foregroundStyle(Theme.muted).accessibilityHidden(true)
+        }
+    }
+}
+
+/// The usual bottle sizes as a menu, and "Other size…" for any whole number of mL.
+struct SizeRow: View {
+    @Binding var field: Field
+    var error: String?
+    @State private var other = false
+
+    private static let otherTag = -1
+
+    var body: some View {
+        let current = Int(field.trimmed)
+        let preset = current.map { LabelRules.sizes.contains($0) } ?? false
+        Picker(selection: Binding(
+            get: { other || !preset ? Self.otherTag : current ?? 750 },
+            set: { ml in
+                if ml == Self.otherTag { other = true } else { other = false; field.text = String(ml) }
+            }
+        )) {
+            ForEach(LabelRules.sizes, id: \.self) { Text(LabelRules.sizeTitle($0)).tag($0) }
+            Text("Other size…").tag(Self.otherTag)
+        } label: {
+            Text("Size").foregroundStyle(Theme.muted)
+        }
+        .tint(Theme.ink)
+        .onAppear { other = !preset }
+        if other || !preset {
+            EditRow(title: "Size (mL)", field: $field, keyboard: .numberPad, error: error, tracksChanges: false)
         }
     }
 }

@@ -4,7 +4,6 @@ import SwiftUI
 /// Collection, Labels, +, Numbers, Account. Icons only.
 /// The tab bar is the system's. The middle tab is a placeholder with a
 /// circled-plus icon for emphasis: choosing it opens the Add sheet and leaves the selection where it was.
-/// Labels and Numbers are empty screens until they are built.
 struct AppShell: View {
     private enum Tab { case collection, labels, add, numbers, account }
 
@@ -30,7 +29,7 @@ struct AppShell: View {
             Color.clear
                 .tabItem { Self.icon("plus.app.fill", label: "Add") }
                 .tag(Tab.add)
-            NavigationStack { PlaceholderScreen(title: "Numbers") }
+            NumbersView()
                 .tabItem { Self.icon("chart.bar", label: "Numbers") }
                 .tag(Tab.numbers)
             AccountView()

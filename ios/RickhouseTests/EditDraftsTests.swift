@@ -188,40 +188,20 @@ final class EditDraftsTests: XCTestCase {
     func testFlagsGoAsBooleansAndOnlyWhenChanged() throws {
         var draft = LabelDraft(try label(["isCaskStrength": false, "isBottledInBond": true]))
         same(draft.patch(), [:])
-        draft[.caskStrength].text = "true"
-        draft[.bottledInBond].text = "false"
+        draft[.isCaskStrength].text = "true"
+        draft[.isBottledInBond].text = "false"
         same(draft.patch(), ["isCaskStrength": true, "isBottledInBond": false])
         same(draft.undoPatch(), ["isCaskStrength": false, "isBottledInBond": true])
     }
 
     func testDatesAreCheckedAndAnOlderServerReadsAsNoFlags() throws {
         var draft = LabelDraft(try label())
-        XCTAssertEqual(draft[.nas].text, "false")
+        XCTAssertEqual(draft[.isNas].text, "false")
         draft[.distilled].text = "2019-02-30"
         draft[.bottled].text = "2024-05-14"
         XCTAssertEqual(draft.errors()[.distilled], "Enter a date like 2019-05-14.")
         XCTAssertNil(draft.errors()[.bottled])
         same(draft.patch(), ["barrelFilledOn": "2019-02-30", "bottledOn": "2024-05-14"])
-    }
-
-    func testStraightIsOfferedOnlyForAmericanWhiskey() throws {
-        XCTAssertTrue(LabelDraft(try label(["fieldGroup": "whiskey", "kind": "american"])).isAmerican)
-        XCTAssertFalse(LabelDraft(try label(["fieldGroup": "whiskey", "kind": "scotch"])).isAmerican)
-        var draft = LabelDraft(try label(["fieldGroup": "whiskey", "kind": "american", "isStraight": false]))
-        draft[.straight].text = "true"
-        same(draft.patch(), ["isStraight": true])
-    }
-
-    func testANameThatStartsToSayBondedTicksItOnce() {
-        var draft = LabelDraft()
-        let bonded = NameSays(isCaskStrength: false, isBottledInBond: true, proof: "100", ageYears: "4")
-        draft.apply(bonded, after: NameSays())
-        XCTAssertEqual(draft[.bottledInBond].text, "true")
-        XCTAssertEqual(draft[.proof].text, "100")
-        XCTAssertEqual(draft[.ageYears].text, "4")
-        draft[.bottledInBond].text = "false"
-        draft.apply(bonded, after: bonded)
-        XCTAssertEqual(draft[.bottledInBond].text, "false")
     }
 
     func testStrengthTierMatchesTheServer() {
@@ -327,5 +307,67 @@ final class EditDraftsTests: XCTestCase {
         XCTAssertEqual(Strength.proof(fromABV: "58.45"), "116.9")
         XCTAssertEqual(Strength.proof(fromABV: ""), "")
         XCTAssertEqual(Strength.abv(fromProof: ""), "")
+    }
+
+    private func blank(_ ticks: [LabelFact] = []) -> LabelDraft {
+        var draft = LabelDraft()
+        for tick in ticks { draft[tick].text = "true" }
+        return draft
+    }
+
+    private func ticking(_ draft: LabelDraft, _ fact: LabelFact, _ on: Bool = true) -> LabelDraft {
+        var next = draft
+        next[fact].text = on ? "true" : "false"
+        return AgeDefaults.apply(prev: draft, next: next, changed: fact)
+    }
+
+    func testStraightImpliesYearsOnlyOverBlankOrItsOwn() {
+        var d = ticking(blank(), .isStraight)
+        XCTAssertEqual(d[.ageYears].text, "2")
+        d = ticking(d, .isNas)
+        XCTAssertEqual(d[.ageYears].text, "4")
+        XCTAssertEqual(d[.ageStatement].text, "", "an age is filled, so NAS offers no statement")
+        var typed = blank()
+        typed[.ageYears].text = "6"
+        XCTAssertEqual(ticking(typed, .isStraight)[.ageYears].text, "6")
+    }
+
+    func testBondLocksProofAndOffersAStatementOnlyOverItsOwn() {
+        let d = ticking(blank(), .isBottledInBond)
+        XCTAssertEqual(d[.proof].text, "100")
+        XCTAssertEqual(d[.ageYears].text, "4")
+        XCTAssertEqual(d[.ageStatement].text, "")
+        XCTAssertEqual(ticking(d, .isBottledInBond, false)[.ageYears].text, "")
+        var seven = blank()
+        seven[.ageStatement].text = "7 Year"
+        XCTAssertEqual(ticking(seven, .isBottledInBond)[.ageStatement].text, "7 Year")
+    }
+
+    func testRulesByCategory() {
+        let vodka = LabelRules(category: CategoryOption(id: 1, name: "Vodka", parent: nil, group: "vodka", kind: "other"))
+        XCTAssertFalse(vodka.showsAging); XCTAssertFalse(vodka.showsFinishes)
+        let scotch = LabelRules(category: CategoryOption(id: 2, name: "Single Malt Scotch", parent: nil, group: "whiskey", kind: "scotch"))
+        XCTAssertTrue(scotch.showsAging); XCTAssertFalse(scotch.showsAmerican)
+        let rum = LabelRules(category: CategoryOption(id: 3, name: "Rum", parent: nil, group: "rum", kind: "other"))
+        XCTAssertTrue(rum.baseReplacesMashbill)
+        var gin = LabelRules(category: CategoryOption(id: 4, name: "Gin", parent: nil, group: "gin", kind: "other"))
+        XCTAssertTrue(gin.isUnaged)
+        gin.ginAged = true
+        XCTAssertTrue(gin.showsFinishes)
+        let unknown = LabelRules(category: nil)
+        XCTAssertTrue(unknown.showsAmerican, "an older server shows everything")
+    }
+
+    func testNewFactsGoInThePatch() throws {
+        var d = LabelDraft(try label(["ageYears": "4.00", "isNas": false, "otherNames": "Hirsch"]))
+        XCTAssertEqual(d[.ageYears].text, "4")
+        d[.ageMonths].text = "6"
+        d[.isStraight].text = "true"
+        d[.otherNames].text = ""
+        let body = d.patch()
+        XCTAssertEqual(body["ageMonths"] as? Int, 6)
+        XCTAssertEqual(body["isStraight"] as? Bool, true)
+        XCTAssertTrue(body["otherNames"] is NSNull)
+        XCTAssertNil(body["ageYears"])
     }
 }

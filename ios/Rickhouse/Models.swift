@@ -214,26 +214,29 @@ struct LabelDetail: Decodable {
     let proof: String?
     let ageStatement: String?
     let ageYears: String?
+    var ageMonths: Int? = nil
+    var ageDays: Int? = nil
+    var isNas: Bool? = nil
+    var isStraight: Bool? = nil
+    var isCaskStrength: Bool? = nil
+    var isBottledInBond: Bool? = nil
+    /// Rum's base: molasses, sugarcane, honey or other.
+    var molassesOrCane: String? = nil
+    /// One per line, years in brackets, as the web form takes them.
+    var otherNames: String? = nil
     let sizeMl: Int
     let msrp: String?
     let photoPath: String?
     let photoThumbPath: String?
     /// The strength flags, dates and notes (#222); absent from an older server's answer.
-    let description: String?
-    let barrelFilledOn: String?
-    let bottledOn: String?
-    let isCaskStrength: Bool?
-    let isBottledInBond: Bool?
-    let isNas: Bool?
-    let isStillProof: Bool?
-    let fieldGroup: String?
-    /// "american", "scotch" or "other".
-    let kind: String?
-    let isStraight: Bool?
+    var description: String? = nil
+    var barrelFilledOn: String? = nil
+    var bottledOn: String? = nil
+    var isStillProof: Bool? = nil
     /// "navy" or "overproof", worked out by the server from the proof; nil when neither.
-    let strength: String?
+    var strength: String? = nil
     /// What a cask-strength label with no proof shows in its place: one known proof, a range, or "Cask Strength".
-    let proofLabel: String?
+    var proofLabel: String? = nil
     let distilleries: [String]
     let finishes: [String]
     let mashbills: [String]
@@ -305,6 +308,10 @@ struct CategoryOption: Decodable, Identifiable, Hashable {
     let name: String
     /// The group it sits in ("American Whiskey"), or nil for a top-level one.
     let parent: String?
+    /// What the label form's rules go by: "whiskey", "rum", "gin", "vodka"… and "american", "scotch" or "other".
+    /// Absent from an older server, which leaves every field showing.
+    var group: String? = nil
+    var kind: String? = nil
 }
 
 struct CategoriesResponse: Decodable { let categories: [CategoryOption] }

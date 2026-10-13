@@ -2,10 +2,13 @@ import "server-only";
 import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { brands, categories, expressions } from "@/db/schema";
+import { syncExpressionNames } from "@/lib/other-names-store";
+import type { OtherName } from "@/lib/other-names";
 import { findOrCreateBrand } from "./brand";
-import { replaceLinks, type Links } from "./save";
+import { writableFields } from "./fields";
 import { categoryFieldGroups, categoryKindsById } from "./queries";
-import { nameContextFor, nameRuleColumns } from "./rules";
+import { nameContextFor, nameRuleColumns, withBondProof } from "./rules";
+import { replaceLinks, writableValues, type Links } from "./save";
 import { expressionSchema } from "./schema";
 
 /**
@@ -20,17 +23,20 @@ export const labelFactsSchema = expressionSchema.pick({
   name: true,
   proof: true,
   ageYears: true,
+  ageMonths: true,
+  ageDays: true,
   ageStatement: true,
+  isNas: true,
+  isStraight: true,
+  isCaskStrength: true,
+  isBottledInBond: true,
+  molassesOrCane: true,
+  description: true,
   sizeMl: true,
   msrp: true,
   upc: true,
-  description: true,
   barrelFilledOn: true,
   bottledOn: true,
-  isCaskStrength: true,
-  isBottledInBond: true,
-  isNas: true,
-  isStraight: true,
   isStillProof: true,
 });
 
@@ -42,6 +48,8 @@ export type LabelPatch = {
   brand?: string;
   /** The three ordered lists together, as `replaceLinks` rewrites them. */
   links?: Links;
+  /** The label's older names, exactly; see `syncExpressionNames`. */
+  otherNames?: OtherName[];
 };
 
 export type LabelPatchResult =
@@ -126,20 +134,30 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       }
       if (newBrandName !== null) brandId = await findOrCreateBrand(tx, ownerId, newBrandName);
 
-      const { brandId: _ignored, ...columns } = facts;
+      // The same category rules as the web form's save: only the columns the category writes (vodka has no aging),
+      // and Bottled In Bond is 100 proof whatever was sent, including on a label that already is.
+      const categoryId = facts.categoryId ?? current.categoryId;
+      const [category] = await tx
+        .select({ fieldGroup: categories.fieldGroup })
+        .from(categories)
+        .where(eq(categories.id, categoryId))
+        .limit(1);
+      const { brandId: _ignored, ...sent } = facts;
       // A name that starts to say Cask Strength, Bonded or Full Proof (or a category that makes it count) does what the web form does.
       const byName =
         facts.name !== undefined || facts.categoryId !== undefined
-          ? nameRuleColumns(current, columns, ((groups, kinds) => (values: Record<string, unknown>) => nameContextFor(values, groups, kinds))(
+          ? nameRuleColumns(current, sent, ((groups, kinds) => (values: Record<string, unknown>) => nameContextFor(values, groups, kinds))(
               await categoryFieldGroups(),
               await categoryKindsById(),
             ))
           : {};
-      const set = { ...columns, ...byName, ...(brandId !== current.brandId ? { brandId } : {}) };
+      const columns = withBondProof(writableValues({ ...byName, ...sent }, writableFields(category?.fieldGroup ?? "other")), current.isBottledInBond);
+      const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) } as Partial<typeof expressions.$inferInsert>;
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));
       }
       if (patch.links) await replaceLinks(tx, ownerId, id, patch.links);
+      if (patch.otherNames) await syncExpressionNames(tx, id, patch.otherNames);
       return { ok: true };
     });
   } catch (error: unknown) {
