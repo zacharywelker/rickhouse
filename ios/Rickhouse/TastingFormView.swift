@@ -99,7 +99,7 @@ struct TastingFormView: View {
             }
             Section {
                 if let bottle {
-                    LabeledContent("Your bottle", value: bottle.title)
+                    FactRow(title: "Your bottle", value: bottle.title)
                 } else if !onBottle {
                     Picker("Where", selection: $source) {
                         ForEach(sources) { Text($0.title).tag($0) }
@@ -122,10 +122,10 @@ struct TastingFormView: View {
                         .font(.inter(14)).foregroundStyle(Theme.muted)
                 }
             }
-            Section("Nose") { TextField("What you smell", text: $nose, axis: .vertical) }
-            Section("Palate") { TextField("What you taste", text: $palate, axis: .vertical) }
-            Section("Finish") { TextField("How it ends", text: $finish, axis: .vertical) }
-            Section("Overall") { TextField("In a line", text: $overall, axis: .vertical) }
+            Section { TextField("What you smell", text: $nose, axis: .vertical) } header: { SectionLabel("Nose") }
+            Section { TextField("What you taste", text: $palate, axis: .vertical) } header: { SectionLabel("Palate") }
+            Section { TextField("How it ends", text: $finish, axis: .vertical) } header: { SectionLabel("Finish") }
+            Section { TextField("In a line", text: $overall, axis: .vertical) } header: { SectionLabel("Overall") }
             if let error { Section { ErrorText(error) } }
             if existing != nil {
                 Section {

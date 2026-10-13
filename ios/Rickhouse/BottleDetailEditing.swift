@@ -71,14 +71,14 @@ extension BottleDetailView {
             let hidden = Self.optionalFacts.filter { !shown($0.0) && !(draft.fromRelease && ($0.0 == .batch || $0.0 == .releaseYear)) }
 
             Section {
-                EditRow(title: "Paid", field: bottleField(.paid), placeholder: "Add price", keyboard: .decimalPad, prefix: "$", error: fieldErrors[BottleFact.paid.rawValue])
+                EditRow(title: "Paid", field: bottleField(.paid), placeholder: "Add price", keyboard: .decimalPad, prefix: session.currencySymbol, error: fieldErrors[BottleFact.paid.rawValue])
                 PickerRow(
                     title: "Store", value: draft.storeName ?? "None", changed: draft[.store].changed,
                     onOpen: { picking = .store },
                     onRevert: { bottleDraft?[.store].revert(); bottleDraft?.storeName = b.store }
                 )
                 if let msrp = b.msrp { FixedRow(title: "MSRP", value: Format.money(msrp), reason: "A fact of the label, edited under Label") }
-                DateEditRow(title: "Acquired", field: bottleField(.acquired), error: fieldErrors[BottleFact.acquired.rawValue])
+                DateRow(title: "Acquired", field: bottleField(.acquired), error: fieldErrors[BottleFact.acquired.rawValue])
             } header: {
                 Text("Where it came from")
             }
@@ -108,7 +108,7 @@ extension BottleDetailView {
             bottleDatesSection(draft)
 
             Section {
-                DateEditRow(title: "Opened", field: bottleField(.opened), error: fieldErrors[BottleFact.opened.rawValue])
+                DateRow(title: "Opened", field: bottleField(.opened), error: fieldErrors[BottleFact.opened.rawValue])
                 FixedRow(title: "Status", value: "\(b.status.capitalized) · follows fill")
             } header: {
                 Text("Use")
@@ -124,9 +124,9 @@ extension BottleDetailView {
     @ViewBuilder
     func bottleDatesSection(_ draft: BottleDraft) -> some View {
             Section {
-                DateEditRow(title: "Distilled / barrel filled", field: bottleField(.distilled), error: fieldErrors[BottleFact.distilled.rawValue])
+                DateRow(title: "Distilled / barrel filled", field: bottleField(.distilled), error: fieldErrors[BottleFact.distilled.rawValue])
                 if draft[.distilled].isEmpty, let label = draft.labelDistilled { InheritedNote(date: label) }
-                DateEditRow(title: "Bottled", field: bottleField(.bottled), error: fieldErrors[BottleFact.bottled.rawValue])
+                DateRow(title: "Bottled", field: bottleField(.bottled), error: fieldErrors[BottleFact.bottled.rawValue])
                 if draft[.bottled].isEmpty, let label = draft.labelBottled { InheritedNote(date: label) }
             } header: {
                 Text("Dates")

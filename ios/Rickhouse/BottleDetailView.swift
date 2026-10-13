@@ -211,7 +211,7 @@ struct BottleDetailView: View {
 
     private func fillSection(_ b: BottleDetail) -> some View {
         let state = FillState.of(b.fillPct)
-        return Section("Fill level") {
+        return Section {
             HStack(spacing: 10) {
                 FillGauge(percent: b.fillPct, track: Theme.ink.opacity(0.15)).frame(width: 4, height: 28)
                 Text(state.text + (b.isOpen ? " · open" : "")).font(.inter(16, .medium))
@@ -222,7 +222,7 @@ struct BottleDetailView: View {
             if let actionError {
                 ErrorText(actionError)
             }
-        }
+        } header: { SectionLabel("Fill level") }
     }
 
     /// The level moves at once; if the server says no, it goes back and says why.
@@ -250,7 +250,7 @@ struct BottleDetailView: View {
     // MARK: Tasting notes
 
     private func notesSection(_ b: BottleDetail) -> some View {
-        Section("Tasting notes") {
+        Section {
             ForEach(b.tastingNotes) { note in
                 Button { editing = NoteEdit(note: note) } label: {
                     VStack(alignment: .leading, spacing: 4) {
@@ -282,7 +282,7 @@ struct BottleDetailView: View {
                     Label("Add a tasting note", systemImage: "plus")
                 }
             }
-        }
+        } header: { SectionLabel("Tasting notes") }
     }
 
     /// What tells this bottle from another of its label, in a few words.
@@ -307,7 +307,7 @@ struct BottleDetailView: View {
     @ViewBuilder
     func row(_ label: String, _ value: String?) -> some View {
         if let value, !value.isEmpty {
-            LabeledContent(label, value: value)
+            FactRow(title: label, value: value)
         }
     }
 

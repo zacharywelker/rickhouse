@@ -14,12 +14,12 @@ struct BottleFormView: View {
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showCamera = false
     @State private var showDetails = false
-    @State private var price = ""
-    @State private var acquired = Date()
-    @State private var includeDate = true
-    @State private var batch = ""
-    @State private var location = ""
-    @State private var notes = ""
+    @State private var price = Field("")
+    /// Today unless cleared: most bottles are logged the day they come home.
+    @State private var acquired = Field(Format.isoDay(Date()))
+    @State private var batch = Field("")
+    @State private var location = Field("")
+    @State private var notes = Field("")
     @State private var saving = false
     @State private var error: String?
     /// Set once the bottle exists, so a retry after a failed photo upload
@@ -42,7 +42,7 @@ struct BottleFormView: View {
                     if createdId == nil { Button("Change") { dismiss() } }
                 }
             }
-            Section("Photos") {
+            Section {
                 if !photos.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -56,26 +56,14 @@ struct BottleFormView: View {
                     Button("Take photo", systemImage: "camera") { showCamera = true }
                 }
                 PhotosPicker("Choose from library", selection: $pickerItems, maxSelectionCount: 6, matching: .images)
-            }
+            } header: { SectionLabel("Photos") }
             Section {
                 DisclosureGroup("More details", isExpanded: $showDetails) {
-                    HStack {
-                        Text("Price paid")
-                        Spacer(minLength: 8)
-                        Text(session.currencySymbol).foregroundStyle(Theme.muted)
-                        TextField("0.00", text: $price)
-                            .keyboardType(.decimalPad)
-                            .onChange(of: price) { _, text in let clean = Format.moneyInput(text); if clean != text { price = clean } }
-                            .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: 120)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Price paid, in \(session.currency)")
-                    Toggle("Date acquired", isOn: $includeDate)
-                    if includeDate { DatePicker("Date", selection: $acquired, in: ...Date(), displayedComponents: .date) }
-                    TextField("Batch", text: $batch)
-                    TextField("Where it's kept", text: $location)
-                    TextField("Notes", text: $notes, axis: .vertical)
+                    EditRow(title: "Price paid", field: $price, placeholder: "0.00", keyboard: .decimalPad, prefix: session.currencySymbol, tracksChanges: false)
+                    DateRow(title: "Date acquired", field: $acquired, tracksChanges: false)
+                    EditRow(title: "Batch", field: $batch, placeholder: "Optional", tracksChanges: false)
+                    EditRow(title: "Where it's kept", field: $location, placeholder: "Optional", tracksChanges: false)
+                    EditRow(title: "Notes", field: $notes, placeholder: "Optional", multiline: true, tracksChanges: false)
                 }
             }
             if let error { Section { ErrorText(error) } }
@@ -127,11 +115,11 @@ struct BottleFormView: View {
                     id = createdId
                 } else {
                     var bottle = NewBottle(expressionId: label.id)
-                    bottle.pricePaid = price.isEmpty ? nil : price
-                    bottle.dateAcquired = includeDate ? Self.isoDay.string(from: acquired) : nil
-                    bottle.batch = batch.isEmpty ? nil : batch
-                    bottle.location = location.isEmpty ? nil : location
-                    bottle.notes = notes.isEmpty ? nil : notes
+                    bottle.pricePaid = price.isEmpty ? nil : price.trimmed
+                    bottle.dateAcquired = acquired.isEmpty ? nil : acquired.trimmed
+                    bottle.batch = batch.isEmpty ? nil : batch.trimmed
+                    bottle.location = location.isEmpty ? nil : location.trimmed
+                    bottle.notes = notes.isEmpty ? nil : notes.trimmed
                     id = try await api.createBottle(bottle)
                     createdId = id
                 }
@@ -152,14 +140,6 @@ struct BottleFormView: View {
             }
         }
     }
-
-    private static let isoDay: DateFormatter = {
-        let f = DateFormatter()
-        f.calendar = Calendar(identifier: .gregorian)
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
 }
 
 /// A photo thumbnail: remove at the top right, and once a cutout exists a scissors badge that flips cutout and original.

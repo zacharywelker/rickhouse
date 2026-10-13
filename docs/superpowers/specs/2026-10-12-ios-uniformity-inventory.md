@@ -98,6 +98,17 @@ onto the pieces after those PRs merge (see the order at the end).
 | Empty and failed | `ContentUnavailableView` in 9 files. Wording style varies ("Couldn't load" vs "Couldn't load this label"). |
 | Large text | Not verified anywhere. **check** `EditRow` (name and value side by side) at the largest sizes first. |
 
+## Status
+
+| Piece | State |
+|---|---|
+| `ConfirmSheet` for every question (12.4) | Done in #230 |
+| `FootBar` with Retry for every failure (12.5) | Done in #231 |
+| `SectionLabel`, `FactRow`, `DateRow`, `OptionSheet` (12.1, 12.2, 12.3, 12.6) | Built; on the bottle page, Add bottle, Log a tasting, Account (currency) and the pickers |
+| Label screens (`LabelPage`, `LabelEditor`, `NewLabelView`) | Waiting for #213, #217, #222 |
+| Large text | Checked on the bottle page and Add bottle: long facts stack under their name. **check** still open: `EditRow` (value stays beside the name), the Add bottle header card |
+| Price symbol | The bottle page edit row and Add bottle now use the account's currency symbol instead of a fixed "$". The label editor's MSRP row still says "$" |
+
 ## Order of work
 
 1. This PR: the rules and this inventory. No code.

@@ -17,8 +17,10 @@ struct EditRow: View {
     var tracksChanges = true
 
     @FocusState private var focused: Bool
-    /// A price changes in place: no ↺ and no "was", which would resize the row as you type.
-    private var showsChange: Bool { tracksChanges && prefix != "$" && field.changed }
+    /// A row with a prefix is a price (the currency symbol): it changes in place, with no ↺ and no "was", which would
+    /// resize the row as you type, and it stops at the cents.
+    private var isMoney: Bool { prefix != nil }
+    private var showsChange: Bool { tracksChanges && !isMoney && field.changed }
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
@@ -59,17 +61,21 @@ struct EditRow: View {
         .padding(.vertical, 2)
         .onAppear { if focusOnAppear { focused = true } }
         .onChange(of: field.text) { _, text in
-            // "$" marks a price: stop at the cents rather than refuse the save.
-            if prefix == "$" { let clean = Format.moneyInput(text); if clean != text { field.text = clean } }
+            // A price: stop at the cents rather than refuse the save.
+            if isMoney { let clean = Format.moneyInput(text); if clean != text { field.text = clean } }
         }
     }
 }
 
-/// A date fact: "Add date" when there is none, else the date with a way to clear it. Never later than today.
-struct DateEditRow: View {
+/// A date fact (12.2): "Add date" when there is none, else the date with a way to clear it. Never later than today.
+struct DateRow: View {
     let title: String
     @Binding var field: Field
     var error: String?
+    /// Off on a form for something new, where there is nothing to put back.
+    var tracksChanges = true
+
+    private var showsChange: Bool { tracksChanges && field.changed }
 
     private var date: Binding<Date> {
         Binding(
@@ -82,7 +88,7 @@ struct DateEditRow: View {
         VStack(alignment: .trailing, spacing: 2) {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
-                    if field.changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
+                    if showsChange { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
                     Text(title).foregroundStyle(Theme.muted)
                 }
                 Spacer(minLength: 8)
@@ -97,7 +103,7 @@ struct DateEditRow: View {
                     .foregroundStyle(Theme.muted)
                     .accessibilityLabel("Clear \(title)")
                 }
-                if field.changed {
+                if showsChange {
                     Button { field.revert() } label: {
                         Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20)).frame(width: 44, height: 44)
                     }
@@ -106,7 +112,7 @@ struct DateEditRow: View {
                     .accessibilityLabel("Put back \(field.original.isEmpty ? "no date" : Format.day(field.original)) for \(title)")
                 }
             }
-            if field.changed, !field.original.isEmpty {
+            if showsChange, !field.original.isEmpty {
                 Text("was \(Format.day(field.original))").font(.inter(11, relativeTo: .caption2)).foregroundStyle(Theme.muted).strikethrough()
             }
             if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
@@ -143,7 +149,7 @@ struct SectionTitle: View {
 
     var body: some View {
         HStack {
-            Text(title)
+            SectionLabel(title)
             Spacer()
             Button("Edit", action: onEdit)
                 .font(.inter(15, .semibold))

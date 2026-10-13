@@ -41,14 +41,13 @@ struct PreferencesView: View {
     @Environment(Session.self) private var session
     @AppStorage("gridColumns") private var gridColumns = 3
     @State private var problem: String?
+    @State private var choosingCurrency = false
 
     var body: some View {
         Form {
             if !session.currencies.isEmpty {
                 Section {
-                    Picker("Currency", selection: Binding(get: { session.currency }, set: changeCurrency)) {
-                        ForEach(session.currencies) { Text("\($0.code) — \($0.name)").tag($0.code) }
-                    }
+                    PickerRow(title: "Currency", value: currencyTitle) { choosingCurrency = true }
                     if let problem { ErrorText(problem) }
                 } footer: {
                     Text("Prices are shown and entered in this currency, on the web too. Nothing is converted.")
@@ -73,6 +72,15 @@ struct PreferencesView: View {
         .navigationTitle("Preferences")
         .navigationBarTitleDisplayMode(.inline)
         .task { await session.loadPreferences() }
+        .optionSheet(
+            "Currency", isPresented: $choosingCurrency,
+            options: session.currencies.map { PickerOption(id: $0.code, title: "\($0.code) — \($0.name)") },
+            selection: session.currency, onChoose: changeCurrency
+        )
+    }
+
+    private var currencyTitle: String {
+        session.currencies.first { $0.code == session.currency }.map { "\($0.code) — \($0.name)" } ?? session.currency
     }
 
     private func changeCurrency(_ code: String) {
