@@ -39,6 +39,8 @@ extension BottleDetailView {
                 row("MSRP", b.msrp.map(Format.money))
                 row("Store", b.store)
                 row("Acquired", b.dateAcquired.map(Format.day))
+                row("Distilled / barrel filled", (b.barrelFilledOn ?? b.labelBarrelFilledOn).map(Format.day))
+                row("Bottled", (b.bottledOn ?? b.labelBottledOn).map(Format.day))
                 row("Location", b.location)
             } header: {
                 SectionTitle(title: "Bottle", canEdit: !editingSomething) { startBottleEdit(b) }
@@ -100,6 +102,17 @@ extension BottleDetailView {
                 }
             } header: {
                 Text("This bottle")
+            }
+
+            Section {
+                DateEditRow(title: "Distilled / barrel filled", field: bottleField(.distilled), error: fieldErrors[BottleFact.distilled.rawValue])
+                if draft[.distilled].isEmpty, let label = draft.labelDistilled { InheritedNote(date: label) }
+                DateEditRow(title: "Bottled", field: bottleField(.bottled), error: fieldErrors[BottleFact.bottled.rawValue])
+                if draft[.bottled].isEmpty, let label = draft.labelBottled { InheritedNote(date: label) }
+            } header: {
+                Text("Dates")
+            } footer: {
+                Text("Left blank, a bottle goes by its label's dates. Set one only if this bottle differs.")
             }
 
             Section {
@@ -230,5 +243,17 @@ extension BottleDetailView {
                 factError = "Couldn't put it back: \(error.localizedDescription)"
             }
         }
+    }
+}
+
+/// Under a blank date on a bottle: the label's date it is going by.
+struct InheritedNote: View {
+    let date: String
+
+    var body: some View {
+        Text("The label's is \(Format.day(date)).")
+            .font(.inter(12, relativeTo: .caption))
+            .foregroundStyle(Theme.muted)
+            .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }

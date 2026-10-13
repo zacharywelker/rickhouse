@@ -204,6 +204,22 @@ final class EditDraftsTests: XCTestCase {
         same(draft.patch(), ["barrelFilledOn": "2019-02-30", "bottledOn": "2024-05-14"])
     }
 
+    func testStrengthTierMatchesTheServer() {
+        XCTAssertEqual(Strength.tier(group: "rum", proof: "108"), "Navy Strength")
+        XCTAssertEqual(Strength.tier(group: "rum", proof: "114"), "Overproof")
+        XCTAssertNil(Strength.tier(group: "rum", proof: "107.9"))
+        XCTAssertEqual(Strength.tier(group: "gin", proof: "120"), "Navy Strength")
+        XCTAssertNil(Strength.tier(group: "whiskey", proof: "130"))
+    }
+
+    func testABottleGoesByItsLabelsDatesUntilItHasOwn() throws {
+        let bottle = try bottle(["labelBarrelFilledOn": "2015-03-01", "barrelFilledOn": "2016-01-02"])
+        var draft = BottleDraft(bottle)
+        XCTAssertEqual(draft.labelDistilled, "2015-03-01")
+        draft[.distilled].text = ""
+        same(draft.patch(), ["barrelFilledOn": NSNull()])
+    }
+
     // MARK: Pickers
 
     private func linked() throws -> LabelDetail {

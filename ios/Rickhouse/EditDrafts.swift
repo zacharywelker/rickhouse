@@ -61,6 +61,16 @@ enum Strength {
     }
 }
 
+extension Strength {
+    /// Navy Strength or Overproof, worked out from the proof as the server does (rum: 54% ABV and 57%; gin: 54%, no Overproof).
+    static func tier(group: String, proof: String) -> String? {
+        guard group == "rum" || group == "gin", let p = Decimal(string: proof.trimmingCharacters(in: .whitespaces)) else { return nil }
+        let abv = p / 2
+        if group == "rum", abv >= 57 { return "Overproof" }
+        return abv >= 54 ? "Navy Strength" : nil
+    }
+}
+
 /// "116.80" as "116.8" and "100.00" as "100": a proof as a person would type it back.
 func plainNumber(_ raw: String?) -> String? {
     guard var s = raw, s.contains(".") else { return raw }
@@ -88,6 +98,8 @@ enum BottleFact: String, CaseIterable {
     case notes
     case store = "storeId"
     case opened = "dateOpened"
+    case distilled = "barrelFilledOn"
+    case bottled = "bottledOn"
 }
 
 struct BottleDraft {
@@ -98,9 +110,14 @@ struct BottleDraft {
     let originalFill: Int
     /// The store's name for display; the field holds its id.
     var storeName: String?
+    /// The label's dates, which this bottle goes by unless it has its own.
+    let labelDistilled: String?
+    let labelBottled: String?
 
     init(_ bottle: BottleDetail) {
         storeName = bottle.store
+        labelDistilled = bottle.labelBarrelFilledOn
+        labelBottled = bottle.labelBottledOn
         fromRelease = bottle.releaseId != nil
         wasOpen = bottle.isOpen
         originalFill = bottle.fillPct
@@ -115,6 +132,8 @@ struct BottleDraft {
             .notes: Field(bottle.notes),
             .store: Field(bottle.storeId.map(String.init)),
             .opened: Field(bottle.dateOpened.map { String($0.prefix(10)) }),
+            .distilled: Field(bottle.barrelFilledOn.map { String($0.prefix(10)) }),
+            .bottled: Field(bottle.bottledOn.map { String($0.prefix(10)) }),
         ]
     }
 
@@ -138,7 +157,7 @@ struct BottleDraft {
         if paid.changed, !paid.isEmpty, !matches(paid.trimmed, #"^\d{1,8}(\.\d{1,2})?$"#) { found[.paid] = priceMessage }
         let year = self[.releaseYear]
         if !locked(.releaseYear), year.changed, !year.isEmpty, !matches(year.trimmed, #"^(1[7-9]|2[01])\d\d$"#) { found[.releaseYear] = "Enter a four-digit year." }
-        for date in [BottleFact.acquired, .opened] where self[date].changed && !self[date].isEmpty && self[date].trimmed > today {
+        for date in [BottleFact.acquired, .opened, .distilled, .bottled] where self[date].changed && !self[date].isEmpty && self[date].trimmed > today {
             found[date] = "That date is in the future."
         }
         return found

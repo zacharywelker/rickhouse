@@ -82,6 +82,11 @@ struct BottleDetail: Decodable {
     let pickName: String?
     let location: String?
     let notes: String?
+    /// The bottle's own dates (nil: it goes by its label's), and the label's; absent from an older server.
+    let barrelFilledOn: String?
+    let bottledOn: String?
+    let labelBarrelFilledOn: String?
+    let labelBottledOn: String?
     let distilleries: [String]
     let finishes: [String]
     let mashbills: [String]

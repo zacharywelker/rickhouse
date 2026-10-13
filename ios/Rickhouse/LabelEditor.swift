@@ -291,6 +291,9 @@ struct LabelFactRows: View {
 
     var body: some View {
         StrengthRow(proof: field(.proof), error: errors[LabelFact.proof.rawValue], tracksChanges: tracksChanges)
+        if let tier = Strength.tier(group: draft.fieldGroup, proof: draft[.proof].trimmed) {
+            Text(tier).font(.inter(12, .semibold, relativeTo: .caption)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .trailing)
+        }
         EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: errors[LabelFact.ageStatement.rawValue], tracksChanges: tracksChanges)
         if tracksChanges {
             // Not offered on New Label yet: the create route does not take them (#222).
