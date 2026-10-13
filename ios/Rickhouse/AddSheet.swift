@@ -72,14 +72,3 @@ struct AddSheet: View {
         .presentationDragIndicator(.visible)
     }
 }
-
-/// A screen that exists in the navigation but has nothing on it yet.
-struct PlaceholderScreen: View {
-    let title: String
-
-    var body: some View {
-        Theme.paper
-            .ignoresSafeArea()
-            .navigationTitle(title)
-    }
-}
