@@ -89,3 +89,49 @@ enum AgeDefaults {
         return next
     }
 }
+
+/// Age from a fill (distillation) date and a bottling date, the same calendar rule as the web (`src/lib/bottles/age.ts`):
+/// whole months by the calendar with the day clamped to the end of the month, then the days left over.
+struct DatedAge: Equatable {
+    let years: Int
+    let months: Int
+    let days: Int
+
+    private static var calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }()
+
+    private static func date(_ text: String) -> Date? {
+        guard text.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil else { return nil }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: text)
+    }
+
+    /// Nil when either date is missing or not a real date, or the bottling is before the fill.
+    init?(filled: String, bottled: String) {
+        guard let from = Self.date(filled), let to = Self.date(bottled), to >= from else { return nil }
+        let cal = Self.calendar
+        // Adding months to a date clamps the day to the end of the target month, as a person would.
+        var months = cal.dateComponents([.month], from: from, to: to).month ?? 0
+        if let anchor = cal.date(byAdding: .month, value: months, to: from), anchor > to { months -= 1 }
+        guard let anchor = cal.date(byAdding: .month, value: months, to: from) else { return nil }
+        years = months / 12
+        self.months = months % 12
+        days = cal.dateComponents([.day], from: anchor, to: to).day ?? 0
+    }
+
+    /// "12 Year", "12 Year 5 Month", or days when there is nothing bigger.
+    var described: String {
+        var parts: [String] = []
+        if years > 0 { parts.append("\(years) Year") }
+        if months > 0 { parts.append("\(months) Month") }
+        if parts.isEmpty { parts.append("\(days) Day") }
+        return parts.joined(separator: " ")
+    }
+}

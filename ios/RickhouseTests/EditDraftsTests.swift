@@ -370,4 +370,17 @@ final class EditDraftsTests: XCTestCase {
         XCTAssertTrue(body["otherNames"] is NSNull)
         XCTAssertNil(body["ageYears"])
     }
+
+    func testAgeFromDatesFollowsTheCalendar() {
+        XCTAssertEqual(DatedAge(filled: "2012-03-14", bottled: "2024-09-02"), DatedAge(filled: "2012-03-14", bottled: "2024-09-02"))
+        let a = DatedAge(filled: "2012-03-14", bottled: "2024-09-02")!
+        XCTAssertEqual([a.years, a.months, a.days], [12, 5, 19])
+        let leap = DatedAge(filled: "2020-01-31", bottled: "2020-03-01")!
+        XCTAssertEqual([leap.years, leap.months, leap.days], [0, 1, 1])
+        let day = DatedAge(filled: "2020-02-29", bottled: "2024-02-29")!
+        XCTAssertEqual([day.years, day.months, day.days], [4, 0, 0])
+        XCTAssertNil(DatedAge(filled: "2024-01-01", bottled: "2020-01-01"))
+        XCTAssertNil(DatedAge(filled: "2020-13-01", bottled: "2021-01-01"))
+        XCTAssertEqual(a.described, "12 Year 5 Month")
+    }
 }
