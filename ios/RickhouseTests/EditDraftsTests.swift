@@ -204,6 +204,14 @@ final class EditDraftsTests: XCTestCase {
         same(draft.patch(), ["barrelFilledOn": "2019-02-30", "bottledOn": "2024-05-14"])
     }
 
+    func testStraightIsOfferedOnlyForAmericanWhiskey() throws {
+        XCTAssertTrue(LabelDraft(try label(["fieldGroup": "whiskey", "kind": "american"])).isAmerican)
+        XCTAssertFalse(LabelDraft(try label(["fieldGroup": "whiskey", "kind": "scotch"])).isAmerican)
+        var draft = LabelDraft(try label(["fieldGroup": "whiskey", "kind": "american", "isStraight": false]))
+        draft[.straight].text = "true"
+        same(draft.patch(), ["isStraight": true])
+    }
+
     func testStrengthTierMatchesTheServer() {
         XCTAssertEqual(Strength.tier(group: "rum", proof: "108"), "Navy Strength")
         XCTAssertEqual(Strength.tier(group: "rum", proof: "114"), "Overproof")

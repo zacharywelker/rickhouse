@@ -227,6 +227,9 @@ struct LabelDetail: Decodable {
     let isNas: Bool?
     let isStillProof: Bool?
     let fieldGroup: String?
+    /// "american", "scotch" or "other".
+    let kind: String?
+    let isStraight: Bool?
     /// "navy" or "overproof", worked out by the server from the proof; nil when neither.
     let strength: String?
     /// What a cask-strength label with no proof shows in its place: one known proof, a range, or "Cask Strength".

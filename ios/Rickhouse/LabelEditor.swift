@@ -298,6 +298,7 @@ struct LabelFactRows: View {
         do {
             FlagRow(title: "Cask Strength", field: field(.caskStrength))
             FlagRow(title: "Bottled In Bond", field: field(.bottledInBond))
+            if draft.isAmerican { FlagRow(title: "Straight", field: field(.straight)) }
             FlagRow(title: "NAS (no age statement)", field: field(.nas))
             if draft.isAgave { FlagRow(title: "Still proof (unaged)", field: field(.stillProof)) }
             EditRow(title: "Distilled / barrel filled", field: field(.distilled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.distilled.rawValue])

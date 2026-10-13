@@ -12,7 +12,7 @@ import { proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules"
 import { labelFactsSchema, patchLabel } from "@/lib/expressions/label-patch";
 import { linkRowSchema } from "@/lib/expressions/schema";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
-import { bottlesOfLabel, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
+import { categoryKindsById, bottlesOfLabel, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
 import { expressionReleaseList } from "@/lib/releases-store";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +60,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     isStillProof: expression.isStillProof,
     // Derived, never stored: Navy Strength / Overproof from the proof, and what a cask-strength label with no proof shows.
     fieldGroup: row.category.fieldGroup,
+    // American, Scotch or other whiskey: Straight is an American designation.
+    kind: (await categoryKindsById())[expression.categoryId] ?? "other",
     strength: strengthTier(row.category.fieldGroup, expression.proof),
     proofLabel:
       expression.isCaskStrength && !expression.proof

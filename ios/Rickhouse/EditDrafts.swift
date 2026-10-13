@@ -210,11 +210,12 @@ enum LabelFact: String, CaseIterable {
     case bottledInBond = "isBottledInBond"
     case nas = "isNas"
     case stillProof = "isStillProof"
+    case straight = "isStraight"
 
     /// A yes/no fact, held in its field as "true" or "false".
     var isFlag: Bool {
         switch self {
-        case .caskStrength, .bottledInBond, .nas, .stillProof: true
+        case .caskStrength, .bottledInBond, .nas, .stillProof, .straight: true
         default: false
         }
     }
@@ -230,6 +231,8 @@ struct LabelDraft {
     /// The category's kind of spirit, as the server names it ("agave", "rum"…); empty before it is known.
     var fieldGroup = ""
     var isAgave: Bool { fieldGroup == "agave" }
+    var kind = ""
+    var isAmerican: Bool { fieldGroup == "whiskey" && kind == "american" }
     var brandName: String
     private(set) var links: LabelLinks
     private let originalLinks: LabelLinks
@@ -247,6 +250,7 @@ struct LabelDraft {
     init(_ label: LabelDetail) {
         categoryName = label.category
         fieldGroup = label.fieldGroup ?? ""
+        kind = label.kind ?? ""
         brandName = label.brand
         links = label.links ?? LabelLinks(distilleries: [], mashbills: [], finishes: [])
         originalLinks = links
@@ -266,6 +270,7 @@ struct LabelDraft {
             .bottledInBond: Field(String(label.isBottledInBond ?? false)),
             .nas: Field(String(label.isNas ?? false)),
             .stillProof: Field(String(label.isStillProof ?? false)),
+            .straight: Field(String(label.isStraight ?? false)),
         ]
     }
 
@@ -358,7 +363,7 @@ struct LabelDraft {
         switch fact {
         case .size, .category, .brand: Int(field.trimmed) ?? field.json
         case .barcode: field.isEmpty ? NSNull() : Self.digits(field.trimmed)
-        case .caskStrength, .bottledInBond, .nas, .stillProof: field.trimmed == "true"
+        case .caskStrength, .bottledInBond, .nas, .stillProof, .straight: field.trimmed == "true"
         default: field.json
         }
     }
