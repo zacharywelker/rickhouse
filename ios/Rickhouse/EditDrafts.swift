@@ -184,6 +184,21 @@ enum LabelFact: String, CaseIterable {
     case size = "sizeMl"
     case msrp
     case barcode = "upc"
+    case description
+    case distilled = "barrelFilledOn"
+    case bottled = "bottledOn"
+    case caskStrength = "isCaskStrength"
+    case bottledInBond = "isBottledInBond"
+    case nas = "isNas"
+    case stillProof = "isStillProof"
+
+    /// A yes/no fact, held in its field as "true" or "false".
+    var isFlag: Bool {
+        switch self {
+        case .caskStrength, .bottledInBond, .nas, .stillProof: true
+        default: false
+        }
+    }
 }
 
 /// The three ordered lists a label carries.
@@ -193,6 +208,9 @@ struct LabelDraft {
     private(set) var fields: [LabelFact: Field]
     /// The category's and brand's names for display; the fields hold their ids.
     var categoryName: String
+    /// The category's kind of spirit, as the server names it ("agave", "rum"…); empty before it is known.
+    var fieldGroup = ""
+    var isAgave: Bool { fieldGroup == "agave" }
     var brandName: String
     private(set) var links: LabelLinks
     private let originalLinks: LabelLinks
@@ -203,12 +221,13 @@ struct LabelDraft {
         brandName = ""
         links = LabelLinks(distilleries: [], mashbills: [], finishes: [])
         originalLinks = links
-        fields = Dictionary(uniqueKeysWithValues: LabelFact.allCases.map { ($0, Field(nil)) })
+        fields = Dictionary(uniqueKeysWithValues: LabelFact.allCases.map { ($0, Field($0.isFlag ? "false" : nil)) })
         fields[.size] = Field("750")
     }
 
     init(_ label: LabelDetail) {
         categoryName = label.category
+        fieldGroup = label.fieldGroup ?? ""
         brandName = label.brand
         links = label.links ?? LabelLinks(distilleries: [], mashbills: [], finishes: [])
         originalLinks = links
@@ -221,6 +240,13 @@ struct LabelDraft {
             .size: Field(String(label.sizeMl)),
             .msrp: Field(label.msrp),
             .barcode: Field(label.upc),
+            .description: Field(label.description),
+            .distilled: Field(label.barrelFilledOn),
+            .bottled: Field(label.bottledOn),
+            .caskStrength: Field(String(label.isCaskStrength ?? false)),
+            .bottledInBond: Field(String(label.isBottledInBond ?? false)),
+            .nas: Field(String(label.isNas ?? false)),
+            .stillProof: Field(String(label.isStillProof ?? false)),
         ]
     }
 
@@ -278,6 +304,15 @@ struct LabelDraft {
         }
     }
 
+    /// A calendar date as the server takes it: year-month-day.
+    static func isDate(_ text: String) -> Bool {
+        guard matches(text, #"^\d{4}-\d{2}-\d{2}$"#) else { return false }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: text) != nil
+    }
+
     /// A barcode typed with spaces or dashes, as digits.
     static func digits(_ raw: String) -> String { raw.filter { !$0.isWhitespace && $0 != "-" } }
 
@@ -292,6 +327,9 @@ struct LabelDraft {
         if size.changed, !(matches(size.trimmed, #"^\d{1,5}$"#) && (1...20000).contains(Int(size.trimmed) ?? 0)) { found[.size] = "Size is in millilitres, like 750." }
         let msrp = self[.msrp]
         if msrp.changed, !msrp.isEmpty, !matches(msrp.trimmed, #"^\d{1,8}(\.\d{1,2})?$"#) { found[.msrp] = priceMessage }
+        for date in [LabelFact.distilled, .bottled] where self[date].changed && !self[date].isEmpty && !Self.isDate(self[date].trimmed) {
+            found[date] = "Enter a date like 2019-05-14."
+        }
         let upc = self[.barcode]
         if upc.changed, !upc.isEmpty, !matches(Self.digits(upc.trimmed), #"^\d{6,32}$"#) { found[.barcode] = "A barcode is 6 to 32 digits." }
         return found
@@ -301,6 +339,7 @@ struct LabelDraft {
         switch fact {
         case .size, .category, .brand: Int(field.trimmed) ?? field.json
         case .barcode: field.isEmpty ? NSNull() : Self.digits(field.trimmed)
+        case .caskStrength, .bottledInBond, .nas, .stillProof: field.trimmed == "true"
         default: field.json
         }
     }

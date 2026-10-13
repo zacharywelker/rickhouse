@@ -292,6 +292,16 @@ struct LabelFactRows: View {
     var body: some View {
         StrengthRow(proof: field(.proof), error: errors[LabelFact.proof.rawValue], tracksChanges: tracksChanges)
         EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: errors[LabelFact.ageStatement.rawValue], tracksChanges: tracksChanges)
+        if tracksChanges {
+            // Not offered on New Label yet: the create route does not take them (#222).
+            FlagRow(title: "Cask Strength", field: field(.caskStrength))
+            FlagRow(title: "Bottled In Bond", field: field(.bottledInBond))
+            FlagRow(title: "NAS (no age statement)", field: field(.nas))
+            if draft.isAgave { FlagRow(title: "Still proof (unaged)", field: field(.stillProof)) }
+            EditRow(title: "Distilled / barrel filled", field: field(.distilled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.distilled.rawValue])
+            EditRow(title: "Bottled", field: field(.bottled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.bottled.rawValue])
+            EditRow(title: "Description", field: field(.description), placeholder: "What the label says", multiline: true, error: errors[LabelFact.description.rawValue])
+        }
         EditRow(title: "Size (mL)", field: field(.size), keyboard: .numberPad, error: errors[LabelFact.size.rawValue], tracksChanges: tracksChanges)
         EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: "$", error: errors[LabelFact.msrp.rawValue])
         ForEach(LinkList.allCases, id: \.self) { list in
@@ -300,6 +310,29 @@ struct LabelFactRows: View {
                 onRemove: { draft.remove(list, id: $0.id) },
                 onAdd: { onPick(list) }
             )
+        }
+    }
+}
+
+/// A yes/no fact: a switch, with the same dot and ↺ as any other row once it differs from what the label had.
+struct FlagRow: View {
+    let title: String
+    @Binding var field: Field
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if field.changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
+            Toggle(title, isOn: Binding(get: { field.trimmed == "true" }, set: { field.text = $0 ? "true" : "false" }))
+                .foregroundStyle(Theme.muted)
+                .tint(Theme.ink)
+            if field.changed {
+                Button { field.revert() } label: {
+                    Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20)).frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.ink)
+                .accessibilityLabel("Put back \(title)")
+            }
         }
     }
 }

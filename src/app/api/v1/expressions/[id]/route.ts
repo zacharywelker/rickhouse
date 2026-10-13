@@ -59,6 +59,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     isStraight: expression.isStraight,
     isStillProof: expression.isStillProof,
     // Derived, never stored: Navy Strength / Overproof from the proof, and what a cask-strength label with no proof shows.
+    fieldGroup: row.category.fieldGroup,
     strength: strengthTier(row.category.fieldGroup, expression.proof),
     proofLabel:
       expression.isCaskStrength && !expression.proof

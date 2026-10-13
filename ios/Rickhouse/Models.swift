@@ -213,6 +213,19 @@ struct LabelDetail: Decodable {
     let msrp: String?
     let photoPath: String?
     let photoThumbPath: String?
+    /// The strength flags, dates and notes (#222); absent from an older server's answer.
+    let description: String?
+    let barrelFilledOn: String?
+    let bottledOn: String?
+    let isCaskStrength: Bool?
+    let isBottledInBond: Bool?
+    let isNas: Bool?
+    let isStillProof: Bool?
+    let fieldGroup: String?
+    /// "navy" or "overproof", worked out by the server from the proof; nil when neither.
+    let strength: String?
+    /// What a cask-strength label with no proof shows in its place: one known proof, a range, or "Cask Strength".
+    let proofLabel: String?
     let distilleries: [String]
     let finishes: [String]
     let mashbills: [String]
@@ -221,6 +234,17 @@ struct LabelDetail: Decodable {
     let tastings: [LabelTasting]
     /// The distillery, mashbill and finish lists with ids and shares, for editing them. Absent from an older server.
     let links: LabelLinks?
+}
+
+extension LabelDetail {
+    /// "Navy Strength" or "Overproof" for a proof in that range; nil otherwise.
+    var strengthName: String? {
+        switch strength {
+        case "navy": "Navy Strength"
+        case "overproof": "Overproof"
+        default: nil
+        }
+    }
 }
 
 struct LabelRelease: Decodable, Identifiable {

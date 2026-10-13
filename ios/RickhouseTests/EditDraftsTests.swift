@@ -185,6 +185,25 @@ final class EditDraftsTests: XCTestCase {
         same(draft.patch(), ["ageStatement": NSNull()])
     }
 
+    func testFlagsGoAsBooleansAndOnlyWhenChanged() throws {
+        var draft = LabelDraft(try label(["isCaskStrength": false, "isBottledInBond": true]))
+        same(draft.patch(), [:])
+        draft[.caskStrength].text = "true"
+        draft[.bottledInBond].text = "false"
+        same(draft.patch(), ["isCaskStrength": true, "isBottledInBond": false])
+        same(draft.undoPatch(), ["isCaskStrength": false, "isBottledInBond": true])
+    }
+
+    func testDatesAreCheckedAndAnOlderServerReadsAsNoFlags() throws {
+        var draft = LabelDraft(try label())
+        XCTAssertEqual(draft[.nas].text, "false")
+        draft[.distilled].text = "2019-02-30"
+        draft[.bottled].text = "2024-05-14"
+        XCTAssertEqual(draft.errors()[.distilled], "Enter a date like 2019-05-14.")
+        XCTAssertNil(draft.errors()[.bottled])
+        same(draft.patch(), ["barrelFilledOn": "2019-02-30", "bottledOn": "2024-05-14"])
+    }
+
     // MARK: Pickers
 
     private func linked() throws -> LabelDetail {
