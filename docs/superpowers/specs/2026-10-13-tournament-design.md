@@ -60,7 +60,7 @@ The aim is heats a whiskey drinker would pour together: a 125-proof barrel-proof
 - **Missing data.** An entrant with no proof sorts to the end as "unknown", and is never guessed. The preview shows how many entrants were grouped without full data.
 - **Other spirits.** Proof is still the first key. Mashbill, finish and distillery apply when the label has them.
 - **Deterministic.** Ties break by entry id, so the same entrants always give the same heats. That is what makes *Reset* return the original.
-- **Pour order** inside a heat runs from lowest to highest proof, for palate fatigue.
+- **Pour order.** Open heats list their bottles from lowest to highest proof, for palate fatigue. Blind heats use random glass letters and suggest no order, because an order by proof would tell the taster which glass is which. A blind heat shows only its proof band (e.g. "90 to 100 proof"), which the grouping already implies.
 - **Move.** An entrant can be moved to another undecided heat of the current round (before the tournament starts, the round-1 preview). A heat holds one to `heat_size` entrants, and an emptied heat is removed. Decided heats cannot change.
 - **Reset.** Re-runs the grouping on the entrants of the current round's undecided heats and leaves decided heats alone.
 
