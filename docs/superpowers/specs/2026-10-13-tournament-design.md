@@ -19,7 +19,7 @@ A tournament is a saved, resumable set of blind or open tastings that ranks bott
 | Judge | The account owner only. Each result records who picked, so a group can be added later. |
 | Field changes after start | None. The field is locked at start. An entrant can be **withdrawn**. |
 | Heat size | One size per tournament: 2, 3 or 4. |
-| Grouping | **Automatic, every round**: heats are flights of similar bottles, with proof the most important factor, then mashbill, distillery, age and finishes. Seeding is `similar` (default) or `random`. |
+| Grouping | **Automatic, every round**: heats are flights of similar bottles. You set the **priority order** of five keys (proof, mashbill, distillery, age, finish); the default is that order, with proof first. Seeding is `similar` (default) or `random`. |
 | Editing | Entrants can be moved between undecided heats of the current round, and the round can be **reset to the automatic grouping** at any time. Decided heats are frozen. |
 | How a heat is decided | A forced ranking, 1st to last. No ties. A 2-way heat is a head-to-head. |
 | Blind modes | **Solo**: map the heat's bottles to glass letters (A to D) with your own device, hide, rank the letters, reveal. **Pourer**: a second person pours, can draw a random pending heat (double-blind), and hands the phone over. Both can be switched off for an open tournament. |
@@ -30,7 +30,7 @@ A tournament is a saved, resumable set of blind or open tastings that ranks bott
 
 One migration, written by hand, with its journal entry. All tables are owner-scoped like the rest of the schema, with the existing `(ref, owner_id)` composite-key pattern so a row cannot point at another account's bottle or label.
 
-`tournaments`: `id`, `owner_id`, `name`, `status` (`draft`, `active`, `complete`), `heat_size` (2 to 4), `seeding` (`similar`, `random`), `blind` (bool), `field_note` (text; how the field was chosen, for display only), `created_at`, `started_at`, `completed_at`.
+`tournaments`: `id`, `owner_id`, `name`, `status` (`draft`, `active`, `complete`), `heat_size` (2 to 4), `seeding` (`similar`, `random`), `group_order` (text array holding each of `proof`, `mashbill`, `distillery`, `age`, `finish` exactly once; default in that order), `blind` (bool), `field_note` (text; how the field was chosen, for display only), `created_at`, `started_at`, `completed_at`.
 
 `tournament_entries`: `id`, `tournament_id`, `bottle_id` (nullable, `ON DELETE SET NULL`), `expression_id` (nullable), `display_name` (not null, snapshot at entry time so history survives deletion), `status` (`active`, `withdrawn`), `seed`. A bottle entrant also stores its bottle's `expression_id`. Kind is derived: bottle id present means bottle, else expression id present means label-only, else ad hoc.
 
@@ -65,7 +65,10 @@ Rounds are generated one at a time, not as a fixed tree. The first round is gene
 The aim is heats a whiskey drinker would pour together: a 125-proof barrel-proof pour should not face a 90-proof one, and three picks of one label belong in the same flight.
 
 - **Effective values.** Each entrant is described by its bottle's own value, else its label's: proof, age, finishes, mashbill, distillery. Label-only entrants use the label's values. Ad hoc entrants have none.
-- **Order.** Entrants are sorted by proof first, then mashbill, distillery, age and finish, and cut into heats of `heat_size` in that order. Proof is the main axis; the other keys keep like with like inside a proof band.
+- **Order.** Entrants are sorted by the tournament's `group_order` and cut into heats of `heat_size` in that order. The first key splits the field and each later key only orders bottles inside the groups before it, so what comes first matters most. Proof is first by default because bottles at different strengths are not a fair taste; with another key first, a flight can span a wide proof range (the flight header always shows its band).
+- **Priority control.** A reorderable list of the five keys with move up and move down buttons (drag optional, per section 5), in setup and in the tournament's settings. Changing it is allowed at any time. It applies to rounds generated afterwards, and to the current round when you use *Reset to automatic*.
+- **Multi-valued and missing keys.** A bottle with several distilleries or finishes sorts by its first listed one. A missing value (no age statement, no finish, no proof, no mashbill) sorts after every known value for that key, never guessed. Mashbill applies to whiskey; for other spirits it is missing.
+- **Boundaries.** A flight may straddle two groups of the first key, so a flight's generated label can fall back to its proof band.
 - **Missing data.** An entrant with no proof sorts to the end as "unknown", and is never guessed. The preview shows how many entrants were grouped without full data.
 - **Other spirits.** Proof is still the first key. Mashbill, finish and distillery apply when the label has them.
 - **Deterministic.** Ties break by entry id, so the same entrants always give the same heats. That is what makes *Reset* return the original.
@@ -103,7 +106,7 @@ Rounds, advancement, validation (strict ranking of exactly the entrants in the h
 - **Provisional.** Fewer than 3 heats shows as provisional, not as a firm rank.
 - **Comparable groups.** Strengths are comparable only within a group linked by shared competitors. Competitors from unlinked tournaments are shown as "not yet comparable", never merged.
 - **Category filter.** Rankings are viewed per category.
-- **Known limit of palate-matched grouping.** Because every round groups similar bottles, proof bands meet each other only in the last rounds, so strengths across bands rest on few heats and rely on the prior. Higher proof also tends to win head-to-head. The ranking and audit say so where it matters: a competitor whose heats all sit in one proof band is marked "single band", and the audit never compares across bands on its own. Choosing `random` seeding is the way to get more cross-band data.
+- **Known limit of palate-matched grouping.** With proof first (the default), because every round groups similar bottles, proof bands meet each other only in the last rounds, so strengths across bands rest on few heats and rely on the prior. Higher proof also tends to win head-to-head. The ranking and audit say so where it matters: a competitor whose heats all sit in one proof band is marked "single band", and the audit never compares across bands on its own. Choosing `random` seeding is the way to get more cross-band data.
 - **Promotion** is retroactive for free: setting an ad hoc entrant's bottle or label makes its past heats count on the next fit.
 
 **Audit.** For each competitor with a ranking and at least one rated tasting, compare its percentile in the ranking with its percentile by average 0–10 rating among the rated competitors in the same group. List the largest gaps first ("rated 9.0, ranks 14th of 40"). A bottle entrant uses tastings logged against that bottle; a label-only entrant uses that label's tastings with no bottle. Competitors with no rated tastings appear in the ranking but not the audit.
