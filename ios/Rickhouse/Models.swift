@@ -239,6 +239,8 @@ struct LabelDetail: Decodable {
     var strength: String? = nil
     /// What a cask-strength label with no proof shows in its place: one known proof, a range, or "Cask Strength".
     var proofLabel: String? = nil
+    /// A cask-strength label's real proofs across its releases and bottles ("126.1 - 132.7"); nil when none is known.
+    var proofSpread: String? = nil
     let distilleries: [String]
     let finishes: [String]
     let mashbills: [String]

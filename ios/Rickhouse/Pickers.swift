@@ -270,3 +270,61 @@ struct LinkChipsRow: View {
         .padding(.vertical, 2)
     }
 }
+
+/// Chooses a category from a searchable list under its group headings, like the brand list. Categories are a fixed set,
+/// so nothing here makes a new one.
+struct CategoryPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let categories: [CategoryOption]
+    let selected: Int?
+    var onPick: (CategoryOption) -> Void
+
+    @State private var query = ""
+
+    /// Groups in the order the server sent them; a category with no parent sits under "Other".
+    private var groups: [(name: String, items: [CategoryOption])] {
+        let q = PickerLogic.normalize(query)
+        var order: [String] = []
+        var byGroup: [String: [CategoryOption]] = [:]
+        for category in categories where q.isEmpty || PickerLogic.normalize("\(category.parent ?? "") \(category.name)").contains(q) {
+            let group = category.parent ?? "Other"
+            if byGroup[group] == nil { order.append(group) }
+            byGroup[group, default: []].append(category)
+        }
+        return order.map { ($0, byGroup[$0] ?? []) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(groups, id: \.name) { group in
+                    Section(group.name) {
+                        ForEach(group.items) { option in
+                            Button {
+                                onPick(option)
+                                dismiss()
+                            } label: {
+                                HStack {
+                                    Text(option.name).foregroundStyle(Theme.ink)
+                                    Spacer()
+                                    if option.id == selected { Image(systemName: "checkmark").fontWeight(.semibold).foregroundStyle(Theme.ink).accessibilityHidden(true) }
+                                }
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                            }
+                            .accessibilityAddTraits(option.id == selected ? .isSelected : [])
+                        }
+                    }
+                }
+                if groups.isEmpty { Section { Text("No category matches.").foregroundStyle(Theme.muted) } }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.paper)
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search categories")
+            .navigationTitle("Category")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        }
+    }
+}

@@ -31,6 +31,7 @@ struct NewLabelView: View {
     @State private var draft = LabelDraft()
     @State private var fieldErrors: [String: String] = [:]
     @State private var picking: PickTarget?
+    @State private var choosingCategory = false
     /// The label is made and its facts are saved; only the photo can still be outstanding.
     @State private var factsSaved = false
     @State private var ginAged = false
@@ -42,17 +43,6 @@ struct NewLabelView: View {
         self.onDone = onDone
         _name = State(initialValue: name)
         _barcode = State(initialValue: code ?? "")
-    }
-
-    private var groups: [(name: String, items: [CategoryOption])] {
-        var order: [String] = []
-        var byGroup: [String: [CategoryOption]] = [:]
-        for category in categories {
-            let group = category.parent ?? "Other"
-            if byGroup[group] == nil { order.append(group) }
-            byGroup[group, default: []].append(category)
-        }
-        return order.map { ($0, byGroup[$0] ?? []) }
     }
 
     private var canSave: Bool {
@@ -67,14 +57,10 @@ struct NewLabelView: View {
             Section {
                 BrandSearchField(selected: $brand)
                 TextField("Name", text: $name).textInputAutocapitalization(.words)
-                Picker("Category", selection: $categoryId) {
-                    Text("Choose…").tag(Int?.none)
-                    ForEach(groups, id: \.name) { group in
-                        Section(group.name) {
-                            ForEach(group.items) { Text($0.name).tag(Int?.some($0.id)) }
-                        }
-                    }
-                }
+                PickerRow(
+                    title: "Category", value: categories.first { $0.id == categoryId }?.name ?? "Choose…",
+                    onOpen: { choosingCategory = true }
+                )
             } footer: {
                 if let loadFailure { ErrorText(loadFailure) }
             }
@@ -135,6 +121,9 @@ struct NewLabelView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button(saving ? "Saving…" : made == nil ? "Save" : factsSaved ? "Retry photo" : "Retry", action: save).disabled(!canSave)
             }
+        }
+        .sheet(isPresented: $choosingCategory) {
+            CategoryPickerSheet(categories: categories, selected: categoryId) { categoryId = $0.id }
         }
         .sheet(item: $picking) { target in
             if case .list(let list) = target {

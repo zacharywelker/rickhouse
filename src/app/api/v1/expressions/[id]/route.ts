@@ -20,6 +20,8 @@ import { otherNamesText, parseOtherNames } from "@/lib/other-names";
 
 export const dynamic = "force-dynamic";
 
+const spreadOrNull = (spread: ReturnType<typeof proofSpread>) => (spread ? spreadLabel(spread) : null);
+
 /**
  * One label, read rather than edited: its specs and photo, its known releases, the caller's bottles of it
  * and the tastings on those bottles. Someone else's label is simply not found.
@@ -77,6 +79,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       expression.isCaskStrength && !expression.proof
         ? spreadLabel(proofSpread(releases.map((r) => r.proof), owned.map((b) => b.proof)))
         : null,
+    // The proofs this label's releases and bottles actually span, for the edit form's note under a cask-strength label.
+    // Null when none has a proof, and for any label that is not cask strength.
+    proofSpread: expression.isCaskStrength ? spreadOrNull(proofSpread(releases.map((r) => r.proof), owned.map((b) => b.proof))) : null,
     sizeMl: expression.sizeMl,
     msrp: expression.msrp,
     photoPath: expression.photoPath,
