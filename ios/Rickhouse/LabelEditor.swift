@@ -395,7 +395,8 @@ struct LabelFactRows: View {
         } else {
             LinkChipsRow(
                 title: LabelEditor.listTitle(.mashbills), rows: draft.rows(.mashbills), changed: tracksChanges && draft.listChanged(.mashbills),
-                onRemove: { draft.remove(.mashbills, id: $0.id) }, onAdd: { onPick(.mashbills) }
+                onRemove: { draft.remove(.mashbills, id: $0.id) }, onAdd: { onPick(.mashbills) },
+                sources: draft.rows(.distilleries), onSource: { row, source in draft.setSource(ofMashbill: row.id, to: source) }
             )
         }
         if rules.showsFinishes {

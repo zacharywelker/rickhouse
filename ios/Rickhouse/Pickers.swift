@@ -232,6 +232,10 @@ struct LinkChipsRow: View {
     var changed = false
     var onRemove: (LinkRow) -> Void
     var onAdd: () -> Void
+    /// Mashbills only: the label's distilleries, so each recipe can say which one made it. With fewer than two there is
+    /// nothing to choose (one made them all, and the server fills that in), so the menus don't show.
+    var sources: [LinkRow] = []
+    var onSource: (LinkRow, Int?) -> Void = { _, _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -266,8 +270,36 @@ struct LinkChipsRow: View {
                 .foregroundStyle(Theme.muted)
                 .accessibilityLabel("Add to \(title.lowercased())")
             }
+            if sources.count > 1 {
+                ForEach(rows) { row in sourceMenu(row) }
+            }
         }
         .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func choice(_ title: String, ticked: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) { if ticked { Label(title, systemImage: "checkmark") } else { Text(title) } }
+    }
+
+    /// "75% Corn   Made at  Wild Turkey ▾", or "Which distillery?" while it is unsaid.
+    private func sourceMenu(_ row: LinkRow) -> some View {
+        let made = sources.first { $0.id == row.distilleryId }
+        return Menu {
+            choice("Not set", ticked: made == nil) { onSource(row, nil) }
+            ForEach(sources) { source in choice(source.name, ticked: made?.id == source.id) { onSource(row, source.id) } }
+        } label: {
+            HStack(spacing: 6) {
+                Text(row.name).font(.inter(14)).foregroundStyle(Theme.ink).lineLimit(1)
+                Spacer(minLength: 8)
+                Text(made?.name ?? "Which distillery?").font(.inter(14)).foregroundStyle(made == nil ? Theme.muted : Theme.ink).lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.muted).accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("\(row.name), made at \(made?.name ?? "no distillery chosen")")
+        .accessibilityHint("Chooses which distillery made this mashbill")
     }
 }
 
