@@ -1,50 +1,33 @@
 import PhotosUI
 import SwiftUI
 
-/// The bottle itself, quick first: the photo and Save. Price, date and the rest sit under More details.
+/// Add a bottle: the photo and the same sections the bottle page edits (BottleForm.swift), with the release and
+/// own-proof sections behind "More details" so a quick add stays quick.
 struct BottleFormView: View {
     @Environment(Session.self) private var session
-    @Environment(\.dismiss) private var dismiss
 
-    let label: LabelOption
     /// Closes the whole Add a bottle sheet after a save.
     var onSaved: () -> Void
 
+    @State private var draft: BottleDraft
+    @State private var fieldErrors: [String: String] = [:]
     @State private var photos: [FormPhoto] = []
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showCamera = false
-    @State private var showDetails = false
-    @State private var price = Field("")
-    /// Today unless cleared: most bottles are logged the day they come home.
-    @State private var acquired = Field(Format.isoDay(Date()))
-    @State private var batch = Field("")
-    @State private var location = Field("")
-    @State private var notes = Field("")
-    @State private var storeId: Int?
-    @State private var storeName: String?
-    @State private var pickingStore = false
     @State private var saving = false
     @State private var error: String?
     /// Set once the bottle exists, so a retry after a failed photo upload
     /// only re-sends the photos instead of adding the bottle twice.
     @State private var createdId: Int?
 
+    init(label: LabelOption, onSaved: @escaping () -> Void) {
+        self.onSaved = onSaved
+        // Today unless cleared: most bottles are logged the day they come home.
+        _draft = State(initialValue: BottleDraft.new(label: label, today: Format.isoDay(Date())))
+    }
+
     var body: some View {
         Form {
-            Section {
-                HStack(spacing: 12) {
-                    Rectangle().fill(CategoryPalette.color(for: label.category))
-                        .overlay(Rectangle().strokeBorder(Theme.ink, lineWidth: 1))
-                        .frame(width: 8, height: 8)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(label.title).font(.inter(17, .semibold, relativeTo: .headline)).foregroundStyle(Theme.ink)
-                        Text(label.category).font(.inter(13, relativeTo: .footnote)).foregroundStyle(Theme.muted)
-                    }
-                    Spacer(minLength: 0)
-                    if createdId == nil { Button("Change") { dismiss() } }
-                }
-            }
             Section {
                 if !photos.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -60,18 +43,8 @@ struct BottleFormView: View {
                 }
                 PhotosPicker("Choose from library", selection: $pickerItems, maxSelectionCount: 6, matching: .images)
             } header: { SectionLabel("Photos") }
-            Section {
-                PickerRow(title: "Store", value: storeName ?? "None") { pickingStore = true }
-            }
-            Section {
-                DisclosureGroup("More details", isExpanded: $showDetails) {
-                    EditRow(title: "Price paid", field: $price, placeholder: "0.00", keyboard: .decimalPad, prefix: session.currencySymbol, tracksChanges: false)
-                    DateRow(title: "Date acquired", field: $acquired, tracksChanges: false)
-                    EditRow(title: "Batch", field: $batch, placeholder: "Optional", tracksChanges: false)
-                    EditRow(title: "Where it's kept", field: $location, placeholder: "Optional", tracksChanges: false)
-                    EditRow(title: "Notes", field: $notes, placeholder: "Optional", multiline: true, tracksChanges: false)
-                }
-            }
+            BottleFormSections(draft: $draft, errors: fieldErrors)
+                .disabled(createdId != nil)
             if let error { Section { ErrorText(error) } }
         }
         .scrollContentBackground(.hidden)
@@ -81,16 +54,6 @@ struct BottleFormView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button(saving ? "Saving…" : error == nil ? "Save" : "Retry", action: save).disabled(saving)
-            }
-        }
-        .sheet(isPresented: $pickingStore) {
-            PickerSheet(
-                kind: .stores, title: "Store", multiple: false,
-                initial: storeId.map { [LookupItem(id: $0, name: storeName ?? "")] } ?? [],
-                allowNone: true
-            ) { chosen in
-                storeId = chosen.first?.id
-                storeName = chosen.first?.name
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -122,6 +85,15 @@ struct BottleFormView: View {
 
     private func save() {
         guard let api = session.api else { return }
+        if createdId == nil {
+            let found = draft.errors(today: Format.isoDay(Date()))
+            guard found.isEmpty else {
+                fieldErrors = Dictionary(uniqueKeysWithValues: found.map { ($0.key.rawValue, $0.value) })
+                error = "Check the highlighted fields."
+                return
+            }
+        }
+        fieldErrors = [:]
         saving = true
         error = nil
         Task {
@@ -130,14 +102,7 @@ struct BottleFormView: View {
                 if let createdId {
                     id = createdId
                 } else {
-                    var bottle = NewBottle(expressionId: label.id)
-                    bottle.pricePaid = price.isEmpty ? nil : price.trimmed
-                    bottle.dateAcquired = acquired.isEmpty ? nil : acquired.trimmed
-                    bottle.batch = batch.isEmpty ? nil : batch.trimmed
-                    bottle.location = location.isEmpty ? nil : location.trimmed
-                    bottle.notes = notes.isEmpty ? nil : notes.trimmed
-                    bottle.storeId = storeId
-                    id = try await api.createBottle(bottle)
+                    id = try await api.createBottle(draft.patch())
                     createdId = id
                 }
                 if !photos.isEmpty {
@@ -148,11 +113,15 @@ struct BottleFormView: View {
                 onSaved()
             } catch APIError.unauthorized {
                 session.signOut()
+            } catch APIError.invalid(_, let message, let fields) where createdId == nil {
+                fieldErrors = fields
+                self.error = message
+                saving = false
             } catch {
                 // The form and photos stay, so nothing is lost to a bad connection.
                 self.error = createdId == nil
                     ? error.localizedDescription
-                    : "The bottle was saved, but its photos weren't: \\(error.localizedDescription)"
+                    : "The bottle was saved, but its photos weren't: \(error.localizedDescription)"
                 saving = false
             }
         }
