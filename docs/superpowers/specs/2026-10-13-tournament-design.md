@@ -19,6 +19,8 @@ A tournament is a saved, resumable set of blind or open tastings that ranks bott
 | Judge | The account owner only. Each result records who picked, so a group can be added later. |
 | Field changes after start | None. The field is locked at start. An entrant can be **withdrawn**. |
 | Heat size | One size per tournament: 2, 3 or 4. |
+| Grouping | **Automatic, every round**: heats are flights of similar bottles, with proof the most important factor, then mashbill, distillery, age and finishes. Seeding is `similar` (default) or `random`. |
+| Editing | Entrants can be moved between undecided heats of the current round, and the round can be **reset to the automatic grouping** at any time. Decided heats are frozen. |
 | How a heat is decided | A forced ranking, 1st to last. No ties. A 2-way heat is a head-to-head. |
 | Blind modes | **Solo**: map the heat's bottles to glass letters (A to D) with your own device, hide, rank the letters, reveal. **Pourer**: a second person pours, can draw a random pending heat (double-blind), and hands the phone over. Both can be switched off for an open tournament. |
 | Platforms | Everything on web and iOS. Web suits setup (filtering a large field), phone suits live tasting, and either can run a live tasting. |
@@ -28,7 +30,7 @@ A tournament is a saved, resumable set of blind or open tastings that ranks bott
 
 One migration, written by hand, with its journal entry. All tables are owner-scoped like the rest of the schema, with the existing `(ref, owner_id)` composite-key pattern so a row cannot point at another account's bottle or label.
 
-`tournaments`: `id`, `owner_id`, `name`, `status` (`draft`, `active`, `complete`), `heat_size` (2 to 4), `seeding` (`random`, `by_rating`), `blind` (bool), `field_note` (text; how the field was chosen, for display only), `created_at`, `started_at`, `completed_at`.
+`tournaments`: `id`, `owner_id`, `name`, `status` (`draft`, `active`, `complete`), `heat_size` (2 to 4), `seeding` (`similar`, `random`), `blind` (bool), `field_note` (text; how the field was chosen, for display only), `created_at`, `started_at`, `completed_at`.
 
 `tournament_entries`: `id`, `tournament_id`, `bottle_id` (nullable, `ON DELETE SET NULL`), `expression_id` (nullable), `display_name` (not null, snapshot at entry time so history survives deletion), `status` (`active`, `withdrawn`), `seed`. A bottle entrant also stores its bottle's `expression_id`. Kind is derived: bottle id present means bottle, else expression id present means label-only, else ad hoc.
 
@@ -41,13 +43,26 @@ One migration, written by hand, with its journal entry. All tables are owner-sco
 Rounds are generated one at a time, not as a fixed tree. The first round is generated at start; round *r+1* is generated when every heat of round *r* is decided. This copes with any field size and any heat size, including short heats, at the cost of showing a list of rounds instead of a drawn bracket tree.
 
 - **Grouping.** Active entrants fill heats of `heat_size` in order. The last heat of a round may be short. A heat of one entrant is a **bye**: it advances with no ranking credit.
-- **Round 1 seeding.** `random` shuffles. `by_rating` snakes entrants by average rating across heats so the top-rated are spread out. Later rounds are shuffled.
+- **Seeding.** `similar` (the default) applies the automatic grouping below to every round. `random` shuffles every round.
 - **Advancing.** A heat of *s* entrants advances `max(1, floor(s/2))`: a 4-way advances 2, a 3-way or 2-way advances 1.
 - **Final.** When the pool entering a round fits in one heat, that is the final. Place 1 is the champion.
 - **Standings.** Ordered by the round an entrant left, then place within its heat. Entrants who left the same round with the same place share a standing.
 - **Withdrawing.** A withdrawn entrant is removed from any undecided heat, which shrinks (to a bye if one entrant is left). Decided heats are unaffected. Withdrawals and byes never count in the ranking.
 - **Skip.** A heat stays pending until decided. Any pending heat of the current round can be played in any order.
 - **Undo.** A decided heat can be undone until a heat in the next round has a result. Undoing deletes the generated next round.
+
+### Automatic grouping
+
+The aim is heats a whiskey drinker would pour together: a 125-proof barrel-proof pour should not face a 90-proof one, and three picks of one label belong in the same flight.
+
+- **Effective values.** Each entrant is described by its bottle's own value, else its label's: proof, age, finishes, mashbill, distillery. Label-only entrants use the label's values. Ad hoc entrants have none.
+- **Order.** Entrants are sorted by proof first, then mashbill, distillery, age and finish, and cut into heats of `heat_size` in that order. Proof is the main axis; the other keys keep like with like inside a proof band.
+- **Missing data.** An entrant with no proof sorts to the end as "unknown", and is never guessed. The preview shows how many entrants were grouped without full data.
+- **Other spirits.** Proof is still the first key. Mashbill, finish and distillery apply when the label has them.
+- **Deterministic.** Ties break by entry id, so the same entrants always give the same heats. That is what makes *Reset* return the original.
+- **Pour order** inside a heat runs from lowest to highest proof, for palate fatigue.
+- **Move.** An entrant can be moved to another undecided heat of the current round (before the tournament starts, the round-1 preview). A heat holds one to `heat_size` entrants, and an emptied heat is removed. Decided heats cannot change.
+- **Reset.** Re-runs the grouping on the entrants of the current round's undecided heats and leaves decided heats alone.
 
 ## 5. Playing a heat
 
@@ -64,6 +79,7 @@ Routes under `/api/v1/tournaments`, used by web and iOS alike:
 - create, list, get (with rounds and standings), delete (a draft or complete tournament)
 - start (locks the field, generates round 1)
 - record a heat result, undo, withdraw an entrant, draw a random heat, set glass letters
+- move an entrant to another undecided heat, and reset the current round to the automatic grouping
 - promote an ad hoc entrant to a label or one of your bottles
 - ranking and audit (section 7)
 
@@ -77,6 +93,7 @@ Rounds, advancement, validation (strict ranking of exactly the entrants in the h
 - **Provisional.** Fewer than 3 heats shows as provisional, not as a firm rank.
 - **Comparable groups.** Strengths are comparable only within a group linked by shared competitors. Competitors from unlinked tournaments are shown as "not yet comparable", never merged.
 - **Category filter.** Rankings are viewed per category.
+- **Known limit of palate-matched grouping.** Because every round groups similar bottles, proof bands meet each other only in the last rounds, so strengths across bands rest on few heats and rely on the prior. Higher proof also tends to win head-to-head. The ranking and audit say so where it matters: a competitor whose heats all sit in one proof band is marked "single band", and the audit never compares across bands on its own. Choosing `random` seeding is the way to get more cross-band data.
 - **Promotion** is retroactive for free: setting an ad hoc entrant's bottle or label makes its past heats count on the next fit.
 
 **Audit.** For each competitor with a ranking and at least one rated tasting, compare its percentile in the ranking with its percentile by average 0–10 rating among the rated competitors in the same group. List the largest gaps first ("rated 9.0, ranks 14th of 40"). A bottle entrant uses tastings logged against that bottle; a label-only entrant uses that label's tastings with no bottle. Competitors with no rated tastings appear in the ranking but not the audit.
