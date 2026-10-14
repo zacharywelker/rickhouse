@@ -88,53 +88,125 @@ private let priceMessage = "Enter a price like 54.99."
 // MARK: Bottle
 
 enum BottleFact: String, CaseIterable {
+    case label = "expressionId"
+    case release = "releaseId"
+    case acquisition
     case paid = "pricePaid"
     case acquired = "dateAcquired"
+    case store = "storeId"
+    case location
     case batch
     case releaseYear
-    case barrel = "barrelNumber"
+    case singleBarrel = "isSingleBarrel"
+    case singleBarrelPick = "isSingleBarrelPick"
     case pick = "pickName"
-    case location
-    case notes
-    case store = "storeId"
-    case opened = "dateOpened"
+    case pickedBy
+    case barrel = "barrelNumber"
+    case bottleCount
+    case warehouse
+    case rickFloor
+    case size = "sizeMl"
+    case proof
+    case ageYears, ageMonths, ageDays
+    case ageStatement
     case distilled = "barrelFilledOn"
     case bottled = "bottledOn"
+    case opened = "dateOpened"
+    case notes
+
+    /// Held as "true" or "false", sent as a boolean.
+    static let ticks: Set<BottleFact> = [.singleBarrel, .singleBarrelPick]
+    /// Sent as the id they are, not as text.
+    static let ids: Set<BottleFact> = [.label, .release, .store]
+
+    /// The ways a bottle can have come to you, as the server names them.
+    static let acquisitions: [(value: String, title: String)] = [
+        ("purchase", "Purchase"), ("gift", "Gift"), ("trade", "Trade"), ("won", "Won"), ("other", "Other"),
+    ]
 }
 
+/// A bottle's facts as a form holds them. Editing starts from a bottle (`init(_:)`) and sends what changed; adding starts
+/// from a label (`new`) with every original blank, so what is filled in is what changed and is what is sent.
 struct BottleDraft {
     private(set) var fields: [BottleFact: Field]
-    /// The batch and year shown on a bottle with a chosen release are the release's, so they are not this bottle's to edit.
-    let fromRelease: Bool
+    let isNew: Bool
     let wasOpen: Bool
     let originalFill: Int
     /// The store's name for display; the field holds its id.
     var storeName: String?
+    /// The label this bottle is, for display; the field holds its id.
+    var labelTitle: String
+    var labelCategory: String
+    /// The label's known releases, for the Release choice.
+    var releases: [ReleaseChoice]
     /// The label's dates, which this bottle goes by unless it has its own.
-    let labelDistilled: String?
-    let labelBottled: String?
+    var labelDistilled: String?
+    var labelBottled: String?
 
     init(_ bottle: BottleDetail) {
+        isNew = false
         storeName = bottle.store
+        labelTitle = "\(bottle.brand) \(bottle.name)"
+        labelCategory = bottle.category
+        releases = bottle.releases ?? []
         labelDistilled = bottle.labelBarrelFilledOn
         labelBottled = bottle.labelBottledOn
-        fromRelease = bottle.releaseId != nil
         wasOpen = bottle.isOpen
         originalFill = bottle.fillPct
+        let own = bottle.own
+        // The batch and year the server shows on a bottle with a release are the release's, not this bottle's own.
+        let onRelease = bottle.releaseId != nil
         fields = [
+            .label: Field(String(bottle.expressionId ?? 0)),
+            .release: Field(bottle.releaseId.map(String.init)),
+            .acquisition: Field(bottle.acquisition ?? "purchase"),
             .paid: Field(bottle.pricePaid),
             .acquired: Field(bottle.dateAcquired.map { String($0.prefix(10)) }),
-            .batch: Field(bottle.batch),
-            .releaseYear: Field(bottle.releaseYear.map(String.init)),
-            .barrel: Field(bottle.barrelNumber),
-            .pick: Field(bottle.pickName),
-            .location: Field(bottle.location),
-            .notes: Field(bottle.notes),
             .store: Field(bottle.storeId.map(String.init)),
-            .opened: Field(bottle.dateOpened.map { String($0.prefix(10)) }),
+            .location: Field(bottle.location),
+            .batch: Field(onRelease ? nil : bottle.batch),
+            .releaseYear: Field(onRelease ? nil : bottle.releaseYear.map(String.init)),
+            .singleBarrel: Field(String(bottle.isSingleBarrel ?? false)),
+            .singleBarrelPick: Field(String(bottle.isSingleBarrelPick ?? false)),
+            .pick: Field(bottle.pickName),
+            .pickedBy: Field(bottle.pickedBy),
+            .barrel: Field(bottle.barrelNumber),
+            .bottleCount: Field(bottle.bottleCount.map(String.init)),
+            .warehouse: Field(bottle.warehouse),
+            .rickFloor: Field(bottle.rickFloor),
+            .size: Field(own?.sizeMl.map(String.init)),
+            .proof: Field(plainNumber(own?.proof)),
+            .ageYears: Field(plainNumber(own?.ageYears)),
+            .ageMonths: Field(own?.ageMonths.map(String.init)),
+            .ageDays: Field(own?.ageDays.map(String.init)),
+            .ageStatement: Field(own?.ageStatement),
             .distilled: Field(bottle.barrelFilledOn.map { String($0.prefix(10)) }),
             .bottled: Field(bottle.bottledOn.map { String($0.prefix(10)) }),
+            .opened: Field(bottle.dateOpened.map { String($0.prefix(10)) }),
+            .notes: Field(bottle.notes),
         ]
+    }
+
+    /// A bottle about to be added. `today` ("yyyy-MM-dd") is the date acquired unless cleared.
+    static func new(label: LabelOption, today: String) -> BottleDraft {
+        var draft = BottleDraft(blankFor: label)
+        draft[.acquired].text = today
+        return draft
+    }
+
+    private init(blankFor label: LabelOption) {
+        isNew = true
+        wasOpen = false
+        originalFill = 100
+        labelTitle = label.title
+        labelCategory = label.category
+        releases = []
+        var made: [BottleFact: Field] = [:]
+        for fact in BottleFact.allCases { made[fact] = Field(nil) }
+        for tick in BottleFact.ticks { made[tick] = Field("false") }
+        made[.acquisition] = Field("purchase")
+        made[.label] = Field(original: "", text: String(label.id))
+        fields = made
     }
 
     subscript(fact: BottleFact) -> Field {
@@ -142,7 +214,14 @@ struct BottleDraft {
         set { fields[fact] = newValue }
     }
 
-    private func locked(_ fact: BottleFact) -> Bool { fromRelease && (fact == .batch || fact == .releaseYear) }
+    /// With a release chosen, the batch and year are the release's, so they are not this bottle's to edit.
+    var onRelease: Bool { !self[.release].isEmpty }
+    var releaseTitle: String? { releases.first { String($0.id) == self[.release].trimmed }?.title }
+
+    private func locked(_ fact: BottleFact) -> Bool { onRelease && (fact == .batch || fact == .releaseYear) }
+
+    /// A single barrel, or a private selection of one: the fields only those have.
+    var showsBarrelDetail: Bool { self[.singleBarrel].trimmed == "true" || self[.singleBarrelPick].trimmed == "true" }
 
     var changedFacts: [BottleFact] { BottleFact.allCases.filter { !locked($0) && self[$0].changed } }
     var isDirty: Bool { !changedFacts.isEmpty }
@@ -153,23 +232,40 @@ struct BottleDraft {
     /// What is wrong before the server is asked, by fact. Dates cannot be in the future (`today` is "yyyy-MM-dd").
     func errors(today: String) -> [BottleFact: String] {
         var found: [BottleFact: String] = [:]
-        let paid = self[.paid]
-        if paid.changed, !paid.isEmpty, !matches(paid.trimmed, #"^\d{1,8}(\.\d{1,2})?$"#) { found[.paid] = priceMessage }
-        let year = self[.releaseYear]
-        if !locked(.releaseYear), year.changed, !year.isEmpty, !matches(year.trimmed, #"^(1[7-9]|2[01])\d\d$"#) { found[.releaseYear] = "Enter a four-digit year." }
+        func check(_ fact: BottleFact, _ pattern: String, _ message: String, max: Double? = nil, min: Double? = nil) {
+            let field = self[fact]
+            guard field.changed, !field.isEmpty, !locked(fact) else { return }
+            guard matches(field.trimmed, pattern), let number = Double(field.trimmed) else { found[fact] = message; return }
+            if let max, number > max { found[fact] = message }
+            if let min, number < min { found[fact] = message }
+        }
+        check(.paid, #"^\d{1,8}(\.\d{1,2})?$"#, priceMessage)
+        check(.releaseYear, #"^(1[7-9]|2[01])\d\d$"#, "Enter a four-digit year.")
+        check(.proof, #"^\d{1,3}(\.\d{1,2})?$"#, "Enter a proof like 118.4.", max: 200)
+        check(.ageYears, #"^\d{1,3}(\.\d)?$"#, "Years, like 7 or 7.5.", max: 100)
+        check(.ageMonths, #"^\d{1,4}$"#, "Whole months.", max: 1200)
+        check(.ageDays, #"^\d{1,5}$"#, "Whole days.", max: 40000)
+        check(.size, #"^\d{1,5}$"#, "A size in mL.", max: 20000, min: 1)
+        check(.bottleCount, #"^\d{1,8}$"#, "A whole number of bottles.", min: 1)
         for date in [BottleFact.acquired, .opened, .distilled, .bottled] where self[date].changed && !self[date].isEmpty && self[date].trimmed > today {
             found[date] = "That date is in the future."
+        }
+        if found[.bottled] == nil, !self[.distilled].isEmpty, !self[.bottled].isEmpty, self[.bottled].trimmed < self[.distilled].trimmed,
+           self[.bottled].changed || self[.distilled].changed {
+            found[.bottled] = "Bottled before it was filled — check these dates."
         }
         return found
     }
 
-    /// A fact as the request carries it: the store as its id, everything else as typed, and nothing as null.
+    /// A fact as the request carries it: ids as numbers, ticks as booleans, everything else as typed, and nothing as null.
     private func sent(_ fact: BottleFact, _ text: String) -> Any {
+        if BottleFact.ticks.contains(fact) { return text == "true" }
         if text.isEmpty { return NSNull() }
-        return fact == .store ? (Int(text) ?? NSNull()) : text
+        return BottleFact.ids.contains(fact) ? (Int(text) ?? NSNull()) : text
     }
 
-    /// The request that saves the changes. `choice` is required when the Opened date of an open bottle is cleared.
+    /// The request that saves the changes (or, for a new bottle, makes it). `choice` is required when the Opened date of an
+    /// open bottle is cleared.
     func patch(choice: OpenedChoice? = nil) -> [String: Any] {
         var body: [String: Any] = [:]
         for fact in changedFacts { body[fact.rawValue] = sent(fact, self[fact].trimmed) }
@@ -181,6 +277,10 @@ struct BottleDraft {
     func undoPatch(choice: OpenedChoice? = nil) -> [String: Any] {
         var body: [String: Any] = [:]
         for fact in changedFacts where fact != .opened { body[fact.rawValue] = sent(fact, self[fact].original) }
+        // Choosing a release cleared the bottle's own batch and year on the server; they come back with the old release.
+        if self[.release].changed, !self[.release].isEmpty {
+            for fact in [BottleFact.batch, .releaseYear] where !self[fact].original.isEmpty { body[fact.rawValue] = self[fact].original }
+        }
         if self[.opened].changed {
             body["dateOpened"] = self[.opened].originalJSON
             // Taking a date away from a bottle the edit had opened: say how, as the first time.

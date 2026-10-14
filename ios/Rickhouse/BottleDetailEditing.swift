@@ -50,63 +50,11 @@ extension BottleDetailView {
 
     // MARK: Bottle edit
 
-    func bottleField(_ fact: BottleFact) -> Binding<Field> {
-        Binding(
-            get: { bottleDraft?[fact] ?? Field(nil) },
-            set: { bottleDraft?[fact] = $0; fieldErrors[fact.rawValue] = nil }
-        )
-    }
-
-    private static let optionalFacts: [(BottleFact, String, UIKeyboardType)] = [
-        (.batch, "Batch", .default), (.releaseYear, "Release year", .numberPad), (.barrel, "Barrel", .default),
-        (.pick, "Pick name", .default), (.location, "Where it lives", .default), (.notes, "Notes", .default),
-    ]
-
+    /// The edit page: the form's sections (BottleForm.swift), then the Opened date, which only an existing bottle has.
     @ViewBuilder
     func bottleEditSections(_ b: BottleDetail) -> some View {
-        if let draft = bottleDraft {
-            let shown: (BottleFact) -> Bool = { fact in
-                !draft[fact].isEmpty || draft[fact].changed || revealed.contains(fact) || (draft.fromRelease && (fact == .batch || fact == .releaseYear) && !draft[fact].isEmpty)
-            }
-            let hidden = Self.optionalFacts.filter { !shown($0.0) && !(draft.fromRelease && ($0.0 == .batch || $0.0 == .releaseYear)) }
-
-            Section {
-                EditRow(title: "Paid", field: bottleField(.paid), placeholder: "Add price", keyboard: .decimalPad, prefix: session.currencySymbol, error: fieldErrors[BottleFact.paid.rawValue])
-                PickerRow(
-                    title: "Store", value: draft.storeName ?? "None", changed: draft[.store].changed,
-                    onOpen: { picking = .store },
-                    onRevert: { bottleDraft?[.store].revert(); bottleDraft?.storeName = b.store }
-                )
-                if let msrp = b.msrp { FixedRow(title: "MSRP", value: Format.money(msrp), reason: "A fact of the label, edited under Label") }
-                DateRow(title: "Acquired", field: bottleField(.acquired), error: fieldErrors[BottleFact.acquired.rawValue])
-            } header: {
-                SectionLabel("Where it came from")
-            }
-
-            Section {
-                ForEach(Self.optionalFacts, id: \.0) { fact, title, keyboard in
-                    if draft.fromRelease && (fact == .batch || fact == .releaseYear) {
-                        if !draft[fact].isEmpty { FixedRow(title: title, value: draft[fact].original, reason: "From its release") }
-                    } else if shown(fact) {
-                        EditRow(
-                            title: title, field: bottleField(fact), placeholder: "Add \(title.lowercased())", keyboard: keyboard,
-                            multiline: fact == .notes, error: fieldErrors[fact.rawValue], focusOnAppear: lastRevealed == fact
-                        )
-                    }
-                }
-                if !hidden.isEmpty {
-                    AddDetailChips(titles: hidden.map(\.1)) { index in
-                        let fact = hidden[index].0
-                        revealed.insert(fact)
-                        lastRevealed = fact
-                    }
-                }
-            } header: {
-                SectionLabel("This bottle")
-            }
-
-            bottleDatesSection(draft)
-
+        if bottleDraft != nil {
+            BottleFormSections(draft: Binding($bottleDraft)!, errors: fieldErrors)
             Section {
                 DateRow(title: "Opened", field: bottleField(.opened), error: fieldErrors[BottleFact.opened.rawValue])
                 FixedRow(title: "Status", value: "\(b.status.capitalized) · follows fill")
@@ -115,24 +63,15 @@ extension BottleDetailView {
             } footer: {
                 Text("Status follows the fill level and the Opened date. Clearing Opened on an open bottle asks whether to keep it open or mark it sealed.")
             }
-
             if let factError { Section { ErrorText(factError) } }
         }
     }
 
-    /// Distilled and bottled dates: blank means the bottle goes by its label's.
-    @ViewBuilder
-    func bottleDatesSection(_ draft: BottleDraft) -> some View {
-            Section {
-                DateRow(title: "Distilled / barrel filled", field: bottleField(.distilled), error: fieldErrors[BottleFact.distilled.rawValue])
-                if draft[.distilled].isEmpty, let label = draft.labelDistilled { InheritedNote(date: label) }
-                DateRow(title: "Bottled", field: bottleField(.bottled), error: fieldErrors[BottleFact.bottled.rawValue])
-                if draft[.bottled].isEmpty, let label = draft.labelBottled { InheritedNote(date: label) }
-            } header: {
-                SectionLabel("Dates")
-            } footer: {
-                Text("Left blank, a bottle goes by its label's dates. Set one only if this bottle differs.")
-            }
+    func bottleField(_ fact: BottleFact) -> Binding<Field> {
+        Binding(
+            get: { bottleDraft?[fact] ?? Field(nil) },
+            set: { bottleDraft?[fact] = $0; fieldErrors[fact.rawValue] = nil }
+        )
     }
 
     func startBottleEdit(_ b: BottleDetail) {
@@ -225,8 +164,6 @@ extension BottleDetailView {
     func stopEditing() {
         picking = nil
         bottleDraft = nil
-        revealed = []
-        lastRevealed = nil
         fieldErrors = [:]
         factError = nil
     }

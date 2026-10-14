@@ -173,33 +173,6 @@ struct SectionTitle: View {
     }
 }
 
-/// Facts not recorded yet, as chips under "Add a detail". Tapping one adds its row.
-struct AddDetailChips: View {
-    let titles: [String]
-    var onAdd: (Int) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Add a detail").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
-            FlowLayout(spacing: 6) {
-                ForEach(titles.indices, id: \.self) { i in
-                    Button { onAdd(i) } label: {
-                        Text(titles[i])
-                            .font(.inter(13, .medium))
-                            .padding(.horizontal, 10).frame(minHeight: 44)
-                            .overlay(Capsule().strokeBorder(Theme.muted, style: StrokeStyle(lineWidth: 1, dash: [3])))
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Theme.muted)
-                    .accessibilityLabel("Add \(titles[i].lowercased())")
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
 /// Offered for a few seconds after a save. The only undo after saving: the old values are sent back.
 struct UndoOffer: Identifiable {
     let id = UUID()
