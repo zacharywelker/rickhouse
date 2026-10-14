@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { grainFamily, mashbillDisplay, mashbillKey } from "../grains";
-import type { Grain, MashbillInput } from "../types";
+import { sortEntrants } from "../keys";
+import type { Entrant, Grain, MashbillInput } from "../types";
 
 const recipe = (grains: [string, number][], name: string | null = null): MashbillInput => ({
   kind: "recipe",
@@ -67,5 +68,48 @@ describe("mashbillDisplay", () => {
     expect(mashbillDisplay(recipe([["Corn", 75]], "Buffalo Trace High Rye"))).toBe("Buffalo Trace High Rye");
     expect(mashbillDisplay(recipe([["Malted Barley", 5], ["Rye", 95]]))).toBe("95/5");
     expect(mashbillDisplay({ kind: "generic", style: " High Rye " })).toBe("High Rye");
+  });
+});
+
+describe("sorting by mashbill alone", () => {
+  const cases: [string, MashbillInput][] = [
+    ["75/21/4", recipe([["Corn", 75], ["Rye", 21], ["Malted Barley", 4]])],
+    ["68/20/12", recipe([["Corn", 68], ["Rye", 20], ["Malted Barley", 12]])],
+    ["60/36/4", recipe([["Corn", 60], ["Rye", 36], ["Malted Barley", 4]])],
+    ["generic High Rye", { kind: "generic", style: "High Rye" }],
+    ["generic Low Rye", { kind: "generic", style: "Low Rye" }],
+    ["75/13/12", recipe([["Corn", 75], ["Rye", 13], ["Malted Barley", 12]])],
+    ["70/16/14 wheated", recipe([["Corn", 70], ["Wheat", 16], ["Malted Barley", 14]])],
+    ["generic Wheated", { kind: "generic", style: "Wheated" }],
+    ["63/12/12/13 four grain", recipe([["Corn", 63], ["Rye", 12], ["Wheat", 12], ["Malted Barley", 13]])],
+    ["generic Four Grain", { kind: "generic", style: "Four Grain" }],
+    ["70/20/10 oats", recipe([["Corn", 70], ["Oats", 20], ["Malted Barley", 10]])],
+    ["51/39/10 rye", recipe([["Rye", 51], ["Corn", 39], ["Malted Barley", 10]])],
+    ["95/5 rye", recipe([["Rye", 95], ["Malted Barley", 5]])],
+    ["81/9/10 corn", recipe([["Corn", 81], ["Rye", 9], ["Malted Barley", 10]])],
+    ["100 malt", recipe([["Malted Barley", 100]])],
+  ];
+
+  it("orders them so that similar mashbills are neighbors", () => {
+    const entrants: Entrant[] = cases.map(([name, mashbill], index) => ({
+      id: index + 1, name, proof: null, mashbill, distilleries: [], ageYears: null, finishes: [],
+    }));
+    expect(sortEntrants(entrants, ["mashbill", "proof", "distillery", "age", "finish"]).map((e) => e.name)).toEqual([
+      "81/9/10 corn",
+      "70/20/10 oats",
+      "75/13/12",
+      "generic Low Rye",
+      "75/21/4",
+      "68/20/12",
+      "generic High Rye",
+      "60/36/4",
+      "51/39/10 rye",
+      "95/5 rye",
+      "70/16/14 wheated",
+      "generic Wheated",
+      "63/12/12/13 four grain",
+      "generic Four Grain",
+      "100 malt",
+    ]);
   });
 });
