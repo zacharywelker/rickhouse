@@ -105,6 +105,7 @@ struct TonightFlow: View {
 /// The footer of every step: the sealed switch, the step's main button, and Roulette.
 struct TonightFooter: View {
     @Environment(Session.self) private var session
+    @Environment(\.dynamicTypeSize) private var typeSize
     let model: TonightModel
     var primary: (title: String, action: () -> Void)?
     let onRoulette: () -> Void
@@ -114,9 +115,13 @@ struct TonightFooter: View {
             Toggle(isOn: Binding(get: { model.sealed }, set: { on in Task { await model.setSealed(on, api: session.api) } })) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Include sealed bottles").font(.inter(15, .medium, relativeTo: .subheadline))
-                    Text("Pouring one means opening it").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                    // The pinned footer already fills half the screen at accessibility sizes; the line stays as a hint.
+                    if !typeSize.isAccessibilitySize {
+                        Text("Pouring one means opening it").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                    }
                 }
             }
+            .accessibilityHint("Pouring one means opening it")
             .tint(Theme.ink)
             .frame(minHeight: 44)
 
@@ -262,6 +267,7 @@ private struct TonightLoading: View {
 
 struct SpiritStep: View {
     @Environment(Session.self) private var session
+    @Environment(\.dynamicTypeSize) private var typeSize
     let model: TonightModel
     let onNext: () -> Void
     let onRoulette: () -> Void
@@ -271,7 +277,7 @@ struct SpiritStep: View {
             VStack(alignment: .leading, spacing: 16) {
                 TonightHeading(title: "Which shelf tonight?", detail: "Pick one or several. Pick none and anything goes.")
                 if let options = model.options {
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 10) {
                         ForEach(options.spirits) { spirit in
                             let available = spirit.open + (model.sealed ? spirit.sealed : 0)
                             TonightBox(

@@ -5,6 +5,7 @@ import SwiftUI
 /// you score it over time, the latest tasting, the flavors you note, and the label's facts. A label you don't own leads
 /// with your tastings, then a box offering the bottle, then the facts.
 struct LabelPage: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// How many tastings sit on the page before "See all".
     static let shownTastings = 3
 
@@ -224,7 +225,7 @@ struct LabelPage: View {
                 }
                 NavigationLink { TastingsScreen(label: l) { Task { await load() } } } label: {
                     HStack(spacing: 8) {
-                        Text(latestLine(latest)).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.ink).lineLimit(1)
+                        Text(latestLine(latest)).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.ink).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                         Spacer(minLength: 4)
                         Text("\(l.tastings.count) ›").font(.inter(14, .semibold, relativeTo: .subheadline)).foregroundStyle(Theme.ink)
                     }

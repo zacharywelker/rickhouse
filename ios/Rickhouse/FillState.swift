@@ -49,10 +49,12 @@ struct FillPicker: View {
     let percent: Int
     var disabled = false
     let onPick: (Int) -> Void
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         let state = FillState.of(percent)
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+        // One column at accessibility sizes: "Almost gone" broke in the middle of a word in a third of the width.
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: typeSize.isAccessibilitySize ? 1 : 3), spacing: 8) {
             ForEach(FillState.all) { option in
                 Button { onPick(option.percent) } label: {
                     Text(option.label)

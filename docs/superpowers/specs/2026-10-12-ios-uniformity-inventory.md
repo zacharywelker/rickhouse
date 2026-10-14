@@ -108,7 +108,9 @@ onto the pieces after those PRs merge (see the order at the end).
 | Label screens | `LabelPage`'s About panel is rows with hairlines (no tinted box), 44 pt, with the shared section label; the label editor's MSRP uses the account's currency; New Label's headers are shared. New Label's brand field stays an inline type-ahead (12.3 exception) |
 | Radius | 8 pt everywhere except photo and thumbnail frames (`CollectionView`, `FindLabelView`, `PhotoThumb`, `LabelThumb`); the label editor's chips are capsules |
 | Touch targets | The four 40 pt spots are 44. **check** the other screens with the accessibility inspector |
-| Large text | Checked on the bottle page and Add bottle: long facts stack under their name. **check** still open: `EditRow` (value stays beside the name), the Add bottle header card |
+| Large text (accessibility XL, every screen walked on the Simulator) | Fixed: `EditRow`, `DateRow` and `PickerRow` stack the name above the value (the date row's name had collapsed to single letters; fields truncated their text); the label editor's tick boxes, the fill picker and Tonight's shelf are one column; the + sheet opens full height and wraps; the Add bottle header drops "Change" under the name; the label page's "Latest ..." line wraps; the confirm sheet scrolls. Category became a searchable sheet on `main` (`CategoryPickerSheet`, #240); not walked at large text |
+| Contrast | Sign out and Delete this tasting use the app's error red (system red is 3.2:1 on paper) |
+| Not checked | VoiceOver on the new bar, rows and sheets; Retry on each failure path other than the Collection delete; Undo on Muted bottles and Tonight; a real phone |
 | Price symbol | The bottle page edit row, Add bottle and the label editor's MSRP row use the account's currency symbol instead of a fixed "$" |
 
 ## Order of work
