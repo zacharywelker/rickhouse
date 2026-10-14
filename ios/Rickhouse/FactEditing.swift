@@ -22,6 +22,19 @@ struct EditRow: View {
     private var isMoney: Bool { prefix != nil }
     private var showsChange: Bool { tracksChanges && !isMoney && field.changed }
 
+    /// A price's symbol has to sit against the amount, focused or not. A text field is as wide as it is offered, so the
+    /// field is laid over an invisible copy of its own text, which is exactly as wide as the text needs.
+    @ViewBuilder
+    private func sized<Content: View>(_ content: Content) -> some View {
+        if isMoney {
+            Text((field.text.isEmpty ? (placeholder.isEmpty ? title : placeholder) : field.text) + " ")
+                .hidden()
+                .overlay(alignment: .trailing) { content }
+        } else {
+            content
+        }
+    }
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
             HStack(alignment: multiline ? .top : .firstTextBaseline, spacing: 8) {
@@ -31,18 +44,16 @@ struct EditRow: View {
                 }
                 Spacer(minLength: 8)
                 if let prefix, !field.isEmpty { Text(prefix).foregroundStyle(Theme.muted) }
-                TextField(placeholder.isEmpty ? title : placeholder, text: $field.text, axis: multiline ? .vertical : .horizontal)
+                sized(TextField(placeholder.isEmpty ? title : placeholder, text: $field.text, axis: multiline ? .vertical : .horizontal)
                     .multilineTextAlignment(.trailing)
                     .keyboardType(keyboard)
-                    // A prefix ("$") has to sit against the value, so the field takes only the width it needs.
-                    .fixedSize(horizontal: prefix != nil, vertical: false)
                     .focused($focused)
                     .foregroundStyle(error == nil ? Theme.ink : Theme.error)
                     .padding(.bottom, 1)
                     .overlay(alignment: .bottom) {
                         if focused || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 2) }
                     }
-                    .accessibilityLabel(title)
+                    .accessibilityLabel(title))
                 if showsChange {
                     Button { field.revert() } label: {
                         Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20))

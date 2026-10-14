@@ -126,7 +126,7 @@ struct TonightFooter: View {
                         .font(.inter(17, .semibold, relativeTo: .headline))
                         .frame(maxWidth: .infinity, minHeight: 50)
                         .foregroundStyle(Theme.paper)
-                        .background(Theme.ink, in: RoundedRectangle(cornerRadius: 12))
+                        .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
             }
@@ -196,15 +196,15 @@ struct TonightBox: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
-            .background(selected ? Theme.ink.opacity(0.06) : Theme.paper, in: RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(selected ? Theme.ink : Theme.ink.opacity(0.28), lineWidth: selected ? 2 : 1))
+            .background(selected ? Theme.ink.opacity(0.06) : Theme.paper, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? Theme.ink : Theme.ink.opacity(0.28), lineWidth: selected ? 2 : 1))
             .overlay(alignment: .topTrailing) {
                 if selected {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.ink).padding(10).accessibilityHidden(true)
                 }
             }
             .opacity(enabled ? 1 : 0.5)
-            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -417,7 +417,7 @@ struct FallbackStep: View {
                                     .font(.inter(17, .semibold, relativeTo: .headline))
                                     .frame(maxWidth: .infinity, minHeight: 50)
                                     .foregroundStyle(Theme.paper)
-                                    .background(Theme.ink, in: RoundedRectangle(cornerRadius: 12))
+                                    .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
                             }
                             .buttonStyle(.plain)
                         }
@@ -426,7 +426,7 @@ struct FallbackStep: View {
                                 .font(.inter(17, .semibold, relativeTo: .headline))
                                 .frame(maxWidth: .infinity, minHeight: 50)
                                 .foregroundStyle(Theme.ink)
-                                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.ink, lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
                         }
                         .buttonStyle(.plain)
                         .disabled(fallback.open == 0)

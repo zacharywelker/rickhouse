@@ -61,7 +61,7 @@ struct PreferencesView: View {
                 .pickerStyle(.inline)
                 .labelsHidden()
             } header: {
-                Text("Gallery density")
+                SectionLabel("Gallery density")
             } footer: {
                 Text("Two columns make the bottles larger and show a second fact under each one.")
             }

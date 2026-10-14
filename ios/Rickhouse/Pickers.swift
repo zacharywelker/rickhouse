@@ -251,9 +251,9 @@ struct LinkChipsRow: View {
                             Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).accessibilityHidden(true)
                         }
                         .padding(.horizontal, 10).padding(.vertical, 5)
-                        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.ink, lineWidth: 1))
+                        .overlay(Capsule().strokeBorder(Theme.ink, lineWidth: 1))
                         .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Theme.ink)
@@ -262,9 +262,9 @@ struct LinkChipsRow: View {
                 Button(action: onAdd) {
                     Text("+ Add").font(.inter(14, .medium))
                         .padding(.horizontal, 10).padding(.vertical, 5)
-                        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.muted, style: StrokeStyle(lineWidth: 1, dash: [3])))
+                        .overlay(Capsule().strokeBorder(Theme.muted, style: StrokeStyle(lineWidth: 1, dash: [3])))
                         .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Theme.muted)

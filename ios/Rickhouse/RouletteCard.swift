@@ -22,8 +22,8 @@ struct RouletteButton: View {
             .padding(.leading, 8)
             .padding(.trailing, 14)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.ink, lineWidth: 1))
-            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .accessibilityHint("Picks any bottle at random")

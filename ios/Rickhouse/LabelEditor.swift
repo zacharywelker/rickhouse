@@ -334,6 +334,7 @@ struct ReleaseTarget: Identifiable {
 /// The label's facts after brand, name and category, as the category's rules allow (LabelRules.swift). The label
 /// editor and New Label show the same rows.
 struct LabelFactRows: View {
+    @Environment(Session.self) private var session
     @Binding var draft: LabelDraft
     var errors: [String: String]
     var rules: LabelRules
@@ -404,8 +405,8 @@ struct LabelFactRows: View {
             Text(tier).font(.inter(12, .semibold, relativeTo: .caption)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .trailing)
         }
         if rules.showsAging {
-            EditRow(title: "Distilled / barrel filled", field: field(.distilled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.distilled.rawValue], tracksChanges: tracksChanges)
-            EditRow(title: "Bottled", field: field(.bottled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.bottled.rawValue], tracksChanges: tracksChanges)
+            DateRow(title: "Distilled / barrel filled", field: field(.distilled), error: errors[LabelFact.distilled.rawValue], tracksChanges: tracksChanges)
+            DateRow(title: "Bottled", field: field(.bottled), error: errors[LabelFact.bottled.rawValue], tracksChanges: tracksChanges)
             DeriveAgeRow(draft: $draft) { onEdit(.ageYears) }
         }
         if bonded {
@@ -429,7 +430,7 @@ struct LabelFactRows: View {
             }
         }
         SizeRow(field: field(.size), error: errors[LabelFact.size.rawValue])
-        EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: "$", error: errors[LabelFact.msrp.rawValue])
+        EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: session.currencySymbol, error: errors[LabelFact.msrp.rawValue])
         LinkChipsRow(
             title: LabelEditor.listTitle(.distilleries), rows: draft.rows(.distilleries), changed: tracksChanges && draft.listChanged(.distilleries),
             onRemove: { draft.remove(.distilleries, id: $0.id) }, onAdd: { onPick(.distilleries) }

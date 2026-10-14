@@ -105,9 +105,11 @@ onto the pieces after those PRs merge (see the order at the end).
 | `ConfirmSheet` for every question (12.4) | Done in #230 |
 | `FootBar` with Retry for every failure (12.5) | Done in #231 |
 | `SectionLabel`, `FactRow`, `DateRow`, `OptionSheet` (12.1, 12.2, 12.3, 12.6) | Built; on the bottle page, Add bottle, Log a tasting, Account (currency) and the pickers |
-| Label screens (`LabelPage`, `LabelEditor`, `NewLabelView`) | Waiting for #213, #217, #222 |
+| Label screens | `LabelPage`'s About panel is rows with hairlines (no tinted box), 44 pt, with the shared section label; the label editor's MSRP uses the account's currency; New Label's headers are shared. New Label's brand field stays an inline type-ahead (12.3 exception) |
+| Radius | 8 pt everywhere except photo and thumbnail frames (`CollectionView`, `FindLabelView`, `PhotoThumb`, `LabelThumb`); the label editor's chips are capsules |
+| Touch targets | The four 40 pt spots are 44. **check** the other screens with the accessibility inspector |
 | Large text | Checked on the bottle page and Add bottle: long facts stack under their name. **check** still open: `EditRow` (value stays beside the name), the Add bottle header card |
-| Price symbol | The bottle page edit row and Add bottle now use the account's currency symbol instead of a fixed "$". The label editor's MSRP row still says "$" |
+| Price symbol | The bottle page edit row, Add bottle and the label editor's MSRP row use the account's currency symbol instead of a fixed "$" |
 
 ## Order of work
 

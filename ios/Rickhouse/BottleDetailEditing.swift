@@ -80,7 +80,7 @@ extension BottleDetailView {
                 if let msrp = b.msrp { FixedRow(title: "MSRP", value: Format.money(msrp), reason: "A fact of the label, edited under Label") }
                 DateRow(title: "Acquired", field: bottleField(.acquired), error: fieldErrors[BottleFact.acquired.rawValue])
             } header: {
-                Text("Where it came from")
+                SectionLabel("Where it came from")
             }
 
             Section {
@@ -102,7 +102,7 @@ extension BottleDetailView {
                     }
                 }
             } header: {
-                Text("This bottle")
+                SectionLabel("This bottle")
             }
 
             bottleDatesSection(draft)
@@ -111,7 +111,7 @@ extension BottleDetailView {
                 DateRow(title: "Opened", field: bottleField(.opened), error: fieldErrors[BottleFact.opened.rawValue])
                 FixedRow(title: "Status", value: "\(b.status.capitalized) · follows fill")
             } header: {
-                Text("Use")
+                SectionLabel("Use")
             } footer: {
                 Text("Status follows the fill level and the Opened date. Clearing Opened on an open bottle asks whether to keep it open or mark it sealed.")
             }
@@ -129,7 +129,7 @@ extension BottleDetailView {
                 DateRow(title: "Bottled", field: bottleField(.bottled), error: fieldErrors[BottleFact.bottled.rawValue])
                 if draft[.bottled].isEmpty, let label = draft.labelBottled { InheritedNote(date: label) }
             } header: {
-                Text("Dates")
+                SectionLabel("Dates")
             } footer: {
                 Text("Left blank, a bottle goes by its label's dates. Set one only if this bottle differs.")
             }

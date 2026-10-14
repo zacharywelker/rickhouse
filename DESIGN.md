@@ -300,6 +300,8 @@ the fact is about the future (a mute's end).
 - A long or open set: a row showing the current value and a chevron, opening a
   sheet with the system search field. Typing a name that does not exist offers
   to add it when that kind of thing can be added.
+- One exception: a name that is usually new (the brand on New Label) is typed into the form with suggestions
+  below it, because the typed text is the main path and picking an existing one is the shortcut.
 - The flavor wheel is its own screen because it is a different task, not a
   different picker.
 - Top-level screens (Collection, Labels) use the in-page `SearchField`. Sheets
@@ -348,7 +350,7 @@ One bar at the foot of the screen, one component, three kinds:
 
 ## 12.7 Shape, chips and touch
 
-- One corner radius, 8 pt, for bars, panels and sheet buttons, with no exceptions. Photo frames
+- One corner radius, 8 pt, for bars, panels and sheet buttons, with no exceptions except photo and thumbnail frames, which
   follow section 4.
 - A chip is a capsule.
 - The visible shape may be smaller than 44 pt; the tappable area is not

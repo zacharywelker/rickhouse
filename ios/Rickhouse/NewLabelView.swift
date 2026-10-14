@@ -70,7 +70,7 @@ struct NewLabelView: View {
                     draft: $draft, errors: fieldErrors, rules: LabelRules(category: categories.first { $0.id == categoryId }, ginAged: ginAged),
                     ginAged: $ginAged, tracksChanges: false, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
             } header: {
-                Text("About the label")
+                SectionLabel("About the label")
             } footer: {
                 Text("Optional. Anything left out can be added later from the label's page.")
             }
@@ -91,7 +91,7 @@ struct NewLabelView: View {
                     PhotosPicker("Choose from library", selection: $pickerItem, matching: .images)
                 }
             } header: {
-                Text("Photo")
+                SectionLabel("Photo")
             } footer: {
                 Text("Optional. The background is taken out when it can be.")
             }

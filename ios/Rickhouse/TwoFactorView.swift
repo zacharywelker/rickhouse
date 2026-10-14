@@ -171,8 +171,8 @@ struct CodeBoxes: View {
             .font(.inter(26, .semibold, relativeTo: .title2))
             .foregroundStyle(Theme.ink)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10)
+            .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8)
                 .stroke(failed ? Theme.error : (active ? Theme.ink : Theme.muted.opacity(0.5)), lineWidth: failed || active ? 2 : 1))
     }
 }
