@@ -34,7 +34,7 @@ One migration, written by hand, with its journal entry. All tables are owner-sco
 
 `tournament_entries`: `id`, `tournament_id`, `bottle_id` (nullable, `ON DELETE SET NULL`), `expression_id` (nullable), `display_name` (not null, snapshot at entry time so history survives deletion), `status` (`active`, `withdrawn`), `seed`. A bottle entrant also stores its bottle's `expression_id`. Kind is derived: bottle id present means bottle, else expression id present means label-only, else ad hoc.
 
-`tournament_heats`: `id`, `tournament_id`, `round`, `slot`, `status` (`pending`, `decided`, `bye`), `decided_at`, `decided_by` (user id).
+`tournament_heats`: `id`, `tournament_id`, `round`, `slot`, `label` (nullable; set only when you rename a heat), `status` (`pending`, `decided`, `bye`), `decided_at`, `decided_by` (user id).
 
 `tournament_heat_entries`: `heat_id`, `entry_id`, `place` (null until decided), `glass` (null or one letter, set when the heat is mapped or drawn).
 
@@ -42,13 +42,8 @@ One migration, written by hand, with its journal entry. All tables are owner-sco
 
 Rounds are generated one at a time, not as a fixed tree. The first round is generated at start; round *r+1* is generated when every heat of round *r* is decided. This copes with any field size and any heat size, including short heats.
 
-**Bracket view.** The tournament is shown as columns of rounds, each holding heat cards, on web and phone alike. Every bottle row shows name, proof, mashbill and age in fixed columns. Decided heats show places and mark who advanced; blind pending heats show only the proof band. **No lines join heats across rounds**, because each round regroups by proof and a line would show a feeder relationship that does not exist. Before the tournament starts, the same view previews round 1 (editable) with later rounds as counts. On a phone you page between rounds. **Every flight is shown**, however large the field; a 100-bottle tournament is a long page and that is accepted. Round headers stick while you scroll, a search jumps to a bottle, and collapsing finished rounds is optional. Columns scroll with the page, never in their own scroll areas.
-
-**Flight labels.** Each heat has a label so the bracket is readable. The app generates one from what the heat's bottles share: a shared mashbill, by its name ("Buffalo Trace High Rye") or its recipe ("95/5"), with a shared distillery as a prefix ("MGP 95/5"), falling back to the proof band when nothing is shared. You can rename any heat; a custom label is marked "Yours". Stored as nullable `tournament_heats.label`, with the generated label computed on read. In a **blind** tournament a pending heat shows only its proof band, because a generated label would identify the glass; labels appear once the heat is decided. *Reset to automatic* regroups heats, so it also clears custom labels on the heats it regroups, without a warning (decided).
-
-**Phone zoom.** The tournament screen has three zoom levels, changed by pinch or by − and + buttons: **Detail** (name, proof, mashbill, age), **Compact** (one line per bottle: place, name, proof) and **Map** (one row per round, flight tiles with label, bottle frames and status for the current round, counts for later rounds, and no bottle text). The levels are separate layouts, not scaled text, so nothing drops below 12 pt and the system text size still sets the baseline (`DESIGN.md` section 10). The zoom level is remembered per tournament.
-
-- **Grouping.** Active entrants fill heats of `heat_size` in order. The last heat of a round may be short. A heat of one entrant is a **bye**: it advances with no ranking credit.
+- **Starting.** A tournament needs at least two active entrants.
+- **Grouping.** Active entrants fill heats of `heat_size`, in the order given under *Automatic grouping* below. The last heat of a round may be short. A heat of one entrant is a **bye**: it advances with no ranking credit.
 - **Seeding.** `similar` (the default) applies the automatic grouping below to every round. `random` shuffles every round.
 - **Advancing.** A heat of *s* entrants advances `max(1, floor(s/2))`: a 4-way advances 2, a 3-way or 2-way advances 1.
 - **Final.** When the pool entering a round fits in one heat, that is the final. Place 1 is the champion.
@@ -56,6 +51,14 @@ Rounds are generated one at a time, not as a fixed tree. The first round is gene
 - **Withdrawing.** A withdrawn entrant is removed from any undecided heat, which shrinks (to a bye if one entrant is left). Decided heats are unaffected. Withdrawals and byes never count in the ranking.
 - **Skip.** A heat stays pending until decided. Any pending heat of the current round can be played in any order.
 - **Undo.** A decided heat can be undone until a heat in the next round has a result. Undoing deletes the generated next round.
+
+### Bracket view, labels and zoom
+
+**Bracket view.** The tournament is shown as columns of rounds, each holding heat cards, on web and phone alike. Every bottle row shows name, proof, mashbill and age in fixed columns. Decided heats show places and mark who advanced; blind pending heats show only the proof band. **No lines join heats across rounds**, because each round regroups by proof and a line would show a feeder relationship that does not exist. Before the tournament starts, the same view previews round 1 (editable) with later rounds as counts. On a phone you page between rounds. **Every flight is shown**, however large the field; a 100-bottle tournament is a long page and that is accepted. Round headers stick while you scroll, a search jumps to a bottle, and collapsing finished rounds is optional. Columns scroll with the page, never in their own scroll areas.
+
+**Flight labels.** Each heat has a label so the bracket is readable. The app generates one from what the heat's bottles share: a shared mashbill, by its name ("Buffalo Trace High Rye") or its recipe ("95/5"), with a shared distillery as a prefix ("MGP 95/5"), falling back to the proof band when nothing is shared. You can rename any heat; a custom label is marked "Yours". Stored as nullable `tournament_heats.label`, with the generated label computed on read. In a **blind** tournament a pending heat shows only its proof band, because a generated label would identify the glass; labels appear once the heat is decided. *Reset to automatic* regroups heats, so it also clears custom labels on the heats it regroups, without a warning (decided).
+
+**Phone zoom.** The tournament screen has three zoom levels, changed by pinch or by − and + buttons: **Detail** (name, proof, mashbill, age), **Compact** (one line per bottle: place, name, proof) and **Map** (one row per round, flight tiles with label, bottle frames and status for the current round, counts for later rounds, and no bottle text). The levels are separate layouts, not scaled text, so nothing drops below 12 pt and the system text size still sets the baseline (`DESIGN.md` section 10). The zoom level is remembered per tournament on the device, not on the server.
 
 ### Automatic grouping
 
