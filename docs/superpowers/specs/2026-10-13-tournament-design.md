@@ -1,0 +1,111 @@
+# Tournaments: design
+
+Status: decided in conversation on 2026-10-13. Not built.
+Builds on `2026-10-06-tasting-log-design.md` (tastings, ratings, `bottle_id` kept `ON DELETE SET NULL`).
+
+## 1. What this is
+
+A tournament is a saved, resumable set of blind or open tastings that ranks bottles by preference. You pick a field, taste small groups ("heats") against each other over as many nights as you like, and the results build a long-term ranking that **audits your 0–10 ratings**: where the ranking and your ratings disagree. Nothing here changes a rating.
+
+## 2. Decisions
+
+| Question | Decision |
+| --- | --- |
+| Main job | A tournament you start and come back to over many nights. The ranking and the audit are built from its results. |
+| Live Beli-style insertion ranking | Not built. The stored heats would support it later. |
+| Field size | Any. 2 to hundreds. |
+| Who can enter | **Bottles you own** (any status), **labels only** (e.g. a friend's bottle, matched to a label), and **ad hoc** free-text entrants. Chosen with filters: owned, opened, tasted, category, manual pick. |
+| Entrant identity | A bottle entrant is the bottle (private picks stay distinct). A label-only entrant is the label. An ad hoc entrant has no identity beyond its tournament. |
+| Judge | The account owner only. Each result records who picked, so a group can be added later. |
+| Field changes after start | None. The field is locked at start. An entrant can be **withdrawn**. |
+| Heat size | One size per tournament: 2, 3 or 4. |
+| How a heat is decided | A forced ranking, 1st to last. No ties. A 2-way heat is a head-to-head. |
+| Blind modes | **Solo**: map the heat's bottles to glass letters (A to D) with your own device, hide, rank the letters, reveal. **Pourer**: a second person pours, can draw a random pending heat (double-blind), and hands the phone over. Both can be switched off for an open tournament. |
+| Platforms | Everything on web and iOS. Web suits setup (filtering a large field), phone suits live tasting, and either can run a live tasting. |
+| Where logic lives | The server. Both clients are thin. |
+
+## 3. Data model
+
+One migration, written by hand, with its journal entry. All tables are owner-scoped like the rest of the schema, with the existing `(ref, owner_id)` composite-key pattern so a row cannot point at another account's bottle or label.
+
+`tournaments`: `id`, `owner_id`, `name`, `status` (`draft`, `active`, `complete`), `heat_size` (2 to 4), `seeding` (`random`, `by_rating`), `blind` (bool), `field_note` (text; how the field was chosen, for display only), `created_at`, `started_at`, `completed_at`.
+
+`tournament_entries`: `id`, `tournament_id`, `bottle_id` (nullable, `ON DELETE SET NULL`), `expression_id` (nullable), `display_name` (not null, snapshot at entry time so history survives deletion), `status` (`active`, `withdrawn`), `seed`. A bottle entrant also stores its bottle's `expression_id`. Kind is derived: bottle id present means bottle, else expression id present means label-only, else ad hoc.
+
+`tournament_heats`: `id`, `tournament_id`, `round`, `slot`, `status` (`pending`, `decided`, `bye`), `decided_at`, `decided_by` (user id).
+
+`tournament_heat_entries`: `heat_id`, `entry_id`, `place` (null until decided), `glass` (null or one letter, set when the heat is mapped or drawn).
+
+## 4. Rounds and advancement
+
+Rounds are generated one at a time, not as a fixed tree. The first round is generated at start; round *r+1* is generated when every heat of round *r* is decided. This copes with any field size and any heat size, including short heats, at the cost of showing a list of rounds instead of a drawn bracket tree.
+
+- **Grouping.** Active entrants fill heats of `heat_size` in order. The last heat of a round may be short. A heat of one entrant is a **bye**: it advances with no ranking credit.
+- **Round 1 seeding.** `random` shuffles. `by_rating` snakes entrants by average rating across heats so the top-rated are spread out. Later rounds are shuffled.
+- **Advancing.** A heat of *s* entrants advances `max(1, floor(s/2))`: a 4-way advances 2, a 3-way or 2-way advances 1.
+- **Final.** When the pool entering a round fits in one heat, that is the final. Place 1 is the champion.
+- **Standings.** Ordered by the round an entrant left, then place within its heat. Entrants who left the same round with the same place share a standing.
+- **Withdrawing.** A withdrawn entrant is removed from any undecided heat, which shrinks (to a bye if one entrant is left). Decided heats are unaffected. Withdrawals and byes never count in the ranking.
+- **Skip.** A heat stays pending until decided. Any pending heat of the current round can be played in any order.
+- **Undo.** A decided heat can be undone until a heat in the next round has a result. Undoing deletes the generated next round.
+
+## 5. Playing a heat
+
+- **Open** (blind off): show the entrants' names and photos, rank them.
+- **Solo blind**: choose a pending heat. Map each bottle to a letter (the covered lazy susan makes this physically blind), tap hide, rank the letters, reveal.
+- **Pourer blind**: the pourer taps *Draw*, the server picks a pending heat of the current round at random and fixes the glass letters. The pourer sees which bottle is in which glass, then taps *Hand over*. The taster sees only letters, ranks them, and the reveal follows the result.
+- In a blind tournament the heat list and match screens show no names until a heat is decided. The blinding is a user-interface contract between the people at the table. It is not a security boundary against the account owner.
+- Ranking is forced with no ties. If you can't choose, leave the heat pending.
+
+## 6. Server
+
+Routes under `/api/v1/tournaments`, used by web and iOS alike:
+
+- create, list, get (with rounds and standings), delete (a draft or complete tournament)
+- start (locks the field, generates round 1)
+- record a heat result, undo, withdraw an entrant, draw a random heat, set glass letters
+- promote an ad hoc entrant to a label or one of your bottles
+- ranking and audit (section 7)
+
+Rounds, advancement, validation (strict ranking of exactly the entrants in the heat) and the draw are server-side. The pure modules (bracket generation, advancement, ranking fit) take plain data and have exact-answer unit tests.
+
+## 7. Ranking and audit
+
+**Ranking.** Every decided, non-bye heat from every tournament goes into one Plackett–Luce fit, computed on demand and never stored. Ad hoc entrants are excluded. Each competitor (a bottle, or a label-only entrant) gets a strength; the ranking is the order of strengths.
+
+- **Prior.** A weak prior pulls strengths toward the average, so an undefeated bottle does not get an infinite strength.
+- **Provisional.** Fewer than 3 heats shows as provisional, not as a firm rank.
+- **Comparable groups.** Strengths are comparable only within a group linked by shared competitors. Competitors from unlinked tournaments are shown as "not yet comparable", never merged.
+- **Category filter.** Rankings are viewed per category.
+- **Promotion** is retroactive for free: setting an ad hoc entrant's bottle or label makes its past heats count on the next fit.
+
+**Audit.** For each competitor with a ranking and at least one rated tasting, compare its percentile in the ranking with its percentile by average 0–10 rating among the rated competitors in the same group. List the largest gaps first ("rated 9.0, ranks 14th of 40"). A bottle entrant uses tastings logged against that bottle; a label-only entrant uses that label's tastings with no bottle. Competitors with no rated tastings appear in the ranking but not the audit.
+
+## 8. Surfaces
+
+- **Web**: create a tournament (large field picker with filters, preview of entrants and rounds), run heats, rounds and standings, ranking, audit.
+- **iOS**: the same, laid out for live tasting (glass-letter mapping, the pourer's hand-over, ranking by drag).
+- **Label page**: one line, "Tournament rank: 3 of 41 bourbons", when the label or one of its bottles has a firm rank.
+
+## 9. Provenance on label-page tastings (separate PR, first)
+
+Today a label's tasting row carries only `bottleId`, so a tasting of a store pick looks the same as one of the standard bottling. The label tastings API returns a bottle summary (single barrel, private pick with pick name and picker, barrel number, release), and each tasting row shows it as a tag, on web and iOS. A tasting with no bottle has no provenance; giving a tasting its own provenance fields is not part of this.
+
+## 10. Build order
+
+| # | PR | Contents |
+| --- | --- | --- |
+| 0 | Provenance | Section 9. Useful alone; the audit relies on it. |
+| 1 | Server core | Migration, pure modules and their tests, the routes in section 6, ranking and audit. |
+| 2 | Web | Create, play, results, ranking, audit; a Playwright test of a full small tournament in both blind modes. |
+| 3 | iOS | The same on the phone, built once the web flow is proven. May split in two. |
+
+## 11. Not in this design
+
+Group voting. Adding entrants after the start. Tastings with their own provenance. Writing the ranking back into ratings. A live Beli-style insertion ranking. A drawn bracket tree.
+
+## 12. Open points
+
+- A bottle deleted after it entered a tournament leaves an entry with only its label, so it falls into the label-only competitor for that label. Accepted for now; its display name keeps the history readable.
+- The ranking prior's strength is chosen when the fit is written and tested against fixtures.
+- Heat size tops out at 4. A larger susan would need a larger maximum, and the data model already allows it.
