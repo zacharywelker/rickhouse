@@ -267,10 +267,17 @@ struct LabelRelease: Decodable, Identifiable {
     let name: String
     let releaseYear: Int?
     let proof: String?
+    /// The release's own age, absent from an older server.
+    var ageYears: String? = nil
+    var ageMonths: Int? = nil
+    var ageDays: Int? = nil
     let ageStatement: String?
     let msrp: String?
     let photoThumbPath: String?
 }
+
+/// What the server answers when a known release is added or changed.
+struct SavedRelease: Decodable { let id: String; let name: String }
 
 struct LabelBottle: Decodable, Identifiable, Hashable {
     let id: Int

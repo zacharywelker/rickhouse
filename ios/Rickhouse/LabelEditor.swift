@@ -10,6 +10,8 @@ struct LabelEditor: View {
     let id: Int
     var onSaved: (UndoOffer) -> Void
     var onMerged: (MergeAnswer, LabelDetail) -> Void
+    /// A release was added or changed. These save on their own, so the page behind reads the label again.
+    var onReleasesChanged: () -> Void = {}
 
     @State private var label: LabelDetail?
     @State private var draft: LabelDraft?
@@ -24,6 +26,7 @@ struct LabelEditor: View {
     @State private var scanning = false
     @State private var ginAged = false
     @State private var choosingCategory = false
+    @State private var releaseSheet: ReleaseTarget?
 
     private var rules: LabelRules {
         LabelRules(category: categories.first { $0.id == Int(draft?[.category].text ?? "") }, ginAged: ginAged)
@@ -56,6 +59,12 @@ struct LabelEditor: View {
         .task { await load() }
         .confirmSheet("Discard your changes?", message: "Nothing you changed has been saved.", confirm: "Discard changes", cancel: "Keep editing", isPresented: $discarding) { dismiss() }
         .sheet(item: $picking) { pickerSheet(for: $0) }
+        .sheet(item: $releaseSheet) { target in
+            ReleaseEditor(labelId: id, release: target.release) {
+                Task { await reloadReleases() }
+                onReleasesChanged()
+            }
+        }
         .sheet(isPresented: $choosingCategory) {
             CategoryPickerSheet(categories: categories, selected: Int(draft?[.category].text ?? "")) { categoryChoice.wrappedValue = $0.id }
         }
@@ -138,9 +147,44 @@ struct LabelEditor: View {
                 }
                 .foregroundStyle(Theme.ink)
             }
+            Section {
+                ForEach(label.releases) { release in
+                    Button { releaseSheet = ReleaseTarget(release: release) } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(release.name).font(.inter(16, .medium)).foregroundStyle(Theme.ink)
+                                let detail = [release.releaseYear.map(String.init), Format.proof(release.proof)].compactMap { $0 }.joined(separator: " · ")
+                                if !detail.isEmpty { Text(detail).font(.inter(13)).foregroundStyle(Theme.muted) }
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.muted).accessibilityHidden(true)
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                }
+                Button { releaseSheet = ReleaseTarget(release: nil) } label: {
+                    Label("Add a release", systemImage: "plus.circle")
+                        .font(.inter(15, .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .foregroundStyle(Theme.ink)
+            } header: {
+                Text("Known releases")
+            } footer: {
+                Text("Batches or yearly editions. A release saves as soon as you save it, apart from the label's Save, and is removed on the web.")
+            }
             if let factError { Section { ErrorText(factError) } }
         }
         .scrollContentBackground(.hidden)
+    }
+
+    /// Reads the label again after a release was saved, for its list; the unsaved edits to the label's own facts are
+    /// in the draft and stay.
+    private func reloadReleases() async {
+        guard let api = session.api, let fresh = try? await api.label(id: id) else { return }
+        label = fresh
     }
 
     /// Who else sees the change. With no bottle on the label there is nothing to count, so it says so.
@@ -279,6 +323,12 @@ struct LabelEditor: View {
             }
         }
     }
+}
+
+/// What the release sheet is open for: a release to change, or nil for a new one.
+struct ReleaseTarget: Identifiable {
+    let release: LabelRelease?
+    var id: Int { release?.id ?? 0 }
 }
 
 /// The label's facts after brand, name and category, as the category's rules allow (LabelRules.swift). The label
