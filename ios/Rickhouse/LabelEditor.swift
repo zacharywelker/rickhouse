@@ -10,6 +10,8 @@ struct LabelEditor: View {
     let id: Int
     var onSaved: (UndoOffer) -> Void
     var onMerged: (MergeAnswer, LabelDetail) -> Void
+    /// A release was added or changed. These save on their own, so the page behind reads the label again.
+    var onReleasesChanged: () -> Void = {}
 
     @State private var label: LabelDetail?
     @State private var draft: LabelDraft?
@@ -23,6 +25,8 @@ struct LabelEditor: View {
     @State private var discarding = false
     @State private var scanning = false
     @State private var ginAged = false
+    @State private var choosingCategory = false
+    @State private var releaseSheet: ReleaseTarget?
 
     private var rules: LabelRules {
         LabelRules(category: categories.first { $0.id == Int(draft?[.category].text ?? "") }, ginAged: ginAged)
@@ -55,6 +59,15 @@ struct LabelEditor: View {
         .task { await load() }
         .confirmSheet("Discard your changes?", message: "Nothing you changed has been saved.", confirm: "Discard changes", cancel: "Keep editing", isPresented: $discarding) { dismiss() }
         .sheet(item: $picking) { pickerSheet(for: $0) }
+        .sheet(item: $releaseSheet) { target in
+            ReleaseEditor(labelId: id, release: target.release) {
+                Task { await reloadReleases() }
+                onReleasesChanged()
+            }
+        }
+        .sheet(isPresented: $choosingCategory) {
+            CategoryPickerSheet(categories: categories, selected: Int(draft?[.category].text ?? "")) { categoryChoice.wrappedValue = $0.id }
+        }
         .fullScreenCover(isPresented: $scanning) {
             ScanScreen { code in
                 field(.barcode).wrappedValue.text = Barcode.normalise(code) ?? code
@@ -119,13 +132,12 @@ struct LabelEditor: View {
                     .foregroundStyle(Theme.ink)
                     .accessibilityHint("Moves this label's bottles and tastings to \(clash.title) and removes this label")
                 }
-                Picker(selection: categoryChoice) {
-                    ForEach(categories) { option in Text(option.parent.map { "\($0) · \(option.name)" } ?? option.name).tag(option.id) }
-                } label: {
-                    Text("Category").foregroundStyle(Theme.muted)
-                }
-                .tint(Theme.ink)
-                LabelFactRows(draft: Binding($draft)!, errors: fieldErrors, rules: rules, ginAged: $ginAged, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
+                PickerRow(
+                    title: "Category", value: draft.categoryName, changed: draft[.category].changed,
+                    onOpen: { choosingCategory = true },
+                    onRevert: { self.draft?[.category].revert(); self.draft?.categoryName = label.category }
+                )
+                LabelFactRows(draft: Binding($draft)!, errors: fieldErrors, rules: rules, ginAged: $ginAged, proofSpread: label.proofSpread, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
                 EditRow(title: "Barcode", field: field(.barcode), placeholder: "Scan or type", keyboard: .numberPad, error: fieldErrors[LabelFact.barcode.rawValue])
                 Button { scanning = true } label: {
                     Label("Scan barcode", systemImage: "barcode.viewfinder")
@@ -135,9 +147,44 @@ struct LabelEditor: View {
                 }
                 .foregroundStyle(Theme.ink)
             }
+            Section {
+                ForEach(label.releases) { release in
+                    Button { releaseSheet = ReleaseTarget(release: release) } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(release.name).font(.inter(16, .medium)).foregroundStyle(Theme.ink)
+                                let detail = [release.releaseYear.map(String.init), Format.proof(release.proof)].compactMap { $0 }.joined(separator: " · ")
+                                if !detail.isEmpty { Text(detail).font(.inter(13)).foregroundStyle(Theme.muted) }
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.muted).accessibilityHidden(true)
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                }
+                Button { releaseSheet = ReleaseTarget(release: nil) } label: {
+                    Label("Add a release", systemImage: "plus.circle")
+                        .font(.inter(15, .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .foregroundStyle(Theme.ink)
+            } header: {
+                Text("Known releases")
+            } footer: {
+                Text("Batches or yearly editions. A release saves as soon as you save it, apart from the label's Save, and is removed on the web.")
+            }
             if let factError { Section { ErrorText(factError) } }
         }
         .scrollContentBackground(.hidden)
+    }
+
+    /// Reads the label again after a release was saved, for its list; the unsaved edits to the label's own facts are
+    /// in the draft and stay.
+    private func reloadReleases() async {
+        guard let api = session.api, let fresh = try? await api.label(id: id) else { return }
+        label = fresh
     }
 
     /// Who else sees the change. With no bottle on the label there is nothing to count, so it says so.
@@ -278,6 +325,12 @@ struct LabelEditor: View {
     }
 }
 
+/// What the release sheet is open for: a release to change, or nil for a new one.
+struct ReleaseTarget: Identifiable {
+    let release: LabelRelease?
+    var id: Int { release?.id ?? 0 }
+}
+
 /// The label's facts after brand, name and category, as the category's rules allow (LabelRules.swift). The label
 /// editor and New Label show the same rows.
 struct LabelFactRows: View {
@@ -286,13 +339,17 @@ struct LabelFactRows: View {
     var rules: LabelRules
     /// Gin only: "Aged" pressed.
     @Binding var ginAged: Bool
+    /// What a Cask Strength label's releases and bottles actually span, for the note under the greyed proof.
+    var proofSpread: String? = nil
     /// Off on New Label, where there is nothing to put back.
     var tracksChanges = true
     var onEdit: (LabelFact) -> Void
     var onPick: (LinkList) -> Void
 
-    /// An age greys the statement out; this opens it again (the web's triple-click).
-    @State private var statementUnlocked = false
+    /// NAS greys the age and its statement, an age greys the statement, Cask Strength greys the proof; "Edit" opens them
+    /// again (the web's triple-click). Switching the tick that greyed them puts the grey back.
+    @State private var ageUnlocked = false
+    @State private var proofUnlocked = false
 
     private func field(_ fact: LabelFact) -> Binding<Field> {
         Binding(get: { draft[fact] }, set: { draft[fact] = $0; onEdit(fact) })
@@ -304,6 +361,8 @@ struct LabelFactRows: View {
             set: { on in
                 var next = draft
                 next[fact].text = on ? "true" : "false"
+                if fact == .isNas { ageUnlocked = false }
+                if fact == .isCaskStrength { proofUnlocked = false }
                 draft = AgeDefaults.apply(prev: draft, next: next, changed: fact)
                 onEdit(fact)
             }
@@ -331,8 +390,16 @@ struct LabelFactRows: View {
                 ("Still proof", tick(.isStillProof), rules.showsStillProof && !AgeDefaults.ageFilled(draft) && draft[.ageStatement].isEmpty),
             ])
         }
-        StrengthRow(proof: field(.proof), error: errors[LabelFact.proof.rawValue], tracksChanges: tracksChanges)
-            .disabled(bonded)
+        let caskLocked = rules.showsAging && !bonded && !proofUnlocked && draft[.isCaskStrength].trimmed == "true"
+        HStack {
+            StrengthRow(proof: field(.proof), error: errors[LabelFact.proof.rawValue], tracksChanges: tracksChanges)
+                .disabled(bonded || caskLocked)
+                .opacity(caskLocked ? 0.5 : 1)
+            if caskLocked { unlockButton("Edit the proof anyway") { proofUnlocked = true } }
+        }
+        if caskLocked {
+            Text(proofSpread.map { "Cask Strength: \($0) proof across its releases and bottles." } ?? "Cask Strength: the proof differs by release, so it isn't set here.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+        }
         if let tier = Strength.tier(group: rules.group, proof: draft[.proof].trimmed) {
             Text(tier).font(.inter(12, .semibold, relativeTo: .caption)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .trailing)
         }
@@ -345,20 +412,20 @@ struct LabelFactRows: View {
             Text("Bottled in Bond is 100 proof.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
         }
         if rules.showsAging {
-            AgeRow(years: field(.ageYears), months: field(.ageMonths), days: field(.ageDays),
-                   error: errors[LabelFact.ageYears.rawValue] ?? errors[LabelFact.ageMonths.rawValue] ?? errors[LabelFact.ageDays.rawValue])
-            let locked = AgeDefaults.ageFilled(draft) && !statementUnlocked
+            let nasLocked = draft[.isNas].trimmed == "true" && !ageUnlocked
+            HStack {
+                AgeRow(years: field(.ageYears), months: field(.ageMonths), days: field(.ageDays),
+                       error: errors[LabelFact.ageYears.rawValue] ?? errors[LabelFact.ageMonths.rawValue] ?? errors[LabelFact.ageDays.rawValue])
+                    .disabled(nasLocked)
+                    .opacity(nasLocked ? 0.5 : 1)
+                if nasLocked { unlockButton("Edit the age anyway") { ageUnlocked = true } }
+            }
+            let locked = (nasLocked || AgeDefaults.ageFilled(draft)) && !ageUnlocked
             HStack {
                 EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: errors[LabelFact.ageStatement.rawValue], tracksChanges: tracksChanges)
                     .disabled(locked)
                     .opacity(locked ? 0.5 : 1)
-                if locked {
-                    Button("Edit") { statementUnlocked = true }
-                        .font(.inter(15, .semibold))
-                        .frame(minWidth: 44, minHeight: 44)
-                        .foregroundStyle(Theme.ink)
-                        .accessibilityLabel("Edit the age statement anyway")
-                }
+                if locked { unlockButton("Edit the age statement anyway") { ageUnlocked = true } }
             }
         }
         SizeRow(field: field(.size), error: errors[LabelFact.size.rawValue])
@@ -378,7 +445,8 @@ struct LabelFactRows: View {
         } else {
             LinkChipsRow(
                 title: LabelEditor.listTitle(.mashbills), rows: draft.rows(.mashbills), changed: tracksChanges && draft.listChanged(.mashbills),
-                onRemove: { draft.remove(.mashbills, id: $0.id) }, onAdd: { onPick(.mashbills) }
+                onRemove: { draft.remove(.mashbills, id: $0.id) }, onAdd: { onPick(.mashbills) },
+                sources: draft.rows(.distilleries), onSource: { row, source in draft.setSource(ofMashbill: row.id, to: source) }
             )
         }
         if rules.showsFinishes {
@@ -393,6 +461,15 @@ struct LabelFactRows: View {
             Text("One per line. Years in brackets: Hirsch (until 1985).").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
         }
     }
+}
+
+/// The "Edit" beside a greyed row.
+private func unlockButton(_ label: String, action: @escaping () -> Void) -> some View {
+    Button("Edit", action: action)
+        .font(.inter(15, .semibold))
+        .frame(minWidth: 44, minHeight: 44)
+        .foregroundStyle(Theme.ink)
+        .accessibilityLabel(label)
 }
 
 /// The four ticks, two to a line, each a 44 pt target. A tick the category doesn't have is left out.

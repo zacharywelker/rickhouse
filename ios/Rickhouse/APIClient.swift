@@ -317,6 +317,17 @@ struct APIClient {
         _ = try await sendObject("PATCH", "api/v1/expressions/\(id)", json: changes, as: LabelOption.self)
     }
 
+    /// Adds a known release to a label. `fields` are the form's columns as typed (name, year, proof, ageYears, ageMonths,
+    /// ageDays, msrp); a release is never removed from the phone.
+    func addRelease(labelId: Int, _ fields: [String: String]) async throws {
+        _ = try await sendObject("POST", "api/v1/expressions/\(labelId)/releases", json: fields, as: SavedRelease.self)
+    }
+
+    /// Changes a known release; only the fields sent change, and a blank clears one.
+    func updateRelease(labelId: Int, releaseId: Int, _ fields: [String: String]) async throws {
+        _ = try await sendObject("PATCH", "api/v1/expressions/\(labelId)/releases/\(releaseId)", json: fields, as: SavedRelease.self)
+    }
+
     /// Merges one of your labels into another: its bottles and tastings move across, the other label's facts win
     /// unless `keepMine` names one to carry over, and this label is removed. It cannot be undone.
     func mergeLabel(id: Int, into target: Int, keepMine: [String]) async throws -> MergeAnswer {
