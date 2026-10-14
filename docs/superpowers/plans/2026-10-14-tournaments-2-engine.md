@@ -912,6 +912,7 @@ git commit -m "Tournament engine: advancement, round plan and standings"
 - Test: `src/lib/tournaments/__tests__/ranking.test.ts`
 
 **Interfaces:**
+- Consumes: `PROOF_BAND` from Task 3 (`keys.ts`), so the proof band is defined once.
 - Produces: `FIRM_HEATS`, `PRIOR_WEIGHT`, `type RankedHeat = { ranking: { id: string; proof: number | null }[] }`, `type Strength`, `fitStrengths(heats, prior?)`, `comparableGroups(heats)`, `rankCompetitors(heats, prior?)`, `type AuditRow`, `audit(strengths, ratings)`.
 
 A competitor's `id` is a string the caller chooses (the data layer will use `b:<bottleId>` for a bottle and `e:<expressionId>` for a label-only entrant). The fit only ever compares ids for equality.
@@ -1072,12 +1073,12 @@ Expected: FAIL, "Failed to resolve import ../ranking".
 Create `src/lib/tournaments/ranking.ts`:
 
 ```ts
+import { PROOF_BAND } from "./keys";
+
 /** Fewer heats than this and a competitor's rank is provisional, not firm. */
 export const FIRM_HEATS = 3;
 /** How strongly strengths are pulled toward the average, in pseudo-heats against a fixed average competitor. */
 export const PRIOR_WEIGHT = 0.5;
-/** Proof bands, as for grouping, decide whether a competitor has only ever met its own strength. */
-const PROOF_BAND = 5;
 
 /** One decided heat: its competitors best first, with the proof each had (null when unknown). */
 export type RankedHeat = { ranking: { id: string; proof: number | null }[] };
