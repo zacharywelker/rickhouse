@@ -361,6 +361,7 @@ struct NewBottle: Encodable {
     var batch: String?
     var location: String?
     var notes: String?
+    var storeId: Int?
 }
 
 struct CreatedBottle: Decodable { let id: Int }
@@ -496,8 +497,12 @@ enum LookupKind: String {
         }
     }
 
-    /// A name is enough to make these; a mashbill is a recipe and a store has a place, so they are made on the web.
-    var creatable: Bool { self == .brands || self == .distilleries || self == .finishes }
+    /// These can be made from the phone. A mashbill is a recipe, so it is made on the web.
+    var creatable: Bool { self != .mashbills }
+
+    /// A store is its name and its place: "Total Wine" in Austin and in Dallas are two stores, so the picker asks for
+    /// the place instead of making one from the name alone.
+    var needsPlace: Bool { self == .stores }
 }
 
 struct LookupItem: Decodable, Identifiable, Hashable {

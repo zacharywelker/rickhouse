@@ -333,6 +333,16 @@ struct APIClient {
         try await sendObject("POST", "api/v1/lookups/\(kind.rawValue)", json: ["name": name], as: CreatedLookup.self)
     }
 
+    /// Makes a store from its name and place, or hands back the one already at that name and place in any case.
+    /// A blank place is sent as blank (an online store has none).
+    func createStore(name: String, city: String, state: String, country: String, isOnline: Bool) async throws -> CreatedLookup {
+        try await sendObject(
+            "POST", "api/v1/lookups/stores",
+            json: ["name": name, "city": city, "state": state, "country": country, "isOnline": isOnline],
+            as: CreatedLookup.self
+        )
+    }
+
     /// Multipart upload to the web route; the first photo becomes the bottle's hero shot.
     func uploadImages(bottleId: Int, images: [UploadImage]) async throws {
         try await postImages("api/bottles/\(bottleId)/images", field: "images", images: images)

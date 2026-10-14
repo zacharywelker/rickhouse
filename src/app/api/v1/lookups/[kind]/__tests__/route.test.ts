@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const getCurrentUser = vi.fn();
 const listLookup = vi.fn();
 const createLookup = vi.fn();
+const createStore = vi.fn();
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -12,6 +13,7 @@ vi.mock("@/lib/lookups", () => ({
   CREATABLE_KINDS: ["brands", "distilleries", "finishes"],
   listLookup: (...args: unknown[]) => listLookup(...args),
   createLookup: (...args: unknown[]) => createLookup(...args),
+  createStore: (...args: unknown[]) => createStore(...args),
 }));
 
 import { GET, POST } from "../route";
@@ -33,6 +35,7 @@ beforeEach(() => {
   getCurrentUser.mockResolvedValue({ id: 7 });
   listLookup.mockResolvedValue([{ id: 1, name: "Wild Turkey", detail: null }]);
   createLookup.mockResolvedValue({ id: 9, name: "Port", created: true });
+  createStore.mockResolvedValue({ id: 4, name: "Total Wine", created: true });
 });
 
 describe("GET /api/v1/lookups/:kind", () => {
@@ -66,7 +69,7 @@ describe("POST /api/v1/lookups/:kind", () => {
     expect((await res.json()).created).toBe(false);
   });
 
-  it.each(["mashbills", "stores"])("will not create %s from the phone", async (kind) => {
+  it.each(["mashbills"])("will not create %s from the phone", async (kind) => {
     const res = await post(kind, { name: "X" });
     expect(res.status).toBe(405);
     expect(createLookup).not.toHaveBeenCalled();
@@ -88,5 +91,39 @@ describe("POST /api/v1/lookups/:kind", () => {
     getCurrentUser.mockResolvedValue(null);
     expect((await post("brands", { name: "X" })).status).toBe(401);
     expect(createLookup).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/v1/lookups/stores", () => {
+  it("makes a store from its name and place", async () => {
+    const res = await post("stores", { name: " Total Wine ", city: "Dallas", state: "TX", country: "", isOnline: false });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ id: 4, name: "Total Wine", created: true });
+    expect(createStore).toHaveBeenCalledWith(7, { name: "Total Wine", city: "Dallas", state: "TX", country: null, isOnline: false });
+    expect(createLookup).not.toHaveBeenCalled();
+  });
+
+  it("takes a name alone, and an online store", async () => {
+    expect((await post("stores", { name: "Binny's" })).status).toBe(201);
+    expect(createStore).toHaveBeenLastCalledWith(7, { name: "Binny's", city: null, state: null, country: null, isOnline: false });
+    await post("stores", { name: "Caskers", isOnline: true });
+    expect(createStore).toHaveBeenLastCalledWith(7, expect.objectContaining({ isOnline: true }));
+  });
+
+  it("returns the store already at that name and place with a 200", async () => {
+    createStore.mockResolvedValue({ id: 2, name: "total wine", created: false });
+    const res = await post("stores", { name: "Total Wine", city: "Austin", state: "TX" });
+    expect(res.status).toBe(200);
+    expect((await res.json()).created).toBe(false);
+  });
+
+  it.each([
+    ["no name", {}],
+    ["a blank name", { name: "  " }],
+    ["a city over 80 characters", { name: "X", city: "x".repeat(81) }],
+    ["a field the phone doesn't send", { name: "X", url: "https://x.com" }],
+  ])("refuses %s with a 422", async (_n, body) => {
+    expect((await post("stores", body)).status).toBe(422);
+    expect(createStore).not.toHaveBeenCalled();
   });
 });

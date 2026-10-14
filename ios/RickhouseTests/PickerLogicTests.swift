@@ -38,7 +38,9 @@ final class PickerLogicTests: XCTestCase {
         XCTAssertTrue(PickerLogic.offersNew("Austin Nichols", kind: .distilleries, in: items))
         XCTAssertFalse(PickerLogic.offersNew("wild turkey", kind: .distilleries, in: items), "it is already there")
         XCTAssertFalse(PickerLogic.offersNew("", kind: .distilleries, in: items))
-        XCTAssertFalse(PickerLogic.offersNew("Total Wine", kind: .stores, in: items), "stores are made on the web")
+        XCTAssertTrue(PickerLogic.offersNew("Total Wine", kind: .stores, in: items), "a store can be made here")
+        XCTAssertTrue(PickerLogic.offersNew("Total Wine", kind: .stores, in: [LookupItem(id: 1, name: "Total Wine", detail: "Austin, TX")]),
+                      "the same name in another place is another store")
         XCTAssertFalse(PickerLogic.offersNew("High Rye", kind: .mashbills, in: items), "mashbills are made on the web")
     }
 

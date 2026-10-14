@@ -23,6 +23,8 @@ struct PickerSheet: View {
     @State private var searching = false
     @State private var loading = true
     @State private var creating = false
+    /// The store form is open, for the name that was typed.
+    @State private var placing = false
     @State private var error: String?
 
     private var typed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -51,7 +53,7 @@ struct PickerSheet: View {
                 }
                 if PickerLogic.offersNew(typed, kind: kind, in: items) {
                     Section {
-                        Button(action: create) {
+                        Button { if kind.needsPlace { placing = true } else { create() } } label: {
                             HStack {
                                 Text("Add “\(typed)” as a new \(kind.singular)").font(.inter(16, .semibold))
                                 Spacer()
@@ -63,7 +65,7 @@ struct PickerSheet: View {
                         .foregroundStyle(Theme.paper)
                         .listRowBackground(Theme.ink)
                     } footer: {
-                        Text("New names join your list and can be used on any label.")
+                        Text(kind.needsPlace ? "A store is its name and where it is." : "New names join your list and can be used on any label.")
                     }
                 }
                 if !loading && items.isEmpty && typed.isEmpty && error == nil {
@@ -90,6 +92,15 @@ struct PickerSheet: View {
             }
         }
         .task { await load() }
+        .sheet(isPresented: $placing) {
+            StoreForm(name: typed) { made in
+                if !items.contains(where: { $0.id == made.id }) {
+                    items.append(made)
+                    items.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                }
+                choose(made)
+            }
+        }
     }
 
     private func row(_ item: LookupItem) -> some View {
