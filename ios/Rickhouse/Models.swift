@@ -97,6 +97,35 @@ struct BottleDetail: Decodable {
     /// Single barrel, and a private select of one; absent from an older server's answer.
     let isSingleBarrel: Bool?
     let isSingleBarrelPick: Bool?
+    /// How it came to you ("purchase", "gift"…), and the rest of the single-barrel detail; absent from an older server.
+    var acquisition: String? = nil
+    var pickedBy: String? = nil
+    var warehouse: String? = nil
+    var rickFloor: String? = nil
+    var bottleCount: Int? = nil
+    /// What this bottle says for itself, apart from the release and label it falls back on; absent from an older server.
+    var own: OwnFacts? = nil
+    /// The label's known releases, for the Release choice.
+    var releases: [ReleaseChoice]? = nil
+}
+
+/// A bottle's own proof, age and size (nil: it goes by its release's or label's).
+struct OwnFacts: Decodable {
+    let proof: String?
+    let ageYears: String?
+    let ageMonths: Int?
+    let ageDays: Int?
+    let ageStatement: String?
+    let sizeMl: Int?
+}
+
+/// One of a label's known releases, as a choice on a bottle.
+struct ReleaseChoice: Decodable, Identifiable, Equatable {
+    let id: Int
+    let name: String
+    let releaseYear: Int?
+
+    var title: String { releaseYear.map { name.contains(String($0)) ? name : "\(name) (\($0))" } ?? name }
 }
 
 /// What the server changed besides the level when one is set.
@@ -361,16 +390,6 @@ enum Barcode {
         if digits.count == 12 { forms.insert("0" + digits) }
         return forms
     }
-}
-
-struct NewBottle: Encodable {
-    var expressionId: Int
-    var pricePaid: String?
-    var dateAcquired: String?
-    var batch: String?
-    var location: String?
-    var notes: String?
-    var storeId: Int?
 }
 
 struct CreatedBottle: Decodable { let id: Int }

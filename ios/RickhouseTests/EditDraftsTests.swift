@@ -242,6 +242,68 @@ final class EditDraftsTests: XCTestCase {
         same(draft.patch(), ["storeId": NSNull()])
     }
 
+    // MARK: Bottle form (add and edit share a draft)
+
+    private func option() throws -> LabelOption {
+        try JSONDecoder().decode(LabelOption.self, from: JSONSerialization.data(withJSONObject: [
+            "id": 12, "name": "Rare Breed", "brand": "Wild Turkey", "category": "Bourbon",
+        ]))
+    }
+
+    func testANewBottleSendsOnlyWhatWasFilledIn() throws {
+        var draft = BottleDraft.new(label: try option(), today: "2026-10-13")
+        same(draft.patch(), ["expressionId": 12, "dateAcquired": "2026-10-13"])
+        draft[.paid].text = "54.99"
+        draft[.singleBarrel].text = "true"
+        draft[.size].text = "1000"
+        draft[.store].text = "3"
+        same(draft.patch(), ["expressionId": 12, "dateAcquired": "2026-10-13", "pricePaid": "54.99", "isSingleBarrel": true, "sizeMl": "1000", "storeId": 3])
+        XCTAssertTrue(draft.showsBarrelDetail)
+    }
+
+    func testAChosenReleaseTakesOverTheBatchAndYear() throws {
+        var draft = BottleDraft(try bottle(["batch": "B1", "releaseYear": 2020]))
+        draft[.batch].text = "B2"
+        XCTAssertEqual(Set(draft.patch().keys), ["batch"])
+        draft[.release].text = "5"
+        XCTAssertTrue(draft.onRelease)
+        same(draft.patch(), ["releaseId": 5]) // the batch is the release's now, so it is not sent
+        same(draft.undoPatch(), ["releaseId": NSNull(), "batch": "B1", "releaseYear": "2020"])
+    }
+
+    func testABottleOnAReleaseHasNoBatchOfItsOwn() throws {
+        let draft = BottleDraft(try bottle(["releaseId": 5, "batch": "2024-01 Springfield", "releaseYear": 2024]))
+        XCTAssertTrue(draft[.batch].isEmpty, "the server shows the release's name as the batch; it is not the bottle's")
+        XCTAssertFalse(draft.isDirty)
+        var cleared = draft
+        cleared[.release].text = ""
+        same(cleared.patch(), ["releaseId": NSNull()])
+    }
+
+    func testSwitchingTheLabelSendsItWithTheReleaseDropped() throws {
+        var draft = BottleDraft(try bottle(["releaseId": 5]))
+        draft[.label].text = "12"
+        draft[.release].text = ""
+        same(draft.patch(), ["expressionId": 12, "releaseId": NSNull()])
+        same(draft.undoPatch(), ["expressionId": 10, "releaseId": 5])
+    }
+
+    func testTheBottlesOwnProofAgeAndSizeAreCheckedAndSent() throws {
+        var draft = BottleDraft(try bottle(["own": ["proof": "118.40", "ageYears": "7.0", "ageMonths": 3, "sizeMl": 1000]]))
+        XCTAssertEqual(draft[.proof].text, "118.4")
+        XCTAssertEqual(draft[.ageYears].text, "7")
+        XCTAssertFalse(draft.isDirty)
+        draft[.proof].text = "201"
+        draft[.size].text = "0"
+        draft[.ageMonths].text = "x"
+        draft[.bottled].text = "2020-01-01"
+        draft[.distilled].text = "2021-01-01"
+        let found = draft.errors(today: "2026-10-13")
+        XCTAssertEqual(Set(found.keys), [.proof, .size, .ageMonths, .bottled])
+        draft[.proof].text = ""
+        same(draft.patch().filter { $0.key == "proof" }, ["proof": NSNull()]) // blank goes back to the label's
+    }
+
     func testBrandIsSentAsItsIdAndUndone() throws {
         var draft = LabelDraft(try label())
         draft[.brand].text = "4"

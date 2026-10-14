@@ -21,8 +21,6 @@ struct BottleDetailView: View {
     // Editing the bottle's and the label's facts (docs/superpowers/specs/2026-10-08-edit-facts-design.md). The views are in
     // BottleDetailEditing.swift; the state is here because an extension can't hold it.
     @State var bottleDraft: BottleDraft?
-    @State var revealed: Set<BottleFact> = []
-    @State var lastRevealed: BottleFact?
     @State var savingFacts = false
     @State var factError: String?
     @State var fieldErrors: [String: String] = [:]

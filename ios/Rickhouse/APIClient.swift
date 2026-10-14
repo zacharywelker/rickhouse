@@ -253,14 +253,8 @@ struct APIClient {
 
     // MARK: Writes
 
-    func createBottle(_ bottle: NewBottle) async throws -> Int {
-        var req = request(path: "api/v1/bottles")
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(bottle)
-        let (data, response) = try await Self.send(req)
-        try Self.check(response, data)
-        return try Self.decoder.decode(CreatedBottle.self, from: data).id
+    func createBottle(_ body: [String: Any]) async throws -> Int {
+        try await sendObject("POST", "api/v1/bottles", json: body, as: CreatedBottle.self).id
     }
 
     /// Logs a tasting of one of your labels. The server checks the flavors against the label's wheel.
