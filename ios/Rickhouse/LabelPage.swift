@@ -81,6 +81,8 @@ struct LabelPage: View {
                 foot.dropUndo()
                 id = theirs.id
                 Task { await load(); foot.show(FootBar.merged(answer, into: theirs)) }
+            } onReleasesChanged: {
+                Task { await load() }
             }
         }
         .sheet(item: $fillingBottle) { bottle in

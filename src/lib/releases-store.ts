@@ -1,9 +1,9 @@
 import "server-only";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { expressionReleases, expressions } from "@/db/schema";
 import { deleteStoredImage } from "./images";
-import { releaseLabel, type Release, type ReleaseInput } from "./releases";
+import { parseReleaseRow, releaseLabel, releaseRow, type Release, type ReleaseInput, type ReleaseRow } from "./releases";
 
 export type StoredPhoto = { filePath: string; thumbPath: string | null };
 
@@ -182,4 +182,68 @@ export async function releaseBelongsToExpression(releaseId: number, expressionId
     .from(expressionReleases)
     .where(and(eq(expressionReleases.id, releaseId), eq(expressionReleases.expressionId, expressionId)));
   return rows.length > 0;
+}
+
+export type ReleaseSaved =
+  | { ok: true; release: ReleaseRow }
+  | { ok: false; status: 404 | 409 | 422; code: string; message: string };
+
+/**
+ * Adds a known release to a label (`releaseId` null), or changes one, for the phone. Only what is sent changes, and
+ * nothing is ever removed here: a release carries a photo, notes and bottles, so removing one stays on the web. A
+ * label or release that is not the caller's is simply not found.
+ */
+export async function saveRelease(
+  ownerId: number,
+  expressionId: number,
+  releaseId: number | null,
+  fields: Partial<Omit<ReleaseRow, "id" | "ageStatement">>,
+): Promise<ReleaseSaved> {
+  const gone = (message: string): ReleaseSaved => ({ ok: false, status: 404, code: "not_found", message });
+  const [label] = await db
+    .select({ id: expressions.id })
+    .from(expressions)
+    .where(and(eq(expressions.id, expressionId), eq(expressions.ownerId, ownerId)));
+  if (!label) return gone("That label is gone.");
+
+  let base: Partial<ReleaseRow> = {};
+  if (releaseId !== null) {
+    const [existing] = await db
+      .select(columns)
+      .from(expressionReleases)
+      .where(and(eq(expressionReleases.id, releaseId), eq(expressionReleases.expressionId, expressionId)));
+    if (!existing) return gone("That release is gone.");
+    base = releaseRow(existing);
+  }
+  const parsed = parseReleaseRow({ ...base, ...fields });
+  if (parsed.error !== null) return { ok: false, status: 422, code: "invalid", message: parsed.error };
+  const { id: _ignored, ...values } = parsed.value;
+
+  const clash = await db
+    .select({ id: expressionReleases.id })
+    .from(expressionReleases)
+    .where(
+      and(
+        eq(expressionReleases.expressionId, expressionId),
+        eq(expressionReleases.name, values.name),
+        releaseId === null ? undefined : ne(expressionReleases.id, releaseId),
+      ),
+    );
+  if (clash.length > 0) {
+    return { ok: false, status: 409, code: "name_taken", message: `This label already has a release called "${values.name}".` };
+  }
+
+  if (releaseId !== null) {
+    const [row] = await db.update(expressionReleases).set(values).where(eq(expressionReleases.id, releaseId)).returning(columns);
+    return { ok: true, release: releaseRow(row!) };
+  }
+  const [last] = await db
+    .select({ position: sql<number>`coalesce(max(${expressionReleases.position}), -1)` })
+    .from(expressionReleases)
+    .where(eq(expressionReleases.expressionId, expressionId));
+  const [row] = await db
+    .insert(expressionReleases)
+    .values({ ...values, expressionId, position: (last?.position ?? -1) + 1 })
+    .returning(columns);
+  return { ok: true, release: releaseRow(row!) };
 }

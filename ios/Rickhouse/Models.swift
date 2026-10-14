@@ -268,6 +268,8 @@ struct LabelDetail: Decodable {
     var strength: String? = nil
     /// What a cask-strength label with no proof shows in its place: one known proof, a range, or "Cask Strength".
     var proofLabel: String? = nil
+    /// A cask-strength label's real proofs across its releases and bottles ("126.1 - 132.7"); nil when none is known.
+    var proofSpread: String? = nil
     let distilleries: [String]
     let finishes: [String]
     let mashbills: [String]
@@ -294,10 +296,17 @@ struct LabelRelease: Decodable, Identifiable {
     let name: String
     let releaseYear: Int?
     let proof: String?
+    /// The release's own age, absent from an older server.
+    var ageYears: String? = nil
+    var ageMonths: Int? = nil
+    var ageDays: Int? = nil
     let ageStatement: String?
     let msrp: String?
     let photoThumbPath: String?
 }
+
+/// What the server answers when a known release is added or changed.
+struct SavedRelease: Decodable { let id: String; let name: String }
 
 struct LabelBottle: Decodable, Identifiable, Hashable {
     let id: Int

@@ -354,6 +354,48 @@ final class EditDraftsTests: XCTestCase {
         XCTAssertTrue(draft.linksChanged)
     }
 
+    private func sources(_ draft: LabelDraft) -> [Int?] { draft.rows(.mashbills).map(\.distilleryId) }
+
+    func testOneDistilleryMadeEveryMashbill() throws {
+        var draft = LabelDraft(try label(["links": [
+            "distilleries": [["id": 1, "name": "A"], ["id": 2, "name": "B"]],
+            "mashbills": [["id": 5, "name": "75% Corn", "distilleryId": 2], ["id": 6, "name": "60% Corn"]],
+            "finishes": [],
+        ]]))
+        XCTAssertEqual(sources(draft), [2, nil], "with two distilleries the choices stand")
+        draft.remove(.distilleries, id: 2)
+        XCTAssertEqual(sources(draft), [1, 1], "with one left it made them all")
+        draft.setList(.mashbills, to: [LookupItem(id: 5, name: "75% Corn"), LookupItem(id: 7, name: "New")])
+        XCTAssertEqual(sources(draft), [1, 1], "and so did a mashbill added after")
+    }
+
+    func testRemovingTheDistilleryThatMadeAMashbillClearsIt() throws {
+        var draft = LabelDraft(try label(["links": [
+            "distilleries": [["id": 1, "name": "A"], ["id": 2, "name": "B"], ["id": 3, "name": "C"]],
+            "mashbills": [["id": 5, "name": "x", "distilleryId": 3], ["id": 6, "name": "y", "distilleryId": 1]],
+            "finishes": [],
+        ]]))
+        draft.remove(.distilleries, id: 3)
+        XCTAssertEqual(sources(draft), [nil, 1])
+        draft.remove(.distilleries, id: 1)
+        draft.remove(.distilleries, id: 2)
+        XCTAssertEqual(sources(draft), [nil, nil], "none left, none made it")
+    }
+
+    func testChoosingWhoMadeAMashbillIsSavedAndUndone() throws {
+        var draft = LabelDraft(try label(["links": [
+            "distilleries": [["id": 1, "name": "A"], ["id": 2, "name": "B"]],
+            "mashbills": [["id": 5, "name": "x"]],
+            "finishes": [],
+        ]]))
+        draft.setSource(ofMashbill: 5, to: 2)
+        XCTAssertTrue(draft.linksChanged)
+        XCTAssertEqual((draft.patch()["mashbills"] as! [[String: Any]])[0]["distilleryId"] as? Int, 2)
+        XCTAssertTrue((draft.undoPatch()["mashbills"] as! [[String: Any]])[0]["distilleryId"] is NSNull)
+        draft.setSource(ofMashbill: 5, to: 9)
+        XCTAssertEqual(sources(draft), [nil], "a distillery that is not on the label is not kept")
+    }
+
     func testMoneyInputStopsAtTwoPlaces() {
         XCTAssertEqual(Format.moneyInput("49.999"), "49.99")
         XCTAssertEqual(Format.moneyInput("1.2.3"), "1.23")
