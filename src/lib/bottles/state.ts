@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bottles, stores, tastingNotes } from "@/db/schema";
+import { bottles, expressionReleases, expressions, stores, tastingNotes } from "@/db/schema";
 import type { z } from "zod";
 import { fillUpdate } from "./fill-rules";
 import { openedUpdate, type OpenedChoice } from "./opened-rules";
@@ -40,7 +40,15 @@ export async function setFill(bottleId: number, ownerId: number, fillPct: number
 
 /** The bottle's own columns the phone may edit; each already validated and in its column's type. */
 export type BottleColumns = Partial<
-  Pick<typeof bottles.$inferInsert, "pricePaid" | "storeId" | "dateAcquired" | "location" | "notes" | "batch" | "releaseYear" | "barrelNumber" | "pickName">
+  Pick<
+    typeof bottles.$inferInsert,
+    | "pricePaid" | "storeId" | "dateAcquired" | "location" | "notes" | "batch" | "releaseYear" | "barrelNumber" | "pickName"
+    | "barrelFilledOn" | "bottledOn"
+    // Which label and release this bottle is, how it came, and its own say on proof, age and size.
+    | "expressionId" | "expressionNameId" | "releaseId" | "acquisition"
+    | "isSingleBarrel" | "isSingleBarrelPick" | "pickedBy" | "warehouse" | "rickFloor" | "bottleCount"
+    | "sizeMl" | "proof" | "ageYears" | "ageMonths" | "ageDays" | "ageStatement"
+  >
 >;
 export type BottlePatch = { fillPct?: number; dateOpened?: string | null; ifOpenedCleared?: OpenedChoice; columns?: BottleColumns };
 export type BottleUpdate =
@@ -63,6 +71,7 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
         status: bottles.status,
         fillPct: bottles.fillPct,
         releaseId: bottles.releaseId,
+        expressionId: bottles.expressionId,
       })
       .from(bottles)
       .where(ownedBottle(bottleId, ownerId))
@@ -70,9 +79,27 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
       .limit(1);
     if (!current) return null;
 
-    const columns = patch.columns ?? {};
-    // A bottle on a chosen release shows the release's batch and year, so editing its own would look like nothing happened.
-    if (current.releaseId !== null && (columns.batch !== undefined || columns.releaseYear !== undefined)) {
+    const columns = { ...patch.columns };
+    // The foreign key only names a label; whose it is has to be checked here, as for a store.
+    if (columns.expressionId !== undefined && (await tx.$count(expressions, and(eq(expressions.id, columns.expressionId), eq(expressions.ownerId, ownerId)))) === 0) {
+      return { ok: false, code: "invalid", message: "Choose one of your labels.", field: "expressionId" };
+    }
+    const labelId = columns.expressionId ?? current.expressionId;
+    if (labelId !== current.expressionId) {
+      // A version name and a release belong to a label: a bottle moved to another has neither unless the patch says one.
+      columns.expressionNameId = null;
+      columns.releaseId ??= null;
+    }
+    if (columns.releaseId != null) {
+      if ((await tx.$count(expressionReleases, and(eq(expressionReleases.id, columns.releaseId), eq(expressionReleases.expressionId, labelId)))) === 0) {
+        return { ok: false, code: "invalid", message: "That release is not one of this label's.", field: "releaseId" };
+      }
+      // A chosen release supplies the batch and year, so the two can never disagree.
+      columns.batch = null;
+      columns.releaseYear = null;
+    }
+    // A bottle that stays on a chosen release shows the release's batch and year, so editing its own would look like nothing happened.
+    if (current.releaseId !== null && columns.releaseId === undefined && (columns.batch !== undefined || columns.releaseYear !== undefined)) {
       return { ok: false, code: "invalid", message: "This bottle's batch and year come from its release.", field: columns.batch !== undefined ? "batch" : "releaseYear" };
     }
     // The foreign key only names a store; whose it is has to be checked here.
