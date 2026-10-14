@@ -5,12 +5,13 @@ import { brands, distilleries, finishes, mashbills, stores } from "@/db/schema";
 import { findOrCreateBrand } from "@/lib/expressions/brand";
 import { describeRecipe } from "@/lib/expressions/queries";
 import { mashbillTitle } from "@/lib/mashbills";
+import { normalizeLocation } from "@/lib/places";
 import { resolveSlug } from "@/lib/slug";
 
 /**
  * The names behind the phone's pickers (spec 2026-10-08-edit-facts-design.md, section 5): the caller's own
  * brands, distilleries, mashbills, finishes and stores, to tick from or search, and create-by-name for the
- * three a name is enough for. A mashbill is a recipe and a store has a place, so those are made on the web.
+ * three a name is enough for, and stores (a name and a place, through `createStore`). A mashbill is a recipe, so those are made on the web.
  */
 export const LOOKUP_KINDS = ["brands", "distilleries", "mashbills", "finishes", "stores"] as const;
 export const CREATABLE_KINDS = ["brands", "distilleries", "finishes"] as const;
@@ -81,6 +82,31 @@ export async function createLookup(kind: CreatableKind, ownerId: number, name: s
     if (had) return { ...had, created: false };
     const slug = await resolveSlug({ table, column: table.slug, idColumn: table.id, scope: { column: table.ownerId, value: ownerId }, requested: null, fallbackFrom: name });
     const [row] = await tx.insert(table).values({ ownerId, name, slug }).returning({ id: table.id, name: table.name });
+    return { ...row!, created: true };
+  });
+}
+
+export type NewStore = { name: string; city: string | null; state: string | null; country: string | null; isOnline: boolean };
+
+/**
+ * Makes a store, or hands back the one the caller already has with this name AND place (any case; "KY" and
+ * "Kentucky" are one place). Name alone is not the key: Total Wine in Austin and in Dallas are two stores. The
+ * table's unique key can't catch a repeat with a blank city or state, since NULLs never compare equal, so the
+ * match is made here with IS NOT DISTINCT FROM.
+ */
+export async function createStore(ownerId: number, input: NewStore): Promise<{ id: number; name: string; created: boolean }> {
+  const place = normalizeLocation(input);
+  return db.transaction(async (tx) => {
+    const [had] = await tx.select({ id: stores.id, name: stores.name }).from(stores).where(and(
+      eq(stores.ownerId, ownerId),
+      eq(stores.name, input.name),
+      sql`${stores.city} is not distinct from ${place.city}`,
+      sql`${stores.state} is not distinct from ${place.state}`,
+      sql`${stores.country} is not distinct from ${place.country}`,
+    )).limit(1);
+    if (had) return { ...had, created: false };
+    const slug = await resolveSlug({ table: stores, column: stores.slug, idColumn: stores.id, scope: { column: stores.ownerId, value: ownerId }, requested: null, fallbackFrom: input.name });
+    const [row] = await tx.insert(stores).values({ ownerId, name: input.name, slug, ...place, isOnline: input.isOnline }).returning({ id: stores.id, name: stores.name });
     return { ...row!, created: true };
   });
 }

@@ -38,9 +38,10 @@ enum PickerLogic {
     }
 
     /// Whether the last row, "Add “X” as a new distillery", is shown: something typed, nothing exactly like it, and a kind
-    /// a name is enough to make.
+    /// that can be made here. A store is offered even when the name is there: the same name in another place is another
+    /// store, and the form that follows says which.
     static func offersNew(_ query: String, kind: LookupKind, in items: [LookupItem]) -> Bool {
-        kind.creatable && !normalize(query).isEmpty && exact(query, in: items) == nil
+        kind.creatable && !normalize(query).isEmpty && (kind.needsPlace || exact(query, in: items) == nil)
     }
 
     /// Edits between two strings (insert, delete, substitute).

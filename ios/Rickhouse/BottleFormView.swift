@@ -20,6 +20,9 @@ struct BottleFormView: View {
     @State private var batch = Field("")
     @State private var location = Field("")
     @State private var notes = Field("")
+    @State private var storeId: Int?
+    @State private var storeName: String?
+    @State private var pickingStore = false
     @State private var saving = false
     @State private var error: String?
     /// Set once the bottle exists, so a retry after a failed photo upload
@@ -58,6 +61,9 @@ struct BottleFormView: View {
                 PhotosPicker("Choose from library", selection: $pickerItems, maxSelectionCount: 6, matching: .images)
             } header: { SectionLabel("Photos") }
             Section {
+                PickerRow(title: "Store", value: storeName ?? "None") { pickingStore = true }
+            }
+            Section {
                 DisclosureGroup("More details", isExpanded: $showDetails) {
                     EditRow(title: "Price paid", field: $price, placeholder: "0.00", keyboard: .decimalPad, prefix: session.currencySymbol, tracksChanges: false)
                     DateRow(title: "Date acquired", field: $acquired, tracksChanges: false)
@@ -75,6 +81,16 @@ struct BottleFormView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button(saving ? "Saving…" : error == nil ? "Save" : "Retry", action: save).disabled(saving)
+            }
+        }
+        .sheet(isPresented: $pickingStore) {
+            PickerSheet(
+                kind: .stores, title: "Store", multiple: false,
+                initial: storeId.map { [LookupItem(id: $0, name: storeName ?? "")] } ?? [],
+                allowNone: true
+            ) { chosen in
+                storeId = chosen.first?.id
+                storeName = chosen.first?.name
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -120,6 +136,7 @@ struct BottleFormView: View {
                     bottle.batch = batch.isEmpty ? nil : batch.trimmed
                     bottle.location = location.isEmpty ? nil : location.trimmed
                     bottle.notes = notes.isEmpty ? nil : notes.trimmed
+                    bottle.storeId = storeId
                     id = try await api.createBottle(bottle)
                     createdId = id
                 }
