@@ -40,7 +40,9 @@ One migration, written by hand, with its journal entry. All tables are owner-sco
 
 ## 4. Rounds and advancement
 
-Rounds are generated one at a time, not as a fixed tree. The first round is generated at start; round *r+1* is generated when every heat of round *r* is decided. This copes with any field size and any heat size, including short heats, at the cost of showing a list of rounds instead of a drawn bracket tree.
+Rounds are generated one at a time, not as a fixed tree. The first round is generated at start; round *r+1* is generated when every heat of round *r* is decided. This copes with any field size and any heat size, including short heats.
+
+**Bracket view.** The tournament is shown as columns of rounds, each holding heat cards, on web and phone alike. Every bottle row shows name, proof, mashbill and age in fixed columns. Decided heats show places and mark who advanced; blind pending heats show only the proof band. **No lines join heats across rounds**, because each round regroups by proof and a line would show a feeder relationship that does not exist. Before the tournament starts, the same view previews round 1 (editable) with later rounds as counts. On a phone you page between rounds. For large fields the current round is expanded, finished rounds collapse to a one-line summary, later rounds show counts, and a search jumps to a bottle.
 
 - **Grouping.** Active entrants fill heats of `heat_size` in order. The last heat of a round may be short. A heat of one entrant is a **bye**: it advances with no ranking credit.
 - **Seeding.** `similar` (the default) applies the automatic grouping below to every round. `random` shuffles every round.
@@ -101,8 +103,8 @@ Rounds, advancement, validation (strict ranking of exactly the entrants in the h
 
 ## 8. Surfaces
 
-- **Web**: create a tournament (large field picker with filters, preview of entrants and rounds), run heats, rounds and standings, ranking, audit.
-- **iOS**: the same, laid out for live tasting (glass-letter mapping, the pourer's hand-over, ranking by drag).
+- **Web**: create a tournament (large field picker with filters, bracket preview of round 1 with later rounds as counts), run heats, the bracket view and standings, ranking, audit. Tournaments is a top-nav item beside Labels.
+- **iOS**: the same, laid out for live tasting (glass-letter mapping, the pourer's hand-over, ranking with arrow buttons). **Tournaments lives under the Account tab**, not in the tab bar or the + sheet. The arrow buttons are drawn at 28 pt with a 44 pt hit area.
 - **Label page**: one line, "Tournament rank: 3 of 41 bourbons", when the label or one of its bottles has a firm rank.
 
 ## 9. Provenance on label-page tastings (separate PR, first)
