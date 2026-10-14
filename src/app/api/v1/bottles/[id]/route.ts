@@ -7,7 +7,7 @@ import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { updateBottle } from "@/lib/bottles/state";
 import { deleteBottleAction } from "@/app/(app)/bottles/actions";
 import { bottleBase } from "@/lib/expressions/schema";
-import { releaseById } from "@/lib/releases-store";
+import { expressionReleaseList, releaseById } from "@/lib/releases-store";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
 import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 
@@ -73,6 +73,21 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     releaseYear: release?.releaseYear ?? bottle.releaseYear,
     isSingleBarrel: bottle.isSingleBarrel,
     isSingleBarrelPick: bottle.isSingleBarrelPick,
+    pickedBy: bottle.pickedBy,
+    warehouse: bottle.warehouse,
+    rickFloor: bottle.rickFloor,
+    bottleCount: bottle.bottleCount,
+    // What this bottle says for itself, apart from the release and label it falls back on above (null: it goes by theirs).
+    own: {
+      proof: bottle.proof,
+      ageYears: bottle.ageYears,
+      ageMonths: bottle.ageMonths,
+      ageDays: bottle.ageDays,
+      ageStatement: bottle.ageStatement,
+      sizeMl: bottle.sizeMl,
+    },
+    // The label's known releases, for the Release choice.
+    releases: (await expressionReleaseList(expression.id)).map((r) => ({ id: r.id, name: r.name, releaseYear: r.releaseYear })),
     barrelNumber: bottle.barrelNumber,
     pickName: bottle.pickName,
     location: bottle.location,
@@ -115,7 +130,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
  * as `null` clears it. Status is never set directly: it follows the level and the Opened date.
  */
 const patchSchema = bottleBase
-  .pick({ pricePaid: true, storeId: true, dateAcquired: true, location: true, notes: true, batch: true, releaseYear: true, barrelNumber: true, pickName: true, barrelFilledOn: true, bottledOn: true })
+  .pick({
+    pricePaid: true, storeId: true, dateAcquired: true, location: true, notes: true, batch: true, releaseYear: true, barrelNumber: true,
+    pickName: true, barrelFilledOn: true, bottledOn: true,
+    expressionId: true, releaseId: true, acquisition: true, isSingleBarrel: true, isSingleBarrelPick: true, pickedBy: true,
+    warehouse: true, rickFloor: true, bottleCount: true, sizeMl: true, proof: true, ageYears: true, ageMonths: true, ageDays: true,
+    ageStatement: true,
+  })
   .extend({
     fillPct: z.number().int().min(0).max(100),
     dateOpened: z.string().nullable(),

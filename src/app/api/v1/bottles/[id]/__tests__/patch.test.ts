@@ -10,7 +10,7 @@ vi.mock("@/lib/bottles/state", () => ({ updateBottle: (...args: unknown[]) => up
 // The route also serves DELETE through the web action, which this file never calls.
 vi.mock("@/app/(app)/bottles/actions", () => ({ deleteBottleAction: vi.fn() }));
 // The GET half of the route reads these; the PATCH tests never reach them.
-vi.mock("@/lib/releases-store", () => ({ releaseById: vi.fn() }));
+vi.mock("@/lib/releases-store", () => ({ releaseById: vi.fn(), expressionReleaseList: vi.fn() }));
 vi.mock("@/lib/tasting-wheel-for", () => ({ categoryWheels: vi.fn() }));
 vi.mock("@/lib/expressions/queries", () => ({ bottleImagesFor: vi.fn(), expressionLinks: vi.fn(), getBottle: vi.fn(), tastingNotesFor: vi.fn() }));
 
@@ -52,6 +52,19 @@ describe("PATCH /api/v1/bottles/:id", () => {
   it("sends a cleared fact as null, and leaves out what was not sent", async () => {
     await patch("5", { pickName: null });
     expect(updateBottle.mock.calls[0]![2].columns).toEqual({ pickName: null });
+  });
+
+  it("takes the label, release and the bottle's own proof, age and size, through the web validators", async () => {
+    await patch("5", { expressionId: "12", releaseId: null, proof: 118.4, ageYears: "7", ageMonths: "", sizeMl: 1000, isSingleBarrel: true, pickedBy: " The Club ", acquisition: "gift" });
+    expect(updateBottle.mock.calls[0]![2].columns).toEqual({
+      expressionId: 12, releaseId: null, proof: "118.4", ageYears: "7", ageMonths: null, sizeMl: 1000, isSingleBarrel: true, pickedBy: "The Club", acquisition: "gift",
+    });
+  });
+
+  it("refuses an acquisition it does not know and a status, which only the fill and Opened date set", async () => {
+    expect((await patch("5", { acquisition: "found" })).status).toBe(422);
+    expect((await patch("5", { status: "killed" })).status).toBe(422);
+    expect(updateBottle).not.toHaveBeenCalled();
   });
 
   it("passes the Opened date and the choice together with a level, as an undo sends them", async () => {
