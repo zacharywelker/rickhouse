@@ -5,8 +5,10 @@ import type { Entrant, GroupKey } from "./types";
 /**
  * The entrants cut into heats of `heatSize` in similarity order. Only the last heat may be short, and a heat of one
  * is a bye. Every flight is cut at `heatSize`, even where it straddles two groups of the first key.
+ * Throws a RangeError unless `heatSize` is a whole number of at least 1.
  */
 export function groupIntoHeats(entrants: readonly Entrant[], order: readonly GroupKey[], heatSize: number): Entrant[][] {
+  if (!Number.isInteger(heatSize) || heatSize < 1) throw new RangeError("heatSize must be a whole number of at least 1");
   const sorted = sortEntrants(entrants, order);
   const heats: Entrant[][] = [];
   for (let i = 0; i < sorted.length; i += heatSize) heats.push(sorted.slice(i, i + heatSize));

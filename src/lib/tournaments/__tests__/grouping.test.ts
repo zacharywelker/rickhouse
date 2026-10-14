@@ -106,6 +106,18 @@ describe("groupIntoHeats: edges", () => {
     const field = [entrant(5, "later"), entrant(2, "earlier")];
     expect(names(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 2))).toEqual([["earlier", "later"]]);
   });
+
+  it("refuses a heat size that is not a whole number of at least 1", () => {
+    const field = [entrant(1, "a"), entrant(2, "b")];
+    for (const size of [0, -1, 1.5, NaN]) {
+      expect(() => groupIntoHeats(field, DEFAULT_GROUP_ORDER, size)).toThrow(RangeError);
+    }
+  });
+
+  it("makes every entrant its own heat when the heat size is 1", () => {
+    const field = [entrant(3, "c"), entrant(1, "a"), entrant(2, "b")];
+    expect(names(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 1))).toEqual([["a"], ["b"], ["c"]]);
+  });
 });
 
 describe("heatBand", () => {
