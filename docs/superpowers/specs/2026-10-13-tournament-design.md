@@ -71,6 +71,7 @@ The aim is heats a whiskey drinker would pour together: a 125-proof barrel-proof
 - **Pourer blind**: the pourer taps *Draw*, the server picks a pending heat of the current round at random and fixes the glass letters. The pourer sees which bottle is in which glass, then taps *Hand over*. The taster sees only letters, ranks them, and the reveal follows the result.
 - In a blind tournament the heat list and match screens show no names until a heat is decided. The blinding is a user-interface contract between the people at the table. It is not a security boundary against the account owner.
 - Ranking is forced with no ties. If you can't choose, leave the heat pending.
+- **No drag-only controls.** Ranking the glasses and moving an entrant between heats each have button alternatives (move up and down; a Move menu) that work by keyboard and single tap, with drag as a shortcut on top (WCAG 2.2 AA, dragging movements). Phone controls are at least 44 pt, per `DESIGN.md` section 12.7.
 
 ## 6. Server
 
