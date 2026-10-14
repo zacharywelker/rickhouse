@@ -37,6 +37,8 @@ struct FactRow: View {
                 Text(title).foregroundStyle(Theme.muted)
                 Text(value).foregroundStyle(Theme.ink)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
         }
         .frame(minHeight: 44)
         .accessibilityElement(children: .combine)

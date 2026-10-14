@@ -38,9 +38,11 @@ enum AddChoice: String, Identifiable, CaseIterable {
 /// the shell then presents that flow.
 struct AddSheet: View {
     var onChoose: (AddChoice) -> Void
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 0) {
             ForEach(AddChoice.allCases) { choice in
                 Button { onChoose(choice) } label: {
                     HStack(spacing: 16) {
@@ -62,13 +64,14 @@ struct AddSheet: View {
                 .buttonStyle(.plain)
                 if choice != AddChoice.allCases.last { Divider() }
             }
+          }
         }
         .padding(.horizontal, 24)
         .padding(.top, 24)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.paper)
-        // Fixed height for the default text size; the large detent is there for bigger text.
-        .presentationDetents([.height(380), .large])
+        // Fixed height for the default text size; at accessibility sizes four options no longer fit in it, so it opens full.
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.height(380), .large])
         .presentationDragIndicator(.visible)
     }
 }

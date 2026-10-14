@@ -17,40 +17,76 @@ struct EditRow: View {
     var tracksChanges = true
 
     @FocusState private var focused: Bool
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// A row with a prefix is a price (the currency symbol): it changes in place, with no ↺ and no "was", which would
     /// resize the row as you type, and it stops at the cents.
     private var isMoney: Bool { prefix != nil }
     private var showsChange: Bool { tracksChanges && !isMoney && field.changed }
 
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            HStack(alignment: multiline ? .top : .firstTextBaseline, spacing: 8) {
-                HStack(spacing: 6) {
-                    if showsChange { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
-                    Text(title).foregroundStyle(Theme.muted)
+    /// A price's symbol has to sit against the amount, focused or not. A text field is as wide as it is offered, so the
+    /// field is laid over an invisible copy of its own text, which is exactly as wide as the text needs.
+    @ViewBuilder
+    private func sized<Content: View>(_ content: Content) -> some View {
+        if isMoney {
+            Text((field.text.isEmpty ? (placeholder.isEmpty ? title : placeholder) : field.text) + " ")
+                .hidden()
+                .overlay(alignment: .trailing) { content }
+        } else {
+            content
+        }
+    }
+
+    /// At accessibility text sizes the name sits above a full-width field (DESIGN.md 12.7), so neither is squeezed.
+    private var stacked: Bool { typeSize.isAccessibilitySize }
+
+    private var nameLabel: some View {
+        HStack(spacing: 6) {
+            if showsChange { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
+            Text(title).foregroundStyle(Theme.muted)
+        }
+    }
+
+    private var input: some View {
+        HStack(spacing: 8) {
+            if let prefix, !field.isEmpty { Text(prefix).foregroundStyle(Theme.muted) }
+            sized(TextField(placeholder.isEmpty ? title : placeholder, text: $field.text, axis: multiline ? .vertical : .horizontal)
+                .multilineTextAlignment(stacked ? .leading : .trailing)
+                .keyboardType(keyboard)
+                .focused($focused)
+                .foregroundStyle(error == nil ? Theme.ink : Theme.error)
+                .padding(.bottom, 1)
+                .overlay(alignment: .bottom) {
+                    if focused || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 2) }
                 }
-                Spacer(minLength: 8)
-                if let prefix, !field.isEmpty { Text(prefix).foregroundStyle(Theme.muted) }
-                TextField(placeholder.isEmpty ? title : placeholder, text: $field.text, axis: multiline ? .vertical : .horizontal)
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(keyboard)
-                    // A prefix ("$") has to sit against the value, so the field takes only the width it needs.
-                    .fixedSize(horizontal: prefix != nil, vertical: false)
-                    .focused($focused)
-                    .foregroundStyle(error == nil ? Theme.ink : Theme.error)
-                    .padding(.bottom, 1)
-                    .overlay(alignment: .bottom) {
-                        if focused || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 2) }
-                    }
-                    .accessibilityLabel(title)
-                if showsChange {
-                    Button { field.revert() } label: {
-                        Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20))
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Theme.ink)
-                    .accessibilityLabel("Put back \(field.original.isEmpty ? "nothing" : field.original) for \(title)")
+                .accessibilityLabel(title))
+            if stacked && !isMoney { Spacer(minLength: 0) }
+        }
+    }
+
+    @ViewBuilder
+    private var revertButton: some View {
+        if showsChange {
+            Button { field.revert() } label: {
+                Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20))
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.ink)
+            .accessibilityLabel("Put back \(field.original.isEmpty ? "nothing" : field.original) for \(title)")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: stacked ? .leading : .trailing, spacing: 2) {
+            if stacked {
+                nameLabel
+                HStack(spacing: 8) { input; revertButton }
+            } else {
+                HStack(alignment: multiline ? .top : .firstTextBaseline, spacing: 8) {
+                    nameLabel
+                    Spacer(minLength: 8)
+                    input
+                    revertButton
                 }
             }
             if showsChange, !field.original.isEmpty {
@@ -58,6 +94,7 @@ struct EditRow: View {
             }
             if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
         }
+        .frame(maxWidth: .infinity, alignment: stacked ? .leading : .trailing)
         .padding(.vertical, 2)
         .onAppear { if focusOnAppear { focused = true } }
         .onChange(of: field.text) { _, text in
@@ -84,32 +121,51 @@ struct DateRow: View {
         )
     }
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+    /// At accessibility text sizes the name sits above its controls (DESIGN.md 12.7); beside them the name had no room
+    /// left and broke into single letters.
+    private var stacked: Bool { typeSize.isAccessibilitySize }
+
+    private var nameLabel: some View {
+        HStack(spacing: 6) {
+            if showsChange { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
+            Text(title).foregroundStyle(Theme.muted)
+        }
+    }
+
+    @ViewBuilder
+    private var controls: some View {
+        if field.isEmpty {
+            Button("Add date") { field.text = Format.isoDay(Date()) }.frame(minHeight: 44)
+        } else {
+            DatePicker(title, selection: date, in: ...Date(), displayedComponents: .date).labelsHidden()
+            Button { field.text = "" } label: {
+                Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.muted)
+            .accessibilityLabel("Clear \(title)")
+        }
+        if showsChange {
+            Button { field.revert() } label: {
+                Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20)).frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.ink)
+            .accessibilityLabel("Put back \(field.original.isEmpty ? "no date" : Format.day(field.original)) for \(title)")
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            HStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    if showsChange { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
-                    Text(title).foregroundStyle(Theme.muted)
-                }
-                Spacer(minLength: 8)
-                if field.isEmpty {
-                    Button("Add date") { field.text = Format.isoDay(Date()) }.frame(minHeight: 44)
-                } else {
-                    DatePicker(title, selection: date, in: ...Date(), displayedComponents: .date).labelsHidden()
-                    Button { field.text = "" } label: {
-                        Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Theme.muted)
-                    .accessibilityLabel("Clear \(title)")
-                }
-                if showsChange {
-                    Button { field.revert() } label: {
-                        Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 20)).frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Theme.ink)
-                    .accessibilityLabel("Put back \(field.original.isEmpty ? "no date" : Format.day(field.original)) for \(title)")
+        VStack(alignment: stacked ? .leading : .trailing, spacing: 2) {
+            if stacked {
+                nameLabel
+                HStack(spacing: 8) { controls; Spacer(minLength: 0) }
+            } else {
+                HStack(spacing: 8) {
+                    nameLabel
+                    Spacer(minLength: 8)
+                    controls
                 }
             }
             if showsChange, !field.original.isEmpty {
@@ -117,6 +173,7 @@ struct DateRow: View {
             }
             if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
         }
+        .frame(maxWidth: .infinity, alignment: stacked ? .leading : .trailing)
         .padding(.vertical, 2)
     }
 }

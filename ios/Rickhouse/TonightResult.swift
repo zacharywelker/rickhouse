@@ -182,7 +182,7 @@ struct TonightResultView: View {
                 .font(.inter(17, .semibold, relativeTo: .headline))
                 .frame(maxWidth: .infinity, minHeight: 50)
                 .foregroundStyle(Theme.paper)
-                .background(Theme.ink, in: RoundedRectangle(cornerRadius: 12))
+                .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
             .disabled(busy)
@@ -219,8 +219,8 @@ struct TonightResultView: View {
             .font(.inter(15, .semibold, relativeTo: .subheadline))
             .foregroundStyle(Theme.ink)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.ink, lineWidth: 1))
-            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
     }
@@ -243,8 +243,8 @@ struct TonightResultView: View {
             .foregroundStyle(Theme.ink)
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.ink, lineWidth: 1))
-            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(title). \(detail)")
@@ -263,7 +263,7 @@ struct TonightResultView: View {
                     .font(.inter(17, .semibold, relativeTo: .headline))
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .foregroundStyle(Theme.paper)
-                    .background(Theme.ink, in: RoundedRectangle(cornerRadius: 12))
+                    .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
             Spacer(minLength: 0)

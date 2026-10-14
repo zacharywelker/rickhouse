@@ -85,11 +85,7 @@ struct LabelsView: View {
                                         .task { if entry.id == history.last?.id { await loadMoreHistory() } }
                                 }
                             } header: {
-                                Text(month.title)
-                                    .font(.inter(12, .semibold, relativeTo: .caption))
-                                    .textCase(.uppercase)
-                                    .tracking(0.8)
-                                    .foregroundStyle(Theme.muted)
+                                SectionLabel(month.title)
                             }
                         }
                     case .labels:
@@ -101,11 +97,7 @@ struct LabelsView: View {
                                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                                 }
                             } header: {
-                                Text(group.brand)
-                                    .font(.inter(12, .semibold, relativeTo: .caption))
-                                    .textCase(.uppercase)
-                                    .tracking(0.8)
-                                    .foregroundStyle(Theme.muted)
+                                SectionLabel(group.brand)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 5)

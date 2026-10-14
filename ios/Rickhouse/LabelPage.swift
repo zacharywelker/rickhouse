@@ -5,6 +5,7 @@ import SwiftUI
 /// you score it over time, the latest tasting, the flavors you note, and the label's facts. A label you don't own leads
 /// with your tastings, then a box offering the bottle, then the facts.
 struct LabelPage: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// How many tastings sit on the page before "See all".
     static let shownTastings = 3
 
@@ -130,7 +131,7 @@ struct LabelPage: View {
                 .font(.inter(16, .semibold))
                 .foregroundStyle(Theme.paper)
                 .frame(maxWidth: .infinity, minHeight: 48)
-                .background(Theme.ink, in: RoundedRectangle(cornerRadius: 4))
+                .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
         }
     }
 
@@ -140,7 +141,7 @@ struct LabelPage: View {
                 .font(.inter(16, .semibold))
                 .foregroundStyle(Theme.ink)
                 .frame(maxWidth: .infinity, minHeight: 48)
-                .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.ink, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
         }
     }
 
@@ -224,7 +225,7 @@ struct LabelPage: View {
                 }
                 NavigationLink { TastingsScreen(label: l) { Task { await load() } } } label: {
                     HStack(spacing: 8) {
-                        Text(latestLine(latest)).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.ink).lineLimit(1)
+                        Text(latestLine(latest)).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.ink).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                         Spacer(minLength: 4)
                         Text("\(l.tastings.count) ›").font(.inter(14, .semibold, relativeTo: .subheadline)).foregroundStyle(Theme.ink)
                     }
@@ -258,7 +259,7 @@ struct LabelPage: View {
         let scores = LabelScores(l.tastings)
         if scores.count >= LabelScores.chartMinimum, let top = scores.flavors.first {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Flavors you note").font(.headline(19)).foregroundStyle(Theme.ink).accessibilityAddTraits(.isHeader)
+                SectionLabel("Flavors you note")
                 ForEach(scores.flavors, id: \.key) { flavor in
                     HStack(spacing: 8) {
                         Text(session.flavorName(flavor.key)).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.ink)
@@ -315,7 +316,7 @@ struct LabelPage: View {
                         .font(.inter(15, .semibold))
                         .foregroundStyle(Theme.ink)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.ink, lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
                 }
                 .padding(.top, 10)
             }
@@ -332,7 +333,7 @@ struct LabelPage: View {
                     .font(.inter(16, .semibold))
                     .foregroundStyle(Theme.paper)
                     .frame(maxWidth: .infinity, minHeight: 44)
-                    .background(Theme.ink, in: RoundedRectangle(cornerRadius: 4))
+                    .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
             }
         }
         .padding(12)
@@ -345,12 +346,7 @@ struct LabelPage: View {
     private func about(_ l: LabelDetail) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("About this label")
-                    .font(.inter(12, .semibold, relativeTo: .caption))
-                    .textCase(.uppercase)
-                    .tracking(0.8)
-                    .foregroundStyle(Theme.muted)
-                    .accessibilityAddTraits(.isHeader)
+                SectionLabel("About this label")
                 Spacer()
                 Button("Edit") { editing = true }
                     .font(.inter(15, .semibold))
@@ -370,34 +366,27 @@ struct LabelPage: View {
                     HStack {
                         Text("Releases").foregroundStyle(Theme.muted)
                         Spacer()
-                        Text("\(l.releases.count) ›").foregroundStyle(Theme.ink)
+                        Text("\(l.releases.count)").foregroundStyle(Theme.ink)
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted).accessibilityHidden(true)
                     }
                     .font(.inter(15))
-                    .frame(minHeight: 40)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(12)
-        .background(Theme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
         .padding(.top, 20)
     }
 
-    /// Hidden when there is nothing to say, so the panel only shows what is recorded.
+    /// Hidden when there is nothing to say, so the page only shows what is recorded.
     @ViewBuilder
     private func fact(_ title: String, _ value: String?) -> some View {
         if let value, !value.isEmpty {
             VStack(spacing: 0) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(title).foregroundStyle(Theme.muted)
-                    Spacer(minLength: 12)
-                    Text(value).foregroundStyle(Theme.ink).multilineTextAlignment(.trailing)
-                }
-                .font(.inter(15))
-                .frame(minHeight: 40)
+                FactRow(title: title, value: value).font(.inter(15))
                 Rectangle().fill(Theme.ink.opacity(0.15)).frame(height: 1)
             }
-            .accessibilityElement(children: .combine)
         }
     }
 

@@ -52,7 +52,7 @@ struct MergeReview: View {
                             .padding(.vertical, 4)
                         }
                     } header: {
-                        Text("Facts that differ")
+                        SectionLabel("Facts that differ")
                     } footer: {
                         Text("\(plan.theirs.name) wins unless you tap the other side. Other changes you have not saved on this label are not part of the merge.")
                     }
@@ -93,8 +93,8 @@ struct MergeReview: View {
             .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
             .padding(.horizontal, 10)
             .foregroundStyle(picked ? Theme.paper : Theme.ink)
-            .background(picked ? Theme.ink : Color.clear, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.ink, lineWidth: 1))
+            .background(picked ? Theme.ink : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

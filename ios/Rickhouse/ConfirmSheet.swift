@@ -19,7 +19,8 @@ private struct ConfirmSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 0) {
             Text(title).font(.headline(24)).foregroundStyle(Theme.ink)
             if let message {
                 Text(message).font(.inter(14, relativeTo: .subheadline)).foregroundStyle(Theme.muted).padding(.top, 6)
@@ -44,9 +45,11 @@ private struct ConfirmSheet: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 10)
+          }
+          .padding(.horizontal, 24)
+          .padding(.top, 28)
+          .padding(.bottom, 16)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 28)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Theme.paper)
         .presentationDetents([.height(height), .large])

@@ -49,7 +49,7 @@ struct FlavorChip: View {
                 .font(.inter(15, selected ? .semibold : .regular, relativeTo: .subheadline))
                 .foregroundStyle(selected ? Theme.paper : Theme.ink)
                 .padding(.horizontal, 14)
-                .frame(minHeight: 40)
+                .frame(minHeight: 44)
                 .background(selected ? Theme.ink : Color.clear, in: Capsule())
                 .overlay(Capsule().strokeBorder(Theme.ink, lineWidth: 1))
                 .contentShape(Capsule())
@@ -84,7 +84,7 @@ struct FlavorSection: View {
                 Text(chosen.isEmpty ? "Choose flavors" : "Add or change flavors")
             }
         } header: {
-            Text("Flavors")
+            SectionLabel("Flavors")
         } footer: {
             Text("From the \(wheel.credit).")
         }
@@ -255,8 +255,7 @@ struct FlavorWheelScreen: View {
     private var pickedList: some View {
         VStack(alignment: .leading, spacing: 8) {
             Rectangle().fill(Theme.ink.opacity(0.15)).frame(height: 1)
-            Text("Picked")
-                .font(.inter(12, .semibold, relativeTo: .caption)).textCase(.uppercase).tracking(0.8).foregroundStyle(Theme.muted)
+            SectionLabel("Picked")
             Text(chosen.map(session.flavorName).joined(separator: ", "))
                 .font(.inter(14, .medium, relativeTo: .subheadline)).foregroundStyle(Theme.ink)
         }

@@ -105,6 +105,7 @@ struct TonightFlow: View {
 /// The footer of every step: the sealed switch, the step's main button, and Roulette.
 struct TonightFooter: View {
     @Environment(Session.self) private var session
+    @Environment(\.dynamicTypeSize) private var typeSize
     let model: TonightModel
     var primary: (title: String, action: () -> Void)?
     let onRoulette: () -> Void
@@ -114,9 +115,13 @@ struct TonightFooter: View {
             Toggle(isOn: Binding(get: { model.sealed }, set: { on in Task { await model.setSealed(on, api: session.api) } })) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Include sealed bottles").font(.inter(15, .medium, relativeTo: .subheadline))
-                    Text("Pouring one means opening it").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                    // The pinned footer already fills half the screen at accessibility sizes; the line stays as a hint.
+                    if !typeSize.isAccessibilitySize {
+                        Text("Pouring one means opening it").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                    }
                 }
             }
+            .accessibilityHint("Pouring one means opening it")
             .tint(Theme.ink)
             .frame(minHeight: 44)
 
@@ -126,7 +131,7 @@ struct TonightFooter: View {
                         .font(.inter(17, .semibold, relativeTo: .headline))
                         .frame(maxWidth: .infinity, minHeight: 50)
                         .foregroundStyle(Theme.paper)
-                        .background(Theme.ink, in: RoundedRectangle(cornerRadius: 12))
+                        .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
             }
@@ -196,15 +201,15 @@ struct TonightBox: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
-            .background(selected ? Theme.ink.opacity(0.06) : Theme.paper, in: RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(selected ? Theme.ink : Theme.ink.opacity(0.28), lineWidth: selected ? 2 : 1))
+            .background(selected ? Theme.ink.opacity(0.06) : Theme.paper, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? Theme.ink : Theme.ink.opacity(0.28), lineWidth: selected ? 2 : 1))
             .overlay(alignment: .topTrailing) {
                 if selected {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.ink).padding(10).accessibilityHidden(true)
                 }
             }
             .opacity(enabled ? 1 : 0.5)
-            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -262,6 +267,7 @@ private struct TonightLoading: View {
 
 struct SpiritStep: View {
     @Environment(Session.self) private var session
+    @Environment(\.dynamicTypeSize) private var typeSize
     let model: TonightModel
     let onNext: () -> Void
     let onRoulette: () -> Void
@@ -271,7 +277,7 @@ struct SpiritStep: View {
             VStack(alignment: .leading, spacing: 16) {
                 TonightHeading(title: "Which shelf tonight?", detail: "Pick one or several. Pick none and anything goes.")
                 if let options = model.options {
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 10) {
                         ForEach(options.spirits) { spirit in
                             let available = spirit.open + (model.sealed ? spirit.sealed : 0)
                             TonightBox(
@@ -417,7 +423,7 @@ struct FallbackStep: View {
                                     .font(.inter(17, .semibold, relativeTo: .headline))
                                     .frame(maxWidth: .infinity, minHeight: 50)
                                     .foregroundStyle(Theme.paper)
-                                    .background(Theme.ink, in: RoundedRectangle(cornerRadius: 12))
+                                    .background(Theme.ink, in: RoundedRectangle(cornerRadius: 8))
                             }
                             .buttonStyle(.plain)
                         }
@@ -426,7 +432,7 @@ struct FallbackStep: View {
                                 .font(.inter(17, .semibold, relativeTo: .headline))
                                 .frame(maxWidth: .infinity, minHeight: 50)
                                 .foregroundStyle(Theme.ink)
-                                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.ink, lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ink, lineWidth: 1))
                         }
                         .buttonStyle(.plain)
                         .disabled(fallback.open == 0)

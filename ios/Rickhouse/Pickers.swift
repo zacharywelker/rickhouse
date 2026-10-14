@@ -196,19 +196,44 @@ struct PickerRow: View {
     var changed = false
     var onOpen: () -> Void
     var onRevert: () -> Void = {}
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    private var nameLabel: some View {
+        HStack(spacing: 6) {
+            if changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
+            Text(title).foregroundStyle(Theme.muted)
+        }
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.muted).accessibilityHidden(true)
+    }
 
     var body: some View {
         HStack(spacing: 8) {
             Button(action: onOpen) {
-                HStack(spacing: 6) {
-                    if changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
-                    Text(title).foregroundStyle(Theme.muted)
-                    Spacer(minLength: 8)
-                    Text(value).foregroundStyle(Theme.ink).multilineTextAlignment(.trailing)
-                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.muted).accessibilityHidden(true)
+                // At accessibility text sizes the name sits above its value (DESIGN.md 12.7); beside it "Currency" broke in two.
+                if typeSize.isAccessibilitySize {
+                    HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            nameLabel
+                            Text(value).foregroundStyle(Theme.ink).multilineTextAlignment(.leading)
+                        }
+                        Spacer(minLength: 8)
+                        chevron
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                } else {
+                    HStack(spacing: 6) {
+                        nameLabel
+                        Spacer(minLength: 8)
+                        Text(value).foregroundStyle(Theme.ink).multilineTextAlignment(.trailing)
+                        chevron
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(title), \(value)")
@@ -251,9 +276,9 @@ struct LinkChipsRow: View {
                             Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).accessibilityHidden(true)
                         }
                         .padding(.horizontal, 10).padding(.vertical, 5)
-                        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.ink, lineWidth: 1))
+                        .overlay(Capsule().strokeBorder(Theme.ink, lineWidth: 1))
                         .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Theme.ink)
@@ -262,9 +287,9 @@ struct LinkChipsRow: View {
                 Button(action: onAdd) {
                     Text("+ Add").font(.inter(14, .medium))
                         .padding(.horizontal, 10).padding(.vertical, 5)
-                        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.muted, style: StrokeStyle(lineWidth: 1, dash: [3])))
+                        .overlay(Capsule().strokeBorder(Theme.muted, style: StrokeStyle(lineWidth: 1, dash: [3])))
                         .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Theme.muted)

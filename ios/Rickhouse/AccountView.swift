@@ -22,7 +22,7 @@ struct AccountView: View {
                     NavigationLink("Preferences") { PreferencesView() }
                 }
                 Section {
-                    Button("Sign out", role: .destructive) { session.signOut() }
+                    Button("Sign out", role: .destructive) { session.signOut() }.foregroundStyle(Theme.error)
                 }
             }
             .font(.inter(17))
@@ -61,7 +61,7 @@ struct PreferencesView: View {
                 .pickerStyle(.inline)
                 .labelsHidden()
             } header: {
-                Text("Gallery density")
+                SectionLabel("Gallery density")
             } footer: {
                 Text("Two columns make the bottles larger and show a second fact under each one.")
             }

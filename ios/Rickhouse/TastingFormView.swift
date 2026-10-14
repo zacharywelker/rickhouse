@@ -129,7 +129,7 @@ struct TastingFormView: View {
             if let error { Section { ErrorText(error) } }
             if existing != nil {
                 Section {
-                    Button("Delete this tasting", role: .destructive) { confirmingDelete = true }
+                    Button("Delete this tasting", role: .destructive) { confirmingDelete = true }.foregroundStyle(Theme.error)
                 }
             }
         }

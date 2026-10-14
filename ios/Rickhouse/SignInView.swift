@@ -181,8 +181,8 @@ struct PasswordField: View {
 extension View {
     /// The bordered box sign-in fields sit in; an error adds a red border (the message and icon carry it too).
     func fieldBox(failed: Bool) -> some View {
-        self.background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(failed ? Theme.error : Theme.muted.opacity(0.5), lineWidth: failed ? 2 : 1))
+        self.background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(failed ? Theme.error : Theme.muted.opacity(0.5), lineWidth: failed ? 2 : 1))
     }
 
     func fieldStyle(failed: Bool) -> some View {

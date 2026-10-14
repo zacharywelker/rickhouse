@@ -19,8 +19,8 @@ struct SearchField: View {
             }
         }
         .padding(.horizontal, 10)
-        .frame(minHeight: 40)
-        .background(Theme.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .frame(minHeight: 44)
+        .background(Theme.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
     }

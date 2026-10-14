@@ -334,6 +334,7 @@ struct ReleaseTarget: Identifiable {
 /// The label's facts after brand, name and category, as the category's rules allow (LabelRules.swift). The label
 /// editor and New Label show the same rows.
 struct LabelFactRows: View {
+    @Environment(Session.self) private var session
     @Binding var draft: LabelDraft
     var errors: [String: String]
     var rules: LabelRules
@@ -404,8 +405,8 @@ struct LabelFactRows: View {
             Text(tier).font(.inter(12, .semibold, relativeTo: .caption)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .trailing)
         }
         if rules.showsAging {
-            EditRow(title: "Distilled / barrel filled", field: field(.distilled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.distilled.rawValue], tracksChanges: tracksChanges)
-            EditRow(title: "Bottled", field: field(.bottled), placeholder: "YYYY-MM-DD", keyboard: .numbersAndPunctuation, error: errors[LabelFact.bottled.rawValue], tracksChanges: tracksChanges)
+            DateRow(title: "Distilled / barrel filled", field: field(.distilled), error: errors[LabelFact.distilled.rawValue], tracksChanges: tracksChanges)
+            DateRow(title: "Bottled", field: field(.bottled), error: errors[LabelFact.bottled.rawValue], tracksChanges: tracksChanges)
             DeriveAgeRow(draft: $draft) { onEdit(.ageYears) }
         }
         if bonded {
@@ -429,7 +430,7 @@ struct LabelFactRows: View {
             }
         }
         SizeRow(field: field(.size), error: errors[LabelFact.size.rawValue])
-        EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: "$", error: errors[LabelFact.msrp.rawValue])
+        EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: session.currencySymbol, error: errors[LabelFact.msrp.rawValue])
         LinkChipsRow(
             title: LabelEditor.listTitle(.distilleries), rows: draft.rows(.distilleries), changed: tracksChanges && draft.listChanged(.distilleries),
             onRemove: { draft.remove(.distilleries, id: $0.id) }, onAdd: { onPick(.distilleries) }
@@ -475,16 +476,19 @@ private func unlockButton(_ label: String, action: @escaping () -> Void) -> some
 /// The four ticks, two to a line, each a 44 pt target. A tick the category doesn't have is left out.
 struct TickGrid: View {
     let items: [(String, Binding<Bool>, Bool)]
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         let shown = items.filter(\.2)
-        LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 0) {
+        // One column at accessibility sizes, so "Cask Strength" and "Bottled in Bond" are not cut short.
+        let columns = Array(repeating: GridItem(.flexible(), alignment: .leading), count: typeSize.isAccessibilitySize ? 1 : 2)
+        LazyVGrid(columns: columns, spacing: 0) {
             ForEach(shown.indices, id: \.self) { i in
                 let (title, on, _) = shown[i]
                 Button { on.wrappedValue.toggle() } label: {
                     HStack(spacing: 8) {
                         Image(systemName: on.wrappedValue ? "checkmark.square.fill" : "square").font(.system(size: 20))
-                        Text(title).font(.inter(15)).lineLimit(1).minimumScaleFactor(0.8)
+                        Text(title).font(.inter(15)).lineLimit(typeSize.isAccessibilitySize ? nil : 1).minimumScaleFactor(0.8)
                     }
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
