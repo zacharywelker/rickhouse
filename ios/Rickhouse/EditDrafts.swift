@@ -294,6 +294,26 @@ struct LabelDraft {
         case .mashbills: links.mashbills = next
         case .finishes: links.finishes = next
         }
+        settleSources()
+    }
+
+    /// Which distillery made each mashbill, by the server's rule: with one distillery on the label it made them all; with
+    /// several, a choice stays only while that distillery is still on the label. So the draft shows, and sends, what the
+    /// server will keep.
+    private mutating func settleSources() {
+        let ids = Set(links.distilleries.map(\.id))
+        let solo = links.distilleries.count == 1 ? links.distilleries[0].id : nil
+        for i in links.mashbills.indices {
+            let chosen = links.mashbills[i].distilleryId.flatMap { ids.contains($0) ? $0 : nil }
+            links.mashbills[i].distilleryId = solo ?? chosen
+        }
+    }
+
+    /// Says which of the label's distilleries made a mashbill; nil clears it.
+    mutating func setSource(ofMashbill id: Int, to distilleryId: Int?) {
+        guard let i = links.mashbills.firstIndex(where: { $0.id == id }) else { return }
+        links.mashbills[i].distilleryId = distilleryId
+        settleSources()
     }
 
     /// Whether a list differs from what the label had, by which rows and in what order.

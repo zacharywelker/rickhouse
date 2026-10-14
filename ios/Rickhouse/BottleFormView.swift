@@ -68,7 +68,7 @@ struct BottleFormView: View {
                     EditRow(title: "Price paid", field: $price, placeholder: "0.00", keyboard: .decimalPad, prefix: session.currencySymbol, tracksChanges: false)
                     DateRow(title: "Date acquired", field: $acquired, tracksChanges: false)
                     EditRow(title: "Batch", field: $batch, placeholder: "Optional", tracksChanges: false)
-                    EditRow(title: "Where it's kept", field: $location, placeholder: "Optional", tracksChanges: false)
+                    EditRow(title: "Where it lives", field: $location, placeholder: "Optional", tracksChanges: false)
                     EditRow(title: "Notes", field: $notes, placeholder: "Optional", multiline: true, tracksChanges: false)
                 }
             }

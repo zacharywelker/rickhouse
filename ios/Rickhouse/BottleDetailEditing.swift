@@ -42,7 +42,7 @@ extension BottleDetailView {
                 row("Acquired", b.dateAcquired.map(Format.day))
                 row("Distilled / barrel filled", (b.barrelFilledOn ?? b.labelBarrelFilledOn).map(Format.day))
                 row("Bottled", (b.bottledOn ?? b.labelBottledOn).map(Format.day))
-                row("Location", b.location)
+                row("Where it lives", b.location)
             } header: {
                 SectionTitle(title: "Bottle", canEdit: !editingSomething) { startBottleEdit(b) }
             }
@@ -59,7 +59,7 @@ extension BottleDetailView {
 
     private static let optionalFacts: [(BottleFact, String, UIKeyboardType)] = [
         (.batch, "Batch", .default), (.releaseYear, "Release year", .numberPad), (.barrel, "Barrel", .default),
-        (.pick, "Pick name", .default), (.location, "Location", .default), (.notes, "Notes", .default),
+        (.pick, "Pick name", .default), (.location, "Where it lives", .default), (.notes, "Notes", .default),
     ]
 
     @ViewBuilder
