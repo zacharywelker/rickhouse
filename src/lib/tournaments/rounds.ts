@@ -27,9 +27,10 @@ export function isFinalPool(poolSize: number, heatSize: number): boolean {
   return poolSize <= heatSize;
 }
 
-/** How many heats each round has, from the field's size to the final (no withdrawals). 12 bottles of 4: [3, 2, 1]. Throws unless heatSize is a whole number of at least 1. */
+/** How many heats each round has, from the field's size to the final (no withdrawals). 12 bottles of 4: [3, 2, 1]. Throws unless heatSize is a whole number of at least 2 and entrantCount a whole number of at least 2. */
 export function planRounds(entrantCount: number, heatSize: number): number[] {
-  if (!Number.isInteger(heatSize) || heatSize < 1) throw new RangeError("heatSize must be a whole number of at least 1");
+  if (!Number.isInteger(heatSize) || heatSize < 2) throw new RangeError("heatSize must be a whole number of at least 2");
+  if (!Number.isInteger(entrantCount) || entrantCount < 2) throw new RangeError("a tournament needs at least 2 entrants");
   const rounds: number[] = [];
   let pool = entrantCount;
   for (;;) {

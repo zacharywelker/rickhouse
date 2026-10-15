@@ -46,8 +46,12 @@ describe("isFinalPool and planRounds", () => {
     expect(planRounds(5, 4)).toEqual([2, 1]);
   });
 
-  it("refuses a heat size that is not a whole number of at least 1", () => {
-    for (const bad of [0, -1, 1.5, Number.NaN]) expect(() => planRounds(12, bad)).toThrow(RangeError);
+  it("refuses a heat size that is not a whole number of at least 2", () => {
+    for (const bad of [0, 1, -1, 1.5, Number.NaN]) expect(() => planRounds(12, bad)).toThrow(RangeError);
+  });
+
+  it("refuses fewer than two entrants, or a count that is not a whole number", () => {
+    for (const bad of [0, 1, -3, 2.5, Number.NaN, Number.POSITIVE_INFINITY]) expect(() => planRounds(bad, 4)).toThrow(RangeError);
   });
 });
 
