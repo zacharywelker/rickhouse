@@ -8,11 +8,16 @@ export const AGE_BAND_YEARS = 2;
 
 type KeyValue = { band: Comparable; exact: Comparable } | null;
 
+/** A number the data gives, or null when it is missing or not finite (a NaN would break the sort). */
+const finite = (n: number | null): number | null => (n !== null && Number.isFinite(n) ? n : null);
+
 /** What one key says about an entrant, or null when it is unknown (which sorts after every known value). */
 export function keyValue(entrant: Entrant, key: GroupKey): KeyValue {
   switch (key) {
-    case "proof":
-      return entrant.proof === null ? null : { band: [Math.floor(entrant.proof / PROOF_BAND)], exact: [entrant.proof] };
+    case "proof": {
+      const proof = finite(entrant.proof);
+      return proof === null ? null : { band: [Math.floor(proof / PROOF_BAND)], exact: [proof] };
+    }
     case "mashbill":
       return mashbillKey(entrant.mashbill);
     case "distillery": {
@@ -22,10 +27,10 @@ export function keyValue(entrant: Entrant, key: GroupKey): KeyValue {
       const name = entrant.distilleries[0]!.trim().toLowerCase();
       return { band: [0, name], exact: [0, name] };
     }
-    case "age":
-      return entrant.ageYears === null
-        ? null
-        : { band: [Math.floor(entrant.ageYears / AGE_BAND_YEARS)], exact: [entrant.ageYears] };
+    case "age": {
+      const age = finite(entrant.ageYears);
+      return age === null ? null : { band: [Math.floor(age / AGE_BAND_YEARS)], exact: [age] };
+    }
     case "finish": {
       const first = entrant.finishes[0]?.trim().toLowerCase();
       return first ? { band: [first], exact: [first] } : null;

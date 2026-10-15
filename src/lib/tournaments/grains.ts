@@ -61,8 +61,12 @@ export function mashbillKey(mashbill: MashbillInput | null): { band: Comparable;
   // A recipe with no grains says nothing to compare.
   if (mashbill.grains.length === 0) return null;
 
+  // A grain whose percent is not a finite number says nothing; drop it rather than let a NaN break the sort.
+  const grains = mashbill.grains.filter((g) => Number.isFinite(g.percent));
+  if (grains.length === 0) return null;
+
   const shares = new Map<string, number>();
-  for (const { grain, percent } of mashbill.grains) {
+  for (const { grain, percent } of grains) {
     const family = grainFamily(grain);
     shares.set(family, (shares.get(family) ?? 0) + percent);
   }

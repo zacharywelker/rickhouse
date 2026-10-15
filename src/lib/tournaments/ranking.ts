@@ -94,7 +94,9 @@ function heatBand(heat: RankedHeat): number | null {
 
 /** Strength, rank and flags for every competitor in the decided heats. */
 export function rankCompetitors(heats: readonly RankedHeat[], prior = PRIOR_WEIGHT): Strength[] {
-  const usable = heats.filter((h) => h.ranking.length >= 2);
+  // A competitor counts once per heat, at its best place; a heat left with fewer than two is no contest.
+  const deduped = heats.map((h) => ({ ranking: h.ranking.filter((c, i) => h.ranking.findIndex((o) => o.id === c.id) === i) }));
+  const usable = deduped.filter((h) => h.ranking.length >= 2);
   const orders = usable.map((h) => h.ranking.map((c) => c.id));
   const theta = fitStrengths(orders, prior);
   const group = comparableGroups(orders);

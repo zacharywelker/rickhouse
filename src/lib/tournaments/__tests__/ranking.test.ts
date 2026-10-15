@@ -102,6 +102,17 @@ describe("rankCompetitors", () => {
     expect(new Set(rows.map((r) => r.group)).size).toBe(2);
   });
 
+  it("counts a competitor once in a heat that lists it twice, at its best place", () => {
+    const doubled = rankCompetitors([heat(["a", "a", "b"])]);
+    const single = rankCompetitors([heat(["a", "b"])]);
+    expect(doubled).toEqual(single);
+    expect(doubled.every((r) => r.heats === 1)).toBe(true);
+  });
+
+  it("skips a heat that is one competitor listed twice", () => {
+    expect(rankCompetitors([heat(["a", "a"])])).toEqual([]);
+  });
+
   it("ignores heats of fewer than two", () => {
     expect(rankCompetitors([heat(["solo"])])).toEqual([]);
   });
