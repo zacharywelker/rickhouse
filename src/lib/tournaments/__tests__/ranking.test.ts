@@ -143,7 +143,8 @@ describe("audit", () => {
     // a ranks first but is rated worst; f ranks last but is rated best.
     const ratings = new Map<string, number | null>([["a", 5], ["b", 7], ["c", 7.5], ["d", 8], ["e", 8.5], ["f", 9]]);
     const rows = audit(strengths, ratings);
-    expect(rows[0]!.id === "a" || rows[0]!.id === "f").toBe(true);
+    // Both gaps are 5 and the id breaks the tie, so a comes first.
+    expect(rows[0]!.id).toBe("a");
     const a = rows.find((r) => r.id === "a")!;
     expect(a.rank).toBe(1);
     expect(a.expectedRank).toBe(6);
@@ -157,5 +158,24 @@ describe("audit", () => {
     expect(audit(strengths, ratings)).toEqual([]);
     const few = rankCompetitors([heat(["a", "b"]), heat(["b", "c"])]);
     expect(audit(few, new Map([["a", 8], ["b", 7], ["c", 6]]))).toEqual([]);
+  });
+
+  it("excludes a firm competitor that only ever met one proof band", () => {
+    const four = ["a", "b", "c", "d"];
+    const same: RankedHeat[] = [];
+    for (let i = 0; i < four.length; i++) for (let j = i + 1; j < four.length; j++) same.push(heat([four[i]!, four[j]!], 100));
+    const firm = rankCompetitors(same);
+    expect(firm.every((s) => !s.provisional && s.singleBand)).toBe(true);
+    expect(audit(firm, new Map([["a", 5], ["b", 6], ["c", 7], ["d", 8]]))).toEqual([]);
+  });
+
+  it("excludes a provisional competitor even when its heat spans bands", () => {
+    const pair = rankCompetitors([{ ranking: [{ id: "a", proof: 90 }, { id: "b", proof: 120 }] }]);
+    expect(pair.every((s) => s.provisional && !s.singleBand)).toBe(true);
+    expect(audit(pair, new Map([["a", 5], ["b", 8]]))).toEqual([]);
+  });
+
+  it("includes firm multi-band competitors", () => {
+    expect(audit(strengths, new Map([["a", 5], ["b", 7], ["c", 7.5], ["d", 8], ["e", 8.5], ["f", 9]]))).not.toEqual([]);
   });
 });
