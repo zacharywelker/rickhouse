@@ -63,6 +63,12 @@ describe("comparableGroups", () => {
     expect(groups.get("a")).not.toBe(groups.get("x"));
   });
 
+  it("breaks a size tie by plain code-unit order, so B comes before a on every host", () => {
+    const groups = comparableGroups([["a", "b"], ["B", "C"]]);
+    expect(groups.get("B")).toBe(0);
+    expect(groups.get("a")).toBe(1);
+  });
+
   it("numbers the largest group 0", () => {
     const groups = comparableGroups([["x", "y"], ["a", "b"], ["b", "c"]]);
     expect(groups.get("a")).toBe(0);
@@ -74,6 +80,11 @@ describe("rankCompetitors", () => {
   it("ranks within a group, and shares a rank for equal strength", () => {
     const rows = rankCompetitors([heat(["a", "b"]), heat(["b", "a"])]);
     expect(rows.map((r) => [r.id, r.rank])).toEqual([["a", 1], ["b", 1]]);
+  });
+
+  it("orders equal strengths by plain code-unit order of id, so B comes before a", () => {
+    const rows = rankCompetitors([heat(["a", "B"]), heat(["B", "a"])]);
+    expect(rows.map((r) => r.id)).toEqual(["B", "a"]);
   });
 
   it("marks a competitor provisional until it has three heats", () => {

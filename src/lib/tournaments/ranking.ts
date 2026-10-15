@@ -5,6 +5,9 @@ export const FIRM_HEATS = 3;
 /** How strongly strengths are pulled toward the average, in pseudo-heats against a fixed average competitor. */
 export const PRIOR_WEIGHT = 0.5;
 
+/** Code-unit order, so ids sort the same on every host (localeCompare depends on the locale). */
+const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
 /** One decided heat: its competitors best first, with the proof each had (null when unknown). */
 export type RankedHeat = { ranking: { id: string; proof: number | null }[] };
 
@@ -30,7 +33,7 @@ export type Strength = {
  * strength. The result does not depend on the order the heats are given in.
  */
 export function fitStrengths(heats: readonly string[][], prior = PRIOR_WEIGHT): Map<string, number> {
-  const ids = [...new Set(heats.flat())].sort();
+  const ids = [...new Set(heats.flat())].sort(compareText);
   const index = new Map(ids.map((id, i) => [id, i]));
   const rankings = heats.map((ranking) => Int32Array.from(ranking, (id) => index.get(id)!));
 
@@ -80,7 +83,7 @@ export function comparableGroups(heats: readonly string[][]): Map<string, number
   }
   const members = new Map<string, string[]>();
   for (const id of parent.keys()) members.set(find(id), [...(members.get(find(id)) ?? []), id]);
-  const ordered = [...members.values()].map((m) => m.sort()).sort((a, b) => b.length - a.length || a[0]!.localeCompare(b[0]!));
+  const ordered = [...members.values()].map((m) => m.sort(compareText)).sort((a, b) => b.length - a.length || compareText(a[0]!, b[0]!));
   return new Map(ordered.flatMap((m, index) => m.map((id) => [id, index] as const)));
 }
 
@@ -124,7 +127,7 @@ export function rankCompetitors(heats: readonly RankedHeat[], prior = PRIOR_WEIG
   const same = (a: number, b: number) => Math.abs(a - b) < 1e-9;
   return rows
     .map((row) => ({ ...row, rank: 1 + rows.filter((o) => o.group === row.group && o.theta > row.theta && !same(o.theta, row.theta)).length }))
-    .sort((a, b) => a.group - b.group || a.rank - b.rank || a.id.localeCompare(b.id));
+    .sort((a, b) => a.group - b.group || a.rank - b.rank || compareText(a.id, b.id));
 }
 
 export type AuditRow = {
@@ -158,5 +161,5 @@ export function audit(strengths: readonly Strength[], ratings: ReadonlyMap<strin
       rows.push({ id: s.id, rating, rank: s.rank, groupSize: members.length, expectedRank, gap: s.rank - expectedRank });
     }
   }
-  return rows.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap) || a.id.localeCompare(b.id));
+  return rows.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap) || compareText(a.id, b.id));
 }

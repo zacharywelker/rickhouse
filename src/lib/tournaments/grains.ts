@@ -13,9 +13,12 @@ const MALT_CLASS_MIN = 51;
 const UNKNOWN = Number.POSITIVE_INFINITY;
 const band = (share: number): number => Math.floor(share / SHARE_BAND);
 
+/** Free text as a lookup key: trimmed, lowercase, runs of whitespace collapsed. */
+const normalize = (text: string): string => text.trim().toLowerCase().replace(/\s+/g, " ");
+
 /** Which family a grain name belongs to. Names are free text, so match on the words; any other name is its own family. */
 export function grainFamily(name: string): string {
-  const n = name.trim().toLowerCase().replace(/\s+/g, " ");
+  const n = normalize(name);
   if (/\bcorn\b/.test(n)) return "corn";
   if (n.includes("wheat")) return "wheat";
   if (n.includes("rye")) return "rye";
@@ -49,8 +52,9 @@ export function mashbillKey(mashbill: MashbillInput | null): { band: Comparable;
   if (mashbill.kind === "blend") return { band: [BLEND], exact: [BLEND] };
 
   if (mashbill.kind === "generic") {
-    const typical = GENERIC[mashbill.style.trim().toLowerCase()];
-    if (typical === undefined) return null;
+    const style = normalize(mashbill.style);
+    if (!Object.hasOwn(GENERIC, style)) return null;
+    const typical = GENERIC[style]!;
     if (typical === "four grain") {
       const unknown = [MANY, "2rye+wheat", UNKNOWN, UNKNOWN, UNKNOWN];
       return { band: unknown, exact: unknown };

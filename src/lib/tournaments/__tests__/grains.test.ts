@@ -63,6 +63,21 @@ describe("mashbillKey", () => {
   });
 });
 
+describe("generic styles", () => {
+  const style = (name: string): MashbillInput => ({ kind: "generic", style: name });
+
+  it("knows only its own styles, not inherited object properties", () => {
+    expect(mashbillKey(style("constructor"))).toBeNull();
+    expect(mashbillKey(style("toString"))).toBeNull();
+  });
+
+  it("ignores case and runs of whitespace", () => {
+    expect(mashbillKey(style("High  Rye"))).toEqual(mashbillKey(style("High Rye")));
+    expect(mashbillKey(style("High  Rye"))).not.toBeNull();
+    expect(mashbillKey(style("  high\trye "))).toEqual(mashbillKey(style("High Rye")));
+  });
+});
+
 describe("mashbillDisplay", () => {
   it("prefers a name, then the shares by size, then the style", () => {
     expect(mashbillDisplay(recipe([["Corn", 75]], "Buffalo Trace High Rye"))).toBe("Buffalo Trace High Rye");
