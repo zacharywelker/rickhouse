@@ -1292,3 +1292,20 @@ Expected: six commits (types, mashbill, keys, flights, rounds, ranking). Do not 
 - Spec section 7 Plackett-Luce with a prior, provisional under 3 heats, comparable groups, single band, audit by percentile: Task 6.
 - Spec section 4 "Move", "Reset", "Undo", the draw: these change stored state, so they belong to the data-layer plan, which calls `groupIntoHeats` and `nextPool`.
 - No placeholders. Names agree across tasks: `Entrant`, `MashbillInput`, `GroupKey`, `DEFAULT_GROUP_ORDER`, `isGroupOrder`, `mashbillKey`, `mashbillDisplay`, `sortEntrants`, `keyValue`, `groupIntoHeats`, `heatBand`, `autoLabel`, `HeatResult`, `advancers`, `nextPool`, `planRounds`, `standings`, `RankedHeat`, `rankCompetitors`, `audit`.
+
+---
+
+## Execution notes (as executed, 2026-10-14)
+
+Executed with subagent-driven development on branch `claude/tournament-engine`: 12 commits, `fb9881b..7bbfadc`, 71 tests in `src/lib/tournaments` (775 in the whole repo), typecheck clean, lint 0 errors. The code in this plan is the starting point; the branch has these changes on top of it, each found by a review:
+
+- `ranking.ts` imports `PROOF_BAND` from `keys.ts` (a pre-flight ruling, already reflected above).
+- `groupIntoHeats` throws `RangeError` for a heat size that is not a whole number of at least 1. `planRounds` throws for a heat size under 2 and for fewer than 2 entrants (a heat of one never narrows the field, and an infinite entrant count hangs the loop).
+- Final-review fixes: a non-finite proof, age or grain percent counts as unknown instead of breaking the sort; `rankCompetitors` de-duplicates a competitor repeated within a heat; one exported helper `distilleryNames` (trims, drops blanks, de-duplicates case-insensitively) is used by both the sort key and `autoLabel`; `autoLabel` compares case-insensitively and treats blank as missing; the generic-style lookup is safe against names like "constructor" and collapses whitespace; ranking order uses plain code-unit comparison; new tests pin both audit exclusions (provisional and single band) separately; a new `keys.test.ts` covers the keys.
+
+**What the data layer (Plan 3) must supply**, because the engine assumes it:
+- One competitor id per bottle entrant or label-only entrant (for example `b:<bottleId>` and `e:<expressionId>`).
+- Numbers, not strings: convert database numeric strings with `Number` and round to a sensible precision before building an `Entrant`. A bad value should arrive as `null`.
+- A label's finishes in their listed order, and its distilleries as a list (the engine de-duplicates and treats more than one as Blend).
+- Validate the heat size (2 to 4) and the entrant count (at least 2) at the API, so the engine's `RangeError` stays a last line of defense and never a user-facing error.
+- Withdrawn entrants are removed through `nextPool`'s `withdrawn` set.
