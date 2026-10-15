@@ -1,5 +1,5 @@
 import { mashbillDisplay } from "./grains";
-import { sortEntrants } from "./keys";
+import { distilleryNames, sortEntrants } from "./keys";
 import type { Entrant, GroupKey } from "./types";
 
 /**
@@ -25,10 +25,11 @@ export function heatBand(heat: readonly Entrant[]): string {
   return low === high ? `${low} proof` : `${low} to ${high} proof`;
 }
 
-/** The one value every item shares, or null when any is missing or they differ. */
+/** The one value every item shares ignoring case (the first spelling), or null when any is missing, blank or different. */
 function shared(values: readonly (string | null)[]): string | null {
   const first = values[0];
-  return first !== null && first !== undefined && values.every((v) => v === first) ? first : null;
+  if (first === null || first === undefined || first === "") return null;
+  return values.every((v) => v !== null && v.toLowerCase() === first.toLowerCase()) ? first : null;
 }
 
 /**
@@ -37,7 +38,10 @@ function shared(values: readonly (string | null)[]): string | null {
  */
 export function autoLabel(heat: readonly Entrant[]): string | null {
   const distillery = shared(
-    heat.map((e) => (e.distilleries.length === 0 ? null : e.distilleries.length > 1 ? "Blend" : e.distilleries[0]!.trim())),
+    heat.map((e) => {
+      const names = distilleryNames(e);
+      return names.length === 0 ? null : names.length > 1 ? "Blend" : names[0]!;
+    }),
   );
   const mashbill = shared(heat.map((e) => (e.mashbill === null ? null : mashbillDisplay(e.mashbill))));
   if (distillery !== null && mashbill !== null) {

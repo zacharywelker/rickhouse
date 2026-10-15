@@ -11,6 +11,20 @@ type KeyValue = { band: Comparable; exact: Comparable } | null;
 /** A number the data gives, or null when it is missing or not finite (a NaN would break the sort). */
 const finite = (n: number | null): number | null => (n !== null && Number.isFinite(n) ? n : null);
 
+/** The label's distilleries, trimmed, with blanks dropped and spellings that differ only in case merged (first kept). */
+export function distilleryNames(entrant: Entrant): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const raw of entrant.distilleries) {
+    const name = raw.trim();
+    if (name !== "" && !seen.has(name.toLowerCase())) {
+      seen.add(name.toLowerCase());
+      names.push(name);
+    }
+  }
+  return names;
+}
+
 /** What one key says about an entrant, or null when it is unknown (which sorts after every known value). */
 export function keyValue(entrant: Entrant, key: GroupKey): KeyValue {
   switch (key) {
@@ -21,10 +35,11 @@ export function keyValue(entrant: Entrant, key: GroupKey): KeyValue {
     case "mashbill":
       return mashbillKey(entrant.mashbill);
     case "distillery": {
-      if (entrant.distilleries.length === 0) return null;
+      const names = distilleryNames(entrant);
+      if (names.length === 0) return null;
       // Names sort first, alphabetically; a label with several distilleries is its own group after them.
-      if (entrant.distilleries.length > 1) return { band: [1, ""], exact: [1, ""] };
-      const name = entrant.distilleries[0]!.trim().toLowerCase();
+      if (names.length > 1) return { band: [1, ""], exact: [1, ""] };
+      const name = names[0]!.toLowerCase();
       return { band: [0, name], exact: [0, name] };
     }
     case "age": {

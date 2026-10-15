@@ -156,4 +156,22 @@ describe("autoLabel", () => {
     expect(autoLabel([entrant(1, "a", { distilleries: ["X", "Y"] }), entrant(2, "b", { distilleries: ["Z", "W"] })])).toBe("Blend");
     expect(autoLabel([entrant(1, "a", { distilleries: ["X"] }), entrant(2, "b")])).toBeNull();
   });
+
+  it("matches distilleries that differ only in case, keeping the first spelling", () => {
+    const m = recipe(null, [["Rye", 95], ["Malted Barley", 5]]);
+    const heat = [entrant(1, "a", { mashbill: m, distilleries: ["MGP"] }), entrant(2, "b", { mashbill: m, distilleries: ["mgp"] })];
+    expect(autoLabel(heat)).toBe("MGP 95/5");
+  });
+
+  it("falls back to the shared distillery when both mashbills display as blank", () => {
+    const blank = recipe(null, []);
+    const heat = [1, 2].map((id) => entrant(id, `b${id}`, { mashbill: blank, distilleries: ["MGP"] }));
+    expect(autoLabel(heat)).toBe("MGP");
+    const noStyle = generic("  ");
+    expect(autoLabel([1, 2].map((id) => entrant(id, `b${id}`, { mashbill: noStyle, distilleries: ["MGP"] })))).toBe("MGP");
+  });
+
+  it("treats a whitespace-only distillery as unknown", () => {
+    expect(autoLabel([entrant(1, "a", { distilleries: ["  "] }), entrant(2, "b", { distilleries: ["  "] })])).toBeNull();
+  });
 });
