@@ -126,11 +126,13 @@ test("a solo blind tournament hides names until the result is recorded", async (
   await expect(ranking).toBeVisible();
   await expect(page.locator("body")).not.toContainText(FIELD_NAMES);
   expect(await page.content()).not.toMatch(FIELD_NAMES);
+  // Hiding moves focus to the new stage's heading.
+  await expect(ranking.getByRole("heading", { name: "Rank the glasses, best first" })).toBeFocused();
 
   await ranking.getByRole("listitem").first().getByRole("button", { name: /down$/ }).click();
   await page.getByRole("button", { name: "Record result" }).click();
   const result = page.getByRole("status", { name: "Result" });
-  await expect(result.getByRole("heading", { name: "Result recorded" })).toBeVisible();
+  await expect(result.getByRole("heading", { name: "Result recorded" })).toBeFocused();
   await expect(result.getByRole("listitem")).toHaveCount(4);
   await expect(result.getByRole("listitem").first()).toContainText(FIELD_NAMES);
 });
@@ -205,6 +207,19 @@ test("a draft can be edited before it starts", async ({ page }) => {
   await expect(page.getByText("Yours")).toBeVisible();
   await page.getByRole("button", { name: "Reset to automatic" }).click();
   await expect(page.getByText("Yours")).toHaveCount(0);
+});
+
+test("a sticky round header never covers a control that takes focus", async ({ page }) => {
+  await createTournament(page);
+  await page.setViewportSize({ width: 1280, height: 320 });
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const move = flights(page).first().getByRole("button", { name: /^Move .* to another flight$/ }).first();
+  await move.focus();
+  await expect.poll(async () => (await move.boundingBox())?.y ?? -1).toBeGreaterThan(0);
+  const header = page.locator("section[aria-labelledby='round-1'] > header");
+  const bottom = await header.evaluate((el) => el.getBoundingClientRect().bottom);
+  const top = (await move.boundingBox())!.y;
+  expect(top).toBeGreaterThanOrEqual(bottom - 1);
 });
 
 test("the Tournaments link is in the header on a wide screen and in the menu below it", async ({ page }) => {

@@ -27,6 +27,17 @@ type Props = {
   decided: PlayDecided | null;
 };
 
+/** A heading that takes focus when its stage appears, so a keyboard or screen-reader user lands on the new stage. */
+function StageHeading({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLHeadingElement>(null);
+  React.useEffect(() => ref.current?.focus(), []);
+  return (
+    <h2 ref={ref} tabIndex={-1} className="text-lg font-medium focus:outline-none">
+      {children}
+    </h2>
+  );
+}
+
 const ALREADY = /already has a result/i;
 
 /** Plays one flight: ranks it and records the result. Blind flights go through start, glasses, rank and reveal. */
@@ -219,7 +230,7 @@ function BlindFlight(props: Props) {
   const items: RankItem[] = flow.order.map((g) => ({ key: g, title: `Glass ${g}`, label: `glass ${g}` }));
   return (
     <section className="flex flex-col gap-4" aria-label="Rank the glasses">
-      <h2 className="text-lg font-medium">Rank the glasses, best first</h2>
+      <StageHeading>Rank the glasses, best first</StageHeading>
       <RankList items={items} disabled={record.pending} onMove={(index, delta) => dispatch({ type: "move", index, delta })} />
       <RecordButton pending={record.pending} error={record.error} onClick={() => record.record({ glasses: flow.order })} />
       <p className="text-sm">
@@ -235,17 +246,19 @@ function Revealed({ tournamentId, decided }: Props) {
   const back = `/tournaments/${tournamentId}` as Route;
   if (!decided) {
     return (
-      <p role="status" className="text-sm">
-        Result recorded.{" "}
-        <Link href={back} className="underline underline-offset-4">
-          Back to the bracket
-        </Link>
-      </p>
+      <div role="status" className="flex flex-col gap-2">
+        <StageHeading>Result recorded</StageHeading>
+        <p className="text-sm">
+          <Link href={back} className="underline underline-offset-4">
+            Back to the bracket
+          </Link>
+        </p>
+      </div>
     );
   }
   return (
     <section className="flex flex-col gap-4" aria-label="Result" role="status">
-      <h2 className="text-lg font-medium">Result recorded</h2>
+      <StageHeading>Result recorded</StageHeading>
       <ol className="border-b border-border">
         {decided.places.map((p) => (
           <li key={p.place} className="flex min-h-11 items-center gap-3 border-t border-border py-1.5 text-sm">

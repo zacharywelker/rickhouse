@@ -10,6 +10,7 @@ import type { TournamentView } from "@/lib/tournaments/view";
 import { BracketFind } from "./bracket-find";
 import { FlightCard, rowDomId } from "./flight-card";
 import { useBracketActions } from "./use-bracket-actions";
+import { useStickyScrollPadding } from "./use-sticky-scroll-padding";
 
 /**
  * The tournament as columns of rounds, each holding its flights. No lines join one round to the next: each round
@@ -36,6 +37,8 @@ export function Bracket({
   rounds: TournamentView["rounds"];
 }) {
   const actions = useBracketActions(tournamentId);
+  const host = React.useRef<HTMLDivElement>(null);
+  useStickyScrollPadding(host);
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<number>>(new Set());
   const [query, setQuery] = React.useState("");
   const [index, setIndex] = React.useState<number | null>(null);
@@ -86,7 +89,7 @@ export function Bracket({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={host} className="flex flex-col gap-3">
       {draft ? null : (
         <BracketFind
           query={query}
