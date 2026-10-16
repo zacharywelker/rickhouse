@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canDraw, canMove, nextPendingId, canPlay, canReset, canUndo, canWithdraw, flightControls, type ActionView } from "../bracket-actions";
+import { canDraw, canMove, isOpen, nextPendingId, canPlay, canReset, canUndo, canWithdraw, flightControls, type ActionView } from "../bracket-actions";
 import type { ViewHeat } from "../view";
 
 const heat = (id: number, round: number, status: ViewHeat["status"], extra: Partial<ViewHeat> = {}): ViewHeat => ({
@@ -66,6 +66,11 @@ describe("canMove", () => {
     const v = view("active", [[heat(1, 1, "bye")], [heat(2, 2, "pending")]]);
     expect(canMove(v, v.rounds[1]!.heats[0]!)).toBe(true);
     expect(canMove(v, v.rounds[0]!.heats[0]!)).toBe(false);
+  });
+  it("a bye's lone bottle can move too, in a draft or the current round", () => {
+    expect(canMove(view("draft", [[heat(1, 1, "bye")]]), heat(1, 1, "bye"))).toBe(true);
+    expect(canMove(view("active", [[heat(1, 1, "bye"), heat(2, 1, "pending")]]), heat(1, 1, "bye"))).toBe(true);
+    expect(isOpen(heat(1, 1, "decided"))).toBe(false);
   });
   it("not a running blind one, a hidden flight or a finished tournament", () => {
     expect(canMove(view("active", [[heat(1, 1, "pending")]], true), heat(1, 1, "pending"))).toBe(false);

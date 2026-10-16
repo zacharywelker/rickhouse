@@ -22,9 +22,12 @@ export function canWithdraw(view: ActionView, heat: ViewHeat, entryId: number): 
   return view.entries.some((e) => e.id === entryId && e.status === "active");
 }
 
-/** Move and swap: a draft's flights, or a running open tournament's pending flights of the current round. Never a blind one (the server refuses). */
+/** A flight whose bottles can still be moved: a bye is a flight of one that the server lets bottles leave and join. */
+export const isOpen = (heat: { status: ViewHeat["status"] }): boolean => heat.status === "pending" || heat.status === "bye";
+
+/** Move and swap: a draft's flights, or a running open tournament's undecided flights of the current round. Never a blind one (the server refuses). */
 export function canMove(view: ActionView, heat: ViewHeat): boolean {
-  if (heat.hidden || heat.status !== "pending") return false;
+  if (heat.hidden || !isOpen(heat)) return false;
   if (view.status === "draft") return true;
   return view.status === "active" && !view.blind && isCurrent(view, heat);
 }

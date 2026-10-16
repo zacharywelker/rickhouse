@@ -4,7 +4,7 @@ import * as React from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { matchEntries, stepMatch } from "@/lib/tournaments/bracket-search";
-import type { FlightControls } from "@/lib/tournaments/bracket-actions";
+import { isOpen, type FlightControls } from "@/lib/tournaments/bracket-actions";
 import type { BracketModel } from "@/lib/tournaments/bracket-model";
 import type { TournamentView } from "@/lib/tournaments/view";
 import { BracketFind } from "./bracket-find";
@@ -137,7 +137,7 @@ export function Bracket({
               {column.kind === "round" ? (
                 <div id={`round-body-${column.round}`} hidden={isCollapsed}>
                   {column.flights.map((flight) => {
-                    const others = column.flights.filter((other) => other.id !== flight.id && other.status === "pending");
+                    const others = column.flights.filter((other) => other.id !== flight.id && isOpen(other));
                     return (
                       <FlightCard
                         key={flight.id}
