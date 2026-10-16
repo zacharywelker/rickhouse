@@ -47,8 +47,7 @@ export type FlowAction =
   | { type: "saved"; /** The letters that were sent to the server. */ sent: { entryId: number; glass: string }[] }
   | { type: "hide" }
   | { type: "move"; index: number; delta: -1 | 1 }
-  | { type: "recorded" }
-  | { type: "restart" };
+  | { type: "recorded" };
 
 /** The mapping with new rows; it counts as saved again when the letters are back to what the server has. */
 function edited(state: Extract<Flow, { stage: "mapping" }>, rows: MappingRow[]): Flow {
@@ -88,7 +87,5 @@ export function flowReducer(state: Flow, action: FlowAction): Flow {
       return state.stage === "rank" ? { stage: "rank", order: moveItem(state.order, action.index, action.delta) } : state;
     case "recorded":
       return { stage: "revealed" };
-    case "restart":
-      return { stage: "start" };
   }
 }

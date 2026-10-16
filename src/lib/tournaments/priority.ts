@@ -25,7 +25,7 @@ export const GROUP_KEY_HELP: Record<GroupKey, string> = {
 export function moveKey(order: readonly GroupKey[], index: number, delta: number): GroupKey[] {
   const next = [...order];
   const to = index + delta;
-  if (!Number.isInteger(index) || index < 0 || index >= next.length || to < 0 || to >= next.length) return next;
+  if (!Number.isInteger(index) || !Number.isInteger(delta) || index < 0 || index >= next.length || to < 0 || to >= next.length) return next;
   next.splice(to, 0, ...next.splice(index, 1));
   return next;
 }

@@ -59,8 +59,9 @@ export function EntryRow({
       )}
     >
       {decided ? (
-        <span className="w-6 shrink-0 text-center text-base font-semibold tabular-nums" aria-label={row.place === null ? undefined : `Place ${row.place}`}>
-          {row.place ?? ""}
+        <span className="w-6 shrink-0 text-center text-base font-semibold tabular-nums">
+          <span aria-hidden>{row.place ?? ""}</span>
+          {row.place === null ? null : <span className="sr-only">Place {row.place}</span>}
         </span>
       ) : null}
       <span className={COLUMNS}>

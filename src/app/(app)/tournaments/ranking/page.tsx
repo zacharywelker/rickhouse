@@ -161,8 +161,13 @@ export default async function RankingPage({ searchParams }: { searchParams: Prom
                     <span className="text-sm text-muted-foreground tabular-nums">{line.text}</span>
                     <span className="text-sm text-muted-foreground">{line.verdict}</span>
                   </span>
-                  <span className="shrink-0 whitespace-nowrap tabular-nums" aria-label={`${line.gap} places ${line.direction}`}>
-                    {line.direction === "lower" ? "▼" : "▲"} {line.gap}
+                  <span className="shrink-0 whitespace-nowrap tabular-nums">
+                    <span aria-hidden>
+                      {line.direction === "lower" ? "▼" : "▲"} {line.gap}
+                    </span>
+                    <span className="sr-only">
+                      {line.gap} places {line.direction}
+                    </span>
                   </span>
                 </li>
               ))}

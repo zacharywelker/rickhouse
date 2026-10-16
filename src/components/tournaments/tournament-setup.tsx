@@ -134,7 +134,7 @@ export function TournamentSetup({ categories }: { categories: Option[] }) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label id="heat-size-label">Bottles per flight</Label>
+          <span id="heat-size-label" className="text-sm font-medium leading-none text-muted-foreground">Bottles per flight</span>
           <Segmented label="Bottles per flight" options={HEAT_SIZES} value={heatSize} onChange={setHeatSize} className="self-start" />
           <p className="text-xs text-muted-foreground">A flight is one tasting. Four bottles is the most a palate holds well.</p>
           <FieldError id="heat-size-error" message={fieldErrors.heatSize} />
@@ -151,7 +151,7 @@ export function TournamentSetup({ categories }: { categories: Option[] }) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label id="seeding-label">Seeding</Label>
+          <span id="seeding-label" className="text-sm font-medium leading-none text-muted-foreground">Seeding</span>
           <Segmented label="Seeding" options={SEEDING} value={seeding} onChange={setSeeding} className="self-start" />
           <p className="text-xs text-muted-foreground">
             Similar puts alike bottles in a flight, by the priority below. Random shuffles every round, which gives the ranking more cross-strength matches.
@@ -160,7 +160,7 @@ export function TournamentSetup({ categories }: { categories: Option[] }) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label id="priority-label">Grouping priority</Label>
+          <span id="priority-label" className="text-sm font-medium leading-none text-muted-foreground">Grouping priority</span>
           <PriorityList order={groupOrder} onChange={setGroupOrder} />
           <FieldError id="group-order-error" message={fieldErrors.groupOrder} />
         </div>

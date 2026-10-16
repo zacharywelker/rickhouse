@@ -101,8 +101,4 @@ describe("flowReducer", () => {
     expect(flowReducer({ stage: "revealed" }, { type: "move", index: 0, delta: 1 })).toEqual({ stage: "revealed" });
     expect(flowReducer({ stage: "rank", order: ["A"] }, { type: "show" })).toEqual({ stage: "rank", order: ["A"] });
   });
-
-  it("restart leads back to start (letters missing)", () => {
-    expect(flowReducer({ stage: "rank", order: ["A"] }, { type: "restart" })).toEqual({ stage: "start" });
-  });
 });

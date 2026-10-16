@@ -22,6 +22,8 @@ describe("moveKey", () => {
     expect(moveKey(order, 4, 1)).toEqual(order);
     expect(moveKey(order, 9, 1)).toEqual(order);
     expect(moveKey(order, -1, 1)).toEqual(order);
+    expect(moveKey(order, 1, 0.5)).toEqual(order);
+    expect(moveKey(order, 1, Number.NaN)).toEqual(order);
   });
 
   it("returns a new array and never changes its input", () => {

@@ -54,8 +54,9 @@ export function RankList({ items, onMove, disabled }: { items: RankItem[]; onMov
     <ol className="border-b border-border">
       {items.map((item, index) => (
         <li key={item.key} className="flex min-h-14 items-center gap-3 border-t border-border py-1.5">
-          <span className="w-6 shrink-0 text-center text-base font-semibold tabular-nums" aria-label={`Place ${index + 1}`}>
-            {index + 1}
+          <span className="w-6 shrink-0 text-center text-base font-semibold tabular-nums">
+            <span aria-hidden>{index + 1}</span>
+            <span className="sr-only">Place {index + 1}</span>
           </span>
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="text-sm leading-snug">{item.title}</span>

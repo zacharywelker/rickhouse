@@ -95,7 +95,7 @@ export function DraftSettings({ tournamentId, values }: { tournamentId: number; 
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label id="draft-size-label">Bottles per flight</Label>
+        <span id="draft-size-label" className="text-sm font-medium leading-none text-muted-foreground">Bottles per flight</span>
         <Segmented
           label="Bottles per flight"
           options={HEAT_SIZES}
@@ -130,7 +130,7 @@ export function DraftSettings({ tournamentId, values }: { tournamentId: number; 
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label id="draft-seeding-label">Seeding</Label>
+        <span id="draft-seeding-label" className="text-sm font-medium leading-none text-muted-foreground">Seeding</span>
         <Segmented
           label="Seeding"
           options={SEEDING}
@@ -147,7 +147,7 @@ export function DraftSettings({ tournamentId, values }: { tournamentId: number; 
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label id="draft-priority-label">Grouping priority</Label>
+        <span id="draft-priority-label" className="text-sm font-medium leading-none text-muted-foreground">Grouping priority</span>
         <PriorityList
           order={groupOrder}
           onChange={(next) => {

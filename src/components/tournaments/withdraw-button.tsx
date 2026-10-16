@@ -11,7 +11,10 @@ export function WithdrawButton({ entryId, name, actions }: { entryId: number; na
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <Button type="button" variant="ghost" className="size-11 p-0" aria-label={`Withdraw ${name}`} title="Withdraw" onClick={() => setOpen(true)}>
+      <Button type="button" variant="ghost" className="size-11 p-0" aria-label={`Withdraw ${name}`} title="Withdraw" onClick={() => {
+          actions.clearError();
+          setOpen(true);
+        }}>
         <UserMinus className="size-4" aria-hidden />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -20,6 +23,11 @@ export function WithdrawButton({ entryId, name, actions }: { entryId: number; na
             <DialogTitle>Withdraw {name}?</DialogTitle>
             <DialogDescription>It leaves its flight; results already recorded stay.</DialogDescription>
           </DialogHeader>
+          {actions.error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {actions.error}
+            </p>
+          ) : null}
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline" className="min-h-11">

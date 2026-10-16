@@ -37,10 +37,10 @@ function LabelAdder({ entries, onAdd }: { entries: readonly PickedEntry[]; onAdd
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label id="add-label-label">Add a label you don&apos;t own</Label>
+      <Label id="add-label-label" htmlFor="add-label-trigger">Add a label you don&apos;t own</Label>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button type="button" variant="outline" role="combobox" aria-expanded={open} aria-labelledby="add-label-label" className="min-h-11 justify-start font-normal text-muted-foreground">
+          <Button id="add-label-trigger" type="button" variant="outline" role="combobox" aria-expanded={open} aria-labelledby="add-label-label" className="min-h-11 justify-start font-normal text-muted-foreground">
             <Plus className="size-4" /> Search your labels…
           </Button>
         </PopoverTrigger>
