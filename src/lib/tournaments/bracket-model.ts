@@ -80,14 +80,14 @@ export function pourOrder(entries: ViewHeatEntry[]): ViewHeatEntry[] {
 }
 
 /**
- * A flight's title: your own name wins and is marked yours (also on a hidden flight: the view returns the owner's own
- * label there); else what its bottles share; else its proof band. A hidden flight has no generated name, only the band.
+ * A flight's title: your own name wins and is marked yours; else what its bottles share; else its proof band. A hidden
+ * flight (pending in a running blind tournament) shows only its band: even a name you gave it could give the glass away.
  */
 export function flightTitle(heat: ViewHeat, number: number): FlightTitle {
   const fallback = heat.band || `Flight ${number}`;
+  if (heat.hidden) return { text: fallback, yours: false };
   const custom = heat.label?.trim();
   if (custom) return { text: custom, yours: true };
-  if (heat.hidden) return { text: fallback, yours: false };
   return { text: heat.autoLabel ?? fallback, yours: false };
 }
 

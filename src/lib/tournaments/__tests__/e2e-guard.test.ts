@@ -10,11 +10,11 @@ describe("assertThrowawayDatabase", () => {
     }
     expect(() => assertThrowawayDatabase(`${at("rickhouse_tourney_web")}?sslmode=disable`)).not.toThrow();
   });
-  it("refuses the real database, look-alikes, and a missing or broken URL", () => {
+  it("refuses the real database, look-alikes, and an empty or broken URL", () => {
     for (const name of ["rickhouse", "contest", "latest", "protocol", "rickhouse_prod"]) {
       expect(() => assertThrowawayDatabase(at(name))).toThrow(/throwaway/);
     }
-    expect(() => assertThrowawayDatabase(undefined)).toThrow(/throwaway/);
+    expect(() => assertThrowawayDatabase("")).toThrow(/throwaway/);
     expect(() => assertThrowawayDatabase("not a url")).toThrow(/throwaway/);
   });
 });

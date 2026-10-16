@@ -63,7 +63,7 @@ export type ViewHeat = {
   round: number;
   slot: number;
   status: "pending" | "decided" | "bye";
-  /** The owner's own name for the heat, or null. */
+  /** The owner's own name for the heat, or null; withheld (null) for a hidden heat, since a name chosen at draft time can give the glass away. */
   label: string | null;
   /** What the heat's bottles share ("MGP 95/5"), or null; hidden while a blind heat is pending. */
   autoLabel: string | null;
@@ -123,7 +123,7 @@ export function buildView(input: ViewInput): TournamentView {
       round: heat.round,
       slot: heat.slot,
       status: heat.status,
-      label: heat.label,
+      label: hidden ? null : heat.label,
       autoLabel: hidden ? null : autoLabel(members),
       band: heatBand(members),
       hidden,

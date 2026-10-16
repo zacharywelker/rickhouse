@@ -41,8 +41,8 @@ describe("flightTitle", () => {
     expect(flightTitle(heat(1, 1, 1, [], { band: "90 to 94 proof" }), 2)).toEqual({ text: "90 to 94 proof", yours: false });
     expect(flightTitle(heat(1, 1, 1, []), 2)).toEqual({ text: "Flight 2", yours: false });
   });
-  it("shows your own name on a hidden flight, marked yours; without one only the band", () => {
-    expect(flightTitle(heat(1, 2, 1, [], { hidden: true, label: "Secret pick", band: "90 to 100 proof", entryCount: 4 }), 1)).toEqual({ text: "Secret pick", yours: true });
+  it("shows only the band on a hidden flight, even if a label is somehow present", () => {
+    expect(flightTitle(heat(1, 2, 1, [], { hidden: true, label: "Secret pick", band: "90 to 100 proof", entryCount: 4 }), 1)).toEqual({ text: "90 to 100 proof", yours: false });
     expect(flightTitle(heat(1, 2, 1, [], { hidden: true, band: "90 to 100 proof", entryCount: 4 }), 1)).toEqual({ text: "90 to 100 proof", yours: false });
   });
 });
@@ -133,7 +133,7 @@ describe("buildBracketModel: a running tournament", () => {
     { status: "decided", band: "90 to 92 proof", autoLabel: "Low rye" },
   );
   const bye = heat(2, 1, 2, [entry(9, "Lone bottle", 100)], { status: "bye", band: "100 proof" });
-  const hidden = heat(3, 2, 1, [], { hidden: true, band: "90 to 100 proof", label: "Secret pick", entryCount: 4, glasses: ["A", "B"] });
+  const hidden = heat(3, 2, 1, [], { hidden: true, band: "90 to 100 proof", label: null, entryCount: 4, glasses: ["A", "B"] });
   const view = {
     status: "active" as const,
     currentRound: 2,
@@ -158,18 +158,18 @@ describe("buildBracketModel: a running tournament", () => {
     expect([one!.state, two!.state]).toEqual(["decided", "now"]);
     expect(one!.note).toBe("Flights of 4 advanced 2, byes advanced 1");
   });
-  it("shows a hidden flight's custom label as yours with the band under it, and only the band without one; never a bottle name", () => {
+  it("shows a hidden flight as its band only, never a bottle name or a custom label", () => {
     const flight = two!.flights[0]!;
     expect(flight.hidden).toBe(true);
     expect(flight.rows).toEqual([]);
     expect(flight.count).toBe(4);
     expect(flight.glassesSet).toBe(2);
-    expect(flight.title).toEqual({ text: "Secret pick", yours: true });
-    expect(flight.meta).toBe("Flight 1 · 90 to 100 proof");
+    expect(flight.title).toEqual({ text: "90 to 100 proof", yours: false });
+    expect(flight.meta).toBe("Flight 1");
     const plain = two!.flights[1]!;
     expect(plain.title).toEqual({ text: "124 to 126 proof", yours: false });
     expect(plain.meta).toBe("Flight 2");
-    expect(model.renamed).toBe(1);
+    expect(model.renamed).toBe(0);
   });
   it("marks nobody as advancing out of a decided final", () => {
     const final = heat(9, 3, 1, [entry(1, "Eagle Rare", 90, { place: 1 }), entry(2, "Maker's", 92, { place: 2 })], { status: "decided", band: "90 to 92 proof" });
