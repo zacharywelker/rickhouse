@@ -1173,3 +1173,103 @@ export type BottleImage = typeof bottleImages.$inferSelect;
 export type TastingNote = typeof tastingNotes.$inferSelect;
 export type BottleListRow = typeof bottleList.$inferSelect;
 export type Group = typeof groups.$inferSelect;
+
+// ------------------------------------------------------------
+// Tournaments (docs/superpowers/specs/2026-10-13-tournament-design.md)
+// ------------------------------------------------------------
+
+export type TournamentStatus = "draft" | "active" | "complete";
+export type HeatStatus = "pending" | "decided" | "bye";
+
+export const tournaments = pgTable(
+  "tournaments",
+  {
+    id: serial("id").primaryKey(),
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    status: text("status").notNull().default("draft").$type<TournamentStatus>(),
+    /** One flight size per tournament, 2 to 4. */
+    heatSize: smallint("heat_size").notNull(),
+    seeding: text("seeding").notNull().default("similar").$type<"similar" | "random">(),
+    /** What flights are matched on, highest priority first: each of the five keys exactly once. */
+    groupOrder: text("group_order").array().notNull().default(sql`'{proof,mashbill,distillery,age,finish}'::text[]`),
+    blind: boolean("blind").notNull().default(false),
+    /** How the field was chosen, for display only. */
+    fieldNote: text("field_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("tournaments_owner_idx").on(t.ownerId, t.createdAt.desc()),
+    check("tournaments_status_check", sql`${t.status} IN ('draft', 'active', 'complete')`),
+    check("tournaments_heat_size_check", sql`${t.heatSize} BETWEEN 2 AND 4`),
+    check("tournaments_seeding_check", sql`${t.seeding} IN ('similar', 'random')`),
+  ],
+);
+
+/**
+ * A bottle (bottleId and its label), a label with no bottle (expressionId only), or ad hoc (neither).
+ * `displayName` is a snapshot, so history survives deletion. The owner's own bottle and label are held by composite
+ * foreign keys in the migration: `(expression_id, owner_id)` and `(bottle_id, expression_id)`.
+ */
+export const tournamentEntries = pgTable(
+  "tournament_entries",
+  {
+    id: serial("id").primaryKey(),
+    tournamentId: integer("tournament_id").notNull(),
+    ownerId: integer("owner_id").notNull(),
+    bottleId: integer("bottle_id"),
+    expressionId: integer("expression_id"),
+    displayName: text("display_name").notNull(),
+    status: text("status").notNull().default("active").$type<"active" | "withdrawn">(),
+    seed: integer("seed").notNull().default(0),
+  },
+  (t) => [
+    index("tournament_entries_tournament_idx").on(t.tournamentId),
+    uniqueIndex("tournament_entries_bottle_unique").on(t.tournamentId, t.bottleId).where(sql`${t.bottleId} IS NOT NULL`),
+    check("tournament_entries_status_check", sql`${t.status} IN ('active', 'withdrawn')`),
+  ],
+);
+
+export const tournamentHeats = pgTable(
+  "tournament_heats",
+  {
+    id: serial("id").primaryKey(),
+    tournamentId: integer("tournament_id")
+      .notNull()
+      .references(() => tournaments.id, { onDelete: "cascade" }),
+    round: smallint("round").notNull(),
+    slot: smallint("slot").notNull(),
+    /** Set only when the owner renames the heat; the generated label is computed on read. */
+    label: text("label"),
+    status: text("status").notNull().default("pending").$type<HeatStatus>(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedBy: integer("decided_by").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    unique("tournament_heats_round_slot_unique").on(t.tournamentId, t.round, t.slot),
+    check("tournament_heats_status_check", sql`${t.status} IN ('pending', 'decided', 'bye')`),
+  ],
+);
+
+export const tournamentHeatEntries = pgTable(
+  "tournament_heat_entries",
+  {
+    heatId: integer("heat_id").notNull(),
+    entryId: integer("entry_id").notNull(),
+    tournamentId: integer("tournament_id").notNull(),
+    /** 1 is best; null until the heat is decided, and always null in a bye. */
+    place: smallint("place"),
+    /** The glass the entry is poured into in a blind heat (A to D). */
+    glass: text("glass"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.heatId, t.entryId] }),
+    index("tournament_heat_entries_entry_idx").on(t.entryId),
+    uniqueIndex("tournament_heat_entries_place_unique").on(t.heatId, t.place).where(sql`${t.place} IS NOT NULL`),
+    uniqueIndex("tournament_heat_entries_glass_unique").on(t.heatId, t.glass).where(sql`${t.glass} IS NOT NULL`),
+  ],
+);

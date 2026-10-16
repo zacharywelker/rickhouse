@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoLabel, groupIntoHeats, heatBand } from "../grouping";
+import { autoLabel, groupAtRandom, groupIntoHeats, heatBand } from "../grouping";
 import { DEFAULT_GROUP_ORDER, isGroupOrder, type Entrant, type MashbillInput } from "../types";
 
 const generic = (style: string): MashbillInput => ({ kind: "generic", style });
@@ -173,5 +173,32 @@ describe("autoLabel", () => {
 
   it("treats a whitespace-only distillery as unknown", () => {
     expect(autoLabel([entrant(1, "a", { distilleries: ["  "] }), entrant(2, "b", { distilleries: ["  "] })])).toBeNull();
+  });
+});
+
+describe("groupAtRandom", () => {
+  const field = Array.from({ length: 9 }, (_, i) => entrant(i + 1, `e${i + 1}`));
+  /** A small repeatable random source, so the shuffles below can be compared. */
+  const seeded = (seed: number) => () => (seed = (seed * 48271) % 2147483647) / 2147483647;
+
+  it("keeps every entrant exactly once and cuts at the heat size", () => {
+    const heats = groupAtRandom(field, 4, seeded(7));
+    expect(heats.map((h) => h.length)).toEqual([4, 4, 1]);
+    expect(heats.flat().map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("gives the same shuffle for the same random source, and a different one for another", () => {
+    expect(names(groupAtRandom(field, 3, seeded(7)))).toEqual(names(groupAtRandom(field, 3, seeded(7))));
+    expect(names(groupAtRandom(field, 3, seeded(7)))).not.toEqual(names(groupAtRandom(field, 3, seeded(99))));
+  });
+
+  it("does not change the list it is given", () => {
+    const copy = [...field];
+    groupAtRandom(field, 3, seeded(7));
+    expect(field).toEqual(copy);
+  });
+
+  it("refuses an unusable heat size, like groupIntoHeats", () => {
+    for (const bad of [0, -1, 1.5, Number.NaN]) expect(() => groupAtRandom(field, bad)).toThrow(RangeError);
   });
 });
