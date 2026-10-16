@@ -18,6 +18,7 @@ import { LabelPhotoControls } from "@/components/expressions/label-photo-control
 import { CharLevelSpec, Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
 import { T8keHint } from "@/components/expressions/t8ke-hint";
 import { requireSession } from "@/lib/auth";
+import { labelRank } from "@/lib/tournaments/label-rank-query";
 import { nameWithYears } from "@/lib/other-names";
 import { expressionOtherNames } from "@/lib/other-names-store";
 import { releaseLabel } from "@/lib/releases";
@@ -81,13 +82,14 @@ export default async function LabelPage({
   const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
 
-  const [links, owned, notes, colas, otherNames, releases] = await Promise.all([
+  const [links, owned, notes, colas, otherNames, releases, tournamentRank] = await Promise.all([
     expressionLinks(expressionId),
     bottlesOfLabel(expressionId, user.id),
     tastingNotesForLabel(expressionId, user.id),
     colasForExpression(expressionId, user.id),
     expressionOtherNames(expressionId),
     expressionReleaseList(expressionId),
+    labelRank(user.id, expressionId),
   ]);
   const distilleryMatches = await distilleriesByPermit(
     user.id,
@@ -137,6 +139,13 @@ export default async function LabelPage({
           {otherNames.length > 0 ? (
             <p className="mt-1 text-sm text-muted-foreground">
               <span className="font-medium text-foreground">Also known as</span> {otherNames.map(nameWithYears).join(" · ")}
+            </p>
+          ) : null}
+          {tournamentRank ? (
+            <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+              <Link href={`/tournaments/ranking?categoryId=${tournamentRank.categoryId}` as Route} className="hover:text-accent hover:underline">
+                {tournamentRank.text}
+              </Link>
             </p>
           ) : null}
         </div>
