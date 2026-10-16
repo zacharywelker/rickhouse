@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Canonical nav per docs/DESIGN.md §14: Home · Collection · Labels · Groups ·
- * Numbers · Settings.
+ * Numbers · Settings (Tournaments sits after Labels).
  * "Configuration" stays as-is rather than becoming "Settings": it's
  * reference-data CRUD (distilleries, brands, stores…), not the personalization
  * settings DESIGN.md means by that name, which doesn't exist yet either.
@@ -20,6 +20,7 @@ const LINKS = [
   { href: "/", label: "Home" },
   { href: "/bottles", label: "Collection" },
   { href: "/expressions", label: "Labels" },
+  { href: "/tournaments", label: "Tournaments" },
   { href: "/groups", label: "Groups" },
   { href: "/numbers", label: "Numbers" },
   { href: "/admin", label: "Configuration" },
@@ -31,11 +32,11 @@ function isCurrent(pathname: string, href: string) {
 }
 
 /**
- * The header nav. Six links do not fit on a phone, and letting them overflow
- * is what made every page 597px wide on a 390px screen — so under `md` they
+ * The header nav. Seven links do not fit on a phone, and letting them overflow
+ * is what made every page 597px wide on a 390px screen — so under `xl` they
  * collapse behind a disclosure rather than wrapping or scrolling sideways.
- * The cut-off is `lg`, not `md`: the full row needs ~905px, so at `md`
- * every iPad in portrait (768–834px) scrolled sideways.
+ * The cut-off is `xl`, not `lg`: the full row needs ~1050px (it was ~905px
+ * before Tournaments), so at `lg` a 1024px window scrolled sideways.
  *
  * A disclosure, not a modal: Escape closes it, navigating closes it, and the
  * page behind stays readable and scrollable.
@@ -61,7 +62,7 @@ export function AppNav({ signOut, userMenu }: { signOut: React.ReactNode; userMe
 
   // A resize past the breakpoint leaves the panel stranded open otherwise.
   React.useEffect(() => {
-    const query = window.matchMedia("(min-width: 1024px)");
+    const query = window.matchMedia("(min-width: 1280px)");
     const onChange = () => {
       if (query.matches) setOpen(false);
     };
@@ -110,7 +111,7 @@ export function AppNav({ signOut, userMenu }: { signOut: React.ReactNode; userMe
           Rickhouse
         </Link>
 
-        <nav aria-label="Main" className="hidden items-center gap-5 lg:flex">
+        <nav aria-label="Main" className="hidden items-center gap-5 xl:flex">
           {LINKS.map((item) => desktopLink(item.href, item.label))}
         </nav>
 
@@ -126,7 +127,7 @@ export function AppNav({ signOut, userMenu }: { signOut: React.ReactNode; userMe
             type="button"
             variant="outline"
             size="sm"
-            className="lg:hidden"
+            className="xl:hidden"
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={open ? "Close menu" : "Open menu"}
@@ -142,7 +143,7 @@ export function AppNav({ signOut, userMenu }: { signOut: React.ReactNode; userMe
         <nav
           id="mobile-nav"
           aria-label="Main"
-          className="mx-auto flex w-full max-w-page flex-col gap-1 border-t border-border px-4 py-3 lg:hidden"
+          className="mx-auto flex w-full max-w-page flex-col gap-1 border-t border-border px-4 py-3 xl:hidden"
         >
           {LINKS.map((item) => mobileLink(item.href, item.label))}
           <div className="mt-2 border-t border-border pt-3 sm:hidden">
