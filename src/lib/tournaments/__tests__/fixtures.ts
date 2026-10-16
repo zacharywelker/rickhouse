@@ -22,6 +22,10 @@ export type Db = {
 
 /** Connects, with the app's own database module pointed at the test database before it is first imported. */
 export async function connect(): Promise<Db> {
+  const dbName = new URL(url!).pathname.slice(1);
+  if (!/(test|proto|scratch|tourney)/.test(dbName)) {
+    throw new Error(`Refusing to run the tournament tests against "${dbName}": the database name must contain test, proto, scratch or tourney.`);
+  }
   process.env.DATABASE_URL = url!;
   process.env.SESSION_SECRET ??= "x".repeat(40);
   const postgres = (await import("postgres")).default;
@@ -50,6 +54,7 @@ export type Cat = { whiskey: number; rum: number };
 
 export function fixtures(m: Db) {
   const users: number[] = [];
+  const cats: number[] = [];
   let seq = 0;
   // Test files run in parallel, so the id carries the process and a random part as well as a counter.
   const uid = () => `${process.pid.toString(36)}${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -62,8 +67,11 @@ export function fixtures(m: Db) {
   }
 
   async function mkCategories(): Promise<Cat> {
-    const one = async (name: string, group: string) =>
-      (await m.sql<{ id: number }>(`INSERT INTO categories (name, slug, field_group) VALUES ($1, $2, $3) RETURNING id`, `${name} ${uid()}`, `c-${uid()}`, group))[0]!.id;
+    const one = async (name: string, group: string) => {
+      const id = (await m.sql<{ id: number }>(`INSERT INTO categories (name, slug, field_group) VALUES ($1, $2, $3) RETURNING id`, `${name} ${uid()}`, `c-${uid()}`, group))[0]!.id;
+      cats.push(id);
+      return id;
+    };
     return { whiskey: await one("Test Bourbon", "whiskey"), rum: await one("Test Rum", "rum") };
   }
 
@@ -120,6 +128,7 @@ export function fixtures(m: Db) {
 
   async function cleanup(): Promise<void> {
     for (const id of users) await m.sql(`DELETE FROM users WHERE id = $1`, id);
+    for (const id of cats) await m.sql(`DELETE FROM categories WHERE id = $1`, id);
   }
 
   return { mkUser, mkCategories, mkLabel, mkBottle, mkField, mkOwnerWithField, finish, cleanup };
