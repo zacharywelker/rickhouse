@@ -212,6 +212,61 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(await m.heats.moveEntry(owner, made.id, 999999, view.rounds[0]!.heats[0]!.id)).toMatchObject({ ok: false, status: 404 });
   });
 
+  it("swaps two entries between flights: in a draft, and in a running tournament with the glass letters staying with the places", async () => {
+    type V = import("../view").TournamentView;
+    const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
+    let view = (await m.queries.getTournament(owner, made.id))!;
+    const [a, b] = view.rounds[0]!.heats;
+    const ids = (v: V) => v.rounds[0]!.heats.map((h) => h.entries.map((e) => e.entryId).sort((x, y) => x - y));
+    const before = ids(view);
+    const x = a!.entries[0]!.entryId;
+    const y = b!.entries[0]!.entryId;
+
+    // Every flight is full, so a move is refused but a swap works; sizes stay.
+    expect(await m.heats.moveEntry(owner, made.id, x, b!.id)).toMatchObject({ ok: false, status: 409 });
+    const swapped = (await m.heats.swapEntries(owner, made.id, x, y)) as { ok: true; view: V };
+    expect(swapped.ok).toBe(true);
+    expect(ids(swapped.view)).toEqual([[...before[0]!.filter((e) => e !== x), y].sort((p, q) => p - q), [...before[1]!.filter((e) => e !== y), x].sort((p, q) => p - q)]);
+
+    // Same flight, an entry that is not there, a stranger: refused.
+    const [x2, x3] = swapped.view.rounds[0]!.heats[0]!.entries.map((e) => e.entryId);
+    expect(await m.heats.swapEntries(owner, made.id, x2!, x3!)).toMatchObject({ ok: false, status: 409 });
+    expect(await m.heats.swapEntries(owner, made.id, x2!, 999999)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.heats.swapEntries(other, made.id, x2!, y)).toMatchObject({ ok: false, status: 404 });
+
+    // Running, not blind: letters belong to the places.
+    await m.life.startTournament(owner, made.id);
+    view = (await m.queries.getTournament(owner, made.id))!;
+    const [c, d] = view.rounds[0]!.heats;
+    const [c1, c2, c3] = c!.entries.map((e) => e.entryId);
+    const [d1, d2, d3] = d!.entries.map((e) => e.entryId);
+    const letter = async (entry: number) => ((await m.sql(`SELECT glass FROM tournament_heat_entries WHERE entry_id = $1`, entry)) as unknown as { glass: string | null }[])[0]!.glass;
+    await m.heats.setGlasses(owner, made.id, c!.id, [c1!, c2!, c3!].map((entryId, i) => ({ entryId, glass: "ABC"[i]! })));
+    await m.heats.setGlasses(owner, made.id, d!.id, [d1!, d2!, d3!].map((entryId, i) => ({ entryId, glass: "CAB"[i]! })));
+    expect((await m.heats.swapEntries(owner, made.id, c2!, d1!)).ok).toBe(true);
+    expect([await letter(c2!), await letter(d1!)]).toEqual(["C", "B"]);
+    // One flight lettered and the other not: neither keeps letters.
+    await m.heats.setGlasses(owner, made.id, c!.id, [c1!, d1!, c3!].map((entryId, i) => ({ entryId, glass: "ABC"[i]! })));
+    await m.sql(`UPDATE tournament_heat_entries SET glass = NULL WHERE heat_id = $1`, d!.id);
+    expect((await m.heats.swapEntries(owner, made.id, c1!, d2!)).ok).toBe(true);
+    expect([await letter(c1!), await letter(d2!), await letter(c3!)]).toEqual([null, null, null]);
+
+    // A decided flight cannot take part.
+    const now = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats;
+    await m.heats.recordHeat(owner, made.id, now[0]!.id, { ranking: now[0]!.entries.map((e) => e.entryId) }, owner);
+    expect(await m.heats.swapEntries(owner, made.id, now[0]!.entries[0]!.entryId, now[1]!.entries[0]!.entryId)).toMatchObject({ ok: false, status: 409 });
+  });
+
+  it("refuses a swap in a running blind tournament", async () => {
+    const made = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
+    // A blind draft is not hidden, so it can be swapped before it starts.
+    const draft = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats;
+    expect((await m.heats.swapEntries(owner, made.id, draft[0]!.entries[0]!.entryId, draft[1]!.entries[0]!.entryId)).ok).toBe(true);
+    await m.life.startTournament(owner, made.id);
+    const rows = (await m.sql(`SELECT entry_id FROM tournament_heat_entries WHERE tournament_id = $1 ORDER BY heat_id, entry_id`, made.id)) as unknown as { entry_id: number }[];
+    expect(await m.heats.swapEntries(owner, made.id, rows[0]!.entry_id, rows[5]!.entry_id)).toMatchObject({ ok: false, status: 409 });
+  });
+
   it("matches an outside entry to a bottle, once, and not an entry that already has one", async () => {
     const label = await fx.mkLabel(owner, cat.whiskey, "Outside", { proof: 99 });
     const bottle = await fx.mkBottle(owner, label);

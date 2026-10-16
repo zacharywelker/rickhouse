@@ -5,8 +5,8 @@ import { requireSession } from "@/lib/auth";
 import { parseInput, toActionResult, toFailure, type ActionFailure, type TournamentActionResult } from "@/lib/tournaments/action-result";
 import { fieldCandidates, labelCandidates, type FieldCandidate, type LabelCandidate } from "@/lib/tournaments/field";
 import { parseFieldFilters } from "@/lib/tournaments/field-filters";
-import { createSchema, glassSchema, moveSchema, patchSchema, promoteSchema, renameSchema, resultSchema } from "@/lib/tournaments/api-schemas";
-import { drawHeat, moveEntry, promoteEntry, recordHeat, renameHeat, setGlasses, undoHeat, withdrawEntry, type DrawnHeat } from "@/lib/tournaments/heats";
+import { createSchema, glassSchema, moveSchema, patchSchema, promoteSchema, renameSchema, resultSchema, swapSchema } from "@/lib/tournaments/api-schemas";
+import { drawHeat, moveEntry, promoteEntry, recordHeat, renameHeat, setGlasses, swapEntries, undoHeat, withdrawEntry, type DrawnHeat } from "@/lib/tournaments/heats";
 import { createTournament, deleteTournament, resetRound, startTournament, updateDraft } from "@/lib/tournaments/lifecycle";
 import type { Failure } from "@/lib/tournaments/state";
 
@@ -118,6 +118,15 @@ export async function moveEntryAction(id: number, entryId: number, toHeatId: num
   const body = parseInput(moveSchema, { toHeatId });
   if (!body.ok) return body;
   return view(id, () => moveEntry(user.id, id, entryId, body.data.toHeatId));
+}
+
+export async function swapEntriesAction(id: number, entryId: number, withEntryId: number): Promise<TournamentActionResult> {
+  const user = await requireSession();
+  if (!isId(id)) return goneTournament;
+  if (!isId(entryId)) return goneEntry;
+  const body = parseInput(swapSchema, { withEntryId });
+  if (!body.ok) return body;
+  return view(id, () => swapEntries(user.id, id, entryId, body.data.withEntryId));
 }
 
 /** `target` is `{ bottleId }` or `{ expressionId }`. */

@@ -43,17 +43,19 @@ export function Bracket({
               <p className="pt-0.5 text-xs text-muted-foreground">{column.note}</p>
             </header>
             {column.kind === "round" ? (
-              column.flights.map((flight) => (
-                <FlightCard
-                  key={flight.id}
-                  flight={flight}
-                  editable={editable}
-                  moveTargets={column.flights
-                    .filter((other) => other.id !== flight.id && other.status === "pending")
-                    .map((other) => ({ heatId: other.id, title: `Flight ${other.number} · ${other.title.text}`, full: other.count >= heatSize }))}
-                  actions={actions}
-                />
-              ))
+              column.flights.map((flight) => {
+                const others = column.flights.filter((other) => other.id !== flight.id && other.status === "pending");
+                return (
+                  <FlightCard
+                    key={flight.id}
+                    flight={flight}
+                    editable={editable}
+                    moveTargets={others.map((other) => ({ heatId: other.id, title: `Flight ${other.number} · ${other.title.text}`, full: other.count >= heatSize }))}
+                    swapTargets={others.flatMap((other) => other.rows.map((row) => ({ entryId: row.entryId, name: row.name, flight: `Flight ${other.number}` })))}
+                    actions={actions}
+                  />
+                );
+              })
             ) : (
               <article className="mb-5 border-t-2 border-foreground">
                 <h3 className="pt-1 text-base font-medium leading-snug">{column.title}</h3>

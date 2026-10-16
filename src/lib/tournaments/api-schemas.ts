@@ -54,6 +54,9 @@ export const glassSchema = z.object({ assign: z.array(z.object({ entryId: id, gl
 
 export const moveSchema = z.object({ toHeatId: id }).strict();
 
+/** `POST .../entries/:id/swap`: trade places with another entry in a different flight. */
+export const swapSchema = z.object({ withEntryId: id }).strict();
+
 /** `PATCH .../entries/:id`: match an outside entry to one of your bottles or labels. */
 export const promoteSchema = z.union([z.object({ bottleId: id }).strict(), z.object({ expressionId: id }).strict()]);
 

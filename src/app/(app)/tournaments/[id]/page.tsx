@@ -55,7 +55,7 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
           {draft ? (
             <p className="text-sm text-muted-foreground">
               {model.columns.length > 0
-                ? `Round 1 preview, matched by ${view.seeding === "random" ? "chance" : order.join(", then ").toLowerCase()}. Each flight is named from what its bottles share, and you can rename it. Move a bottle to another flight with its menu.`
+                ? `Round 1 preview, matched by ${view.seeding === "random" ? "chance" : order.join(", then ").toLowerCase()}. Each flight is named from what its bottles share, and you can rename it. Move a bottle to another flight, or swap two bottles, with its menu.`
                 : "Add at least two entries to see the round 1 preview."}
             </p>
           ) : null}

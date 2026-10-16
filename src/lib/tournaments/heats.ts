@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { loadEntrants } from "./facts";
 import { fail, GONE, lockTournament, readState, settle, viewOf, type Failure } from "./state";
@@ -265,6 +265,52 @@ export async function moveEntry(ownerId: number, tournamentId: number, entryId: 
     if (left === 0) await tx.delete(tournamentHeats).where(eq(tournamentHeats.id, fromHeat.id));
     else await tx.update(tournamentHeats).set({ status: left === 1 ? "bye" : "pending" }).where(eq(tournamentHeats.id, fromHeat.id));
     if (t.status === "active") await settle(tx, ownerId, t);
+    return { ok: true as const, view: (await viewOf(tx, ownerId, t.id))! };
+  });
+}
+
+/**
+ * Swaps two entries between two different undecided flights of the current round (round 1 in a draft): each takes
+ * the other's place, so both flights keep their size, which makes it the way to rearrange when every flight is full.
+ * Glass letters belong to the positions: the entry swapped in takes the letter of the one it replaces. If that
+ * leaves a flight with only some letters (one flight had them and the other did not), both flights lose their
+ * letters so no flight is half lettered. Refused in a running blind tournament, as moveEntry is.
+ */
+export async function swapEntries(ownerId: number, tournamentId: number, entryId: number, otherEntryId: number): Promise<Done | Failure> {
+  return db.transaction(async (tx) => {
+    const t = await lockTournament(tx, ownerId, tournamentId);
+    if (!t) return fail(404, GONE);
+    if (t.status === "complete") return fail(409, "This tournament is finished.");
+    if (t.status === "active" && t.blind) return fail(409, "The flights of a blind tournament are hidden. Reset the round to regroup it.");
+    const state = await readState(tx, t.id);
+    if (state.heats.length === 0) return fail(409, "There are no flights yet. Reset the round to make them.");
+    const round = Math.max(...state.heats.map((h) => h.round));
+    const place = (entryId: number) => {
+      const entry = state.entries.find((e) => e.id === entryId);
+      const row = state.heatEntries.find((r) => r.entryId === entryId && state.heats.some((h) => h.id === r.heatId && h.round === round));
+      return { entry, row, heat: row ? state.heats.find((h) => h.id === row.heatId) : undefined };
+    };
+    const a = place(entryId);
+    const b = place(otherEntryId);
+    if (!a.entry || !b.entry) return fail(404, NO_ENTRY);
+    if (a.entry.status !== "active" || b.entry.status !== "active") return fail(409, "A withdrawn entry cannot be moved.");
+    if (!a.heat || !b.heat || a.heat.status === "decided" || b.heat.status === "decided") return fail(409, "Both entries must be in undecided flights of the current round.");
+    if (a.heat.id === b.heat.id) return fail(409, "Those entries are already in the same flight.");
+
+    const at = (heatId: number, entry: number) => and(eq(tournamentHeatEntries.heatId, heatId), eq(tournamentHeatEntries.entryId, entry));
+    const lettered = (heatId: number) => state.heatEntries.filter((r) => r.heatId === heatId).every((r) => r.glass !== null);
+    const keepLetters = lettered(a.heat.id) && lettered(b.heat.id);
+    // A letter is unique within its flight, so the two rows let go of theirs before changing flights.
+    await tx.update(tournamentHeatEntries).set({ glass: null }).where(at(a.heat.id, entryId));
+    await tx.update(tournamentHeatEntries).set({ glass: null }).where(at(b.heat.id, otherEntryId));
+    await tx.update(tournamentHeatEntries).set({ heatId: b.heat.id }).where(at(a.heat.id, entryId));
+    await tx.update(tournamentHeatEntries).set({ heatId: a.heat.id }).where(at(b.heat.id, otherEntryId));
+    if (keepLetters) {
+      await tx.update(tournamentHeatEntries).set({ glass: b.row!.glass }).where(at(b.heat.id, entryId));
+      await tx.update(tournamentHeatEntries).set({ glass: a.row!.glass }).where(at(a.heat.id, otherEntryId));
+    } else {
+      await tx.update(tournamentHeatEntries).set({ glass: null }).where(inArray(tournamentHeatEntries.heatId, [a.heat.id, b.heat.id]));
+    }
     return { ok: true as const, view: (await viewOf(tx, ownerId, t.id))! };
   });
 }

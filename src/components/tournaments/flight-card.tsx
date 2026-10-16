@@ -4,7 +4,7 @@ import { EyeOff } from "lucide-react";
 import type { FlightModel } from "@/lib/tournaments/bracket-model";
 import { ColumnHeader, EntryRow } from "./entry-row";
 import { FlightTitle } from "./flight-title";
-import { MoveMenu, type MoveTarget } from "./move-menu";
+import { MoveMenu, type MoveTarget, type SwapTarget } from "./move-menu";
 import type { BracketActions } from "./use-bracket-actions";
 
 /**
@@ -15,12 +15,15 @@ export function FlightCard({
   flight,
   editable,
   moveTargets,
+  swapTargets,
   actions,
 }: {
   flight: FlightModel;
   editable: boolean;
   /** The other flights a bottle of this one can go to, when moving is allowed. */
   moveTargets: MoveTarget[];
+  /** The bottles of those flights, which a bottle of this one can trade places with. */
+  swapTargets: SwapTarget[];
   actions: BracketActions;
 }) {
   const canEdit = editable && flight.status === "pending";
@@ -55,7 +58,13 @@ export function FlightCard({
                 flight={flight}
                 action={
                   canEdit ? (
-                    <MoveMenu name={row.name} targets={moveTargets} onMove={(heatId, done) => actions.move(row.entryId, heatId, done)} />
+                    <MoveMenu
+                      name={row.name}
+                      targets={moveTargets}
+                      swaps={swapTargets}
+                      onMove={(heatId, done) => actions.move(row.entryId, heatId, done)}
+                      onSwap={(withEntryId, done) => actions.swap(row.entryId, withEntryId, done)}
+                    />
                   ) : undefined
                 }
               />

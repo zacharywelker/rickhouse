@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { moveEntryAction, renameHeatAction } from "@/app/(app)/tournaments/actions";
+import { moveEntryAction, renameHeatAction, swapEntriesAction } from "@/app/(app)/tournaments/actions";
 import type { TournamentActionResult } from "@/lib/tournaments/action-result";
 
 /** The bracket's edits: each runs a server action, refreshes the page on success and keeps one inline error otherwise. */
@@ -32,6 +32,7 @@ export function useBracketActions(tournamentId: number) {
     error,
     clearError: () => setError(null),
     move: (entryId: number, toHeatId: number, done?: () => void) => run(() => moveEntryAction(tournamentId, entryId, toHeatId), done),
+    swap: (entryId: number, withEntryId: number, done?: () => void) => run(() => swapEntriesAction(tournamentId, entryId, withEntryId), done),
     rename: (heatId: number, label: string | null, done?: () => void) => run(() => renameHeatAction(tournamentId, heatId, label), done),
   };
 }

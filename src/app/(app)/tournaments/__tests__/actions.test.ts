@@ -6,7 +6,7 @@ const { requireSession, revalidatePath, life, heats, field, calls } = vi.hoisted
     requireSession: vi.fn(),
     revalidatePath: vi.fn(),
     life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
-    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), promoteEntry: fn(), renameHeat: fn() },
+    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     field: { fieldCandidates: fn(), labelCandidates: fn() },
     calls: [] as string[],
   };
@@ -55,6 +55,7 @@ const viewActions: [string, () => Promise<unknown>, ReturnType<typeof vi.fn>, un
     [7, 3, 5, [{ entryId: 1, glass: "A" }, { entryId: 2, glass: "B" }]],
   ],
   ["moveEntryAction", () => actions.moveEntryAction(3, 9, 5), heats.moveEntry, [7, 3, 9, 5]],
+  ["swapEntriesAction", () => actions.swapEntriesAction(3, 9, 5), heats.swapEntries, [7, 3, 9, 5]],
   ["promoteEntryAction", () => actions.promoteEntryAction(3, 9, { bottleId: 4 }), heats.promoteEntry, [7, 3, 9, { bottleId: 4 }]],
   ["renameHeatAction", () => actions.renameHeatAction(3, 5, "Finals"), heats.renameHeat, [7, 3, 5, "Finals"]],
 ];
@@ -97,6 +98,7 @@ describe("invalid input never reaches the command", () => {
     ["recordHeatAction", () => actions.recordHeatAction(3, 5, { ranking: [1] }), heats.recordHeat],
     ["setGlassesAction", () => actions.setGlassesAction(3, 5, [{ entryId: 1, glass: "Z" }]), heats.setGlasses],
     ["moveEntryAction", () => actions.moveEntryAction(3, 9, 0), heats.moveEntry],
+    ["swapEntriesAction", () => actions.swapEntriesAction(3, 9, 0), heats.swapEntries],
     ["promoteEntryAction", () => actions.promoteEntryAction(3, 9, {}), heats.promoteEntry],
     ["renameHeatAction", () => actions.renameHeatAction(3, 5, "x".repeat(81)), heats.renameHeat],
   ])("%s", async (_name, run, command) => {
