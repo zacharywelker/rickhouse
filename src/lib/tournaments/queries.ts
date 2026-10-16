@@ -30,35 +30,37 @@ export type TournamentSummary = {
 
 /** The owner's tournaments, newest first, each with enough to draw a progress row. */
 export async function listTournaments(ownerId: number): Promise<TournamentSummary[]> {
-  const rows = await db.select().from(tournaments).where(eq(tournaments.ownerId, ownerId)).orderBy(desc(tournaments.createdAt), desc(tournaments.id));
-  if (rows.length === 0) return [];
-  const ids = rows.map((r) => r.id);
-  const entries = await db
-    .select({ tournamentId: tournamentEntries.tournamentId, status: tournamentEntries.status })
-    .from(tournamentEntries)
-    .where(inArray(tournamentEntries.tournamentId, ids));
-  const heats = await db
-    .select({ tournamentId: tournamentHeats.tournamentId, round: tournamentHeats.round, status: tournamentHeats.status })
-    .from(tournamentHeats)
-    .where(inArray(tournamentHeats.tournamentId, ids));
+  return db.transaction(async (tx) => {
+    const rows = await tx.select().from(tournaments).where(eq(tournaments.ownerId, ownerId)).orderBy(desc(tournaments.createdAt), desc(tournaments.id));
+    if (rows.length === 0) return [];
+    const ids = rows.map((r) => r.id);
+    const entries = await tx
+      .select({ tournamentId: tournamentEntries.tournamentId, status: tournamentEntries.status })
+      .from(tournamentEntries)
+      .where(inArray(tournamentEntries.tournamentId, ids));
+    const heats = await tx
+      .select({ tournamentId: tournamentHeats.tournamentId, round: tournamentHeats.round, status: tournamentHeats.status })
+      .from(tournamentHeats)
+      .where(inArray(tournamentHeats.tournamentId, ids));
 
-  return rows.map((t) => {
-    const mine = heats.filter((h) => h.tournamentId === t.id);
-    const round = mine.length > 0 ? Math.max(...mine.map((h) => h.round)) : null;
-    const current = mine.filter((h) => h.round === round);
-    const active = entries.filter((e) => e.tournamentId === t.id && e.status === "active").length;
-    return {
-      id: t.id,
-      name: t.name,
-      status: t.status,
-      heatSize: t.heatSize,
-      blind: t.blind,
-      entryCount: entries.filter((e) => e.tournamentId === t.id).length,
-      currentRound: round,
-      totalRounds: active >= 2 ? planRounds(active, t.heatSize).length : 0,
-      progress: { done: current.filter((h) => h.status !== "pending").length, total: current.length },
-      createdAt: t.createdAt.toISOString(),
-      completedAt: t.completedAt ? t.completedAt.toISOString() : null,
-    };
-  });
+    return rows.map((t) => {
+      const mine = heats.filter((h) => h.tournamentId === t.id);
+      const round = mine.length > 0 ? Math.max(...mine.map((h) => h.round)) : null;
+      const current = mine.filter((h) => h.round === round);
+      const active = entries.filter((e) => e.tournamentId === t.id && e.status === "active").length;
+      return {
+        id: t.id,
+        name: t.name,
+        status: t.status,
+        heatSize: t.heatSize,
+        blind: t.blind,
+        entryCount: entries.filter((e) => e.tournamentId === t.id).length,
+        currentRound: round,
+        totalRounds: active >= 2 ? planRounds(active, t.heatSize).length : 0,
+        progress: { done: current.filter((h) => h.status !== "pending").length, total: current.length },
+        createdAt: t.createdAt.toISOString(),
+        completedAt: t.completedAt ? t.completedAt.toISOString() : null,
+      };
+    });
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

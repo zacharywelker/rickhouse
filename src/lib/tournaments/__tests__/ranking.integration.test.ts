@@ -68,4 +68,27 @@ describe.skipIf(!url)("the tournament ranking against a real database", () => {
     expect(whiskey.competitors.map((c) => c.id).sort()).toEqual([`b:${own.bottles[0]}`, `b:${own.bottles[1]}`].sort());
     expect(await m.ranking.rankingFor(other, null)).toEqual({ competitors: [], audit: [] });
   });
+
+  it("is not changed by another account's finished tournament and tastings", async () => {
+    const own = await fx.mkOwnerWithField(cat.whiskey);
+    const made = (await m.life.createTournament(own.user, settings({ name: "Mine", heatSize: 3 }), own.bottles.map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
+    await m.life.startTournament(own.user, made.id);
+    await fx.finish(own.user, made.id);
+    for (const [i, rating] of [6, 7, 8, 9, 5, 4].entries()) {
+      await m.sql(`INSERT INTO tasting_notes (owner_id, expression_id, bottle_id, rating) VALUES ($1, $2, $3, $4)`, own.user, own.labels[i]!, own.bottles[i]!, rating);
+    }
+    const baseline = await m.ranking.rankingFor(own.user, null);
+    const baselineWhiskey = await m.ranking.rankingFor(own.user, cat.whiskey);
+
+    const stranger = await fx.mkOwnerWithField(cat.whiskey);
+    const theirs = (await m.life.createTournament(stranger.user, settings({ name: "Theirs", heatSize: 3 }), stranger.bottles.map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
+    await m.life.startTournament(stranger.user, theirs.id);
+    await fx.finish(stranger.user, theirs.id);
+    for (const [i, rating] of [1, 2, 3, 10, 9, 8].entries()) {
+      await m.sql(`INSERT INTO tasting_notes (owner_id, expression_id, bottle_id, rating) VALUES ($1, $2, $3, $4)`, stranger.user, stranger.labels[i]!, stranger.bottles[i]!, rating);
+    }
+
+    expect(await m.ranking.rankingFor(own.user, null)).toEqual(baseline);
+    expect(await m.ranking.rankingFor(own.user, cat.whiskey)).toEqual(baselineWhiskey);
+  });
 });

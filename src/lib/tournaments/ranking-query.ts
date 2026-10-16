@@ -68,7 +68,7 @@ export async function rankingFor(ownerId: number, categoryId: number | null): Pr
   if (categoryId !== null) {
     const tree = await run<{ id: number }>(sql`WITH RECURSIVE tree AS (
       SELECT id FROM categories WHERE id = ${categoryId}
-      UNION ALL SELECT c.id FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id FROM tree`);
+      UNION SELECT c.id FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id FROM tree`);
     allowedCategories = new Set(tree.map((r) => r.id));
   }
   const inScope = (w: Who) => allowedCategories === null || (w.expressionId !== null && allowedCategories.has(expressionById.get(w.expressionId)?.category_id ?? -1));
