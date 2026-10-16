@@ -1,4 +1,6 @@
+import { expect } from "vitest";
 import type { TournamentSettings } from "../lifecycle";
+import type { TournamentView } from "../view";
 
 /**
  * Shared set-up for the integration tests, which run the tournament server layer against a real Postgres. They are
@@ -12,6 +14,7 @@ export const url = process.env.TOURNAMENT_TEST_DATABASE_URL;
 export type Db = {
   sql: <T = Record<string, unknown>>(query: string, ...params: unknown[]) => Promise<T[]>;
   life: typeof import("../lifecycle");
+  heats: typeof import("../heats");
   queries: typeof import("../queries");
   end: () => Promise<void>;
 };
@@ -25,6 +28,7 @@ export async function connect(): Promise<Db> {
   return {
     sql: async (query, ...params) => (await client.unsafe(query, params as never[])) as never,
     life: await import("../lifecycle"),
+    heats: await import("../heats"),
     queries: await import("../queries"),
     end: () => client.end(),
   };
@@ -101,11 +105,22 @@ export function fixtures(m: Db) {
     return { user, ...(await mkField(user, cat, "Own")) };
   }
 
+  /** Plays the tournament to its end, ranking each pending flight in the order its entries are listed. */
+  async function finish(user: number, id: number): Promise<void> {
+    for (let guard = 0; guard < 2000; guard++) {
+      const view = (await m.queries.getTournament(user, id)) as TournamentView;
+      if (view.status === "complete") return;
+      const open = view.rounds[view.rounds.length - 1]!.heats.find((h) => h.status === "pending")!;
+      expect((await m.heats.recordHeat(user, id, open.id, { ranking: open.entries.map((e) => e.entryId) }, user)).ok).toBe(true);
+    }
+    throw new Error("the tournament did not finish");
+  }
+
   async function cleanup(): Promise<void> {
     for (const id of users) await m.sql(`DELETE FROM users WHERE id = $1`, id);
   }
 
-  return { mkUser, mkCategories, mkLabel, mkBottle, mkField, mkOwnerWithField, cleanup };
+  return { mkUser, mkCategories, mkLabel, mkBottle, mkField, mkOwnerWithField, finish, cleanup };
 }
 
 export type Fixtures = ReturnType<typeof fixtures>;
