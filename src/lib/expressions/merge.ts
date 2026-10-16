@@ -138,15 +138,19 @@ export async function mergeLabels(ownerId: number, sourceId: number, intoId: num
       }
     }
 
-    // Bottles and tastings in ONE statement: a tasting points at its bottle and label together
-    // (tasting_notes_bottle_expression_fk, no ON UPDATE CASCADE), so moving the bottles alone
-    // would break that key. Checked at the end of the statement, both moves satisfy it.
+    // Bottles, tastings and tournament entries in ONE statement: a tasting or an entry points at its bottle
+    // and label together (tasting_notes_bottle_expression_fk and tournament_entries_bottle_fk, no ON UPDATE
+    // CASCADE), so moving the bottles alone would break those keys. Checked at the end of the statement,
+    // the moves together satisfy them.
     const [moved] = await tx.execute<{ bottles: number; tastings: number }>(sql`
       WITH b AS (
         UPDATE bottles SET expression_id = ${intoId}
         WHERE expression_id = ${sourceId} AND owner_id = ${ownerId} RETURNING id
       ), t AS (
         UPDATE tasting_notes SET expression_id = ${intoId}
+        WHERE expression_id = ${sourceId} AND owner_id = ${ownerId} RETURNING id
+      ), te AS (
+        UPDATE tournament_entries SET expression_id = ${intoId}
         WHERE expression_id = ${sourceId} AND owner_id = ${ownerId} RETURNING id
       )
       SELECT (SELECT count(*) FROM b)::int AS bottles, (SELECT count(*) FROM t)::int AS tastings

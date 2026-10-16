@@ -855,6 +855,80 @@ CREATE TABLE cola_images (
 CREATE INDEX cola_images_cola_idx ON cola_images(cola_id);
 
 -- ------------------------------------------------------------
+-- Tournaments
+-- A saved, resumable set of tastings in flights ("heats") that ranks bottles by preference and audits the
+-- 0 to 10 ratings. Design: docs/superpowers/specs/2026-10-13-tournament-design.md.
+-- ------------------------------------------------------------
+
+CREATE TABLE tournaments (
+    id          serial PRIMARY KEY,
+    owner_id    integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        text NOT NULL,
+    status      text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'complete')),
+    heat_size   smallint NOT NULL CHECK (heat_size BETWEEN 2 AND 4),   -- one size per tournament
+    seeding     text NOT NULL DEFAULT 'similar' CHECK (seeding IN ('similar', 'random')),
+    -- What flights are matched on, highest priority first: each of the five keys exactly once.
+    group_order text[] NOT NULL DEFAULT '{proof,mashbill,distillery,age,finish}'
+                CHECK (cardinality(group_order) = 5 AND group_order @> ARRAY['proof', 'mashbill', 'distillery', 'age', 'finish']),
+    blind       boolean NOT NULL DEFAULT false,
+    field_note  text,          -- how the field was chosen, for display only
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    started_at  timestamptz,
+    completed_at timestamptz,
+    UNIQUE (id, owner_id)
+);
+CREATE INDEX tournaments_owner_idx ON tournaments(owner_id, created_at DESC);
+
+-- An entry is a bottle (bottle_id and its label), a label with no bottle (expression_id only), or ad hoc
+-- (neither). display_name is a snapshot, so history still reads right after a bottle or label is deleted:
+-- deleting a bottle leaves its entry on the label, deleting a label leaves an ad hoc entry.
+CREATE TABLE tournament_entries (
+    id            serial PRIMARY KEY,
+    tournament_id integer NOT NULL,
+    owner_id      integer NOT NULL,
+    bottle_id     integer,
+    expression_id integer,
+    display_name  text NOT NULL,
+    status        text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'withdrawn')),
+    seed          integer NOT NULL DEFAULT 0,
+    UNIQUE (id, tournament_id),
+    FOREIGN KEY (tournament_id, owner_id) REFERENCES tournaments(id, owner_id) ON DELETE CASCADE,
+    FOREIGN KEY (expression_id, owner_id) REFERENCES expressions(id, owner_id) ON DELETE SET NULL (expression_id),
+    FOREIGN KEY (bottle_id, expression_id) REFERENCES bottles(id, expression_id) ON DELETE SET NULL (bottle_id)
+);
+CREATE INDEX tournament_entries_tournament_idx ON tournament_entries(tournament_id);
+-- The same bottle cannot enter twice. A label with no bottle twice is refused by the API, not here: deleting a
+-- bottle turns its entry into a label entry, and that must never fail.
+CREATE UNIQUE INDEX tournament_entries_bottle_unique ON tournament_entries(tournament_id, bottle_id) WHERE bottle_id IS NOT NULL;
+
+CREATE TABLE tournament_heats (
+    id            serial PRIMARY KEY,
+    tournament_id integer NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    round         smallint NOT NULL CHECK (round >= 1),
+    slot          smallint NOT NULL CHECK (slot >= 1),
+    label         text,        -- set only when the owner renames the heat; the generated label is computed on read
+    status        text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'decided', 'bye')),
+    decided_at    timestamptz,
+    decided_by    integer REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE (tournament_id, round, slot),
+    UNIQUE (id, tournament_id)
+);
+
+CREATE TABLE tournament_heat_entries (
+    heat_id       integer NOT NULL,
+    entry_id      integer NOT NULL,
+    tournament_id integer NOT NULL,
+    place         smallint CHECK (place >= 1),    -- 1 is best; null until decided, and always null in a bye
+    glass         text CHECK (glass ~ '^[A-D]$'), -- the glass the entry is poured into in a blind heat
+    PRIMARY KEY (heat_id, entry_id),
+    FOREIGN KEY (heat_id, tournament_id) REFERENCES tournament_heats(id, tournament_id) ON DELETE CASCADE,
+    FOREIGN KEY (entry_id, tournament_id) REFERENCES tournament_entries(id, tournament_id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX tournament_heat_entries_place_unique ON tournament_heat_entries(heat_id, place) WHERE place IS NOT NULL;
+CREATE UNIQUE INDEX tournament_heat_entries_glass_unique ON tournament_heat_entries(heat_id, glass) WHERE glass IS NOT NULL;
+CREATE INDEX tournament_heat_entries_entry_idx ON tournament_heat_entries(entry_id);
+
+-- ------------------------------------------------------------
 -- Convenience view: the flat list for the grid page
 -- ------------------------------------------------------------
 

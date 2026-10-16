@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * merge, without anyone noticing. This lists the tables from the migrations and makes adding one
  * a decision: handle it in merge.ts and list it under MOVED, or say it may go with the label under CASCADED.
  */
-const MOVED = ["bottles", "expression_colas", "expression_names", "expression_releases", "tasting_notes"];
+const MOVED = ["bottles", "expression_colas", "expression_names", "expression_releases", "tasting_notes", "tournament_entries"];
 const CASCADED = ["expression_distilleries", "expression_finishes", "expression_mashbills"];
 
 function tablesReferencingExpressions(): string[] {
