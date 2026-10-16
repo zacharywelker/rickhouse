@@ -11,7 +11,7 @@ import { RunBar } from "@/components/tournaments/run-bar";
 import { Standings } from "@/components/tournaments/standings";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
-import { canReset, flightControls } from "@/lib/tournaments/bracket-actions";
+import { canDraw, canReset, flightControls } from "@/lib/tournaments/bracket-actions";
 import { buildBracketModel, bottlesText } from "@/lib/tournaments/bracket-model";
 import { GROUP_KEY_LABELS } from "@/lib/tournaments/priority";
 import { getTournament } from "@/lib/tournaments/queries";
@@ -108,7 +108,7 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
         </>
       )}
 
-      {draft ? <DraftBar tournamentId={view.id} entryCount={active} renamed={model.renamed} /> : <RunBar tournamentId={view.id} canReset={canReset(view)} />}
+      {draft ? <DraftBar tournamentId={view.id} entryCount={active} renamed={model.renamed} /> : <RunBar tournamentId={view.id} canReset={canReset(view)} canDraw={canDraw(view)} />}
     </div>
   );
 }

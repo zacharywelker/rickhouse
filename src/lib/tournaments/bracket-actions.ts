@@ -48,3 +48,17 @@ export function flightControls(view: ActionView, heat: ViewHeat): FlightControls
     withdraw: heat.entries.filter((e) => canWithdraw(view, heat, e.entryId)).map((e) => e.entryId),
   };
 }
+
+/** Draw a flight: a running blind tournament with a flight still to taste in the current round (the pourer's start). */
+export function canDraw(view: ActionView): boolean {
+  if (view.status !== "active" || !view.blind) return false;
+  return view.rounds.some((r) => r.round === view.currentRound && r.heats.some((h) => h.status === "pending"));
+}
+
+/** The next pending flight of the current round after this one (by slot), else any other pending one, else null. */
+export function nextPendingId(view: ActionView, heatId: number): number | null {
+  const pending = view.rounds.filter((r) => r.round === view.currentRound).flatMap((r) => r.heats).filter((h) => h.status === "pending" && h.id !== heatId);
+  const here = view.rounds.flatMap((r) => r.heats).find((h) => h.id === heatId);
+  const after = here && here.round === view.currentRound ? pending.find((h) => h.slot > here.slot) : undefined;
+  return (after ?? pending[0])?.id ?? null;
+}

@@ -72,7 +72,7 @@ export const formatProof = (proof: number | null): string => (proof === null ? "
 export const formatAge = (years: number | null): string => (years === null ? "—" : `${Number(years.toFixed(1))} yr`);
 
 /** Lowest to highest proof for the pour, unknown proof last; ties by name, then id, so the order is stable. */
-function pourOrder(entries: ViewHeatEntry[]): ViewHeatEntry[] {
+export function pourOrder(entries: ViewHeatEntry[]): ViewHeatEntry[] {
   return [...entries].sort(
     (a, b) =>
       (a.proof ?? Number.POSITIVE_INFINITY) - (b.proof ?? Number.POSITIVE_INFINITY) || a.name.localeCompare(b.name) || a.entryId - b.entryId,

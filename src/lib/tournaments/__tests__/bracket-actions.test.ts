@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canMove, canPlay, canReset, canUndo, canWithdraw, flightControls, type ActionView } from "../bracket-actions";
+import { canDraw, canMove, nextPendingId, canPlay, canReset, canUndo, canWithdraw, flightControls, type ActionView } from "../bracket-actions";
 import type { ViewHeat } from "../view";
 
 const heat = (id: number, round: number, status: ViewHeat["status"], extra: Partial<ViewHeat> = {}): ViewHeat => ({
@@ -97,5 +97,27 @@ describe("flightControls", () => {
   it("offers a decided flight Undo only", () => {
     const h = heat(1, 1, "decided", { entries: [e(1)] });
     expect(flightControls(view("active", [[h]]), h)).toEqual({ play: false, undo: true, move: false, withdraw: [] });
+  });
+});
+
+describe("canDraw", () => {
+  it("a running blind tournament with a pending flight in the current round", () => {
+    const pending = view("active", [[heat(1, 1, "decided"), heat(2, 1, "pending")]], true);
+    expect(canDraw(pending)).toBe(true);
+    expect(canDraw(view("active", [[heat(1, 1, "pending")]], false))).toBe(false);
+    expect(canDraw(view("active", [[heat(1, 1, "decided")]], true))).toBe(false);
+    expect(canDraw(view("draft", [[heat(1, 1, "pending")]], true))).toBe(false);
+    expect(canDraw(view("complete", [[heat(1, 1, "decided")]], true))).toBe(false);
+  });
+});
+
+describe("nextPendingId", () => {
+  const v = view("active", [[heat(1, 1, "decided")], [heat(2, 2, "pending"), heat(3, 2, "decided"), heat(4, 2, "pending"), heat(5, 2, "pending")]]);
+  it("the next pending flight after this slot, wrapping to the first, else null", () => {
+    expect(nextPendingId(v, 2)).toBe(4);
+    expect(nextPendingId(v, 4)).toBe(5);
+    expect(nextPendingId(v, 5)).toBe(2);
+    expect(nextPendingId(v, 3)).toBe(4);
+    expect(nextPendingId(view("active", [[heat(1, 1, "decided"), heat(2, 1, "pending")]]), 2)).toBeNull();
   });
 });
