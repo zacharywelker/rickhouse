@@ -5,6 +5,7 @@ import {
   counts,
   emptyField,
   entryKey,
+  fieldFromEntries,
   fieldReducer,
   toEntryInputs,
   type FieldState,
@@ -101,5 +102,31 @@ describe("toEntryInputs and counts", () => {
   it("counts how many of the shown bottles are chosen", () => {
     expect(chosenAmong(state.entries, [bottle(1), bottle(2)])).toBe(1);
     expect(chosenAmong([], [bottle(1)])).toBe(0);
+  });
+});
+
+describe("fieldFromEntries", () => {
+  const entry = (id: number, kind: "bottle" | "label" | "adhoc", name: string, bottleId: number | null, expressionId: number | null, status: "active" | "withdrawn" = "active") => ({ id, name, status, kind, bottleId, expressionId });
+
+  it("maps bottle, label-only and outside entries in order, and round-trips through toEntryInputs", () => {
+    const state = fieldFromEntries([entry(1, "bottle", "A Rye", 5, 50), entry(2, "label", "B Bourbon", null, 60), entry(3, "adhoc", "  Joe's  cask ", null, null)]);
+    expect(state.entries).toEqual([
+      { kind: "bottle", bottleId: 5, expressionId: 50, name: "A Rye" },
+      { kind: "label", expressionId: 60, name: "B Bourbon" },
+      { kind: "adhoc", key: "joe's cask", name: "  Joe's  cask " },
+    ]);
+    expect(state.notice).toBeNull();
+    expect(toEntryInputs(state.entries)).toEqual([{ bottleId: 5 }, { expressionId: 60 }, { name: "  Joe's  cask " }]);
+  });
+
+  it("starts the reducer as it was left: a picked bottle toggles off, a duplicate label is refused", () => {
+    const state = fieldFromEntries([entry(1, "bottle", "A Rye", 5, 50), entry(2, "label", "B Bourbon", null, 60)]);
+    expect(run(state, { type: "toggleBottle", bottle: { kind: "bottle", bottleId: 5, expressionId: 50, name: "A Rye" } }).entries).toHaveLength(1);
+    expect(run(state, { type: "addLabel", label: { expressionId: 60, name: "B Bourbon" } }).notice).toBe("That label is already in the field.");
+  });
+
+  it("leaves out withdrawn entries and an empty field is the empty state", () => {
+    expect(fieldFromEntries([entry(1, "bottle", "Gone", 5, 50, "withdrawn")]).entries).toEqual([]);
+    expect(fieldFromEntries([])).toEqual(emptyField);
   });
 });

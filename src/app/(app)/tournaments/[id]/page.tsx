@@ -4,8 +4,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Bracket } from "@/components/tournaments/bracket";
+import { DraftField } from "@/components/tournaments/draft-field";
 import { DraftBar } from "@/components/tournaments/draft-bar";
 import { DraftSettings } from "@/components/tournaments/draft-settings";
+import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
 import { buildBracketModel, bottlesText } from "@/lib/tournaments/bracket-model";
 import { GROUP_KEY_LABELS } from "@/lib/tournaments/priority";
@@ -29,6 +31,7 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
   const active = view.entries.filter((e) => e.status === "active").length;
 
   const draft = view.status === "draft";
+  const categories = draft ? await REFERENCE_OPTION_LOADERS.categories(user.id) : [];
   const model = buildBracketModel(view);
   const order = view.groupOrder.map((k) => GROUP_KEY_LABELS[k as GroupKey] ?? k);
 
@@ -49,6 +52,8 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
         </p>
         {view.fieldNote ? <p className="text-sm text-muted-foreground">{view.fieldNote}</p> : null}
       </div>
+
+      {draft ? <DraftField key={JSON.stringify(view.entries.map((e) => [e.kind, e.bottleId, e.expressionId, e.name]))} tournamentId={view.id} entries={view.entries} categories={categories} /> : null}
 
       <div className={draft ? "grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,1fr)_21rem]" : ""}>
         <div className="flex min-w-0 flex-col gap-3">

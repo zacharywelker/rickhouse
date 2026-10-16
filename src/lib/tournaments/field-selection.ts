@@ -1,4 +1,5 @@
 import type { EntryInput } from "./lifecycle";
+import type { ViewEntry } from "./view";
 
 /** The most entries a tournament holds (the API's limit). */
 export const MAX_ENTRIES = 500;
@@ -94,4 +95,17 @@ export function counts(entries: readonly PickedEntry[]): { bottles: number; labe
 export function chosenAmong(entries: readonly PickedEntry[], shown: readonly { bottleId: number }[]): number {
   const have = new Set(entries.filter((e): e is PickedBottle => e.kind === "bottle").map((e) => e.bottleId));
   return shown.filter((b) => have.has(b.bottleId)).length;
+}
+
+/** The field picker's starting state for an existing draft: its entries as they are, a bottle entry as a bottle, a label-only one as a label, an outside one as ad hoc. */
+export function fieldFromEntries(entries: readonly ViewEntry[]): FieldState {
+  const picked = entries
+    .filter((e) => e.status === "active")
+    .flatMap((e): PickedEntry[] => {
+      if (e.kind === "bottle" && e.bottleId !== null && e.expressionId !== null) return [{ kind: "bottle", bottleId: e.bottleId, expressionId: e.expressionId, name: e.name }];
+      if (e.kind === "label" && e.expressionId !== null) return [{ kind: "label", expressionId: e.expressionId, name: e.name }];
+      if (e.kind === "adhoc") return [{ kind: "adhoc", key: adhocKey(e.name), name: e.name }];
+      return [];
+    });
+  return ok(picked);
 }
