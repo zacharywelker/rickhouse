@@ -8,7 +8,7 @@ const { tournaments, tournamentEntries, tournamentHeats } = schema;
 
 /** One tournament, as the API returns it, or null when it is not the owner's. */
 export async function getTournament(ownerId: number, id: number): Promise<TournamentView | null> {
-  return db.transaction((tx) => viewOf(tx, ownerId, id));
+  return db.transaction((tx) => viewOf(tx, ownerId, id), { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
 export type TournamentSummary = {
