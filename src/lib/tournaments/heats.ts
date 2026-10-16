@@ -84,6 +84,9 @@ export async function undoHeat(ownerId: number, tournamentId: number, heatId: nu
     await tx.update(tournamentHeatEntries).set({ place: null }).where(eq(tournamentHeatEntries.heatId, heat.id));
     await tx.update(tournamentHeats).set({ status: "pending", decidedAt: null, decidedBy: null }).where(eq(tournamentHeats.id, heat.id));
     await tx.update(tournaments).set({ status: "active", completedAt: null }).where(eq(tournaments.id, t.id));
+    // An entry withdrawn after this heat was decided is still listed in it; it must not be asked for again.
+    for (const e of state.entries.filter((e) => e.status === "withdrawn")) await removeFromUndecided(tx, t.id, e.id);
+    await settle(tx, ownerId, t);
     return { ok: true as const, view: (await viewOf(tx, ownerId, t.id))! };
   });
 }

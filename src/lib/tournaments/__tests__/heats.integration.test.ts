@@ -289,4 +289,113 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(await m.heats.recordHeat(owner, made.id, heat.id, { ranking: [...ids, 999999] }, owner)).toMatchObject({ ok: false, status: 422 });
     expect(await m.heats.recordHeat(other, made.id, heat.id, { ranking: ids }, other)).toMatchObject({ ok: false, status: 404 });
   });
+
+  type V = import("../view").TournamentView;
+  const four = async (heatSize = 2) => {
+    const made = (await m.life.createTournament(owner, settings({ heatSize }), bottles.slice(0, 4).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
+    await m.life.startTournament(owner, made.id);
+    return made.id;
+  };
+
+  it("drops an entry withdrawn after its flight was decided when that result is taken back", async () => {
+    // Four and two: the round stays open after the first flight is decided.
+    const made = (await m.life.createTournament(owner, settings({ heatSize: 4 }), bottleEntries())) as { ok: true; id: number };
+    await m.life.startTournament(owner, made.id);
+    const view = (await m.queries.getTournament(owner, made.id))!;
+    const [first] = view.rounds[0]!.heats;
+    const ids = first!.entries.map((e) => e.entryId);
+    await m.heats.recordHeat(owner, made.id, first!.id, { ranking: ids }, owner);
+    expect((await m.heats.withdrawEntry(owner, made.id, ids[0]!)).ok).toBe(true);
+
+    const undone = (await m.heats.undoHeat(owner, made.id, first!.id)) as { view: V };
+    const heat = undone.view.rounds[0]!.heats.find((h) => h.id === first!.id)!;
+    expect(heat.status).toBe("pending");
+    expect(heat.entries.map((e) => e.entryId)).toEqual(ids.slice(1));
+    expect((await m.heats.recordHeat(owner, made.id, first!.id, { ranking: ids.slice(1) }, owner)).ok).toBe(true);
+  });
+
+  it("makes a bye of a taken-back flight whose other entry withdrew", async () => {
+    const id = await four(2);
+    const view = (await m.queries.getTournament(owner, id))!;
+    const [first] = view.rounds[0]!.heats;
+    const ids = first!.entries.map((e) => e.entryId);
+    await m.heats.recordHeat(owner, id, first!.id, { ranking: ids }, owner);
+    await m.heats.withdrawEntry(owner, id, ids[1]!);
+    const undone = (await m.heats.undoHeat(owner, id, first!.id)) as { view: V };
+    const heat = undone.view.rounds[0]!.heats.find((h) => h.id === first!.id)!;
+    expect(heat.status).toBe("bye");
+    expect(heat.entries.map((e) => e.entryId)).toEqual([ids[0]]);
+  });
+
+  it("sets completedAt when the tournament completes and clears it when the final is taken back", async () => {
+    const made = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
+    await m.life.startTournament(owner, made.id);
+    expect((await m.queries.getTournament(owner, made.id))!.completedAt).toBeNull();
+    await fx.finish(owner, made.id);
+    const done = (await m.queries.getTournament(owner, made.id))!;
+    expect(done.completedAt).not.toBeNull();
+    const undone = (await m.heats.undoHeat(owner, made.id, done.rounds[1]!.heats[0]!.id)) as { view: V };
+    expect(undone.view.completedAt).toBeNull();
+  });
+
+  it("regroups only the undecided flights of the current round when a running tournament is reset", async () => {
+    const id = await four(2);
+    const view = (await m.queries.getTournament(owner, id))!;
+    const [first, second] = view.rounds[0]!.heats;
+    await m.heats.recordHeat(owner, id, first!.id, { ranking: first!.entries.map((e) => e.entryId) }, owner);
+    const reset = (await m.life.resetRound(owner, id)) as { view: V };
+    const heats = reset.view.rounds[0]!.heats;
+    const kept = heats.find((h) => h.id === first!.id)!;
+    expect(kept.status).toBe("decided");
+    expect(kept.entries.map((e) => e.entryId)).toEqual(first!.entries.map((e) => e.entryId));
+    const regrouped = heats.filter((h) => h.id !== first!.id);
+    expect(regrouped).toHaveLength(1);
+    expect(regrouped[0]!.status).toBe("pending");
+    expect(regrouped[0]!.entries.map((e) => e.entryId).sort()).toEqual(second!.entries.map((e) => e.entryId).sort());
+  });
+
+  it("refuses a result for a flight outside the current round, and glasses that were never set", async () => {
+    const id = await four(2);
+    const view = (await m.queries.getTournament(owner, id))!;
+    for (const h of view.rounds[0]!.heats) await m.heats.recordHeat(owner, id, h.id, { ranking: h.entries.map((e) => e.entryId) }, owner);
+    expect((await m.queries.getTournament(owner, id))!.rounds).toHaveLength(2);
+    // Force an earlier flight back to pending, which the rules never allow, to reach the guard.
+    await m.sql(`UPDATE tournament_heats SET status = 'pending' WHERE id = $1`, view.rounds[0]!.heats[0]!.id);
+    const old = view.rounds[0]!.heats[0]!;
+    expect(await m.heats.recordHeat(owner, id, old.id, { ranking: old.entries.map((e) => e.entryId) }, owner)).toMatchObject({ ok: false, status: 409 });
+
+    const blind = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
+    await m.life.startTournament(owner, blind.id);
+    const h = (await m.queries.getTournament(owner, blind.id))!.rounds[0]!.heats[0]!;
+    expect(await m.heats.recordHeat(owner, blind.id, h.id, { glasses: ["A", "B", "C"] }, owner)).toMatchObject({ ok: false, status: 422 });
+  });
+
+  it("matches an outside entry to a label, and refuses a bottle that belongs to someone else", async () => {
+    const label = await fx.mkLabel(owner, cat.whiskey, "Shelf label", { proof: 97 });
+    const theirs = (await fx.mkField(other, cat.whiskey, "Theirs")).bottles[0]!;
+    const made = (await m.life.createTournament(owner, settings(), [{ bottleId: bottles[0]! }, { name: "Joe's pour" }])) as { ok: true; id: number };
+    const adHoc = (await m.queries.getTournament(owner, made.id))!.entries.find((e) => e.kind === "adhoc")!;
+    expect(await m.heats.promoteEntry(owner, made.id, adHoc.id, { bottleId: theirs })).toMatchObject({ ok: false, status: 422 });
+    const res = await m.heats.promoteEntry(owner, made.id, adHoc.id, { expressionId: label });
+    expect(res.ok).toBe(true);
+    expect((res as { view: V }).view.entries.find((e) => e.id === adHoc.id)).toMatchObject({ bottleId: null, expressionId: label });
+  });
+
+  it("clears a flight's name with an empty string or null", async () => {
+    const id = await four(2);
+    const heat = (await m.queries.getTournament(owner, id))!.rounds[0]!.heats[0]!;
+    for (const blank of ["", null, "   "]) {
+      await m.heats.renameHeat(owner, id, heat.id, "Named");
+      const res = (await m.heats.renameHeat(owner, id, heat.id, blank)) as { view: V };
+      expect(res.view.rounds[0]!.heats[0]!.label).toBeNull();
+    }
+  });
+
+  it("will not draw a flight unless the tournament is running", async () => {
+    const made = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
+    expect(await m.heats.drawHeat(owner, made.id)).toMatchObject({ ok: false, status: 409 });
+    await m.life.startTournament(owner, made.id);
+    await fx.finish(owner, made.id);
+    expect(await m.heats.drawHeat(owner, made.id)).toMatchObject({ ok: false, status: 409 });
+  });
 });
