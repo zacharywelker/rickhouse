@@ -101,9 +101,16 @@ export async function updateDraft(
   return db.transaction(async (tx) => {
     const t = await lockTournament(tx, ownerId, id);
     if (!t) return fail(404, GONE);
+    const { entries, ...settings } = patch;
+    if (t.status === "active") {
+      // The grouping priority may change at any time: it only applies to rounds made afterwards and to Reset.
+      const onlyGrouping = entries === undefined && Object.keys(settings).every((k) => k === "groupOrder" || k === "seeding");
+      if (!onlyGrouping) return fail(409, "Only a draft can be changed, except the grouping priority.");
+      if (Object.keys(settings).length > 0) await tx.update(tournaments).set(settings).where(eq(tournaments.id, id));
+      return { ok: true as const, view: (await viewOf(tx, ownerId, id))! };
+    }
     if (t.status !== "draft") return fail(409, "Only a draft can be changed.");
 
-    const { entries, ...settings } = patch;
     const regroup = entries !== undefined || settings.heatSize !== undefined || settings.seeding !== undefined || settings.groupOrder !== undefined;
     const before = await readState(tx, id);
     const hadPreview = before.heats.length > 0;

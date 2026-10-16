@@ -22,7 +22,7 @@ export async function GET(_request: NextRequest, { params }: Ctx): Promise<NextR
   return view ? json(view) : apiError(404, "not_found", GONE);
 }
 
-/** Changes a draft: any of `name`, `heatSize`, `seeding`, `groupOrder`, `blind`, `fieldNote`, and/or the whole `entries` list. */
+/** Changes a draft: any of `name`, `heatSize`, `seeding`, `groupOrder`, `blind`, `fieldNote`, and/or the whole `entries` list. A running tournament accepts only `groupOrder` and/or `seeding` (no regrouping; they apply to later rounds and to Reset). */
 export async function PATCH(request: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const auth = await authed();
   if (isHalt(auth)) return auth.response;

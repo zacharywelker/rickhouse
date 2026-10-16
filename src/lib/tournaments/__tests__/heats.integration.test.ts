@@ -310,6 +310,29 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     return made.id;
   };
 
+  it("changes the grouping priority of a running tournament without regrouping; Reset then uses it; nothing else can change", async () => {
+    const made = (await m.life.createTournament(owner, settings({ heatSize: 2 }), bottleEntries())) as { ok: true; id: number };
+    await m.life.startTournament(owner, made.id);
+    const groups = (v: V) => v.rounds[0]!.heats.map((h) => h.entries.map((e) => e.entryId).sort((a, b) => a - b));
+    const before = (await m.queries.getTournament(owner, made.id))!;
+    const order = ["mashbill", "proof", "distillery", "age", "finish"];
+
+    const res = (await m.life.updateDraft(owner, made.id, { groupOrder: order })) as { ok: true; view: V };
+    expect(res.ok).toBe(true);
+    expect(res.view.groupOrder).toEqual(order);
+    expect(groups(res.view)).toEqual(groups(before));
+    expect(res.view.rounds[0]!.heats.map((h) => h.id)).toEqual(before.rounds[0]!.heats.map((h) => h.id));
+
+    const reset = (await m.life.resetRound(owner, made.id)) as { view: V };
+    expect(groups(reset.view)).not.toEqual(groups(before));
+
+    for (const patch of [{ name: "Nope" }, { heatSize: 3 }, { entries: [] }, { groupOrder: order, name: "Nope" }]) {
+      expect(await m.life.updateDraft(owner, made.id, patch)).toMatchObject({ ok: false, status: 409, message: "Only a draft can be changed, except the grouping priority." });
+    }
+    await fx.finish(owner, made.id);
+    expect(await m.life.updateDraft(owner, made.id, { groupOrder: order })).toMatchObject({ ok: false, status: 409 });
+  });
+
   it("drops an entry withdrawn after its flight was decided when that result is taken back", async () => {
     // Four and two: the round stays open after the first flight is decided.
     const made = (await m.life.createTournament(owner, settings({ heatSize: 4 }), bottleEntries())) as { ok: true; id: number };
