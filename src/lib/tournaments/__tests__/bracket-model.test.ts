@@ -171,6 +171,12 @@ describe("buildBracketModel: a running tournament", () => {
     expect(plain.meta).toBe("Flight 2");
     expect(model.renamed).toBe(1);
   });
+  it("marks nobody as advancing out of a decided final", () => {
+    const final = heat(9, 3, 1, [entry(1, "Eagle Rare", 90, { place: 1 }), entry(2, "Maker's", 92, { place: 2 })], { status: "decided", band: "90 to 92 proof" });
+    const col = buildBracketModel({ ...settings, status: "complete" as const, currentRound: 3, rounds: [{ round: 3, heats: [final] }] }).columns[0] as RoundColumn;
+    expect(col.heading).toBe("Final");
+    expect(col.flights[0]!.rows.map((r) => r.advanced)).toEqual([false, false]);
+  });
   it("plans the rounds still to come", () => {
     expect(model.columns.map((c) => c.heading)).toEqual(["Round 1", "Round 2", "Final"]);
     expect(model.columns[2]).toMatchObject({ kind: "planned", count: "3 bottles" });

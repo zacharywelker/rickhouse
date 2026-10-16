@@ -91,7 +91,7 @@ export function flightTitle(heat: ViewHeat, number: number): FlightTitle {
   return { text: heat.autoLabel ?? fallback, yours: false };
 }
 
-function flightModel(heat: ViewHeat, number: number): FlightModel {
+function flightModel(heat: ViewHeat, number: number, final: boolean): FlightModel {
   const title = flightTitle(heat, number);
   const metaParts: string[] = [];
   if (title.text !== `Flight ${number}`) metaParts.push(`Flight ${number}`);
@@ -99,7 +99,8 @@ function flightModel(heat: ViewHeat, number: number): FlightModel {
   if (!heat.hidden && !heat.band && heat.entries.length > 0) metaParts.push("Proof unknown for some");
   if (heat.status === "bye") metaParts.push("Bye");
 
-  const finished = heat.status !== "pending";
+  // Nobody advances out of a final; the champion line shows who won.
+  const finished = heat.status !== "pending" && !final;
   const through = new Set(
     finished
       ? advancers({
@@ -162,10 +163,10 @@ export function buildBracketModel(view: Pick<TournamentView, "status" | "heatSiz
   const columns: BracketModel["columns"] = [];
   let renamed = 0;
   for (const { round, heats } of view.rounds) {
-    const flights = heats.map((h, i) => flightModel(h, i + 1));
+    const final = heats.length === 1;
+    const flights = heats.map((h, i) => flightModel(h, i + 1, final));
     renamed += heats.filter((h) => h.label?.trim()).length;
     const allDone = heats.every((h) => h.status !== "pending");
-    const final = heats.length === 1;
     columns.push({
       kind: "round",
       round,
