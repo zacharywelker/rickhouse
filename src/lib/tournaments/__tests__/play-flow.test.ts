@@ -36,6 +36,8 @@ describe("letters", () => {
   });
 });
 
+const sentOf = (flow: Flow) => (flow as { rows: MappingRow[] }).rows.map((r) => ({ entryId: r.entryId, glass: r.glass }));
+
 describe("flowReducer", () => {
   const rows = [row(1, "Old Forester", "B"), row(2, "Four Roses", "A"), row(3, "Wild Turkey", "C")];
 
@@ -57,12 +59,23 @@ describe("flowReducer", () => {
     const edited = flowReducer(mapping(rows), { type: "setGlass", entryId: 1, glass: "D" });
     expect(edited).toMatchObject({ stage: "mapping", saved: false });
     expect((edited as { rows: MappingRow[] }).rows.map((r) => r.glass)).toEqual(["D", "A", "C"]);
-    expect(flowReducer(edited, { type: "saved" })).toMatchObject({ saved: true });
+    expect(flowReducer(edited, { type: "saved", sent: sentOf(edited) })).toMatchObject({ saved: true });
     // putting the letter back to what the server has counts as saved again
     expect(flowReducer(edited, { type: "setGlass", entryId: 1, glass: "B" })).toMatchObject({ saved: true });
     const all = flowReducer(mapping(rows), { type: "setAll", letters: ["C", "B", "A"] }) as { rows: MappingRow[]; saved: boolean };
     expect(all.rows.map((r) => r.glass)).toEqual(["C", "B", "A"]);
     expect(all.saved).toBe(false);
+  });
+
+  it("a letter changed while a save is pending stays unsaved when the old save resolves", () => {
+    const first = flowReducer(mapping(rows), { type: "setGlass", entryId: 1, glass: "D" });
+    const sent = sentOf(first);
+    const during = flowReducer(first, { type: "setGlass", entryId: 2, glass: "B" });
+    const after = flowReducer(during, { type: "saved", sent }) as Extract<Flow, { stage: "mapping" }>;
+    expect(after.saved).toBe(false);
+    expect(after.base).toEqual(["D", "A", "C"]);
+    expect(after.rows.map((r) => r.glass)).toEqual(["D", "B", "C"]);
+    expect(flowReducer(after, { type: "hide" })).toBe(after);
   });
 
   it("hide drops the names: the rank state holds only letters, in order", () => {

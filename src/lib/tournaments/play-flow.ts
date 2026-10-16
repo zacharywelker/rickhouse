@@ -44,7 +44,7 @@ export type FlowAction =
   | { type: "failed" }
   | { type: "setGlass"; entryId: number; glass: string }
   | { type: "setAll"; letters: string[] }
-  | { type: "saved" }
+  | { type: "saved"; /** The letters that were sent to the server. */ sent: { entryId: number; glass: string }[] }
   | { type: "hide" }
   | { type: "move"; index: number; delta: -1 | 1 }
   | { type: "recorded" }
@@ -73,8 +73,13 @@ export function flowReducer(state: Flow, action: FlowAction): Flow {
       return state.stage === "mapping" ? edited(state, state.rows.map((r) => (r.entryId === action.entryId ? { ...r, glass: action.glass } : r))) : state;
     case "setAll":
       return state.stage === "mapping" ? edited(state, state.rows.map((r, i) => ({ ...r, glass: action.letters[i] ?? r.glass }))) : state;
-    case "saved":
-      return state.stage === "mapping" ? { ...state, saved: true, base: state.rows.map((r) => r.glass) } : state;
+    case "saved": {
+      if (state.stage !== "mapping") return state;
+      // The server has what was sent, not what is on screen now: letters changed during the save stay unsaved.
+      const sent = new Map(action.sent.map((s) => [s.entryId, s.glass]));
+      const base = state.rows.map((r) => sent.get(r.entryId) ?? r.glass);
+      return { ...state, base, saved: state.rows.every((r, i) => r.glass === base[i]) };
+    }
     case "hide": {
       if (state.stage !== "mapping" || !state.saved || lettersProblem(state.rows.map((r) => r.glass))) return state;
       return { stage: "rank", order: state.rows.map((r) => r.glass).sort() };

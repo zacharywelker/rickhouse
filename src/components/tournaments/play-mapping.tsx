@@ -49,6 +49,7 @@ export function PlayMapping({
               <select
                 aria-label={`Glass for ${row.name}`}
                 value={row.glass}
+                disabled={pending}
                 onChange={(e) => onGlass(row.entryId, e.target.value)}
                 className="h-11 w-16 border border-input bg-card px-2 text-center text-lg font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >

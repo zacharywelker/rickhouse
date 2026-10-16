@@ -150,12 +150,13 @@ function BlindFlight(props: Props) {
   function save(rows: MappingRow[]) {
     setError(null);
     startTransition(async () => {
-      const result = await setGlassesAction(tournamentId, heatId, rows.map((r) => ({ entryId: r.entryId, glass: r.glass })));
+      const sent = rows.map((r) => ({ entryId: r.entryId, glass: r.glass }));
+      const result = await setGlassesAction(tournamentId, heatId, sent);
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      dispatch({ type: "saved" });
+      dispatch({ type: "saved", sent });
     });
   }
 
