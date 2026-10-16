@@ -179,8 +179,17 @@ describe("drawHeatAction", () => {
   it("returns the drawn flight for the pourer", async () => {
     heats.drawHeat.mockResolvedValue({ ok: true, heat });
     expect(await actions.drawHeatAction(3)).toEqual({ ok: true, heat });
-    expect(heats.drawHeat).toHaveBeenCalledWith(7, 3);
+    expect(heats.drawHeat).toHaveBeenCalledWith(7, 3, undefined);
     expect(revalidatePath).toHaveBeenCalledWith("/tournaments/3");
+  });
+
+  it("opens a chosen flight, and refuses a bad flight id without calling the command", async () => {
+    heats.drawHeat.mockResolvedValue({ ok: true, heat });
+    expect(await actions.drawHeatAction(3, 5)).toEqual({ ok: true, heat });
+    expect(heats.drawHeat).toHaveBeenCalledWith(7, 3, 5);
+    heats.drawHeat.mockClear();
+    expect(await actions.drawHeatAction(3, 0)).toEqual({ ok: false, error: "That flight is gone." });
+    expect(heats.drawHeat).not.toHaveBeenCalled();
   });
 
   it("maps a Failure", async () => {

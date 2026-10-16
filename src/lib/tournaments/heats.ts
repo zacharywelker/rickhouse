@@ -138,8 +138,9 @@ export type DrawnHeat = {
 /**
  * Picks a pending flight of the current round at random, labels its glasses at random and keeps the letters, so the
  * pourer knows what is in each glass and the taster sees only letters. Drawing again returns the same flight until it is recorded.
+ * With `heatId` it opens that pending flight of the current round instead (keeping letters it already has).
  */
-export async function drawHeat(ownerId: number, tournamentId: number): Promise<{ ok: true; heat: DrawnHeat } | Failure> {
+export async function drawHeat(ownerId: number, tournamentId: number, heatId?: number): Promise<{ ok: true; heat: DrawnHeat } | Failure> {
   return db.transaction(async (tx) => {
     const t = await lockTournament(tx, ownerId, tournamentId);
     if (!t) return fail(404, GONE);
@@ -147,14 +148,24 @@ export async function drawHeat(ownerId: number, tournamentId: number): Promise<{
     const state = await readState(tx, t.id);
     const round = Math.max(...state.heats.map((h) => h.round));
     const open = state.heats.filter((h) => h.round === round && h.status === "pending");
-    if (open.length === 0) return fail(409, "No flight is waiting to be tasted.");
-
-    // A flight already drawn and not yet recorded keeps its letters, so a retried request cannot re-letter poured glasses.
-    const drawn = open.find((h) => {
+    const hasLetters = (h: { id: number }) => {
       const r = state.heatEntries.filter((x) => x.heatId === h.id);
       return r.length > 0 && r.every((x) => x.glass);
-    });
-    const heat = drawn ?? open[randomInt(open.length)]!;
+    };
+    let chosen: (typeof open)[number] | undefined;
+    if (heatId !== undefined) {
+      const named = state.heats.find((h) => h.id === heatId);
+      if (!named) return fail(404, NO_HEAT);
+      if (named.status !== "pending") return fail(409, "That flight is already decided.");
+      if (named.round !== round) return fail(409, "That flight is not in the current round.");
+      chosen = named;
+    } else if (open.length === 0) {
+      return fail(409, "No flight is waiting to be tasted.");
+    }
+
+    // A flight already drawn and not yet recorded keeps its letters, so a retried request cannot re-letter poured glasses.
+    const drawn = chosen ? (hasLetters(chosen) ? chosen : undefined) : open.find(hasLetters);
+    const heat = chosen ?? drawn ?? open[randomInt(open.length)]!;
     const rows = state.heatEntries.filter((r) => r.heatId === heat.id);
     let letters: string[];
     if (drawn) {

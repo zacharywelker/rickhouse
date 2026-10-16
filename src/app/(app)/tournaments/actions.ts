@@ -93,10 +93,11 @@ export async function withdrawEntryAction(id: number, entryId: number): Promise<
 }
 
 /** For the pourer: the answer names what is in each glass, so it is never put in the page's own view. */
-export async function drawHeatAction(id: number): Promise<{ ok: true; heat: DrawnHeat } | ActionFailure> {
+export async function drawHeatAction(id: number, heatId?: number): Promise<{ ok: true; heat: DrawnHeat } | ActionFailure> {
   const user = await requireSession();
   if (!isId(id)) return goneTournament;
-  const result = await drawHeat(user.id, id);
+  if (heatId !== undefined && !isId(heatId)) return goneFlight;
+  const result = await drawHeat(user.id, id, heatId);
   if (!result.ok) return toFailure(result);
   refresh(id);
   return { ok: true, heat: result.heat };

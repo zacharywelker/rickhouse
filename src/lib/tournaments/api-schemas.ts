@@ -63,5 +63,8 @@ export const promoteSchema = z.union([z.object({ bottleId: id }).strict(), z.obj
 /** `PATCH .../heats/:id`: name a flight, or clear its name with null or an empty string. */
 export const renameSchema = z.object({ label: z.string().max(80, "Up to 80 characters.").nullable() }).strict();
 
+/** `POST .../draw`: no body fields draws a random pending flight; `heatId` opens that pending flight for pouring. */
+export const drawSchema = z.object({ heatId: id.optional() }).strict();
+
 /** The commands that carry no data still take a JSON object, which a cross-site form cannot send. */
 export const emptySchema = z.object({}).strict();

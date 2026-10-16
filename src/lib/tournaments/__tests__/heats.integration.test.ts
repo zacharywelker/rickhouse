@@ -157,6 +157,31 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(next.heat.heatId).not.toBe(first.heat.heatId);
   });
 
+  it("opens a chosen flight for pouring, keeping its letters, and refuses what cannot be opened", async () => {
+    const made = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
+    const elsewhere = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
+    expect(await m.heats.drawHeat(owner, made.id, 1)).toMatchObject({ ok: false, status: 409 });
+    await m.life.startTournament(owner, made.id);
+    await m.life.startTournament(owner, elsewhere.id);
+    const view = (await m.queries.getTournament(owner, made.id))!;
+    const target = view.rounds[0]!.heats[1]!;
+    const opened = (await m.heats.drawHeat(owner, made.id, target.id)) as { ok: true; heat: import("../heats").DrawnHeat };
+    expect(opened.heat.heatId).toBe(target.id);
+    const again = (await m.heats.drawHeat(owner, made.id, target.id)) as { ok: true; heat: import("../heats").DrawnHeat };
+    expect(again).toEqual(opened);
+    const seen = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats.find((h) => h.id === target.id)!;
+    expect(seen).toMatchObject({ hidden: true, glasses: opened.heat.glasses.map((g) => g.glass) });
+
+    const foreign = (await m.queries.getTournament(owner, elsewhere.id))!.rounds[0]!.heats[0]!;
+    expect(await m.heats.drawHeat(owner, made.id, foreign.id)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.heats.drawHeat(other, made.id, target.id)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.heats.drawHeat(owner, made.id, 2_000_000_000)).toMatchObject({ ok: false, status: 404 });
+
+    const glasses = opened.heat.glasses.map((g) => g.glass);
+    expect((await m.heats.recordHeat(owner, made.id, target.id, { glasses }, owner)).ok).toBe(true);
+    expect(await m.heats.drawHeat(owner, made.id, target.id)).toMatchObject({ ok: false, status: 409 });
+  });
+
   it("sets glasses by hand for a solo heat and refuses a bad assignment", async () => {
     const made = (await m.life.createTournament(owner, settings({ blind: true }), bottleEntries())) as { ok: true; id: number };
     await m.life.startTournament(owner, made.id);

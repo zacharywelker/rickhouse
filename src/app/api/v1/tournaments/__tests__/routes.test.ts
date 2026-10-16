@@ -183,7 +183,14 @@ describe("flights and entries", () => {
     heats.drawHeat.mockResolvedValue({ ok: true, heat: { heatId: 5, glasses: [] } });
     const res = await call(draw.POST as never, "POST", { id: "3" }, {});
     expect([res.status, await res.json()]).toEqual([200, { heatId: 5, glasses: [] }]);
-    expect(heats.drawHeat).toHaveBeenCalledWith(7, 3);
+    expect(heats.drawHeat).toHaveBeenCalledWith(7, 3, undefined);
+  });
+
+  it("opens a chosen flight for pouring, and refuses a bad heatId", async () => {
+    heats.drawHeat.mockResolvedValue({ ok: true, heat: { heatId: 5, glasses: [] } });
+    expect((await call(draw.POST as never, "POST", { id: "3" }, { heatId: 5 })).status).toBe(200);
+    expect(heats.drawHeat).toHaveBeenLastCalledWith(7, 3, 5);
+    for (const heatId of [0, -1, 1.5, "5"]) expect((await call(draw.POST as never, "POST", { id: "3" }, { heatId })).status).toBe(422);
   });
 
   it("records a result by entry id or by glass, and not both or neither", async () => {
