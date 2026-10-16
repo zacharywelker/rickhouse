@@ -15,6 +15,7 @@ export type Db = {
   sql: <T = Record<string, unknown>>(query: string, ...params: unknown[]) => Promise<T[]>;
   life: typeof import("../lifecycle");
   heats: typeof import("../heats");
+  ranking: typeof import("../ranking-query");
   queries: typeof import("../queries");
   end: () => Promise<void>;
 };
@@ -29,6 +30,7 @@ export async function connect(): Promise<Db> {
     sql: async (query, ...params) => (await client.unsafe(query, params as never[])) as never,
     life: await import("../lifecycle"),
     heats: await import("../heats"),
+    ranking: await import("../ranking-query"),
     queries: await import("../queries"),
     end: () => client.end(),
   };
