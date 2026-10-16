@@ -61,6 +61,31 @@ describe.skipIf(!url)("tournament set-up and lifecycle against a real database",
     expect(await m.life.resetRound(other, made.id)).toMatchObject({ ok: false, status: 404 });
   });
 
+  it("keeps the round 1 preview in step with the field: made on create, removed below two entries, made again at two or more", async () => {
+    const flights = async (id: number) => (await m.queries.getTournament(owner, id))!.rounds.flatMap((r) => r.heats);
+    const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottles.slice(0, 3).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
+    expect(await flights(made.id)).toHaveLength(1);
+    const lonely = (await m.life.createTournament(owner, settings(), [{ bottleId: bottles[0]! }])) as { ok: true; id: number };
+    expect(await flights(lonely.id)).toHaveLength(0);
+
+    await m.life.updateDraft(owner, made.id, { entries: [{ bottleId: bottles[0]! }] });
+    expect(await flights(made.id)).toHaveLength(0);
+    await m.life.updateDraft(owner, made.id, { entries: bottles.slice(0, 3).map((bottleId) => ({ bottleId })) });
+    expect(await flights(made.id)).toHaveLength(1);
+    // A settings change on a draft that somehow has no preview also makes one.
+    await m.sql(`DELETE FROM tournament_heats WHERE tournament_id = $1`, made.id);
+    await m.life.updateDraft(owner, made.id, { heatSize: 2 });
+    expect((await flights(made.id)).map((h) => h.entries.length)).toEqual([2, 1]);
+    // Starting keeps the preview it finds, and still works without one.
+    const before = (await flights(made.id)).map((h) => h.id);
+    await m.life.startTournament(owner, made.id);
+    expect((await flights(made.id)).map((h) => h.id)).toEqual(before);
+    const bare = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
+    await m.sql(`DELETE FROM tournament_heats WHERE tournament_id = $1`, bare.id);
+    expect(await m.life.startTournament(owner, bare.id)).toMatchObject({ ok: true });
+    expect(await flights(bare.id)).not.toHaveLength(0);
+  });
+
   it("refuses to start with fewer than two entries, and lists tournaments with their progress", async () => {
     const one = (await m.life.createTournament(owner, settings({ name: "Lonely" }), [{ bottleId: bottles[0]! }])) as { ok: true; id: number };
     expect(await m.life.startTournament(owner, one.id)).toMatchObject({ ok: false, status: 422 });

@@ -8,7 +8,6 @@ import { DraftBar } from "@/components/tournaments/draft-bar";
 import { DraftSettings } from "@/components/tournaments/draft-settings";
 import { requireSession } from "@/lib/auth";
 import { buildBracketModel, bottlesText } from "@/lib/tournaments/bracket-model";
-import { resetRound } from "@/lib/tournaments/lifecycle";
 import { GROUP_KEY_LABELS } from "@/lib/tournaments/priority";
 import { getTournament } from "@/lib/tournaments/queries";
 import type { GroupKey } from "@/lib/tournaments/types";
@@ -25,14 +24,9 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
   const id = Number(raw);
   if (!Number.isSafeInteger(id) || id < 1) notFound();
 
-  let view = await getTournament(user.id, id);
+  const view = await getTournament(user.id, id);
   if (!view) notFound();
   const active = view.entries.filter((e) => e.status === "active").length;
-  // A new draft has no flights yet: make the round 1 preview the first time it is opened (the same thing Reset does).
-  if (view.status === "draft" && view.rounds.length === 0 && active >= 2) {
-    const made = await resetRound(user.id, id);
-    if (made.ok) view = made.view;
-  }
 
   const draft = view.status === "draft";
   const model = buildBracketModel(view);
