@@ -79,12 +79,15 @@ function pourOrder(entries: ViewHeatEntry[]): ViewHeatEntry[] {
   );
 }
 
-/** A flight's title: your own name wins and is marked yours; else what its bottles share; else its proof band. Hidden: the band only. */
+/**
+ * A flight's title: your own name wins and is marked yours (also on a hidden flight: the view returns the owner's own
+ * label there); else what its bottles share; else its proof band. A hidden flight has no generated name, only the band.
+ */
 export function flightTitle(heat: ViewHeat, number: number): FlightTitle {
   const fallback = heat.band || `Flight ${number}`;
-  if (heat.hidden) return { text: fallback, yours: false };
   const custom = heat.label?.trim();
   if (custom) return { text: custom, yours: true };
+  if (heat.hidden) return { text: fallback, yours: false };
   return { text: heat.autoLabel ?? fallback, yours: false };
 }
 
@@ -92,7 +95,7 @@ function flightModel(heat: ViewHeat, number: number): FlightModel {
   const title = flightTitle(heat, number);
   const metaParts: string[] = [];
   if (title.text !== `Flight ${number}`) metaParts.push(`Flight ${number}`);
-  if (!heat.hidden && heat.band && title.text !== heat.band) metaParts.push(heat.band);
+  if (heat.band && title.text !== heat.band) metaParts.push(heat.band);
   if (!heat.hidden && !heat.band && heat.entries.length > 0) metaParts.push("Proof unknown for some");
   if (heat.status === "bye") metaParts.push("Bye");
 
@@ -160,7 +163,7 @@ export function buildBracketModel(view: Pick<TournamentView, "status" | "heatSiz
   let renamed = 0;
   for (const { round, heats } of view.rounds) {
     const flights = heats.map((h, i) => flightModel(h, i + 1));
-    renamed += heats.filter((h) => !h.hidden && h.label?.trim()).length;
+    renamed += heats.filter((h) => h.label?.trim()).length;
     const allDone = heats.every((h) => h.status !== "pending");
     const final = heats.length === 1;
     columns.push({

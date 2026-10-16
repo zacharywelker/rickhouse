@@ -41,8 +41,9 @@ describe("flightTitle", () => {
     expect(flightTitle(heat(1, 1, 1, [], { band: "90 to 94 proof" }), 2)).toEqual({ text: "90 to 94 proof", yours: false });
     expect(flightTitle(heat(1, 1, 1, []), 2)).toEqual({ text: "Flight 2", yours: false });
   });
-  it("shows only the band for a hidden flight, even one you named", () => {
-    expect(flightTitle(heat(1, 2, 1, [], { hidden: true, label: "Secret pick", band: "90 to 100 proof", entryCount: 4 }), 1)).toEqual({ text: "90 to 100 proof", yours: false });
+  it("shows your own name on a hidden flight, marked yours; without one only the band", () => {
+    expect(flightTitle(heat(1, 2, 1, [], { hidden: true, label: "Secret pick", band: "90 to 100 proof", entryCount: 4 }), 1)).toEqual({ text: "Secret pick", yours: true });
+    expect(flightTitle(heat(1, 2, 1, [], { hidden: true, band: "90 to 100 proof", entryCount: 4 }), 1)).toEqual({ text: "90 to 100 proof", yours: false });
   });
 });
 
@@ -157,16 +158,18 @@ describe("buildBracketModel: a running tournament", () => {
     expect([one!.state, two!.state]).toEqual(["decided", "now"]);
     expect(one!.note).toBe("Flights of 4 advanced 2, byes advanced 1");
   });
-  it("never lets a hidden flight leak a name or your label", () => {
+  it("shows a hidden flight's custom label as yours with the band under it, and only the band without one; never a bottle name", () => {
     const flight = two!.flights[0]!;
     expect(flight.hidden).toBe(true);
     expect(flight.rows).toEqual([]);
     expect(flight.count).toBe(4);
     expect(flight.glassesSet).toBe(2);
-    expect(flight.title).toEqual({ text: "90 to 100 proof", yours: false });
-    expect(flight.meta).toBe("Flight 1");
-    expect(JSON.stringify(flight)).not.toContain("Secret pick");
-    expect(model.renamed).toBe(0);
+    expect(flight.title).toEqual({ text: "Secret pick", yours: true });
+    expect(flight.meta).toBe("Flight 1 · 90 to 100 proof");
+    const plain = two!.flights[1]!;
+    expect(plain.title).toEqual({ text: "124 to 126 proof", yours: false });
+    expect(plain.meta).toBe("Flight 2");
+    expect(model.renamed).toBe(1);
   });
   it("plans the rounds still to come", () => {
     expect(model.columns.map((c) => c.heading)).toEqual(["Round 1", "Round 2", "Final"]);
