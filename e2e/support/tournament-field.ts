@@ -9,15 +9,30 @@ export const FIELD_NAMES = new RegExp(FIELD_WORDS.join("|"));
 const PROOFS = [90, 92, 100, 101, 112, 115, 120, 125];
 
 /**
+ * Throws unless DATABASE_URL names a throwaway database: one whose name has a segment test, tourney, scratch or proto
+ * (`rickhouse_tourney_web`, `rickhouse_tourney_proto` pass; `rickhouse` and `contest` do not). Call it before anything
+ * that resets or seeds, since `resetDatabase()` wipes whatever the URL points at.
+ */
+export function assertThrowawayDatabase(url: string | undefined = process.env.DATABASE_URL): void {
+  let name = "";
+  try {
+    name = url ? decodeURIComponent(new URL(url).pathname.slice(1)) : "";
+  } catch {
+    name = "";
+  }
+  if (!/(^|_)(test|tourney|scratch|proto)(_|$)/.test(name)) {
+    throw new Error("DATABASE_URL must name a throwaway database (a name with a test, tourney, scratch or proto segment).");
+  }
+}
+
+/**
  * Gives the admin account the field the tournament specs play with. `db:reset` leaves one bottle, and the specs need
  * eight with a proof. Rows go in with plain SQL: the point is the tournament screens, not the bottle form.
  * Run `resetDatabase()` first; refuses anything but a throwaway database.
  */
 export async function seedTournamentField(): Promise<void> {
-  const url = process.env.DATABASE_URL;
-  if (!url || !/(test|tourney|scratch|proto)/.test(new URL(url).pathname.slice(1))) {
-    throw new Error("seedTournamentField needs DATABASE_URL to name a throwaway database (see the guard in the brief).");
-  }
+  assertThrowawayDatabase();
+  const url = process.env.DATABASE_URL!;
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
     const [owner] = await sql<{ id: number }[]>`SELECT id FROM users WHERE username = 'admin'`;

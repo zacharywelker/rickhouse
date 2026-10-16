@@ -1,11 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
-import { FIELD_BRAND, FIELD_COUNT, FIELD_NAMES, seedTournamentField } from "./support/tournament-field";
+import { assertThrowawayDatabase, FIELD_BRAND, FIELD_COUNT, FIELD_NAMES, seedTournamentField } from "./support/tournament-field";
 
 const stamp = () => Math.random().toString(36).slice(2, 8);
 
 test.beforeAll(async () => {
+  // Before resetDatabase(), which wipes whatever DATABASE_URL names.
+  assertThrowawayDatabase();
   await resetDatabase();
   await seedTournamentField();
 });
