@@ -17,4 +17,9 @@ describe("assertThrowawayDatabase", () => {
     expect(() => assertThrowawayDatabase("")).toThrow(/throwaway/);
     expect(() => assertThrowawayDatabase("not a url")).toThrow(/throwaway/);
   });
+  it("refuses a database that is not on this machine, even with a throwaway name", () => {
+    expect(() => assertThrowawayDatabase("postgres://u:p@db.example.com:5432/rickhouse_test")).toThrow(/throwaway/);
+    expect(() => assertThrowawayDatabase(`${at("rickhouse_test")}?host=db.example.com`)).toThrow(/throwaway/);
+    expect(() => assertThrowawayDatabase("postgres://u:p@localhost:5432/rickhouse_test")).not.toThrow();
+  });
 });

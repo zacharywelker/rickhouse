@@ -9,19 +9,22 @@ export const FIELD_NAMES = new RegExp(FIELD_WORDS.join("|"));
 const PROOFS = [90, 92, 100, 101, 112, 115, 120, 125];
 
 /**
- * Throws unless DATABASE_URL names a throwaway database: one whose name has a segment test, tourney, scratch or proto
+ * Throws unless DATABASE_URL names a throwaway database on this machine (localhost, no `host=` override): one whose name has a segment test, tourney, scratch or proto
  * (`rickhouse_tourney_web`, `rickhouse_tourney_proto` pass; `rickhouse` and `contest` do not). Call it before anything
  * that resets or seeds, since `resetDatabase()` wipes whatever the URL points at.
  */
 export function assertThrowawayDatabase(url: string | undefined = process.env.DATABASE_URL): void {
   let name = "";
+  let local = false;
   try {
-    name = url ? decodeURIComponent(new URL(url).pathname.slice(1)) : "";
+    const parsed = new URL(url ?? "");
+    name = decodeURIComponent(parsed.pathname.slice(1));
+    local = ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) && !parsed.searchParams.has("host");
   } catch {
     name = "";
   }
-  if (!/(^|_)(test|tourney|scratch|proto)(_|$)/.test(name)) {
-    throw new Error("DATABASE_URL must name a throwaway database (a name with a test, tourney, scratch or proto segment).");
+  if (!local || !/(^|_)(test|tourney|scratch|proto)(_|$)/.test(name)) {
+    throw new Error("DATABASE_URL must be a local throwaway database (a name with a test, tourney, scratch or proto segment).");
   }
 }
 
