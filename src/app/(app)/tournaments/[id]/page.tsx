@@ -7,11 +7,16 @@ import { Bracket } from "@/components/tournaments/bracket";
 import { DraftField } from "@/components/tournaments/draft-field";
 import { DraftBar } from "@/components/tournaments/draft-bar";
 import { DraftSettings } from "@/components/tournaments/draft-settings";
+import { RunBar } from "@/components/tournaments/run-bar";
+import { Standings } from "@/components/tournaments/standings";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
+import { canReset, flightControls } from "@/lib/tournaments/bracket-actions";
 import { buildBracketModel, bottlesText } from "@/lib/tournaments/bracket-model";
 import { GROUP_KEY_LABELS } from "@/lib/tournaments/priority";
 import { getTournament } from "@/lib/tournaments/queries";
+import { standingRows } from "@/lib/tournaments/standings-model";
+import { statusLine } from "@/lib/tournaments/summary-text";
 import type { GroupKey } from "@/lib/tournaments/types";
 
 export const metadata: Metadata = { title: "Tournament" };
@@ -33,6 +38,8 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
   const draft = view.status === "draft";
   const categories = draft ? await REFERENCE_OPTION_LOADERS.categories(user.id) : [];
   const model = buildBracketModel(view);
+  const controls = Object.fromEntries(view.rounds.flatMap((r) => r.heats.map((h) => [h.id, flightControls(view, h)])));
+  const standings = standingRows(view);
   const order = view.groupOrder.map((k) => GROUP_KEY_LABELS[k as GroupKey] ?? k);
 
   return (
@@ -50,8 +57,18 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
           {bottlesText(active)} · flights of {view.heatSize}
           {view.seeding === "random" ? " · random seeding" : ""}
         </p>
+        {draft || view.status === "complete" ? null : (
+          <p className="text-sm tabular-nums text-muted-foreground">
+            {statusLine({ status: view.status, currentRound: view.currentRound, totalRounds: view.plan.length, progress: view.progress })}
+          </p>
+        )}
+        {view.champion ? <p className="pt-1 text-lg font-medium">Champion: {view.champion.name}</p> : null}
         {view.fieldNote ? <p className="text-sm text-muted-foreground">{view.fieldNote}</p> : null}
       </div>
+
+      {view.status === "active" && view.blind ? (
+        <p className="max-w-3xl text-sm text-muted-foreground">Blind: names stay hidden until a flight is decided. Open a flight to play it.</p>
+      ) : null}
 
       {draft ? <DraftField key={JSON.stringify(view.entries.map((e) => [e.kind, e.bottleId, e.expressionId, e.name]))} tournamentId={view.id} entries={view.entries} categories={categories} /> : null}
 
@@ -69,7 +86,7 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
               {model.unknownProof} {model.unknownProof === 1 ? "bottle has" : "bottles have"} no proof recorded, so {model.unknownProof === 1 ? "it was" : "they were"} grouped last.
             </p>
           ) : null}
-          <Bracket tournamentId={view.id} model={model} heatSize={view.heatSize} editable={draft} />
+          <Bracket tournamentId={view.id} model={model} heatSize={view.heatSize} draft={draft} controls={controls} rounds={view.rounds} />
         </div>
         {draft ? (
           <DraftSettings
@@ -80,7 +97,18 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
         ) : null}
       </div>
 
-      {draft ? <DraftBar tournamentId={view.id} entryCount={active} renamed={model.renamed} /> : null}
+      {draft ? null : (
+        <>
+          <Standings rows={standings} final={view.status === "complete"} />
+          <p className="text-sm">
+            <Link href={"/tournaments/ranking" as Route} className="underline underline-offset-4">
+              Ranking across all tournaments
+            </Link>
+          </p>
+        </>
+      )}
+
+      {draft ? <DraftBar tournamentId={view.id} entryCount={active} renamed={model.renamed} /> : <RunBar tournamentId={view.id} canReset={canReset(view)} />}
     </div>
   );
 }
