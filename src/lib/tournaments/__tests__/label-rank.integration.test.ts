@@ -42,6 +42,9 @@ describe.skipIf(!url)("the label-page tournament rank against a real database", 
     expect(first!.text).toMatch(new RegExp(`^Tournament rank: ${first!.rank} of 7 in test bourbon`));
     expect(await labelRank(own.user, lonely)).toMatchObject({ of: 7 });
     expect(await labelRank(own.user, untouched)).toBeNull();
+    // handing the row's facts over gives the same answer without reading them again
+    const again = await labelRank(own.user, own.labels[0]!, { categoryId: cat.whiskey, categoryName: first!.text.split(" in ")[1]!, bottleIds: [own.bottles[0]!] });
+    expect(again).toMatchObject({ rank: first!.rank, of: 7 });
   });
 
   it("is null while the rank is provisional", async () => {

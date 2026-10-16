@@ -82,15 +82,19 @@ export default async function LabelPage({
   const row = await getExpression(expressionId, user.id);
   if (!row) notFound();
 
-  const [links, owned, notes, colas, otherNames, releases, tournamentRank] = await Promise.all([
+  const [links, owned, notes, colas, otherNames, releases] = await Promise.all([
     expressionLinks(expressionId),
     bottlesOfLabel(expressionId, user.id),
     tastingNotesForLabel(expressionId, user.id),
     colasForExpression(expressionId, user.id),
     expressionOtherNames(expressionId),
     expressionReleaseList(expressionId),
-    labelRank(user.id, expressionId),
   ]);
+  const tournamentRank = await labelRank(user.id, expressionId, {
+    categoryId: row.category.id,
+    categoryName: row.category.name,
+    bottleIds: owned.map((b) => b.id),
+  });
   const distilleryMatches = await distilleriesByPermit(
     user.id,
     colas.map((cola) => cola.permitNumber),
