@@ -1,4 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// The label merge imports server-only, which refuses to load outside the server build.
+vi.mock("server-only", () => ({}));
 
 import { connect, fixtures, settings, url, type Cat, type Db, type Fixtures } from "./fixtures";
 
@@ -77,6 +80,22 @@ describe.skipIf(!url)("tournament set-up and lifecycle against a real database",
     const view = (res as { view: import("../view").TournamentView }).view;
     expect(view.rounds[0]!.heats.map((h) => h.entries.length)).toEqual([3, 3]);
     expect(view.rounds[0]!.heats.flatMap((h) => h.entries).map((e) => e.entryId).sort((x, y) => x - y)).toEqual(view.entries.map((e) => e.id).sort((x, y) => x - y));
+  });
+
+  it("follows a label that is merged into another: the entries of its bottles and of the label itself move with it", async () => {
+    const source = await fx.mkLabel(owner, cat.whiskey, "Merged away", { proof: 90 });
+    const survivor = await fx.mkLabel(owner, cat.whiskey, "Survivor", { proof: 90 });
+    const bottle = await fx.mkBottle(owner, source);
+    const made = (await m.life.createTournament(owner, settings(), [{ bottleId: bottle }, { expressionId: source }, { bottleId: bottles[0]! }])) as { ok: true; id: number };
+
+    const { mergeLabels } = await import("../../expressions/merge");
+    await mergeLabels(owner, source, survivor, []);
+
+    const view = (await m.queries.getTournament(owner, made.id))!;
+    expect(view.entries.map((e) => [e.kind, e.bottleId, e.expressionId]).slice(0, 2)).toEqual([
+      ["bottle", bottle, survivor],
+      ["label", null, survivor],
+    ]);
   });
 
   it("keeps the history when a bottle is deleted: its entry stays on the label, and the same bottle cannot enter twice", async () => {
