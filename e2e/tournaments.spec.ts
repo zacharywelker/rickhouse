@@ -19,6 +19,10 @@ async function createTournament(page: Page, opts: { blind?: boolean; size?: 2 | 
   const name = `Cup ${stamp()}`;
   await page.goto("/tournaments/new");
   await page.getByRole("searchbox", { name: "Search your bottles" }).fill(FIELD_BRAND);
+  // Enter in the search must not submit the setup form.
+  await page.getByRole("searchbox", { name: "Search your bottles" }).press("Enter");
+  await page.getByLabel("Name", { exact: true }).press("Enter");
+  await expect(page).toHaveURL(/\/tournaments\/new$/);
   await expect(page.getByText(`0 of ${FIELD_COUNT} chosen`)).toBeVisible();
   await page.getByRole("button", { name: "Select all shown" }).click();
   await expect(page.getByText(`${FIELD_COUNT} of ${FIELD_COUNT} chosen`)).toBeVisible();

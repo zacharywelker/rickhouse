@@ -83,6 +83,10 @@ export function TournamentSetup({ categories }: { categories: Option[] }) {
   return (
     <form
       className="grid gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_21rem]"
+      // The Create button is the only way to submit: Enter in a text field (the bottle search, the name) must not create.
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target instanceof HTMLInputElement) e.preventDefault();
+      }}
       onSubmit={(e) => {
         e.preventDefault();
         if (!nameMissing && !pending) create();
