@@ -144,6 +144,19 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(await m.heats.moveEntry(owner, made.id, decided.entries[0]!.entryId, other.id)).toMatchObject({ ok: false, status: 409 });
   });
 
+  it("draws a flight once: asking again returns the same flight and letters until it is recorded", async () => {
+    const made = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
+    await m.life.startTournament(owner, made.id);
+    const first = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
+    const again = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
+    expect(again).toEqual(first);
+    const glasses = first.heat.glasses.map((g) => g.glass);
+    expect((await m.heats.recordHeat(owner, made.id, first.heat.heatId, { glasses }, owner)).ok).toBe(true);
+    const next = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
+    expect(next.ok).toBe(true);
+    expect(next.heat.heatId).not.toBe(first.heat.heatId);
+  });
+
   it("sets glasses by hand for a solo heat and refuses a bad assignment", async () => {
     const made = (await m.life.createTournament(owner, settings({ blind: true }), bottleEntries())) as { ok: true; id: number };
     await m.life.startTournament(owner, made.id);

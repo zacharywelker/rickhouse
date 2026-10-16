@@ -137,7 +137,7 @@ export type DrawnHeat = {
 
 /**
  * Picks a pending flight of the current round at random, labels its glasses at random and keeps the letters, so the
- * pourer knows what is in each glass and the taster sees only letters. Drawing again replaces the letters.
+ * pourer knows what is in each glass and the taster sees only letters. Drawing again returns the same flight until it is recorded.
  */
 export async function drawHeat(ownerId: number, tournamentId: number): Promise<{ ok: true; heat: DrawnHeat } | Failure> {
   return db.transaction(async (tx) => {
@@ -149,19 +149,29 @@ export async function drawHeat(ownerId: number, tournamentId: number): Promise<{
     const open = state.heats.filter((h) => h.round === round && h.status === "pending");
     if (open.length === 0) return fail(409, "No flight is waiting to be tasted.");
 
-    const heat = open[randomInt(open.length)]!;
+    // A flight already drawn and not yet recorded keeps its letters, so a retried request cannot re-letter poured glasses.
+    const drawn = open.find((h) => {
+      const r = state.heatEntries.filter((x) => x.heatId === h.id);
+      return r.length > 0 && r.every((x) => x.glass);
+    });
+    const heat = drawn ?? open[randomInt(open.length)]!;
     const rows = state.heatEntries.filter((r) => r.heatId === heat.id);
-    const letters = LETTERS.slice(0, rows.length);
-    for (let i = letters.length - 1; i > 0; i--) {
-      const j = randomInt(i + 1);
-      [letters[i], letters[j]] = [letters[j]!, letters[i]!];
-    }
-    await tx.update(tournamentHeatEntries).set({ glass: null }).where(eq(tournamentHeatEntries.heatId, heat.id));
-    for (const [i, row] of rows.entries()) {
-      await tx
-        .update(tournamentHeatEntries)
-        .set({ glass: letters[i]! })
-        .where(and(eq(tournamentHeatEntries.heatId, heat.id), eq(tournamentHeatEntries.entryId, row.entryId)));
+    let letters: string[];
+    if (drawn) {
+      letters = rows.map((r) => r.glass!);
+    } else {
+      letters = LETTERS.slice(0, rows.length);
+      for (let i = letters.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [letters[i], letters[j]] = [letters[j]!, letters[i]!];
+      }
+      await tx.update(tournamentHeatEntries).set({ glass: null }).where(eq(tournamentHeatEntries.heatId, heat.id));
+      for (const [i, row] of rows.entries()) {
+        await tx
+          .update(tournamentHeatEntries)
+          .set({ glass: letters[i]! })
+          .where(and(eq(tournamentHeatEntries.heatId, heat.id), eq(tournamentHeatEntries.entryId, row.entryId)));
+      }
     }
 
     const entrants = await loadEntrants(tx, ownerId, state.entries.filter((e) => rows.some((r) => r.entryId === e.id)));
