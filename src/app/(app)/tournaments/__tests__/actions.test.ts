@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireSession, revalidatePath, life, heats, calls } = vi.hoisted(() => {
+const { requireSession, revalidatePath, life, heats, field, calls } = vi.hoisted(() => {
   const fn = () => vi.fn();
   return {
     requireSession: vi.fn(),
     revalidatePath: vi.fn(),
     life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
     heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), promoteEntry: fn(), renameHeat: fn() },
+    field: { fieldCandidates: fn(), labelCandidates: fn() },
     calls: [] as string[],
   };
 });
@@ -15,6 +16,7 @@ vi.mock("@/lib/auth", () => ({ requireSession: () => requireSession() }));
 vi.mock("next/cache", () => ({ revalidatePath: (p: string) => revalidatePath(p) }));
 vi.mock("@/lib/tournaments/lifecycle", () => life);
 vi.mock("@/lib/tournaments/heats", () => heats);
+vi.mock("@/lib/tournaments/field", () => field);
 
 import * as actions from "../actions";
 
@@ -192,5 +194,28 @@ describe("a signed-out caller", () => {
     await expect(actions.startTournamentAction(3)).rejects.toThrow("NEXT_REDIRECT");
     await expect(actions.createTournamentAction({})).rejects.toThrow("NEXT_REDIRECT");
     expect(life.startTournament).not.toHaveBeenCalled();
+  });
+});
+
+describe("the setup picker's searches", () => {
+  it("searchFieldAction checks the session, parses the filters (junk to defaults) and answers rows and total", async () => {
+    field.fieldCandidates.mockResolvedValue({ rows: [{ bottleId: 1 }], total: 812 });
+    expect(await actions.searchFieldAction({ q: "  eagle   rare ", opened: "bogus", categoryIds: "4,x,5" })).toEqual({ ok: true, rows: [{ bottleId: 1 }], total: 812 });
+    expect(calls[0]).toBe("session");
+    expect(field.fieldCandidates).toHaveBeenCalledWith(7, { q: "eagle rare", categoryIds: [4, 5], statuses: ["owned", "open"], opened: "any", tasted: "any" });
+  });
+
+  it("searchFieldAction survives a non-object", async () => {
+    field.fieldCandidates.mockResolvedValue({ rows: [], total: 0 });
+    await actions.searchFieldAction(null);
+    expect(field.fieldCandidates).toHaveBeenCalledWith(7, { q: "", categoryIds: [], statuses: ["owned", "open"], opened: "any", tasted: "any" });
+  });
+
+  it("searchLabelsAction searches the signed-in owner's labels with trimmed text", async () => {
+    field.labelCandidates.mockResolvedValue([{ expressionId: 2 }]);
+    expect(await actions.searchLabelsAction("  weller  ")).toEqual({ ok: true, labels: [{ expressionId: 2 }] });
+    expect(field.labelCandidates).toHaveBeenCalledWith(7, "weller");
+    await actions.searchLabelsAction(42);
+    expect(field.labelCandidates).toHaveBeenLastCalledWith(7, "");
   });
 });

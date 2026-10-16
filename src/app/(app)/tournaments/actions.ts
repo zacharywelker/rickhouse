@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { parseInput, toActionResult, toFailure, type ActionFailure, type TournamentActionResult } from "@/lib/tournaments/action-result";
+import { fieldCandidates, labelCandidates, type FieldCandidate, type LabelCandidate } from "@/lib/tournaments/field";
+import { parseFieldFilters } from "@/lib/tournaments/field-filters";
 import { createSchema, glassSchema, moveSchema, patchSchema, promoteSchema, renameSchema, resultSchema } from "@/lib/tournaments/api-schemas";
 import { drawHeat, moveEntry, promoteEntry, recordHeat, renameHeat, setGlasses, undoHeat, withdrawEntry, type DrawnHeat } from "@/lib/tournaments/heats";
 import { createTournament, deleteTournament, resetRound, startTournament, updateDraft } from "@/lib/tournaments/lifecycle";
@@ -136,4 +138,18 @@ export async function renameHeatAction(id: number, heatId: number, label: string
   const body = parseInput(renameSchema, { label });
   if (!body.ok) return body;
   return view(id, () => renameHeat(user.id, id, heatId, body.data.label));
+}
+
+/** The setup picker's search: your bottles that match, and how many match in all. `rawFilters` is whatever the page holds; junk falls back to the defaults. */
+export async function searchFieldAction(rawFilters: unknown): Promise<{ ok: true; rows: FieldCandidate[]; total: number }> {
+  const user = await requireSession();
+  const { rows, total } = await fieldCandidates(user.id, parseFieldFilters(rawFilters));
+  return { ok: true, rows, total };
+}
+
+/** Your labels that match what was typed, for adding a label you own no bottle of. */
+export async function searchLabelsAction(q: unknown): Promise<{ ok: true; labels: LabelCandidate[] }> {
+  const user = await requireSession();
+  const text = typeof q === "string" ? q.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+  return { ok: true, labels: await labelCandidates(user.id, text) };
 }
