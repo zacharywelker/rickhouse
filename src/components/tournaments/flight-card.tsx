@@ -82,6 +82,7 @@ export function FlightCard({
                       {controls.move ? (
                         <MoveMenu
                           name={row.name}
+                          busy={actions.pending}
                           targets={moveTargets}
                           swaps={swapTargets}
                           onMove={(heatId, done) => actions.move(row.entryId, heatId, done)}

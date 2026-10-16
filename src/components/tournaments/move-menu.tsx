@@ -15,12 +15,15 @@ export type SwapTarget = { entryId: number; name: string; flight: string };
  */
 export function MoveMenu({
   name,
+  busy,
   targets,
   swaps,
   onMove,
   onSwap,
 }: {
   name: string;
+  /** An edit is running: nothing more can be picked until it answers. */
+  busy: boolean;
   targets: MoveTarget[];
   swaps: SwapTarget[];
   onMove: (heatId: number, done: () => void) => void;
@@ -42,7 +45,7 @@ export function MoveMenu({
             <li key={target.heatId} className="border-t border-border first:border-t-0">
               <button
                 type="button"
-                disabled={target.full}
+                disabled={target.full || busy}
                 onClick={() => onMove(target.heatId, () => setOpen(false))}
                 className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted focus-visible:bg-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent"
               >
@@ -58,7 +61,7 @@ export function MoveMenu({
           <CommandList>
             <CommandEmpty>No bottle matches.</CommandEmpty>
             {swaps.map((swap) => (
-              <CommandItem key={swap.entryId} value={`${swap.name} ${swap.entryId}`} onSelect={() => onSwap(swap.entryId, () => setOpen(false))} className="min-h-11 justify-between gap-3">
+              <CommandItem key={swap.entryId} disabled={busy} value={`${swap.name} ${swap.entryId}`} onSelect={() => onSwap(swap.entryId, () => setOpen(false))} className="min-h-11 justify-between gap-3">
                 <span>{swap.name}</span>
                 <span className="shrink-0 text-xs text-muted-foreground">{swap.flight}</span>
               </CommandItem>

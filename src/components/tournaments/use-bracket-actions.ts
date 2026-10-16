@@ -18,6 +18,8 @@ export function useBracketActions(tournamentId: number) {
         const result = await call();
         if (!result.ok) {
           setError(result.error);
+          // The page may be stale (another tab changed the tournament): show what is true now.
+          router.refresh();
           return;
         }
         done?.();
