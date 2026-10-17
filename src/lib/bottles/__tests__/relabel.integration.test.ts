@@ -94,7 +94,11 @@ describe.skipIf(!url)("relabeling a bottle against a real database", () => {
     expect(await state.updateBottle(bottle, owner, { columns: { expressionId: to } })).toMatchObject({ ok: true });
     expect(await labelOf("bottles", bottle)).toBe(to);
     const h = await mkHistory(owner, from);
+    // xmin changes whenever a row is written, so an unchanged one proves the move did not fire.
+    const marks = async () => m.sql(`SELECT 't' AS k, xmin::text FROM tasting_notes WHERE id = $1 UNION ALL SELECT 'e', xmin::text FROM tournament_entries WHERE id = $2`, h.tasting, h.entry);
+    const before = await marks();
     expect(await state.updateBottle(h.bottle, owner, { columns: { expressionId: from, notes: "same label" } })).toMatchObject({ ok: true });
+    expect(await marks()).toEqual(before);
     expect(await labelOf("tasting_notes", h.tasting)).toBe(from);
   });
 
@@ -126,8 +130,22 @@ describe.skipIf(!url)("relabeling a bottle against a real database", () => {
     await expectFollowed(h, to, from);
   });
 
+  it("saveBottleAction: another account's label is refused and nothing moves", async () => {
+    const from = await fx.mkLabel(owner, cat.whiskey, "From G");
+    const theirs = await fx.mkLabel(stranger, cat.whiskey, "Theirs G");
+    const h = await mkHistory(owner, from);
+    const form = new FormData();
+    form.set("expressionId", String(theirs));
+    form.set("acquisition", "purchase");
+    form.set("status", "owned");
+    const res = await actions.saveBottleAction(h.bottle, { ok: false, error: "" }, form);
+    expect(res).toMatchObject({ ok: false, fieldErrors: { expressionId: "Choose one of your labels." } });
+    expect(await labelOf("bottles", h.bottle)).toBe(from);
+    expect(await labelOf("tasting_notes", h.tasting)).toBe(from);
+    expect(await labelOf("tournament_entries", h.entry)).toBe(from);
+  });
+
   it("never touches a stranger's rows", async () => {
-    const mine = await fx.mkLabel(owner, cat.whiskey, "From F");
     const to = await fx.mkLabel(owner, cat.whiskey, "To F");
     const theirLabel = await fx.mkLabel(stranger, cat.whiskey, "Theirs F");
     const theirs = await mkHistory(stranger, theirLabel);
@@ -138,6 +156,5 @@ describe.skipIf(!url)("relabeling a bottle against a real database", () => {
     expect(await labelOf("bottles", theirs.bottle)).toBe(theirLabel);
     expect(await labelOf("tasting_notes", theirs.tasting)).toBe(theirLabel);
     expect(await labelOf("tournament_entries", theirs.entry)).toBe(theirLabel);
-    expect(mine).toBeGreaterThan(0);
   });
 });

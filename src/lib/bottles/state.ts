@@ -1,10 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { movesHistory } from "./relabel";
 import { bottles, expressionReleases, expressions, stores, tastingNotes } from "@/db/schema";
 import type { z } from "zod";
 import { fillUpdate } from "./fill-rules";
 import { openedUpdate, type OpenedChoice } from "./opened-rules";
+import { movesHistory } from "./relabel";
 import type { tastingNoteSchema } from "@/lib/expressions/schema";
 
 /**
