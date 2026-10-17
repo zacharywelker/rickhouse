@@ -65,4 +65,34 @@ describe("provenanceTags", () => {
     const p = provenanceOf({ ...standard, releaseName: "Spring 2024", bottleBatch: "B1" });
     expect(provenanceTags(p)).toEqual(["Spring 2024"]);
   });
+
+  it("keeps the year when the release name only contains it as part of a longer number", () => {
+    const p = provenanceOf({ ...standard, releaseName: "Batch 20240", releaseYear: 2024 });
+    expect(provenanceTags(p)).toEqual(["Batch 20240", "2024"]);
+  });
+
+  it("does not repeat a year the release name already shows", () => {
+    const p = provenanceOf({ ...standard, releaseName: "Spring 2024", releaseYear: 2024 });
+    expect(provenanceTags(p)).toEqual(["Spring 2024"]);
+  });
+
+  it("shows both when the release name carries a different year", () => {
+    const p = provenanceOf({ ...standard, releaseName: "Spring 2023", releaseYear: 2024 });
+    expect(provenanceTags(p)).toEqual(["Spring 2023", "2024"]);
+  });
+
+  it("shows the year beside a release name with no year digits", () => {
+    const p = provenanceOf({ ...standard, releaseName: "Spring", releaseYear: 2024 });
+    expect(provenanceTags(p)).toEqual(["Spring", "2024"]);
+  });
+
+  it("shows the private-selection tag alone when the flag is set with no picker", () => {
+    const p = provenanceOf({ ...standard, isSingleBarrelPick: true });
+    expect(provenanceTags(p)).toEqual(["Private selection"]);
+  });
+
+  it("trims the release name it shows", () => {
+    const p = provenanceOf({ ...standard, releaseName: "  Spring " });
+    expect(provenanceTags(p)).toEqual(["Spring"]);
+  });
 });

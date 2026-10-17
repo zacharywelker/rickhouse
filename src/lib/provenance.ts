@@ -61,8 +61,11 @@ export function provenanceTags(provenance: Provenance | null): string[] {
   if (provenance.barrelNumber) tags.push(`Barrel ${provenance.barrelNumber}`);
   if (provenance.release) tags.push(provenance.release);
   else if (provenance.batch) tags.push(`Batch ${provenance.batch}`);
-  if (provenance.releaseYear !== null && !(provenance.release ?? "").includes(String(provenance.releaseYear))) {
-    tags.push(String(provenance.releaseYear));
+  const year = provenance.releaseYear;
+  if (year !== null) {
+    // The year counts as already shown only as a whole number: "Batch 20240" does not carry 2024.
+    const shown = Number.isInteger(year) && provenance.release !== null && new RegExp(`(?<!\\d)${year}(?!\\d)`).test(provenance.release);
+    if (!shown) tags.push(String(year));
   }
   return tags;
 }
