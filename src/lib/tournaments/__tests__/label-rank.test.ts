@@ -10,7 +10,10 @@ const ranking = (...competitors: RankingResult["competitors"]): RankingResult =>
 
 describe("labelRankLine", () => {
   it("names the rank of a bottle of the label", () => {
-    expect(labelRankLine(ranking(c("b:7", 3)), 1, [7, 8], "Bourbon")).toEqual({ rank: 3, of: 41, text: "Tournament rank: 3 of 41 in bourbon" });
+    expect(labelRankLine(ranking(c("b:7", 3)), 1, [7, 8], "Bourbon")).toEqual({ rank: 3, of: 41, text: "Tournament rank: 3 of 41 bourbons" });
+  });
+  it("uses the singular for a group of one", () => {
+    expect(labelRankLine(ranking(c("b:7", 1, { groupSize: 1 })), 1, [7], "Bourbon")?.text).toBe("Tournament rank: 1 of 1 bourbon");
   });
   it("takes the best firm rank among the label and its bottles", () => {
     expect(labelRankLine(ranking(c("e:1", 9), c("b:7", 4), c("b:8", 6)), 1, [7, 8], "Rye")?.rank).toBe(4);
