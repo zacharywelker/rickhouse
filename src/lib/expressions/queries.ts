@@ -597,7 +597,6 @@ export async function tastingNotesForLabel(expressionId: number, ownerId: number
       palate: tastingNotes.palate,
       finish: tastingNotes.finish,
       overall: tastingNotes.overall,
-      batch: sql<string | null>`coalesce(${expressionReleases.name}::text, ${bottles.batch})`,
       barrelNumber: bottles.barrelNumber,
       pickName: bottles.pickName,
       pickedBy: bottles.pickedBy,

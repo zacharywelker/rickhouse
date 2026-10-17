@@ -27,6 +27,7 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { ageLabel } from "@/lib/expressions/display";
 import { bottlesOfLabel, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
+import { provenanceOf, provenanceTags, type ProvenanceInput } from "@/lib/provenance";
 import { STRENGTH_TIER_LABELS, proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
 import { cn, formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 
@@ -55,6 +56,12 @@ function releaseOf(bottle: Awaited<ReturnType<typeof bottlesOfLabel>>[number]): 
   if (parts.length === 0) return "Standard release";
   const text = parts.join(", ");
   return text[0]!.toUpperCase() + text.slice(1);
+}
+
+/** What kind of bottle a tasting was of, when it was not a standard one: a private selection, a single barrel, a release. */
+function NoteProvenance({ note }: { note: ProvenanceInput }) {
+  const tags = provenanceTags(provenanceOf(note));
+  return tags.length > 0 ? <p className="text-xs text-muted-foreground">{tags.join(" · ")}</p> : null;
 }
 
 /**
@@ -375,12 +382,6 @@ export default async function LabelPage({
                     <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                       <NoteWhen bottleId={note.bottleId}>
                         {formatDate(note.tastedOn)}
-                        {note.pickName || note.barrelNumber || note.batch ? (
-                          <span className="font-normal text-muted-foreground">
-                            {" · "}
-                            {note.pickName ?? (note.barrelNumber ? `barrel ${note.barrelNumber}` : note.batch)}
-                          </span>
-                        ) : null}
                         {pourNote(note.source, note.tastedAt) ? (
                           <span className="font-normal text-muted-foreground">
                             {" · "}
@@ -390,6 +391,7 @@ export default async function LabelPage({
                       </NoteWhen>
                       {note.rating !== null ? <span className="tabular-nums">{formatNumeric(note.rating)} / 10</span> : null}
                     </div>
+                    <NoteProvenance note={note} />
                     {[
                       ["Nose", note.nose],
                       ["Palate", note.palate],
