@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleImages, bottles } from "@/db/schema";
+import { bottleImages, bottles, expressions } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
 import { addTastingNote, deleteTastingNote, ownedBottle, ownsBottle, setFill, updateBottle, updateTastingNote } from "@/lib/bottles/state";
+import { movesHistory } from "@/lib/bottles/relabel";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { z } from "zod";
 import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
@@ -23,6 +24,10 @@ async function ownedImage(imageId: number, ownerId: number) {
     .where(and(eq(bottleImages.id, imageId), eq(bottles.ownerId, ownerId)))
     .limit(1);
   return row?.image ?? null;
+}
+
+async function ownsLabel(expressionId: number, ownerId: number): Promise<boolean> {
+  return (await db.$count(expressions, and(eq(expressions.id, expressionId), eq(expressions.ownerId, ownerId)))) > 0;
 }
 
 function invalid(issues: { path: PropertyKey[]; message: string }[]): ActionResult {
@@ -60,7 +65,14 @@ export async function saveBottleAction(
       revalidatePath("/");
       return { ok: true, message: "Bottle added.", createdId: row!.id };
     }
-    const updated = await db.update(bottles).set(input).where(ownedBottle(id, user.id)).returning({ id: bottles.id });
+    if (!(await ownsLabel(input.expressionId, user.id))) return { ok: false, error: "Choose one of your labels.", fieldErrors: { expressionId: "Choose one of your labels." } };
+    // A new label takes the bottle's tastings and tournament entries with it, in the same statement.
+    const updated = await db
+      .with(...movesHistory(user.id, [id], input.expressionId))
+      .update(bottles)
+      .set(input)
+      .where(ownedBottle(id, user.id))
+      .returning({ id: bottles.id });
     if (updated.length === 0) return { ok: false, error: "That bottle is gone." };
     revalidatePath("/bottles");
     revalidatePath(`/bottles/${id}`);
@@ -212,7 +224,13 @@ export async function updateBottlesBulkAction(
       continue;
     }
     try {
+      if (!(await ownsLabel(parsed.data.expressionId, user.id))) {
+        results.push({ index, ok: false, error: "Choose one of your labels.", fieldErrors: { expressionId: "Choose one of your labels." } });
+        continue;
+      }
       const updated = await db
+        // A new label takes the bottle's tastings and tournament entries with it, in the same statement.
+        .with(...movesHistory(user.id, [id], parsed.data.expressionId))
         .update(bottles)
         // Moving a bottle to another label drops its chosen older name and release.
         .set({
