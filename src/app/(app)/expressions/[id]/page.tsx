@@ -61,7 +61,7 @@ function releaseOf(bottle: Awaited<ReturnType<typeof bottlesOfLabel>>[number]): 
 /** What kind of bottle a tasting was of, when it was not a standard one: a private selection, a single barrel, a release. */
 function NoteProvenance({ note }: { note: ProvenanceInput }) {
   const tags = provenanceTags(provenanceOf(note));
-  return tags.length > 0 ? <p className="text-xs text-muted-foreground">{tags.join(" · ")}</p> : null;
+  return tags.length > 0 ? <p className="text-xs text-muted-foreground break-words">{tags.join(" · ")}</p> : null;
 }
 
 /**
