@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { getCurrentUser, life, heats, queries, rankingFor } = vi.hoisted(() => {
+const { getCurrentUser, life, heats, queries, rankingFor, field } = vi.hoisted(() => {
   const fn = () => vi.fn();
   return {
     getCurrentUser: vi.fn(),
@@ -9,6 +9,7 @@ const { getCurrentUser, life, heats, queries, rankingFor } = vi.hoisted(() => {
     heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     queries: { getTournament: fn(), listTournaments: fn() },
     rankingFor: vi.fn(),
+    field: { fieldCandidates: fn(), labelCandidates: fn() },
   };
 });
 
@@ -16,6 +17,7 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("@/lib/tournaments/lifecycle", () => life);
 vi.mock("@/lib/tournaments/heats", () => heats);
 vi.mock("@/lib/tournaments/queries", () => queries);
+vi.mock("@/lib/tournaments/field", () => field);
 vi.mock("@/lib/tournaments/ranking-query", () => ({ rankingFor: (...a: unknown[]) => rankingFor(...a) }));
 
 import * as list from "../route";
@@ -31,6 +33,8 @@ import * as swap from "../[id]/entries/[entryId]/swap/route";
 import * as withdraw from "../[id]/entries/[entryId]/withdraw/route";
 import * as promote from "../[id]/entries/[entryId]/route";
 import * as ranking from "../ranking/route";
+import * as fieldRoute from "../field/route";
+import * as fieldLabels from "../field/labels/route";
 
 const view = { id: 3, name: "Spring" };
 
@@ -247,5 +251,51 @@ describe("GET /tournaments/ranking", () => {
 
   it("refuses a category id that is not one", async () => {
     for (const bad of ["abc", "0", "-3", "1.5"]) expect((await get(`?categoryId=${bad}`)).status).toBe(422);
+  });
+});
+
+describe("GET /tournaments/field", () => {
+  const get = (query = "") => fieldRoute.GET(new NextRequest(`https://rickhouse.example.com/api/v1/tournaments/field${query}`));
+
+  it("asks for sign-in, and searches only the signed-in owner's bottles", async () => {
+    getCurrentUser.mockResolvedValueOnce(null);
+    expect((await get()).status).toBe(401);
+    field.fieldCandidates.mockResolvedValue({ rows: [{ bottleId: 1 }], total: 1 });
+    const res = await get();
+    expect([res.status, await res.json()]).toEqual([200, { rows: [{ bottleId: 1 }], total: 1 }]);
+    expect(field.fieldCandidates.mock.calls[0]![0]).toBe(7);
+  });
+
+  it("feeds the query string through parseFieldFilters: defaults when absent, the lists split, junk ignored", async () => {
+    field.fieldCandidates.mockResolvedValue({ rows: [], total: 0 });
+    await get();
+    expect(field.fieldCandidates).toHaveBeenLastCalledWith(7, { q: "", categoryIds: [], statuses: ["owned", "open"], opened: "any", tasted: "any" });
+    await get("?q=%20buffalo%20%20trace&categoryIds=3,x,4,-1&statuses=owned,sold,bogus&opened=sealed&tasted=untasted");
+    expect(field.fieldCandidates).toHaveBeenLastCalledWith(7, { q: "buffalo trace", categoryIds: [3, 4], statuses: ["owned", "sold"], opened: "sealed", tasted: "untasted" });
+    await get("?statuses=all");
+    expect(field.fieldCandidates.mock.calls.at(-1)![1].statuses).toEqual([]);
+    await get("?statuses=bogus&opened=maybe&tasted=1&categoryIds=zz");
+    expect(field.fieldCandidates).toHaveBeenLastCalledWith(7, { q: "", categoryIds: [], statuses: ["owned", "open"], opened: "any", tasted: "any" });
+  });
+});
+
+describe("GET /tournaments/field/labels", () => {
+  const get = (query = "") => fieldLabels.GET(new NextRequest(`https://rickhouse.example.com/api/v1/tournaments/field/labels${query}`));
+
+  it("asks for sign-in, and passes the owner and the cleaned words", async () => {
+    getCurrentUser.mockResolvedValueOnce(null);
+    expect((await get("?q=x")).status).toBe(401);
+    field.labelCandidates.mockResolvedValue([{ expressionId: 2 }]);
+    const res = await get("?q=%20elijah%20%20craig ");
+    expect([res.status, await res.json()]).toEqual([200, { rows: [{ expressionId: 2 }] }]);
+    expect(field.labelCandidates).toHaveBeenLastCalledWith(7, "elijah craig");
+  });
+
+  it("a missing or blank q is the empty search (the first labels), not an error", async () => {
+    field.labelCandidates.mockResolvedValue([]);
+    expect((await get()).status).toBe(200);
+    expect(field.labelCandidates).toHaveBeenLastCalledWith(7, "");
+    expect((await get("?q=%20%20")).status).toBe(200);
+    expect(field.labelCandidates).toHaveBeenLastCalledWith(7, "");
   });
 });

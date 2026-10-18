@@ -18,3 +18,7 @@ export function labelRankLine(ranking: RankingResult, expressionId: number, bott
   if (!best) return null;
   return { rank: best.rank, of: best.groupSize, text: `Tournament rank: ${best.rank} of ${best.groupSize} ${pluralizeCategory(categoryName, best.groupSize)}` };
 }
+
+/** The label API's `tournamentRank`: the line and the category it ranks in, or null. Picks the keys so nothing else leaks. */
+export const tournamentRankField = (r: (LabelRank & { categoryId: number }) | null): (LabelRank & { categoryId: number }) | null =>
+  r && { rank: r.rank, of: r.of, text: r.text, categoryId: r.categoryId };

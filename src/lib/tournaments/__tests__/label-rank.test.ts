@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { labelRankLine } from "../label-rank";
+import { labelRankLine, tournamentRankField } from "../label-rank";
 import type { RankingResult } from "../ranking-query";
 
 const c = (id: string, rank: number, over: Partial<RankingResult["competitors"][number]> = {}): RankingResult["competitors"][number] => ({
@@ -28,5 +28,13 @@ describe("labelRankLine", () => {
   it("is null for a label with no competitor, and ignores other labels' bottles", () => {
     expect(labelRankLine(ranking(c("b:9", 1), c("e:2", 1)), 1, [7], "Rum")).toBeNull();
     expect(labelRankLine(ranking(), 1, [], "Rum")).toBeNull();
+  });
+});
+
+describe("tournamentRankField", () => {
+  it("is null for no rank, and keeps exactly rank, of, text and categoryId", () => {
+    expect(tournamentRankField(null)).toBeNull();
+    const extra = { rank: 3, of: 41, text: "Tournament rank: 3 of 41 bourbons", categoryId: 2, leak: 1 };
+    expect(tournamentRankField(extra)).toEqual({ rank: 3, of: 41, text: "Tournament rank: 3 of 41 bourbons", categoryId: 2 });
   });
 });
