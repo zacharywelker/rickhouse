@@ -20,6 +20,8 @@ struct AccountView: View {
                 Section {
                     NavigationLink("Muted bottles") { MutedBottlesView() }
                     NavigationLink("Preferences") { PreferencesView() }
+                    // No "2 active" subtitle (the mockup has one): it would cost a request every time this tab opens.
+                    NavigationLink("Tournaments") { TournamentsView() }
                 }
                 Section {
                     Button("Sign out", role: .destructive) { session.signOut() }.foregroundStyle(Theme.error)
