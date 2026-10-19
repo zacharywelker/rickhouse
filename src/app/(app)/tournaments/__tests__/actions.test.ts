@@ -43,6 +43,8 @@ beforeEach(() => {
 /** Every action that answers with a view: [name, call, the command it runs, its expected arguments]. */
 const viewActions: [string, () => Promise<unknown>, ReturnType<typeof vi.fn>, unknown[]][] = [
   ["updateDraftAction", () => actions.updateDraftAction(3, { name: "x" }), life.updateDraft, [7, 3, { name: "x" }]],
+  ["updateDraftAction groupOrder alone", () => actions.updateDraftAction(3, { groupOrder: ["age", "proof", "mashbill", "distillery", "finish"] }), life.updateDraft, [7, 3, { groupOrder: ["age", "proof", "mashbill", "distillery", "finish"] }]],
+  ["updateDraftAction seeding alone", () => actions.updateDraftAction(3, { seeding: "random" }), life.updateDraft, [7, 3, { seeding: "random" }]],
   ["startTournamentAction", () => actions.startTournamentAction(3), life.startTournament, [7, 3]],
   ["resetRoundAction", () => actions.resetRoundAction(3), life.resetRound, [7, 3]],
   ["recordHeatAction", () => actions.recordHeatAction(3, 5, { ranking: [1, 2] }), heats.recordHeat, [7, 3, 5, { ranking: [1, 2] }, 7]],
