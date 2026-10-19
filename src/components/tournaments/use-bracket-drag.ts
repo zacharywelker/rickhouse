@@ -18,7 +18,7 @@ const EDGE = 80;
 export function useBracketDrag(view: DragView, actions: BracketActions, names: { target: (t: DropTarget) => string | null }) {
   const held = React.useRef<Drag | null>(null);
   const [drag, setDrag] = React.useState<Drag | null>(null);
-  const [over, setOver] = React.useState<string | null>(null);
+  const [overKey, setOver] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState("");
   const pointerY = React.useRef(0);
 
@@ -70,7 +70,7 @@ export function useBracketDrag(view: DragView, actions: BracketActions, names: {
   const cue = (target: DropTarget): DropCue | null => {
     if (!drag) return null;
     const outcome = dropOutcome(view, drag, target);
-    const hovered = over === key(target);
+    const hovered = overKey === key(target);
     if (outcome.kind === "none") return { ok: false, hovered, text: hovered && outcome.reason !== "same" ? refusalText(outcome.reason) : null };
     const what = names.target(target);
     const text = outcome.kind === "move" ? "Drop to move here" : outcome.kind === "swap" ? `Drop to swap with ${what ?? "this bottle"}` : "Drop to place the flight here";
@@ -78,8 +78,8 @@ export function useBracketDrag(view: DragView, actions: BracketActions, names: {
   };
 
   /** Spread on an element that can take a drop. A row handles a bottle dropped on it; anything it passes on reaches its flight. */
-  const dropProps = (target: DropTarget, handles: (o: DropOutcome) => boolean = () => true) => ({
-    onDragOver: (e: React.DragEvent) => {
+  const dropProps = (target: DropTarget, handles: (o: DropOutcome) => boolean = () => true) => {
+    const hover: (e: React.DragEvent) => void = (e) => {
       if (!held.current) return;
       const outcome = outcomeOf(target);
       if (!handles(outcome)) return; // let the flight around a row answer
@@ -91,9 +91,15 @@ export function useBracketDrag(view: DragView, actions: BracketActions, names: {
       }
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
-    },
+    };
+    return {
+    onDragEnter: hover,
+    onDragOver: hover,
     onDragLeave: (e: React.DragEvent) => {
-      if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) setOver((was) => (was === key(target) ? null : was));
+      // relatedTarget is often null in a drag: judge by where the pointer is, so moving between children keeps the target lit.
+      const box = e.currentTarget.getBoundingClientRect();
+      const inside = e.clientX > box.left && e.clientX < box.right && e.clientY > box.top && e.clientY < box.bottom;
+      if (!inside) setOver((was) => (was === key(target) ? null : was));
     },
     onDrop: (e: React.DragEvent) => {
       if (!held.current) return;
@@ -110,9 +116,13 @@ export function useBracketDrag(view: DragView, actions: BracketActions, names: {
       else if (outcome.kind === "swap") actions.swap(outcome.entryId, outcome.withEntryId, done);
       else actions.reorder(outcome.heatId, outcome.toSlot, done);
     },
-  });
+    };
+  };
 
-  return { drag, message, start, end, cue, dropProps, disabled: actions.pending };
+  /** Say what a menu edit did, as a drop does. */
+  const announce = (outcome: DropOutcome) => setMessage(describeOutcome(view, outcome) ?? "");
+
+  return { drag, message, announce, start, end, cue, dropProps, disabled: actions.pending };
 }
 
 export type BracketDrag = ReturnType<typeof useBracketDrag>;

@@ -85,7 +85,7 @@ export function FlightCard({
       )}
     >
       {flightCue?.text ? (
-        <p aria-hidden className="pointer-events-none absolute right-0 top-2 z-10 border border-foreground bg-background px-2 py-0.5 text-xs font-medium">
+        <p aria-hidden className="pointer-events-none absolute right-0 top-[3.25rem] z-10 border border-foreground bg-background px-2 py-0.5 text-xs font-medium">
           {flightCue.text}
         </p>
       ) : null}
@@ -162,8 +162,18 @@ export function FlightCard({
                           targets={moveTargets}
                           anyOther={anyOther}
                           swaps={swapTargets}
-                          onMove={(heatId, done) => actions.move(row.entryId, heatId, done)}
-                          onSwap={(withEntryId, done) => actions.swap(row.entryId, withEntryId, done)}
+                          onMove={(heatId, done) =>
+                            actions.move(row.entryId, heatId, () => {
+                              done();
+                              dnd.announce({ kind: "move", entryId: row.entryId, toHeatId: heatId });
+                            })
+                          }
+                          onSwap={(withEntryId, done) =>
+                            actions.swap(row.entryId, withEntryId, () => {
+                              done();
+                              dnd.announce({ kind: "swap", entryId: row.entryId, withEntryId });
+                            })
+                          }
                         />
                       ) : null}
                       {removable ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Command as Cmdk } from "cmdk";
 import { ArrowLeft, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -57,6 +58,8 @@ export function MoveMenu({
       <PopoverContent align="end" className="w-80">
         {mode === "menu" ? (
           <Command>
+            {/* Takes the focus so the arrow keys and Enter drive the list (a list alone would leave it on the popover). */}
+            <Cmdk.Input autoFocus className="sr-only" aria-label={`Choose where to put ${name}`} />
             <CommandList className="max-h-[22rem]">
               <CommandGroup heading="Move to flight">
                 {targets.map((t) => (
