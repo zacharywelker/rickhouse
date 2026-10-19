@@ -24,6 +24,13 @@ describe("mashbillClass", () => {
     expect(mashbillClass(ryeShare(12))).toBe("Low rye");
     expect(mashbillClass(ryeShare(8))).toBe("Low rye");
   });
+  it("gives no class to a recipe that leaves a fifth or more unaccounted for, unless a listed rye is 20+", () => {
+    expect(mashbillClass(recipe([["Corn", 75]]))).toBeNull();
+    expect(mashbillClass(recipe([["Corn", 75], ["Rye", 21], ["Malted Barley", 4]]))).toBe("High rye");
+    expect(mashbillClass(recipe([["Corn", 80], ["Rye", 12], ["Malted Barley", 8]]))).toBe("Low rye");
+    expect(mashbillClass(recipe([["Corn", 70], ["Rye", 12]]))).toBeNull();
+    expect(mashbillClass(recipe([["Corn", 60], ["Wheat", 16]]))).toBeNull();
+  });
   it("adds up every grain of the rye family", () => {
     expect(mashbillClass(recipe([["Corn", 60], ["Rye", 12], ["Malted Rye", 8], ["Barley", 20]]))).toBe("High rye");
   });
@@ -41,8 +48,8 @@ describe("mashbillClass", () => {
     expect(mashbillClass({ kind: "blend" })).toBeNull();
     expect(mashbillClass(recipe([]))).toBeNull();
     expect(mashbillClass(recipe([["Corn", 40]]))).toBeNull();
-    expect(mashbillClass(recipe([["Corn", 49]]))).toBeNull();
-    expect(mashbillClass(recipe([["Corn", 50]]))).toBe("Low rye");
+    expect(mashbillClass(recipe([["Corn", 89]]))).toBeNull();
+    expect(mashbillClass(recipe([["Corn", 90]]))).toBe("Low rye");
     expect(mashbillClass(null)).toBeNull();
   });
 });
@@ -77,10 +84,14 @@ describe("autoLabel", () => {
     expect(at(12)).toBe("Low rye bourbons");
   });
 
-  it("treats a partial recipe as unknown and blocks the shared class", () => {
-    const partial = recipe([["Corn", 40], ["Malted Barley", 9]]);
+  it("treats a partial recipe (corn 75 alone) as unknown and blocks the shared class", () => {
+    const partial = recipe([["Corn", 75]]);
     expect(autoLabel(two({ category: "Bourbon", mashbill: partial }))).toBe("Bourbons");
     expect(autoLabel([e(1, { category: "Bourbon", mashbill: generic("Low Rye") }), e(2, { category: "Bourbon", mashbill: partial })])).toBe("Bourbons");
+  });
+
+  it("leaves a generic style unaffected by the completeness rule", () => {
+    expect(autoLabel(two({ category: "Bourbon", mashbill: generic("Low Rye") }))).toBe("Low rye bourbons");
   });
 
   it("drops High rye and Low rye in a rye category but keeps Wheated and finishes", () => {
