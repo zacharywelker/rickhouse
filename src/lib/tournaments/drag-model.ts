@@ -2,7 +2,7 @@ import { canMove, isOpen, type ActionView } from "./bracket-actions";
 import type { TournamentView, ViewHeat } from "./view";
 
 /** What a drop is judged against: the rules of the menu (`canMove`) plus how big a flight may be. */
-export type DragView = ActionView & Pick<TournamentView, "heatSize">;
+export type DragView = Pick<ActionView, "status" | "blind" | "currentRound" | "rounds"> & Pick<TournamentView, "heatSize">;
 
 export type Drag = { kind: "bottle"; entryId: number; fromHeatId: number } | { kind: "flight"; heatId: number };
 export type DropTarget =
@@ -81,5 +81,26 @@ export function refusalText(reason: DropReason): string {
       return "Can't change";
     default:
       return "Can't drop here";
+  }
+}
+
+/** The sentence a screen reader hears once a drop has been saved ("Moved B1 to Flight 3"); null for a refused drop. */
+export function describeOutcome(view: DragView, outcome: DropOutcome): string | null {
+  const heats = view.rounds.flatMap((r) => r.heats);
+  const nameOf = (id: number) => heats.flatMap((h) => h.entries).find((e) => e.entryId === id)?.name ?? "bottle";
+  const numberOf = (heatId: number) => {
+    const heat = heats.find((h) => h.id === heatId);
+    const round = view.rounds.find((r) => r.round === heat?.round)?.heats ?? [];
+    return round.slice().sort((a, b) => a.slot - b.slot).findIndex((h) => h.id === heatId) + 1;
+  };
+  switch (outcome.kind) {
+    case "move":
+      return `Moved ${nameOf(outcome.entryId)} to Flight ${numberOf(outcome.toHeatId)}`;
+    case "swap":
+      return `Swapped ${nameOf(outcome.entryId)} with ${nameOf(outcome.withEntryId)}`;
+    case "reorder":
+      return `Moved flight ${numberOf(outcome.heatId)} to position ${outcome.toSlot}`;
+    default:
+      return null;
   }
 }

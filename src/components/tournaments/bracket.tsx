@@ -4,12 +4,14 @@ import * as React from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { matchEntries, stepMatch } from "@/lib/tournaments/bracket-search";
+import { canDragBottle, canDragFlight, type DragView } from "@/lib/tournaments/drag-model";
 import { isOpen, type FlightControls } from "@/lib/tournaments/bracket-actions";
 import type { BracketModel } from "@/lib/tournaments/bracket-model";
 import type { TournamentView } from "@/lib/tournaments/view";
 import { BracketFind } from "./bracket-find";
 import { FlightCard, rowDomId } from "./flight-card";
 import { useBracketActions } from "./use-bracket-actions";
+import { useBracketDrag } from "./use-bracket-drag";
 import { useStickyScrollPadding } from "./use-sticky-scroll-padding";
 
 /**
@@ -24,7 +26,7 @@ export function Bracket({
   heatSize,
   draft,
   controls,
-  rounds,
+  view,
 }: {
   tournamentId: number;
   model: BracketModel;
@@ -33,10 +35,16 @@ export function Bracket({
   draft: boolean;
   /** What each flight offers, by flight id. */
   controls: Record<number, FlightControls>;
-  /** For the search only; a hidden flight carries no names. */
-  rounds: TournamentView["rounds"];
+  /** What the search and the drop rules read; a hidden flight carries no names. */
+  view: DragView;
 }) {
+  const rounds = view.rounds satisfies TournamentView["rounds"];
   const actions = useBracketActions(tournamentId);
+  const nameOf = React.useCallback(
+    (t: { kind: string; entryId?: number }) => (t.entryId === undefined ? null : (rounds.flatMap((r) => r.heats).flatMap((h) => h.entries).find((e) => e.entryId === t.entryId)?.name ?? null)),
+    [rounds],
+  );
+  const dnd = useBracketDrag(view, actions, { target: nameOf });
   const host = React.useRef<HTMLDivElement>(null);
   useStickyScrollPadding(host);
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<number>>(new Set());
@@ -113,6 +121,9 @@ export function Bracket({
           onStep={step}
         />
       )}
+      <p role="status" aria-live="polite" className={dnd.message ? "text-sm text-muted-foreground" : "sr-only"}>
+        {dnd.message}
+      </p>
       {actions.error ? (
         <p role="alert" className="text-sm text-destructive">
           {actions.error}
@@ -152,14 +163,21 @@ export function Bracket({
                 <div id={`round-body-${column.round}`} hidden={isCollapsed}>
                   {column.flights.map((flight) => {
                     const others = column.flights.filter((other) => other.id !== flight.id && isOpen(other));
+                    const heat = rounds.flatMap((r) => r.heats).find((h) => h.id === flight.id);
                     return (
                       <FlightCard
                         key={flight.id}
                         tournamentId={tournamentId}
                         flight={flight}
                         controls={controls[flight.id] ?? { play: false, undo: false, move: false, withdraw: [] }}
-                        moveTargets={others.map((other) => ({ heatId: other.id, title: `Flight ${other.number} · ${other.title.text}`, full: other.count >= heatSize }))}
-                        swapTargets={others.flatMap((other) => other.rows.map((row) => ({ entryId: row.entryId, name: row.name, flight: `Flight ${other.number}` })))}
+                        moveTargets={others
+                          .filter((other) => other.count < heatSize)
+                          .map((other) => ({ heatId: other.id, title: `Flight ${other.number} · ${other.title.text}`, count: other.count, size: heatSize }))}
+                        anyOther={others.some((other) => !other.hidden)}
+                        swapTargets={() => others.flatMap((other) => other.rows.map((row) => ({ entryId: row.entryId, name: row.name, flight: `Flight ${other.number}` })))}
+                        dnd={dnd}
+                        canDragRows={!!heat && canDragBottle(view, heat)}
+                        canDragFlight={!!heat && canDragFlight(view, heat)}
                         marks={marks.get(flight.id) ?? noMarks}
                         actions={actions}
                         draft={draft}

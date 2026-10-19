@@ -1,7 +1,17 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, GripVertical } from "lucide-react";
 import type { ReactNode } from "react";
 import type { FlightModel, RowModel } from "@/lib/tournaments/bracket-model";
 import { cn } from "@/lib/utils";
+import type { DropCue } from "./use-bracket-drag";
+
+/** Everything a row needs to be picked up and to take a drop. */
+export type RowDrag = {
+  label: string;
+  held: boolean;
+  cue: DropCue | null;
+  props: { onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void; draggable: boolean };
+  dropProps: Record<string, unknown>;
+};
 
 /**
  * The fixed columns, shared by the header and every row: name, proof, mashbill (with its category under it), age,
@@ -15,9 +25,10 @@ const COLUMNS =
 const SLOT = ["w-6", "w-11", "w-[5.5rem]"] as const;
 export type Slots = 0 | 1 | 2;
 
-export function ColumnHeader({ decided, slots }: { decided: boolean; slots: Slots }) {
+export function ColumnHeader({ decided, slots, handle = false }: { decided: boolean; slots: Slots; handle?: boolean }) {
   return (
     <div className="hidden items-center border-l-[3px] border-t border-transparent border-t-border py-1 pl-2 text-xs text-muted-foreground md:flex">
+      {handle ? <span className="w-8 shrink-0" aria-hidden /> : null}
       {decided ? <span className="w-6 shrink-0" aria-hidden /> : null}
       <span className={cn(COLUMNS, "items-center")}>
         <span>Bottle</span>
@@ -54,6 +65,7 @@ export function EntryRow({
   places,
   domId,
   mark,
+  drag,
 }: {
   row: RowModel;
   flight: FlightModel;
@@ -63,6 +75,8 @@ export function EntryRow({
   places: boolean;
   domId: string;
   mark?: "match" | "current";
+  /** Drag and drop for this row, when it can be moved. */
+  drag?: RowDrag;
 }) {
   const out = flight.status === "decided" && !row.advanced;
   // An advancer's arrow gives way to the row's controls while it can still be edited (a lone bottle of the current round).
@@ -77,14 +91,30 @@ export function EntryRow({
     <li
       id={domId}
       tabIndex={-1}
+      {...drag?.props}
+      {...drag?.dropProps}
       className={cn(
-        "flex min-h-11 scroll-mt-24 focus:outline-none items-center border-l-[3px] border-t border-transparent border-t-border py-1.5 pl-2",
+        "relative flex min-h-11 scroll-mt-24 focus:outline-none items-center border-l-[3px] border-t border-transparent border-t-border py-1.5 pl-2",
         row.advanced && "border-l-foreground",
         out && "text-muted-foreground",
         mark && "bg-muted",
         mark === "current" && "outline outline-2 -outline-offset-2 outline-foreground",
+        drag?.held && "opacity-50",
+        drag?.cue?.ok && "outline outline-1 -outline-offset-1 outline-dashed outline-foreground/40",
+        drag?.cue?.ok && drag.cue.hovered && "bg-muted outline-2 !outline-solid outline-foreground",
+        drag && drag.cue && !drag.cue.ok && drag.cue.hovered && "cursor-not-allowed",
       )}
     >
+      {drag ? (
+        <span
+          role="img"
+          aria-label={drag.label}
+          title="Drag to another flight, or use the menu"
+          className={cn("flex w-8 shrink-0 cursor-grab items-center justify-center self-stretch text-muted-foreground active:cursor-grabbing", drag.props.draggable ? "" : "opacity-40")}
+        >
+          <GripVertical className="size-4" aria-hidden />
+        </span>
+      ) : null}
       {places ? (
         <span className="w-6 shrink-0 text-center text-base font-semibold tabular-nums">
           <span aria-hidden>{row.place ?? ""}</span>
@@ -106,6 +136,11 @@ export function EntryRow({
         <Fact label="Distillery">{row.distilleries.length > 0 ? row.distilleries.join(", ") : dash}</Fact>
         <Fact label="Finish">{row.finishes.length > 0 ? row.finishes.join(", ") : dash}</Fact>
       </span>
+      {drag?.cue?.text ? (
+        <span aria-hidden className="pointer-events-none absolute right-2 top-0 -translate-y-1/2 border border-foreground bg-background px-1.5 text-xs font-medium">
+          {drag.cue.text}
+        </span>
+      ) : null}
       <span className={cn("flex shrink-0 items-center justify-end", SLOT[showArrow ? 0 : slots])}>
         {showArrow ? (
           <>

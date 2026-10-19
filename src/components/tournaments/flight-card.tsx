@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { EyeOff, Undo2 } from "lucide-react";
+import * as React from "react";
+import { EyeOff, GripVertical, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canRename, type FlightControls } from "@/lib/tournaments/bracket-actions";
+import { cn } from "@/lib/utils";
 import type { FlightModel } from "@/lib/tournaments/bracket-model";
 import { ColumnHeader, EntryRow, type Slots } from "./entry-row";
 import { FlightTitle } from "./flight-title";
 import { RemoveButton } from "./remove-button";
 import { MoveMenu, type MoveTarget, type SwapTarget } from "./move-menu";
 import type { BracketActions } from "./use-bracket-actions";
+import type { BracketDrag } from "./use-bracket-drag";
 import { WithdrawButton } from "./withdraw-button";
 
 export const rowDomId = (heatId: number, entryId: number) => `row-${heatId}-${entryId}`;
@@ -27,22 +30,33 @@ export function FlightCard({
   flight,
   controls,
   moveTargets,
+  anyOther,
   swapTargets,
   marks,
   actions,
+  dnd,
+  canDragRows,
+  canDragFlight,
   draft,
   onRemoved,
 }: {
   tournamentId: number;
   flight: FlightModel;
   controls: FlightControls;
-  /** The other flights a bottle of this one can go to, when moving is allowed. */
+  /** The other flights that have room for a bottle of this one. */
   moveTargets: MoveTarget[];
-  /** The bottles of those flights, which a bottle of this one can trade places with. */
-  swapTargets: SwapTarget[];
+  /** Another open flight exists, so a bottle can be swapped with one of it. */
+  anyOther: boolean;
+  /** The bottles of the other open flights, built when a menu asks. */
+  swapTargets: () => SwapTarget[];
   /** Search hits by entry id. */
   marks: ReadonlyMap<number, "match" | "current">;
   actions: BracketActions;
+  dnd: BracketDrag;
+  /** Its bottles can be dragged (the flight can be moved from). */
+  canDragRows: boolean;
+  /** The flight itself can be dragged to another place in the round. */
+  canDragFlight: boolean;
   /** A draft: every row has a Remove button. */
   draft: boolean;
   /** A row's Remove was pressed: the ids to give focus to once the page has refreshed, best first. */
@@ -52,10 +66,46 @@ export function FlightCard({
   // Places (and the advance arrow) belong to a decided flight; a lone bottle in a draft has not been decided.
   const places = flight.status === "decided" || (flight.status === "bye" && !draft);
   const removable = draft && !flight.hidden;
+  const article = React.useRef<HTMLElement>(null);
+  const flightTarget = { kind: "flight", heatId: flight.id } as const;
+  const flightCue = dnd.cue(flightTarget);
+  const holdingThis = dnd.drag?.kind === "flight" && dnd.drag.heatId === flight.id;
   const slots = Math.min(2, (controls.move ? 1 : 0) + (withdrawable.size > 0 ? 1 : 0) + (removable ? 1 : 0)) as Slots;
   return (
-    <article aria-label={flight.title.text} className="mb-5 border-t-2 border-foreground">
+    <article
+      ref={article}
+      aria-label={flight.title.text}
+      {...(flight.hidden ? {} : dnd.dropProps(flightTarget))}
+      className={cn(
+        "relative mb-5 border-t-2 border-foreground",
+        holdingThis && "opacity-50",
+        flightCue?.ok && "outline outline-1 outline-offset-4 outline-dashed outline-foreground/40",
+        flightCue?.ok && flightCue.hovered && "bg-muted/40 outline-2 !outline-solid outline-foreground",
+        flightCue && !flightCue.ok && flightCue.hovered && "cursor-not-allowed",
+      )}
+    >
+      {flightCue?.text ? (
+        <p aria-hidden className="pointer-events-none absolute right-0 top-2 z-10 border border-foreground bg-background px-2 py-0.5 text-xs font-medium">
+          {flightCue.text}
+        </p>
+      ) : null}
+      {flightCue?.ok && flightCue.hovered && dnd.drag?.kind === "flight" ? <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-3 h-1 bg-foreground" /> : null}
       <FlightTitle
+        grip={
+          canDragFlight ? (
+            <span
+              role="img"
+              aria-label={`Drag flight ${flight.number} to reorder`}
+              title="Drag to reorder the flights"
+              draggable={!dnd.disabled}
+              onDragStart={(e) => dnd.start(e, { kind: "flight", heatId: flight.id }, article.current)}
+              onDragEnd={dnd.end}
+              className={cn("flex size-11 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing", dnd.disabled && "opacity-40")}
+            >
+              <GripVertical className="size-5" aria-hidden />
+            </span>
+          ) : null
+        }
         title={flight.title}
         headingId={flightHeadingDomId(flight.id)}
         number={flight.number}
@@ -76,7 +126,7 @@ export function FlightCard({
         </ul>
       ) : (
         <>
-          <ColumnHeader decided={places} slots={slots} />
+          <ColumnHeader decided={places} slots={slots} handle={canDragRows} />
           <ul className="border-b border-border">
             {flight.rows.map((row, i) => (
               <EntryRow
@@ -87,6 +137,21 @@ export function FlightCard({
                 places={places}
                 domId={rowDomId(flight.id, row.entryId)}
                 mark={marks.get(row.entryId)}
+                drag={
+                  canDragRows
+                    ? {
+                        label: `Drag ${row.name} to another flight, or use the menu`,
+                        held: dnd.drag?.kind === "bottle" && dnd.drag.entryId === row.entryId,
+                        cue: dnd.cue({ kind: "bottle", entryId: row.entryId, heatId: flight.id }),
+                        props: {
+                          draggable: !dnd.disabled,
+                          onDragStart: (e) => dnd.start(e, { kind: "bottle", entryId: row.entryId, fromHeatId: flight.id }),
+                          onDragEnd: dnd.end,
+                        },
+                        dropProps: dnd.dropProps({ kind: "bottle", entryId: row.entryId, heatId: flight.id }, (o) => o.kind === "swap"),
+                      }
+                    : undefined
+                }
                 action={
                   slots > 0 ? (
                     <>
@@ -95,6 +160,7 @@ export function FlightCard({
                           name={row.name}
                           busy={actions.pending}
                           targets={moveTargets}
+                          anyOther={anyOther}
                           swaps={swapTargets}
                           onMove={(heatId, done) => actions.move(row.entryId, heatId, done)}
                           onSwap={(withEntryId, done) => actions.swap(row.entryId, withEntryId, done)}

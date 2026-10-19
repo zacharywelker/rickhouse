@@ -87,7 +87,7 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
           {draft ? (
             <p className="text-sm text-muted-foreground">
               {model.columns.length > 0
-                ? `Round 1 preview, matched by ${view.seeding === "random" ? "chance" : order.join(", then ").toLowerCase()}. Each flight is named from what its bottles share, and you can rename it. Move a bottle to another flight, or swap two bottles, with its menu.`
+                ? `Round 1 preview, matched by ${view.seeding === "random" ? "chance" : order.join(", then ").toLowerCase()}. Each flight is named from what its bottles share, and you can rename it. Drag a bottle to another flight, or onto a bottle to swap them, and drag a flight by its handle to reorder; the ⋯ menu does the same from the keyboard or a touch screen.`
                 : "Add at least two entries to see the round 1 preview."}
             </p>
           ) : null}
@@ -96,7 +96,7 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
               {model.unknownProof} {model.unknownProof === 1 ? "bottle has" : "bottles have"} no proof recorded, so {model.unknownProof === 1 ? "it was" : "they were"} grouped last.
             </p>
           ) : null}
-          <Bracket tournamentId={view.id} model={model} heatSize={view.heatSize} draft={draft} controls={controls} rounds={view.rounds} />
+          <Bracket tournamentId={view.id} model={model} heatSize={view.heatSize} draft={draft} controls={controls} view={{ status: view.status, blind: view.blind, currentRound: view.currentRound, heatSize: view.heatSize, rounds: view.rounds }} />
         </div>
         {draft ? (
           <DraftSettings

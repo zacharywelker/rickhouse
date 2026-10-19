@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canDragFlight, dropOutcome, refusalText, type DragView } from "../drag-model";
+import { canDragFlight, describeOutcome, dropOutcome, refusalText, type DragView } from "../drag-model";
 import type { ViewHeat, ViewHeatEntry } from "../view";
 
 const ent = (id: number): ViewHeatEntry => ({ entryId: id, name: `B${id}`, proof: 100 } as ViewHeatEntry);
@@ -7,7 +7,7 @@ const heat = (id: number, round: number, slot: number, status: ViewHeat["status"
   id, round, slot, status, label: null, autoLabel: null, band: "", hidden: false, entryCount: ids.length, glasses: [], entries: ids.map(ent), ...extra,
 });
 const mk = (status: DragView["status"], heats: ViewHeat[], extra: Partial<DragView> = {}): DragView => ({
-  status, blind: false, heatSize: 3, entries: [], currentRound: 1, rounds: [{ round: 1, heats }], ...extra,
+  status, blind: false, heatSize: 3, currentRound: 1, rounds: [{ round: 1, heats }], ...extra,
 });
 // flight 1: 1,2,3 (full); flight 2: 4,5; flight 3: 6 (bye)
 const draft = () => mk("draft", [heat(1, 1, 1, "pending", [1, 2, 3]), heat(2, 1, 2, "pending", [4, 5]), heat(3, 1, 3, "bye", [6])]);
@@ -128,5 +128,15 @@ describe("refusalText", () => {
     expect(refusalText("full")).toBe("Full");
     expect(refusalText("same")).toBe("Already here");
     expect(refusalText("unsupported")).toBe("Can't drop here");
+  });
+});
+
+describe("describeOutcome", () => {
+  it("names what happened, with the flight number it had before and the places for a reorder", () => {
+    const v = draft();
+    expect(describeOutcome(v, { kind: "move", entryId: 1, toHeatId: 2 })).toBe("Moved B1 to Flight 2");
+    expect(describeOutcome(v, { kind: "swap", entryId: 4, withEntryId: 1 })).toBe("Swapped B4 with B1");
+    expect(describeOutcome(v, { kind: "reorder", heatId: 3, toSlot: 1 })).toBe("Moved flight 3 to position 1");
+    expect(describeOutcome(v, { kind: "none", reason: "full" })).toBeNull();
   });
 });
