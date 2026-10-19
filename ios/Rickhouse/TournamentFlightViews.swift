@@ -31,7 +31,8 @@ struct FlightCardView: View {
             } else {
                 ForEach(flight.rows) { row in
                     Divider()
-                    FlightRowView(row: row, decided: flight.status == .decided, bye: flight.status == .bye, moves: moves)
+                    FlightRowView(row: row, decided: flight.status == .decided, bye: flight.status == .bye,
+                                  final: flight.status == .decided && !flight.rows.contains { $0.advanced }, moves: moves)
                 }
                 Divider()
             }
@@ -81,10 +82,13 @@ struct FlightRowView: View {
     /// The flight is decided: show places, and who goes through.
     let decided: Bool
     let bye: Bool
+    /// A decided flight nobody advances from: the final, where place 1 is the champion.
+    let final: Bool
     let moves: FlightCardView.MoveOptions?
     @Environment(\.dynamicTypeSize) private var typeSize
 
-    private var out: Bool { decided && !row.advanced }
+    private var champion: Bool { final && row.place == 1 }
+    private var out: Bool { decided && !row.advanced && !champion }
     private var showsPlace: Bool { decided && !bye }
 
     var body: some View {
@@ -93,8 +97,8 @@ struct FlightRowView: View {
                 Text(row.place.map(String.init) ?? "").font(.headline(18)).frame(width: 24, alignment: .center).padding(.top, 8).accessibilityHidden(true)
             }
             text.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
-            if row.advanced {
-                Label("Advances", systemImage: "arrow.right").font(.inter(12, .semibold)).foregroundStyle(Theme.ink)
+            if row.advanced || champion {
+                Label(champion ? "Champion" : "Advances", systemImage: champion ? "trophy" : "arrow.right").font(.inter(12, .semibold)).foregroundStyle(Theme.ink)
                     .padding(.top, 12).accessibilityHidden(true)
             } else if let moves {
                 menu(moves)
@@ -102,7 +106,7 @@ struct FlightRowView: View {
         }
         .padding(.leading, 8)
         .frame(minHeight: 44)
-        .overlay(alignment: .leading) { if row.advanced { Rectangle().fill(Theme.ink).frame(width: 3) } }
+        .overlay(alignment: .leading) { if row.advanced || champion { Rectangle().fill(Theme.ink).frame(width: 3) } }
         .foregroundStyle(out ? Theme.muted : Theme.ink)
     }
 
@@ -126,8 +130,9 @@ struct FlightRowView: View {
         return layout {
             if let glass = row.glass { Text("Glass \(glass)").fixedSize() }
             Text(row.proof == "—" ? "No proof" : "\(row.proof) proof").monospacedDigit().fixedSize(horizontal: false, vertical: true)
-            Text(row.mashbill).frame(maxWidth: typeSize.isAccessibilitySize ? nil : .infinity, alignment: .leading)
-            Text(row.age).monospacedDigit().fixedSize()
+            if row.mashbill != "—" { Text(row.mashbill).frame(maxWidth: typeSize.isAccessibilitySize ? nil : .infinity, alignment: .leading) }
+            else if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
+            if row.age != "—" { Text(row.age).monospacedDigit().fixedSize() }
         }
         .font(.inter(13))
         .foregroundStyle(Theme.muted)
@@ -141,7 +146,7 @@ struct FlightRowView: View {
         if let glass = row.glass { parts.append("glass \(glass)") }
         var line = parts.joined(separator: ", ")
         if showsPlace, let place = row.place { line = "Place \(place). " + line }
-        return row.advanced ? line + ", advances" : line
+        return row.advanced ? line + ", advances" : champion ? line + ", champion" : line
     }
 
     private func menu(_ moves: FlightCardView.MoveOptions) -> some View {
@@ -185,22 +190,23 @@ struct CompactFlightView: View {
     }
 
     private func line(_ row: CompactRow) -> some View {
-        let out = flight.status == .decided && !row.advanced
+        let champion = flight.status == .decided && row.place == 1 && !flight.rows.contains { $0.advanced }
+        let out = flight.status == .decided && !row.advanced && !champion
         let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(row.place.map(String.init) ?? "").font(.headline(16)).frame(width: 22).accessibilityHidden(true)
+            if flight.status == .decided { Text(row.place.map(String.init) ?? "").font(.headline(16)).frame(width: 22).accessibilityHidden(true) }
             layout {
                 Text(row.name).font(.inter(15, .medium)).frame(maxWidth: .infinity, alignment: .leading)
                 Text(row.proof).font(.inter(14)).monospacedDigit().foregroundStyle(Theme.muted)
                     .accessibilityLabel(row.proof == "—" ? "no proof" : "\(row.proof) proof")
             }
-            Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold)).opacity(row.advanced ? 1 : 0).frame(width: 18)
+            Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold)).opacity(row.advanced || champion ? 1 : 0).frame(width: 18)
                 .accessibilityHidden(true)
         }
         .padding(.vertical, 6)
         .padding(.leading, 4)
         .frame(minHeight: 36)
-        .overlay(alignment: .leading) { if row.advanced { Rectangle().fill(Theme.ink).frame(width: 3) } }
+        .overlay(alignment: .leading) { if row.advanced || champion { Rectangle().fill(Theme.ink).frame(width: 3) } }
         .foregroundStyle(out ? Theme.muted : Theme.ink)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(compactSpoken(row))
