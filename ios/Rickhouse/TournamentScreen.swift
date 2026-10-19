@@ -43,7 +43,7 @@ struct TournamentScreen: View {
             .sheet(item: $sheet) { sheetContent($0) }
             .sheet(isPresented: $editingField, onDismiss: saveField) { FieldPickerSheet(field: $fieldDraft) }
             .confirmSheet("Start this tournament?", message: "The field locks when you start. You can still withdraw bottles.",
-                          confirm: "Start tournament", cancel: "Not yet", isPresented: $confirmingStart) { Task { await model.start() } }
+                          confirm: "Start tournament", cancel: "Not yet", destructive: false, isPresented: $confirmingStart) { Task { await model.start() } }
             .confirmSheet(TournamentRunLogic.withdrawTitle(withdrawing?.name ?? "this bottle"), message: TournamentRunLogic.withdrawMessage,
                           confirm: "Withdraw", cancel: "Keep it in", isPresented: $confirmingWithdraw) {
                 if let target = withdrawing { Task { await model.withdraw(entryId: target.entryId) } }
