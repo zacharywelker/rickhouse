@@ -109,7 +109,7 @@ struct StandingsSection: View {
             }
         }
         .padding(.vertical, 8)
-        .padding(.leading, row.champion ? 8 : 0)
+        .padding(.leading, 8)
         .frame(minHeight: 44)
         .overlay(alignment: .leading) { if row.champion { Rectangle().fill(Theme.ink).frame(width: 3) } }
         .accessibilityElement(children: .combine)
