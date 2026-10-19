@@ -13,7 +13,10 @@ final class StubURLProtocol: URLProtocol {
     /// Answers given first, one per request, before `status`/`reply` take over (a failed change, then the reload).
     nonisolated(unsafe) static var queue: [(status: Int, body: Data)] = []
 
-    static func reset() { sent = []; status = 200; reply = Data("{}".utf8); versionHeader = "1"; queue = [] }
+    /// Seconds each request waits before it is answered, one per request in order (a slow load that finishes after a change).
+    nonisolated(unsafe) static var delays: [TimeInterval] = []
+
+    static func reset() { sent = []; status = 200; reply = Data("{}".utf8); versionHeader = "1"; queue = []; delays = [] }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -41,9 +44,13 @@ final class StubURLProtocol: URLProtocol {
         if let v = Self.versionHeader { headers["x-rickhouse-api"] = v }
         let next = Self.queue.isEmpty ? (status: Self.status, body: Self.reply) : Self.queue.removeFirst()
         let response = HTTPURLResponse(url: url, statusCode: next.status, httpVersion: nil, headerFields: headers)!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: next.body)
-        client?.urlProtocolDidFinishLoading(self)
+        let wait = Self.delays.isEmpty ? 0 : Self.delays.removeFirst()
+        let answer = { [self] in
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: next.body)
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        if wait > 0 { DispatchQueue.global().asyncAfter(deadline: .now() + wait, execute: answer) } else { answer() }
     }
 
     override func stopLoading() {}

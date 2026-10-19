@@ -115,6 +115,28 @@ final class TournamentModelTests: XCTestCase {
         XCTAssertEqual(try lastSent().body?["label"] as? String, "Rye night")
     }
 
+    func testASlowLoadThatFinishesAfterAChangeDoesNotOverwriteIt() async throws {
+        let m = await loaded("Old")
+        StubURLProtocol.queue = [(status: 200, body: json(name: "Stale"))]
+        StubURLProtocol.delays = [0.3]
+        StubURLProtocol.reply = json(name: "Fresh")
+        let slow = Task { await m.load() }
+        try await Task.sleep(for: .milliseconds(80))
+        _ = await m.rename(heatId: 10, label: "Rye night")
+        XCTAssertEqual(m.view?.name, "Fresh")
+        await slow.value
+        XCTAssertEqual(m.view?.name, "Fresh", "the load began before the change, so its answer is dropped")
+    }
+
+    func testALoadAfterAChangeIsKept() async {
+        let m = await loaded("Old")
+        StubURLProtocol.reply = json(name: "Fresh")
+        _ = await m.rename(heatId: 10, label: nil)
+        StubURLProtocol.reply = json(name: "Newest")
+        await m.load()
+        XCTAssertEqual(m.view?.name, "Newest")
+    }
+
     func testStartResetAndPatchShapes() async throws {
         let m = await loaded()
         await m.start()

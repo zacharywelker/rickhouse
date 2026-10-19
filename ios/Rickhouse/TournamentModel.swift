@@ -27,6 +27,8 @@ final class TournamentModel {
     @ObservationIgnored var api: () -> APIClient? = { nil }
     @ObservationIgnored var signOut: () -> Void = {}
     @ObservationIgnored private let zoomStore: ZoomStore
+    /// Bumped whenever a view is adopted and whenever an action starts: a load that began earlier is out of date and dropped.
+    @ObservationIgnored private var generation = 0
 
     init(id: Int, zoomStore: ZoomStore = UserDefaultsZoomStore()) {
         self.id = id
@@ -40,6 +42,7 @@ final class TournamentModel {
     }
 
     private func adopt(_ next: TournamentView) {
+        generation += 1
         view = next
         bracket = TournamentBracketModel.build(next)
     }
@@ -47,13 +50,17 @@ final class TournamentModel {
     /// Loads (or reloads) the view. The first failure is `loadError`; a later one keeps the page and offers Retry.
     func load() async {
         guard let api = api() else { return }
+        let started = generation
         do {
-            adopt(try await api.tournament(id: id))
+            let next = try await api.tournament(id: id)
+            guard generation == started else { return }
+            adopt(next)
             hasLoaded = true
             loadError = nil
         } catch APIError.unauthorized {
             signOut()
         } catch {
+            guard generation == started else { return }
             if hasLoaded { foot.fail(error, retry: { [weak self] in Task { await self?.load() } }) } else { loadError = error.localizedDescription }
         }
     }
@@ -93,6 +100,7 @@ final class TournamentModel {
     func draw(then open: @escaping (DrawnHeat) -> Void) async {
         guard !pending, let api = api() else { return }
         pending = true
+        generation += 1
         defer { pending = false }
         do {
             open(try await api.drawFlight(tournamentId: id))
@@ -117,6 +125,7 @@ final class TournamentModel {
         guard !pending else { return .busy }
         guard let api = api() else { return .failed(message: "Not signed in.", fields: [:]) }
         pending = true
+        generation += 1
         defer { pending = false }
         do {
             adopt(try await call(api))
