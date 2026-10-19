@@ -8,6 +8,8 @@ struct CompactRow: Equatable, Identifiable {
     let place: Int?
     let name: String
     let proof: String
+    /// In a decided flight: this bottle goes through to the next round.
+    var advanced = false
 
     var id: Int { entryId }
 }
@@ -47,7 +49,7 @@ enum ZoomProjection {
         for case .round(let column) in model.columns where column.round == round {
             return column.flights.map { f in
                 CompactFlight(id: f.id, title: f.title.text, status: f.status, hidden: f.hidden, count: f.count,
-                              rows: f.rows.map { CompactRow(entryId: $0.entryId, place: $0.place, name: $0.name, proof: $0.proof) })
+                              rows: f.rows.map { CompactRow(entryId: $0.entryId, place: $0.place, name: $0.name, proof: $0.proof, advanced: $0.advanced) })
             }
         }
         return []

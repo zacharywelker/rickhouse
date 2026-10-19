@@ -119,7 +119,7 @@ final class TournamentZoomTests: XCTestCase {
     func testCompactGivesPlaceNameAndProofPerRow() {
         let flights = ZoomProjection.compact(TournamentBracketModel.build(mid), round: 2)
         XCTAssertEqual(flights.count, 3)
-        XCTAssertEqual(flights[0].rows, [CompactRow(entryId: 50, place: 1, name: "Alpha", proof: "90"), CompactRow(entryId: 51, place: 2, name: "Beta", proof: "91")])
+        XCTAssertEqual(flights[0].rows, [CompactRow(entryId: 50, place: 1, name: "Alpha", proof: "90", advanced: true), CompactRow(entryId: 51, place: 2, name: "Beta", proof: "91")])
         XCTAssertEqual(flights[1].rows.map(\.place), [nil, nil])
         XCTAssertEqual(flights[1].rows.map(\.name), ["Gamma", "Delta"])
     }
