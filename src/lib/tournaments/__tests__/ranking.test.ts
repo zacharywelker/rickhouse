@@ -179,3 +179,11 @@ describe("audit", () => {
     expect(audit(strengths, new Map([["a", 5], ["b", 7], ["c", 7.5], ["d", 8], ["e", 8.5], ["f", 9]]))).not.toEqual([]);
   });
 });
+
+describe("a 6-way heat", () => {
+  it("ranks six bottles from a single full ranking, strongest first", () => {
+    const rows = rankCompetitors([heat(["a", "b", "c", "d", "e", "f"]), heat(["a", "b", "c", "d", "e", "f"])]);
+    expect(rows.map((r) => r.id)).toEqual(["a", "b", "c", "d", "e", "f"]);
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+});

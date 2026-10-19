@@ -1190,7 +1190,7 @@ export const tournaments = pgTable(
       .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     status: text("status").notNull().default("draft").$type<TournamentStatus>(),
-    /** One flight size per tournament, 2 to 4. */
+    /** One flight size per tournament, 2 to 6. */
     heatSize: smallint("heat_size").notNull(),
     seeding: text("seeding").notNull().default("similar").$type<"similar" | "random">(),
     /** What flights are matched on, highest priority first: each of the five keys exactly once. */
@@ -1205,7 +1205,7 @@ export const tournaments = pgTable(
   (t) => [
     index("tournaments_owner_idx").on(t.ownerId, t.createdAt.desc()),
     check("tournaments_status_check", sql`${t.status} IN ('draft', 'active', 'complete')`),
-    check("tournaments_heat_size_check", sql`${t.heatSize} BETWEEN 2 AND 4`),
+    check("tournaments_heat_size_check", sql`${t.heatSize} BETWEEN 2 AND 6`),
     check("tournaments_seeding_check", sql`${t.seeding} IN ('similar', 'random')`),
   ],
 );
@@ -1263,7 +1263,7 @@ export const tournamentHeatEntries = pgTable(
     tournamentId: integer("tournament_id").notNull(),
     /** 1 is best; null until the heat is decided, and always null in a bye. */
     place: smallint("place"),
-    /** The glass the entry is poured into in a blind heat (A to D). */
+    /** The glass the entry is poured into in a blind heat (A to F). */
     glass: text("glass"),
   },
   (t) => [

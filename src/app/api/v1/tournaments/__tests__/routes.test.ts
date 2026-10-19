@@ -130,7 +130,7 @@ describe("the list and create routes", () => {
   });
 
   it.each([
-    ["a heat size of 5", { name: "x", heatSize: 5 }, "heatSize"],
+    ["a heat size of 7", { name: "x", heatSize: 7 }, "heatSize"],
     ["a heat size of 1", { name: "x", heatSize: 1 }, "heatSize"],
     ["no name", { heatSize: 3 }, "name"],
     ["a group order missing a key", { name: "x", heatSize: 3, groupOrder: ["proof", "mashbill"] }, "groupOrder"],
@@ -203,7 +203,7 @@ describe("flights and entries", () => {
     expect(heats.recordHeat).toHaveBeenLastCalledWith(7, 3, 5, { ranking: [4, 3, 2, 1] }, 7);
     expect((await call(result.POST as never, "POST", { id: "3", heatId: "5" }, { glasses: ["B", "A", "C"] })).status).toBe(200);
     expect(heats.recordHeat).toHaveBeenLastCalledWith(7, 3, 5, { glasses: ["B", "A", "C"] }, 7);
-    for (const bad of [{ ranking: [1, 2], glasses: ["A", "B"] }, {}, { ranking: [1] }, { ranking: [1, 2, 3, 4, 5] }, { glasses: ["A", "E"] }, { ranking: [1.5, 2] }]) {
+    for (const bad of [{ ranking: [1, 2], glasses: ["A", "B"] }, {}, { ranking: [1] }, { ranking: [1, 2, 3, 4, 5, 6, 7] }, { glasses: ["A", "G"] }, { ranking: [1.5, 2] }]) {
       expect((await call(result.POST as never, "POST", { id: "3", heatId: "5" }, bad)).status).toBe(422);
     }
   });

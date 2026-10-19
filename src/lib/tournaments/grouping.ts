@@ -4,7 +4,7 @@ import type { Entrant, GroupKey } from "./types";
 
 /** The list cut into heats of `heatSize`: only the last may be short, and a heat of one is a bye. */
 function cutIntoHeats(list: readonly Entrant[], heatSize: number): Entrant[][] {
-  if (!Number.isInteger(heatSize) || heatSize < 1) throw new RangeError("heatSize must be a whole number of at least 1");
+  if (!Number.isInteger(heatSize) || heatSize < 2 || heatSize > 6) throw new RangeError("heatSize must be a whole number from 2 to 6");
   const heats: Entrant[][] = [];
   for (let i = 0; i < list.length; i += heatSize) heats.push(list.slice(i, i + heatSize));
   return heats;
@@ -13,7 +13,7 @@ function cutIntoHeats(list: readonly Entrant[], heatSize: number): Entrant[][] {
 /**
  * The entrants cut into heats of `heatSize` in similarity order. Only the last heat may be short, and a heat of one
  * is a bye. Every flight is cut at `heatSize`, even where it straddles two groups of the first key.
- * Throws a RangeError unless `heatSize` is a whole number of at least 1.
+ * Throws a RangeError unless `heatSize` is a whole number from 2 to 6.
  */
 export function groupIntoHeats(entrants: readonly Entrant[], order: readonly GroupKey[], heatSize: number): Entrant[][] {
   return cutIntoHeats(sortEntrants(entrants, order), heatSize);

@@ -99,7 +99,6 @@ describe("groupIntoHeats: edges", () => {
     const field = [entrant(1, "a", { proof: 99.9 }), entrant(2, "b", { proof: 100 }), entrant(3, "c", { proof: 104.9 }), entrant(4, "d", { proof: 105 })];
     // 99.9 is in the 95 band, 100 and 104.9 share the 100 band, 105 starts the next: the order is by band, then exact proof.
     expect(names(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 2))).toEqual([["a", "b"], ["c", "d"]]);
-    expect(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 1).map((h) => h[0]!.name)).toEqual(["a", "b", "c", "d"]);
   });
 
   it("falls back to entry id when nothing separates two entrants", () => {
@@ -107,16 +106,17 @@ describe("groupIntoHeats: edges", () => {
     expect(names(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 2))).toEqual([["earlier", "later"]]);
   });
 
-  it("refuses a heat size that is not a whole number of at least 1", () => {
+  it("refuses a heat size that is not a whole number from 2 to 6", () => {
     const field = [entrant(1, "a"), entrant(2, "b")];
-    for (const size of [0, -1, 1.5, NaN]) {
+    for (const size of [0, 1, -1, 7, 1.5, NaN]) {
       expect(() => groupIntoHeats(field, DEFAULT_GROUP_ORDER, size)).toThrow(RangeError);
     }
   });
 
-  it("makes every entrant its own heat when the heat size is 1", () => {
-    const field = [entrant(3, "c"), entrant(1, "a"), entrant(2, "b")];
-    expect(names(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 1))).toEqual([["a"], ["b"], ["c"]]);
+  it("cuts flights of up to 6 and leaves a short last flight", () => {
+    const field = Array.from({ length: 13 }, (_, i) => entrant(i + 1, `e${i + 1}`));
+    expect(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 6).map((h) => h.length)).toEqual([6, 6, 1]);
+    expect(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 5).map((h) => h.length)).toEqual([5, 5, 3]);
   });
 });
 
@@ -199,6 +199,6 @@ describe("groupAtRandom", () => {
   });
 
   it("refuses an unusable heat size, like groupIntoHeats", () => {
-    for (const bad of [0, -1, 1.5, Number.NaN]) expect(() => groupAtRandom(field, bad)).toThrow(RangeError);
+    for (const bad of [0, 1, -1, 7, 1.5, Number.NaN]) expect(() => groupAtRandom(field, bad)).toThrow(RangeError);
   });
 });

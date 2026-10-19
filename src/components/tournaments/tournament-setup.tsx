@@ -24,6 +24,8 @@ const HEAT_SIZES = [
   { value: 2, label: "2" },
   { value: 3, label: "3" },
   { value: 4, label: "4" },
+  { value: 5, label: "5" },
+  { value: 6, label: "6" },
 ] as const;
 const SEEDING = [
   { value: "similar", label: "Similar" },
@@ -46,7 +48,7 @@ export function TournamentSetup({ categories }: { categories: Option[] }) {
   const router = useRouter();
   const [field, dispatch] = React.useReducer(fieldReducer, emptyField);
   const [name, setName] = React.useState("");
-  const [heatSize, setHeatSize] = React.useState<2 | 3 | 4>(4);
+  const [heatSize, setHeatSize] = React.useState<2 | 3 | 4 | 5 | 6>(4);
   const [blind, setBlind] = React.useState(false);
   const [seeding, setSeeding] = React.useState<"similar" | "random">("similar");
   const [groupOrder, setGroupOrder] = React.useState<GroupKey[]>([...DEFAULT_GROUP_ORDER]);

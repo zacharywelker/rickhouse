@@ -1,5 +1,5 @@
 /** Glass letters a flight can use, from A (the server's set). */
-export const lettersFor = (count: number): string[] => ["A", "B", "C", "D"].slice(0, count);
+export const lettersFor = (count: number): string[] => ["A", "B", "C", "D", "E", "F"].slice(0, count);
 
 /** The list with the item at `index` moved by `delta` places; the same list when that runs off either end. */
 export function moveItem<T>(list: readonly T[], index: number, delta: -1 | 1): T[] {

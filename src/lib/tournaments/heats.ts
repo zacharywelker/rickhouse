@@ -11,7 +11,7 @@ const { tournaments, tournamentEntries, tournamentHeats, tournamentHeatEntries }
 
 const NO_HEAT = "That flight is gone.";
 const NO_ENTRY = "That entry is gone.";
-const LETTERS = ["A", "B", "C", "D"];
+const LETTERS = ["A", "B", "C", "D", "E", "F"];
 
 export type Done = { ok: true; view: TournamentView };
 

@@ -514,4 +514,51 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     await fx.finish(owner, made.id);
     expect(await m.heats.drawHeat(owner, made.id)).toMatchObject({ ok: false, status: 409 });
   });
+
+  describe("flights of 6", () => {
+    let thirteen: number[];
+    beforeAll(async () => {
+      thirteen = [];
+      for (let i = 0; i < 13; i++) thirteen.push(await fx.mkBottle(owner, await fx.mkLabel(owner, cat.whiskey, `Six ${i}`, { proof: 90 + i })));
+    });
+    const entries = () => thirteen.map((bottleId) => ({ bottleId }));
+
+    it("cuts 13 bottles into 6, 6, 1 and plays through to a champion", async () => {
+      const made = (await m.life.createTournament(owner, settings({ heatSize: 6 }), entries())) as { ok: true; id: number };
+      await m.life.startTournament(owner, made.id);
+      let view = (await m.queries.getTournament(owner, made.id))!;
+      expect(view.rounds[0]!.heats.map((h) => h.entries.length)).toEqual([6, 6, 1]);
+      await fx.finish(owner, made.id);
+      view = (await m.queries.getTournament(owner, made.id))!;
+      expect(view.status).toBe("complete");
+      // 6-way advances 3, 6-way advances 3, the bye advances 1: 7 bottles into round 2, a 6 and a 1; the final has 4.
+      expect(view.rounds[1]!.heats.map((h) => h.entries.length)).toEqual([6, 1]);
+      expect(view.champion).not.toBeNull();
+    });
+
+    it("draws a blind 6-glass flight with letters A to F and records a 6-way result by glass", async () => {
+      const made = (await m.life.createTournament(owner, settings({ heatSize: 6, blind: true }), entries())) as { ok: true; id: number };
+      await m.life.startTournament(owner, made.id);
+      const drawn = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
+      expect(drawn.heat.glasses).toHaveLength(6);
+      expect(drawn.heat.glasses.map((g) => g.glass).sort()).toEqual(["A", "B", "C", "D", "E", "F"]);
+      const order = ["F", "E", "D", "C", "B", "A"];
+      const ranked = await m.heats.recordHeat(owner, made.id, drawn.heat.heatId, { glasses: order }, owner);
+      expect(ranked.ok).toBe(true);
+      const byGlass = new Map(drawn.heat.glasses.map((g) => [g.glass, g.entry.entryId]));
+      const decided = (ranked as { view: import("../view").TournamentView }).view.rounds[0]!.heats.find((h) => h.id === drawn.heat.heatId)!;
+      expect(decided.entries.map((e) => e.entryId)).toEqual(order.map((g) => byGlass.get(g)));
+      expect(await m.heats.setGlasses(owner, made.id, decided.id, order.map((glass, i) => ({ entryId: decided.entries[i]!.entryId, glass })))).toMatchObject({ ok: false, status: 409 });
+    });
+
+    it("refuses a heat size of 7 and a glass past F", async () => {
+      await expect(m.life.createTournament(owner, settings({ heatSize: 7 }), entries())).rejects.toThrow();
+      await expect(m.sql(`INSERT INTO tournaments (owner_id, name, heat_size) VALUES ($1, 'T', 7)`, owner)).rejects.toThrow(/heat_size_check/);
+      const made = (await m.life.createTournament(owner, settings({ heatSize: 6, blind: true }), entries())) as { ok: true; id: number };
+      await m.life.startTournament(owner, made.id);
+      const drawn = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
+      const rows = drawn.heat.glasses.map((g, i) => ({ entryId: g.entry.entryId, glass: i === 0 ? "G" : g.glass }));
+      expect(await m.heats.setGlasses(owner, made.id, drawn.heat.heatId, rows)).toMatchObject({ ok: false, status: 422 });
+    });
+  });
 });

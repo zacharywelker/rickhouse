@@ -143,7 +143,7 @@ describe("createTournamentAction", () => {
 
   it("rejects a bad input with field errors", async () => {
     const out = await actions.createTournamentAction({ name: "", heatSize: 9 });
-    expect(out).toMatchObject({ ok: false, error: "Name the tournament.", fieldErrors: { name: "Name the tournament.", heatSize: "A flight holds 2 to 4 bottles." } });
+    expect(out).toMatchObject({ ok: false, error: "Name the tournament.", fieldErrors: { name: "Name the tournament.", heatSize: "A flight holds 2 to 6 bottles." } });
     expect(life.createTournament).not.toHaveBeenCalled();
     expect(calls).toEqual(["session"]);
   });
