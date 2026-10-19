@@ -15,12 +15,18 @@ struct PriorityListView: View {
         }
     }
 
+    /// Moves the key and says where it landed, as the ranking list does.
+    private func move(_ name: String, _ index: Int, _ delta: Int) {
+        order = TournamentPriority.moveKey(order, index, delta)
+        AccessibilityNotification.Announcement(TournamentPlayLogic.moved(name, to: index + delta, of: order.count)).post()
+    }
+
     private func row(index: Int, key: String) -> some View {
         let name = TournamentPriority.labels[key] ?? key
         let stepper = ArrowStepper(upLabel: "Move \(name) up", downLabel: "Move \(name) down",
                                    canMoveUp: index > 0, canMoveDown: index < order.count - 1,
-                                   onUp: { order = TournamentPriority.moveKey(order, index, -1) },
-                                   onDown: { order = TournamentPriority.moveKey(order, index, 1) })
+                                   onUp: { move(name, index, -1) },
+                                   onDown: { move(name, index, 1) })
         let text = VStack(alignment: .leading, spacing: 2) {
             Text("\(index + 1). \(name)").font(.inter(16, .medium)).foregroundStyle(Theme.ink)
             Text(TournamentPriority.help[key] ?? "").font(.inter(13)).foregroundStyle(Theme.muted)

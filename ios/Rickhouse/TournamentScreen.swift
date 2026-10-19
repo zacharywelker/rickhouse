@@ -6,6 +6,7 @@ import SwiftUI
 struct TournamentScreen: View {
     @Environment(Session.self) private var session
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var model: TournamentModel
     @State private var sheet: Sheet?
     @State private var fieldDraft = FieldState.empty
@@ -123,7 +124,7 @@ struct TournamentScreen: View {
         model.chosenRound = match.round
         Task {
             try? await Task.sleep(for: .milliseconds(120))
-            withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(TournamentFind.scrollID(match.entryId), anchor: .center) }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { proxy.scrollTo(TournamentFind.scrollID(match.entryId), anchor: .center) }
         }
     }
 

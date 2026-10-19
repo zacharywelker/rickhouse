@@ -20,8 +20,8 @@ type Props = {
   blind: boolean;
   /** The pourer drew this flight from the bracket: open straight on the glasses. */
   drawn: boolean;
-  /** Set when the flight was already decided, or the tournament not running, when the page loaded. */
-  stopped: "decided" | "not-running" | null;
+  /** Set when the flight was already decided, in a round not being played, or the tournament not running, when the page loaded. */
+  stopped: "decided" | "not-running" | "not-current" | null;
   /** An open tournament's bottles in pour order; empty for a blind one. */
   entries: PlayEntry[];
   decided: PlayDecided | null;
@@ -41,6 +41,12 @@ function StageHeading({ children }: { children: React.ReactNode }) {
 const ALREADY = /already has a result/i;
 
 /** Plays one flight: ranks it and records the result. Blind flights go through start, glasses, rank and reveal. */
+const STOPPED_TEXT = {
+  decided: "This flight is already decided.",
+  "not-running": "This tournament is not running.",
+  "not-current": "This flight is not in the round being played.",
+} as const;
+
 export function PlayFlight(props: Props) {
   const { tournamentId, blind } = props;
   const back = `/tournaments/${tournamentId}` as Route;
@@ -49,7 +55,7 @@ export function PlayFlight(props: Props) {
   if (stopped) {
     return (
       <p className="text-sm" role="status">
-        {stopped === "decided" ? "This flight is already decided." : "This tournament is not running."}{" "}
+        {STOPPED_TEXT[stopped]}{" "}
         <Link href={back} className="underline underline-offset-4">
           Back to the bracket
         </Link>

@@ -57,6 +57,19 @@ final class TournamentScreenLogicTests: XCTestCase {
         XCTAssertEqual(L.filterSwaps(swaps, query: "zzz"), [])
     }
 
+    func testLimitsCountUTF16UnitsLikeTheServer() {
+        let emoji = String(repeating: "🥃", count: 50)
+        XCTAssertEqual(emoji.count, 50)
+        XCTAssertEqual(TournamentLimits.length(emoji), 100)
+        let cut = TournamentLimits.clamp(emoji, to: 80)
+        XCTAssertEqual(TournamentLimits.length(cut), 80, "40 whole glasses, none split")
+        XCTAssertEqual(TournamentLimits.clamp("abc", to: 5), "abc")
+        XCTAssertEqual(TournamentLimits.clamp("a🥃b", to: 2), "a", "a character that does not fit is left out whole")
+        XCTAssertEqual(L.flightLabel(from: emoji).map(TournamentLimits.length), 80)
+        XCTAssertEqual(SettingsDraft.maxName, NewTournamentDraft.maxName)
+        XCTAssertEqual(SettingsDraft.maxNote, NewTournamentDraft.maxNote)
+    }
+
     func testFlightLabelTrimsCutsAndClears() {
         XCTAssertNil(L.flightLabel(from: "   "))
         XCTAssertEqual(L.flightLabel(from: "  Rye night "), "Rye night")

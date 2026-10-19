@@ -52,7 +52,7 @@ struct NewTournamentView: View {
             TextField("Bourbon, spring", text: $draft.name, axis: .vertical)
                 .lineLimit(1...3)
                 .frame(minHeight: 44)
-                .onChange(of: draft.name) { _, new in if new.count > NewTournamentDraft.maxName { draft.name = String(new.prefix(NewTournamentDraft.maxName)) } }
+                .onChange(of: draft.name) { _, new in if TournamentLimits.length(new) > NewTournamentDraft.maxName { draft.name = TournamentLimits.clamp(new, to: NewTournamentDraft.maxName) } }
                 .accessibilityLabel("Name")
             problem("name")
         } header: { SectionLabel("Name") }
@@ -116,7 +116,7 @@ struct NewTournamentView: View {
         } header: { SectionLabel("Field") }
         Section {
             TextField("How you chose these bottles", text: $draft.fieldNote, axis: .vertical).lineLimit(1...3)
-                .onChange(of: draft.fieldNote) { _, new in if new.count > NewTournamentDraft.maxNote { draft.fieldNote = String(new.prefix(NewTournamentDraft.maxNote)) } }
+                .onChange(of: draft.fieldNote) { _, new in if TournamentLimits.length(new) > NewTournamentDraft.maxNote { draft.fieldNote = TournamentLimits.clamp(new, to: NewTournamentDraft.maxNote) } }
                 .accessibilityLabel("Field note, optional")
             problem("fieldNote")
         } header: { SectionLabel("Field note (optional)") }

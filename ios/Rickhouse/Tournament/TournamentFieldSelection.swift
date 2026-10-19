@@ -139,6 +139,8 @@ enum TournamentFieldSelection {
                 return .label(PickedLabel(expressionId: x, name: e.name))
             case .adhoc:
                 return .adhoc(PickedAdhoc(key: adhocKey(e.name), name: e.name))
+            case .unknown:
+                return nil
             }
         })
     }

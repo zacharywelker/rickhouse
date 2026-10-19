@@ -31,8 +31,8 @@ struct SwapTarget: Equatable, Identifiable {
 
 /// The settings sheet's working copy. `patch` is only what changed; nil when nothing did.
 struct SettingsDraft: Equatable {
-    static let maxName = 80
-    static let maxNote = 200
+    static let maxName = TournamentLimits.name
+    static let maxNote = TournamentLimits.note
 
     var name: String
     var heatSize: Int
@@ -176,12 +176,12 @@ enum TournamentScreenLogic {
 
     // MARK: Renaming
 
-    static let maxFlightName = 80
+    static let maxFlightName = TournamentLimits.flightName
 
     /// What the rename box saves: nothing typed (or only spaces) clears your name; a long one is cut at 80.
     static func flightLabel(from text: String) -> String? {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.isEmpty ? nil : String(t.prefix(maxFlightName))
+        return t.isEmpty ? nil : TournamentLimits.clamp(t, to: maxFlightName)
     }
 
     // MARK: Words for the Map

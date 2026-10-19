@@ -13,6 +13,7 @@ struct TournamentsView: View {
     @State private var opened: Int?
     @State private var createdID: Int?
     @State private var deleting: TournamentSummary?
+    @State private var confirmingDelete = false
 
     var body: some View {
         content
@@ -29,7 +30,7 @@ struct TournamentsView: View {
                 NewTournamentView { createdID = $0 }
             }
             .confirmSheet("Delete \(deleting?.name ?? "this tournament")?", message: "Its flights and results go with it. Your bottles and tastings stay.",
-                          confirm: "Delete tournament", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
+                          confirm: "Delete tournament", isPresented: $confirmingDelete) {
                 if let target = deleting { delete(target) }
             }
             .task { await load() }
@@ -73,7 +74,7 @@ struct TournamentsView: View {
                     NavigationLink { TournamentScreen(id: summary.id) } label: { TournamentRow(summary: summary) }
                         .swipeActions {
                             if TournamentSummaryText.canDelete(summary) {
-                                Button("Delete", role: .destructive) { deleting = summary }.tint(Theme.error)
+                                Button("Delete", role: .destructive) { deleting = summary; confirmingDelete = true }.tint(Theme.error)
                             }
                         }
                 }

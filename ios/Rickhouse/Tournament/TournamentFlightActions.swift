@@ -50,7 +50,7 @@ enum FlightActions {
     /// Reset to automatic: regroup the undecided flights; a draft needs two entries, a running one something undecided; never when finished.
     static func canReset(_ view: TournamentView) -> Bool {
         switch view.status {
-        case .complete: return false
+        case .complete, .unknown: return false
         case .draft: return view.entries.filter { $0.status == .active }.count >= 2
         case .active:
             guard let current = view.rounds.first(where: { $0.round == view.currentRound }) else { return false }

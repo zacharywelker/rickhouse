@@ -83,4 +83,4 @@ Finishing a bottle (marking it killed), editing a bottle's other fields, creatin
 
 ## Tests
 
-`xcodegen generate`, then run the `Rickhouse` scheme's tests (`RickhouseTests`). They cover the logic of editing facts (`EditDrafts.swift`): what changed, what is sent, what an undo sends back, and the checks made before the server is asked. Screens are checked by hand on the Simulator.
+`xcodegen generate`, then run the `Rickhouse` scheme's tests (`RickhouseTests`). They cover the logic of editing facts (`EditDrafts.swift`): what changed, what is sent, what an undo sends back, and the checks made before the server is asked. The tournament code is covered the same way: the pure logic (`Rickhouse/Tournament/*`: bracket model, flight actions, play flow, field selection, priority, ranking, limits) and the models (`TournamentModel`, `PlayModel`, `RankingModel`) are tested in `Tournament*Tests.swift` against `StubURLProtocol`, a `URLProtocol` that `APIClient.session` is pointed at, so no server is needed (it can queue answers, fail them, and delay one to race a slow load against a change). Screens are checked by hand on the Simulator.

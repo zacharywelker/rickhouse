@@ -4,8 +4,8 @@ import Foundation
 // holds the same rules inline: name required, any number of entries, starting needs 2).
 
 struct NewTournamentDraft: Equatable {
-    static let maxName = 80
-    static let maxNote = 200
+    static let maxName = TournamentLimits.name
+    static let maxNote = TournamentLimits.note
 
     var name = ""
     var heatSize = 4

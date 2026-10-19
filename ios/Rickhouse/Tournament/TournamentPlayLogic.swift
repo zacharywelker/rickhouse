@@ -19,16 +19,23 @@ struct PlayDecided: Equatable {
 }
 
 enum PlayStopped: Equatable {
-    case decided, notRunning
+    case decided, notRunning, notCurrent
 
-    var text: String { self == .decided ? "This flight is already decided." : "This tournament is not running." }
+    var text: String {
+        switch self {
+        case .decided: "This flight is already decided."
+        case .notRunning: "This tournament is not running."
+        case .notCurrent: "This flight is not in the round being played."
+        }
+    }
 }
 
 enum TournamentPlayLogic {
     /// Why the flight cannot be played, or nil when it can (a pending flight of the current round of a running tournament).
     static func stopped(_ view: TournamentView, _ heat: TournamentHeat) -> PlayStopped? {
         if view.status == .active && heat.status == .pending && heat.round == view.currentRound { return nil }
-        return view.status != .active && heat.status == .pending ? .notRunning : .decided
+        if heat.status != .pending { return .decided }
+        return view.status == .active ? .notCurrent : .notRunning
     }
 
     /// "90 proof · 60% corn · 4 yr"; a fact that is not known is left out, as the bracket's rows do (no proof says so).

@@ -2,6 +2,21 @@ import XCTest
 @testable import Rickhouse
 
 // Mirrors src/lib/tournaments/__tests__/play-flow.test.ts, plus the two phone helpers the web did inline (RankList, GlassMapping).
+final class TournamentPlayStoppedTests: XCTestCase {
+    private func heat(_ round: Int, _ status: HeatStatus) -> TournamentHeat { Fx.heat(1, round, 1, [], status: status) }
+
+    func testStoppedSaysWhyAFlightCannotBePlayed() {
+        let running = Fx.view(.active, [[heat(1, .decided)], [heat(2, .pending)]])
+        XCTAssertNil(TournamentPlayLogic.stopped(running, running.rounds[1].heats[0]))
+        XCTAssertEqual(TournamentPlayLogic.stopped(running, running.rounds[0].heats[0]), .decided)
+        let early = Fx.view(.active, [[heat(1, .pending)], [heat(2, .pending)]])
+        XCTAssertEqual(TournamentPlayLogic.stopped(early, early.rounds[0].heats[0]), .notCurrent, "a pending flight outside the round being played is not decided")
+        XCTAssertNotEqual(PlayStopped.notCurrent.text, PlayStopped.decided.text)
+        let draft = Fx.view(.draft, [[heat(1, .pending)]])
+        XCTAssertEqual(TournamentPlayLogic.stopped(draft, draft.rounds[0].heats[0]), .notRunning)
+    }
+}
+
 final class TournamentPlayFlowTests: XCTestCase {
     private typealias P = TournamentPlayFlow
     private func row(_ id: Int, _ name: String, _ glass: String) -> MappingRow {

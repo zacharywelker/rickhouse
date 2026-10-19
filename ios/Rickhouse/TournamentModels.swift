@@ -3,10 +3,23 @@ import Foundation
 // The tournaments API's shapes, field for field (src/lib/tournaments/{view,heats,ranking-query,queries,field}.ts).
 // Numbers here are JSON numbers, unlike a bottle's numerics, which arrive as Strings.
 
-enum TournamentStatus: String, Decodable { case draft, active, complete }
-enum HeatStatus: String, Decodable { case pending, decided, bye }
-enum EntryStatus: String, Decodable { case active, withdrawn }
-enum EntryKind: String, Decodable { case bottle, label, adhoc }
+// A value a newer server adds decodes as `unknown` instead of failing the whole screen.
+enum TournamentStatus: String, Decodable {
+    case draft, active, complete, unknown
+    init(from decoder: Decoder) throws { self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown }
+}
+enum HeatStatus: String, Decodable {
+    case pending, decided, bye, unknown
+    init(from decoder: Decoder) throws { self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown }
+}
+enum EntryStatus: String, Decodable {
+    case active, withdrawn, unknown
+    init(from decoder: Decoder) throws { self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown }
+}
+enum EntryKind: String, Decodable {
+    case bottle, label, adhoc, unknown
+    init(from decoder: Decoder) throws { self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown }
+}
 enum Seeding: String, Codable { case similar, random }
 
 /// One row of the list: enough to draw a progress bar.

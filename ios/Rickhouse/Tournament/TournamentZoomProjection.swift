@@ -81,7 +81,7 @@ enum ZoomProjection {
 
     private static func tileStatus(_ s: HeatStatus) -> TileStatus {
         switch s {
-        case .pending: .pending
+        case .pending, .unknown: .pending
         case .decided: .decided
         case .bye: .bye
         }

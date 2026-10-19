@@ -6,6 +6,18 @@ final class TournamentModelsTests: XCTestCase {
         try JSONDecoder().decode(T.self, from: Data(json.utf8))
     }
 
+    func testAStatusANewerServerAddsDecodesAsUnknownInsteadOfFailing() throws {
+        let odd = heat(id: 1, status: "skipped", entries: [])
+        let entries = #"[{"id":1,"name":"A","status":"banned","kind":"cask","bottleId":null,"expressionId":null}]"#
+        let v: TournamentView = try decode(view(status: "paused", entries: entries, rounds: #"[{"round":1,"heats":[\#(odd)]}]"#))
+        XCTAssertEqual(v.status, .unknown)
+        XCTAssertEqual(v.entries[0].status, .unknown)
+        XCTAssertEqual(v.entries[0].kind, .unknown)
+        XCTAssertEqual(v.rounds[0].heats[0].status, .unknown)
+        let known: TournamentView = try decode(view(status: "active"))
+        XCTAssertEqual(known.status, .active)
+    }
+
     /// A flight's entry as the view sends it.
     private func heatEntry(_ id: Int, _ name: String, place: Int? = nil, glass: String? = nil, proof: String = "100") -> String {
         """

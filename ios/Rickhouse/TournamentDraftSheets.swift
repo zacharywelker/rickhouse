@@ -25,7 +25,7 @@ struct RenameFlightSheet: View {
                     TextField("Leave empty for the automatic name", text: $text, axis: .vertical)
                         .lineLimit(1...3)
                         .frame(minHeight: 44)
-                        .onChange(of: text) { _, new in if new.count > TournamentScreenLogic.maxFlightName { text = String(new.prefix(TournamentScreenLogic.maxFlightName)) } }
+                        .onChange(of: text) { _, new in if TournamentLimits.length(new) > TournamentScreenLogic.maxFlightName { text = TournamentLimits.clamp(new, to: TournamentScreenLogic.maxFlightName) } }
                         .accessibilityLabel("Name for flight \(number)")
                     if let problem { ErrorText(problem) }
                 } header: { SectionLabel("Name for flight \(number)") } footer: {
@@ -156,7 +156,7 @@ struct DraftSettingsSheet: View {
             Form {
                 Section {
                     TextField("Name", text: $draft.name, axis: .vertical).lineLimit(1...3).frame(minHeight: 44)
-                        .onChange(of: draft.name) { _, new in if new.count > SettingsDraft.maxName { draft.name = String(new.prefix(SettingsDraft.maxName)) } }
+                        .onChange(of: draft.name) { _, new in if TournamentLimits.length(new) > SettingsDraft.maxName { draft.name = TournamentLimits.clamp(new, to: SettingsDraft.maxName) } }
                         .accessibilityLabel("Name")
                     problem("name")
                 } header: { SectionLabel("Name") }
@@ -185,7 +185,7 @@ struct DraftSettingsSheet: View {
                 } header: { SectionLabel("Grouping priority") }
                 Section {
                     TextField("How you chose these bottles", text: $draft.note, axis: .vertical).lineLimit(1...3)
-                        .onChange(of: draft.note) { _, new in if new.count > SettingsDraft.maxNote { draft.note = String(new.prefix(SettingsDraft.maxNote)) } }
+                        .onChange(of: draft.note) { _, new in if TournamentLimits.length(new) > SettingsDraft.maxNote { draft.note = TournamentLimits.clamp(new, to: SettingsDraft.maxNote) } }
                         .accessibilityLabel("Field note, optional")
                     problem("fieldNote")
                 } header: { SectionLabel("Field note (optional)") }

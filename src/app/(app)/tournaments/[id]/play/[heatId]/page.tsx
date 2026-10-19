@@ -30,7 +30,7 @@ export default async function PlayPage({ params, searchParams }: { params: Promi
   const model = buildBracketModel(view);
   const flight = model.columns.flatMap((c) => (c.kind === "round" ? c.flights : [])).find((f) => f.id === heatId);
   const playable = view.status === "active" && heat.status === "pending" && heat.round === view.currentRound;
-  const stopped = playable ? null : view.status !== "active" ? (heat.status === "pending" ? "not-running" : "decided") : "decided";
+  const stopped = playable ? null : heat.status === "pending" ? (view.status !== "active" ? "not-running" : "not-current") : "decided";
 
   const decided: PlayDecided | null =
     heat.status === "decided"

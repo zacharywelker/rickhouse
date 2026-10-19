@@ -191,6 +191,8 @@ struct FieldPickerSheet: View {
         } catch APIError.unauthorized {
             session.signOut()
         } catch {
+            // A keystroke cancels the request before it; that is not a failure to show.
+            if Task.isCancelled || APIError.isCancellation(error) { return }
             guard ticket.isCurrent(mine) else { return }
             failed = error.localizedDescription
         }

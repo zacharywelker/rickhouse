@@ -32,6 +32,16 @@ enum APIError: LocalizedError {
     }
 }
 
+extension APIError {
+    /// A request that was cancelled on purpose (a newer keystroke replaced it): nothing to tell the person.
+    static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let url = error as? URLError { return url.code == .cancelled }
+        if case .transport(let inner) = error as? APIError { return isCancellation(inner) }
+        return false
+    }
+}
+
 /// The server's `/api/v1` and the few web routes the app borrows
 /// (`/api/auth/*`, `/api/images/*`, `/api/bottles/:id/images`). Each carries
 /// the Bearer token, so no cookie jar is involved.

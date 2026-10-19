@@ -11,6 +11,7 @@ enum TournamentSummaryText {
         switch s.status {
         case .draft: return "Draft"
         case .complete: return "Complete"
+        case .unknown: return "Status unknown"
         case .active:
             guard s.currentRound != nil else { return "Running" }
             return "\(roundLine(s)) · \(decidedLine(s))"
@@ -22,6 +23,7 @@ enum TournamentSummaryText {
         switch s.status {
         case .draft: return "Draft"
         case .complete: return "Complete"
+        case .unknown: return "Status unknown"
         case .active:
             guard let round = s.currentRound else { return "Running" }
             return s.totalRounds >= round ? "Round \(round) of \(s.totalRounds)" : "Round \(round)"
