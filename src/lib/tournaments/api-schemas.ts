@@ -54,6 +54,9 @@ export const glassSchema = z.object({ assign: z.array(z.object({ entryId: id, gl
 
 export const moveSchema = z.object({ toHeatId: id }).strict();
 
+/** `POST .../heats/:id/move`: the flight's new place among the round's flights (1 = first); the range is checked against the round. */
+export const moveHeatSchema = z.object({ toSlot: id }).strict();
+
 /** `POST .../entries/:id/swap`: trade places with another entry in a different flight. */
 export const swapSchema = z.object({ withEntryId: id }).strict();
 

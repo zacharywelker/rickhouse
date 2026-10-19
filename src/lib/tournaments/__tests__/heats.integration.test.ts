@@ -294,6 +294,62 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect((await m.queries.getTournament(owner, draft.id))!.entries).toHaveLength(3);
   });
 
+  it("reorders the flights of a round: first, last, same slot, range, decided refused, stranger, blind, names travel", async () => {
+    type V = import("../view").TournamentView;
+    const order = (v: V) => v.rounds[0]!.heats.map((h) => h.id);
+    const slots = (v: V) => v.rounds[0]!.heats.map((h) => h.slot);
+    const made = (await m.life.createTournament(owner, settings({ heatSize: 2 }), bottleEntries())) as { ok: true; id: number };
+    let view = (await m.queries.getTournament(owner, made.id))!;
+    const [a, b, c] = order(view) as [number, number, number];
+    expect(order(view)).toHaveLength(3);
+    await m.heats.renameHeat(owner, made.id, b, "Kept name");
+    const move = async (id: number, to: number) => (await m.heats.moveHeat(owner, made.id, id, to)) as { ok: true; view: V };
+
+    // Last slot: the ones in between shift up; slots stay 1..3; the name and bottles travel with the flight.
+    const entriesOf = (v: V, id: number) => v.rounds[0]!.heats.find((h) => h.id === id)!.entries.map((e) => e.entryId);
+    const before = entriesOf(view, a);
+    view = (await move(a, 3)).view;
+    expect(order(view)).toEqual([b, c, a]);
+    expect(slots(view)).toEqual([1, 2, 3]);
+    expect(entriesOf(view, a)).toEqual(before);
+    expect(view.rounds[0]!.heats[0]!.label).toBe("Kept name");
+    // First slot.
+    view = (await move(a, 1)).view;
+    expect(order(view)).toEqual([a, b, c]);
+    // Same slot: a no-op.
+    view = (await move(b, 2)).view;
+    expect(order(view)).toEqual([a, b, c]);
+    expect(slots(view)).toEqual([1, 2, 3]);
+    // Out of range or not an integer: 422, nothing changes.
+    for (const bad of [0, 4, -1, 1.5, Number.NaN]) expect(await m.heats.moveHeat(owner, made.id, a, bad)).toMatchObject({ ok: false, status: 422 });
+    expect(order((await m.queries.getTournament(owner, made.id))!)).toEqual([a, b, c]);
+    // Stranger and unknown ids: 404.
+    expect(await m.heats.moveHeat(other, made.id, a, 1)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.heats.moveHeat(owner, made.id, 999999, 1)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.heats.moveHeat(owner, 999999, a, 1)).toMatchObject({ ok: false, status: 404 });
+
+    // Running: a decided flight cannot be moved, an undecided one can (the decided one shifts over, order preserved).
+    await m.life.startTournament(owner, made.id);
+    const first = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats[0]!;
+    expect((await m.heats.recordHeat(owner, made.id, first.id, { ranking: first.entries.map((e) => e.entryId) }, owner)).ok).toBe(true);
+    expect(await m.heats.moveHeat(owner, made.id, first.id, 2)).toMatchObject({ ok: false, status: 409 });
+    view = (await move(c, 1)).view;
+    expect(order(view)).toEqual([c, a, b]);
+    expect(slots(view)).toEqual([1, 2, 3]);
+    expect(view.rounds[0]!.heats[1]!.status).toBe("decided");
+
+    // A blind running tournament reorders too; a finished one does not.
+    const blind = (await m.life.createTournament(owner, settings({ heatSize: 2, blind: true }), bottleEntries())) as { ok: true; id: number };
+    await m.life.startTournament(owner, blind.id);
+    const bv = (await m.queries.getTournament(owner, blind.id))!;
+    const bids = bv.rounds[0]!.heats.map((h) => h.id);
+    const moved = (await m.heats.moveHeat(owner, blind.id, bids[0]!, 3)) as { ok: true; view: V };
+    expect(moved.ok).toBe(true);
+    expect(moved.view.rounds[0]!.heats.map((h) => h.id)).toEqual([bids[1], bids[2], bids[0]]);
+    await fx.finish(owner, made.id);
+    expect(await m.heats.moveHeat(owner, made.id, c, 1)).toMatchObject({ ok: false, status: 409 });
+  });
+
   it("swaps two entries between flights: in a draft, and in a running tournament with the glass letters staying with the places", async () => {
     type V = import("../view").TournamentView;
     const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottleEntries())) as { ok: true; id: number };

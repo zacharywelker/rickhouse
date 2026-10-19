@@ -5,8 +5,8 @@ import { requireSession } from "@/lib/auth";
 import { parseInput, toActionResult, toFailure, type ActionFailure, type TournamentActionResult } from "@/lib/tournaments/action-result";
 import { fieldCandidates, labelCandidates, type FieldCandidate, type LabelCandidate } from "@/lib/tournaments/field";
 import { parseFieldFilters } from "@/lib/tournaments/field-filters";
-import { createSchema, glassSchema, moveSchema, patchSchema, promoteSchema, renameSchema, resultSchema, swapSchema } from "@/lib/tournaments/api-schemas";
-import { drawHeat, moveEntry, promoteEntry, recordHeat, removeDraftEntry, renameHeat, setGlasses, swapEntries, undoHeat, withdrawEntry, type DrawnHeat } from "@/lib/tournaments/heats";
+import { createSchema, glassSchema, moveHeatSchema, moveSchema, patchSchema, promoteSchema, renameSchema, resultSchema, swapSchema } from "@/lib/tournaments/api-schemas";
+import { drawHeat, moveEntry, moveHeat, promoteEntry, recordHeat, removeDraftEntry, renameHeat, setGlasses, swapEntries, undoHeat, withdrawEntry, type DrawnHeat } from "@/lib/tournaments/heats";
 import { createTournament, deleteTournament, resetRound, startTournament, updateDraft } from "@/lib/tournaments/lifecycle";
 import type { Failure } from "@/lib/tournaments/state";
 
@@ -117,6 +117,15 @@ export async function setGlassesAction(id: number, heatId: number, assign: unkno
   const body = parseInput(glassSchema, { assign });
   if (!body.ok) return body;
   return view(id, () => setGlasses(user.id, id, heatId, body.data.assign));
+}
+
+export async function moveHeatAction(id: number, heatId: number, toSlot: number): Promise<TournamentActionResult> {
+  const user = await requireSession();
+  if (!isId(id)) return goneTournament;
+  if (!isId(heatId)) return goneFlight;
+  const body = parseInput(moveHeatSchema, { toSlot });
+  if (!body.ok) return body;
+  return view(id, () => moveHeat(user.id, id, heatId, body.data.toSlot));
 }
 
 export async function moveEntryAction(id: number, entryId: number, toHeatId: number): Promise<TournamentActionResult> {

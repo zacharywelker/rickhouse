@@ -6,7 +6,7 @@ const { getCurrentUser, life, heats, queries, rankingFor, field } = vi.hoisted((
   return {
     getCurrentUser: vi.fn(),
     life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
-    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), removeDraftEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
+    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), removeDraftEntry: fn(), moveHeat: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     queries: { getTournament: fn(), listTournaments: fn() },
     rankingFor: vi.fn(),
     field: { fieldCandidates: fn(), labelCandidates: fn() },
@@ -28,6 +28,7 @@ import * as draw from "../[id]/draw/route";
 import * as heat from "../[id]/heats/[heatId]/route";
 import * as result from "../[id]/heats/[heatId]/result/route";
 import * as glass from "../[id]/heats/[heatId]/glass/route";
+import * as moveHeatRoute from "../[id]/heats/[heatId]/move/route";
 import * as move from "../[id]/entries/[entryId]/move/route";
 import * as swap from "../[id]/entries/[entryId]/swap/route";
 import * as withdraw from "../[id]/entries/[entryId]/withdraw/route";
@@ -67,6 +68,7 @@ const routes: [string, Parameters<typeof call>[0], string, Record<string, string
   ["POST result", result.POST as never, "POST", { id: "3", heatId: "5" }, { ranking: [1, 2] }],
   ["DELETE result", result.DELETE as never, "DELETE", { id: "3", heatId: "5" }, undefined],
   ["PUT glass", glass.PUT as never, "PUT", { id: "3", heatId: "5" }, { assign: [{ entryId: 1, glass: "A" }, { entryId: 2, glass: "B" }] }],
+  ["POST heat move", moveHeatRoute.POST as never, "POST", { id: "3", heatId: "5" }, { toSlot: 2 }],
   ["POST move", move.POST as never, "POST", { id: "3", entryId: "9" }, { toHeatId: 5 }],
   ["POST swap", swap.POST as never, "POST", { id: "3", entryId: "9" }, { withEntryId: 5 }],
   ["POST withdraw", withdraw.POST as never, "POST", { id: "3", entryId: "9" }, {}],
@@ -240,6 +242,15 @@ describe("flights and entries", () => {
     expect((await call(heat.PATCH as never, "PATCH", { id: "3", heatId: "5" }, { label: null })).status).toBe(200);
     expect(heats.renameHeat).toHaveBeenCalledWith(7, 3, 5, null);
     expect((await call(heat.PATCH as never, "PATCH", { id: "3", heatId: "5" }, { label: "x".repeat(81) })).status).toBe(422);
+    heats.moveHeat.mockResolvedValue({ ok: true, view });
+    expect((await call(moveHeatRoute.POST as never, "POST", { id: "3", heatId: "5" }, { toSlot: 2 })).status).toBe(200);
+    expect(heats.moveHeat).toHaveBeenCalledWith(7, 3, 5, 2);
+    for (const bad of [{ toSlot: 0 }, { toSlot: 1.5 }, { toSlot: "2" }, {}, { toSlot: 2, extra: 1 }]) {
+      expect((await call(moveHeatRoute.POST as never, "POST", { id: "3", heatId: "5" }, bad)).status).toBe(422);
+    }
+    expect((await call(moveHeatRoute.POST as never, "POST", { id: "3", heatId: "x" }, { toSlot: 2 })).status).toBe(404);
+    heats.moveHeat.mockResolvedValue({ ok: false, status: 422, message: "Choose a place from 1 to 3." });
+    expect((await call(moveHeatRoute.POST as never, "POST", { id: "3", heatId: "5" }, { toSlot: 9 })).status).toBe(422);
   });
 });
 
