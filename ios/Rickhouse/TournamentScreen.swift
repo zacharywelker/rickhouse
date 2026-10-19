@@ -58,6 +58,7 @@ struct TournamentScreen: View {
                         TournamentBracketView(view: view, bracket: bracket, zoom: model.zoom, chosenRound: $model.chosenRound,
                                               moves: { moveOptions(view, $0, $1) }, onRename: { rename($0) })
                     }
+                    if view.status == .draft, typeSize.isAccessibilitySize { draftBar(view, bracket).padding(.horizontal, -16) }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -65,11 +66,8 @@ struct TournamentScreen: View {
             }
             .refreshable { await model.load() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if view.status == .draft {
-                    DraftBar(canStart: TournamentScreenLogic.canStart(view), canReset: TournamentScreenLogic.canStart(view), busy: model.pending,
-                             note: TournamentScreenLogic.barNote(view, renamed: bracket.renamed),
-                             onStart: { confirmingStart = true }, onReset: { Task { await model.reset() } })
-                }
+                // At the biggest text sizes the bar would fill the screen, so it scrolls with the bracket instead.
+                if view.status == .draft, !typeSize.isAccessibilitySize { draftBar(view, bracket) }
             }
         } else if let error = model.loadError {
             ContentUnavailableView {
@@ -82,6 +80,12 @@ struct TournamentScreen: View {
         } else {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private func draftBar(_ view: TournamentView, _ bracket: BracketModel) -> some View {
+        DraftBar(canStart: TournamentScreenLogic.canStart(view), canReset: TournamentScreenLogic.canStart(view), busy: model.pending,
+                 note: TournamentScreenLogic.barNote(view, renamed: bracket.renamed),
+                 onStart: { confirmingStart = true }, onReset: { Task { await model.reset() } })
     }
 
     private var fewEntries: some View {

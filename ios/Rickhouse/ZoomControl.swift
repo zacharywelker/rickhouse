@@ -27,6 +27,7 @@ struct ZoomControl: View {
                 Text(level.title)
                     .font(.inter(15, .semibold))
                     .frame(minWidth: 72)
+                    .padding(.horizontal, 6)
                     .accessibilityLabel("Zoom level")
                     .accessibilityValue(level.title)
                 step("plus", label: "Zoom in, \(level.zoomedIn.title)", enabled: level.canZoomIn) { onChange(level.zoomedIn) }
