@@ -60,6 +60,9 @@ struct TournamentsView: View {
             }
         } else {
             List {
+                NavigationLink { RankingView() } label: {
+                    Label("Ranking and audit", systemImage: "list.number").font(.inter(16, .semibold)).foregroundStyle(Theme.ink).frame(minHeight: 44)
+                }
                 ForEach(summaries) { summary in
                     NavigationLink { TournamentScreen(id: summary.id) } label: { TournamentRow(summary: summary) }
                         .swipeActions {

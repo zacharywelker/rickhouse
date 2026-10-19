@@ -224,6 +224,10 @@ private struct TournamentHeader: View {
                 Label("Champion: \(champion.name)", systemImage: "trophy").font(.headline(20)).foregroundStyle(Theme.ink).padding(.top, 4)
                     .accessibilityElement(children: .combine)
             }
+            if view.status == .complete {
+                NavigationLink { RankingView() } label: { Label("Ranking and audit", systemImage: "list.number").frame(minHeight: 44) }
+                    .font(.inter(15, .semibold)).foregroundStyle(Theme.ink)
+            }
             if let note = view.fieldNote, !note.isEmpty { Text(note).font(.inter(14)).foregroundStyle(Theme.muted) }
             if view.status == .draft { draftButtons.padding(.top, 4) }
         }
