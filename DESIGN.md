@@ -187,8 +187,10 @@ Tape and marker appear only for facts a person would write on a real bottle:
 
 # 7. Navigation
 
-**Desktop:** Collection, Labels, Groups, Numbers, and a user menu containing
-Settings (Config moves into it).
+**Desktop:** Collection, Labels, Tournaments, Groups, Numbers, and a user menu
+containing Settings (Config moves into it). On the web the header row needs
+about 1050px with Tournaments in it, so it collapses to the menu disclosure
+below `xl` (1280px) rather than scrolling sideways at 1024px.
 
 **Mobile tab bar,** five icon-only slots (iOS SF Symbols shown):
 

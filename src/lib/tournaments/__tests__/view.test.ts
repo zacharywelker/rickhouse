@@ -41,7 +41,7 @@ describe("buildView", () => {
   it("hides a pending heat of an active blind tournament: no names, ids, facts or generated label, only the band and glasses", () => {
     const v = input(tournament({ blind: true }), heats, heatEntries);
     const hidden = v.rounds[1]!.heats[0]!;
-    expect(hidden).toMatchObject({ hidden: true, entries: [], autoLabel: null, entryCount: 2, glasses: ["A", "B"], band: "90 to 92 proof", label: "My pour" });
+    expect(hidden).toMatchObject({ hidden: true, entries: [], autoLabel: null, entryCount: 2, glasses: ["A", "B"], band: "90 to 92 proof", label: null });
     expect(JSON.stringify(hidden)).not.toMatch(/Buffalo|Eagle|"entryId"/);
   });
 
@@ -103,6 +103,7 @@ describe("buildView", () => {
     const json = JSON.stringify(rest);
     for (const name of names) expect(json).not.toContain(name);
     expect(json).not.toContain("High Rye");
+    expect(json).not.toContain("Owner pour");
     expect(json).not.toMatch(/"entryId"/);
     expect(v.standings).toEqual([]);
     expect(v.champion).toBeNull();
@@ -112,7 +113,7 @@ describe("buildView", () => {
       expect(heat.autoLabel).toBeNull();
     }
     expect(v.rounds[0]!.heats.map((h) => [h.band, h.entryCount, h.glasses, h.label])).toEqual([
-      ["90 to 92 proof", 2, ["A", "B"], "Owner pour"],
+      ["90 to 92 proof", 2, ["A", "B"], null],
       ["94 to 96 proof", 2, ["C"], null],
     ]);
 

@@ -72,7 +72,15 @@ async function resolveEntries(tx: Tx, ownerId: number, inputs: EntryInput[]): Pr
   return { ok: true, rows };
 }
 
-/** Makes a draft tournament with its field. Needs no minimum field yet; starting does. */
+/** Makes the round 1 preview of a draft that has none (call it with no heats): needs two active entries. */
+async function makePreview(tx: Tx, ownerId: number, id: number): Promise<void> {
+  const t = await lockTournament(tx, ownerId, id);
+  const { entries } = await readState(tx, id);
+  const active = entries.filter((e) => e.status === "active").map((e) => e.id);
+  if (t && active.length >= 2) await generateRound(tx, ownerId, t, 1, active);
+}
+
+/** Makes a draft tournament with its field. Needs no minimum field yet; starting does. With two or more entries it also makes the round 1 preview. */
 export async function createTournament(
   ownerId: number,
   settings: TournamentSettings,
@@ -85,13 +93,14 @@ export async function createTournament(
     if (resolved.rows.length > 0) {
       await tx.insert(tournamentEntries).values(resolved.rows.map((r) => ({ tournamentId: row!.id, ownerId, ...r })));
     }
+    await makePreview(tx, ownerId, row!.id);
     return { ok: true as const, id: row!.id };
   });
 }
 
 /**
  * Changes a draft: its settings and/or its whole field. A change to the field or to how flights are matched makes the
- * round 1 preview stale, so it is made again (when there was one and at least two entries remain).
+ * round 1 preview stale, so it is made again (when at least two entries remain; with fewer there are no flights).
  */
 export async function updateDraft(
   ownerId: number,
@@ -112,8 +121,6 @@ export async function updateDraft(
     if (t.status !== "draft") return fail(409, "Only a draft can be changed.");
 
     const regroup = entries !== undefined || settings.heatSize !== undefined || settings.seeding !== undefined || settings.groupOrder !== undefined;
-    const before = await readState(tx, id);
-    const hadPreview = before.heats.length > 0;
 
     if (entries !== undefined) {
       const resolved = await resolveEntries(tx, ownerId, entries);
@@ -128,12 +135,7 @@ export async function updateDraft(
     }
     if (Object.keys(settings).length > 0) await tx.update(tournaments).set(settings).where(eq(tournaments.id, id));
 
-    if (regroup && hadPreview) {
-      const fresh = await lockTournament(tx, ownerId, id);
-      const after = await readState(tx, id);
-      const active = after.entries.filter((e) => e.status === "active").map((e) => e.id);
-      if (fresh && active.length >= 2) await generateRound(tx, ownerId, fresh, 1, active);
-    }
+    if (regroup) await makePreview(tx, ownerId, id);
     return { ok: true as const, view: (await viewOf(tx, ownerId, id))! };
   });
 }

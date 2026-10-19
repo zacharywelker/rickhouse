@@ -18,6 +18,7 @@ import { LabelPhotoControls } from "@/components/expressions/label-photo-control
 import { CharLevelSpec, Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
 import { T8keHint } from "@/components/expressions/t8ke-hint";
 import { requireSession } from "@/lib/auth";
+import { labelRank } from "@/lib/tournaments/label-rank-query";
 import { nameWithYears } from "@/lib/other-names";
 import { expressionOtherNames } from "@/lib/other-names-store";
 import { releaseLabel } from "@/lib/releases";
@@ -96,6 +97,11 @@ export default async function LabelPage({
     expressionOtherNames(expressionId),
     expressionReleaseList(expressionId),
   ]);
+  const tournamentRank = await labelRank(user.id, expressionId, {
+    categoryId: row.category.id,
+    categoryName: row.category.name,
+    bottleIds: owned.map((b) => b.id),
+  });
   const distilleryMatches = await distilleriesByPermit(
     user.id,
     colas.map((cola) => cola.permitNumber),
@@ -144,6 +150,13 @@ export default async function LabelPage({
           {otherNames.length > 0 ? (
             <p className="mt-1 text-sm text-muted-foreground">
               <span className="font-medium text-foreground">Also known as</span> {otherNames.map(nameWithYears).join(" · ")}
+            </p>
+          ) : null}
+          {tournamentRank ? (
+            <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+              <Link href={`/tournaments/ranking?categoryId=${tournamentRank.categoryId}` as Route} className="hover:text-accent hover:underline">
+                {tournamentRank.text}
+              </Link>
             </p>
           ) : null}
         </div>

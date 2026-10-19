@@ -6,7 +6,7 @@ const { getCurrentUser, life, heats, queries, rankingFor } = vi.hoisted(() => {
   return {
     getCurrentUser: vi.fn(),
     life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
-    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), promoteEntry: fn(), renameHeat: fn() },
+    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     queries: { getTournament: fn(), listTournaments: fn() },
     rankingFor: vi.fn(),
   };
@@ -27,6 +27,7 @@ import * as heat from "../[id]/heats/[heatId]/route";
 import * as result from "../[id]/heats/[heatId]/result/route";
 import * as glass from "../[id]/heats/[heatId]/glass/route";
 import * as move from "../[id]/entries/[entryId]/move/route";
+import * as swap from "../[id]/entries/[entryId]/swap/route";
 import * as withdraw from "../[id]/entries/[entryId]/withdraw/route";
 import * as promote from "../[id]/entries/[entryId]/route";
 import * as ranking from "../ranking/route";
@@ -63,6 +64,7 @@ const routes: [string, Parameters<typeof call>[0], string, Record<string, string
   ["DELETE result", result.DELETE as never, "DELETE", { id: "3", heatId: "5" }, undefined],
   ["PUT glass", glass.PUT as never, "PUT", { id: "3", heatId: "5" }, { assign: [{ entryId: 1, glass: "A" }, { entryId: 2, glass: "B" }] }],
   ["POST move", move.POST as never, "POST", { id: "3", entryId: "9" }, { toHeatId: 5 }],
+  ["POST swap", swap.POST as never, "POST", { id: "3", entryId: "9" }, { withEntryId: 5 }],
   ["POST withdraw", withdraw.POST as never, "POST", { id: "3", entryId: "9" }, {}],
   ["PATCH entry", promote.PATCH as never, "PATCH", { id: "3", entryId: "9" }, { bottleId: 4 }],
 ];
@@ -181,7 +183,14 @@ describe("flights and entries", () => {
     heats.drawHeat.mockResolvedValue({ ok: true, heat: { heatId: 5, glasses: [] } });
     const res = await call(draw.POST as never, "POST", { id: "3" }, {});
     expect([res.status, await res.json()]).toEqual([200, { heatId: 5, glasses: [] }]);
-    expect(heats.drawHeat).toHaveBeenCalledWith(7, 3);
+    expect(heats.drawHeat).toHaveBeenCalledWith(7, 3, undefined);
+  });
+
+  it("opens a chosen flight for pouring, and refuses a bad heatId", async () => {
+    heats.drawHeat.mockResolvedValue({ ok: true, heat: { heatId: 5, glasses: [] } });
+    expect((await call(draw.POST as never, "POST", { id: "3" }, { heatId: 5 })).status).toBe(200);
+    expect(heats.drawHeat).toHaveBeenLastCalledWith(7, 3, 5);
+    for (const heatId of [0, -1, 1.5, "5"]) expect((await call(draw.POST as never, "POST", { id: "3" }, { heatId })).status).toBe(422);
   });
 
   it("records a result by entry id or by glass, and not both or neither", async () => {
@@ -202,12 +211,16 @@ describe("flights and entries", () => {
   });
 
   it("sets glasses, moves, withdraws, promotes and renames", async () => {
-    for (const command of [heats.setGlasses, heats.moveEntry, heats.withdrawEntry, heats.promoteEntry, heats.renameHeat]) command.mockResolvedValue({ ok: true, view });
+    for (const command of [heats.setGlasses, heats.moveEntry, heats.swapEntries, heats.withdrawEntry, heats.promoteEntry, heats.renameHeat]) command.mockResolvedValue({ ok: true, view });
     const assign = [{ entryId: 1, glass: "A" }, { entryId: 2, glass: "B" }];
     expect((await call(glass.PUT as never, "PUT", { id: "3", heatId: "5" }, { assign })).status).toBe(200);
     expect(heats.setGlasses).toHaveBeenCalledWith(7, 3, 5, assign);
     expect((await call(move.POST as never, "POST", { id: "3", entryId: "9" }, { toHeatId: 6 })).status).toBe(200);
     expect(heats.moveEntry).toHaveBeenCalledWith(7, 3, 9, 6);
+    expect((await call(swap.POST as never, "POST", { id: "3", entryId: "9" }, { withEntryId: 6 })).status).toBe(200);
+    expect(heats.swapEntries).toHaveBeenCalledWith(7, 3, 9, 6);
+    expect((await call(swap.POST as never, "POST", { id: "3", entryId: "9" }, { withEntryId: 0 })).status).toBe(422);
+    expect((await call(swap.POST as never, "POST", { id: "3", entryId: "x" }, { withEntryId: 6 })).status).toBe(404);
     expect((await call(withdraw.POST as never, "POST", { id: "3", entryId: "9" }, {})).status).toBe(200);
     expect(heats.withdrawEntry).toHaveBeenCalledWith(7, 3, 9);
     expect((await call(promote.PATCH as never, "PATCH", { id: "3", entryId: "9" }, { expressionId: 4 })).status).toBe(200);

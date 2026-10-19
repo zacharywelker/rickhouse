@@ -54,11 +54,17 @@ export const glassSchema = z.object({ assign: z.array(z.object({ entryId: id, gl
 
 export const moveSchema = z.object({ toHeatId: id }).strict();
 
+/** `POST .../entries/:id/swap`: trade places with another entry in a different flight. */
+export const swapSchema = z.object({ withEntryId: id }).strict();
+
 /** `PATCH .../entries/:id`: match an outside entry to one of your bottles or labels. */
 export const promoteSchema = z.union([z.object({ bottleId: id }).strict(), z.object({ expressionId: id }).strict()]);
 
 /** `PATCH .../heats/:id`: name a flight, or clear its name with null or an empty string. */
 export const renameSchema = z.object({ label: z.string().max(80, "Up to 80 characters.").nullable() }).strict();
+
+/** `POST .../draw`: no body fields draws a random pending flight; `heatId` opens that pending flight for pouring. */
+export const drawSchema = z.object({ heatId: id.optional() }).strict();
 
 /** The commands that carry no data still take a JSON object, which a cross-site form cannot send. */
 export const emptySchema = z.object({}).strict();
