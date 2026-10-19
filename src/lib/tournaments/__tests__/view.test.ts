@@ -32,7 +32,8 @@ describe("buildView", () => {
     const pending = v.rounds[1]!.heats[0]!;
     expect(pending.hidden).toBe(false);
     expect(pending.entries.map((e) => e.name)).toEqual(["Buffalo Trace", "Eagle Rare"]);
-    expect(pending.autoLabel).toBe("Buffalo Trace High Rye");
+    expect(pending.autoLabel).toBe("Buffalo Trace · High rye, wine-finished bourbons");
+    expect(pending.band).toBe("90 to 92 proof");
     expect(pending.label).toBe("My pour");
     expect(v.currentRound).toBe(2);
     expect(v.progress).toEqual({ done: 0, total: 1 });

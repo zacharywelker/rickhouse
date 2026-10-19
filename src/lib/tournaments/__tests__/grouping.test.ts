@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoLabel, groupAtRandom, groupIntoHeats, heatBand } from "../grouping";
+import { groupAtRandom, groupIntoHeats, heatBand } from "../grouping";
 import { DEFAULT_GROUP_ORDER, isGroupOrder, type Entrant, type MashbillInput } from "../types";
 
 const generic = (style: string): MashbillInput => ({ kind: "generic", style });
@@ -125,54 +125,6 @@ describe("heatBand", () => {
     expect(heatBand([entrant(1, "a", { proof: 90 }), entrant(2, "b", { proof: 94 })])).toBe("90 to 94 proof");
     expect(heatBand([entrant(1, "a", { proof: 100 }), entrant(2, "b", { proof: 100 })])).toBe("100 proof");
     expect(heatBand([entrant(1, "a", { proof: 90 }), entrant(2, "b")])).toBe("");
-  });
-});
-
-describe("autoLabel", () => {
-  const recipe = (name: string | null, grains: [string, number][]): MashbillInput => ({
-    kind: "recipe", name, grains: grains.map(([grain, percent]) => ({ grain, percent })),
-  });
-
-  it("names a shared secret mashbill, without repeating its distillery", () => {
-    const m = recipe("Buffalo Trace High Rye", [["Corn", 75]]);
-    const heat = [1, 2].map((id) => entrant(id, `b${id}`, { mashbill: m, distilleries: ["Buffalo Trace"] }));
-    expect(autoLabel(heat)).toBe("Buffalo Trace High Rye");
-  });
-
-  it("puts a shared distillery in front of a shared recipe", () => {
-    const m = recipe(null, [["Rye", 95], ["Malted Barley", 5]]);
-    const heat = [1, 2].map((id) => entrant(id, `b${id}`, { mashbill: m, distilleries: ["MGP"] }));
-    expect(autoLabel(heat)).toBe("MGP 95/5");
-  });
-
-  it("falls back to whichever of the two is shared, and to null when neither is", () => {
-    const high = generic("High Rye");
-    expect(autoLabel([entrant(1, "a", { mashbill: high, distilleries: ["X"] }), entrant(2, "b", { mashbill: high, distilleries: ["Y"] })])).toBe("High Rye");
-    expect(autoLabel([entrant(1, "a", { distilleries: ["X"] }), entrant(2, "b", { distilleries: ["X"] })])).toBe("X");
-    expect(autoLabel([entrant(1, "a", { mashbill: high }), entrant(2, "b", { mashbill: generic("Wheated") })])).toBeNull();
-  });
-
-  it("calls a heat of several-distillery labels a blend, and is null when anything is unknown", () => {
-    expect(autoLabel([entrant(1, "a", { distilleries: ["X", "Y"] }), entrant(2, "b", { distilleries: ["Z", "W"] })])).toBe("Blend");
-    expect(autoLabel([entrant(1, "a", { distilleries: ["X"] }), entrant(2, "b")])).toBeNull();
-  });
-
-  it("matches distilleries that differ only in case, keeping the first spelling", () => {
-    const m = recipe(null, [["Rye", 95], ["Malted Barley", 5]]);
-    const heat = [entrant(1, "a", { mashbill: m, distilleries: ["MGP"] }), entrant(2, "b", { mashbill: m, distilleries: ["mgp"] })];
-    expect(autoLabel(heat)).toBe("MGP 95/5");
-  });
-
-  it("falls back to the shared distillery when both mashbills display as blank", () => {
-    const blank = recipe(null, []);
-    const heat = [1, 2].map((id) => entrant(id, `b${id}`, { mashbill: blank, distilleries: ["MGP"] }));
-    expect(autoLabel(heat)).toBe("MGP");
-    const noStyle = generic("  ");
-    expect(autoLabel([1, 2].map((id) => entrant(id, `b${id}`, { mashbill: noStyle, distilleries: ["MGP"] })))).toBe("MGP");
-  });
-
-  it("treats a whitespace-only distillery as unknown", () => {
-    expect(autoLabel([entrant(1, "a", { distilleries: ["  "] }), entrant(2, "b", { distilleries: ["  "] })])).toBeNull();
   });
 });
 

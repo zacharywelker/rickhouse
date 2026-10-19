@@ -27,6 +27,8 @@ export type FlightModel = {
   title: FlightTitle;
   /** The line under the title: "Flight 2 · 90 to 100 proof". */
   meta: string;
+  /** The flight's proof band ("90 to 100 proof"; empty when a proof is unknown), shown under every flight's title. */
+  subtitle: string;
   hidden: boolean;
   /** How many bottles it holds, also for a hidden flight. */
   count: number;
@@ -80,15 +82,15 @@ export function pourOrder(entries: ViewHeatEntry[]): ViewHeatEntry[] {
 }
 
 /**
- * A flight's title: your own name wins and is marked yours; else what its bottles share; else its proof band. A hidden
+ * A flight's title: your own name wins and is marked yours; else what its bottles share (the engine's generated name,
+ * never the proof band: the band is the subtitle); else its number. A hidden
  * flight (pending in a running blind tournament) shows only its band: even a name you gave it could give the glass away.
  */
 export function flightTitle(heat: ViewHeat, number: number): FlightTitle {
-  const fallback = heat.band || `Flight ${number}`;
-  if (heat.hidden) return { text: fallback, yours: false };
+  if (heat.hidden) return { text: heat.band || `Flight ${number}`, yours: false };
   const custom = heat.label?.trim();
   if (custom) return { text: custom, yours: true };
-  return { text: heat.autoLabel ?? fallback, yours: false };
+  return { text: heat.autoLabel ?? `Flight ${number}`, yours: false };
 }
 
 function flightModel(heat: ViewHeat, number: number, final: boolean): FlightModel {
@@ -117,6 +119,7 @@ function flightModel(heat: ViewHeat, number: number, final: boolean): FlightMode
     status: heat.status,
     title,
     meta: metaParts.join(" · "),
+    subtitle: heat.band,
     hidden: heat.hidden,
     count: heat.entryCount,
     glassesSet: heat.glasses.length,

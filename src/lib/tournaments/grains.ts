@@ -35,6 +35,50 @@ const GENERIC: Record<string, { family: string; share: number } | "four grain"> 
   "four grain": "four grain",
 };
 
+/** A recipe's share per grain family, summed over its grains (a grain whose percent is not a number is dropped). */
+function familyShares(grains: readonly { grain: string; percent: number }[]): Map<string, number> {
+  const shares = new Map<string, number>();
+  for (const { grain, percent } of grains) {
+    if (!Number.isFinite(percent)) continue;
+    const family = grainFamily(grain);
+    shares.set(family, (shares.get(family) ?? 0) + percent);
+  }
+  return shares;
+}
+
+/** A rye share at or above this is a high rye; at or below `LOW_RYE_MAX` a low rye; in between has no name. */
+export const HIGH_RYE_MIN = 20;
+export const LOW_RYE_MAX = 12;
+
+export type MashbillClass = "High rye" | "Low rye" | "Wheated";
+
+/**
+ * The name a bourbon-style mashbill goes by, for flight titles: "High rye" (rye share of 20 or more), "Wheated" (wheat is
+ * the flavoring grain: at least 10 points and no rye flavoring), "Low rye" (rye share of 12 or less); null for anything
+ * else (13 to 19 rye, a blend, a recipe with no grains, an unknown style). A generic style maps by its name.
+ */
+export function mashbillClass(mashbill: MashbillInput | null): MashbillClass | null {
+  if (mashbill === null || mashbill.kind === "blend") return null;
+  let rye: number;
+  let wheat: number;
+  if (mashbill.kind === "generic") {
+    const style = normalize(mashbill.style);
+    const typical = Object.hasOwn(GENERIC, style) ? GENERIC[style]! : undefined;
+    if (typical === undefined || typical === "four grain") return null;
+    rye = typical.family === "rye" ? typical.share : 0;
+    wheat = typical.family === "wheat" ? typical.share : 0;
+  } else {
+    const shares = familyShares(mashbill.grains);
+    if (shares.size === 0) return null;
+    rye = shares.get("rye") ?? 0;
+    wheat = shares.get("wheat") ?? 0;
+  }
+  if (rye >= HIGH_RYE_MIN) return "High rye";
+  if (wheat >= FLAVORING_MIN && rye < FLAVORING_MIN) return "Wheated";
+  if (rye <= LOW_RYE_MAX) return "Low rye";
+  return null;
+}
+
 // Class kinds, in sort order.
 const CORN = 0;
 const ONE = 1;
@@ -69,11 +113,7 @@ export function mashbillKey(mashbill: MashbillInput | null): { band: Comparable;
   const grains = mashbill.grains.filter((g) => Number.isFinite(g.percent));
   if (grains.length === 0) return null;
 
-  const shares = new Map<string, number>();
-  for (const { grain, percent } of grains) {
-    const family = grainFamily(grain);
-    shares.set(family, (shares.get(family) ?? 0) + percent);
-  }
+  const shares = familyShares(grains);
   const corn = shares.get("corn") ?? 0;
   const malt = shares.get("malt") ?? 0;
   const flavoring = [...shares]

@@ -36,9 +36,9 @@ describe("flightTitle", () => {
   it("puts your own name first and marks it yours", () => {
     expect(flightTitle(heat(1, 1, 1, [], { label: "  High rye shelf ", autoLabel: "Low rye", band: "90 proof" }), 1)).toEqual({ text: "High rye shelf", yours: true });
   });
-  it("falls back from the generated label to the band to the flight number", () => {
-    expect(flightTitle(heat(1, 1, 1, [], { autoLabel: "MGP 95/5", band: "90 proof" }), 2)).toEqual({ text: "MGP 95/5", yours: false });
-    expect(flightTitle(heat(1, 1, 1, [], { band: "90 to 94 proof" }), 2)).toEqual({ text: "90 to 94 proof", yours: false });
+  it("falls back from the generated name to the flight number, never to the band", () => {
+    expect(flightTitle(heat(1, 1, 1, [], { autoLabel: "High rye bourbons", band: "90 proof" }), 2)).toEqual({ text: "High rye bourbons", yours: false });
+    expect(flightTitle(heat(1, 1, 1, [], { band: "90 to 94 proof" }), 2)).toEqual({ text: "Flight 2", yours: false });
     expect(flightTitle(heat(1, 1, 1, []), 2)).toEqual({ text: "Flight 2", yours: false });
   });
   it("shows only the band on a hidden flight, even if a label is somehow present", () => {
@@ -102,6 +102,8 @@ describe("buildBracketModel: a draft preview", () => {
     expect(first.flights[1]!.number).toBe(2);
     expect(first.flights[1]!.title).toEqual({ text: "Mine", yours: true });
     expect(first.flights[1]!.meta).toBe("Flight 2 · 90 to 93 proof");
+    expect(first.flights[1]!.subtitle).toBe("90 to 93 proof");
+    expect(first.flights[0]!.subtitle).toBe("");
     expect(model.renamed).toBe(1);
     // no band because one proof is unknown, and nothing shared to name it: the number is the title, so it is not said twice
     expect(first.flights[0]!.title.text).toBe("Flight 1");
@@ -154,7 +156,7 @@ describe("buildBracketModel: a running tournament", () => {
       ["Buffalo Trace", 4, false],
     ]);
     expect(one!.flights[1]!.rows.map((r) => r.advanced)).toEqual([true]);
-    expect(one!.flights[1]!.meta).toBe("Flight 2 · Bye");
+    expect(one!.flights[1]!.meta).toBe("100 proof · Bye");
     expect([one!.state, two!.state]).toEqual(["decided", "now"]);
     expect(one!.note).toBe("Flights of 4 advanced 2, byes advanced 1");
   });

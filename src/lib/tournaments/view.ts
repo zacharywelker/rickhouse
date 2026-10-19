@@ -71,7 +71,7 @@ export type ViewHeat = {
   status: "pending" | "decided" | "bye";
   /** The owner's own name for the heat, or null; withheld (null) for a hidden heat, since a name chosen at draft time can give the glass away. */
   label: string | null;
-  /** What the heat's bottles share ("MGP 95/5"), or null; hidden while a blind heat is pending. */
+  /** The heat's generated name from what its bottles share ("Buffalo Trace · High rye bourbons"; "Mixed" when nothing is shared); null only for an empty or hidden heat. Never the proof band. */
   autoLabel: string | null;
   /** "90 to 94 proof"; empty when a proof is unknown. Shown even for a hidden heat. */
   band: string;
