@@ -5,7 +5,7 @@ import SwiftUI
 /// shows only its band and a blank row per glass, and nothing that could name what is in it.
 struct FlightCardView: View {
     let flight: FlightModel
-    /// A draft's pending flight can be named.
+    /// Any flight but a hidden one can be named.
     let renamable: Bool
     /// Bottles of this flight can be moved or swapped (a draft; never a blind running one).
     let moves: MoveOptions?

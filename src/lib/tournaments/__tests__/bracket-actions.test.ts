@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canDraw, canMove, isOpen, nextPendingId, canPlay, canReset, canUndo, canWithdraw, flightControls, type ActionView } from "../bracket-actions";
+import { canDraw, canRename, canMove, isOpen, nextPendingId, canPlay, canReset, canUndo, canWithdraw, flightControls, type ActionView } from "../bracket-actions";
 import type { ViewHeat } from "../view";
 
 const heat = (id: number, round: number, status: ViewHeat["status"], extra: Partial<ViewHeat> = {}): ViewHeat => ({
@@ -76,6 +76,13 @@ describe("canMove", () => {
     expect(canMove(view("active", [[heat(1, 1, "pending")]], true), heat(1, 1, "pending"))).toBe(false);
     expect(canMove(view("active", [[heat(1, 1, "pending", { hidden: true })]]), heat(1, 1, "pending", { hidden: true }))).toBe(false);
     expect(canMove(view("complete", [[heat(1, 1, "pending")]]), heat(1, 1, "pending"))).toBe(false);
+  });
+});
+
+describe("canRename", () => {
+  it("allows any flight in any state, but not a hidden one", () => {
+    for (const status of ["decided", "pending", "bye"] as const) expect(canRename(heat(1, 1, status))).toBe(true);
+    expect(canRename(heat(1, 1, "pending", { hidden: true }))).toBe(false);
   });
 });
 

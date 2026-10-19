@@ -65,6 +65,14 @@ struct SettingsDraft: Equatable {
         return p == TournamentPatch() ? nil : p
     }
 
+    /// A running tournament takes only seeding and the grouping order (the server refuses the rest).
+    func groupingPatch(against view: TournamentView) -> TournamentPatch? {
+        var p = TournamentPatch()
+        if seeding != view.seeding { p.seeding = seeding }
+        if groupOrder != view.groupOrder { p.groupOrder = groupOrder }
+        return p == TournamentPatch() ? nil : p
+    }
+
     /// Flight size, seeding and the grouping order make the server regroup the flights (and drop the names you gave them);
     /// the name, blind and the note do not.
     func regroups(against view: TournamentView) -> Bool {
@@ -125,6 +133,9 @@ enum TournamentScreenLogic {
         if activeCount(view) < 2 { return "Starting needs at least 2 entries." }
         return renamed > 0 ? "\(TournamentBracketModel.plural(renamed, "flight")) renamed." : nil
     }
+
+    /// The one line of the running Grouping sheet.
+    static let groupingNote = "Applies to the next round, or to this one right away with Reset to automatic."
 
     static let fewEntries = "Add at least 2 bottles to start."
 

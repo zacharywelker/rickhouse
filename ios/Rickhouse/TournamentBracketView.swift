@@ -62,7 +62,7 @@ struct TournamentBracketView: View {
             }
         } else {
             ForEach(c.flights) { f in
-                FlightCardView(flight: f, renamable: draft && f.status == .pending, moves: f.hidden ? nil : moves(c, f), run: run(f),
+                FlightCardView(flight: f, renamable: FlightActions.canRename(hidden: f.hidden), moves: f.hidden ? nil : moves(c, f), run: run(f),
                                onRename: { onRename(f) })
             }
         }

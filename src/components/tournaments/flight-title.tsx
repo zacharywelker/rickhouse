@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import type { FlightTitle as Title } from "@/lib/tournaments/bracket-model";
 
 /**
- * A flight's name. In a draft it can be renamed in place: Save with an empty box (or "Use the automatic name") clears
+ * A flight's name. It can be renamed in place (any flight but a hidden one): Save with an empty box (or "Use the automatic name") clears
  * your name, and a name you gave is marked "Yours".
  */
 export function FlightTitle({

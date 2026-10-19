@@ -44,6 +44,9 @@ enum FlightActions {
         return view.status == .active && !view.blind && isCurrent(view, heat)
     }
 
+    /// Rename: any flight in any state (the server has no status rule), except a hidden one, whose name would show what is in it.
+    static func canRename(hidden: Bool) -> Bool { !hidden }
+
     /// Reset to automatic: regroup the undecided flights; a draft needs two entries, a running one something undecided; never when finished.
     static func canReset(_ view: TournamentView) -> Bool {
         switch view.status {

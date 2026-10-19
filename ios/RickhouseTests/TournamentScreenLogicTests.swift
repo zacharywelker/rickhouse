@@ -116,6 +116,19 @@ final class TournamentScreenLogicTests: XCTestCase {
         XCTAssertTrue(s.regroups(against: v))
     }
 
+    func testGroupingPatchHoldsOnlySeedingAndOrder() {
+        let v = draft()
+        var s = SettingsDraft(v)
+        XCTAssertNil(s.groupingPatch(against: v))
+        s.name = "Other"
+        s.blind = true
+        s.heatSize = 3
+        XCTAssertNil(s.groupingPatch(against: v), "the other settings are not sent to a running tournament")
+        s.seeding = .random
+        s.groupOrder = v.groupOrder.reversed()
+        XCTAssertEqual(s.groupingPatch(against: v), TournamentPatch(seeding: .random, groupOrder: v.groupOrder.reversed()))
+    }
+
     func testBlankNameIsNotValid() {
         var s = SettingsDraft(draft())
         XCTAssertTrue(s.isValid)

@@ -73,6 +73,11 @@ final class TournamentFlightActionsTests: XCTestCase {
         XCTAssertFalse(A.canMove(Fx.view(.complete, [[heat(1, 1, .pending)]]), heat(1, 1, .pending)))
     }
 
+    func testAnyFlightCanBeRenamedInAnyStateButAHiddenOne() {
+        for status in [HeatStatus.decided, .pending, .bye] { XCTAssertTrue(A.canRename(hidden: heat(1, 1, status).hidden)) }
+        XCTAssertFalse(A.canRename(hidden: heat(1, 1, .pending, hidden: true).hidden))
+    }
+
     func testCanResetADraftWithTwoActiveEntriesARunningOneWithSomethingUndecidedNeverFinished() {
         XCTAssertFalse(A.canReset(Fx.view(.draft, [[heat(1, 1, .pending)]])), "one active entry")
         let two = Fx.view(.draft, rounds: [], entries: [Fx.people[0], TournamentEntry(id: 3, name: "C", status: .active, kind: .bottle, bottleId: 3, expressionId: 3)])

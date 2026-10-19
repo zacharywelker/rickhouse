@@ -24,12 +24,14 @@ struct TournamentScreen: View {
         case rename(heatId: Int, number: Int, current: String, yours: Bool)
         case swap(name: String, entryId: Int, swaps: [SwapTarget])
         case settings
+        case grouping
 
         var id: String {
             switch self {
             case .rename(let heatId, _, _, _): "rename\(heatId)"
             case .swap(_, let entryId, _): "swap\(entryId)"
             case .settings: "settings"
+            case .grouping: "grouping"
             }
         }
     }
@@ -66,7 +68,7 @@ struct TournamentScreen: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        TournamentHeader(view: view, onSettings: { sheet = .settings }, onField: openField)
+                        TournamentHeader(view: view, onSettings: { sheet = .settings }, onGrouping: { sheet = .grouping }, onField: openField)
                         if TournamentScreenLogic.activeCount(view) < 2 && view.status == .draft {
                             fewEntries
                         } else {
@@ -203,6 +205,8 @@ struct TournamentScreen: View {
             if let view = model.view {
                 DraftSettingsSheet(view: view, renamed: model.bracket?.renamed ?? 0) { await model.patch($0, inline: true) }
             }
+        case .grouping:
+            if let view = model.view { GroupingSheet(view: view) { await model.patch($0, inline: true) } }
         }
     }
 }
@@ -211,6 +215,7 @@ struct TournamentScreen: View {
 private struct TournamentHeader: View {
     let view: TournamentView
     let onSettings: () -> Void
+    let onGrouping: () -> Void
     let onField: () -> Void
     @Environment(\.dynamicTypeSize) private var typeSize
 
@@ -230,6 +235,10 @@ private struct TournamentHeader: View {
             }
             if let note = view.fieldNote, !note.isEmpty { Text(note).font(.inter(14)).foregroundStyle(Theme.muted) }
             if view.status == .draft { draftButtons.padding(.top, 4) }
+            if view.status == .active {
+                Button(action: onGrouping) { Label("Grouping", systemImage: "slider.horizontal.3").frame(minHeight: 44) }
+                    .font(.inter(15, .semibold)).foregroundStyle(Theme.ink).buttonStyle(.bordered).tint(Theme.ink).padding(.top, 4)
+            }
         }
     }
 
