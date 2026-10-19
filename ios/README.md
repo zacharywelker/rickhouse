@@ -32,7 +32,7 @@ The app uses a small JSON API under `/api/v1`, plus two web routes that accept t
 | `GET /api/v1/me` | Who the token belongs to |
 | `GET /api/v1/bottles` | The collection; takes the web grid's `q`, `status`, `sort`, `desc`, `page`, `size`, … |
 | `GET /api/v1/bottles/:id` | One bottle with label specs, photos and tasting notes |
-| `PATCH /api/v1/bottles/:id` | Change a bottle: its level (`fillPct`, below full opens a sealed bottle), its Opened date (`dateOpened`; clearing it on an open bottle needs `ifOpenedCleared`: `keep_open` or `seal`, which sets the level to full) and its own facts (`pricePaid`, `storeId`, `dateAcquired`, `batch`, `releaseYear`, `barrelNumber`, `pickName`, `location`, `notes`). `null` clears a fact; an unlisted field is a `422`. The answer says what else changed |
+| `PATCH /api/v1/bottles/:id` | Change a bottle: its level (`fillPct`, below full opens a sealed bottle), its Opened date (`dateOpened`; clearing it on an open bottle needs `ifOpenedCleared`: `keep_open` or `seal`, which sets the level to full) and its own facts (`pricePaid`, `storeId`, `dateAcquired`, `batch`, `releaseYear`, `barrelNumber`, `pickName`, `location`, `notes`, `expressionId`; changing the label moves the bottle's tastings and tournament entries to the new label). `null` clears a fact; an unlisted field is a `422`. The answer says what else changed |
 | `POST /api/v1/bottles/:id/tasting-notes` | Add a tasting note: `tastedOn`, `rating` (0 to 10), `nose`, `palate`, `finish`, `overall` |
 | `PATCH` / `DELETE /api/v1/bottles/:id/tasting-notes/:noteId` | Replace (send every field) or delete a note |
 | `POST /api/v1/bottles` | Add a bottle of an existing label (`expressionId` required) |

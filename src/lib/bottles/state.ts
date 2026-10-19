@@ -4,6 +4,7 @@ import { bottles, expressionReleases, expressions, stores, tastingNotes } from "
 import type { z } from "zod";
 import { fillUpdate } from "./fill-rules";
 import { openedUpdate, type OpenedChoice } from "./opened-rules";
+import { movesHistory } from "./relabel";
 import type { tastingNoteSchema } from "@/lib/expressions/schema";
 
 /**
@@ -129,7 +130,9 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
       const [same] = await tx.select(returning).from(bottles).where(ownedBottle(bottleId, ownerId)).limit(1);
       return same ? { ok: true, result: same } : null;
     }
-    const [updated] = await tx.update(bottles).set(set).where(ownedBottle(bottleId, ownerId)).returning(returning);
+    // A new label takes the bottle's tastings and tournament entries with it, in this same statement.
+    const base = labelId !== current.expressionId ? tx.with(...movesHistory(ownerId, [bottleId], labelId)) : tx;
+    const [updated] = await base.update(bottles).set(set).where(ownedBottle(bottleId, ownerId)).returning(returning);
     return updated ? { ok: true, result: updated } : null;
   });
 }
