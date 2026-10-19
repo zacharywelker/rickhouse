@@ -10,7 +10,10 @@ final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var reply = Data("{}".utf8)
     nonisolated(unsafe) static var versionHeader: String? = "1"
 
-    static func reset() { sent = []; status = 200; reply = Data("{}".utf8); versionHeader = "1" }
+    /// Answers given first, one per request, before `status`/`reply` take over (a failed change, then the reload).
+    nonisolated(unsafe) static var queue: [(status: Int, body: Data)] = []
+
+    static func reset() { sent = []; status = 200; reply = Data("{}".utf8); versionHeader = "1"; queue = [] }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -36,9 +39,10 @@ final class StubURLProtocol: URLProtocol {
                                auth: request.value(forHTTPHeaderField: "Authorization")))
         var headers = ["Content-Type": "application/json"]
         if let v = Self.versionHeader { headers["x-rickhouse-api"] = v }
-        let response = HTTPURLResponse(url: url, statusCode: Self.status, httpVersion: nil, headerFields: headers)!
+        let next = Self.queue.isEmpty ? (status: Self.status, body: Self.reply) : Self.queue.removeFirst()
+        let response = HTTPURLResponse(url: url, statusCode: next.status, httpVersion: nil, headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.reply)
+        client?.urlProtocol(self, didLoad: next.body)
         client?.urlProtocolDidFinishLoading(self)
     }
 
