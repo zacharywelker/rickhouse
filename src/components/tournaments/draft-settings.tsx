@@ -25,7 +25,7 @@ const HEAT_SIZES = [
   { value: 3, label: "3" },
   { value: 4, label: "4" },
 ] as const;
-const SEEDING = [
+export const SEEDING = [
   { value: "similar", label: "Similar" },
   { value: "random", label: "Random" },
 ] as const;

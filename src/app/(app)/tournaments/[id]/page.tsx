@@ -7,6 +7,7 @@ import { Bracket } from "@/components/tournaments/bracket";
 import { DraftField } from "@/components/tournaments/draft-field";
 import { DraftBar } from "@/components/tournaments/draft-bar";
 import { DraftSettings } from "@/components/tournaments/draft-settings";
+import { RunningGrouping } from "@/components/tournaments/running-grouping";
 import { RunBar } from "@/components/tournaments/run-bar";
 import { Standings } from "@/components/tournaments/standings";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
@@ -68,6 +69,15 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
 
       {view.status === "active" && view.blind ? (
         <p className="max-w-3xl text-sm text-muted-foreground">Blind: names stay hidden until a flight is decided. Open a flight to play it.</p>
+      ) : null}
+
+      {view.status === "active" ? (
+        <RunningGrouping
+          key={JSON.stringify([view.groupOrder, view.seeding])}
+          tournamentId={view.id}
+          groupOrder={view.groupOrder as GroupKey[]}
+          seeding={view.seeding}
+        />
       ) : null}
 
       {draft ? <DraftField key={JSON.stringify(view.entries.map((e) => [e.kind, e.bottleId, e.expressionId, e.name]))} tournamentId={view.id} entries={view.entries} categories={categories} /> : null}
