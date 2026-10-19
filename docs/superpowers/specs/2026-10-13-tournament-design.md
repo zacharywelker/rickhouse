@@ -114,6 +114,7 @@ Routes under `/api/v1/tournaments`, used by web and iOS alike:
 - move an entrant to another undecided heat, and reset the current round to the automatic grouping
 - promote an ad hoc entrant to a label or one of your bottles
 - ranking and audit (section 7)
+- the field picker's search: bottles you own (filters: status, opened, tasted, category, text) and labels you do not own, so a client needs no other listing; and `tournamentRank` on the label read, the one line the label page shows (section 8)
 
 Rounds, advancement, validation (strict ranking of exactly the entrants in the heat) and the draw are server-side. The pure modules (bracket generation, advancement, ranking fit) take plain data and have exact-answer unit tests.
 
@@ -135,7 +136,7 @@ Rounds, advancement, validation (strict ranking of exactly the entrants in the h
 - **Web**: create a tournament (large field picker with filters, bracket preview of round 1 with later rounds as counts), run heats, the bracket view and standings, ranking, audit. Tournaments is a top-nav item beside Labels.
 - **Bottom bar on long pages (web).** The setup preview and the bracket view carry a bar glued to the bottom of the window, with page up, page down and a Top button. Page up and down move one screen minus the bar's height, so no row is skipped under it. Top appears once you have scrolled half a screen, and its space is reserved so the bar does not shift. Page up and page down disable at the ends. On the setup preview the same bar also holds **Start tournament** and **Reset to automatic**. The bar is solid paper with a hairline top edge, no blur or shadow (`DESIGN.md` section 1). The page keeps scroll padding equal to the bar's height so keyboard focus is never hidden behind it (WCAG 2.2, focus not obscured), and smooth scrolling applies only when reduced motion is not requested. These are buttons in the bar, not floating buttons over the content, so they never cover a row's controls.
 - **iOS**: the same, laid out for live tasting (glass-letter mapping, the pourer's hand-over, ranking with arrow buttons). **Tournaments lives under the Account tab**, not in the tab bar or the + sheet. The arrow buttons are drawn at 28 pt with a 44 pt hit area.
-- **Label page**: one line, "Tournament rank: 3 of 41 bourbons", when the label or one of its bottles has a firm rank.
+- **Label page** (the server writes the text, so web and phone agree and the category is pluralized correctly: "3 of 12 bourbons", "brandies", "scotches", "whiskies"): one line, "Tournament rank: 3 of 41 bourbons", when the label or one of its bottles has a firm rank.
 
 ## 9. Provenance on label-page tastings (separate PR, first)
 
