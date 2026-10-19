@@ -89,4 +89,24 @@ enum Format {
         guard let kind, kind != .owned else { return place }
         return [kind.title, place].compactMap { $0 }.joined(separator: ", ")
     }
+
+    /// The short phrases that mark a tasting's bottle, most telling first; empty for a standard bottle. Mirrors
+    /// `provenanceTags` in `src/lib/provenance.ts`, which the web label page uses: change one, change the other.
+    static func provenanceTags(_ provenance: TastingProvenance?) -> [String] {
+        guard let p = provenance else { return [] }
+        var tags: [String] = []
+        if p.privateSelection { tags.append("Private selection") }
+        if let name = p.pickName { tags.append("“\(name)”") }
+        if let picker = p.pickedBy { tags.append("Picked by \(picker)") }
+        if p.singleBarrel { tags.append("Single barrel") }
+        if let barrel = p.barrelNumber { tags.append("Barrel \(barrel)") }
+        let release = p.release?.trimmingCharacters(in: .whitespaces)
+        if let release, !release.isEmpty { tags.append(release) } else if let batch = p.batch { tags.append("Batch \(batch)") }
+        if let year = p.releaseYear {
+            // The year counts as already shown only as a whole number: "Batch 20240" does not carry 2024.
+            let shown = release?.range(of: "(?<![0-9])\(year)(?![0-9])", options: .regularExpression) != nil
+            if !shown { tags.append(String(year)) }
+        }
+        return tags
+    }
 }

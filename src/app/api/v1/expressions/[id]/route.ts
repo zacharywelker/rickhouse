@@ -7,6 +7,7 @@ import { expressions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { attachBarcodeSchema, upcCandidates } from "@/lib/api/labels";
+import { labelTastingJson } from "@/lib/expressions/tasting-json";
 import { pickerLabel } from "@/lib/expressions/picker";
 import { proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
 import { labelFactsSchema, patchLabel } from "@/lib/expressions/label-patch";
@@ -129,19 +130,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       store: b.store?.name ?? null,
       thumbPath: b.thumbPath,
     })),
-    tastings: tastings.map((t) => ({
-      id: t.id,
-      bottleId: t.bottleId,
-      source: t.source,
-      tastedAt: t.tastedAt,
-      tags: t.tags,
-      tastedOn: t.tastedOn,
-      rating: t.rating,
-      nose: t.nose,
-      palate: t.palate,
-      finish: t.finish,
-      overall: t.overall,
-    })),
+    tastings: tastings.map(labelTastingJson),
   });
 }
 

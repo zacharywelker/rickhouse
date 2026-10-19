@@ -450,6 +450,11 @@ struct TastingBlock: View {
                     if let pour = Format.pour(source: tasting.source, tastedAt: tasting.tastedAt) ?? ownedLabel {
                         Text(pour).font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted)
                     }
+                    let provenance = Format.provenanceTags(tasting.provenance)
+                    if !provenance.isEmpty {
+                        Text(provenance.joined(separator: " · "))
+                            .font(.inter(12, .medium, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                    }
                     if let flavors = tasting.tags, !flavors.isEmpty {
                         Text(flavors.map(session.flavorName).joined(separator: ", "))
                             .font(.inter(13, .medium, relativeTo: .footnote)).foregroundStyle(Theme.ink)
