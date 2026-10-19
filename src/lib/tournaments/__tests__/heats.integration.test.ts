@@ -237,6 +237,63 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(await m.heats.moveEntry(owner, made.id, 999999, view.rounds[0]!.heats[0]!.id)).toMatchObject({ ok: false, status: 404 });
   });
 
+  it("removes a bottle from a draft: the flight shrinks to a bye or disappears, other flights keep their names, fewer than two clears the preview", async () => {
+    type V = import("../view").TournamentView;
+    const shape = (v: V) => v.rounds[0]!.heats.map((h) => [h.entries.length, h.status]);
+    const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottles.slice(0, 4).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
+    let view = (await m.queries.getTournament(owner, made.id))!;
+    expect(shape(view)).toEqual([[3, "pending"], [1, "bye"]]);
+    const [full] = view.rounds[0]!.heats;
+
+    // Three become two, still pending; the entry is gone from the field too.
+    const first = (await m.heats.removeDraftEntry(owner, made.id, full!.entries[0]!.entryId)) as { ok: true; view: V };
+    expect(first.ok).toBe(true);
+    expect(shape(first.view)).toEqual([[2, "pending"], [1, "bye"]]);
+    expect(first.view.entries.map((e) => e.id)).not.toContain(full!.entries[0]!.entryId);
+    expect(first.view.entries).toHaveLength(3);
+
+    // Two become one: a bye.
+    const second = (await m.heats.removeDraftEntry(owner, made.id, full!.entries[1]!.entryId)) as { ok: true; view: V };
+    expect(shape(second.view)).toEqual([[1, "bye"], [1, "bye"]]);
+
+    // Emptying a flight removes it (its slot is simply left empty): 3 bottles in 3,1 -> remove the bye's.
+    const roomy = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottles.slice(0, 4).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
+    const rv = (await m.queries.getTournament(owner, roomy.id))!;
+    const emptied = (await m.heats.removeDraftEntry(owner, roomy.id, rv.rounds[0]!.heats[1]!.entries[0]!.entryId)) as { ok: true; view: V };
+    expect(shape(emptied.view)).toEqual([[3, "pending"]]);
+    expect(emptied.view.rounds[0]!.heats[0]!.id).toBe(rv.rounds[0]!.heats[0]!.id);
+
+    // The last two: one removal leaves a single entry and no preview.
+    const last = (await m.heats.removeDraftEntry(owner, made.id, full!.entries[2]!.entryId)) as { ok: true; view: V };
+    expect(last.view.rounds).toEqual([]);
+    expect(last.view.entries).toHaveLength(1);
+    view = (await m.queries.getTournament(owner, made.id))!;
+    expect(view.rounds).toEqual([]);
+
+    // With six bottles in two flights, a name given to the other flight and its members survive a removal.
+    const six = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottles.slice(0, 6).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
+    view = (await m.queries.getTournament(owner, six.id))!;
+    const [a, b] = view.rounds[0]!.heats;
+    await m.heats.renameHeat(owner, six.id, a!.id, "My shelf");
+    const kept = (await m.heats.removeDraftEntry(owner, six.id, b!.entries[0]!.entryId)) as { ok: true; view: V };
+    expect(kept.view.rounds[0]!.heats.map((h) => [h.id, h.label, h.entries.map((e) => e.entryId)])).toEqual([
+      [a!.id, "My shelf", a!.entries.map((e) => e.entryId)],
+      [b!.id, null, b!.entries.slice(1).map((e) => e.entryId)],
+    ]);
+
+    // Refusals: a started tournament (409), a stranger (404), an entry of another tournament or none (404).
+    await m.life.startTournament(owner, six.id);
+    expect(await m.heats.removeDraftEntry(owner, six.id, a!.entries[0]!.entryId)).toMatchObject({ ok: false, status: 409 });
+    const draft = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottles.slice(0, 3).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
+    const dv = (await m.queries.getTournament(owner, draft.id))!;
+    const mine = dv.rounds[0]!.heats[0]!.entries[0]!.entryId;
+    expect(await m.heats.removeDraftEntry(other, draft.id, mine)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.heats.removeDraftEntry(owner, draft.id, a!.entries[0]!.entryId)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.heats.removeDraftEntry(owner, draft.id, 999999)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.heats.removeDraftEntry(owner, 999999, mine)).toMatchObject({ ok: false, status: 404 });
+    expect((await m.queries.getTournament(owner, draft.id))!.entries).toHaveLength(3);
+  });
+
   it("swaps two entries between flights: in a draft, and in a running tournament with the glass letters staying with the places", async () => {
     type V = import("../view").TournamentView;
     const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottleEntries())) as { ok: true; id: number };

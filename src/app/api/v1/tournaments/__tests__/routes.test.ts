@@ -6,7 +6,7 @@ const { getCurrentUser, life, heats, queries, rankingFor, field } = vi.hoisted((
   return {
     getCurrentUser: vi.fn(),
     life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
-    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
+    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), removeDraftEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     queries: { getTournament: fn(), listTournaments: fn() },
     rankingFor: vi.fn(),
     field: { fieldCandidates: fn(), labelCandidates: fn() },
@@ -71,6 +71,7 @@ const routes: [string, Parameters<typeof call>[0], string, Record<string, string
   ["POST swap", swap.POST as never, "POST", { id: "3", entryId: "9" }, { withEntryId: 5 }],
   ["POST withdraw", withdraw.POST as never, "POST", { id: "3", entryId: "9" }, {}],
   ["PATCH entry", promote.PATCH as never, "PATCH", { id: "3", entryId: "9" }, { bottleId: 4 }],
+  ["DELETE entry", promote.DELETE as never, "DELETE", { id: "3", entryId: "9" }, undefined],
 ];
 
 describe("every tournament route", () => {
@@ -227,6 +228,12 @@ describe("flights and entries", () => {
     expect((await call(swap.POST as never, "POST", { id: "3", entryId: "x" }, { withEntryId: 6 })).status).toBe(404);
     expect((await call(withdraw.POST as never, "POST", { id: "3", entryId: "9" }, {})).status).toBe(200);
     expect(heats.withdrawEntry).toHaveBeenCalledWith(7, 3, 9);
+    heats.removeDraftEntry.mockResolvedValue({ ok: true, view });
+    expect((await call(promote.DELETE as never, "DELETE", { id: "3", entryId: "9" })).status).toBe(200);
+    expect(heats.removeDraftEntry).toHaveBeenCalledWith(7, 3, 9);
+    expect((await call(promote.DELETE as never, "DELETE", { id: "3", entryId: "x" })).status).toBe(404);
+    heats.removeDraftEntry.mockResolvedValue({ ok: false, status: 409, error: "Only a draft can have bottles removed." });
+    expect((await call(promote.DELETE as never, "DELETE", { id: "3", entryId: "9" })).status).toBe(409);
     expect((await call(promote.PATCH as never, "PATCH", { id: "3", entryId: "9" }, { expressionId: 4 })).status).toBe(200);
     expect(heats.promoteEntry).toHaveBeenCalledWith(7, 3, 9, { expressionId: 4 });
     expect((await call(promote.PATCH as never, "PATCH", { id: "3", entryId: "9" }, { bottleId: 1, expressionId: 4 })).status).toBe(422);

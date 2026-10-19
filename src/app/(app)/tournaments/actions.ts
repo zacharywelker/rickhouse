@@ -6,7 +6,7 @@ import { parseInput, toActionResult, toFailure, type ActionFailure, type Tournam
 import { fieldCandidates, labelCandidates, type FieldCandidate, type LabelCandidate } from "@/lib/tournaments/field";
 import { parseFieldFilters } from "@/lib/tournaments/field-filters";
 import { createSchema, glassSchema, moveSchema, patchSchema, promoteSchema, renameSchema, resultSchema, swapSchema } from "@/lib/tournaments/api-schemas";
-import { drawHeat, moveEntry, promoteEntry, recordHeat, renameHeat, setGlasses, swapEntries, undoHeat, withdrawEntry, type DrawnHeat } from "@/lib/tournaments/heats";
+import { drawHeat, moveEntry, promoteEntry, recordHeat, removeDraftEntry, renameHeat, setGlasses, swapEntries, undoHeat, withdrawEntry, type DrawnHeat } from "@/lib/tournaments/heats";
 import { createTournament, deleteTournament, resetRound, startTournament, updateDraft } from "@/lib/tournaments/lifecycle";
 import type { Failure } from "@/lib/tournaments/state";
 
@@ -90,6 +90,13 @@ export async function withdrawEntryAction(id: number, entryId: number): Promise<
   if (!isId(id)) return goneTournament;
   if (!isId(entryId)) return goneEntry;
   return view(id, () => withdrawEntry(user.id, id, entryId));
+}
+
+export async function removeDraftEntryAction(id: number, entryId: number): Promise<TournamentActionResult> {
+  const user = await requireSession();
+  if (!isId(id)) return goneTournament;
+  if (!isId(entryId)) return goneEntry;
+  return view(id, () => removeDraftEntry(user.id, id, entryId));
 }
 
 /** For the pourer: the answer names what is in each glass, so it is never put in the page's own view. */

@@ -126,6 +126,33 @@ export async function withdrawEntry(ownerId: number, tournamentId: number, entry
   });
 }
 
+/**
+ * Removes a bottle from a draft's field. Only its own row goes: the flight it was in shrinks (one left is a bye, none
+ * left is removed) and every other flight keeps its bottles, name and place (slots may have gaps, nothing needs them
+ * contiguous). With fewer than two entries left there is no preview, so the flights go, as in updateDraft.
+ */
+export async function removeDraftEntry(ownerId: number, tournamentId: number, entryId: number): Promise<Done | Failure> {
+  return db.transaction(async (tx) => {
+    const t = await lockTournament(tx, ownerId, tournamentId);
+    if (!t) return fail(404, GONE);
+    if (t.status !== "draft") return fail(409, "Only a draft can have bottles removed.");
+    const state = await readState(tx, t.id);
+    if (!state.entries.some((e) => e.id === entryId)) return fail(404, NO_ENTRY);
+
+    const row = state.heatEntries.find((r) => r.entryId === entryId);
+    await tx.delete(tournamentHeatEntries).where(eq(tournamentHeatEntries.entryId, entryId));
+    await tx.delete(tournamentEntries).where(eq(tournamentEntries.id, entryId));
+    if (state.entries.length - 1 < 2) {
+      await tx.delete(tournamentHeats).where(eq(tournamentHeats.tournamentId, t.id));
+    } else if (row) {
+      const left = state.heatEntries.filter((r) => r.heatId === row.heatId).length - 1;
+      if (left === 0) await tx.delete(tournamentHeats).where(eq(tournamentHeats.id, row.heatId));
+      else await tx.update(tournamentHeats).set({ status: left === 1 ? "bye" : "pending" }).where(eq(tournamentHeats.id, row.heatId));
+    }
+    return { ok: true as const, view: (await viewOf(tx, ownerId, t.id))! };
+  });
+}
+
 /** A flight as the pourer sees it: every glass with what is in it. */
 export type DrawnHeat = {
   heatId: number;

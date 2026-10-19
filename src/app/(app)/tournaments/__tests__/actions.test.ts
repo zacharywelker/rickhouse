@@ -6,7 +6,7 @@ const { requireSession, revalidatePath, life, heats, field, calls } = vi.hoisted
     requireSession: vi.fn(),
     revalidatePath: vi.fn(),
     life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
-    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
+    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), removeDraftEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     field: { fieldCandidates: fn(), labelCandidates: fn() },
     calls: [] as string[],
   };
@@ -50,6 +50,7 @@ const viewActions: [string, () => Promise<unknown>, ReturnType<typeof vi.fn>, un
   ["recordHeatAction", () => actions.recordHeatAction(3, 5, { ranking: [1, 2] }), heats.recordHeat, [7, 3, 5, { ranking: [1, 2] }, 7]],
   ["undoHeatAction", () => actions.undoHeatAction(3, 5), heats.undoHeat, [7, 3, 5]],
   ["withdrawEntryAction", () => actions.withdrawEntryAction(3, 9), heats.withdrawEntry, [7, 3, 9]],
+  ["removeDraftEntryAction", () => actions.removeDraftEntryAction(3, 9), heats.removeDraftEntry, [7, 3, 9]],
   [
     "setGlassesAction",
     () => actions.setGlassesAction(3, 5, [{ entryId: 1, glass: "A" }, { entryId: 2, glass: "B" }]),
@@ -116,6 +117,9 @@ describe("invalid input never reaches the command", () => {
     expect(await actions.startTournamentAction(Number.NaN)).toEqual({ ok: false, error: "That tournament is gone." });
     expect(await actions.undoHeatAction(3, -1)).toEqual({ ok: false, error: "That flight is gone." });
     expect(await actions.withdrawEntryAction(3, 1.5)).toEqual({ ok: false, error: "That entry is gone." });
+    expect(await actions.removeDraftEntryAction(3, 0)).toEqual({ ok: false, error: "That entry is gone." });
+    expect(await actions.removeDraftEntryAction(Number.NaN, 4)).toEqual({ ok: false, error: "That tournament is gone." });
+    expect(heats.removeDraftEntry).not.toHaveBeenCalled();
     expect(await actions.deleteTournamentAction(0)).toEqual({ ok: false, error: "That tournament is gone." });
     expect(await actions.drawHeatAction(Number.NaN)).toEqual({ ok: false, error: "That tournament is gone." });
     expect(life.startTournament).not.toHaveBeenCalled();
