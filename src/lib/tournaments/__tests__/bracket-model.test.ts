@@ -11,7 +11,7 @@ const entry = (id: number, name: string, proof: number | null, extra: Partial<Vi
   proof,
   mashbill: null,
   ageYears: null,
-  distilleries: [],
+  distilleries: [], category: null, finishes: [],
   ...extra,
 });
 

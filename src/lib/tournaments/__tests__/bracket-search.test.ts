@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fold, matchEntries, stepMatch } from "../bracket-search";
 import type { ViewHeat } from "../view";
 
-const e = (entryId: number, name: string) => ({ entryId, name, place: null, glass: null, proof: null, mashbill: null, ageYears: null, distilleries: [] });
+const e = (entryId: number, name: string) => ({ entryId, name, place: null, glass: null, proof: null, mashbill: null, ageYears: null, distilleries: [], category: null, finishes: [] });
 const heat = (id: number, round: number, entries: ReturnType<typeof e>[], hidden = false): ViewHeat => ({
   id, round, slot: id, status: "pending", label: null, autoLabel: null, band: "", hidden, entryCount: entries.length || 2, glasses: [], entries: hidden ? [] : entries,
 });

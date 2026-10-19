@@ -107,7 +107,7 @@ describe("sorting by mashbill alone", () => {
 
   it("orders them so that similar mashbills are neighbors", () => {
     const entrants: Entrant[] = cases.map(([name, mashbill], index) => ({
-      id: index + 1, name, proof: null, mashbill, distilleries: [], ageYears: null, finishes: [],
+      id: index + 1, name, proof: null, mashbill, distilleries: [], ageYears: null, finishes: [], category: null,
     }));
     expect(sortEntrants(entrants, ["mashbill", "proof", "distillery", "age", "finish"]).map((e) => e.name)).toEqual([
       "81/9/10 corn",

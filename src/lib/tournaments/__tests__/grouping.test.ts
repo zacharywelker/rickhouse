@@ -4,7 +4,7 @@ import { DEFAULT_GROUP_ORDER, isGroupOrder, type Entrant, type MashbillInput } f
 
 const generic = (style: string): MashbillInput => ({ kind: "generic", style });
 const entrant = (id: number, name: string, over: Partial<Entrant> = {}): Entrant => ({
-  id, name, proof: null, mashbill: null, distilleries: [], ageYears: null, finishes: [], ...over,
+  id, name, proof: null, mashbill: null, distilleries: [], ageYears: null, finishes: [], category: null, ...over,
 });
 const names = (heats: Entrant[][]) => heats.map((h) => h.map((e) => e.name));
 

@@ -4,7 +4,7 @@ import { distilleryNames, keyValue, sortEntrants } from "../keys";
 import type { Entrant } from "../types";
 
 const entrant = (id: number, over: Partial<Entrant> = {}): Entrant => ({
-  id, name: `e${id}`, proof: null, mashbill: null, distilleries: [], ageYears: null, finishes: [], ...over,
+  id, name: `e${id}`, proof: null, mashbill: null, distilleries: [], ageYears: null, finishes: [], category: null, ...over,
 });
 
 describe("non-finite numbers", () => {

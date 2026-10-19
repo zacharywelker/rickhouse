@@ -44,6 +44,10 @@ export type ViewEntry = {
   kind: EntryKind;
   bottleId: number | null;
   expressionId: number | null;
+  /** The leaf category name of the entry's label ("Bourbon"); null for an outside entry. */
+  category: string | null;
+  /** The label's finish names in listed order. */
+  finishes: string[];
 };
 
 /** A heat's entry as the owner sees it. */
@@ -56,6 +60,8 @@ export type ViewHeatEntry = {
   mashbill: string | null;
   ageYears: number | null;
   distilleries: string[];
+  category: string | null;
+  finishes: string[];
 };
 
 export type ViewHeat = {
@@ -142,6 +148,8 @@ export function buildView(input: ViewInput): TournamentView {
               mashbill: e?.mashbill ? mashbillDisplay(e.mashbill) || null : null,
               ageYears: e?.ageYears ?? null,
               distilleries: e?.distilleries ?? [],
+              category: e?.category ?? null,
+              finishes: e?.finishes ?? [],
             };
           }),
     };
@@ -183,7 +191,19 @@ export function buildView(input: ViewInput): TournamentView {
     completedAt: iso(tournament.completedAt),
     entries: [...entries]
       .sort((a, b) => a.seed - b.seed || a.id - b.id)
-      .map((e) => ({ id: e.id, name: e.displayName, status: e.status, kind: entryKind(e), bottleId: e.bottleId, expressionId: e.expressionId })),
+      .map((e) => {
+        const facts = entrants.get(e.id);
+        return {
+          id: e.id,
+          name: e.displayName,
+          status: e.status,
+          kind: entryKind(e),
+          bottleId: e.bottleId,
+          expressionId: e.expressionId,
+          category: facts?.category ?? null,
+          finishes: facts?.finishes ?? [],
+        };
+      }),
     rounds,
     plan: activeCount >= 2 ? planRounds(activeCount, tournament.heatSize) : [],
     currentRound,

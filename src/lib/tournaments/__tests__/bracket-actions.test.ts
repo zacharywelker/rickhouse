@@ -6,8 +6,8 @@ const heat = (id: number, round: number, status: ViewHeat["status"], extra: Part
   id, round, slot: id, status, label: null, autoLabel: null, band: "", hidden: false, entryCount: 2, glasses: [], entries: [], ...extra,
 });
 const entries = [
-  { id: 1, name: "A", status: "active" as const, kind: "bottle" as const, bottleId: 1, expressionId: 1 },
-  { id: 2, name: "B", status: "withdrawn" as const, kind: "bottle" as const, bottleId: 2, expressionId: 2 },
+  { id: 1, name: "A", status: "active" as const, kind: "bottle" as const, bottleId: 1, expressionId: 1, category: null, finishes: [] as string[] },
+  { id: 2, name: "B", status: "withdrawn" as const, kind: "bottle" as const, bottleId: 2, expressionId: 2, category: null, finishes: [] as string[] },
 ];
 const view = (status: ActionView["status"], rounds: ViewHeat[][], blind = false): ActionView => ({
   status, blind, entries,
@@ -97,7 +97,7 @@ describe("canReset", () => {
 });
 
 describe("flightControls", () => {
-  const e = (entryId: number) => ({ entryId, name: "x", place: null, glass: null, proof: null, mashbill: null, ageYears: null, distilleries: [] });
+  const e = (entryId: number) => ({ entryId, name: "x", place: null, glass: null, proof: null, mashbill: null, ageYears: null, distilleries: [], category: null, finishes: [] });
   it("lists what a pending flight of a running open tournament offers", () => {
     const h = heat(1, 1, "pending", { entries: [e(1), e(2)] });
     expect(flightControls(view("active", [[h]]), h)).toEqual({ play: true, undo: false, move: true, withdraw: [1] });

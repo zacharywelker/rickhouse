@@ -30,6 +30,8 @@ export type Entrant = {
   ageYears: number | null;
   /** The label's finishes in listed order; the first is the one compared. */
   finishes: string[];
+  /** The leaf category name of the label ("Bourbon", "Rye"); null when unknown or for an ad hoc entry. */
+  category: string | null;
 };
 
 /** True when `order` holds each of the five keys exactly once. */

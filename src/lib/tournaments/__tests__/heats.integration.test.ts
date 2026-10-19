@@ -561,4 +561,30 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
       expect(await m.heats.setGlasses(owner, made.id, drawn.heat.heatId, rows)).toMatchObject({ ok: false, status: 422 });
     });
   });
+
+  it("carries each entry's category and finishes in the roster and in a flight, but never for a hidden flight", async () => {
+    const own = await fx.mkUser();
+    const cats = await fx.mkCategories();
+    const finished = await fx.mkLabel(own, cats.whiskey, "Finished", { proof: 100, finishes: ["Tawny Port", "Madeira"] });
+    const plain = await fx.mkLabel(own, cats.whiskey, "Plain", { proof: 101 });
+    const entries = [{ bottleId: await fx.mkBottle(own, finished) }, { bottleId: await fx.mkBottle(own, plain) }, { name: "Joe's cask" }];
+    const [catRow] = await m.sql<{ name: string }>(`SELECT name FROM categories WHERE id = $1`, cats.whiskey);
+
+    const made = (await m.life.createTournament(own, settings(), entries)) as { ok: true; id: number };
+    const view = (await m.queries.getTournament(own, made.id))!;
+    const byName = (name: string) => view.entries.find((e) => e.name.includes(name))!;
+    expect(byName("Finished")).toMatchObject({ category: catRow!.name, finishes: [expect.stringContaining("Tawny Port"), expect.stringContaining("Madeira")] });
+    expect(byName("Plain")).toMatchObject({ category: catRow!.name, finishes: [] });
+    expect(byName("Joe's cask")).toMatchObject({ category: null, finishes: [] });
+    const inHeat = view.rounds[0]!.heats[0]!.entries.find((e) => e.name.includes("Finished"))!;
+    expect(inHeat.category).toBe(catRow!.name);
+    expect(inHeat.finishes).toHaveLength(2);
+
+    const blind = (await m.life.createTournament(own, settings({ blind: true }), entries)) as { ok: true; id: number };
+    await m.life.startTournament(own, blind.id);
+    const hidden = (await m.queries.getTournament(own, blind.id))!;
+    expect(hidden.rounds[0]!.heats.every((h) => h.hidden && h.entries.length === 0)).toBe(true);
+    const { entries: _roster, ...rest } = hidden;
+    expect(JSON.stringify(rest)).not.toMatch(/Tawny Port|Madeira|"category"/);
+  });
 });
