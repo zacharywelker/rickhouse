@@ -80,6 +80,30 @@ final class TournamentModel {
         await run { try await $0.resetTournament(id: self.id) }
     }
 
+    /// Takes a result back; the server refuses once a flight of the next round has one, and that shows in the foot bar.
+    func undo(heatId: Int) async {
+        await run { try await $0.undoFlight(tournamentId: self.id, heatId: heatId) }
+    }
+
+    func withdraw(entryId: Int) async {
+        await run { try await $0.withdrawEntry(tournamentId: self.id, entryId: entryId) }
+    }
+
+    /// A random flight to taste (blind): hands the pourer's glasses to `open`. A failure goes to the foot bar, whose Retry draws again.
+    func draw(then open: @escaping (DrawnHeat) -> Void) async {
+        guard !pending, let api = api() else { return }
+        pending = true
+        defer { pending = false }
+        do {
+            open(try await api.drawFlight(tournamentId: id))
+        } catch APIError.unauthorized {
+            signOut()
+        } catch {
+            if let fresh = try? await api.tournament(id: id) { adopt(fresh) }
+            foot.fail(error.localizedDescription, retry: { Task { await self.draw(then: open) } })
+        }
+    }
+
     /// Settings or the field. `inline` for the settings sheet, which shows the failure itself.
     @discardableResult
     func patch(_ patch: TournamentPatch, inline: Bool = false) async -> ActionResult {

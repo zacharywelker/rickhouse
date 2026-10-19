@@ -9,14 +9,19 @@ struct FlightCardView: View {
     let renamable: Bool
     /// Bottles of this flight can be moved or swapped (a draft; never a blind running one).
     let moves: MoveOptions?
+    var run: FlightRunOptions?
     var onRename: () -> Void = {}
 
-    /// What a bottle's ⋯ menu offers, and what it does.
+    /// What a bottle's ⋯ menu offers, and what it does: move and swap (a draft, or an open running tournament), withdraw (running).
     struct MoveOptions {
         let targets: [MoveTarget]
         let swaps: [SwapTarget]
+        var withdrawable: Set<Int> = []
         let onMove: (_ entryId: Int, _ heatId: Int) -> Void
         let onSwap: (_ entryId: Int) -> Void
+        var onWithdraw: (_ entryId: Int, _ name: String) -> Void = { _, _ in }
+
+        func hasMenu(for entryId: Int) -> Bool { !targets.isEmpty || !swaps.isEmpty || withdrawable.contains(entryId) }
     }
 
     var body: some View {
@@ -36,6 +41,7 @@ struct FlightCardView: View {
                 }
                 Divider()
             }
+            if let run, run.play || run.undo { FlightRunButtons(title: flight.title.text, run: run).padding(.vertical, 8) }
         }
         .accessibilityElement(children: .contain)
     }
@@ -86,6 +92,7 @@ struct FlightRowView: View {
     let final: Bool
     let moves: FlightCardView.MoveOptions?
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.findHighlight) private var highlight
 
     private var champion: Bool { final && row.place == 1 }
     private var out: Bool { decided && !row.advanced && !champion }
@@ -100,7 +107,7 @@ struct FlightRowView: View {
             if row.advanced || champion {
                 Label(champion ? "Champion" : "Advances", systemImage: champion ? "trophy" : "arrow.right").font(.inter(12, .semibold)).foregroundStyle(Theme.ink)
                     .padding(.top, 12).accessibilityHidden(true)
-            } else if let moves {
+            } else if let moves, moves.hasMenu(for: row.entryId) {
                 menu(moves)
             }
         }
@@ -108,6 +115,7 @@ struct FlightRowView: View {
         .frame(minHeight: 44)
         .overlay(alignment: .leading) { if row.advanced || champion { Rectangle().fill(Theme.ink).frame(width: 3) } }
         .foregroundStyle(out ? Theme.muted : Theme.ink)
+        .findMark(entryId: row.entryId, highlight: highlight)
     }
 
     private var text: some View {
@@ -121,6 +129,7 @@ struct FlightRowView: View {
             if let moves {
                 ForEach(moves.targets.filter { !$0.full }) { t in Button("Move to \(t.title)") { moves.onMove(row.entryId, t.heatId) } }
                 if !moves.swaps.isEmpty { Button("Swap with…") { moves.onSwap(row.entryId) } }
+                if moves.withdrawable.contains(row.entryId) { Button("Withdraw") { moves.onWithdraw(row.entryId, row.name) } }
             }
         }
     }
@@ -146,6 +155,7 @@ struct FlightRowView: View {
         if let glass = row.glass { parts.append("glass \(glass)") }
         var line = parts.joined(separator: ", ")
         if showsPlace, let place = row.place { line = "Place \(place). " + line }
+        if highlight.entryIds.contains(row.entryId) { line += ", search match" }
         return row.advanced ? line + ", advances" : champion ? line + ", champion" : line
     }
 
@@ -159,18 +169,24 @@ struct FlightRowView: View {
                 }
             }
             if !moves.swaps.isEmpty { Button("Swap with…") { moves.onSwap(row.entryId) } }
+            if moves.withdrawable.contains(row.entryId) {
+                Divider()
+                Button("Withdraw…", role: .destructive) { moves.onWithdraw(row.entryId, row.name) }
+            }
         } label: {
             Image(systemName: "ellipsis").font(.system(size: 18, weight: .semibold)).frame(width: 44, height: 44).contentShape(Rectangle())
         }
         .foregroundStyle(Theme.ink)
-        .accessibilityLabel("Move \(row.name) to another flight")
+        .accessibilityLabel(moves.targets.isEmpty && moves.swaps.isEmpty ? "Withdraw \(row.name)" : "Options for \(row.name)")
     }
 }
 
 /// The Compact layout of one flight: a line per bottle (place, name, proof).
 struct CompactFlightView: View {
     let flight: CompactFlight
+    var run: FlightRunOptions?
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.findHighlight) private var highlight
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -185,6 +201,7 @@ struct CompactFlightView: View {
                 line(row)
             }
             Divider()
+            if let run, run.play || run.undo { FlightRunButtons(title: flight.title, run: run, compact: true).padding(.vertical, 6) }
         }
         .accessibilityElement(children: .contain)
     }
@@ -208,6 +225,7 @@ struct CompactFlightView: View {
         .frame(minHeight: 36)
         .overlay(alignment: .leading) { if row.advanced || champion { Rectangle().fill(Theme.ink).frame(width: 3) } }
         .foregroundStyle(out ? Theme.muted : Theme.ink)
+        .findMark(entryId: row.entryId, highlight: highlight)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(compactSpoken(row))
     }
@@ -215,6 +233,7 @@ struct CompactFlightView: View {
     private func compactSpoken(_ row: CompactRow) -> String {
         var line = row.name + (row.proof == "—" ? "" : ", \(row.proof) proof")
         if let place = row.place { line = "Place \(place). " + line }
+        if highlight.entryIds.contains(row.entryId) { line += ", search match" }
         return row.advanced ? line + ", advances" : line
     }
 }

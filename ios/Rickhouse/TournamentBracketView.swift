@@ -10,6 +10,8 @@ struct TournamentBracketView: View {
     /// Draft only: how a flight's bottles move, and naming a flight.
     let moves: (RoundColumn, FlightModel) -> FlightCardView.MoveOptions?
     let onRename: (FlightModel) -> Void
+    /// Running only: Play and Undo for a flight.
+    var run: (FlightModel) -> FlightRunOptions? = { _ in nil }
     @Environment(\.dynamicTypeSize) private var typeSize
 
     private var options: [RoundOption] { TournamentScreenLogic.roundOptions(bracket) }
@@ -55,10 +57,12 @@ struct TournamentBracketView: View {
         }
         .accessibilityElement(children: .combine)
         if zoom == .compact {
-            ForEach(ZoomProjection.compact(bracket, round: c.round)) { CompactFlightView(flight: $0) }
+            ForEach(ZoomProjection.compact(bracket, round: c.round)) { f in
+                CompactFlightView(flight: f, run: c.flights.first { $0.id == f.id }.flatMap(run))
+            }
         } else {
             ForEach(c.flights) { f in
-                FlightCardView(flight: f, renamable: draft && f.status == .pending, moves: draft && !f.hidden ? moves(c, f) : nil,
+                FlightCardView(flight: f, renamable: draft && f.status == .pending, moves: f.hidden ? nil : moves(c, f), run: run(f),
                                onRename: { onRename(f) })
             }
         }

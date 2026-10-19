@@ -149,6 +149,76 @@ final class TournamentModelTests: XCTestCase {
         XCTAssertEqual(m.view?.name, "Fresh")
     }
 
+    func testUndoSendsDeleteToTheResultAndTakesTheAnswer() async throws {
+        let m = await loaded()
+        StubURLProtocol.reply = json(name: "After undo")
+        await m.undo(heatId: 10)
+        let s = try lastSent()
+        XCTAssertEqual([s.method, s.path], ["DELETE", "/api/v1/tournaments/3/heats/10/result"])
+        XCTAssertEqual(m.view?.name, "After undo")
+    }
+
+    func testWithdrawPostsToTheEntry() async throws {
+        let m = await loaded()
+        await m.withdraw(entryId: 2)
+        let s = try lastSent()
+        XCTAssertEqual([s.method, s.path], ["POST", "/api/v1/tournaments/3/entries/2/withdraw"])
+    }
+
+    func testAFailedUndoShowsTheServersReasonAndLoadsTheViewAgain() async {
+        let m = await loaded("Before")
+        StubURLProtocol.queue = [(409, Data("{\"error\":{\"code\":\"conflict\",\"message\":\"A later round has a result.\"}}".utf8)),
+                                 (200, json(name: "Fresh"))]
+        await m.undo(heatId: 10)
+        XCTAssertEqual(StubURLProtocol.sent.map(\.method), ["DELETE", "GET"])
+        XCTAssertEqual(m.view?.name, "Fresh")
+        XCTAssertEqual(m.foot.failure?.message, "A later round has a result.")
+    }
+
+    func testAFailedWithdrawLoadsTheViewAgain() async {
+        let m = await loaded("Before")
+        StubURLProtocol.queue = [(404, Data("{\"error\":{\"code\":\"not_found\",\"message\":\"No such entry.\"}}".utf8)),
+                                 (200, json(name: "Fresh"))]
+        await m.withdraw(entryId: 9)
+        XCTAssertEqual(m.view?.name, "Fresh")
+        XCTAssertEqual(m.foot.failure?.message, "No such entry.")
+    }
+
+    private let drawn = Data("""
+    {"heatId":10,"round":1,"slot":1,"band":"90 to 94 proof","glasses":[{"glass":"A","entry":{"entryId":1,"name":"A","proof":90,"mashbill":null,"ageYears":null,"distilleries":[]}}]}
+    """.utf8)
+
+    func testDrawPostsAnEmptyBodyAndHandsTheFlightOn() async throws {
+        let m = await loaded()
+        StubURLProtocol.reply = drawn
+        var got: DrawnHeat?
+        await m.draw { got = $0 }
+        let s = try lastSent()
+        XCTAssertEqual([s.method, s.path], ["POST", "/api/v1/tournaments/3/draw"])
+        XCTAssertNil(s.body?["heatId"])
+        XCTAssertEqual(got?.heatId, 10)
+        XCTAssertFalse(m.pending)
+    }
+
+    func testAFailedDrawStaysOnTheScreenWithRetryAndLoadsTheViewAgain() async {
+        let m = await loaded("Before")
+        StubURLProtocol.queue = [(409, Data("{\"error\":{\"code\":\"conflict\",\"message\":\"Nothing left to draw.\"}}".utf8)),
+                                 (200, json(name: "Fresh"))]
+        var opened = false
+        await m.draw { _ in opened = true }
+        XCTAssertFalse(opened)
+        XCTAssertEqual(m.view?.name, "Fresh")
+        XCTAssertEqual(m.foot.failure?.message, "Nothing left to draw.")
+    }
+
+    func testResetFailureLoadsTheViewAgain() async {
+        let m = await loaded("Before")
+        StubURLProtocol.queue = [(500, Data("{}".utf8)), (200, json(name: "Fresh"))]
+        await m.reset()
+        XCTAssertEqual(m.view?.name, "Fresh")
+        XCTAssertNotNil(m.foot.failure)
+    }
+
     func testNotSignedInSendsNothing() async {
         let m = model(signedIn: false)
         let result = await m.swap(entryId: 1, with: 2)

@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// One tournament: its header, the round selector, the zoom control and the bracket, with the draft's bar pinned below.
-/// It draws every state (draft, running, blind, finished); this file wires the draft's actions, and running/finished
-/// ones come with the play screens.
+/// It draws every state (draft, running, blind, finished); this file wires the draft's actions and a running one's
+/// (Play, Undo, Withdraw, Draw, Reset, Find a bottle). The play screens are their own.
 struct TournamentScreen: View {
     @Environment(Session.self) private var session
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -11,6 +11,11 @@ struct TournamentScreen: View {
     @State private var fieldDraft = FieldState.empty
     @State private var editingField = false
     @State private var confirmingStart = false
+    @State private var find = FindState()
+    @State private var findTick = 0
+    @State private var playRoute: PlayRoute?
+    @State private var withdrawing: (entryId: Int, name: String)?
+    @State private var confirmingWithdraw = false
 
     init(id: Int) { _model = State(initialValue: TournamentModel(id: id)) }
 
@@ -39,6 +44,13 @@ struct TournamentScreen: View {
             .sheet(isPresented: $editingField, onDismiss: saveField) { FieldPickerSheet(field: $fieldDraft) }
             .confirmSheet("Start this tournament?", message: "The field locks when you start. You can still withdraw bottles.",
                           confirm: "Start tournament", cancel: "Not yet", isPresented: $confirmingStart) { Task { await model.start() } }
+            .confirmSheet(TournamentRunLogic.withdrawTitle(withdrawing?.name ?? "this bottle"), message: TournamentRunLogic.withdrawMessage,
+                          confirm: "Withdraw", cancel: "Keep it in", isPresented: $confirmingWithdraw) {
+                if let target = withdrawing { Task { await model.withdraw(entryId: target.entryId) } }
+            }
+            .navigationDestination(item: $playRoute) { PlayFlightView(tournamentID: model.id, heatID: $0.heatID, drawn: $0.drawn) }
+            // Coming back from a flight: what was decided there shows at once.
+            .onAppear { if model.hasLoaded { Task { await model.load() } } }
             .task {
                 model.api = { session.api }
                 model.signOut = { session.signOut() }
@@ -48,26 +60,41 @@ struct TournamentScreen: View {
 
     @ViewBuilder private var content: some View {
         if let view = model.view, let bracket = model.bracket {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    TournamentHeader(view: view, onSettings: { sheet = .settings }, onField: openField)
-                    if TournamentScreenLogic.activeCount(view) < 2 && view.status == .draft {
-                        fewEntries
-                    } else {
-                        ZoomControl(level: model.zoom) { model.setZoom($0) }
-                        TournamentBracketView(view: view, bracket: bracket, zoom: model.zoom, chosenRound: $model.chosenRound,
-                                              moves: { moveOptions(view, $0, $1) }, onRename: { rename($0) })
+            let matches = find.matches(view)
+            let options = TournamentScreenLogic.roundOptions(bracket)
+            let shown = TournamentScreenLogic.effectiveRound(view, options: options, chosen: model.chosenRound)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        TournamentHeader(view: view, onSettings: { sheet = .settings }, onField: openField)
+                        if TournamentScreenLogic.activeCount(view) < 2 && view.status == .draft {
+                            fewEntries
+                        } else {
+                            ZoomControl(level: model.zoom) { model.setZoom($0) }
+                            if view.status != .draft, model.zoom != .map {
+                                FindBar(find: find, count: matches.count, onQuery: { find.setQuery($0) }, onStep: { step($0, matches, proxy) })
+                            }
+                            TournamentBracketView(view: view, bracket: bracket, zoom: model.zoom, chosenRound: $model.chosenRound,
+                                                  moves: { moveOptions(view, $0, $1) }, onRename: { rename($0) }, run: runOptions(view))
+                        }
+                        if typeSize.isAccessibilitySize, let offer = TournamentRunLogic.bar(view) { runBar(offer).padding(.horizontal, -16) }
+                        StandingsSection(title: TournamentRunLogic.standingsTitle(view), rows: TournamentStandings.rows(view))
+                        if view.status == .draft, typeSize.isAccessibilitySize { draftBar(view, bracket).padding(.horizontal, -16) }
                     }
-                    if view.status == .draft, typeSize.isAccessibilitySize { draftBar(view, bracket).padding(.horizontal, -16) }
+                    .environment(\.findHighlight, shown.map { find.highlight(matches, round: $0) } ?? FindHighlight())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .pinchZoom(model.zoom) { model.setZoom($0) }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .pinchZoom(model.zoom) { model.setZoom($0) }
+                .scrollDismissesKeyboard(.interactively)
             }
             .refreshable { await model.load() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                // At the biggest text sizes the bar would fill the screen, so it scrolls with the bracket instead.
-                if view.status == .draft, !typeSize.isAccessibilitySize { draftBar(view, bracket) }
+                // At the biggest text sizes a bar would fill the screen, so it scrolls with the bracket instead.
+                if !typeSize.isAccessibilitySize {
+                    if view.status == .draft { draftBar(view, bracket) }
+                    else if let offer = TournamentRunLogic.bar(view) { runBar(offer) }
+                }
             }
         } else if let error = model.loadError {
             ContentUnavailableView {
@@ -79,6 +106,22 @@ struct TournamentScreen: View {
             }
         } else {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func runBar(_ offer: RunBarOffer) -> some View {
+        RunBar(offer: offer, busy: model.pending,
+               onDraw: { Task { await model.draw { playRoute = PlayRoute(heatID: $0.heatId, drawn: $0) } } },
+               onReset: { Task { await model.reset() } })
+    }
+
+    /// Next / Previous: lands on a match, shows its round, and scrolls to it once the round is on screen.
+    private func step(_ direction: Int, _ matches: [Match], _ proxy: ScrollViewProxy) {
+        guard find.step(direction, count: matches.count) != nil, let match = find.current(in: matches) else { return }
+        model.chosenRound = match.round
+        Task {
+            try? await Task.sleep(for: .milliseconds(120))
+            withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(TournamentFind.scrollID(match.entryId), anchor: .center) }
         }
     }
 
@@ -100,15 +143,38 @@ struct TournamentScreen: View {
 
     // MARK: Draft actions
 
-    private func moveOptions(_ view: TournamentView, _ column: RoundColumn, _ flight: FlightModel) -> FlightCardView.MoveOptions {
-        let swaps = TournamentScreenLogic.swapTargets(column, from: flight)
+    private func heat(_ view: TournamentView, _ id: Int) -> TournamentHeat? { view.rounds.flatMap(\.heats).first { $0.id == id } }
+
+    /// The bottle menu of a flight: move and swap where the rules allow, and withdraw for the bottles that can leave.
+    private func moveOptions(_ view: TournamentView, _ column: RoundColumn, _ flight: FlightModel) -> FlightCardView.MoveOptions? {
+        guard let heat = heat(view, flight.id) else { return nil }
+        let controls = FlightActions.flightControls(view, heat)
+        guard controls.move || !controls.withdraw.isEmpty else { return nil }
+        let swaps = controls.move ? TournamentScreenLogic.swapTargets(column, from: flight) : []
         return FlightCardView.MoveOptions(
-            targets: TournamentScreenLogic.moveTargets(column, from: flight, heatSize: view.heatSize), swaps: swaps,
+            targets: controls.move ? TournamentScreenLogic.moveTargets(column, from: flight, heatSize: view.heatSize) : [], swaps: swaps,
+            withdrawable: Set(controls.withdraw),
             onMove: { entry, heat in Task { await model.move(entryId: entry, toHeatId: heat) } },
             onSwap: { entry in
                 let name = flight.rows.first { $0.entryId == entry }?.name ?? "bottle"
                 sheet = .swap(name: name, entryId: entry, swaps: swaps)
+            },
+            onWithdraw: { entry, name in
+                withdrawing = (entry, name)
+                confirmingWithdraw = true
             })
+    }
+
+    /// Play and Undo for a flight of a running or finished tournament.
+    private func runOptions(_ view: TournamentView) -> (FlightModel) -> FlightRunOptions? {
+        { flight in
+            guard view.status != .draft, let heat = heat(view, flight.id) else { return nil }
+            let controls = FlightActions.flightControls(view, heat)
+            guard controls.play || controls.undo else { return nil }
+            return FlightRunOptions(play: controls.play, undo: controls.undo,
+                                    onPlay: { playRoute = PlayRoute(heatID: flight.id) },
+                                    onUndo: { Task { await model.undo(heatId: flight.id) } })
+        }
     }
 
     private func rename(_ flight: FlightModel) {
@@ -153,8 +219,10 @@ private struct TournamentHeader: View {
             Text(view.name).font(.headline(27)).foregroundStyle(Theme.ink).accessibilityAddTraits(.isHeader)
             Text(TournamentScreenLogic.headerMeta(view) + (view.blind ? " · Blind" : "")).font(.inter(14)).foregroundStyle(Theme.muted)
             if let line = TournamentScreenLogic.statusLine(view) { Text(line).font(.inter(14, .semibold)).foregroundStyle(Theme.ink) }
+            if let line = TournamentRunLogic.blindLine(view) { Text(line).font(.inter(14)).foregroundStyle(Theme.muted) }
             if let champion = view.champion {
-                Label("Champion: \(champion.name)", systemImage: "trophy").font(.inter(16, .semibold)).foregroundStyle(Theme.ink)
+                Label("Champion: \(champion.name)", systemImage: "trophy").font(.headline(20)).foregroundStyle(Theme.ink).padding(.top, 4)
+                    .accessibilityElement(children: .combine)
             }
             if let note = view.fieldNote, !note.isEmpty { Text(note).font(.inter(14)).foregroundStyle(Theme.muted) }
             if view.status == .draft { draftButtons.padding(.top, 4) }
