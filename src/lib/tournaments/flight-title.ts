@@ -35,7 +35,9 @@ export function autoLabel(heat: readonly Entrant[]): string | null {
   );
   const category = shared(heat.map((e) => e.category));
   const classes = heat.map((e) => mashbillClass(e.mashbill));
-  const klass = classes.every((c) => c !== null && c === classes[0]) ? classes[0]! : null;
+  let klass = classes.every((c) => c !== null && c === classes[0]) ? classes[0]! : null;
+  // A rye whiskey is rye by definition: only "Wheated" still says something.
+  if (category !== null && /rye/i.test(category) && klass !== "Wheated") klass = null;
   const finished = heat.every((e) => e.finishes.some((f) => f.trim() !== ""));
   const finish = !finished ? null : heat.every((e) => e.finishes.some(isWineFinish)) ? "Wine-finished" : "Finished";
 

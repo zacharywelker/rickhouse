@@ -49,13 +49,15 @@ function familyShares(grains: readonly { grain: string; percent: number }[]): Ma
 /** A rye share at or above this is a high rye; at or below `LOW_RYE_MAX` a low rye; in between has no name. */
 export const HIGH_RYE_MIN = 20;
 export const LOW_RYE_MAX = 12;
+/** A recipe's grain shares must total at least this much to be read as a class. */
+const RECIPE_MIN_TOTAL = 50;
 
 export type MashbillClass = "High rye" | "Low rye" | "Wheated";
 
 /**
  * The name a bourbon-style mashbill goes by, for flight titles: "High rye" (rye share of 20 or more), "Wheated" (wheat is
  * the flavoring grain: at least 10 points and no rye flavoring), "Low rye" (rye share of 12 or less); null for anything
- * else (13 to 19 rye, a blend, a recipe with no grains, an unknown style). A generic style maps by its name.
+ * else (13 to 19 rye, a blend, a recipe with no grains or under 50% in total, an unknown style). A generic style maps by its name.
  */
 export function mashbillClass(mashbill: MashbillInput | null): MashbillClass | null {
   if (mashbill === null || mashbill.kind === "blend") return null;
@@ -69,7 +71,8 @@ export function mashbillClass(mashbill: MashbillInput | null): MashbillClass | n
     wheat = typical.family === "wheat" ? typical.share : 0;
   } else {
     const shares = familyShares(mashbill.grains);
-    if (shares.size === 0) return null;
+    // A recipe whose shares do not reach half the mash is incomplete: its rye share is unknown, not zero.
+    if ([...shares.values()].reduce((a, b) => a + b, 0) < RECIPE_MIN_TOTAL) return null;
     rye = shares.get("rye") ?? 0;
     wheat = shares.get("wheat") ?? 0;
   }
