@@ -11,6 +11,7 @@ struct TournamentsView: View {
     @State private var foot = FootBar()
     @State private var creating = false
     @State private var opened: Int?
+    @State private var createdID: Int?
     @State private var deleting: TournamentSummary?
 
     var body: some View {
@@ -23,11 +24,9 @@ struct TournamentsView: View {
             }
             .footBar(foot)
             .navigationDestination(item: $opened) { TournamentScreen(id: $0) }
-            .sheet(isPresented: $creating) {
-                NewTournamentView { id in
-                    opened = id
-                    Task { await load() }
-                }
+            // The push waits for the sheet to finish closing: pushing while it dismisses is dropped or glitches.
+            .sheet(isPresented: $creating, onDismiss: openCreated) {
+                NewTournamentView { createdID = $0 }
             }
             .confirmSheet("Delete \(deleting?.name ?? "this tournament")?", message: "Its flights and results go with it. Your bottles and tastings stay.",
                           confirm: "Delete tournament", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
@@ -35,6 +34,13 @@ struct TournamentsView: View {
             }
             .task { await load() }
             .refreshable { await load() }
+    }
+
+    private func openCreated() {
+        guard let id = createdID else { return }
+        createdID = nil
+        opened = id
+        Task { await load() }
     }
 
     @ViewBuilder private var content: some View {

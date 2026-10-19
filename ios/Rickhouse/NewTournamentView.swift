@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The new-tournament sheet: name and settings, the priority order, and the field. Create makes a draft (any number of
-/// entries; starting needs 2) and hands its id back so the list can open it.
+/// entries; starting needs 2) and hands its id back (the list opens it once the sheet has closed).
 struct NewTournamentView: View {
     @Environment(Session.self) private var session
     @Environment(\.dismiss) private var dismiss
@@ -144,8 +144,8 @@ struct NewTournamentView: View {
             defer { submitting = false }
             do {
                 let id = try await api.createTournament(draft.request)
-                dismiss()
                 onCreated(id)
+                dismiss()
             } catch APIError.unauthorized {
                 session.signOut()
             } catch APIError.invalid(_, let text, let fields) {
