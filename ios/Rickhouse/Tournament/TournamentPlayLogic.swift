@@ -31,9 +31,10 @@ enum TournamentPlayLogic {
         return view.status != .active && heat.status == .pending ? .notRunning : .decided
     }
 
-    /// "90 proof · 60% corn · 4 yr", the same words the bracket's Compact rows use.
+    /// "90 proof · 60% corn · 4 yr"; a fact that is not known is left out, as the bracket's rows do (no proof says so).
     static func detail(proof: String, mashbill: String, age: String) -> String {
-        [proof == "—" ? proof : "\(proof) proof", mashbill, age].joined(separator: " · ")
+        let known = [mashbill, age].filter { $0 != "—" }
+        return ([proof == "—" ? "Proof unknown" : "\(proof) proof"] + known).joined(separator: " · ")
     }
 
     static func detail(_ proof: Double?, _ mashbill: String?, _ ageYears: Double?) -> String {

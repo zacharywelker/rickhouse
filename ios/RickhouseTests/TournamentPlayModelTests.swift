@@ -64,7 +64,7 @@ final class TournamentPlayModelTests: XCTestCase {
     func testOpenFlightListsTheBottlesInPourOrder() async {
         let m = await loaded()
         XCTAssertEqual(m.order.map(\.name), ["Beta", "Alpha"])
-        XCTAssertEqual(m.order.first?.detail, "90 proof · — · 4 yr")
+        XCTAssertEqual(m.order.first?.detail, "90 proof · 4 yr")
         XCTAssertEqual(m.title, "Bourbon")
         XCTAssertNil(m.stopped)
     }
@@ -202,7 +202,7 @@ final class TournamentPlayLogicTests: XCTestCase {
     func testWordsAndDetails() {
         XCTAssertEqual(TournamentPlayLogic.pourTitle(4), "Pour four glasses")
         XCTAssertEqual(TournamentPlayLogic.pourTitle(1), "Pour one glass")
-        XCTAssertEqual(TournamentPlayLogic.detail(nil, nil, nil), "— · — · —")
+        XCTAssertEqual(TournamentPlayLogic.detail(nil, nil, nil), "Proof unknown")
         XCTAssertEqual(TournamentPlayLogic.detail(94, "60% corn", 4.5), "94 proof · 60% corn · 4.5 yr")
         XCTAssertTrue(TournamentPlayLogic.isAlreadyDecided("This flight Already Has a Result."))
         XCTAssertFalse(TournamentPlayLogic.isAlreadyDecided("Nope."))
