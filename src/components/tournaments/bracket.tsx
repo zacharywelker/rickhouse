@@ -43,6 +43,17 @@ export function Bracket({
   const [query, setQuery] = React.useState("");
   const [index, setIndex] = React.useState<number | null>(null);
   const wantScroll = React.useRef(false);
+  // After a bottle is removed the page refreshes (a new model); focus then goes to the first of these that is still there.
+  const focusAfter = React.useRef<string[]>([]);
+  React.useEffect(() => {
+    const candidates = focusAfter.current;
+    if (candidates.length === 0) return;
+    focusAfter.current = [];
+    for (const id of candidates) {
+      const el = document.getElementById(id);
+      if (el) return el.focus();
+    }
+  }, [model]);
 
   const matches = React.useMemo(() => matchEntries({ rounds }, query), [rounds, query]);
   const current = index !== null ? (matches[index] ?? null) : null;
@@ -107,13 +118,13 @@ export function Bracket({
           {actions.error}
         </p>
       ) : null}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,24rem),1fr))] items-start gap-x-8 gap-y-6">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,44rem),1fr))] items-start gap-x-8 gap-y-6">
         {model.columns.map((column) => {
           const isCollapsed = column.kind === "round" && collapsed.has(column.round);
           return (
             <section key={`${column.kind}-${column.round}`} aria-labelledby={`round-${column.round}`} className="min-w-0">
               <header className="sticky top-0 z-10 bg-background pb-1 pt-2">
-                <h2 id={`round-${column.round}`} className="flex items-baseline justify-between gap-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                <h2 id={`round-${column.round}`} tabIndex={-1} className="flex items-baseline justify-between gap-3 focus:outline-none text-sm font-medium uppercase tracking-wide text-muted-foreground">
                   <span>
                     {column.heading}
                     {column.kind === "round" && column.state ? ` · ${column.state}` : ""}
@@ -151,6 +162,10 @@ export function Bracket({
                         swapTargets={others.flatMap((other) => other.rows.map((row) => ({ entryId: row.entryId, name: row.name, flight: `Flight ${other.number}` })))}
                         marks={marks.get(flight.id) ?? noMarks}
                         actions={actions}
+                        draft={draft}
+                        onRemoved={(candidates) => {
+                          focusAfter.current = [...candidates, `round-${column.round}`];
+                        }}
                       />
                     );
                   })}

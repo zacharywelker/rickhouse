@@ -13,12 +13,15 @@ import type { FlightTitle as Title } from "@/lib/tournaments/bracket-model";
  */
 export function FlightTitle({
   title,
+  headingId,
   number,
   editable,
   busy,
   onRename,
 }: {
   title: Title;
+  /** The heading's DOM id, which takes focus after a bottle is removed. */
+  headingId: string;
   number: number;
   editable: boolean;
   busy: boolean;
@@ -75,7 +78,7 @@ export function FlightTitle({
 
   return (
     <div className="flex items-center gap-2 pt-1">
-      <h3 className="min-w-0 text-base font-medium leading-snug">{title.text}</h3>
+      <h3 id={headingId} tabIndex={-1} className="min-w-0 text-base font-medium leading-snug focus:outline-none">{title.text}</h3>
       {title.yours ? <Badge className="shrink-0">Yours</Badge> : null}
       {editable ? (
         <Button

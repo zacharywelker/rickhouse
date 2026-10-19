@@ -67,6 +67,11 @@ describe("canMove", () => {
     expect(canMove(v, v.rounds[1]!.heats[0]!)).toBe(true);
     expect(canMove(v, v.rounds[0]!.heats[0]!)).toBe(false);
   });
+  it("a draft of 9 in flights of 4 ends in a lone bottle (a bye) that still offers Move", () => {
+    const lone = heat(3, 1, "bye", { entryCount: 1, entries: [{ entryId: 9, name: "Lone", place: null, glass: null, proof: 100, mashbill: null, ageYears: null, distilleries: [], category: null, finishes: [] }] });
+    const v = view("draft", [[heat(1, 1, "pending", { entryCount: 4 }), heat(2, 1, "pending", { entryCount: 4 }), lone]]);
+    expect(flightControls(v, lone)).toMatchObject({ move: true, play: false });
+  });
   it("a bye's lone bottle can move too, in a draft or the current round", () => {
     expect(canMove(view("draft", [[heat(1, 1, "bye")]]), heat(1, 1, "bye"))).toBe(true);
     expect(canMove(view("active", [[heat(1, 1, "bye"), heat(2, 1, "pending")]]), heat(1, 1, "bye"))).toBe(true);

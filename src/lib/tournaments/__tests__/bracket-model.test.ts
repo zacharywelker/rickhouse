@@ -179,6 +179,19 @@ describe("buildBracketModel: a running tournament", () => {
     expect(col.heading).toBe("Final");
     expect(col.flights[0]!.rows.map((r) => r.advanced)).toEqual([false, false]);
   });
+  it("carries each bottle's category, distilleries and finishes", () => {
+    const f = buildBracketModel({
+      status: "draft" as const,
+      currentRound: null,
+      ...settings,
+      rounds: [{ round: 1, heats: [heat(1, 1, 1, [entry(1, "A", 100, { category: "Rye", distilleries: ["MGP", "Dickel"], finishes: ["Port"] }), entry(2, "B", 100)], { band: "100 proof" })] }],
+    }).columns[0] as RoundColumn;
+    expect(f.flights[0]!.rows.map((r) => [r.category, r.distilleries, r.finishes])).toEqual([["Rye", ["MGP", "Dickel"], ["Port"]], [null, [], []]]);
+  });
+  it("a lone bottle in a draft has not advanced (so its row keeps its menu)", () => {
+    const draft = buildBracketModel({ ...settings, status: "draft" as const, currentRound: null, rounds: [{ round: 1, heats: [bye, heat(5, 1, 3, [entry(1, "A", 90), entry(2, "B", 91)])] }] });
+    expect((draft.columns[0] as RoundColumn).flights[0]!.rows.map((r) => r.advanced)).toEqual([false]);
+  });
   it("plans the rounds still to come", () => {
     expect(model.columns.map((c) => c.heading)).toEqual(["Round 1", "Round 2", "Final"]);
     expect(model.columns[2]).toMatchObject({ kind: "planned", count: "3 bottles" });
