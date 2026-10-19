@@ -338,6 +338,21 @@ struct LabelTasting: Decodable, Identifiable {
     let palate: String?
     let finish: String?
     let overall: String?
+    /// What kind of bottle this was, when it was not a standard one. Absent from an older server, and for a pour of
+    /// a bottle you don't own.
+    var provenance: TastingProvenance? = nil
+}
+
+/// A tasting's bottle, when it was a single barrel, a private selection or a specific release.
+struct TastingProvenance: Decodable, Equatable {
+    let singleBarrel: Bool
+    let privateSelection: Bool
+    let pickName: String?
+    let pickedBy: String?
+    let barrelNumber: String?
+    let release: String?
+    let batch: String?
+    let releaseYear: Int?
 }
 
 /// A 409 from creating a label: the label that is already there.
