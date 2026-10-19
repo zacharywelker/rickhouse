@@ -62,8 +62,8 @@ private struct ConfirmSheet: View {
 
 extension View {
     /// Asks `title` in a bottom sheet; `perform` runs after the confirm button, and the sheet closes either way.
-    func confirmSheet(_ title: String, message: String? = nil, confirm: String, cancel: String = "Cancel", isPresented: Binding<Bool>, perform: @escaping () -> Void) -> some View {
-        choiceSheet(title, message: message, answers: [SheetAnswer(title: confirm, destructive: true, run: perform)], cancel: cancel, isPresented: isPresented)
+    func confirmSheet(_ title: String, message: String? = nil, confirm: String, cancel: String = "Cancel", destructive: Bool = true, isPresented: Binding<Bool>, perform: @escaping () -> Void) -> some View {
+        choiceSheet(title, message: message, answers: [SheetAnswer(title: confirm, destructive: destructive, run: perform)], cancel: cancel, isPresented: isPresented)
     }
 
     /// Asks `title` with one button per answer and Cancel last. `onCancel` runs only for the Cancel button; dragging

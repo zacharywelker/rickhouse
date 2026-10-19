@@ -99,6 +99,7 @@ struct LabelPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header(l)
+                tournamentRank(l)
                 if l.bottles.isEmpty {
                     logButton.padding(.top, 12)
                     sectionTitle("Your tastings")
@@ -178,6 +179,24 @@ struct LabelPage: View {
             Spacer(minLength: 0)
         }
         .padding(.top, 4)
+    }
+
+    /// The server's one line ("Tournament rank: 3 of 12 bourbons"); nothing when the label has no firm rank. Opens that category's ranking.
+    @ViewBuilder
+    private func tournamentRank(_ l: LabelDetail) -> some View {
+        if let rank = l.tournamentRank {
+            NavigationLink { RankingView(categoryId: rank.categoryId) } label: {
+                HStack(spacing: 6) {
+                    Text(rank.text).font(.inter(14)).foregroundStyle(Theme.muted)
+                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.muted).accessibilityHidden(true)
+                    Spacer(minLength: 0)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(rank.text), opens the ranking")
+        }
     }
 
     private func age(_ l: LabelDetail) -> String? {

@@ -32,6 +32,9 @@ export function canMove(view: ActionView, heat: ViewHeat): boolean {
   return view.status === "active" && !view.blind && isCurrent(view, heat);
 }
 
+/** Rename: any flight in any state (the server has no status rule), except a hidden one, whose name would show what is in it. */
+export const canRename = (heat: { hidden: boolean }): boolean => !heat.hidden;
+
 /** Reset to automatic: regroup the undecided flights; a draft needs two entries, a running one something undecided; never when finished. */
 export function canReset(view: ActionView): boolean {
   if (view.status === "complete") return false;

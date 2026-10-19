@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { EyeOff, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { FlightControls } from "@/lib/tournaments/bracket-actions";
+import { canRename, type FlightControls } from "@/lib/tournaments/bracket-actions";
 import type { FlightModel } from "@/lib/tournaments/bracket-model";
 import { ColumnHeader, EntryRow, type Slots } from "./entry-row";
 import { FlightTitle } from "./flight-title";
@@ -23,7 +23,6 @@ export function FlightCard({
   tournamentId,
   flight,
   controls,
-  renamable,
   moveTargets,
   swapTargets,
   marks,
@@ -32,8 +31,6 @@ export function FlightCard({
   tournamentId: number;
   flight: FlightModel;
   controls: FlightControls;
-  /** A draft: its flights can be named. */
-  renamable: boolean;
   /** The other flights a bottle of this one can go to, when moving is allowed. */
   moveTargets: MoveTarget[];
   /** The bottles of those flights, which a bottle of this one can trade places with. */
@@ -49,7 +46,7 @@ export function FlightCard({
       <FlightTitle
         title={flight.title}
         number={flight.number}
-        editable={renamable && flight.status === "pending"}
+        editable={canRename(flight)}
         busy={actions.pending}
         onRename={(label, done) => actions.rename(flight.id, label, done)}
       />

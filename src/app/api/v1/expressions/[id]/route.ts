@@ -18,6 +18,8 @@ import { expressionReleaseList } from "@/lib/releases-store";
 import { expressionNames } from "@/db/schema";
 import { asc } from "drizzle-orm";
 import { otherNamesText, parseOtherNames } from "@/lib/other-names";
+import { labelRank } from "@/lib/tournaments/label-rank-query";
+import { tournamentRankField } from "@/lib/tournaments/label-rank";
 
 export const dynamic = "force-dynamic";
 
@@ -48,10 +50,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   ]);
   const { expression } = row;
   const wheel = (await categoryWheels()).get(expression.categoryId) ?? null;
+  // Never throws (null on any failure): a garnish, like on the web label page.
+  const tournamentRank = tournamentRankField(
+    await labelRank(user.id, expression.id, { categoryId: expression.categoryId, categoryName: row.category.name, bottleIds: owned.map((b) => b.id) }),
+  );
 
   return NextResponse.json({
     id: expression.id,
     wheel,
+    tournamentRank,
     brand: row.brand.name,
     brandId: expression.brandId,
     name: expression.name,

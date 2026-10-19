@@ -29,7 +29,7 @@ export function Bracket({
   tournamentId: number;
   model: BracketModel;
   heatSize: number;
-  /** A draft: flights can be named. Otherwise the tournament runs (or ran) and the find box and collapse toggles appear. */
+  /** A draft. Otherwise the tournament runs (or ran) and the find box and collapse toggles appear. */
   draft: boolean;
   /** What each flight offers, by flight id. */
   controls: Record<number, FlightControls>;
@@ -147,7 +147,6 @@ export function Bracket({
                         tournamentId={tournamentId}
                         flight={flight}
                         controls={controls[flight.id] ?? { play: false, undo: false, move: false, withdraw: [] }}
-                        renamable={draft}
                         moveTargets={others.map((other) => ({ heatId: other.id, title: `Flight ${other.number} · ${other.title.text}`, full: other.count >= heatSize }))}
                         swapTargets={others.flatMap((other) => other.rows.map((row) => ({ entryId: row.entryId, name: row.name, flight: `Flight ${other.number}` })))}
                         marks={marks.get(flight.id) ?? noMarks}

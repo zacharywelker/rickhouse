@@ -278,6 +278,16 @@ struct LabelDetail: Decodable {
     let tastings: [LabelTasting]
     /// The distillery, mashbill and finish lists with ids and shares, for editing them. Absent from an older server.
     let links: LabelLinks?
+    /// Where the label stands in the tournament ranking; nil when it has no firm rank, and absent from an older server.
+    var tournamentRank: TournamentRankLine? = nil
+}
+
+/// The server's one line ("Tournament rank: 3 of 12 bourbons") and the category the ranking is in.
+struct TournamentRankLine: Decodable, Equatable {
+    let rank: Int
+    let of: Int
+    let text: String
+    let categoryId: Int
 }
 
 extension LabelDetail {

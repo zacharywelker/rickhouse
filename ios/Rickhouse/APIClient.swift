@@ -32,6 +32,16 @@ enum APIError: LocalizedError {
     }
 }
 
+extension APIError {
+    /// A request that was cancelled on purpose (a newer keystroke replaced it): nothing to tell the person.
+    static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let url = error as? URLError { return url.code == .cancelled }
+        if case .transport(let inner) = error as? APIError { return isCancellation(inner) }
+        return false
+    }
+}
+
 /// The server's `/api/v1` and the few web routes the app borrows
 /// (`/api/auth/*`, `/api/images/*`, `/api/bottles/:id/images`). Each carries
 /// the Bearer token, so no cookie jar is involved.
@@ -180,7 +190,7 @@ struct APIClient {
         try Self.check(response, data)
     }
 
-    private func delete(_ path: String) async throws {
+    func delete(_ path: String) async throws {
         var req = request(path: path)
         req.httpMethod = "DELETE"
         let (data, response) = try await Self.send(req)
@@ -384,7 +394,7 @@ struct APIClient {
 
     // MARK: Plumbing
 
-    private func sendJSON<Body: Encodable, Answer: Decodable>(_ method: String, _ path: String, body: Body, as type: Answer.Type) async throws -> Answer {
+    func sendJSON<Body: Encodable, Answer: Decodable>(_ method: String, _ path: String, body: Body, as type: Answer.Type) async throws -> Answer {
         var req = request(path: path)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -395,7 +405,7 @@ struct APIClient {
     }
 
     /// A JSON object body built by hand, because a fact cleared with `null` has to be sent as `null`.
-    private func sendObject<Answer: Decodable>(_ method: String, _ path: String, json: [String: Any], as type: Answer.Type) async throws -> Answer {
+    func sendObject<Answer: Decodable>(_ method: String, _ path: String, json: [String: Any], as type: Answer.Type) async throws -> Answer {
         var req = request(path: path)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -405,7 +415,16 @@ struct APIClient {
         return try Self.decoder.decode(Answer.self, from: data)
     }
 
-    private func request(path: String, query: [URLQueryItem] = []) -> URLRequest {
+    /// A request with no body whose answer is decoded (an undo).
+    func sendBodiless<Answer: Decodable>(_ method: String, _ path: String, as type: Answer.Type) async throws -> Answer {
+        var req = request(path: path)
+        req.httpMethod = method
+        let (data, response) = try await Self.send(req)
+        try Self.check(response, data)
+        return try Self.decoder.decode(Answer.self, from: data)
+    }
+
+    func request(path: String, query: [URLQueryItem] = []) -> URLRequest {
         var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { components.queryItems = query }
         var req = URLRequest(url: components.url!)
@@ -414,16 +433,20 @@ struct APIClient {
         return req
     }
 
-    private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = [], as type: T.Type) async throws -> T {
+    func get<T: Decodable>(_ path: String, query: [URLQueryItem] = [], as type: T.Type) async throws -> T {
         let (data, response) = try await Self.send(request(path: path, query: query))
         try Self.check(response, data)
         return try Self.decoder.decode(T.self, from: data)
     }
 
+    /// The session every request goes through. Tests (and the throwaway screenshot harness) swap in one whose
+    /// configuration carries a stub `URLProtocol`, so no server is needed.
+    nonisolated(unsafe) static var session: URLSession = .shared
+
     fileprivate static func send(_ request: URLRequest, body: Data? = nil) async throws -> (Data, URLResponse) {
         do {
-            if let body { return try await URLSession.shared.upload(for: request, from: body) }
-            return try await URLSession.shared.data(for: request)
+            if let body { return try await session.upload(for: request, from: body) }
+            return try await session.data(for: request)
         } catch {
             throw APIError.transport(error)
         }
