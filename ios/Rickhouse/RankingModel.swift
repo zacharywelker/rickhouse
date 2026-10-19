@@ -58,7 +58,7 @@ final class RankingModel {
         } catch APIError.unauthorized {
             signOut()
         } catch {
-            if hasLoaded { foot.fail(error, retry: { Task { await self.load() } }) } else { loadError = error.localizedDescription }
+            if hasLoaded { foot.fail(error, retry: { [weak self] in Task { await self?.load() } }) } else { loadError = error.localizedDescription }
         }
     }
 
@@ -78,7 +78,7 @@ final class RankingModel {
             signOut()
         } catch {
             categoryId = before
-            foot.fail(error, retry: { Task { await self.choose(categoryId: next) } })
+            foot.fail(error, retry: { [weak self] in Task { await self?.choose(categoryId: next) } })
         }
     }
 }

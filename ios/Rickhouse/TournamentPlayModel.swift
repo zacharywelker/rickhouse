@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// Carries the drawn flight (names and glass letters) from the bracket to the play screen exactly once: `take` hands it
+/// over and forgets it, so the route that opened the screen does not keep names until the screen pops.
+@MainActor
+final class DrawnHeatHolder {
+    private var heat: DrawnHeat?
+    init(_ heat: DrawnHeat) { self.heat = heat }
+    var isFull: Bool { heat != nil }
+    func take() -> DrawnHeat? {
+        defer { heat = nil }
+        return heat
+    }
+}
+
 /// Plays one flight. An open tournament ranks its bottles; a blind one goes start, mapping, rank, revealed
 /// (`TournamentPlayFlow`). After `hide` the state holds only glass letters: no name is kept anywhere in this model.
 /// A failure keeps the ranking and shows in the foot bar with Retry.
@@ -29,14 +42,14 @@ final class PlayModel {
 
     @ObservationIgnored var api: () -> APIClient? = { nil }
     @ObservationIgnored var signOut: () -> Void = {}
-    @ObservationIgnored private var pendingDraw: DrawnHeat?
+    @ObservationIgnored private var drawn: DrawnHeatHolder?
 
-    /// `drawn`: the pourer drew this flight from the bracket, so the glasses open at once.
-    init(tournamentID: Int, heatID: Int, drawn: DrawnHeat? = nil) {
+    /// `drawn`: the pourer drew this flight from the bracket, so the glasses open at once. The first load takes it out.
+    init(tournamentID: Int, heatID: Int, drawn: DrawnHeatHolder? = nil) {
         self.tournamentID = tournamentID
         self.heatID = heatID
-        pendingDraw = drawn
-        flow = TournamentPlayFlow.initialFlow(drawn: drawn != nil)
+        self.drawn = drawn
+        flow = TournamentPlayFlow.initialFlow(drawn: drawn?.isFull ?? false)
     }
 
     var revealed: Bool { flow == .revealed }
@@ -54,7 +67,7 @@ final class PlayModel {
         } catch APIError.unauthorized {
             signOut()
         } catch {
-            if hasLoaded { foot.fail(error, retry: { Task { await self.load() } }) } else { loadError = error.localizedDescription }
+            if hasLoaded { foot.fail(error, retry: { [weak self] in Task { await self?.load() } }) } else { loadError = error.localizedDescription }
         }
     }
 
@@ -72,6 +85,9 @@ final class PlayModel {
 
     /// The first load decides what this screen is: a notice, an already-decided flight, or a flight to play.
     private func start(_ next: TournamentView) {
+        // Whatever the outcome, the drawn flight leaves the holder now and is not kept past this method.
+        let pendingDraw = drawn?.take()
+        drawn = nil
         guard let heat = next.rounds.flatMap(\.heats).first(where: { $0.id == heatID }) else { loadError = "That flight is gone."; return }
         if let why = TournamentPlayLogic.stopped(next, heat) {
             stopped = why
@@ -85,7 +101,6 @@ final class PlayModel {
         } else if let drawn = pendingDraw {
             flow = TournamentPlayFlow.reduce(flow, .loaded(TournamentPlayLogic.mappingRows(drawn)))
         }
-        pendingDraw = nil
     }
 
     // MARK: Blind flow
@@ -104,7 +119,7 @@ final class PlayModel {
             flow = TournamentPlayFlow.reduce(flow, .failed)
         } catch {
             flow = TournamentPlayFlow.reduce(flow, .failed)
-            foot.fail(error, retry: { Task { await self.show() } })
+            foot.fail(error, retry: { [weak self] in Task { await self?.show() } })
         }
     }
 
@@ -130,7 +145,7 @@ final class PlayModel {
         } catch APIError.unauthorized {
             signOut()
         } catch {
-            foot.fail(error, retry: { Task { await self.saveLetters() } })
+            foot.fail(error, retry: { [weak self] in Task { await self?.saveLetters() } })
         }
     }
 
@@ -180,7 +195,7 @@ final class PlayModel {
             if let fresh = try? await api.tournament(id: tournamentID) { adopt(fresh) }
             flow = TournamentPlayFlow.reduce(flow, .recorded)
         } catch {
-            foot.fail(error, retry: { Task { await self.record() } })
+            foot.fail(error, retry: { [weak self] in Task { await self?.record() } })
         }
     }
 
@@ -201,7 +216,7 @@ final class PlayModel {
         foot.dropUndo()
         Task {
             do { try await offer.run() } catch APIError.unauthorized { signOut() } catch {
-                foot.fail(error, retry: { self.runUndo(offer) })
+                foot.fail(error, retry: { [weak self] in self?.runUndo(offer) })
             }
         }
     }

@@ -54,7 +54,7 @@ final class TournamentModel {
         } catch APIError.unauthorized {
             signOut()
         } catch {
-            if hasLoaded { foot.fail(error, retry: { Task { await self.load() } }) } else { loadError = error.localizedDescription }
+            if hasLoaded { foot.fail(error, retry: { [weak self] in Task { await self?.load() } }) } else { loadError = error.localizedDescription }
         }
     }
 
@@ -100,7 +100,7 @@ final class TournamentModel {
             signOut()
         } catch {
             if let fresh = try? await api.tournament(id: id) { adopt(fresh) }
-            foot.fail(error.localizedDescription, retry: { Task { await self.draw(then: open) } })
+            foot.fail(error.localizedDescription, retry: { [weak self] in Task { await self?.draw(then: open) } })
         }
     }
 
@@ -129,7 +129,7 @@ final class TournamentModel {
             var fields: [String: String] = [:]
             if case APIError.invalid(_, _, let f) = error { fields = f }
             let message = error.localizedDescription
-            if !inline { foot.fail(message, retry: { Task { await self.run(call) } }) }
+            if !inline { foot.fail(message, retry: { [weak self] in Task { await self?.run(call) } }) }
             return .failed(message: message, fields: fields)
         }
     }

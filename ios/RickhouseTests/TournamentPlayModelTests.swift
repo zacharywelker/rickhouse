@@ -45,15 +45,16 @@ final class TournamentPlayModelTests: XCTestCase {
         return try! JSONDecoder().decode(DrawnHeat.self, from: Data(json.utf8))
     }
 
-    private func model(drawn: DrawnHeat? = nil) -> PlayModel {
-        let m = PlayModel(tournamentID: 3, heatID: 10, drawn: drawn)
+    private func model(drawn: DrawnHeat? = nil, holder: DrawnHeatHolder? = nil) -> PlayModel {
+        let m = PlayModel(tournamentID: 3, heatID: 10, drawn: holder ?? drawn.map(DrawnHeatHolder.init))
         m.api = { APIClient(baseURL: URL(string: "https://rickhouse.example.com")!, token: "tok") }
         return m
     }
 
-    private func loaded(blind: Bool = false, drawn: DrawnHeat? = nil, hidden: Bool = false) async -> PlayModel {
-        StubURLProtocol.reply = view(blind: blind, hidden: hidden)
-        let m = model(drawn: drawn)
+    private func loaded(blind: Bool = false, drawn: DrawnHeat? = nil, hidden: Bool = false, holder: DrawnHeatHolder? = nil,
+                        reply: Data? = nil) async -> PlayModel {
+        StubURLProtocol.reply = reply ?? view(blind: blind, hidden: hidden)
+        let m = model(drawn: drawn, holder: holder)
         await m.load()
         StubURLProtocol.sent = []
         return m
@@ -128,6 +129,51 @@ final class TournamentPlayModelTests: XCTestCase {
         XCTAssertEqual(rows.map(\.name), ["Alpha", "Beta"])
         XCTAssertTrue(saved)
         XCTAssertTrue(StubURLProtocol.sent.isEmpty)
+    }
+
+    /// Every String reachable from `value` by reflection: stored properties, enum payloads, collections, class instances.
+    private func strings(in value: Any, depth: Int = 0) -> [String] {
+        if let s = value as? String { return [s] }
+        guard depth < 12 else { return [] }
+        return Mirror(reflecting: value).children.flatMap { strings(in: $0.value, depth: depth + 1) }
+    }
+
+    /// The tournament's own field list names every bottle (the pourer knows the field); only the glass mapping is secret,
+    /// so the view here names the field differently from the drawn flight.
+    private func fieldRenamed(_ data: Data) -> Data {
+        Data(String(decoding: data, as: UTF8.self).replacingOccurrences(of: "Alpha", with: "Field1").replacingOccurrences(of: "Beta", with: "Field2").utf8)
+    }
+
+    func testTheHolderHandsTheDrawnFlightOverOnceAndTheModelKeepsNoName() async {
+        let holder = DrawnHeatHolder(drawn())
+        let m = await loaded(blind: true, hidden: true, holder: holder, reply: fieldRenamed(view(blind: true, hidden: true)))
+        XCTAssertFalse(holder.isFull, "the route's holder is emptied by the first load")
+        XCTAssertNil(holder.take())
+        guard case .mapping = m.flow else { return XCTFail("\(m.flow)") }
+        m.hide()
+        XCTAssertEqual(m.flow, .rank(order: ["A", "B"]) , "saved letters from the draw")
+        XCTAssertFalse(strings(in: m).contains { $0 == "Alpha" || $0 == "Beta" }, "no drawn name is reachable after Hide")
+    }
+
+    func testAStoppedFlightStillEmptiesTheHolder() async {
+        let holder = DrawnHeatHolder(drawn())
+        let m = await loaded(blind: true, hidden: true, holder: holder, reply: view(blind: true, decided: true))
+        XCTAssertNotNil(m.stopped)
+        XCTAssertFalse(holder.isFull)
+        XCTAssertFalse(strings(in: m.flow).contains("Alpha"))
+    }
+
+    func testAFailureRetryDoesNotKeepTheModelAlive() async throws {
+        var m: PlayModel? = await loaded(blind: true, hidden: true)
+        StubURLProtocol.status = 500
+        StubURLProtocol.reply = Data("{\"error\":{\"code\":\"server\",\"message\":\"Nope.\"}}".utf8)
+        await m?.show()
+        XCTAssertNotNil(m?.foot.failure)
+        weak var gone = m
+        let foot = try XCTUnwrap(m?.foot)
+        m = nil
+        XCTAssertNil(gone, "foot -> failure -> retry closure must not hold the model")
+        _ = foot
     }
 
     func testShowTheGlassesDrawsThisFlight() async throws {

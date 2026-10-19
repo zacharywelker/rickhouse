@@ -113,7 +113,7 @@ struct TournamentScreen: View {
 
     private func runBar(_ offer: RunBarOffer) -> some View {
         RunBar(offer: offer, busy: model.pending,
-               onDraw: { Task { await model.draw { playRoute = PlayRoute(heatID: $0.heatId, drawn: $0) } } },
+               onDraw: { Task { await model.draw { playRoute = PlayRoute(heatID: $0.heatId, drawn: DrawnHeatHolder($0)) } } },
                onReset: { Task { await model.reset() } })
     }
 

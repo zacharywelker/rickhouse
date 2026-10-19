@@ -181,12 +181,13 @@ enum TournamentFind {
     static func scrollID(_ entryId: Int) -> String { "entry-\(entryId)" }
 }
 
-// MARK: Playing (replaced by the play screens)
+// MARK: Playing
 
-/// Where Play and Draw lead. `drawn` is set when the pourer drew the flight (blind), so the play screen starts at the glasses.
+/// Where Play and Draw lead. `drawn` is set when the pourer drew the flight (blind), so the play screen starts at the
+/// glasses; it is a one-shot holder, emptied by the play screen, so the route keeps no names.
 struct PlayRoute: Hashable, Identifiable {
     let heatID: Int
-    var drawn: DrawnHeat?
+    var drawn: DrawnHeatHolder?
     var id: Int { heatID }
     static func == (a: PlayRoute, b: PlayRoute) -> Bool { a.heatID == b.heatID }
     func hash(into h: inout Hasher) { h.combine(heatID) }

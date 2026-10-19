@@ -4,10 +4,10 @@ import SwiftUI
 struct PlayFlightView: View {
     let tournamentID: Int
     let heatID: Int
-    var drawn: DrawnHeat?
+    var drawn: DrawnHeatHolder?
     @State private var current: Int
 
-    init(tournamentID: Int, heatID: Int, drawn: DrawnHeat? = nil) {
+    init(tournamentID: Int, heatID: Int, drawn: DrawnHeatHolder? = nil) {
         self.tournamentID = tournamentID
         self.heatID = heatID
         self.drawn = drawn
@@ -27,7 +27,7 @@ private struct PlayFlightScreen: View {
     @State private var model: PlayModel
     let onNext: (Int) -> Void
 
-    init(tournamentID: Int, heatID: Int, drawn: DrawnHeat?, onNext: @escaping (Int) -> Void) {
+    init(tournamentID: Int, heatID: Int, drawn: DrawnHeatHolder?, onNext: @escaping (Int) -> Void) {
         _model = State(initialValue: PlayModel(tournamentID: tournamentID, heatID: heatID, drawn: drawn))
         self.onNext = onNext
     }
