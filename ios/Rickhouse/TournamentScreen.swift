@@ -101,7 +101,7 @@ struct TournamentScreen: View {
                             TournamentBracketView(view: view, bracket: bracket, zoom: model.zoom, chosenRound: $model.chosenRound,
                                                   moves: { moveOptions(view, $0, $1) }, onRename: { rename($0) }, run: runOptions(view),
                                                   steps: { flight in heat(view, flight.id).flatMap { FlightActions.flightSteps(view, $0) } },
-                                                  onShift: { flight, slot in Task { await model.moveFlight(heatId: flight.id, toSlot: slot) } })
+                                                  onShift: { flight, slot in shift(flight.id, to: slot) })
                         }
                         if typeSize.isAccessibilitySize, let offer = TournamentRunLogic.bar(view) { runBar(offer).padding(.horizontal, -16) }
                         StandingsSection(title: TournamentRunLogic.standingsTitle(view), rows: TournamentStandings.rows(view))
@@ -202,6 +202,17 @@ struct TournamentScreen: View {
             return FlightRunOptions(play: controls.play, undo: controls.undo,
                                     onPlay: { playRoute = PlayRoute(heatID: flight.id) },
                                     onUndo: { Task { await model.undo(heatId: flight.id) } })
+        }
+    }
+
+    /// A chevron (or the Compact header's VoiceOver action): say what a drag would have said once it is saved. The words are
+    /// built before the move, while the flight still has its old number.
+    private func shift(_ heatId: Int, to slot: Int) {
+        guard let view = model.view else { return }
+        let outcome = DropOutcome.reorder(heatId: heatId, toSlot: slot)
+        let said = DragModel.describeOutcome(view, outcome)
+        Task {
+            if await model.moveFlight(heatId: heatId, toSlot: slot) == .done, let said { AccessibilityNotification.Announcement(said).post() }
         }
     }
 
