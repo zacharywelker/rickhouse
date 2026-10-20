@@ -17,10 +17,25 @@ final class TournamentBracketModelTests: XCTestCase {
         XCTAssertEqual(B.flightTitle(h, number: 1), FlightTitle(text: "High rye shelf", yours: true))
     }
 
-    func testFlightTitleFallsBackFromGeneratedLabelToBandToNumber() {
-        XCTAssertEqual(B.flightTitle(Fx.heat(1, 1, 1, auto: "MGP 95/5", band: "90 proof"), number: 2), FlightTitle(text: "MGP 95/5", yours: false))
-        XCTAssertEqual(B.flightTitle(Fx.heat(1, 1, 1, band: "90 to 94 proof"), number: 2), FlightTitle(text: "90 to 94 proof", yours: false))
+    func testFlightTitleFallsBackFromGeneratedNameToTheNumberNeverToTheBand() {
+        XCTAssertEqual(B.flightTitle(Fx.heat(1, 1, 1, auto: "High rye bourbons", band: "90 proof"), number: 2), FlightTitle(text: "High rye bourbons", yours: false))
+        XCTAssertEqual(B.flightTitle(Fx.heat(1, 1, 1, band: "90 to 94 proof"), number: 2), FlightTitle(text: "Flight 2", yours: false))
         XCTAssertEqual(B.flightTitle(Fx.heat(1, 1, 1), number: 2), FlightTitle(text: "Flight 2", yours: false))
+    }
+
+    func testRowsCarryCategoryDistilleriesAndFinishes() {
+        let rich = Fx.entry(1, "A", 100, category: "Rye", distilleries: ["MGP", "Dickel"], finishes: ["Port"])
+        let model = B.build(Fx.view(.draft, rounds: Fx.rounds([[Fx.heat(1, 1, 1, [rich, Fx.entry(2, "B", 100)], band: "100 proof")]])))
+        guard case .round(let c) = model.columns[0] else { return XCTFail("not a round") }
+        XCTAssertEqual(c.flights[0].rows.map { [$0.category ?? "nil", $0.distilleries.joined(separator: "+"), $0.finishes.joined(separator: "+")] },
+                       [["Rye", "MGP+Dickel", "Port"], ["nil", "", ""]])
+    }
+
+    func testALoneBottleInADraftHasNotAdvanced() {
+        let lone = Fx.heat(1, 1, 1, [Fx.entry(1, "A", 90)], status: .bye)
+        let draft = B.build(Fx.view(.draft, rounds: Fx.rounds([[lone]])))
+        guard case .round(let c) = draft.columns[0] else { return XCTFail("not a round") }
+        XCTAssertEqual(c.flights[0].rows.map(\.advanced), [false])
     }
 
     func testFlightTitleShowsOnlyTheBandOnAHiddenFlightEvenWithALabel() {
@@ -137,7 +152,7 @@ final class TournamentBracketModelTests: XCTestCase {
         XCTAssertEqual(one.flights[0].rows.map { [$0.name, String($0.place ?? 0), String($0.advanced)] },
                        [["Eagle Rare", "1", "true"], ["Maker's", "2", "true"], ["Russell's", "3", "false"], ["Buffalo Trace", "4", "false"]])
         XCTAssertEqual(one.flights[1].rows.map(\.advanced), [true])
-        XCTAssertEqual(one.flights[1].meta, "Flight 2 · Bye")
+        XCTAssertEqual(one.flights[1].meta, "100 proof · Bye")
         XCTAssertEqual([one.state, two.state], [.decided, .now])
         XCTAssertEqual(one.note, "Flights of 4 advanced 2, byes advanced 1")
     }
@@ -192,5 +207,19 @@ final class TournamentBracketModelTests: XCTestCase {
         XCTAssertEqual(try TournamentRounds.planRounds(entrantCount: 3, heatSize: 4), [1])
         XCTAssertThrowsError(try TournamentRounds.planRounds(entrantCount: 1, heatSize: 4))
         XCTAssertThrowsError(try TournamentRounds.planRounds(entrantCount: 8, heatSize: 1))
+    }
+
+    // Swift-only: the Detail row's extra facts leave out what is unknown.
+    func testDetailFactsLeaveOutWhatIsUnknown() {
+        let rich = Fx.entry(1, "A", 100, glass: "B", mashbill: "75% corn", age: 6, category: "Rye", distilleries: ["MGP", "Dickel"], finishes: ["Port"])
+        let sparse = Fx.entry(2, "B", nil)
+        let model = B.build(Fx.view(.draft, rounds: Fx.rounds([[Fx.heat(1, 1, 1, [rich, sparse], band: "100 proof")]])))
+        guard case .round(let c) = model.columns[0] else { return XCTFail("not a round") }
+        let (a, b) = (c.flights[0].rows.first { $0.name == "A" }!, c.flights[0].rows.first { $0.name == "B" }!)
+        XCTAssertEqual(TournamentFlightFacts.extraLine(a), "Distillery: MGP, Dickel · Finish: Port")
+        XCTAssertNil(TournamentFlightFacts.extraLine(b))
+        XCTAssertEqual(TournamentFlightFacts.pairs(a).map { "\($0.label)=\($0.value)" },
+                       ["Glass=B", "Proof=100", "Mashbill=75% corn", "Category=Rye", "Age=6 yr", "Distillery=MGP, Dickel", "Finish=Port"])
+        XCTAssertEqual(TournamentFlightFacts.pairs(b).map { "\($0.label)=\($0.value)" }, ["Proof=unknown"])
     }
 }

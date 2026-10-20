@@ -6,6 +6,18 @@ final class TournamentModelsTests: XCTestCase {
         try JSONDecoder().decode(T.self, from: Data(json.utf8))
     }
 
+    func testCategoryAndFinishesAreOptionalKeys() throws {
+        let old: HeatEntry = try decode(heatEntry(1, "A"))
+        XCTAssertNil(old.category)
+        XCTAssertEqual(old.finishes, [])
+        let rich: HeatEntry = try decode(#"{"entryId":1,"name":"A","place":null,"glass":null,"proof":100,"mashbill":null,"ageYears":null,"distilleries":["MGP"],"category":"Rye","finishes":["Port","Sherry"]}"#)
+        XCTAssertEqual(rich.category, "Rye")
+        XCTAssertEqual(rich.finishes, ["Port", "Sherry"])
+        let roster: [TournamentEntry] = try decode(#"[{"id":1,"name":"A","status":"active","kind":"bottle","bottleId":1,"expressionId":2,"category":null,"finishes":["Port"]},{"id":2,"name":"B","status":"active","kind":"outside","bottleId":null,"expressionId":null}]"#)
+        XCTAssertEqual(roster.map { $0.finishes }, [["Port"], []])
+        XCTAssertEqual(roster.map { $0.category }, [nil, nil])
+    }
+
     func testAStatusANewerServerAddsDecodesAsUnknownInsteadOfFailing() throws {
         let odd = heat(id: 1, status: "skipped", entries: [])
         let entries = #"[{"id":1,"name":"A","status":"banned","kind":"cask","bottleId":null,"expressionId":null}]"#

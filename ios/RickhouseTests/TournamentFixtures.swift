@@ -6,8 +6,10 @@ enum Fx {
     static let defaultOrder = ["proof", "mashbill", "distillery", "age", "finish"]
 
     static func entry(_ id: Int, _ name: String, _ proof: Double?, place: Int? = nil, glass: String? = nil,
-                      mashbill: String? = nil, age: Double? = nil) -> HeatEntry {
-        HeatEntry(entryId: id, name: name, place: place, glass: glass, proof: proof, mashbill: mashbill, ageYears: age, distilleries: [])
+                      mashbill: String? = nil, age: Double? = nil, category: String? = nil, distilleries: [String] = [],
+                      finishes: [String] = []) -> HeatEntry {
+        HeatEntry(entryId: id, name: name, place: place, glass: glass, proof: proof, mashbill: mashbill, ageYears: age, distilleries: distilleries,
+                  category: category, finishes: finishes)
     }
 
     static func heat(_ id: Int, _ round: Int, _ slot: Int, _ entries: [HeatEntry] = [], status: HeatStatus = .pending,

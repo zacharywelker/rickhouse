@@ -23,6 +23,8 @@ final class TournamentModel {
     var chosenRound: Int?
     private(set) var zoom: ZoomLevel
     let foot = FootBar()
+    /// What the foot bar says when a change arrives while another is still being saved (drop, chevron and menu alike).
+    static let busyNotice = "One moment"
 
     @ObservationIgnored var api: () -> APIClient? = { nil }
     @ObservationIgnored var signOut: () -> Void = {}
@@ -71,12 +73,25 @@ final class TournamentModel {
         await run(inline: true) { try await $0.renameFlight(tournamentId: self.id, heatId: heatId, label: label) }
     }
 
-    func move(entryId: Int, toHeatId: Int) async {
+    @discardableResult
+    func move(entryId: Int, toHeatId: Int) async -> ActionResult {
         await run { try await $0.moveEntry(tournamentId: self.id, entryId: entryId, toHeatId: toHeatId) }
     }
 
-    func swap(entryId: Int, with other: Int) async -> ActionResult {
-        await run(inline: true) { try await $0.swapEntries(tournamentId: self.id, entryId: entryId, withEntryId: other) }
+    /// `inline` for the swap sheet, which shows a failure itself; a drop shows it in the foot bar with Retry.
+    @discardableResult
+    func swap(entryId: Int, with other: Int, inline: Bool = true) async -> ActionResult {
+        await run(inline: inline) { try await $0.swapEntries(tournamentId: self.id, entryId: entryId, withEntryId: other) }
+    }
+
+    /// Takes a bottle out of a draft at once; the foot bar says so. A failure reloads and offers Retry (see `run`).
+    func remove(entryId: Int, name: String) async {
+        await run(after: { [weak self] in self?.foot.show("Removed \(name)") }) { try await $0.removeEntry(tournamentId: self.id, entryId: entryId) }
+    }
+
+    @discardableResult
+    func moveFlight(heatId: Int, toSlot: Int) async -> ActionResult {
+        await run { try await $0.moveFlight(tournamentId: self.id, heatId: heatId, toSlot: toSlot) }
     }
 
     func start() async {
@@ -98,7 +113,8 @@ final class TournamentModel {
 
     /// A random flight to taste (blind): hands the pourer's glasses to `open`. A failure goes to the foot bar, whose Retry draws again.
     func draw(then open: @escaping (DrawnHeat) -> Void) async {
-        guard !pending, let api = api() else { return }
+        guard !pending else { foot.show(Self.busyNotice); return }
+        guard let api = api() else { return }
         pending = true
         generation += 1
         defer { pending = false }
@@ -121,14 +137,15 @@ final class TournamentModel {
     /// Sends one change and takes the view it answers with. A failure is reported (in the foot bar with Retry, or returned
     /// for a sheet to show) and the view is loaded again.
     @discardableResult
-    private func run(inline: Bool = false, _ call: @escaping (APIClient) async throws -> TournamentView) async -> ActionResult {
-        guard !pending else { return .busy }
+    private func run(inline: Bool = false, after: (@MainActor () -> Void)? = nil, _ call: @escaping (APIClient) async throws -> TournamentView) async -> ActionResult {
+        guard !pending else { foot.show(Self.busyNotice); return .busy }
         guard let api = api() else { return .failed(message: "Not signed in.", fields: [:]) }
         pending = true
         generation += 1
         defer { pending = false }
         do {
             adopt(try await call(api))
+            after?()
             return .done
         } catch APIError.unauthorized {
             signOut()
@@ -138,7 +155,7 @@ final class TournamentModel {
             var fields: [String: String] = [:]
             if case APIError.invalid(_, _, let f) = error { fields = f }
             let message = error.localizedDescription
-            if !inline { foot.fail(message, retry: { [weak self] in Task { await self?.run(call) } }) }
+            if !inline { foot.fail(message, retry: { [weak self] in Task { await self?.run(after: after, call) } }) }
             return .failed(message: message, fields: fields)
         }
     }

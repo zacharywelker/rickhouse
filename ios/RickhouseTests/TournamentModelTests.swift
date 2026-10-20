@@ -180,6 +180,38 @@ final class TournamentModelTests: XCTestCase {
         XCTAssertEqual(m.view?.name, "After undo")
     }
 
+    func testRemovingABottleDeletesTheEntryAndSaysSo() async throws {
+        let m = await loaded()
+        StubURLProtocol.reply = json(name: "After remove")
+        await m.remove(entryId: 4, name: "Old Forester")
+        let s = try lastSent()
+        XCTAssertEqual([s.method, s.path], ["DELETE", "/api/v1/tournaments/3/entries/4"])
+        XCTAssertEqual(m.view?.name, "After remove")
+        XCTAssertEqual(m.foot.notice, "Removed Old Forester")
+    }
+
+    func testAFailedRemoveReloadsOffersRetryAndSaysNothingWasRemoved() async {
+        let m = await loaded("Before")
+        StubURLProtocol.queue = [(409, Data("{\"error\":{\"code\":\"conflict\",\"message\":\"It has started.\"}}".utf8)), (200, json(name: "Fresh"))]
+        await m.remove(entryId: 4, name: "Old Forester")
+        XCTAssertEqual(StubURLProtocol.sent.map(\.method), ["DELETE", "GET"])
+        XCTAssertEqual(m.view?.name, "Fresh")
+        XCTAssertEqual(m.foot.failure?.message, "It has started.")
+        XCTAssertNil(m.foot.notice)
+        StubURLProtocol.queue = [(200, json(name: "Done"))]
+        m.foot.failure?.retry()
+        try? await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(m.foot.notice, "Removed Old Forester", "the retry says so too")
+    }
+
+    func testMovingAFlightPostsTheSlot() async throws {
+        let m = await loaded()
+        await m.moveFlight(heatId: 10, toSlot: 2)
+        let s = try lastSent()
+        XCTAssertEqual([s.method, s.path], ["POST", "/api/v1/tournaments/3/heats/10/move"])
+        XCTAssertEqual(s.body?["toSlot"] as? Int, 2)
+    }
+
     func testWithdrawPostsToTheEntry() async throws {
         let m = await loaded()
         await m.withdraw(entryId: 2)
@@ -257,5 +289,15 @@ final class TournamentModelTests: XCTestCase {
         m.setZoom(.map)
         XCTAssertEqual(TournamentModel(id: 7, zoomStore: store).zoom, .map)
         XCTAssertEqual(TournamentModel(id: 8, zoomStore: store).zoom, .detail)
+    }
+
+    func testAChangeWhileAnotherIsSavingSaysOneMoment() async {
+        let m = await loaded()
+        StubURLProtocol.reply = json(name: "Spring")
+        let a = Task { await m.move(entryId: 1, toHeatId: 10) }
+        let b = Task { await m.move(entryId: 2, toHeatId: 10) }
+        let results = [await a.value, await b.value]
+        XCTAssertTrue(results.contains(.busy))
+        XCTAssertEqual(m.foot.notice, "One moment")
     }
 }

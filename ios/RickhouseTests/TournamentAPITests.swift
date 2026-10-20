@@ -165,6 +165,27 @@ final class TournamentAPITests: XCTestCase {
         try expect("PUT", "/api/v1/tournaments/3/heats/5/glass", body: ["assign": [["entryId": 1, "glass": "B"], ["entryId": 2, "glass": "A"]]])
     }
 
+    func testSixGlassBodiesCarryTheLettersEAndF() async throws {
+        answer(view)
+        let six = ["F", "E", "D", "C", "B", "A"]
+        _ = try await api.recordFlight(tournamentId: 3, heatId: 5, glasses: six)
+        try expect("POST", "/api/v1/tournaments/3/heats/5/result", body: ["glasses": six])
+        _ = try await api.setGlasses(tournamentId: 3, heatId: 5, assign: [(entryId: 1, glass: "E"), (entryId: 2, glass: "F")])
+        try expect("PUT", "/api/v1/tournaments/3/heats/5/glass", body: ["assign": [["entryId": 1, "glass": "E"], ["entryId": 2, "glass": "F"]]])
+        answer("{\"id\":12}", status: 201)
+        _ = try await api.createTournament(NewTournament(name: "Big", heatSize: 6, entries: [.outside("A"), .outside("B")]))
+        try expect("POST", "/api/v1/tournaments", body: ["name": "Big", "heatSize": 6, "entries": [["name": "A"], ["name": "B"]]])
+    }
+
+    func testRemoveAnEntryAndMoveAFlight() async throws {
+        answer(view)
+        _ = try await api.removeEntry(tournamentId: 3, entryId: 9)
+        try expect("DELETE", "/api/v1/tournaments/3/entries/9")
+        XCTAssertNil(try last().body, "removing sends no body")
+        _ = try await api.moveFlight(tournamentId: 3, heatId: 5, toSlot: 2)
+        try expect("POST", "/api/v1/tournaments/3/heats/5/move", body: ["toSlot": 2])
+    }
+
     func testEntryCommands() async throws {
         answer(view)
         _ = try await api.moveEntry(tournamentId: 3, entryId: 9, toHeatId: 6)

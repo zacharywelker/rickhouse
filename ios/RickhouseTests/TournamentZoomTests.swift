@@ -74,7 +74,7 @@ final class TournamentZoomTests: XCTestCase {
         XCTAssertEqual(heading, "Round 2")
         XCTAssertEqual(tiles.map(\.status), [.decided, .pending, .hidden])
         XCTAssertEqual(tiles.map(\.markers), [2, 2, 2])
-        XCTAssertEqual(tiles.map(\.text), ["Wheated", "92 to 93 proof", "100 proof"])
+        XCTAssertEqual(tiles.map(\.text), ["Wheated", "Flight 2", "100 proof"])
         XCTAssertEqual(rows[2], .later(heading: "Final", count: "3 bottles", detail: "Final flight"))
     }
 

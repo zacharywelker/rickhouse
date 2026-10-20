@@ -118,4 +118,43 @@ final class TournamentFlightActionsTests: XCTestCase {
         XCTAssertEqual(A.nextPendingId(v, heatId: 3), 4)
         XCTAssertNil(A.nextPendingId(Fx.view(.active, [[heat(1, 1, .decided), heat(2, 1, .pending)]]), heatId: 2))
     }
+
+    // MARK: remove and reorder (drag-model.ts flightSteps / canDragFlight)
+
+    func testRemoveIsOfferedInADraftForEveryVisibleFlightOnly() {
+        let draft = Fx.view(.draft, [[heat(1, 1, .pending), heat(2, 1, .bye), heat(3, 1, .pending, hidden: true)]])
+        XCTAssertEqual(draft.rounds[0].heats.map { A.canRemove(draft, $0) }, [true, true, false])
+        let running = Fx.view(.active, [[heat(1, 1, .pending)]])
+        XCTAssertFalse(A.canRemove(running, running.rounds[0].heats[0]))
+        XCTAssertFalse(A.canRemove(Fx.view(.complete, [[heat(1, 1, .decided)]]), heat(1, 1, .decided)))
+    }
+
+    func testFlightsReorderInADraftAndInTheCurrentRoundUndecidedOnly() {
+        let draft = Fx.view(.draft, [[heat(1, 1, .pending), heat(2, 1, .bye)]])
+        XCTAssertEqual(draft.rounds[0].heats.map { A.canReorder(draft, $0) }, [true, true])
+        let running = Fx.view(.active, [[heat(1, 1, .decided)], [heat(2, 2, .pending), heat(3, 2, .decided), heat(4, 2, .pending, hidden: true)]])
+        XCTAssertEqual(running.rounds[1].heats.map { A.canReorder(running, $0) }, [true, false, false])
+        XCTAssertFalse(A.canReorder(running, running.rounds[0].heats[0]), "an earlier round")
+        let done = Fx.view(.complete, [[heat(1, 1, .pending), heat(2, 1, .pending)]])
+        XCTAssertFalse(A.canReorder(done, done.rounds[0].heats[0]))
+    }
+
+    func testStepsGiveTheNeighbouringPlacesAndNilAtTheEnds() {
+        let v = Fx.view(.draft, [[heat(1, 1, .pending), heat(2, 1, .pending), heat(3, 1, .pending)]])
+        let steps = v.rounds[0].heats.map { A.flightSteps(v, $0) }
+        XCTAssertEqual(steps[0], A.Steps(place: 1, of: 3, up: nil, down: 2))
+        XCTAssertEqual(steps[1], A.Steps(place: 2, of: 3, up: 1, down: 3))
+        XCTAssertEqual(steps[2], A.Steps(place: 3, of: 3, up: 2, down: nil))
+    }
+
+    func testStepsCountSlotsNotIdsAndAreNilForALoneFlightOrAClosedOne() {
+        // slot gaps: the place is how many flights come before it
+        let gapped = Fx.view(.draft, [[Fx.heat(10, 1, 2, [], count: 2), Fx.heat(11, 1, 7, [], count: 2)]])
+        XCTAssertEqual(A.flightSteps(gapped, gapped.rounds[0].heats[1]), A.Steps(place: 2, of: 2, up: 1, down: nil))
+        let one = Fx.view(.draft, [[heat(1, 1, .pending)]])
+        XCTAssertNil(A.flightSteps(one, one.rounds[0].heats[0]))
+        let running = Fx.view(.active, [[heat(1, 1, .pending), heat(2, 1, .decided)]])
+        XCTAssertNil(A.flightSteps(running, running.rounds[0].heats[1]))
+        XCTAssertNotNil(A.flightSteps(running, running.rounds[0].heats[0]))
+    }
 }

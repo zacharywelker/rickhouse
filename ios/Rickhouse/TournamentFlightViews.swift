@@ -11,17 +11,26 @@ struct FlightCardView: View {
     let moves: MoveOptions?
     var run: FlightRunOptions?
     var onRename: () -> Void = {}
+    /// Where the flight can go in its round (the buttons that stand in for dragging); nil when it cannot move.
+    var steps: FlightActions.Steps?
+    var onShift: (_ toSlot: Int) -> Void = { _ in }
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     /// What a bottle's ⋯ menu offers, and what it does: move and swap (a draft, or an open running tournament), withdraw (running).
     struct MoveOptions {
         let targets: [MoveTarget]
         let swaps: [SwapTarget]
         var withdrawable: Set<Int> = []
+        /// A draft: each bottle has a Remove button (no confirmation).
+        var removable = false
+        var onRemove: (_ entryId: Int, _ name: String) -> Void = { _, _ in }
         let onMove: (_ entryId: Int, _ heatId: Int) -> Void
         let onSwap: (_ entryId: Int) -> Void
         var onWithdraw: (_ entryId: Int, _ name: String) -> Void = { _, _ in }
 
         func hasMenu(for entryId: Int) -> Bool { !targets.isEmpty || !swaps.isEmpty || withdrawable.contains(entryId) }
+        /// Anything a VoiceOver user can pick from the row's actions.
+        func hasActions(for entryId: Int) -> Bool { targets.contains { !$0.full } || !swaps.isEmpty || withdrawable.contains(entryId) || removable }
     }
 
     var body: some View {
@@ -36,7 +45,7 @@ struct FlightCardView: View {
             } else {
                 ForEach(flight.rows) { row in
                     Divider()
-                    FlightRowView(row: row, decided: flight.status == .decided, bye: flight.status == .bye,
+                    FlightRowView(row: row, heatId: flight.id, decided: flight.status == .decided, bye: flight.status == .bye,
                                   final: flight.status == .decided && !flight.rows.contains { $0.advanced }, moves: moves)
                 }
                 Divider()
@@ -44,20 +53,39 @@ struct FlightCardView: View {
             if let run, run.play || run.undo { FlightRunButtons(title: flight.title.text, run: run).padding(.vertical, 8) }
         }
         .accessibilityElement(children: .contain)
+        .flightDrop(heatId: flight.id)
     }
 
     private var titleRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 4))
+        return layout {
             title.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
-            if renamable {
-                Button(action: onRename) {
-                    Image(systemName: "pencil").font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44)
+            HStack(spacing: 0) {
+                FlightGrip(heatId: flight.id, title: flight.title.text)
+                if let steps {
+                    shiftButton(.up, to: steps.up)
+                    shiftButton(.down, to: steps.down)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(Theme.ink)
-                .accessibilityLabel("Rename flight \(flight.number)")
+                if renamable {
+                    Button(action: onRename) {
+                        Image(systemName: "pencil").font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityLabel("Rename flight \(flight.number)")
+                }
             }
         }
+    }
+
+    private func shiftButton(_ way: FlightShift, to slot: Int?) -> some View {
+        Button { if let slot { onShift(slot) } } label: {
+            Image(systemName: way == .up ? "chevron.up" : "chevron.down").font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(slot == nil ? Theme.muted.opacity(0.5) : Theme.ink)
+        .disabled(slot == nil)
+        .accessibilityLabel("Move flight \(flight.number) \(way.rawValue)")
     }
 
     private var title: some View {
@@ -82,9 +110,26 @@ struct FlightCardView: View {
     }
 }
 
+enum FlightShift: String { case up, down }
+
+extension View {
+    /// The row's actions for VoiceOver (Detail and Compact alike): the same choices as the ⋯ menu and the ✕ button.
+    func bottleActions(_ moves: FlightCardView.MoveOptions?, entryId: Int, name: String) -> some View {
+        accessibilityActions {
+            if let moves {
+                ForEach(moves.targets.filter { !$0.full }) { t in Button("Move to \(t.title)") { moves.onMove(entryId, t.heatId) } }
+                if !moves.swaps.isEmpty { Button("Swap with…") { moves.onSwap(entryId) } }
+                if moves.withdrawable.contains(entryId) { Button("Withdraw") { moves.onWithdraw(entryId, name) } }
+                if moves.removable { Button("Remove from tournament") { moves.onRemove(entryId, name) } }
+            }
+        }
+    }
+}
+
 /// One bottle in the Detail layout.
 struct FlightRowView: View {
     let row: RowModel
+    let heatId: Int
     /// The flight is decided: show places, and who goes through.
     let decided: Bool
     let bye: Bool
@@ -107,8 +152,9 @@ struct FlightRowView: View {
             if row.advanced || champion {
                 Label(champion ? "Champion" : "Advances", systemImage: champion ? "trophy" : "arrow.right").font(.inter(12, .semibold)).foregroundStyle(Theme.ink)
                     .padding(.top, 12).accessibilityHidden(true)
-            } else if let moves, moves.hasMenu(for: row.entryId) {
-                menu(moves)
+            } else {
+                if let moves, moves.hasMenu(for: row.entryId) { menu(moves) }
+                if let moves, moves.removable { removeButton(moves) }
             }
         }
         .padding(.leading, 8)
@@ -116,6 +162,7 @@ struct FlightRowView: View {
         .overlay(alignment: .leading) { if row.advanced || champion { Rectangle().fill(Theme.ink).frame(width: 3) } }
         .foregroundStyle(out ? Theme.muted : Theme.ink)
         .findMark(entryId: row.entryId, highlight: highlight)
+        .bottleDrag(entryId: row.entryId, heatId: heatId, name: row.name)
     }
 
     private var text: some View {
@@ -125,38 +172,64 @@ struct FlightRowView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(spoken)
-        .accessibilityActions {
-            if let moves {
-                ForEach(moves.targets.filter { !$0.full }) { t in Button("Move to \(t.title)") { moves.onMove(row.entryId, t.heatId) } }
-                if !moves.swaps.isEmpty { Button("Swap with…") { moves.onSwap(row.entryId) } }
-                if moves.withdrawable.contains(row.entryId) { Button("Withdraw") { moves.onWithdraw(row.entryId, row.name) } }
-            }
-        }
+        .bottleActions(moves, entryId: row.entryId, name: row.name)
+        .bottleDragPoints(entryId: row.entryId, heatId: heatId, name: row.name, hasActions: moves?.hasActions(for: row.entryId) ?? false)
     }
 
     private var facts: some View {
-        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 10))
-        return layout {
-            if let glass = row.glass { Text("Glass \(glass)").fixedSize() }
-            Text(row.proof == "—" ? "No proof" : "\(row.proof) proof").monospacedDigit().fixedSize(horizontal: false, vertical: true)
-            if row.mashbill != "—" { Text(row.mashbill).frame(maxWidth: typeSize.isAccessibilitySize ? nil : .infinity, alignment: .leading) }
-            else if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
-            if row.age != "—" { Text(row.age).monospacedDigit().fixedSize() }
+        VStack(alignment: .leading, spacing: 2) {
+            if typeSize.isAccessibilitySize { labelledFacts } else { inlineFacts }
         }
         .font(.inter(13))
         .foregroundStyle(Theme.muted)
+    }
+
+    /// Proof, mashbill (with its category under it) and age on one line, then distillery and finish when known.
+    @ViewBuilder private var inlineFacts: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            if let glass = row.glass { Text("Glass \(glass)").fixedSize() }
+            Text(row.proof == "—" ? "No proof" : "\(row.proof) proof").monospacedDigit().fixedSize(horizontal: false, vertical: true)
+            if row.mashbill != "—" || row.category != nil {
+                VStack(alignment: .leading, spacing: 0) {
+                    if row.mashbill != "—" { Text(row.mashbill) }
+                    if let category = row.category { Text(category).font(.inter(12)) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else { Spacer(minLength: 0) }
+            if row.age != "—" { Text(row.age).monospacedDigit().fixedSize() }
+        }
+        if let line = TournamentFlightFacts.extraLine(row) { Text(line) }
+    }
+
+    /// At the biggest text sizes each fact is a labelled pair on its own line.
+    @ViewBuilder private var labelledFacts: some View {
+        ForEach(TournamentFlightFacts.pairs(row), id: \.label) { pair in
+            Text("\(Text(pair.label + " ").font(.inter(12, .semibold))) \(pair.value)")
+        }
     }
 
     private var spoken: String {
         var parts = [row.name]
         if row.proof != "—" { parts.append("\(row.proof) proof") }
         if row.mashbill != "—" { parts.append(row.mashbill) }
+        if let category = row.category { parts.append(category) }
         if row.age != "—" { parts.append(row.age) }
+        if !row.distilleries.isEmpty { parts.append("distillery " + row.distilleries.joined(separator: ", ")) }
+        if !row.finishes.isEmpty { parts.append("finish " + row.finishes.joined(separator: ", ")) }
         if let glass = row.glass { parts.append("glass \(glass)") }
         var line = parts.joined(separator: ", ")
         if showsPlace, let place = row.place { line = "Place \(place). " + line }
         if highlight.entryIds.contains(row.entryId) { line += ", search match" }
         return row.advanced ? line + ", advances" : champion ? line + ", champion" : line
+    }
+
+    private func removeButton(_ moves: FlightCardView.MoveOptions) -> some View {
+        Button { moves.onRemove(row.entryId, row.name) } label: {
+            Image(systemName: "xmark").font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.ink)
+        .accessibilityLabel("Remove \(row.name) from the tournament")
     }
 
     private func menu(_ moves: FlightCardView.MoveOptions) -> some View {
@@ -185,13 +258,25 @@ struct FlightRowView: View {
 struct CompactFlightView: View {
     let flight: CompactFlight
     var run: FlightRunOptions?
+    /// No visible buttons here: a bottle's moves and the flight's own up/down are VoiceOver actions (drag is the sighted way).
+    var moves: FlightCardView.MoveOptions?
+    var steps: FlightActions.Steps?
+    var onShift: (_ toSlot: Int) -> Void = { _ in }
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.findHighlight) private var highlight
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Rectangle().fill(Theme.ink).frame(height: 2)
-            Text(flight.title).font(.inter(15, .semibold)).foregroundStyle(Theme.ink).padding(.vertical, 8).accessibilityAddTraits(.isHeader)
+            HStack(spacing: 0) {
+                Text(flight.title).font(.inter(15, .semibold)).foregroundStyle(Theme.ink).padding(.vertical, 8).accessibilityAddTraits(.isHeader)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityActions {
+                        if let up = steps?.up { Button("Move flight up") { onShift(up) } }
+                        if let down = steps?.down { Button("Move flight down") { onShift(down) } }
+                    }
+                FlightGrip(heatId: flight.id, title: flight.title, buttons: false)
+            }
             if flight.hidden {
                 Label("\(TournamentBracketModel.bottlesText(flight.count)), hidden until tasted", systemImage: "eye.slash")
                     .font(.inter(14)).foregroundStyle(Theme.muted).padding(.bottom, 8)
@@ -204,6 +289,7 @@ struct CompactFlightView: View {
             if let run, run.play || run.undo { FlightRunButtons(title: flight.title, run: run, compact: true).padding(.vertical, 6) }
         }
         .accessibilityElement(children: .contain)
+        .flightDrop(heatId: flight.id)
     }
 
     private func line(_ row: CompactRow) -> some View {
@@ -228,6 +314,9 @@ struct CompactFlightView: View {
         .findMark(entryId: row.entryId, highlight: highlight)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(compactSpoken(row))
+        .bottleActions(moves, entryId: row.entryId, name: row.name)
+        .bottleDragPoints(entryId: row.entryId, heatId: flight.id, name: row.name, hasActions: moves?.hasActions(for: row.entryId) ?? false)
+        .bottleDrag(entryId: row.entryId, heatId: flight.id, name: row.name)
     }
 
     private func compactSpoken(_ row: CompactRow) -> String {

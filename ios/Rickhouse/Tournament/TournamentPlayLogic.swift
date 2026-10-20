@@ -74,7 +74,7 @@ enum TournamentPlayLogic {
 
     /// "Pour four glasses" in the mockup: how many glasses the pourer sets out.
     static func pourTitle(_ count: Int) -> String {
-        let words = ["zero", "one", "two", "three", "four"]
+        let words = ["zero", "one", "two", "three", "four", "five", "six"]
         return "Pour \(count < words.count ? words[count] : String(count)) \(count == 1 ? "glass" : "glasses")"
     }
 

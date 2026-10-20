@@ -53,16 +53,34 @@ final class TournamentPlayFlowTests: XCTestCase {
 
     // MARK: letters
 
-    func testLettersRunFromAUpToFour() {
+    func testLettersRunFromAUpToSix() {
         XCTAssertEqual(GlassMapping.letters(3), ["A", "B", "C"])
         XCTAssertEqual(GlassMapping.letters(2), ["A", "B"])
-        XCTAssertEqual(GlassMapping.letters(9), ["A", "B", "C", "D"])
+        XCTAssertEqual(GlassMapping.letters(6), ["A", "B", "C", "D", "E", "F"])
+        XCTAssertEqual(GlassMapping.letters(9), ["A", "B", "C", "D", "E", "F"])
     }
 
     func testAShuffleUsesEachLetterOnce() {
         for _ in 0..<20 { XCTAssertEqual(GlassMapping.shuffled(4).sorted(), ["A", "B", "C", "D"]) }
         var zero = ScriptedGenerator(values: [0])
         XCTAssertEqual(GlassMapping.shuffled(3, using: &zero), ["B", "C", "A"])
+    }
+
+    func testASixGlassFlightShufflesMapsAndRanksWithEandF() {
+        for _ in 0..<20 { XCTAssertEqual(GlassMapping.shuffled(6).sorted(), ["A", "B", "C", "D", "E", "F"]) }
+        var zero = ScriptedGenerator(values: [0])
+        XCTAssertEqual(GlassMapping.shuffled(6, using: &zero), ["B", "C", "D", "E", "F", "A"])
+        XCTAssertNil(GlassMapping.problem(["F", "E", "D", "C", "B", "A"]))
+        XCTAssertTrue(GlassMapping.problem(["A", "B", "C", "D", "E", "G"])?.contains("from A, B, C, D, E, F") ?? false)
+        XCTAssertTrue(GlassMapping.problem(["A", "B", "C", "D", "E", "E"])?.contains("own letter") ?? false)
+        XCTAssertEqual(GlassMapping.assign(["A", "B", "C", "D", "E", "F"], index: 0, letter: "F"), ["F", "B", "C", "D", "E", "A"])
+        let rows = (1...6).map { row($0, "Bottle \($0)", ["C", "A", "F", "B", "E", "D"][$0 - 1]) }
+        let ranked = P.reduce(mapping(rows), .hide)
+        XCTAssertEqual(ranked, .rank(order: ["A", "B", "C", "D", "E", "F"]))
+        XCTAssertEqual(P.reduce(ranked, .move(index: 5, delta: -1)), .rank(order: ["A", "B", "C", "D", "F", "E"]))
+        XCTAssertEqual(P.reduce(ranked, .move(index: 5, delta: 1)), ranked)
+        XCTAssertEqual(TournamentPlayLogic.pourTitle(6), "Pour six glasses")
+        XCTAssertEqual(TournamentPlayLogic.pourTitle(5), "Pour five glasses")
     }
 
     func testProblemsMissingOutsideTheSetRepeated() {

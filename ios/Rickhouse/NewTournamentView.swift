@@ -62,8 +62,8 @@ struct NewTournamentView: View {
         Section {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Bottles per flight")
-                Picker("Bottles per flight", selection: $draft.heatSize) { ForEach([2, 3, 4], id: \.self) { Text("\($0)").tag($0) } }.pickerStyle(.segmented)
-                caption("A flight is one tasting. Four bottles is the most a palate holds well.")
+                HeatSizePicker(size: $draft.heatSize)
+                caption("A flight is one tasting. Smaller flights are easier on the palate; six is the most.")
                 problem("heatSize")
             }
             VStack(alignment: .leading, spacing: 4) {

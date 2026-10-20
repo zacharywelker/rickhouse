@@ -17,6 +17,8 @@ struct TournamentScreen: View {
     @State private var playRoute: PlayRoute?
     @State private var withdrawing: (entryId: Int, name: String)?
     @State private var confirmingWithdraw = false
+    @State private var drag = DragCoordinator()
+    @Environment(\.scenePhase) private var scenePhase
 
     init(id: Int) { _model = State(initialValue: TournamentModel(id: id)) }
 
@@ -54,7 +56,26 @@ struct TournamentScreen: View {
             .navigationDestination(item: $playRoute) { PlayFlightView(tournamentID: model.id, heatID: $0.heatID, drawn: $0.drawn) }
             // Coming back from a flight: what was decided there shows at once.
             .onAppear { if model.hasLoaded { Task { await model.load() } } }
+            .environment(drag)
+            // A drag released outside every target has no end callback: forget it when the screen or the app goes away.
+            .onDisappear { drag.reset() }
+            .onChange(of: scenePhase) { if scenePhase != .active { drag.reset() } }
             .task {
+                drag.notice = { [model] in model.foot.show($0) }
+                drag.view = { [model] in model.view }
+                drag.busy = { [model] in model.pending }
+                drag.perform = { [model] outcome, said in
+                    Task {
+                        let result: ActionResult
+                        switch outcome {
+                        case .move(let entryId, let toHeatId): result = await model.move(entryId: entryId, toHeatId: toHeatId)
+                        case .swap(let entryId, let other): result = await model.swap(entryId: entryId, with: other, inline: false)
+                        case .reorder(let heatId, let toSlot): result = await model.moveFlight(heatId: heatId, toSlot: toSlot)
+                        case .none: return
+                        }
+                        if result == .done, let said { AccessibilityNotification.Announcement(said).post() }
+                    }
+                }
                 model.api = { session.api }
                 model.signOut = { session.signOut() }
                 await model.load()
@@ -78,7 +99,9 @@ struct TournamentScreen: View {
                                 FindBar(find: find, count: matches.count, onQuery: { find.setQuery($0) }, onStep: { step($0, matches, proxy) })
                             }
                             TournamentBracketView(view: view, bracket: bracket, zoom: model.zoom, chosenRound: $model.chosenRound,
-                                                  moves: { moveOptions(view, $0, $1) }, onRename: { rename($0) }, run: runOptions(view))
+                                                  moves: { moveOptions(view, $0, $1) }, onRename: { rename($0) }, run: runOptions(view),
+                                                  steps: { flight in heat(view, flight.id).flatMap { FlightActions.flightSteps(view, $0) } },
+                                                  onShift: { flight, slot in shift(flight.id, to: slot) })
                         }
                         if typeSize.isAccessibilitySize, let offer = TournamentRunLogic.bar(view) { runBar(offer).padding(.horizontal, -16) }
                         StandingsSection(title: TournamentRunLogic.standingsTitle(view), rows: TournamentStandings.rows(view))
@@ -152,11 +175,13 @@ struct TournamentScreen: View {
     private func moveOptions(_ view: TournamentView, _ column: RoundColumn, _ flight: FlightModel) -> FlightCardView.MoveOptions? {
         guard let heat = heat(view, flight.id) else { return nil }
         let controls = FlightActions.flightControls(view, heat)
-        guard controls.move || !controls.withdraw.isEmpty else { return nil }
+        let removable = FlightActions.canRemove(view, heat)
+        guard controls.move || !controls.withdraw.isEmpty || removable else { return nil }
         let swaps = controls.move ? TournamentScreenLogic.swapTargets(column, from: flight) : []
         return FlightCardView.MoveOptions(
             targets: controls.move ? TournamentScreenLogic.moveTargets(column, from: flight, heatSize: view.heatSize) : [], swaps: swaps,
-            withdrawable: Set(controls.withdraw),
+            withdrawable: Set(controls.withdraw), removable: removable,
+            onRemove: { entry, name in Task { await model.remove(entryId: entry, name: name) } },
             onMove: { entry, heat in Task { await model.move(entryId: entry, toHeatId: heat) } },
             onSwap: { entry in
                 let name = flight.rows.first { $0.entryId == entry }?.name ?? "bottle"
@@ -177,6 +202,17 @@ struct TournamentScreen: View {
             return FlightRunOptions(play: controls.play, undo: controls.undo,
                                     onPlay: { playRoute = PlayRoute(heatID: flight.id) },
                                     onUndo: { Task { await model.undo(heatId: flight.id) } })
+        }
+    }
+
+    /// A chevron (or the Compact header's VoiceOver action): say what a drag would have said once it is saved. The words are
+    /// built before the move, while the flight still has its old number.
+    private func shift(_ heatId: Int, to slot: Int) {
+        guard let view = model.view else { return }
+        let outcome = DropOutcome.reorder(heatId: heatId, toSlot: slot)
+        let said = DragModel.describeOutcome(view, outcome)
+        Task {
+            if await model.moveFlight(heatId: heatId, toSlot: slot) == .done, let said { AccessibilityNotification.Announcement(said).post() }
         }
     }
 

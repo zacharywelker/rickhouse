@@ -15,6 +15,10 @@ struct RowModel: Equatable, Identifiable {
     let proof: String
     let mashbill: String
     let age: String
+    /// The spirit category ("Bourbon"); nil for an outside entry or when unknown.
+    let category: String?
+    let distilleries: [String]
+    let finishes: [String]
     /// True when no proof is recorded, so the grouping put the bottle last.
     let unknownProof: Bool
     let place: Int?
@@ -103,18 +107,18 @@ enum TournamentBracketModel {
         }
     }
 
-    /// A flight's title: your own name wins and is marked yours; else what its bottles share; else its proof band. A hidden
-    /// flight (pending in a running blind tournament) shows only its band: even a name you gave it could give the glass away.
+    /// A flight's title: your own name wins and is marked yours; else what its bottles share (the server's generated name,
+    /// never the proof band, which the meta line carries); else its number. A hidden flight (pending in a running blind
+    /// tournament) shows only its band: even a name you gave it could give the glass away.
     static func flightTitle(_ heat: TournamentHeat, number: Int) -> FlightTitle {
-        let fallback = heat.band.isEmpty ? "Flight \(number)" : heat.band
-        if heat.hidden { return FlightTitle(text: fallback, yours: false) }
+        if heat.hidden { return FlightTitle(text: heat.band.isEmpty ? "Flight \(number)" : heat.band, yours: false) }
         if let custom = heat.label?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
             return FlightTitle(text: custom, yours: true)
         }
-        return FlightTitle(text: heat.autoLabel ?? fallback, yours: false)
+        return FlightTitle(text: heat.autoLabel ?? "Flight \(number)", yours: false)
     }
 
-    private static func flightModel(_ heat: TournamentHeat, number: Int, final: Bool) -> FlightModel {
+    private static func flightModel(_ heat: TournamentHeat, number: Int, final: Bool, draft: Bool) -> FlightModel {
         let title = flightTitle(heat, number: number)
         let entries = heat.hidden ? [] : heat.entries
         var meta: [String] = []
@@ -123,8 +127,9 @@ enum TournamentBracketModel {
         if !heat.hidden && heat.band.isEmpty && !entries.isEmpty { meta.append("Proof unknown for some") }
         if heat.status == .bye { meta.append("Bye") }
 
-        // Nobody advances out of a final; the champion line shows who won.
-        let finished = heat.status != .pending && !final
+        // Nobody advances out of a final; the champion line shows who won. A draft decides nothing, so a lone bottle (a bye)
+        // has not advanced yet.
+        let finished = heat.status != .pending && !final && !draft
         let through = Set(finished ? TournamentRounds.advancers(entries.map { Placing(entryId: $0.entryId, place: $0.place) }, bye: heat.status == .bye) : [])
         let ordered = heat.status == .decided ? entries : pourOrder(entries)
         return FlightModel(
@@ -132,7 +137,8 @@ enum TournamentBracketModel {
             hidden: heat.hidden, count: heat.entryCount, glassesSet: heat.glasses.count,
             rows: ordered.map {
                 RowModel(entryId: $0.entryId, name: $0.name, proof: formatProof($0.proof), mashbill: $0.mashbill ?? "—",
-                         age: formatAge($0.ageYears), unknownProof: $0.proof == nil, place: $0.place,
+                         age: formatAge($0.ageYears), category: $0.category, distilleries: $0.distilleries, finishes: $0.finishes,
+                         unknownProof: $0.proof == nil, place: $0.place,
                          advanced: through.contains($0.entryId), glass: $0.glass)
             })
     }
@@ -170,7 +176,7 @@ enum TournamentBracketModel {
         var renamed = 0
         for (round, heats) in view.rounds.map({ ($0.round, $0.heats) }) {
             let final = heats.count == 1
-            let flights = heats.enumerated().map { flightModel($0.element, number: $0.offset + 1, final: final) }
+            let flights = heats.enumerated().map { flightModel($0.element, number: $0.offset + 1, final: final, draft: view.status == .draft) }
             renamed += heats.filter { !($0.label?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) }.count
             let allDone = heats.allSatisfy { $0.status != .pending }
             let state: RoundState? = view.status == .draft ? nil : allDone ? .decided : round == view.currentRound ? .now : nil
