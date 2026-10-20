@@ -9,8 +9,8 @@ import UniformTypeIdentifiers
 /// in-app state, `current`; the item that leaves the app is `{"bottle":{"entryId":…,"fromHeatId":…}}`, ids only, never a name).
 @MainActor @Observable
 final class DragCoordinator {
-    /// The flight or bottle being dragged. Not observed: lifting must not redraw the view being lifted.
-    @ObservationIgnored var current: Drag?
+    /// The flight or bottle being dragged. Observed so the VoiceOver drop points (`spokenDrop`) are redrawn once something is lifted.
+    var current: Drag?
     /// The target under the finger; the one thing the views watch.
     var hover: DropTarget?
     @ObservationIgnored var view: () -> TournamentView? = { nil }
@@ -47,6 +47,17 @@ final class DragCoordinator {
         case .swap: return "Swap"
         case .reorder: return "Place here"
         case .none(let reason): return reason == .same ? nil : DragModel.refusalText(reason)
+        }
+    }
+
+    /// What a VoiceOver user hears for a drop point while something is lifted: the result, or the refusal ("Full, cannot move here").
+    /// A refused drop never reaches `performDrop`, so this is the only place the refusal can be heard.
+    func spokenDrop(_ target: DropTarget, swapWith name: String? = nil) -> String {
+        switch outcome(target) {
+        case nil, .move?: return "Move here"
+        case .swap?: return "Swap with \(name ?? "this bottle")"
+        case .reorder?: return "Place here"
+        case .none(let reason)?: return reason == .same ? "Already here" : "\(DragModel.refusalText(reason)), cannot move here"
         }
     }
 
@@ -132,7 +143,7 @@ private struct BottleDragModifier: ViewModifier {
                     if let cue, case .bottle? = drag.current { CueBadge(text: cue).padding(.trailing, 4) }
                 }
                 .accessibilityDragPoint(.center, description: Text("Lift \(name)"))
-                .accessibilityDropPoint(.center, description: Text("Swap with \(name)"))
+                .accessibilityDropPoint(.center, description: Text(drag.spokenDrop(.bottle(entryId: entryId, heatId: heatId), swapWith: name)))
                 .accessibilityHint("Drag to another flight, or use the actions.")
         } else {
             content
@@ -150,7 +161,7 @@ private struct FlightDropModifier: ViewModifier {
             let cue = drag.cue(for: .flight(heatId: heatId))
             content
                 .onDrop(of: [.json], delegate: BracketDropDelegate(coordinator: drag, target: .flight(heatId: heatId)))
-                .accessibilityDropPoint(.top, description: Text("Move here"))
+                .accessibilityDropPoint(.top, description: Text(drag.spokenDrop(.flight(heatId: heatId))))
                 .overlay(alignment: .topTrailing) { if let cue { CueBadge(text: cue).padding(.top, 8) } }
                 .overlay { if cue != nil { Rectangle().stroke(Theme.ink, lineWidth: 2).allowsHitTesting(false) } }
         } else {

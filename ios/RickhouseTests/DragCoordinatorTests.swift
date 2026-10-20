@@ -100,3 +100,20 @@ final class DragCoordinatorTests: XCTestCase {
         XCTAssertTrue(log.performed.isEmpty)
     }
 }
+
+// VoiceOver never sees the cue badge, and a refused drop never reaches performDrop: the drop point itself must say it.
+@MainActor
+final class DragCoordinatorSpokenTests: XCTestCase {
+    func testDropPointsSayWhatADropWouldDoOrWhyNot() {
+        let c = DragCoordinator()
+        let e: (Int) -> HeatEntry = { Fx.entry($0, "B\($0)", 100) }
+        c.view = { Fx.view(.draft, rounds: [TournamentRound(round: 1, heats: [Fx.heat(1, 1, 1, [1, 2, 3].map(e)), Fx.heat(2, 1, 2, [4, 5].map(e)), Fx.heat(3, 1, 3, [6].map(e))])], current: .some(1), heatSize: 3) }
+        c.begin(.bottle(entryId: 4, fromHeatId: 2))
+        XCTAssertEqual(c.spokenDrop(.flight(heatId: 3)), "Move here")
+        XCTAssertEqual(c.spokenDrop(.flight(heatId: 1)), "Full, cannot move here")
+        XCTAssertEqual(c.spokenDrop(.flight(heatId: 2)), "Already here")
+        XCTAssertEqual(c.spokenDrop(.bottle(entryId: 1, heatId: 1), swapWith: "B1"), "Swap with B1")
+        c.begin(.flight(heatId: 1))
+        XCTAssertEqual(c.spokenDrop(.flight(heatId: 3)), "Place here")
+    }
+}
