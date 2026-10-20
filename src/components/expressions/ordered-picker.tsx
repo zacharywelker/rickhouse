@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,8 @@ import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { linksPayload } from "@/lib/expressions/links";
 import { UndisclosedTick } from "./undisclosed-tick";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
+import { CreateWithDetailsDialog } from "@/components/admin/create-with-details-dialog";
+import { mashbillSuggestionsAction } from "@/app/(app)/expressions/actions";
 
 /** The JSON a list is submitted as, read back by `parseLinks` on the server. */
 export function serializeLinks(rows: LinkedRow[]): string {
@@ -89,6 +91,8 @@ export function OrderedPicker({
   onOptionCreated?: (option: Option) => void;
 }) {
   const [created, setCreated] = React.useState<Option[]>([]);
+  const [editing, setEditing] = React.useState<LinkedRow | null>(null);
+  const [suggestions, setSuggestions] = React.useState<Record<number, Option[]>>({});
   const available = React.useMemo(() => {
     const known = new Set(options.map((option) => option.value));
     return [...options, ...created.filter((option) => !known.has(option.value))];
@@ -103,6 +107,24 @@ export function OrderedPicker({
     (option) => !chosen.has(option.value) && !(undisclosable && option.undisclosed),
   );
   const soloDistillery = distilleryChoices?.length === 1 ? distilleryChoices[0]! : null;
+  const distilleryKey = resource === "distilleries" && name === "distilleryLinks"
+    ? value.map((row) => row.id).join(",")
+    : "";
+
+  React.useEffect(() => {
+    if (!distilleryKey) {
+      setSuggestions({});
+      return;
+    }
+    let active = true;
+    const ids = distilleryKey.split(",").map(Number);
+    void Promise.all(ids.map(async (id) => [id, await mashbillSuggestionsAction(id)] as const)).then((pairs) => {
+      if (active) setSuggestions(Object.fromEntries(pairs));
+    }).catch(() => {
+      if (active) setSuggestions({});
+    });
+    return () => { active = false; };
+  }, [distilleryKey]);
 
   const move = (index: number, delta: number) => {
     const next = [...value];
@@ -118,6 +140,20 @@ export function OrderedPicker({
     onChange([
       ...value,
       { id: option.value, label: option.label, hint: option.hint, amount: "", distilleryId, undisclosed: option.undisclosed },
+    ]);
+  };
+
+  const addSuggestedMashbill = (distillery: LinkedRow, option: Option) => {
+    if (chosen.has(option.value)) return;
+    onChange([
+      ...value,
+      {
+        id: option.value,
+        label: option.label,
+        hint: option.hint,
+        amount: "",
+        distilleryId: distilleryChoices && distilleryChoices.length > 1 ? distillery.id : null,
+      },
     ]);
   };
 
@@ -141,6 +177,19 @@ export function OrderedPicker({
                 {row.label}
                 {row.hint && !row.undisclosed ? <span className="ml-1.5 text-xs text-muted-foreground">{row.hint}</span> : null}
               </span>
+
+              {resource !== null && ["distilleries", "mashbills", "finishes"].includes(resource) ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Edit ${row.label} details`}
+                  title={`Edit ${row.label} details`}
+                  onClick={() => setEditing(row)}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+              ) : null}
 
               {distilleryChoices && distilleryChoices.length > 1 ? (
                 <div className="flex items-center gap-1">
@@ -250,6 +299,24 @@ export function OrderedPicker({
                   <X className="size-4" />
                 </Button>
               </div>
+              {resource === "distilleries" && name === "distilleryLinks" && (suggestions[row.id]?.length ?? 0) > 0 ? (
+                <div className="basis-full pl-7 text-xs">
+                  <span className="mr-2 text-muted-foreground">Common mashbills:</span>
+                  {suggestions[row.id]!.map((suggestion) => (
+                    <Button
+                      key={suggestion.value}
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto px-1 py-0 text-xs"
+                      disabled={chosen.has(suggestion.value)}
+                      onClick={() => addSuggestedMashbill(row, suggestion)}
+                    >
+                      {suggestion.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -281,6 +348,21 @@ export function OrderedPicker({
       <span id={`${name}-add-label`} className="sr-only">
         Add {label.toLowerCase()}
       </span>
+      {editing && resource !== null && ["distilleries", "mashbills", "finishes"].includes(resource) ? (
+        <CreateWithDetailsDialog
+          resource={resource as "distilleries" | "mashbills" | "finishes"}
+          open
+          onOpenChange={(open) => { if (!open) setEditing(null); }}
+          initialName=""
+          recordId={editing.id}
+          onCreated={(option) => {
+            onChange(value.map((row) => row.id === editing.id ? { ...row, label: option.label } : row));
+            setCreated((items) => [...items.filter((item) => item.value !== option.value), option]);
+            onOptionCreated?.(option);
+            setEditing(null);
+          }}
+        />
+      ) : null}
       {undisclosable ? (
         <UndisclosedTick
           idPrefix={`${name}-undisclosed`}
