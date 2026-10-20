@@ -6,8 +6,9 @@ import { parseInput, toActionResult, toFailure, type ActionFailure, type Tournam
 import { fieldCandidates, labelCandidates, type FieldCandidate, type LabelCandidate } from "@/lib/tournaments/field";
 import { parseFieldFilters } from "@/lib/tournaments/field-filters";
 import { createSchema, glassSchema, moveHeatSchema, moveSchema, patchSchema, promoteSchema, renameSchema, resultSchema, swapSchema } from "@/lib/tournaments/api-schemas";
-import { drawHeat, moveEntry, moveHeat, promoteEntry, recordHeat, removeDraftEntry, renameHeat, setGlasses, swapEntries, undoHeat, withdrawEntry, type DrawnHeat } from "@/lib/tournaments/heats";
-import { createTournament, deleteTournament, resetRound, startTournament, updateDraft } from "@/lib/tournaments/lifecycle";
+import { drawHeat, moveEntry, moveHeat, promoteEntry, removeDraftEntry, renameHeat, setGlasses, swapEntries, type DrawnHeat } from "@/lib/tournaments/heats";
+import { recordHeat, resetRound, startTournament, undoHeat, withdrawEntry } from "@/lib/tournaments/transitions";
+import { createTournament, deleteTournament, updateDraft } from "@/lib/tournaments/lifecycle";
 import type { Failure } from "@/lib/tournaments/state";
 
 const isId = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n > 0;
