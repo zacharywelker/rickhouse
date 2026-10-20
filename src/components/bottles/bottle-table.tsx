@@ -26,6 +26,7 @@ import { cn, formatDate, formatNumeric } from "@/lib/utils";
 import { fillState, fillStateDescription } from "@/lib/bottles/fill-state";
 import type { BottleFilters, SortKey } from "@/lib/bottles/filters";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
+import { effectiveBottleStatus } from "@/lib/bottles/terminology";
 import type { GridRow } from "@/lib/bottles/grid";
 import { describeMarkup, markup, shortMarkup } from "@/lib/bottles/markup";
 import { deleteBottlesBulkAction, updateBottlesBulkAction } from "@/app/(app)/bottles/actions";
@@ -292,10 +293,10 @@ export function BottleTable({
       helper.accessor("status", {
         id: "status",
         header: "Status",
-        cell: ({ getValue, row }) =>
+        cell: ({ row }) =>
           unlocked ? (
             <select
-              value={edits[row.original.id]?.status ?? editableFrom(row.original).status}
+              value={edits[row.original.id]?.status ?? effectiveBottleStatus(row.original)}
               onChange={(e) => updateEdit(row.original, "status", e.target.value)}
               className="h-8 w-full border border-input bg-card px-2 text-sm text-foreground"
             >
@@ -306,7 +307,7 @@ export function BottleTable({
               ))}
             </select>
           ) : (
-            <StatusMark status={getValue()} />
+            <StatusMark status={effectiveBottleStatus(row.original)} />
           ),
       }),
       helper.accessor("category", {

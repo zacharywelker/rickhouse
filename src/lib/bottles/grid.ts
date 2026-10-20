@@ -4,8 +4,13 @@ import { db } from "@/db";
 import { bottleList } from "@/db/schema";
 import type { BottleFilters, SortKey } from "./filters";
 
+/** An open state is recorded three ways by older imports and newer actions. */
+export const isOpenFlag = sql`(${bottleList.isOpen} OR ${bottleList.status} = 'open' OR ${bottleList.fillPct} < 100)`;
+
 /** Opened and still on the shelf — killed, sold and traded bottles are history, not open. */
-export const isOpenNow = sql`(${bottleList.isOpen} AND ${bottleList.status} IN ('owned', 'open'))`;
+export const isOpenNow = sql`(${isOpenFlag} AND ${bottleList.status} IN ('owned', 'open'))`;
+/** Sealed and still on the shelf, using the same reconciled state as open counts. */
+export const isSealedNow = sql`(NOT ${isOpenFlag} AND ${bottleList.status} IN ('owned', 'open'))`;
 
 /** On the shelf right now — what "Bottles" counts. Labels are knowledge; Collection is ownership. */
 export const isOwnedNow = sql`(${bottleList.status} IN ('owned', 'open'))`;
@@ -37,7 +42,7 @@ const SORT_COLUMNS: Record<SortKey, SQL | ReturnType<typeof sql>> = {
   markup: sql`(${bottleList.pricePaid} - ${bottleList.msrp}) / nullif(${bottleList.msrp}, 0)`,
   fill: sql`${bottleList.fillPct}`,
   rating: sql`${bottleList.avgRating}`,
-  status: sql`${bottleList.status}`,
+  status: sql`(CASE WHEN ${isOpenNow} THEN 'open' ELSE ${bottleList.status} END)`,
 };
 
 /**
@@ -87,7 +92,17 @@ function buildWhere(filters: BottleFilters, ownerId: number): SQL | undefined {
   if (filters.categoryIds.length > 0) clauses.push(categorySubtree(filters.categoryIds));
   if (filters.brandIds.length > 0) clauses.push(inArray(bottleList.brandId, filters.brandIds));
   if (filters.storeIds.length > 0) clauses.push(inArray(bottleList.storeId, filters.storeIds));
-  if (filters.statuses.length > 0) clauses.push(inArray(bottleList.status, filters.statuses));
+  if (filters.statuses.length > 0) {
+    clauses.push(
+      or(
+        ...filters.statuses.map((status) => {
+          if (status === "open") return isOpenNow;
+          if (status === "owned") return and(eq(bottleList.status, "owned"), isSealedNow)!;
+          return eq(bottleList.status, status);
+        }),
+      )!,
+    );
+  }
 
   // Through the join tables, so blends match on every contributor.
   if (filters.distilleryIds.length > 0) {
@@ -122,7 +137,7 @@ function buildWhere(filters: BottleFilters, ownerId: number): SQL | undefined {
   // Open means opened *and still on the shelf*: a killed bottle keeps its
   // is_open flag as history, but it is not open "right now".
   if (filters.open === "open") clauses.push(isOpenNow);
-  if (filters.open === "closed") clauses.push(eq(bottleList.isOpen, false));
+  if (filters.open === "closed") clauses.push(isSealedNow);
   if (filters.favorite) clauses.push(eq(bottleList.isFavorite, true));
 
   if (filters.proof.min !== null) clauses.push(gte(bottleList.proof, String(filters.proof.min)));

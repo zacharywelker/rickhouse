@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { getCurrentUser, life, heats, queries, rankingFor, field } = vi.hoisted(() => {
+const { getCurrentUser, life, heats, transitions, queries, rankingFor, field } = vi.hoisted(() => {
   const fn = () => vi.fn();
   return {
     getCurrentUser: vi.fn(),
-    life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
-    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), removeDraftEntry: fn(), moveHeat: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
+    life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn() },
+    transitions: { startTournament: fn(), resetRound: fn(), recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn() },
+    heats: { removeDraftEntry: fn(), moveHeat: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     queries: { getTournament: fn(), listTournaments: fn() },
     rankingFor: vi.fn(),
     field: { fieldCandidates: fn(), labelCandidates: fn() },
@@ -16,6 +17,7 @@ const { getCurrentUser, life, heats, queries, rankingFor, field } = vi.hoisted((
 vi.mock("@/lib/auth", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("@/lib/tournaments/lifecycle", () => life);
 vi.mock("@/lib/tournaments/heats", () => heats);
+vi.mock("@/lib/tournaments/transitions", () => transitions);
 vi.mock("@/lib/tournaments/queries", () => queries);
 vi.mock("@/lib/tournaments/field", () => field);
 vi.mock("@/lib/tournaments/ranking-query", () => ({ rankingFor: (...a: unknown[]) => rankingFor(...a) }));
@@ -96,15 +98,15 @@ describe("every tournament route", () => {
 
 describe("the commands' answers become the API's", () => {
   it("maps 404, 409 and 422 failures to not_found, conflict and invalid, with the fields", async () => {
-    heats.recordHeat.mockResolvedValueOnce({ ok: false, status: 404, message: "That flight is gone." });
+    transitions.recordHeat.mockResolvedValueOnce({ ok: false, status: 404, message: "That flight is gone." });
     let res = await call(result.POST as never, "POST", { id: "3", heatId: "5" }, { ranking: [1, 2] });
     expect([res.status, (await res.json()).error]).toEqual([404, { code: "not_found", message: "That flight is gone." }]);
 
-    heats.recordHeat.mockResolvedValueOnce({ ok: false, status: 409, message: "That flight already has a result." });
+    transitions.recordHeat.mockResolvedValueOnce({ ok: false, status: 409, message: "That flight already has a result." });
     res = await call(result.POST as never, "POST", { id: "3", heatId: "5" }, { ranking: [1, 2] });
     expect([res.status, (await res.json()).error.code]).toEqual([409, "conflict"]);
 
-    heats.recordHeat.mockResolvedValueOnce({ ok: false, status: 422, message: "Rank every bottle exactly once.", fields: { ranking: "Rank every bottle exactly once." } });
+    transitions.recordHeat.mockResolvedValueOnce({ ok: false, status: 422, message: "Rank every bottle exactly once.", fields: { ranking: "Rank every bottle exactly once." } });
     res = await call(result.POST as never, "POST", { id: "3", heatId: "5" }, { ranking: [1, 2] });
     expect(res.status).toBe(422);
     expect((await res.json()).error).toEqual({ code: "invalid", message: "Rank every bottle exactly once.", fields: { ranking: "Rank every bottle exactly once." } });
@@ -175,8 +177,8 @@ describe("one tournament", () => {
   });
 
   it.each([
-    ["start", start, life.startTournament],
-    ["reset", reset, life.resetRound],
+    ["start", start, transitions.startTournament],
+    ["reset", reset, transitions.resetRound],
   ])("%s takes an empty JSON object and refuses data", async (_name, mod, command) => {
     command.mockResolvedValue({ ok: true, view });
     expect((await call(mod.POST as never, "POST", { id: "3" }, {})).status).toBe(200);
@@ -201,24 +203,24 @@ describe("flights and entries", () => {
   });
 
   it("records a result by entry id or by glass, and not both or neither", async () => {
-    heats.recordHeat.mockResolvedValue({ ok: true, view });
+    transitions.recordHeat.mockResolvedValue({ ok: true, view });
     expect((await call(result.POST as never, "POST", { id: "3", heatId: "5" }, { ranking: [4, 3, 2, 1] })).status).toBe(200);
-    expect(heats.recordHeat).toHaveBeenLastCalledWith(7, 3, 5, { ranking: [4, 3, 2, 1] }, 7);
+    expect(transitions.recordHeat).toHaveBeenLastCalledWith(7, 3, 5, { ranking: [4, 3, 2, 1] }, 7);
     expect((await call(result.POST as never, "POST", { id: "3", heatId: "5" }, { glasses: ["B", "A", "C"] })).status).toBe(200);
-    expect(heats.recordHeat).toHaveBeenLastCalledWith(7, 3, 5, { glasses: ["B", "A", "C"] }, 7);
+    expect(transitions.recordHeat).toHaveBeenLastCalledWith(7, 3, 5, { glasses: ["B", "A", "C"] }, 7);
     for (const bad of [{ ranking: [1, 2], glasses: ["A", "B"] }, {}, { ranking: [1] }, { ranking: [1, 2, 3, 4, 5, 6, 7] }, { glasses: ["A", "G"] }, { ranking: [1.5, 2] }]) {
       expect((await call(result.POST as never, "POST", { id: "3", heatId: "5" }, bad)).status).toBe(422);
     }
   });
 
   it("takes a result back", async () => {
-    heats.undoHeat.mockResolvedValue({ ok: true, view });
+    transitions.undoHeat.mockResolvedValue({ ok: true, view });
     expect((await call(result.DELETE as never, "DELETE", { id: "3", heatId: "5" })).status).toBe(200);
-    expect(heats.undoHeat).toHaveBeenCalledWith(7, 3, 5);
+    expect(transitions.undoHeat).toHaveBeenCalledWith(7, 3, 5);
   });
 
   it("sets glasses, moves, withdraws, promotes and renames", async () => {
-    for (const command of [heats.setGlasses, heats.moveEntry, heats.swapEntries, heats.withdrawEntry, heats.promoteEntry, heats.renameHeat]) command.mockResolvedValue({ ok: true, view });
+    for (const command of [heats.setGlasses, heats.moveEntry, heats.swapEntries, transitions.withdrawEntry, heats.promoteEntry, heats.renameHeat]) command.mockResolvedValue({ ok: true, view });
     const assign = [{ entryId: 1, glass: "A" }, { entryId: 2, glass: "B" }];
     expect((await call(glass.PUT as never, "PUT", { id: "3", heatId: "5" }, { assign })).status).toBe(200);
     expect(heats.setGlasses).toHaveBeenCalledWith(7, 3, 5, assign);
@@ -229,7 +231,7 @@ describe("flights and entries", () => {
     expect((await call(swap.POST as never, "POST", { id: "3", entryId: "9" }, { withEntryId: 0 })).status).toBe(422);
     expect((await call(swap.POST as never, "POST", { id: "3", entryId: "x" }, { withEntryId: 6 })).status).toBe(404);
     expect((await call(withdraw.POST as never, "POST", { id: "3", entryId: "9" }, {})).status).toBe(200);
-    expect(heats.withdrawEntry).toHaveBeenCalledWith(7, 3, 9);
+    expect(transitions.withdrawEntry).toHaveBeenCalledWith(7, 3, 9);
     heats.removeDraftEntry.mockResolvedValue({ ok: true, view });
     expect((await call(promote.DELETE as never, "DELETE", { id: "3", entryId: "9" })).status).toBe(200);
     expect(heats.removeDraftEntry).toHaveBeenCalledWith(7, 3, 9);

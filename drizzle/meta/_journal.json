@@ -295,6 +295,27 @@
       "when": 1792240174639,
       "tag": "0041_flights_of_six",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792326574639,
+      "tag": "0042_distillery_defunct",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792412974639,
+      "tag": "0043_mashbill_style",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792499374639,
+      "tag": "0044_whisky_cooperage",
+      "breakpoints": true
     }
   ]
 }

@@ -12,12 +12,14 @@ import { Field, initialFieldValues, type FieldValue } from "@/components/forms/f
 import { saveBottleAction } from "@/app/(app)/bottles/actions";
 import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "@/lib/expressions/bottle-fields";
 import { fieldVisible, sectionVisible } from "@/lib/expressions/fields";
-import type { LabelDates } from "@/lib/expressions/rules";
+import type { FieldGroup } from "@/db/schema";
+import type { CategoryKind, LabelDates } from "@/lib/expressions/rules";
 import { IDLE_RESULT, type ActionResult, type Option } from "@/lib/admin/types";
 import { ageBetween, ageFilled, describeAge } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
 import { withOption } from "@/lib/forms/values";
 import { AgeFields } from "./age-fields";
+import { releaseUnit } from "@/lib/bottles/terminology";
 
 /**
  * Offers to work the age out from the fill and bottling dates (SPEC M8).
@@ -90,6 +92,9 @@ export function BottleFields({
   labelDates,
   omit = [],
   idPrefix = "bottle",
+  collapseLabelPicker = false,
+  fieldGroup = "whiskey",
+  categoryKind = "american",
 }: {
   values: Record<string, FieldValue>;
   onChange: (name: string, value: FieldValue) => void;
@@ -106,10 +111,16 @@ export function BottleFields({
   labelDates?: Record<number, LabelDates>;
   omit?: string[];
   idPrefix?: string;
+  /** Existing bottles keep the label picker tucked away unless changing it. */
+  collapseLabelPicker?: boolean;
+  fieldGroup?: FieldGroup;
+  categoryKind?: CategoryKind;
 }) {
   // With an age filled in the statement is greyed out; triple-clicking it makes it editable again.
   const [statementOpen, setStatementOpen] = React.useState(false);
   const statementLocked = ageFilled(values) && !statementOpen;
+  const unit = releaseUnit(fieldGroup, categoryKind);
+  const unitTitle = unit[0]!.toUpperCase() + unit.slice(1);
   return (
     <>
       {BOTTLE_SECTIONS.map((section) => {
@@ -119,11 +130,16 @@ export function BottleFields({
         return (
         <Section key={section.id}>
           <SectionHeader>
-            <SectionTitle>{section.title}</SectionTitle>
+            <SectionTitle>{section.id === "pick" ? `Single ${unit} detail` : section.title}</SectionTitle>
             {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
           </SectionHeader>
           <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {section.fields.map((field) => {
+          {section.fields.map((originalField) => {
+            const field = originalField.name === "isSingleBarrel"
+              ? { ...originalField, label: `Single ${unitTitle}` }
+              : originalField.name === "barrelNumber"
+                ? { ...originalField, label: `${unitTitle} Number`, placeholder: `${unitTitle} 24` }
+                : originalField;
             if (!fieldVisible(field, values) || omit.includes(field.name)) return null;
             // Proof/ABV and the age triplet render as linked composites
             // rather than the generic field; see the label form for the same
@@ -191,11 +207,13 @@ export function BottleFields({
                 />
               );
             }
-            const labelDate =
-              field.name === "barrelFilledOn" || field.name === "bottledOn"
-                ? labelDates?.[Number(values.expressionId)]?.[field.name]
+            const dates = labelDates?.[Number(values.expressionId)];
+            const labelDate = field.name === "barrelFilledOn"
+              ? dates?.barrelFilledOn
+              : field.name === "bottledOn"
+                ? dates?.bottledOn
                 : null;
-            return (
+            const control = (
               <Field
                 key={field.name}
                 spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } : field}
@@ -210,6 +228,20 @@ export function BottleFields({
                 onUnlock={() => setStatementOpen(true)}
               />
             );
+            if (field.name === "expressionId" && collapseLabelPicker) {
+              const selectedLabel = options.expressionId?.find((option) => option.value === Number(values.expressionId))?.label;
+              return (
+                <details key={field.name} className="col-span-full border border-border px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Change label <span className="font-normal text-muted-foreground">
+                      {selectedLabel ? "· " + selectedLabel : ""}
+                    </span>
+                  </summary>
+                  <div className="pt-3">{control}</div>
+                </details>
+              );
+            }
+            return control;
           })}
             {section.id === "override" ? (
               <DeriveAge values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} />
@@ -230,6 +262,9 @@ export function BottleForm({
   labelVersions,
   releases,
   labelDates,
+  collapseLabelPicker = false,
+  categoryGroups,
+  categoryKinds,
 }: {
   bottleId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
@@ -238,6 +273,9 @@ export function BottleForm({
   labelVersions?: Record<number, Array<{ value: string; label: string }>>;
   releases?: Record<number, Array<{ value: string; label: string }>>;
   labelDates?: Record<number, LabelDates>;
+  collapseLabelPicker?: boolean;
+  categoryGroups: Record<number, FieldGroup>;
+  categoryKinds: Record<number, CategoryKind>;
 }) {
   const router = useRouter();
   const [values, setValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, initialValues));
@@ -275,6 +313,9 @@ export function BottleForm({
         labelVersions={labelVersions}
         releases={releases}
         labelDates={labelDates}
+        collapseLabelPicker={collapseLabelPicker}
+        fieldGroup={categoryGroups[Number(values.expressionId)] ?? "whiskey"}
+        categoryKind={categoryKinds[Number(values.expressionId)] ?? "american"}
       />
 
       {!state.ok && state.error ? (

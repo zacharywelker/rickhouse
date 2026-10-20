@@ -1,7 +1,7 @@
 import { type NextRequest, type NextResponse } from "next/server";
 import { emptySchema } from "@/lib/tournaments/api-schemas";
 import { authed, failed, ids, isHalt, json, parsed } from "@/lib/tournaments/http";
-import { startTournament } from "@/lib/tournaments/lifecycle";
+import { startTournament } from "@/lib/tournaments/transitions";
 
 export const dynamic = "force-dynamic";
 

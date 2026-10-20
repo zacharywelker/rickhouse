@@ -396,6 +396,8 @@ export function CatalogBottle({
               errors={errors.bottle}
               suggestions={suggestions}
               omit={["expressionId"]}
+              fieldGroup={categoryGroups[Number(phase.kind === "existing" ? phase.label.values.categoryId : labelValues.categoryId)] ?? "whiskey"}
+              categoryKind={categoryKinds[Number(phase.kind === "existing" ? phase.label.values.categoryId : labelValues.categoryId)] ?? "american"}
             />
           </div>
 

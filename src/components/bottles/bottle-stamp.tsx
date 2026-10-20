@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { ReactNode } from "react";
 import { categoryColorVar } from "@/lib/bottles/category-color";
+import type { ReleaseUnit } from "@/lib/bottles/terminology";
 import { hashSeed, seededRandom, seededRange } from "@/lib/seeded-random";
 import { OBSTACLE_WEIGHT, placeStamps, type Obstacle } from "@/lib/bottles/stamp-placement";
 
@@ -322,6 +323,7 @@ export function BottleStamp({
   kind,
   seed,
   detail,
+  unit = "barrel",
   size = 200,
   className,
 }: {
@@ -329,6 +331,7 @@ export function BottleStamp({
   seed: number;
   /** Real per-bottle data shown in place of the stamp's generic center/caption text, where it has one (proof for Cask Strength, barrel number for Single Barrel, picker for Private Selection). */
   detail?: string;
+  unit?: ReleaseUnit;
   size?: number;
   className?: string;
 }) {
@@ -383,7 +386,7 @@ export function BottleStamp({
       );
       break;
     case "single-barrel":
-      mark = <DomeMark id={id} color={color} rng={rng} arcText="SINGLE BARREL" centerLines={[detail ?? "ONE CASK"]} />;
+      mark = <DomeMark id={id} color={color} rng={rng} arcText={`SINGLE ${unit.toUpperCase()}`} centerLines={[detail ?? `ONE ${unit.toUpperCase()}`]} />;
       break;
   }
   return (
@@ -399,6 +402,7 @@ export interface StampSpec {
   ownerId: number;
   active: boolean;
   detail?: string;
+  unit?: ReleaseUnit;
 }
 
 // Fixed so the strip reads in the same order on every page, whatever order
@@ -416,7 +420,8 @@ const KIND_LABEL: Record<StampKind, string> = {
 };
 
 function designationText(spec: StampSpec): string {
-  return spec.detail ? `${KIND_LABEL[spec.kind]} (${spec.detail})` : KIND_LABEL[spec.kind];
+  const label = spec.kind === "single-barrel" ? `Single ${spec.unit ?? "barrel"}` : KIND_LABEL[spec.kind];
+  return spec.detail ? `${label} (${spec.detail})` : label;
 }
 
 function activeStamps(stamps: StampSpec[]): StampSpec[] {
@@ -517,7 +522,7 @@ export function BottleStamps({ stamps }: { stamps: StampSpec[] }) {
   const layerRef = React.useRef<HTMLDivElement>(null);
   const [placed, setPlaced] = React.useState<Placed[]>([]);
   const active = activeStamps(stamps);
-  const signature = active.map((s) => `${s.kind}:${s.ownerId}:${s.detail ?? ""}`).join("|");
+  const signature = active.map((s) => `${s.kind}:${s.ownerId}:${s.unit ?? ""}:${s.detail ?? ""}`).join("|");
 
   React.useEffect(() => {
     const layer = layerRef.current;
@@ -586,6 +591,7 @@ export function BottleStamps({ stamps }: { stamps: StampSpec[] }) {
             kind={spec.kind}
             seed={hashSeed(`stamp-ink-${spec.kind}-${spec.ownerId}`)}
             detail={spec.detail}
+            unit={spec.unit}
             size={Math.round(size)}
             className="size-full"
           />

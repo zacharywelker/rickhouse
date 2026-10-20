@@ -188,6 +188,15 @@ export function FilterBar({
     setSearch(filters.q ?? "");
   }
 
+  // Search the collection as the user types; keep a short debounce so a
+  // multiword query does not navigate once per keystroke.
+  React.useEffect(() => {
+    const query = search.trim();
+    if (query === (filters.q ?? "")) return;
+    const timeout = window.setTimeout(() => apply({ q: query || null }), 250);
+    return () => window.clearTimeout(timeout);
+  }, [search, filters.q, apply]);
+
   // Escape closes the mobile filter panel, like every other dismissable
   // surface here. Radix handles its own popovers; this disclosure is ours.
   React.useEffect(() => {
@@ -230,7 +239,7 @@ export function FilterBar({
               className="h-9 pl-9"
             />
           </div>
-          <Button type="submit" variant="outline" size="sm">
+          <Button type="submit" variant="outline" size="sm" aria-label="Search now">
             Search
           </Button>
         </form>

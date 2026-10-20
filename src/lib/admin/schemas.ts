@@ -105,6 +105,7 @@ export const distillerySchema = z.object({
   region: blankIfAbsent(z.enum(["", ...SCOTCH_REGIONS]).transform((v) => (v === "" ? null : v))),
   dspNumber: optionalText(40),
   founded: optionalYear,
+  isDefunct: checkbox,
   // Absent means named, so the inline "create new" path (a name and nothing else) still works.
   disclosure: blankIfAbsent(z.enum(["", ...DISTILLERY_DISCLOSURES]).transform((v) => (v === "" ? "named" : v))),
   notes: optionalText(),
@@ -217,6 +218,12 @@ export const finishSchema = z.object({
   name: requiredText(120),
   slug: optionalSlug,
   finishType: z.enum(FINISH_TYPES),
+  notes: optionalText(),
+});
+
+export const cooperageSchema = z.object({
+  name: requiredText(120),
+  slug: optionalSlug,
   notes: optionalText(),
 });
 

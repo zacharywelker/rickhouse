@@ -19,6 +19,7 @@ export function CreateWithDetailsDialog({
   open,
   onOpenChange,
   initialName,
+  recordId,
   onCreated,
 }: {
   resource: DetailedResource;
@@ -26,6 +27,8 @@ export function CreateWithDetailsDialog({
   onOpenChange: (open: boolean) => void;
   /** What was typed in the picker, used as the new row's name. */
   initialName: string;
+  /** Existing lookup to edit instead of making a new one. */
+  recordId?: number;
   onCreated: (option: Option) => void;
 }) {
   const [spec, setSpec] = React.useState<ResourceFormSpec | null>(null);
@@ -33,12 +36,12 @@ export function CreateWithDetailsDialog({
   React.useEffect(() => {
     if (!open) return;
     let current = true;
-    void resourceFormSpecAction(resource).then((next) => current && setSpec(next));
+    void resourceFormSpecAction(resource, recordId).then((next) => current && setSpec(next));
     return () => {
       current = false;
       setSpec(null);
     };
-  }, [open, resource]);
+  }, [open, resource, recordId]);
 
   const handleSaved = React.useCallback(
     (createdId?: number) => {
@@ -52,15 +55,17 @@ export function CreateWithDetailsDialog({
   );
 
   const singular = spec?.ok ? spec.singular : resource === "companies" ? "Company" : "New";
-  const hasName = resource !== "mashbills" && initialName.trim() !== "";
+  const hasName = recordId === undefined && resource !== "mashbills" && initialName.trim() !== "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add {singular.toLowerCase()}</DialogTitle>
+          <DialogTitle>{recordId === undefined ? `Add ${singular.toLowerCase()}` : `Edit ${singular.toLowerCase()}`}</DialogTitle>
           <DialogDescription>
-            Saved straight to your collection, and chosen here when you are done.
+            {recordId === undefined
+              ? "Saved straight to your collection, and chosen here when you are done."
+              : "Save your changes and return to the label."}
           </DialogDescription>
         </DialogHeader>
         {spec === null ? (
@@ -77,7 +82,7 @@ export function CreateWithDetailsDialog({
             singular={spec.singular}
             fields={spec.fields}
             options={spec.options}
-            row={null}
+            row={spec.row ?? null}
             onSaved={handleSaved}
             {...(hasName ? { initialValues: { name: initialName.trim() } } : {})}
           />

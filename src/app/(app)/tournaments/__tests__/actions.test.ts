@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireSession, revalidatePath, life, heats, field, calls } = vi.hoisted(() => {
+const { requireSession, revalidatePath, life, heats, transitions, field, calls } = vi.hoisted(() => {
   const fn = () => vi.fn();
   return {
     requireSession: vi.fn(),
     revalidatePath: vi.fn(),
-    life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
-    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), removeDraftEntry: fn(), moveHeat: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
+    life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn() },
+    transitions: { startTournament: fn(), resetRound: fn(), recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn() },
+    heats: { removeDraftEntry: fn(), moveHeat: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     field: { fieldCandidates: fn(), labelCandidates: fn() },
     calls: [] as string[],
   };
@@ -16,6 +17,7 @@ vi.mock("@/lib/auth", () => ({ requireSession: () => requireSession() }));
 vi.mock("next/cache", () => ({ revalidatePath: (p: string) => revalidatePath(p) }));
 vi.mock("@/lib/tournaments/lifecycle", () => life);
 vi.mock("@/lib/tournaments/heats", () => heats);
+vi.mock("@/lib/tournaments/transitions", () => transitions);
 vi.mock("@/lib/tournaments/field", () => field);
 
 import * as actions from "../actions";
@@ -30,7 +32,7 @@ beforeEach(() => {
     calls.push("session");
     return { id: 7 };
   });
-  for (const group of [life, heats]) {
+  for (const group of [life, heats, transitions]) {
     for (const [name, mock] of Object.entries(group)) {
       mock.mockImplementation(async () => {
         calls.push(name);
@@ -45,11 +47,11 @@ const viewActions: [string, () => Promise<unknown>, ReturnType<typeof vi.fn>, un
   ["updateDraftAction", () => actions.updateDraftAction(3, { name: "x" }), life.updateDraft, [7, 3, { name: "x" }]],
   ["updateDraftAction groupOrder alone", () => actions.updateDraftAction(3, { groupOrder: ["age", "proof", "mashbill", "distillery", "finish"] }), life.updateDraft, [7, 3, { groupOrder: ["age", "proof", "mashbill", "distillery", "finish"] }]],
   ["updateDraftAction seeding alone", () => actions.updateDraftAction(3, { seeding: "random" }), life.updateDraft, [7, 3, { seeding: "random" }]],
-  ["startTournamentAction", () => actions.startTournamentAction(3), life.startTournament, [7, 3]],
-  ["resetRoundAction", () => actions.resetRoundAction(3), life.resetRound, [7, 3]],
-  ["recordHeatAction", () => actions.recordHeatAction(3, 5, { ranking: [1, 2] }), heats.recordHeat, [7, 3, 5, { ranking: [1, 2] }, 7]],
-  ["undoHeatAction", () => actions.undoHeatAction(3, 5), heats.undoHeat, [7, 3, 5]],
-  ["withdrawEntryAction", () => actions.withdrawEntryAction(3, 9), heats.withdrawEntry, [7, 3, 9]],
+  ["startTournamentAction", () => actions.startTournamentAction(3), transitions.startTournament, [7, 3]],
+  ["resetRoundAction", () => actions.resetRoundAction(3), transitions.resetRound, [7, 3]],
+  ["recordHeatAction", () => actions.recordHeatAction(3, 5, { ranking: [1, 2] }), transitions.recordHeat, [7, 3, 5, { ranking: [1, 2] }, 7]],
+  ["undoHeatAction", () => actions.undoHeatAction(3, 5), transitions.undoHeat, [7, 3, 5]],
+  ["withdrawEntryAction", () => actions.withdrawEntryAction(3, 9), transitions.withdrawEntry, [7, 3, 9]],
   ["removeDraftEntryAction", () => actions.removeDraftEntryAction(3, 9), heats.removeDraftEntry, [7, 3, 9]],
   [
     "setGlassesAction",
@@ -99,7 +101,7 @@ describe("invalid input never reaches the command", () => {
   it.each([
     ["updateDraftAction", () => actions.updateDraftAction(3, {}), life.updateDraft],
     ["updateDraftAction with an unknown key", () => actions.updateDraftAction(3, { nope: 1 }), life.updateDraft],
-    ["recordHeatAction", () => actions.recordHeatAction(3, 5, { ranking: [1] }), heats.recordHeat],
+    ["recordHeatAction", () => actions.recordHeatAction(3, 5, { ranking: [1] }), transitions.recordHeat],
     ["setGlassesAction", () => actions.setGlassesAction(3, 5, [{ entryId: 1, glass: "Z" }]), heats.setGlasses],
     ["moveEntryAction", () => actions.moveEntryAction(3, 9, 0), heats.moveEntry],
     ["swapEntriesAction", () => actions.swapEntriesAction(3, 9, 0), heats.swapEntries],
@@ -124,9 +126,9 @@ describe("invalid input never reaches the command", () => {
     expect(heats.removeDraftEntry).not.toHaveBeenCalled();
     expect(await actions.deleteTournamentAction(0)).toEqual({ ok: false, error: "That tournament is gone." });
     expect(await actions.drawHeatAction(Number.NaN)).toEqual({ ok: false, error: "That tournament is gone." });
-    expect(life.startTournament).not.toHaveBeenCalled();
-    expect(heats.undoHeat).not.toHaveBeenCalled();
-    expect(heats.withdrawEntry).not.toHaveBeenCalled();
+    expect(transitions.startTournament).not.toHaveBeenCalled();
+    expect(transitions.undoHeat).not.toHaveBeenCalled();
+    expect(transitions.withdrawEntry).not.toHaveBeenCalled();
     expect(life.deleteTournament).not.toHaveBeenCalled();
     expect(heats.drawHeat).not.toHaveBeenCalled();
   });
@@ -212,7 +214,7 @@ describe("a signed-out caller", () => {
     requireSession.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(actions.startTournamentAction(3)).rejects.toThrow("NEXT_REDIRECT");
     await expect(actions.createTournamentAction({})).rejects.toThrow("NEXT_REDIRECT");
-    expect(life.startTournament).not.toHaveBeenCalled();
+    expect(transitions.startTournament).not.toHaveBeenCalled();
   });
 });
 

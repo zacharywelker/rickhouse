@@ -20,7 +20,7 @@ import { CharLevelSpec, Chips, Mashbills, Spec } from "@/components/expressions/
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
 import { Tape } from "@/components/ui/tape";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
-import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
+import { bottleImagesFor, categoryKindsById, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 import { allGroupOptions, groupsForBottle } from "@/lib/groups/queries";
 import { requireSession } from "@/lib/auth";
 import { nameWithYears } from "@/lib/other-names";
@@ -32,6 +32,7 @@ import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/l
 import { describeMarkup, markup } from "@/lib/bottles/markup";
 import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
+import { effectiveBottleStatus, releaseUnit } from "@/lib/bottles/terminology";
 import { ageLabel } from "@/lib/expressions/display";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
 
@@ -95,6 +96,9 @@ export default async function BottlePage({
   const e = row.expression;
   const b = row.bottle;
   const group = row.category.fieldGroup;
+  const categoryKinds = await categoryKindsById();
+  const releaseUnitName = releaseUnit(group, categoryKinds[row.category.id] ?? "other");
+  const releaseUnitTitle = releaseUnitName[0]!.toUpperCase() + releaseUnitName.slice(1);
   const proof = b.proof ?? release?.proof ?? e.proof;
   // Worked out from this bottle's own proof, which can differ from its label's.
   const tier = strengthTier(group, proof);
@@ -123,7 +127,13 @@ export default async function BottlePage({
     { kind: "cask-strength", ownerId: e.id, active: e.isCaskStrength, detail: proof ? `${formatNumeric(proof)}°` : undefined },
     { kind: "straight", ownerId: e.id, active: e.isStraight },
     { kind: "nas", ownerId: e.id, active: e.isNas },
-    { kind: "single-barrel", ownerId: bottleId, active: b.isSingleBarrel, detail: b.barrelNumber ? `No. ${b.barrelNumber}` : undefined },
+    {
+      kind: "single-barrel",
+      ownerId: bottleId,
+      active: b.isSingleBarrel,
+      detail: b.barrelNumber ? `No. ${b.barrelNumber}` : undefined,
+      unit: releaseUnitName,
+    },
     {
       kind: "private-selection",
       ownerId: bottleId,
@@ -273,7 +283,7 @@ export default async function BottlePage({
               }
             />
             <Spec label="How" value={humanise(row.bottle.acquisition)} />
-            <Spec label="Status" value={humanise(row.bottle.status)} />
+            <Spec label="Status" value={humanise(effectiveBottleStatus(row.bottle))} />
             <Spec label="Where" value={row.bottle.location} />
             <Spec
               label={release ? "Release" : "Batch"}
@@ -288,6 +298,7 @@ export default async function BottlePage({
               }
             />
             <Spec label="UPC" value={e.upc} />
+            {group === "whiskey" ? <Spec label="Cooperage" value={row.cooperage} /> : null}
           </dl>
           <CharLevelSpec value={e.charLevel} />
           <StampDesignations stamps={stamps} />
@@ -312,7 +323,7 @@ export default async function BottlePage({
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <Spec label="Pick" value={b.pickName} />
                 <Spec label="Picked By" value={b.pickedBy} />
-                <Spec label="Barrel" value={b.barrelNumber} />
+                <Spec label={`${releaseUnitTitle} number`} value={b.barrelNumber} />
                 <Spec label="Warehouse" value={b.warehouse} />
                 <Spec label="Rick / Floor" value={b.rickFloor} />
                 <Spec label="Filled" value={filledOn ? formatDate(filledOn) : null} />

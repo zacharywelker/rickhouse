@@ -104,11 +104,10 @@ at the end of every milestone.
 | M6 | Polish | ✅ Done |
 | M7 | Model revisions | ✅ Done |
 | M8 | Interaction and wording | ✅ Done — except the t8ke wording, below |
-| M9 | Tastings beyond the shelf | ▶ Next |
+| M9 | Tastings beyond the shelf | ✅ Done |
 | M11 | TTB label approvals | ✅ Done |
 
-Finished milestones are struck through below. They stay in the document
-because the revisions in M7 only make sense against what was actually built.
+Finished milestones remain documented below to preserve implementation history.
 
 ### ~~M1 — Foundation~~ ✅
 - ~~`docker-compose.yml` with `app` and `db` services, named volumes for Postgres
@@ -394,45 +393,19 @@ shape as bottles. The machinery from M4 is reusable; this is mostly wiring.
 
 ---
 
-### M9 — Tastings beyond the shelf ▶
+### ~~M9 — Tastings beyond the shelf~~ ✅
 
-A later add-on, recorded so the data model can see it coming.
+Delivered on web and iOS. Tastings belong to a label and may optionally refer
+to an owned bottle. They support owned, bar, bottle share, sample and store-pour
+sources; a tasted-at value; 0–10 ratings in half steps; flavor-wheel tags; and
+optional free text. The web and iOS surfaces include tasting history and label
+pages. The iOS client also uses tasting history for What to drink tonight.
 
-Tasting notes hang off `bottles` today, which means you can only record what
-you own. Most tasting happens elsewhere — a bottle share, a bar, someone's
-kitchen. Those are worth keeping and they are exactly the ones you will forget.
-
-The shape that probably works: let a tasting note attach to an **expression**
-directly, with the bottle optional. A note then has a source — owned, bar,
-bottle share, sample, store pour — and a "tasted at" field. Nothing already
-recorded has to move.
-
-With that in place, a **tastings timeline** becomes possible: everything you
-have tried, newest first, owned or not, with the ratings alongside. That is a
-different and more interesting page than a list of what is on the shelf.
-
-**Decisions from the 2026-10 design work** (see
-`docs/superpowers/specs/2026-10-05-design-language-design.md`):
-
-- This is stage two of the product sequence, after bottle management. It is the
-  next milestone and is central to the mobile app.
-- A tasting always belongs to an expression (a label) and optionally to a
-  bottle, exactly as proposed above.
-- Tasting notes are chosen from a **fixed vocabulary of tags per category**, in
-  the style of Untappd. Free text and a longer description are optional and
-  stay with the user. Writing the per-category vocabularies is part of this
-  milestone.
-- On the phone, the Labels tab is a searchable history of tastings.
-- Tonight's flavor step depends on this data: it appears only once a spirit has
-  enough tastings (at least 25 overall, gated per spirit).
-- The rating scale is still to be decided; ratings themselves are planned.
-
-**Decided 2026-10-06** (full design in
-`docs/superpowers/specs/2026-10-06-tasting-log-design.md`): tags are the
-descriptors of one official flavor wheel per spirit family (the Council of
-Whiskey Masters' Bourbon and Whisky wheels for whiskey), stored as a flat list
-of descriptor keys; the rating stays 0 to 10 in half steps; the sources are owned, bar, bottle share,
-sample and store pour, with a free-text "tasted at".
+The implementation and interaction decisions are recorded in
+`docs/superpowers/specs/2026-10-06-tasting-log-design.md` and
+`docs/superpowers/specs/2026-10-08-tonight-design.md`. Flavor wheels are
+available for the spirit families implemented in `src/lib/tasting-wheels/`;
+vodka, liqueur and other do not yet have a wheel and accept free-text notes.
 
 ### ~~M10 — Accounts~~ ✅
 
@@ -586,30 +559,20 @@ Unraid conventions to follow:
 
 ## Native apps and run modes
 
-**Decided (2026-10).** Native iOS and Android apps are planned alongside the web
-app. Details and reasoning are in `PRODUCT.md` and
+**Current implementation (2026-10).** The web app runs on the user's own server.
+The native iOS app is a server-connected companion and requires that server.
+Standalone native apps and Android are future work. Details and product
+decisions are in `PRODUCT.md` and
 `docs/superpowers/specs/2026-10-05-design-language-design.md` (section 14.6).
 
-- **Three modes:** standalone (all data on the device), with the user's own
-  home server (strongly recommended; the server holds the truth and devices
-  keep a working copy and sync), and a hosted service (later, optional).
-- **Standalone is full core:** bottles, photos, labels and tastings work on the
-  device. The server adds the web and desktop app, sync across devices,
-  household accounts, Config and backups.
-- **On-device database:** SQLite is allowed there. The server database stays
-  PostgreSQL.
-- **Manual export** (standalone backup): a human-readable CSV of bottles that
-  Rickhouse can import. It excludes tastings and has no standalone label
-  records, and the export screen says so.
-- **First connection to a server:** strict silent matching (the same barcode,
-  or the same brand, name, proof and age statement with the same purchase date
-  and price paid), then a duplicate review for everything else. After records
-  are linked, the most recent edit wins per record. Device clocks are trusted.
-  Tastings are copied to the server.
-- **Client independence:** the native client must not assume where its data
-  lives (device, home server, or hosted). It needs a compatibility policy
-  between app and server versions, because self-hosters update on their own
-  schedule.
+- **Current iOS behavior:** sign-in uses a bearer token over HTTPS in release
+  builds; the client reads and writes data through the versioned server API.
+  There is no local database or offline mode.
+- **Planned standalone mode:** SQLite on device, manual export, and a deliberate
+  first-connection reconciliation flow are not implemented.
+- **Hosted service:** optional and future; no hosted service is available.
+- **API compatibility:** the current API is versioned so self-hosted servers
+  can be updated on their own schedule.
 - **Data leaving a server:** a catalog lookup uses a label or barcode only;
   contributions share flavor tags from a fixed vocabulary only. Both are opt-in.
   Free text never leaves the user's data.

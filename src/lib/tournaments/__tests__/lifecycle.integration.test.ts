@@ -53,12 +53,12 @@ describe.skipIf(!url)("tournament set-up and lifecycle against a real database",
 
   it("previews round 1 matched by proof, and a stranger cannot reach it", async () => {
     const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
-    const reset = await m.life.resetRound(owner, made.id);
+    const reset = await m.transitions.resetRound(owner, made.id);
     expect(reset.ok).toBe(true);
     const view = (reset as { view: import("../view").TournamentView }).view;
     expect(view.rounds[0]!.heats.map((h) => h.entries.map((e) => e.proof))).toEqual([[90, 92, 100], [101, 115, 125]]);
     expect(view.plan).toEqual([2, 1]);
-    expect(await m.life.resetRound(other, made.id)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.transitions.resetRound(other, made.id)).toMatchObject({ ok: false, status: 404 });
   });
 
   it("keeps the round 1 preview in step with the field: made on create, removed below two entries, made again at two or more", async () => {
@@ -78,30 +78,30 @@ describe.skipIf(!url)("tournament set-up and lifecycle against a real database",
     expect((await flights(made.id)).map((h) => h.entries.length)).toEqual([2, 1]);
     // Starting keeps the preview it finds, and still works without one.
     const before = (await flights(made.id)).map((h) => h.id);
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     expect((await flights(made.id)).map((h) => h.id)).toEqual(before);
     const bare = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
     await m.sql(`DELETE FROM tournament_heats WHERE tournament_id = $1`, bare.id);
-    expect(await m.life.startTournament(owner, bare.id)).toMatchObject({ ok: true });
+    expect(await m.transitions.startTournament(owner, bare.id)).toMatchObject({ ok: true });
     expect(await flights(bare.id)).not.toHaveLength(0);
   });
 
   it("refuses to start with fewer than two entries, and lists tournaments with their progress", async () => {
     const one = (await m.life.createTournament(owner, settings({ name: "Lonely" }), [{ bottleId: bottles[0]! }])) as { ok: true; id: number };
-    expect(await m.life.startTournament(owner, one.id)).toMatchObject({ ok: false, status: 422 });
-    expect(await m.life.resetRound(owner, one.id)).toMatchObject({ ok: false, status: 422 });
+    expect(await m.transitions.startTournament(owner, one.id)).toMatchObject({ ok: false, status: 422 });
+    expect(await m.transitions.resetRound(owner, one.id)).toMatchObject({ ok: false, status: 422 });
     const list = await m.queries.listTournaments(owner);
     const row = list.find((t) => t.id === one.id)!;
     expect(row).toMatchObject({ name: "Lonely", status: "draft", entryCount: 1, currentRound: null, totalRounds: 0, progress: { done: 0, total: 0 } });
     const running = (await m.life.createTournament(owner, settings({ name: "Running" }), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, running.id);
+    await m.transitions.startTournament(owner, running.id);
     expect((await m.queries.listTournaments(owner)).find((t) => t.id === running.id)).toMatchObject({ status: "active", currentRound: 1, totalRounds: 2, progress: { done: 0, total: 2 } });
     expect(await m.queries.listTournaments(other)).toEqual([]);
   });
 
   it("shuffles instead of matching when seeding is random", async () => {
     const made = (await m.life.createTournament(owner, settings({ seeding: "random", heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
-    const res = await m.life.resetRound(owner, made.id);
+    const res = await m.transitions.resetRound(owner, made.id);
     const view = (res as { view: import("../view").TournamentView }).view;
     expect(view.rounds[0]!.heats.map((h) => h.entries.length)).toEqual([3, 3]);
     expect(view.rounds[0]!.heats.flatMap((h) => h.entries).map((e) => e.entryId).sort((x, y) => x - y)).toEqual(view.entries.map((e) => e.id).sort((x, y) => x - y));

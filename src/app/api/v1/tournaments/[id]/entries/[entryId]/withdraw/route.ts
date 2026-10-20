@@ -1,6 +1,6 @@
 import { type NextRequest, type NextResponse } from "next/server";
 import { emptySchema } from "@/lib/tournaments/api-schemas";
-import { withdrawEntry } from "@/lib/tournaments/heats";
+import { withdrawEntry } from "@/lib/tournaments/transitions";
 import { authed, failed, ids, isHalt, json, parsed } from "@/lib/tournaments/http";
 
 export const dynamic = "force-dynamic";

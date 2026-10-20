@@ -4,6 +4,7 @@ import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import { db } from "@/db";
 import { describeMashbill, mashbillTitle, orderGrains, recipeKey } from "@/lib/mashbills";
+import { inferMashbillStyle } from "@/lib/mashbill-style";
 import {
   FIELD_GROUPS,
   FINISH_TYPES,
@@ -14,6 +15,7 @@ import {
   bottles,
   categories,
   companies,
+  cooperages,
   distilleries,
   distilleryNames,
   expressionDistilleries,
@@ -38,6 +40,7 @@ import {
   companySchema,
   distillerySchema,
   finishSchema,
+  cooperageSchema,
   mashbillSchema,
   storeSchema,
   tagSchema,
@@ -50,6 +53,7 @@ export const RESOURCE_KEYS = [
   "distilleries",
   "mashbills",
   "finishes",
+  "cooperages",
   "stores",
   "tags",
 ] as const;
@@ -254,13 +258,14 @@ const categoriesConfig: ResourceConfig = {
 /** Shared by every account; the parameter keeps the loader signatures alike. */
 async function categoryOptions(_ownerId?: number): Promise<Option[]> {
   const rows = await db
-    .select({ value: categories.id, label: categories.name, parentId: categories.parentId, parent: categoryParent.name })
+    .select({ value: categories.id, label: categories.name, slug: categories.slug, parentId: categories.parentId, parent: categoryParent.name })
     .from(categories)
     .leftJoin(categoryParent, eq(categories.parentId, categoryParent.id))
     .orderBy(asc(categoryParent.name), asc(categories.sortOrder), asc(categories.name));
   return rows.map((r) => ({
     value: r.value,
     label: r.label,
+    slug: r.slug,
     parentId: r.parentId,
     ...(r.parent ? { hint: `in ${r.parent}` } : {}),
   }));
@@ -523,6 +528,7 @@ const distilleriesConfig: ResourceConfig = {
     { key: "where", label: "Location" },
     { key: "disclosure", label: "Known As", secondary: true },
     { key: "dspNumber", label: "DSP", secondary: true },
+    { key: "isDefunct", label: "Defunct" },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
     { key: "collection", label: "Collection", numeric: true },
   ],
@@ -531,6 +537,7 @@ const distilleriesConfig: ResourceConfig = {
     slugField,
     { kind: "reference", name: "companyId", label: "Company", resource: "companies", span: "half" },
     { kind: "number", name: "founded", label: "Founded", min: 1600, max: 2200, step: 1, span: "half" },
+    { kind: "checkbox", name: "isDefunct", label: "Defunct", help: "This distillery has permanently stopped distilling. Keep it available for historical labels.", span: "half" },
     ...placeFields({ countryRequired: true }),
     {
       kind: "select",
@@ -590,6 +597,7 @@ const distilleriesConfig: ResourceConfig = {
         region: distilleries.region,
         dspNumber: distilleries.dspNumber,
         founded: distilleries.founded,
+        isDefunct: distilleries.isDefunct,
         disclosure: distilleries.disclosure,
         notes: distilleries.notes,
         uses: sql<number>`(select count(*)::int from ${expressionDistilleries} where ${expressionDistilleries.distilleryId} = ${distilleries.id})`,
@@ -606,6 +614,7 @@ const distilleriesConfig: ResourceConfig = {
         company: r.company,
         where: formatPlace(r),
         dspNumber: r.dspNumber,
+        isDefunct: r.isDefunct,
         uses: r.uses,
         disclosure: DISCLOSURE_LABELS[r.disclosure],
       },
@@ -619,6 +628,7 @@ const distilleriesConfig: ResourceConfig = {
         region: r.region,
         dspNumber: r.dspNumber,
         founded: r.founded,
+        isDefunct: r.isDefunct,
         disclosure: r.disclosure,
         otherNames: otherNamesText(olderById.get(r.id) ?? []),
         notes: r.notes,
@@ -649,6 +659,7 @@ const distilleriesConfig: ResourceConfig = {
       region: input.region,
       dspNumber: input.dspNumber,
       founded: input.founded,
+      isDefunct: input.isDefunct,
       disclosure: input.disclosure,
       notes: input.notes,
     };
@@ -692,13 +703,17 @@ async function distilleryOptions(ownerId: number): Promise<Option[]> {
       state: distilleries.state,
       region: distilleries.region,
       disclosure: distilleries.disclosure,
+      isDefunct: distilleries.isDefunct,
     })
     .from(distilleries)
     .where(eq(distilleries.ownerId, ownerId))
     .orderBy(asc(distilleries.name));
   // A named distillery's hint stays its state; a placeholder says what it is.
   return rows.map((r) => {
-    const hint = r.disclosure === "named" ? r.state : [DISCLOSURE_LABELS[r.disclosure], r.state].filter(Boolean).join(" · ");
+    const hint = [
+      r.disclosure === "named" ? r.state : [DISCLOSURE_LABELS[r.disclosure], r.state].filter(Boolean).join(" · "),
+      r.isDefunct ? "Defunct" : null,
+    ].filter(Boolean).join(" · ");
     return {
       value: r.value,
       label: r.label,
@@ -722,6 +737,7 @@ const mashbillsConfig: ResourceConfig = {
   columns: [
     // A mashbill is its recipe; a secret or generic one shows its name instead.
     { key: "name", label: "Recipe" },
+    { key: "style", label: "Style" },
     { key: "secret", label: "Secret" },
     { key: "generic", label: "Generic" },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
@@ -748,7 +764,7 @@ const mashbillsConfig: ResourceConfig = {
       name: "name",
       label: "Name",
       placeholder: "Buffalo Trace Wheated, High Rye",
-      help: "Shown in place of the recipe.",
+      help: "Shown in place of the recipe. A trailing style such as (Low Rye) is tagged for tournament matching.",
       span: "half",
       showWhenAny: ["isSecret", "isGeneric"],
     },
@@ -759,6 +775,7 @@ const mashbillsConfig: ResourceConfig = {
       .select({
         id: mashbills.id,
         name: mashbills.name,
+        style: mashbills.style,
         isSecret: mashbills.isSecret,
         isGeneric: mashbills.isGeneric,
         notes: mashbills.notes,
@@ -793,12 +810,14 @@ const mashbillsConfig: ResourceConfig = {
         id: r.id,
         cells: {
           name: mashbillTitle(r, describeMashbill(mine) || "No recipe"),
+          style: r.style,
           secret: r.isSecret,
           generic: r.isGeneric,
           uses: r.uses,
         },
         values: {
           name: r.name,
+          style: r.style,
           isSecret: r.isSecret,
           isGeneric: r.isGeneric,
           notes: r.notes,
@@ -816,6 +835,7 @@ const mashbillsConfig: ResourceConfig = {
 
     const values = {
       name: input.isSecret || input.isGeneric ? input.name : null,
+      style: inferMashbillStyle(input.name),
       isSecret: input.isSecret,
       isGeneric: input.isGeneric,
       notes: input.notes,
@@ -1004,6 +1024,66 @@ const finishesConfig: ResourceConfig = {
   },
 };
 
+const cooperagesConfig: ResourceConfig = {
+  key: "cooperages",
+  label: "Cooperages",
+  singular: "Cooperage",
+  description: "Makers of casks and barrels used to mature whisky.",
+  columns: [nameColumn, { key: "uses", label: "Labels", numeric: true, secondary: true }],
+  fields: [
+    { kind: "text", name: "name", label: "Name", required: true, span: "half" },
+    slugField,
+    notesField,
+  ],
+  list: async (ownerId) => {
+    const rows = await db
+      .select({
+        id: cooperages.id,
+        name: cooperages.name,
+        slug: cooperages.slug,
+        notes: cooperages.notes,
+        uses: sql<number>`(select count(*)::int from ${expressions} where ${expressions.cooperageId} = ${cooperages.id})`,
+      })
+      .from(cooperages)
+      .where(eq(cooperages.ownerId, ownerId))
+      .orderBy(asc(cooperages.name));
+    return rows.map((r) => ({
+      id: r.id,
+      cells: { name: r.name, uses: r.uses },
+      values: { name: r.name, slug: r.slug, notes: r.notes },
+    }));
+  },
+  optionsFor: async () => ({}),
+  save: async (raw, id, ownerId) => {
+    const parsed = cooperageSchema.safeParse(raw);
+    if (!parsed.success) return invalid(parsed.error);
+    const input = parsed.data;
+    const slug = await resolveSlug({
+      table: cooperages,
+      column: cooperages.slug,
+      idColumn: cooperages.id,
+      scope: { column: cooperages.ownerId, value: ownerId },
+      requested: input.slug,
+      fallbackFrom: input.name,
+      ...(id !== null ? { excludeId: id } : {}),
+    });
+    const values = { name: input.name, slug, notes: input.notes };
+    if (id === null) {
+      const [row] = await db.insert(cooperages).values({ ...values, ownerId }).returning({ id: cooperages.id });
+      return { ok: true, id: row!.id };
+    }
+    const updated = await db
+      .update(cooperages)
+      .set(values)
+      .where(and(eq(cooperages.id, id), eq(cooperages.ownerId, ownerId)))
+      .returning({ id: cooperages.id });
+    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
+  },
+  remove: async (id, ownerId) => {
+    await db.delete(cooperages).where(and(eq(cooperages.id, id), eq(cooperages.ownerId, ownerId)));
+  },
+};
+
 // ------------------------------------------------------------
 // Stores
 // ------------------------------------------------------------
@@ -1179,6 +1259,7 @@ export const RESOURCES: Record<ResourceKey, ResourceConfig> = {
   distilleries: distilleriesConfig,
   mashbills: mashbillsConfig,
   finishes: finishesConfig,
+  cooperages: cooperagesConfig,
   stores: storesConfig,
   tags: tagsConfig,
 };
@@ -1200,6 +1281,14 @@ async function finishOptions(ownerId: number): Promise<Option[]> {
     .where(eq(finishes.ownerId, ownerId))
     .orderBy(asc(finishes.name));
   return rows.map((r) => ({ value: r.value, label: r.label, hint: r.hint }));
+}
+
+async function cooperageOptions(ownerId: number): Promise<Option[]> {
+  return db
+    .select({ value: cooperages.id, label: cooperages.name })
+    .from(cooperages)
+    .where(eq(cooperages.ownerId, ownerId))
+    .orderBy(asc(cooperages.name));
 }
 
 async function storeOptions(ownerId: number): Promise<Option[]> {
@@ -1225,6 +1314,7 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
     .select({
       value: mashbills.id,
       name: mashbills.name,
+      style: mashbills.style,
       isSecret: mashbills.isSecret,
       isGeneric: mashbills.isGeneric,
       // string_agg keeps this one query rather than one per mashbill.
@@ -1240,7 +1330,7 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
   return rows.map((r) => {
     const recipe = describeMashbill(parseRecipe(r.recipe));
     const label = mashbillTitle(r, recipe || "No recipe");
-    const hint = r.isGeneric ? "Generic" : label !== recipe ? recipe : "";
+    const hint = [r.isGeneric ? "Generic" : label !== recipe ? recipe : "", !r.isGeneric ? r.style : null].filter(Boolean).join(" · ");
     return { value: r.value, label, ...(hint ? { hint } : {}) };
   });
 }
@@ -1261,6 +1351,7 @@ export const REFERENCE_OPTION_LOADERS = {
   distilleries: distilleryOptions,
   mashbills: mashbillOptions,
   finishes: finishOptions,
+  cooperages: cooperageOptions,
   stores: storeOptions,
   tags: tagOptions,
 } as const;

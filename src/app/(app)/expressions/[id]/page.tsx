@@ -218,6 +218,7 @@ export default async function LabelPage({
             <Spec label="Age" value={ageLabel(e)} />
             <Spec label="Size" value={formatSize(e.sizeMl)} />
             <Spec label="UPC" value={e.upc} />
+            {group === "whiskey" ? <Spec label="Cooperage" value={row.cooperage} /> : null}
             <Spec label="Entry Proof" value={e.entryProof ? formatNumeric(e.entryProof) : null} />
             <Spec label="Chill Filtered" value={yesNo(e.isChillFiltered)} />
             <Spec label="Colour Added" value={yesNo(e.colorAdded)} />

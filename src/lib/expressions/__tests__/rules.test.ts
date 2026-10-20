@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categoryKinds, hiddenFields, withBondProof, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
+import { categoryKinds, hiddenFields, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
 import { writableFields } from "../fields";
 import { expressionSchema } from "../schema";
 
@@ -24,6 +24,14 @@ describe("categoryKinds", () => {
 
   it("survives a loop in the tree", () => {
     expect(categoryKinds([{ id: 1, slug: "a", parentId: 2 }, { id: 2, slug: "b", parentId: 1 }])[1]).toBe("other");
+  });
+});
+
+describe("Single Malt", () => {
+  it("recognises both categories, and not a blend", () => {
+    expect(isSingleMaltCategory("american-single-malt")).toBe(true);
+    expect(isSingleMaltCategory("single-malt-scotch")).toBe(true);
+    expect(isSingleMaltCategory("blended-scotch")).toBe(false);
   });
 });
 

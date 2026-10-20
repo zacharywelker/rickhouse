@@ -28,7 +28,7 @@ describe.skipIf(!url)("changing a draft's settings", () => {
 
   async function namedDraft() {
     const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottles.map((bottleId) => ({ bottleId })))) as { id: number };
-    const preview = await m.life.resetRound(owner, made.id);
+    const preview = await m.transitions.resetRound(owner, made.id);
     if (!preview.ok) throw new Error("no preview");
     const first = preview.view.rounds[0]!.heats[0]!;
     expect((await m.heats.renameHeat(owner, made.id, first.id, "Mine")).ok).toBe(true);

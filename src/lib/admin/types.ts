@@ -9,6 +9,8 @@
 export type Option = {
   value: number;
   label: string;
+  /** Categories only: the stable identifier behind the display name. */
+  slug?: string;
   hint?: string;
   /** Distilleries only: a placeholder for a place a label names and no distillery. */
   undisclosed?: boolean;
@@ -111,6 +113,7 @@ export const REFERENCE_RESOURCES = [
   "brands",
   "distilleries",
   "finishes",
+  "cooperages",
   "stores",
   "tags",
 ] as const;
@@ -152,6 +155,7 @@ export const DETAILED_RESOURCES = [
   "brands",
   "distilleries",
   "finishes",
+  "cooperages",
   "stores",
   "tags",
   "mashbills",
@@ -164,5 +168,6 @@ export type ResourceFormSpec =
       singular: string;
       fields: FieldSpec[];
       options: Record<string, Option[]>;
+      row?: AdminRow;
     }
   | { ok: false; error: string };

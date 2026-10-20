@@ -71,7 +71,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
   {
     id: "release",
     title: "Release",
-    description: "What varies bottle to bottle. Single barrels and private selections reveal more fields below.",
+    description: "What varies bottle to bottle. The release unit and private selections reveal more fields below.",
     fields: [
       // Shown only when the chosen label has known releases; picking one hides
       // Batch and Release Year, which the release then supplies (see BottleFields).

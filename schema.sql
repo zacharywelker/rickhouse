@@ -74,6 +74,7 @@ CREATE TABLE distilleries (
     region      text,          -- Scotch region (Speyside, Islay…); copied onto a label's regions
     dsp_number  text,          -- e.g. DSP-KY-95
     founded     integer,
+    is_defunct  boolean NOT NULL DEFAULT false,
     -- 'named' = a real distillery; 'undisclosed' = a placeholder for a place
     -- and nothing more ("Undisclosed (Indiana)"). Whether a link to a real
     -- distillery is a guess is per label: expression_distilleries.is_inferred.
@@ -91,6 +92,7 @@ CREATE INDEX distilleries_company_idx ON distilleries(company_id);
 CREATE TABLE mashbills (
     id              serial PRIMARY KEY,
     name            citext,                    -- "BBC High Rye", optional
+    style           citext,                    -- inferred style tag such as Low Rye or Wheated
     notes           text
 );
 
@@ -100,6 +102,13 @@ CREATE TABLE finishes (
     slug        text   NOT NULL,
     -- 'wood' | 'wine' | 'fortified' | 'beer' | 'spirit' | 'other'
     finish_type text   NOT NULL DEFAULT 'other',
+    notes       text
+);
+
+CREATE TABLE cooperages (
+    id          serial PRIMARY KEY,
+    name        citext NOT NULL,
+    slug        text   NOT NULL,
     notes       text
 );
 
@@ -197,6 +206,7 @@ CREATE TABLE expressions (
     color_added     boolean,
     entry_proof     numeric(5,2),
     char_level      text,
+    cooperage_id    integer REFERENCES cooperages(id) ON DELETE SET NULL,
 
     msrp            numeric(10,2),
     size_ml         integer NOT NULL DEFAULT 750,
@@ -710,6 +720,9 @@ ALTER TABLE mashbills ADD CONSTRAINT mashbills_id_owner_unique UNIQUE (id, owner
 ALTER TABLE finishes ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX finishes_owner_idx ON finishes(owner_id);
 ALTER TABLE finishes ADD CONSTRAINT finishes_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE cooperages ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX cooperages_owner_idx ON cooperages(owner_id);
+ALTER TABLE cooperages ADD CONSTRAINT cooperages_id_owner_unique UNIQUE (id, owner_id);
 ALTER TABLE stores ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX stores_owner_idx ON stores(owner_id);
 ALTER TABLE stores ADD CONSTRAINT stores_id_owner_unique UNIQUE (id, owner_id);
@@ -737,6 +750,8 @@ ALTER TABLE distilleries ADD CONSTRAINT distilleries_owner_name_unique UNIQUE (o
 ALTER TABLE distilleries ADD CONSTRAINT distilleries_owner_slug_unique UNIQUE (owner_id, slug);
 ALTER TABLE finishes ADD CONSTRAINT finishes_owner_name_unique UNIQUE (owner_id, name);
 ALTER TABLE finishes ADD CONSTRAINT finishes_owner_slug_unique UNIQUE (owner_id, slug);
+ALTER TABLE cooperages ADD CONSTRAINT cooperages_owner_name_unique UNIQUE (owner_id, name);
+ALTER TABLE cooperages ADD CONSTRAINT cooperages_owner_slug_unique UNIQUE (owner_id, slug);
 ALTER TABLE tags ADD CONSTRAINT tags_owner_name_unique UNIQUE (owner_id, name);
 ALTER TABLE tags ADD CONSTRAINT tags_owner_slug_unique UNIQUE (owner_id, slug);
 ALTER TABLE groups ADD CONSTRAINT groups_owner_name_unique UNIQUE (owner_id, name);
@@ -756,6 +771,9 @@ ALTER TABLE distilleries DROP CONSTRAINT distilleries_company_id_fkey,
     ADD FOREIGN KEY (company_id, owner_id) REFERENCES companies(id, owner_id) ON DELETE SET NULL (company_id);
 ALTER TABLE expressions DROP CONSTRAINT expressions_brand_id_fkey,
     ADD FOREIGN KEY (brand_id, owner_id) REFERENCES brands(id, owner_id) ON DELETE NO ACTION;
+ALTER TABLE expressions DROP CONSTRAINT expressions_cooperage_id_fkey,
+    ADD CONSTRAINT expressions_cooperage_owner_fk
+    FOREIGN KEY (cooperage_id, owner_id) REFERENCES cooperages(id, owner_id) ON DELETE SET NULL (cooperage_id);
 ALTER TABLE bottles DROP CONSTRAINT bottles_expression_id_fkey,
     ADD FOREIGN KEY (expression_id, owner_id) REFERENCES expressions(id, owner_id) ON DELETE NO ACTION;
 ALTER TABLE bottles DROP CONSTRAINT bottles_store_id_fkey,

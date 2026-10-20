@@ -29,7 +29,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("runs a tournament to its champion: round 1, the next round made from the advancers, then the final", async () => {
     const made = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
-    expect(await m.life.startTournament(owner, made.id)).toMatchObject({ ok: true });
+    expect(await m.transitions.startTournament(owner, made.id)).toMatchObject({ ok: true });
     let view = (await m.queries.getTournament(owner, made.id))!;
     expect(view.status).toBe("active");
     expect(view.rounds[0]!.heats.map((h) => h.entries.length)).toEqual([4, 2]);
@@ -46,14 +46,14 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("takes a result back until the next round has one, and a finished tournament runs again", async () => {
     const made = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     await fx.finish(owner, made.id);
     const done = (await m.queries.getTournament(owner, made.id))!;
     const final = done.rounds[1]!.heats[0]!;
     const round1 = done.rounds[0]!.heats[0]!;
 
-    expect(await m.heats.undoHeat(owner, made.id, round1.id)).toMatchObject({ ok: false, status: 409 });
-    const undone = await m.heats.undoHeat(owner, made.id, final.id);
+    expect(await m.transitions.undoHeat(owner, made.id, round1.id)).toMatchObject({ ok: false, status: 409 });
+    const undone = await m.transitions.undoHeat(owner, made.id, final.id);
     expect(undone).toMatchObject({ ok: true });
     let view = (undone as { view: import("../view").TournamentView }).view;
     expect(view.status).toBe("active");
@@ -61,7 +61,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(view.rounds[1]!.heats[0]!.status).toBe("pending");
 
     // Now round 2's only heat has no result, so round 1 can be taken back, which discards round 2.
-    const again = await m.heats.undoHeat(owner, made.id, round1.id);
+    const again = await m.transitions.undoHeat(owner, made.id, round1.id);
     expect(again).toMatchObject({ ok: true });
     view = (again as { view: import("../view").TournamentView }).view;
     expect(view.rounds).toHaveLength(1);
@@ -72,7 +72,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     const more: number[] = [...bottles];
     for (const proof of [102, 104]) more.push(await fx.mkBottle(owner, await fx.mkLabel(owner, cat.whiskey, `Extra ${proof}`, { proof })));
     const made = (await m.life.createTournament(owner, settings({ heatSize: 4 }), more.map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     await fx.finish(owner, made.id);
     const view = (await m.queries.getTournament(owner, made.id))!;
     expect(view.rounds.map((r) => r.heats.map((h) => h.entries.length))).toEqual([[4, 4], [4]]);
@@ -82,9 +82,9 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("completes with the one entry left standing when the others withdraw", async () => {
     const made = (await m.life.createTournament(owner, settings({ heatSize: 2 }), bottles.slice(0, 2).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const view = (await m.queries.getTournament(owner, made.id))!;
-    const res = await m.heats.withdrawEntry(owner, made.id, view.entries[1]!.id);
+    const res = await m.transitions.withdrawEntry(owner, made.id, view.entries[1]!.id);
     const after = (res as { view: import("../view").TournamentView }).view;
     expect(after.status).toBe("complete");
     expect(after.rounds[0]!.heats[0]!.status).toBe("bye");
@@ -92,15 +92,15 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("withdraws an entry: its flight shrinks, becomes a bye at one, and the round moves on when nothing is left pending", async () => {
     const made = (await m.life.createTournament(owner, settings({ heatSize: 2 }), bottles.slice(0, 4).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     let view = (await m.queries.getTournament(owner, made.id))!;
     const [first, second] = view.rounds[0]!.heats;
     expect(view.rounds[0]!.heats.map((h) => h.entries.length)).toEqual([2, 2]);
 
     // Decide the first flight, then withdraw one of the second: the second becomes a bye and the round is done.
-    await m.heats.recordHeat(owner, made.id, first!.id, { ranking: first!.entries.map((e) => e.entryId) }, owner);
+    await m.transitions.recordHeat(owner, made.id, first!.id, { ranking: first!.entries.map((e) => e.entryId) }, owner);
     const gone = second!.entries[0]!.entryId;
-    const res = await m.heats.withdrawEntry(owner, made.id, gone);
+    const res = await m.transitions.withdrawEntry(owner, made.id, gone);
     expect(res.ok).toBe(true);
     view = (res as { view: import("../view").TournamentView }).view;
     expect(view.rounds[0]!.heats[1]!.status).toBe("bye");
@@ -108,13 +108,13 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     // The winner of flight one and the survivor of the bye meet in the final.
     expect(view.rounds).toHaveLength(2);
     expect(view.rounds[1]!.heats[0]!.entries).toHaveLength(2);
-    expect(await m.heats.withdrawEntry(owner, made.id, gone)).toMatchObject({ ok: false, status: 409 });
-    expect(await m.heats.withdrawEntry(other, made.id, gone)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.transitions.withdrawEntry(owner, made.id, gone)).toMatchObject({ ok: false, status: 409 });
+    expect(await m.transitions.withdrawEntry(other, made.id, gone)).toMatchObject({ ok: false, status: 404 });
   });
 
   it("hides a blind tournament's pending flights, draws a flight for the pourer, and takes the ranking by glass", async () => {
     const made = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
-    const started = await m.life.startTournament(owner, made.id);
+    const started = await m.transitions.startTournament(owner, made.id);
     const view = (started as { view: import("../view").TournamentView }).view;
     for (const heat of view.rounds[0]!.heats) {
       expect(heat).toMatchObject({ hidden: true, entries: [], autoLabel: null });
@@ -131,8 +131,8 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     // The taster still sees only letters, now set; ranking them reveals the heat.
     const seen = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats.find((h) => h.id === heat.heatId)!;
     expect(seen).toMatchObject({ hidden: true, glasses: ["A", "B", "C"], entries: [] });
-    expect(await m.heats.recordHeat(owner, made.id, heat.heatId, { glasses: ["A", "A", "B"] }, owner)).toMatchObject({ ok: false, status: 422 });
-    const ranked = await m.heats.recordHeat(owner, made.id, heat.heatId, { glasses: ["B", "C", "A"] }, owner);
+    expect(await m.transitions.recordHeat(owner, made.id, heat.heatId, { glasses: ["A", "A", "B"] }, owner)).toMatchObject({ ok: false, status: 422 });
+    const ranked = await m.transitions.recordHeat(owner, made.id, heat.heatId, { glasses: ["B", "C", "A"] }, owner);
     expect(ranked.ok).toBe(true);
     const decided = (ranked as { view: import("../view").TournamentView }).view.rounds[0]!.heats.find((h) => h.id === heat.heatId)!;
     expect(decided.hidden).toBe(false);
@@ -146,12 +146,12 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("draws a flight once: asking again returns the same flight and letters until it is recorded", async () => {
     const made = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const first = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
     const again = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
     expect(again).toEqual(first);
     const glasses = first.heat.glasses.map((g) => g.glass);
-    expect((await m.heats.recordHeat(owner, made.id, first.heat.heatId, { glasses }, owner)).ok).toBe(true);
+    expect((await m.transitions.recordHeat(owner, made.id, first.heat.heatId, { glasses }, owner)).ok).toBe(true);
     const next = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
     expect(next.ok).toBe(true);
     expect(next.heat.heatId).not.toBe(first.heat.heatId);
@@ -161,8 +161,8 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     const made = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
     const elsewhere = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
     expect(await m.heats.drawHeat(owner, made.id, 1)).toMatchObject({ ok: false, status: 409 });
-    await m.life.startTournament(owner, made.id);
-    await m.life.startTournament(owner, elsewhere.id);
+    await m.transitions.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, elsewhere.id);
     const view = (await m.queries.getTournament(owner, made.id))!;
     const target = view.rounds[0]!.heats[1]!;
     const opened = (await m.heats.drawHeat(owner, made.id, target.id)) as { ok: true; heat: import("../heats").DrawnHeat };
@@ -178,24 +178,24 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(await m.heats.drawHeat(owner, made.id, 2_000_000_000)).toMatchObject({ ok: false, status: 404 });
 
     const glasses = opened.heat.glasses.map((g) => g.glass);
-    expect((await m.heats.recordHeat(owner, made.id, target.id, { glasses }, owner)).ok).toBe(true);
+    expect((await m.transitions.recordHeat(owner, made.id, target.id, { glasses }, owner)).ok).toBe(true);
     expect(await m.heats.drawHeat(owner, made.id, target.id)).toMatchObject({ ok: false, status: 409 });
   });
 
   it("sets glasses by hand for a solo heat and refuses a bad assignment", async () => {
     const made = (await m.life.createTournament(owner, settings({ blind: true }), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const drawn = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
     const ids = drawn.heat.glasses.map((g) => g.entry.entryId);
     expect(await m.heats.setGlasses(owner, made.id, drawn.heat.heatId, ids.map((entryId) => ({ entryId, glass: "A" })))).toMatchObject({ ok: false, status: 422 });
     expect(await m.heats.setGlasses(owner, made.id, drawn.heat.heatId, ids.map((entryId, i) => ({ entryId, glass: "ABCD"[i]! })))).toMatchObject({ ok: true });
-    const res = await m.heats.recordHeat(owner, made.id, drawn.heat.heatId, { glasses: ["D", "C", "B", "A"].filter((g) => "ABCD".slice(0, ids.length).includes(g)) }, owner);
+    const res = await m.transitions.recordHeat(owner, made.id, drawn.heat.heatId, { glasses: ["D", "C", "B", "A"].filter((g) => "ABCD".slice(0, ids.length).includes(g)) }, owner);
     expect(res.ok).toBe(true);
   });
 
   it("moves bottles between flights in a draft, renames a flight, and resets to the automatic grouping (clearing names)", async () => {
     const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
-    await m.life.resetRound(owner, made.id);
+    await m.transitions.resetRound(owner, made.id);
     let view = (await m.queries.getTournament(owner, made.id))!;
     const [a, b] = view.rounds[0]!.heats;
     const original = view.rounds[0]!.heats.map((h) => h.entries.map((e) => e.entryId));
@@ -210,7 +210,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(view.rounds[0]!.heats[0]!.label).toBe("My shelf");
     expect(await m.heats.renameHeat(owner, made.id, a!.id, "x".repeat(81))).toMatchObject({ ok: false, status: 422 });
 
-    const reset = await m.life.resetRound(owner, made.id);
+    const reset = await m.transitions.resetRound(owner, made.id);
     view = (reset as { view: import("../view").TournamentView }).view;
     expect(view.rounds[0]!.heats.map((h) => h.entries.map((e) => e.entryId))).toEqual(original);
     expect(view.rounds[0]!.heats.every((h) => h.label === null)).toBe(true);
@@ -218,7 +218,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("moves an entry into a flight with room; a flight left with one becomes a bye, and one left with none disappears", async () => {
     const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottles.slice(0, 4).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
-    await m.life.resetRound(owner, made.id);
+    await m.transitions.resetRound(owner, made.id);
     let view = (await m.queries.getTournament(owner, made.id))!;
     expect(view.rounds[0]!.heats.map((h) => [h.entries.length, h.status])).toEqual([[3, "pending"], [1, "bye"]]);
     const [full, lone] = view.rounds[0]!.heats;
@@ -282,7 +282,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     ]);
 
     // Refusals: a started tournament (409), a stranger (404), an entry of another tournament or none (404).
-    await m.life.startTournament(owner, six.id);
+    await m.transitions.startTournament(owner, six.id);
     expect(await m.heats.removeDraftEntry(owner, six.id, a!.entries[0]!.entryId)).toMatchObject({ ok: false, status: 409 });
     const draft = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottles.slice(0, 3).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
     const dv = (await m.queries.getTournament(owner, draft.id))!;
@@ -329,9 +329,9 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(await m.heats.moveHeat(owner, 999999, a, 1)).toMatchObject({ ok: false, status: 404 });
 
     // Running: a decided flight cannot be moved, an undecided one can (the decided one shifts over, order preserved).
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const first = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats[0]!;
-    expect((await m.heats.recordHeat(owner, made.id, first.id, { ranking: first.entries.map((e) => e.entryId) }, owner)).ok).toBe(true);
+    expect((await m.transitions.recordHeat(owner, made.id, first.id, { ranking: first.entries.map((e) => e.entryId) }, owner)).ok).toBe(true);
     expect(await m.heats.moveHeat(owner, made.id, first.id, 2)).toMatchObject({ ok: false, status: 409 });
     view = (await move(c, 1)).view;
     expect(order(view)).toEqual([c, a, b]);
@@ -340,7 +340,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
     // A blind running tournament reorders too; a finished one does not.
     const blind = (await m.life.createTournament(owner, settings({ heatSize: 2, blind: true }), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, blind.id);
+    await m.transitions.startTournament(owner, blind.id);
     const bv = (await m.queries.getTournament(owner, blind.id))!;
     const bids = bv.rounds[0]!.heats.map((h) => h.id);
     const moved = (await m.heats.moveHeat(owner, blind.id, bids[0]!, 3)) as { ok: true; view: V };
@@ -353,11 +353,11 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
   it("reorders undecided flights of a running tournament around a decided one: it is never moved by the user, slots stay contiguous", async () => {
     type V = import("../view").TournamentView;
     const made = (await m.life.createTournament(owner, settings({ heatSize: 2 }), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const get = async () => (await m.queries.getTournament(owner, made.id))!;
     const [a, b, c] = (await get()).rounds[0]!.heats.map((h) => h.id) as [number, number, number];
     const decided = (await get()).rounds[0]!.heats[1]!;
-    expect((await m.heats.recordHeat(owner, made.id, b, { ranking: decided.entries.map((e) => e.entryId) }, owner)).ok).toBe(true);
+    expect((await m.transitions.recordHeat(owner, made.id, b, { ranking: decided.entries.map((e) => e.entryId) }, owner)).ok).toBe(true);
     const order = (v: V) => v.rounds[0]!.heats.map((h) => h.id);
     const undecided = (v: V) => v.rounds[0]!.heats.filter((h) => h.status !== "decided").map((h) => h.id);
 
@@ -398,7 +398,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(await m.heats.swapEntries(other, made.id, x2!, y)).toMatchObject({ ok: false, status: 404 });
 
     // Running, not blind: letters belong to the places.
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     view = (await m.queries.getTournament(owner, made.id))!;
     const [c, d] = view.rounds[0]!.heats;
     const [c1, c2, c3] = c!.entries.map((e) => e.entryId);
@@ -416,7 +416,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
     // A decided flight cannot take part.
     const now = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats;
-    await m.heats.recordHeat(owner, made.id, now[0]!.id, { ranking: now[0]!.entries.map((e) => e.entryId) }, owner);
+    await m.transitions.recordHeat(owner, made.id, now[0]!.id, { ranking: now[0]!.entries.map((e) => e.entryId) }, owner);
     expect(await m.heats.swapEntries(owner, made.id, now[0]!.entries[0]!.entryId, now[1]!.entries[0]!.entryId)).toMatchObject({ ok: false, status: 409 });
   });
 
@@ -425,7 +425,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     // A blind draft is not hidden, so it can be swapped before it starts.
     const draft = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats;
     expect((await m.heats.swapEntries(owner, made.id, draft[0]!.entries[0]!.entryId, draft[1]!.entries[0]!.entryId)).ok).toBe(true);
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const rows = (await m.sql(`SELECT entry_id FROM tournament_heat_entries WHERE tournament_id = $1 ORDER BY heat_id, entry_id`, made.id)) as unknown as { entry_id: number }[];
     expect(await m.heats.swapEntries(owner, made.id, rows[0]!.entry_id, rows[5]!.entry_id)).toMatchObject({ ok: false, status: 409 });
   });
@@ -451,13 +451,13 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("records a flight once even when two requests arrive together", async () => {
     const made = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const heat = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats[0]!;
     const ids = heat.entries.map((e) => e.entryId);
     const reversed = [...ids].reverse();
     const both = await Promise.all([
-      m.heats.recordHeat(owner, made.id, heat.id, { ranking: ids }, owner),
-      m.heats.recordHeat(owner, made.id, heat.id, { ranking: reversed }, owner),
+      m.transitions.recordHeat(owner, made.id, heat.id, { ranking: ids }, owner),
+      m.transitions.recordHeat(owner, made.id, heat.id, { ranking: reversed }, owner),
     ]);
     expect(both.filter((r) => r.ok)).toHaveLength(1);
     expect(both.find((r) => !r.ok)).toMatchObject({ ok: false, status: 409 });
@@ -468,13 +468,13 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
   it("does not find a flight or an entry that belongs to another tournament", async () => {
     const one = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
     const two = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, one.id);
-    await m.life.startTournament(owner, two.id);
+    await m.transitions.startTournament(owner, one.id);
+    await m.transitions.startTournament(owner, two.id);
     const heatOfTwo = (await m.queries.getTournament(owner, two.id))!.rounds[0]!.heats[0]!;
     const entryOfTwo = heatOfTwo.entries[0]!.entryId;
-    expect(await m.heats.recordHeat(owner, one.id, heatOfTwo.id, { ranking: heatOfTwo.entries.map((e) => e.entryId) }, owner)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.transitions.recordHeat(owner, one.id, heatOfTwo.id, { ranking: heatOfTwo.entries.map((e) => e.entryId) }, owner)).toMatchObject({ ok: false, status: 404 });
     expect(await m.heats.renameHeat(owner, one.id, heatOfTwo.id, "x")).toMatchObject({ ok: false, status: 404 });
-    expect(await m.heats.withdrawEntry(owner, one.id, entryOfTwo)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.transitions.withdrawEntry(owner, one.id, entryOfTwo)).toMatchObject({ ok: false, status: 404 });
     expect(await m.heats.moveEntry(owner, one.id, entryOfTwo, heatOfTwo.id)).toMatchObject({ ok: false, status: 404 });
   });
 
@@ -483,7 +483,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     for (let i = 0; i < 60; i++) many.push(await fx.mkBottle(owner, await fx.mkLabel(owner, cat.whiskey, `Crowd ${i}`, { proof: 80 + (i % 50), style: i % 3 === 0 ? "High Rye" : "Low Rye" })));
     const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), many.map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
     const started = Date.now();
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     await fx.finish(owner, made.id);
     const view = (await m.queries.getTournament(owner, made.id))!;
     expect(view.status).toBe("complete");
@@ -493,7 +493,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("edits a draft: settings and the whole field, and the preview follows; a started tournament cannot be edited or deleted", async () => {
     const made = (await m.life.createTournament(owner, settings({ heatSize: 4 }), bottleEntries())) as { ok: true; id: number };
-    await m.life.resetRound(owner, made.id);
+    await m.transitions.resetRound(owner, made.id);
     const res = await m.life.updateDraft(owner, made.id, { heatSize: 2, name: "Renamed" });
     const view = (res as { view: import("../view").TournamentView }).view;
     expect(view).toMatchObject({ name: "Renamed", heatSize: 2 });
@@ -501,7 +501,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     const fewer = await m.life.updateDraft(owner, made.id, { entries: bottles.slice(0, 3).map((bottleId) => ({ bottleId })) });
     expect((fewer as { view: import("../view").TournamentView }).view.rounds[0]!.heats.map((h) => h.entries.length)).toEqual([2, 1]);
 
-    expect(await m.life.startTournament(owner, made.id)).toMatchObject({ ok: true });
+    expect(await m.transitions.startTournament(owner, made.id)).toMatchObject({ ok: true });
     expect(await m.life.updateDraft(owner, made.id, { name: "Nope" })).toMatchObject({ ok: false, status: 409 });
     expect(await m.life.deleteTournament(owner, made.id)).toMatchObject({ ok: false, status: 409 });
     await fx.finish(owner, made.id);
@@ -512,25 +512,25 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("refuses a result that does not rank every bottle once", async () => {
     const made = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const heat = (await m.queries.getTournament(owner, made.id))!.rounds[0]!.heats[0]!;
     const ids = heat.entries.map((e) => e.entryId);
-    expect(await m.heats.recordHeat(owner, made.id, heat.id, { ranking: ids.slice(1) }, owner)).toMatchObject({ ok: false, status: 422 });
-    expect(await m.heats.recordHeat(owner, made.id, heat.id, { ranking: [ids[0]!, ids[0]!, ids[2]!, ids[3]!] }, owner)).toMatchObject({ ok: false, status: 422 });
-    expect(await m.heats.recordHeat(owner, made.id, heat.id, { ranking: [...ids, 999999] }, owner)).toMatchObject({ ok: false, status: 422 });
-    expect(await m.heats.recordHeat(other, made.id, heat.id, { ranking: ids }, other)).toMatchObject({ ok: false, status: 404 });
+    expect(await m.transitions.recordHeat(owner, made.id, heat.id, { ranking: ids.slice(1) }, owner)).toMatchObject({ ok: false, status: 422 });
+    expect(await m.transitions.recordHeat(owner, made.id, heat.id, { ranking: [ids[0]!, ids[0]!, ids[2]!, ids[3]!] }, owner)).toMatchObject({ ok: false, status: 422 });
+    expect(await m.transitions.recordHeat(owner, made.id, heat.id, { ranking: [...ids, 999999] }, owner)).toMatchObject({ ok: false, status: 422 });
+    expect(await m.transitions.recordHeat(other, made.id, heat.id, { ranking: ids }, other)).toMatchObject({ ok: false, status: 404 });
   });
 
   type V = import("../view").TournamentView;
   const four = async (heatSize = 2) => {
     const made = (await m.life.createTournament(owner, settings({ heatSize }), bottles.slice(0, 4).map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     return made.id;
   };
 
   it("changes the grouping priority of a running tournament without regrouping; Reset then uses it; nothing else can change", async () => {
     const made = (await m.life.createTournament(owner, settings({ heatSize: 2 }), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const groups = (v: V) => v.rounds[0]!.heats.map((h) => h.entries.map((e) => e.entryId).sort((a, b) => a - b));
     const before = (await m.queries.getTournament(owner, made.id))!;
     const order = ["mashbill", "proof", "distillery", "age", "finish"];
@@ -541,7 +541,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(groups(res.view)).toEqual(groups(before));
     expect(res.view.rounds[0]!.heats.map((h) => h.id)).toEqual(before.rounds[0]!.heats.map((h) => h.id));
 
-    const reset = (await m.life.resetRound(owner, made.id)) as { view: V };
+    const reset = (await m.transitions.resetRound(owner, made.id)) as { view: V };
     expect(groups(reset.view)).not.toEqual(groups(before));
 
     for (const patch of [{ name: "Nope" }, { heatSize: 3 }, { entries: [] }, { groupOrder: order, name: "Nope" }]) {
@@ -554,18 +554,18 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
   it("drops an entry withdrawn after its flight was decided when that result is taken back", async () => {
     // Four and two: the round stays open after the first flight is decided.
     const made = (await m.life.createTournament(owner, settings({ heatSize: 4 }), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     const view = (await m.queries.getTournament(owner, made.id))!;
     const [first] = view.rounds[0]!.heats;
     const ids = first!.entries.map((e) => e.entryId);
-    await m.heats.recordHeat(owner, made.id, first!.id, { ranking: ids }, owner);
-    expect((await m.heats.withdrawEntry(owner, made.id, ids[0]!)).ok).toBe(true);
+    await m.transitions.recordHeat(owner, made.id, first!.id, { ranking: ids }, owner);
+    expect((await m.transitions.withdrawEntry(owner, made.id, ids[0]!)).ok).toBe(true);
 
-    const undone = (await m.heats.undoHeat(owner, made.id, first!.id)) as { view: V };
+    const undone = (await m.transitions.undoHeat(owner, made.id, first!.id)) as { view: V };
     const heat = undone.view.rounds[0]!.heats.find((h) => h.id === first!.id)!;
     expect(heat.status).toBe("pending");
     expect(heat.entries.map((e) => e.entryId)).toEqual(ids.slice(1));
-    expect((await m.heats.recordHeat(owner, made.id, first!.id, { ranking: ids.slice(1) }, owner)).ok).toBe(true);
+    expect((await m.transitions.recordHeat(owner, made.id, first!.id, { ranking: ids.slice(1) }, owner)).ok).toBe(true);
   });
 
   it("makes a bye of a taken-back flight whose other entry withdrew", async () => {
@@ -573,9 +573,9 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     const view = (await m.queries.getTournament(owner, id))!;
     const [first] = view.rounds[0]!.heats;
     const ids = first!.entries.map((e) => e.entryId);
-    await m.heats.recordHeat(owner, id, first!.id, { ranking: ids }, owner);
-    await m.heats.withdrawEntry(owner, id, ids[1]!);
-    const undone = (await m.heats.undoHeat(owner, id, first!.id)) as { view: V };
+    await m.transitions.recordHeat(owner, id, first!.id, { ranking: ids }, owner);
+    await m.transitions.withdrawEntry(owner, id, ids[1]!);
+    const undone = (await m.transitions.undoHeat(owner, id, first!.id)) as { view: V };
     const heat = undone.view.rounds[0]!.heats.find((h) => h.id === first!.id)!;
     expect(heat.status).toBe("bye");
     expect(heat.entries.map((e) => e.entryId)).toEqual([ids[0]]);
@@ -583,12 +583,12 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
   it("sets completedAt when the tournament completes and clears it when the final is taken back", async () => {
     const made = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     expect((await m.queries.getTournament(owner, made.id))!.completedAt).toBeNull();
     await fx.finish(owner, made.id);
     const done = (await m.queries.getTournament(owner, made.id))!;
     expect(done.completedAt).not.toBeNull();
-    const undone = (await m.heats.undoHeat(owner, made.id, done.rounds[1]!.heats[0]!.id)) as { view: V };
+    const undone = (await m.transitions.undoHeat(owner, made.id, done.rounds[1]!.heats[0]!.id)) as { view: V };
     expect(undone.view.completedAt).toBeNull();
   });
 
@@ -596,8 +596,8 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     const id = await four(2);
     const view = (await m.queries.getTournament(owner, id))!;
     const [first, second] = view.rounds[0]!.heats;
-    await m.heats.recordHeat(owner, id, first!.id, { ranking: first!.entries.map((e) => e.entryId) }, owner);
-    const reset = (await m.life.resetRound(owner, id)) as { view: V };
+    await m.transitions.recordHeat(owner, id, first!.id, { ranking: first!.entries.map((e) => e.entryId) }, owner);
+    const reset = (await m.transitions.resetRound(owner, id)) as { view: V };
     const heats = reset.view.rounds[0]!.heats;
     const kept = heats.find((h) => h.id === first!.id)!;
     expect(kept.status).toBe("decided");
@@ -611,17 +611,17 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
   it("refuses a result for a flight outside the current round, and glasses that were never set", async () => {
     const id = await four(2);
     const view = (await m.queries.getTournament(owner, id))!;
-    for (const h of view.rounds[0]!.heats) await m.heats.recordHeat(owner, id, h.id, { ranking: h.entries.map((e) => e.entryId) }, owner);
+    for (const h of view.rounds[0]!.heats) await m.transitions.recordHeat(owner, id, h.id, { ranking: h.entries.map((e) => e.entryId) }, owner);
     expect((await m.queries.getTournament(owner, id))!.rounds).toHaveLength(2);
     // Force an earlier flight back to pending, which the rules never allow, to reach the guard.
     await m.sql(`UPDATE tournament_heats SET status = 'pending' WHERE id = $1`, view.rounds[0]!.heats[0]!.id);
     const old = view.rounds[0]!.heats[0]!;
-    expect(await m.heats.recordHeat(owner, id, old.id, { ranking: old.entries.map((e) => e.entryId) }, owner)).toMatchObject({ ok: false, status: 409 });
+    expect(await m.transitions.recordHeat(owner, id, old.id, { ranking: old.entries.map((e) => e.entryId) }, owner)).toMatchObject({ ok: false, status: 409 });
 
     const blind = (await m.life.createTournament(owner, settings({ blind: true, heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
-    await m.life.startTournament(owner, blind.id);
+    await m.transitions.startTournament(owner, blind.id);
     const h = (await m.queries.getTournament(owner, blind.id))!.rounds[0]!.heats[0]!;
-    expect(await m.heats.recordHeat(owner, blind.id, h.id, { glasses: ["A", "B", "C"] }, owner)).toMatchObject({ ok: false, status: 422 });
+    expect(await m.transitions.recordHeat(owner, blind.id, h.id, { glasses: ["A", "B", "C"] }, owner)).toMatchObject({ ok: false, status: 422 });
   });
 
   it("matches an outside entry to a label, and refuses a bottle that belongs to someone else", async () => {
@@ -648,7 +648,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
   it("will not draw a flight unless the tournament is running", async () => {
     const made = (await m.life.createTournament(owner, settings(), bottleEntries())) as { ok: true; id: number };
     expect(await m.heats.drawHeat(owner, made.id)).toMatchObject({ ok: false, status: 409 });
-    await m.life.startTournament(owner, made.id);
+    await m.transitions.startTournament(owner, made.id);
     await fx.finish(owner, made.id);
     expect(await m.heats.drawHeat(owner, made.id)).toMatchObject({ ok: false, status: 409 });
   });
@@ -663,7 +663,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
     it("cuts 13 bottles into 6, 6, 1 and plays through to a champion", async () => {
       const made = (await m.life.createTournament(owner, settings({ heatSize: 6 }), entries())) as { ok: true; id: number };
-      await m.life.startTournament(owner, made.id);
+      await m.transitions.startTournament(owner, made.id);
       let view = (await m.queries.getTournament(owner, made.id))!;
       expect(view.rounds[0]!.heats.map((h) => h.entries.length)).toEqual([6, 6, 1]);
       await fx.finish(owner, made.id);
@@ -676,12 +676,12 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
 
     it("draws a blind 6-glass flight with letters A to F and records a 6-way result by glass", async () => {
       const made = (await m.life.createTournament(owner, settings({ heatSize: 6, blind: true }), entries())) as { ok: true; id: number };
-      await m.life.startTournament(owner, made.id);
+      await m.transitions.startTournament(owner, made.id);
       const drawn = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
       expect(drawn.heat.glasses).toHaveLength(6);
       expect(drawn.heat.glasses.map((g) => g.glass).sort()).toEqual(["A", "B", "C", "D", "E", "F"]);
       const order = ["F", "E", "D", "C", "B", "A"];
-      const ranked = await m.heats.recordHeat(owner, made.id, drawn.heat.heatId, { glasses: order }, owner);
+      const ranked = await m.transitions.recordHeat(owner, made.id, drawn.heat.heatId, { glasses: order }, owner);
       expect(ranked.ok).toBe(true);
       const byGlass = new Map(drawn.heat.glasses.map((g) => [g.glass, g.entry.entryId]));
       const decided = (ranked as { view: import("../view").TournamentView }).view.rounds[0]!.heats.find((h) => h.id === drawn.heat.heatId)!;
@@ -693,7 +693,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
       await expect(m.life.createTournament(owner, settings({ heatSize: 7 }), entries())).rejects.toThrow();
       await expect(m.sql(`INSERT INTO tournaments (owner_id, name, heat_size) VALUES ($1, 'T', 7)`, owner)).rejects.toThrow(/heat_size_check/);
       const made = (await m.life.createTournament(owner, settings({ heatSize: 6, blind: true }), entries())) as { ok: true; id: number };
-      await m.life.startTournament(owner, made.id);
+      await m.transitions.startTournament(owner, made.id);
       const drawn = (await m.heats.drawHeat(owner, made.id)) as { ok: true; heat: import("../heats").DrawnHeat };
       const rows = drawn.heat.glasses.map((g, i) => ({ entryId: g.entry.entryId, glass: i === 0 ? "G" : g.glass }));
       expect(await m.heats.setGlasses(owner, made.id, drawn.heat.heatId, rows)).toMatchObject({ ok: false, status: 422 });
@@ -719,7 +719,7 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(inHeat.finishes).toHaveLength(2);
 
     const blind = (await m.life.createTournament(own, settings({ blind: true }), entries)) as { ok: true; id: number };
-    await m.life.startTournament(own, blind.id);
+    await m.transitions.startTournament(own, blind.id);
     const hidden = (await m.queries.getTournament(own, blind.id))!;
     expect(hidden.rounds[0]!.heats.every((h) => h.hidden && h.entries.length === 0)).toBe(true);
     const { entries: _roster, ...rest } = hidden;
