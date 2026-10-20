@@ -4,7 +4,7 @@ import * as React from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { matchEntries, stepMatch } from "@/lib/tournaments/bracket-search";
-import { canDragBottle, canDragFlight, type DragView } from "@/lib/tournaments/drag-model";
+import { canDragBottle, canDragFlight, flightSteps, type DragView } from "@/lib/tournaments/drag-model";
 import { isOpen, type FlightControls } from "@/lib/tournaments/bracket-actions";
 import type { BracketModel } from "@/lib/tournaments/bracket-model";
 import type { TournamentView } from "@/lib/tournaments/view";
@@ -59,7 +59,8 @@ export function Bracket({
     focusAfter.current = [];
     for (const id of candidates) {
       const el = document.getElementById(id);
-      if (el) return el.focus();
+      el?.focus();
+      if (el && document.activeElement === el) return; // a disabled button (a flight now first or last) takes no focus: try the next
     }
   }, [model]);
 
@@ -178,11 +179,15 @@ export function Bracket({
                         dnd={dnd}
                         canDragRows={!!heat && canDragBottle(view, heat)}
                         canDragFlight={!!heat && canDragFlight(view, heat)}
+                        steps={heat ? flightSteps(view, heat) : null}
                         marks={marks.get(flight.id) ?? noMarks}
                         actions={actions}
                         draft={draft}
                         onRemoved={(candidates) => {
                           focusAfter.current = [...candidates, `round-${column.round}`];
+                        }}
+                        onShifted={(candidates) => {
+                          focusAfter.current = candidates;
                         }}
                       />
                     );

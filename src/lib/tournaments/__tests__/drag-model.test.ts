@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canDragFlight, describeOutcome, dropOutcome, refusalText, type DragView } from "../drag-model";
+import { canDragFlight, flightSteps, describeOutcome, dropOutcome, refusalText, type DragView } from "../drag-model";
 import type { ViewHeat, ViewHeatEntry } from "../view";
 
 const ent = (id: number): ViewHeatEntry => ({ entryId: id, name: `B${id}`, proof: 100 } as ViewHeatEntry);
@@ -138,5 +138,28 @@ describe("describeOutcome", () => {
     expect(describeOutcome(v, { kind: "swap", entryId: 4, withEntryId: 1 })).toBe("Swapped B4 with B1");
     expect(describeOutcome(v, { kind: "reorder", heatId: 3, toSlot: 1 })).toBe("Moved flight 3 to position 1");
     expect(describeOutcome(v, { kind: "none", reason: "full" })).toBeNull();
+  });
+});
+
+describe("flightSteps (the buttons that stand in for dragging a flight)", () => {
+  const at = (v: DragView, i: number) => flightSteps(v, v.rounds[0]!.heats[i]!);
+  it("offers up and down, none past either end", () => {
+    const v = draft();
+    expect(at(v, 0)).toEqual({ place: 1, of: 3, up: null, down: 2 });
+    expect(at(v, 1)).toEqual({ place: 2, of: 3, up: 1, down: 3 });
+    expect(at(v, 2)).toEqual({ place: 3, of: 3, up: 2, down: null });
+  });
+  it("counts the place by slot order, gaps or not", () => {
+    const v = mk("draft", [heat(7, 1, 9, "pending", [1, 2]), heat(8, 1, 3, "pending", [3, 4])]);
+    expect(at(v, 0)).toEqual({ place: 2, of: 2, up: 1, down: null });
+  });
+  it("none for a lone flight, a decided flight, a hidden flight, an earlier round or a finished tournament", () => {
+    expect(at(mk("draft", [heat(1, 1, 1, "pending", [1, 2])]), 0)).toBeNull();
+    const running = mk("active", [heat(1, 1, 1, "decided", [1, 2]), heat(2, 1, 2, "pending", [3, 4]), heat(3, 1, 3, "pending", [5, 6], { hidden: true })]);
+    expect(at(running, 0)).toBeNull();
+    expect(at(running, 1)).toEqual({ place: 2, of: 3, up: 1, down: 3 });
+    expect(at(running, 2)).toBeNull();
+    expect(at(mk("complete", [heat(1, 1, 1, "pending", [1, 2]), heat(2, 1, 2, "pending", [3, 4])]), 0)).toBeNull();
+    expect(at(mk("active", [heat(1, 1, 1, "pending", [1, 2]), heat(2, 1, 2, "pending", [3, 4])], { currentRound: 2 }), 0)).toBeNull();
   });
 });

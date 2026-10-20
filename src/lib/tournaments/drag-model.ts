@@ -27,6 +27,19 @@ export function canDragFlight(view: DragView, heat: ViewHeat): boolean {
   return view.status === "draft" || (view.currentRound !== null && heat.round === view.currentRound);
 }
 
+/**
+ * The button alternative to dragging a flight: the place one step up and one step down, or null where the flight cannot
+ * go (first, last, or not movable at all). `place` is the flight's own position in its round.
+ */
+export function flightSteps(view: DragView, heat: ViewHeat): { place: number; of: number; up: number | null; down: number | null } | null {
+  if (!canDragFlight(view, heat)) return null;
+  const round = view.rounds.find((r) => r.round === heat.round)?.heats ?? [];
+  const of = round.length;
+  const place = round.filter((h) => h.slot < heat.slot).length + 1;
+  if (of < 2) return null;
+  return { place, of, up: place > 1 ? place - 1 : null, down: place < of ? place + 1 : null };
+}
+
 /** Can this bottle be picked up? Same as the menu: a movable flight and a row of it. */
 export const canDragBottle = (view: DragView, heat: ViewHeat): boolean => canMove(view, heat);
 

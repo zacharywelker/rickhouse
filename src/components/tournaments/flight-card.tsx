@@ -3,10 +3,11 @@
 import Link from "next/link";
 import type { Route } from "next";
 import * as React from "react";
-import { EyeOff, GripVertical, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronUp, EyeOff, GripVertical, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { canRename, type FlightControls } from "@/lib/tournaments/bracket-actions";
 import { cn } from "@/lib/utils";
+import type { flightSteps } from "@/lib/tournaments/drag-model";
 import type { FlightModel } from "@/lib/tournaments/bracket-model";
 import { ColumnHeader, EntryRow, type Slots } from "./entry-row";
 import { FlightTitle } from "./flight-title";
@@ -18,6 +19,7 @@ import { WithdrawButton } from "./withdraw-button";
 
 export const rowDomId = (heatId: number, entryId: number) => `row-${heatId}-${entryId}`;
 export const removeDomId = (heatId: number, entryId: number) => `remove-${heatId}-${entryId}`;
+export const flightShiftDomId = (heatId: number, way: "up" | "down") => `flight-${way}-${heatId}`;
 export const flightHeadingDomId = (heatId: number) => `flight-heading-${heatId}`;
 
 /**
@@ -37,8 +39,10 @@ export function FlightCard({
   dnd,
   canDragRows,
   canDragFlight,
+  steps,
   draft,
   onRemoved,
+  onShifted,
 }: {
   tournamentId: number;
   flight: FlightModel;
@@ -57,10 +61,14 @@ export function FlightCard({
   canDragRows: boolean;
   /** The flight itself can be dragged to another place in the round. */
   canDragFlight: boolean;
+  /** Where the up and down buttons send the flight (null: none shown). */
+  steps: ReturnType<typeof flightSteps>;
   /** A draft: every row has a Remove button. */
   draft: boolean;
   /** A row's Remove was pressed: the ids to give focus to once the page has refreshed, best first. */
   onRemoved: (focusCandidates: string[]) => void;
+  /** A move button was pressed: the ids to give focus to once the page has refreshed, best first. */
+  onShifted: (focusCandidates: string[]) => void;
 }) {
   const withdrawable = new Set(controls.withdraw);
   // Places (and the advance arrow) belong to a decided flight; a lone bottle in a draft has not been decided.
@@ -100,10 +108,40 @@ export function FlightCard({
               draggable={!dnd.disabled}
               onDragStart={(e) => dnd.start(e, { kind: "flight", heatId: flight.id }, article.current)}
               onDragEnd={dnd.end}
-              className={cn("flex size-11 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing", dnd.disabled && "opacity-40")}
+              className={cn("flex size-11 shrink-0 [@media(pointer:coarse)]:hidden cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing", dnd.disabled && "opacity-40")}
             >
               <GripVertical className="size-5" aria-hidden />
             </span>
+          ) : null
+        }
+        extra={
+          steps ? (
+            <>
+              {(["up", "down"] as const).map((way) => {
+                const to = steps[way];
+                const Icon = way === "up" ? ChevronUp : ChevronDown;
+                return (
+                  <Button
+                    key={way}
+                    id={flightShiftDomId(flight.id, way)}
+                    type="button"
+                    variant="ghost"
+                    className="size-11 p-0"
+                    aria-label={`Move flight ${flight.number} ${way}`}
+                    title={`Move flight ${way}`}
+                    disabled={to === null || actions.pending}
+                    onClick={() => {
+                      if (to === null) return;
+                      const other = flightShiftDomId(flight.id, way === "up" ? "down" : "up");
+                      onShifted([flightShiftDomId(flight.id, way), other, flightHeadingDomId(flight.id)]);
+                      actions.reorder(flight.id, to, () => dnd.announce({ kind: "reorder", heatId: flight.id, toSlot: to }));
+                    }}
+                  >
+                    <Icon className="size-5" aria-hidden />
+                  </Button>
+                );
+              })}
+            </>
           ) : null
         }
         title={flight.title}

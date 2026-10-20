@@ -28,7 +28,7 @@ export type Slots = 0 | 1 | 2;
 export function ColumnHeader({ decided, slots, handle = false }: { decided: boolean; slots: Slots; handle?: boolean }) {
   return (
     <div className="hidden items-center border-l-[3px] border-t border-transparent border-t-border py-1 pl-2 text-xs text-muted-foreground md:flex">
-      {handle ? <span className="w-8 shrink-0" aria-hidden /> : null}
+      {handle ? <span className="w-8 shrink-0 [@media(pointer:coarse)]:hidden" aria-hidden /> : null}
       {decided ? <span className="w-6 shrink-0" aria-hidden /> : null}
       <span className={cn(COLUMNS, "items-center")}>
         <span>Bottle</span>
@@ -110,7 +110,7 @@ export function EntryRow({
           role="img"
           aria-label={drag.label}
           title="Drag to another flight, or use the menu"
-          className={cn("flex w-8 shrink-0 cursor-grab items-center justify-center self-stretch text-muted-foreground active:cursor-grabbing", drag.props.draggable ? "" : "opacity-40")}
+          className={cn("flex w-8 shrink-0 [@media(pointer:coarse)]:hidden cursor-grab items-center justify-center self-stretch text-muted-foreground active:cursor-grabbing", drag.props.draggable ? "" : "opacity-40")}
         >
           <GripVertical className="size-4" aria-hidden />
         </span>
