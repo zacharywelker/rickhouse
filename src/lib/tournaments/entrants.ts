@@ -3,6 +3,7 @@ import type { Entrant, MashbillInput } from "./types";
 /** One of a label's mashbills as the database gives it: grain shares arrive as numeric strings. */
 export type MashbillRow = {
   name: string | null;
+  style?: string | null;
   isGeneric: boolean;
   isSecret: boolean;
   grains: { grain: string; percent: string | number }[];
@@ -81,6 +82,7 @@ function mashbillInput(rows: MashbillRow[], fieldGroup: string | null): Mashbill
   if (rows.length > 1) return { kind: "blend" };
   const row = rows[0]!;
   if (row.isGeneric) return { kind: "generic", style: row.name ?? "" };
+  if (row.style) return { kind: "generic", style: row.style };
   return {
     kind: "recipe",
     name: row.isSecret ? row.name : null,

@@ -74,6 +74,7 @@ CREATE TABLE distilleries (
     region      text,          -- Scotch region (Speyside, Islay…); copied onto a label's regions
     dsp_number  text,          -- e.g. DSP-KY-95
     founded     integer,
+    is_defunct  boolean NOT NULL DEFAULT false,
     -- 'named' = a real distillery; 'undisclosed' = a placeholder for a place
     -- and nothing more ("Undisclosed (Indiana)"). Whether a link to a real
     -- distillery is a guess is per label: expression_distilleries.is_inferred.
@@ -91,6 +92,7 @@ CREATE INDEX distilleries_company_idx ON distilleries(company_id);
 CREATE TABLE mashbills (
     id              serial PRIMARY KEY,
     name            citext,                    -- "BBC High Rye", optional
+    style           citext,                    -- inferred style tag such as Low Rye or Wheated
     notes           text
 );
 

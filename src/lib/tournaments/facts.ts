@@ -50,8 +50,8 @@ export async function loadEntrants(tx: Tx, ownerId: number, entries: EntryRef[])
         ORDER BY ef.expression_id, ef."position", f.id`)
     : [];
   const mashbillRows = expressionIds.length
-    ? await run<{ expression_id: number; mashbill_id: number; name: string | null; is_generic: boolean; is_secret: boolean }>(
-        sql`SELECT em.expression_id, m.id AS mashbill_id, m.name, m.is_generic, m.is_secret FROM expression_mashbills em
+    ? await run<{ expression_id: number; mashbill_id: number; name: string | null; style: string | null; is_generic: boolean; is_secret: boolean }>(
+        sql`SELECT em.expression_id, m.id AS mashbill_id, m.name, m.style, m.is_generic, m.is_secret FROM expression_mashbills em
           JOIN mashbills m ON m.id = em.mashbill_id WHERE em.expression_id IN (${list(expressionIds)})
           ORDER BY em.expression_id, em."position", m.id`,
       )
@@ -93,7 +93,7 @@ export async function loadEntrants(tx: Tx, ownerId: number, entries: EntryRef[])
       mashbills:
         exprId !== null
           ? (mashbills.get(exprId) ?? []).map(
-              (m): MashbillRow => ({ name: m.name, isGeneric: m.is_generic, isSecret: m.is_secret, grains: grainsOf.get(m.mashbill_id) ?? [] }),
+              (m): MashbillRow => ({ name: m.name, style: m.style, isGeneric: m.is_generic, isSecret: m.is_secret, grains: grainsOf.get(m.mashbill_id) ?? [] }),
             )
           : [],
     };

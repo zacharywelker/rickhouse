@@ -142,6 +142,7 @@ export const distilleries = pgTable(
     region: text("region"),
     dspNumber: text("dsp_number"),
     founded: integer("founded"),
+    isDefunct: boolean("is_defunct").notNull().default(false),
     /** How much the label told us; see DISTILLERY_DISCLOSURES. */
     disclosure: text("disclosure", { enum: DISTILLERY_DISCLOSURES }).notNull().default("named"),
     notes: text("notes"),
@@ -173,6 +174,8 @@ export const mashbills = pgTable("mashbills", {
    * as its recipe.
    */
   name: citext("name"),
+  /** Optional style classification, inferred from a trailing style in the name (e.g. "(Low Rye)"). */
+  style: citext("style"),
   /** The distillery keeps the recipe secret; the recipe here is inferred and `name` is what shows. */
   isSecret: boolean("is_secret").notNull().default(false),
   /**
