@@ -113,7 +113,6 @@ export function OrderedPicker({
 
   React.useEffect(() => {
     if (!distilleryKey) {
-      setSuggestions({});
       return;
     }
     let active = true;
