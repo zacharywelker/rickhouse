@@ -198,6 +198,10 @@ final class TournamentModelTests: XCTestCase {
         XCTAssertEqual(m.view?.name, "Fresh")
         XCTAssertEqual(m.foot.failure?.message, "It has started.")
         XCTAssertNil(m.foot.notice)
+        StubURLProtocol.queue = [(200, json(name: "Done"))]
+        m.foot.failure?.retry()
+        try? await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(m.foot.notice, "Removed Old Forester", "the retry says so too")
     }
 
     func testMovingAFlightPostsTheSlot() async throws {

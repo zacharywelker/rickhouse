@@ -81,7 +81,7 @@ final class TournamentModel {
 
     /// Takes a bottle out of a draft at once; the foot bar says so. A failure reloads and offers Retry (see `run`).
     func remove(entryId: Int, name: String) async {
-        if await run({ try await $0.removeEntry(tournamentId: self.id, entryId: entryId) }) == .done { foot.show("Removed \(name)") }
+        await run(after: { [weak self] in self?.foot.show("Removed \(name)") }) { try await $0.removeEntry(tournamentId: self.id, entryId: entryId) }
     }
 
     func moveFlight(heatId: Int, toSlot: Int) async {
@@ -130,7 +130,7 @@ final class TournamentModel {
     /// Sends one change and takes the view it answers with. A failure is reported (in the foot bar with Retry, or returned
     /// for a sheet to show) and the view is loaded again.
     @discardableResult
-    private func run(inline: Bool = false, _ call: @escaping (APIClient) async throws -> TournamentView) async -> ActionResult {
+    private func run(inline: Bool = false, after: (@MainActor () -> Void)? = nil, _ call: @escaping (APIClient) async throws -> TournamentView) async -> ActionResult {
         guard !pending else { return .busy }
         guard let api = api() else { return .failed(message: "Not signed in.", fields: [:]) }
         pending = true
@@ -138,6 +138,7 @@ final class TournamentModel {
         defer { pending = false }
         do {
             adopt(try await call(api))
+            after?()
             return .done
         } catch APIError.unauthorized {
             signOut()
@@ -147,7 +148,7 @@ final class TournamentModel {
             var fields: [String: String] = [:]
             if case APIError.invalid(_, _, let f) = error { fields = f }
             let message = error.localizedDescription
-            if !inline { foot.fail(message, retry: { [weak self] in Task { await self?.run(call) } }) }
+            if !inline { foot.fail(message, retry: { [weak self] in Task { await self?.run(after: after, call) } }) }
             return .failed(message: message, fields: fields)
         }
     }
