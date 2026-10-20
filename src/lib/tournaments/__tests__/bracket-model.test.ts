@@ -102,8 +102,6 @@ describe("buildBracketModel: a draft preview", () => {
     expect(first.flights[1]!.number).toBe(2);
     expect(first.flights[1]!.title).toEqual({ text: "Mine", yours: true });
     expect(first.flights[1]!.meta).toBe("Flight 2 · 90 to 93 proof");
-    expect(first.flights[1]!.subtitle).toBe("90 to 93 proof");
-    expect(first.flights[0]!.subtitle).toBe("");
     expect(model.renamed).toBe(1);
     // no band because one proof is unknown, and nothing shared to name it: the number is the title, so it is not said twice
     expect(first.flights[0]!.title.text).toBe("Flight 1");
