@@ -176,7 +176,8 @@ struct FlightGap: View {
         let cue = drag?.cue(for: target)
         Color.clear.frame(height: height).contentShape(Rectangle())
             .overlay(alignment: .leading) {
-                if let cue { HStack(spacing: 8) { Rectangle().fill(Theme.ink).frame(height: 3); CueBadge(text: cue) } }
+                // A gap is only meaningful to a lifted flight; a bottle passing over it says nothing.
+                if let cue, case .flight? = drag?.current { HStack(spacing: 8) { Rectangle().fill(Theme.ink).frame(height: 3); CueBadge(text: cue) } }
             }
             .modifier(GapDrop(target: target))
     }
