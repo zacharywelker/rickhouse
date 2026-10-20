@@ -306,9 +306,9 @@ export function OrderedPicker({
                     <Button
                       key={suggestion.value}
                       type="button"
-                      variant="link"
+                      variant="ghost"
                       size="sm"
-                      className="h-auto px-1 py-0 text-xs"
+                      className="h-auto px-1 py-0 text-xs underline underline-offset-2"
                       disabled={chosen.has(suggestion.value)}
                       onClick={() => addSuggestedMashbill(row, suggestion)}
                     >
