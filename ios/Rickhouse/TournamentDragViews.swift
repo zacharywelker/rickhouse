@@ -109,7 +109,12 @@ private struct BottleDragModifier: ViewModifier {
                     Text(name).font(.inter(16, .medium)).foregroundStyle(Theme.ink).padding(12).background(Theme.paper)
                 })
                 .onDrop(of: [.json], delegate: BracketDropDelegate(coordinator: drag, target: .bottle(entryId: entryId, heatId: heatId)))
-                .overlay(alignment: .trailing) { if let cue = drag.cue(for: .bottle(entryId: entryId, heatId: heatId)) { CueBadge(text: cue).padding(.trailing, 4) } }
+                // A row only speaks for itself while a bottle is over it; for a dragged flight the flight's own header says it.
+                .overlay(alignment: .trailing) {
+                    if case .bottle? = drag.current, let cue = drag.cue(for: .bottle(entryId: entryId, heatId: heatId)) { CueBadge(text: cue).padding(.trailing, 4) }
+                }
+                .accessibilityDragPoint(.center, description: Text("Lift \(name)"))
+                .accessibilityDropPoint(.center, description: Text("Swap with \(name)"))
                 .accessibilityHint("Drag to another flight, or use the actions.")
         } else {
             content
@@ -127,6 +132,7 @@ private struct FlightDropModifier: ViewModifier {
             let cue = drag.cue(for: .flight(heatId: heatId))
             content
                 .onDrop(of: [.json], delegate: BracketDropDelegate(coordinator: drag, target: .flight(heatId: heatId)))
+                .accessibilityDropPoint(.top, description: Text("Move here"))
                 .overlay(alignment: .topTrailing) { if let cue { CueBadge(text: cue).padding(.top, 8) } }
                 .overlay { if cue != nil { Rectangle().stroke(Theme.ink, lineWidth: 2).allowsHitTesting(false) } }
         } else {
@@ -150,6 +156,7 @@ struct FlightGrip: View {
                 }, preview: {
                     Text(title).font(.inter(16, .semibold)).foregroundStyle(Theme.ink).padding(12).background(Theme.paper)
                 })
+                .accessibilityDragPoint(.center, description: Text("Lift \(title)"))
                 .accessibilityLabel("Drag \(title)")
                 .accessibilityHint("Or use the move flight buttons.")
         }
