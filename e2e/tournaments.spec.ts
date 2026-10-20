@@ -283,7 +283,8 @@ async function dragOnto(page: Page, source: Locator, target: Locator): Promise<v
   await page.mouse.down();
   await page.mouse.move(sx + 10, sy + 10, { steps: 3 });
   await page.mouse.move(b.x + Math.min(200, b.width / 2), b.y + b.height / 2, { steps: 12 });
-  await page.waitForTimeout(150);
+  // Drop only once the app shows a target that would take it (the hovered, accepting target's solid outline).
+  await expect(page.locator('[class*="!outline-solid"]').first()).toBeVisible();
   await page.mouse.up();
 }
 
