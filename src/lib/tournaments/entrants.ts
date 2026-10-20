@@ -83,7 +83,7 @@ function mashbillInput(rows: MashbillRow[], fieldGroup: string | null): Mashbill
   const row = rows[0]!;
   if (row.isGeneric) return { kind: "generic", style: row.name ?? "" };
   if (row.style) return { kind: "generic", style: row.style };
-  return
+  return {
     kind: "recipe",
     name: row.isSecret ? row.name : null,
     grains: row.grains.flatMap((g) => {
