@@ -22,6 +22,7 @@ import {
   baseReplacesMashbills,
   followsProof,
   hiddenFields,
+  isSingleMaltCategory,
   looksAged,
   nameContextFor,
   nameSays,
@@ -199,6 +200,7 @@ export function ExpressionFields({
   const categoryRaw = values.categoryId;
   const categoryId = typeof categoryRaw === "string" && categoryRaw !== "" ? Number(categoryRaw) : null;
   const fieldGroup: FieldGroup = (categoryId !== null ? categoryGroups[categoryId] : undefined) ?? "other";
+  const singleMalt = isSingleMaltCategory(options.categoryId?.find((option) => option.value === categoryId)?.slug);
   const kind: CategoryKind | null = categoryKinds ? (categoryId !== null ? (categoryKinds[categoryId] ?? "other") : "other") : null;
 
   // A gin is unaged until it is marked aged; one that already has an age opens as aged.
@@ -435,6 +437,14 @@ export function ExpressionFields({
                 error={errors.molassesOrCane}
               />
               {/* Rum has no mashbill list, but one it already has is kept. */}
+              <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
+            </>
+          ) : singleMalt ? (
+            <>
+              <div className="border border-border p-4">
+                <p className="text-sm font-medium">Mashbill</p>
+                <p className="mt-1 text-sm text-muted-foreground">100% Malted Barley</p>
+              </div>
               <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
             </>
           ) : (

@@ -254,13 +254,14 @@ const categoriesConfig: ResourceConfig = {
 /** Shared by every account; the parameter keeps the loader signatures alike. */
 async function categoryOptions(_ownerId?: number): Promise<Option[]> {
   const rows = await db
-    .select({ value: categories.id, label: categories.name, parentId: categories.parentId, parent: categoryParent.name })
+    .select({ value: categories.id, label: categories.name, slug: categories.slug, parentId: categories.parentId, parent: categoryParent.name })
     .from(categories)
     .leftJoin(categoryParent, eq(categories.parentId, categoryParent.id))
     .orderBy(asc(categoryParent.name), asc(categories.sortOrder), asc(categories.name));
   return rows.map((r) => ({
     value: r.value,
     label: r.label,
+    slug: r.slug,
     parentId: r.parentId,
     ...(r.parent ? { hint: `in ${r.parent}` } : {}),
   }));

@@ -1,12 +1,12 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { expressionDistilleries, expressionFinishes, expressionMashbills, expressions } from "@/db/schema";
+import { categories, expressionDistilleries, expressionFinishes, expressionMashbills, expressions, mashbillGrains, mashbills } from "@/db/schema";
 import { resolveSlug } from "@/lib/slug";
 import { attachCola, colaLookupEnabled, refreshCola } from "@/lib/cola/store";
 import { writableFields } from "./fields";
 import { fieldGroupForCategory } from "./queries";
-import { AGING_FIELDS, BOND_PROOF } from "./rules";
+import { AGING_FIELDS, BOND_PROOF, isSingleMaltCategory } from "./rules";
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 
@@ -151,6 +151,28 @@ export async function insertLinks(tx: Tx, ownerId: number, expressionId: number,
   }
 }
 
+/** The recipe inherent in either Single Malt category, shared by that account's labels. */
+async function singleMaltMashbillId(tx: Tx, ownerId: number): Promise<number> {
+  const [known] = await tx
+    .select({ id: mashbills.id })
+    .from(mashbills)
+    .innerJoin(mashbillGrains, eq(mashbillGrains.mashbillId, mashbills.id))
+    .where(
+      and(
+        eq(mashbills.ownerId, ownerId),
+        eq(mashbillGrains.grain, "Malted Barley"),
+        eq(mashbillGrains.percent, "100"),
+        sql`not exists (select 1 from ${mashbillGrains} other where other.mashbill_id = ${mashbills.id} and other.id <> ${mashbillGrains.id})`,
+      ),
+    )
+    .limit(1);
+  if (known) return known.id;
+
+  const [mashbill] = await tx.insert(mashbills).values({ ownerId }).returning({ id: mashbills.id });
+  await tx.insert(mashbillGrains).values({ mashbillId: mashbill!.id, grain: "Malted Barley", percent: "100", position: 0 });
+  return mashbill!.id;
+}
+
 /** Thrown inside a transaction to roll it back when the label isn't the caller's. */
 export class NotOwned extends Error {}
 
@@ -181,6 +203,10 @@ export async function writeLabel(
   values: Record<string, unknown>,
   links: Links,
 ): Promise<number> {
+  const [category] = await tx.select({ slug: categories.slug }).from(categories).where(eq(categories.id, Number(values.categoryId))).limit(1);
+  if (isSingleMaltCategory(category?.slug)) {
+    links = { ...links, mashbills: [{ id: await singleMaltMashbillId(tx, ownerId), amount: null }] };
+  }
   let target = id;
   if (target === null) {
     const [row] = await tx

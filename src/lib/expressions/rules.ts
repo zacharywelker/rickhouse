@@ -203,6 +203,9 @@ export const showsFinishes = (context: Pick<FormContext, "group" | "ginAged">) =
 /** Rum records its base where other spirits record a mashbill. */
 export const baseReplacesMashbills = (group: FieldGroup) => group === "rum";
 
+/** Both supported Single Malt categories have the same fixed recipe. */
+export const isSingleMaltCategory = (slug: unknown) => slug === "american-single-malt" || slug === "single-malt-scotch";
+
 /** Regions belong to Scotch. */
 export const showsRegions = (context: Pick<FormContext, "kind">) => context.kind === "scotch";
 
