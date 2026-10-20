@@ -1,7 +1,19 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
-import { assertThrowawayDatabase, FIELD_BRAND, FIELD_COUNT, FIELD_NAMES, seedTournamentField } from "./support/tournament-field";
+import {
+  assertThrowawayDatabase,
+  FIELD_BRAND,
+  FIELD_COUNT,
+  FIELD_NAMES,
+  RICH_BRAND,
+  RICH_COUNT,
+  RICH_DISTILLERIES,
+  RICH_FINISH,
+  RICH_NAMES,
+  seedRichField,
+  seedTournamentField,
+} from "./support/tournament-field";
 
 const stamp = () => Math.random().toString(36).slice(2, 8);
 
@@ -10,6 +22,7 @@ test.beforeAll(async () => {
   assertThrowawayDatabase();
   await resetDatabase();
   await seedTournamentField();
+  await seedRichField();
 });
 
 test.beforeEach(async ({ page }) => {
@@ -17,17 +30,21 @@ test.beforeEach(async ({ page }) => {
 });
 
 /** Sets up a tournament of the eight seeded bottles through the setup page and lands on its draft. */
-async function createTournament(page: Page, opts: { blind?: boolean; size?: 2 | 3 | 4 } = {}): Promise<{ name: string; id: string }> {
+async function createTournament(
+  page: Page,
+  opts: { blind?: boolean; size?: 2 | 3 | 4 | 5 | 6; brand?: string; count?: number } = {},
+): Promise<{ name: string; id: string }> {
   const name = `Cup ${stamp()}`;
+  const { brand = FIELD_BRAND, count = FIELD_COUNT } = opts;
   await page.goto("/tournaments/new");
-  await page.getByRole("searchbox", { name: "Search your bottles" }).fill(FIELD_BRAND);
+  await page.getByRole("searchbox", { name: "Search your bottles" }).fill(brand);
   // Enter in the search must not submit the setup form.
   await page.getByRole("searchbox", { name: "Search your bottles" }).press("Enter");
   await page.getByLabel("Name", { exact: true }).press("Enter");
   await expect(page).toHaveURL(/\/tournaments\/new$/);
-  await expect(page.getByText(`0 of ${FIELD_COUNT} chosen`)).toBeVisible();
+  await expect(page.getByText(`0 of ${count} chosen`)).toBeVisible();
   await page.getByRole("button", { name: "Select all shown" }).click();
-  await expect(page.getByText(`${FIELD_COUNT} of ${FIELD_COUNT} chosen`)).toBeVisible();
+  await expect(page.getByText(`${count} of ${count} chosen`)).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill(name);
   if (opts.size) await page.getByRole("radiogroup", { name: "Bottles per flight" }).getByRole("radio", { name: String(opts.size) }).click();
   if (opts.blind) await page.getByRole("checkbox", { name: "Blind" }).check();
@@ -171,11 +188,12 @@ test("a draft can be edited before it starts", async ({ page }) => {
   await createTournament(page);
   await expect(flights(page)).toHaveCount(2);
 
-  // Swap a bottle of the first flight with one of the second (both are full, so Move to is disabled).
+  // Swap a bottle of the first flight with one of the second (both are full, so the menu offers only Swap).
   const members = (n: number) => flights(page).nth(n).getByRole("listitem").allInnerTexts();
   const [first0, second0] = [await members(0), await members(1)];
   const target = first0[0]!.split("\n")[0]!;
   await flights(page).first().getByRole("button", { name: /^Move .* to another flight$/ }).first().click();
+  await page.getByRole("option", { name: "Swap with a bottle…" }).click();
   await page.getByPlaceholder("Find a bottle…").first().fill(FIELD_BRAND);
   await page.getByRole("option").first().click();
   await expect.poll(async () => (await members(0)).join("|")).not.toBe(first0.join("|"));
@@ -194,9 +212,9 @@ test("a draft can be edited before it starts", async ({ page }) => {
 
   // Edit the field down to six.
   await page.getByRole("button", { name: "Edit field" }).click();
-  await expect(page.getByRole("button", { name: `Remove ${FIELD_BRAND} Ravenel` })).toBeVisible();
-  await page.getByRole("button", { name: `Remove ${FIELD_BRAND} Ravenel` }).click();
-  await page.getByRole("button", { name: `Remove ${FIELD_BRAND} Penhall` }).click();
+  await expect(page.getByRole("button", { name: `Remove ${FIELD_BRAND} Ravenel`, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: `Remove ${FIELD_BRAND} Ravenel`, exact: true }).click();
+  await page.getByRole("button", { name: `Remove ${FIELD_BRAND} Penhall`, exact: true }).click();
   await page.getByRole("button", { name: "Save field" }).click();
   await expect(page.getByText("6 entries").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Edit field" })).toBeVisible();
@@ -239,4 +257,177 @@ test("the Tournaments link is in the header on a wide screen and in the menu bel
   await main.getByRole("link", { name: "Tournaments" }).click();
   await expect(page).toHaveURL(/\/tournaments$/);
   await expect(page.getByRole("heading", { name: "Tournaments", level: 1 })).toBeVisible();
+});
+
+// ---- The feedback round: facts in the draft, flights of six, remove a bottle, smart titles, drag and drop. ----
+// The "Rh" field is 13 bottles. At flights of 4 (in proof order): High rye bourbons, Wheated bourbons, Wine-finished ryes and a lone single malt.
+
+const rich = (name: string) => `${RICH_BRAND} ${name}`;
+const rows = (flight: Locator) => flight.getByRole("listitem");
+const titles = (page: Page) => flights(page).evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+const status = (page: Page, text: string | RegExp) => page.getByRole("status").filter({ hasText: text });
+
+/** A draft of the thirteen "Rh" bottles at flights of 4, on a page tall enough to show every flight without scrolling. */
+async function richDraft(page: Page, size: 4 | 6 = 4, blind = false): Promise<void> {
+  await page.setViewportSize({ width: 1280, height: 2600 });
+  await createTournament(page, { brand: RICH_BRAND, count: RICH_COUNT, size, blind });
+  await expect(flights(page)).toHaveCount(size === 4 ? 4 : 3);
+}
+
+/** Native HTML5 drag and drop with a real mouse: pick up at the left edge of `source` (its grip) and let go over `target`. */
+async function dragOnto(page: Page, source: Locator, target: Locator): Promise<void> {
+  const [a, b] = [await source.boundingBox(), await target.boundingBox()];
+  if (!a || !b) throw new Error("dragOnto: source or target is not on the page");
+  const [sx, sy] = [a.x + 16, a.y + a.height / 2];
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  await page.mouse.move(sx + 10, sy + 10, { steps: 3 });
+  await page.mouse.move(b.x + Math.min(200, b.width / 2), b.y + b.height / 2, { steps: 12 });
+  await page.waitForTimeout(150);
+  await page.mouse.up();
+}
+
+test("a draft shows proof, mashbill with its category, age, distillery and finish, and names each flight from what its bottles share", async ({ page }) => {
+  await richDraft(page);
+
+  await expect(await titles(page)).toEqual(["High rye bourbons", "Wheated bourbons", "Wine-finished ryes", expect.any(String)]);
+  // The band is the subtitle of every flight, not its name.
+  await expect(flights(page).nth(0)).toContainText("90 to 93 proof");
+  await expect(flights(page).nth(1)).toContainText("100 to 103 proof");
+  await expect(flights(page).nth(2)).toContainText("110 to 113 proof");
+
+  const first = flights(page).nth(0);
+  for (const column of ["Bottle", "Proof", "Mashbill", "Age", "Distillery", "Finish"]) await expect(first).toContainText(column);
+  const aldous = rows(first).filter({ hasText: rich(RICH_NAMES.highRye[0]) });
+  await expect(aldous).toContainText("90");
+  await expect(aldous).toContainText("60/28/12");
+  await expect(aldous).toContainText("Bourbon"); // the category sits under the mashbill
+  await expect(aldous).toContainText("4 yr");
+  await expect(aldous).toContainText(RICH_DISTILLERIES[0]);
+  await expect(rows(flights(page).nth(2)).filter({ hasText: rich(RICH_NAMES.rye[0]) })).toContainText(RICH_FINISH);
+  await expect(rows(flights(page).nth(2)).filter({ hasText: rich(RICH_NAMES.rye[0]) })).toContainText("95/5");
+  // Under the mashbill of a rye, "Rye" says what the 95/5 is.
+  await expect(rows(flights(page).nth(2)).filter({ hasText: rich(RICH_NAMES.rye[0]) }).getByText("Rye", { exact: true })).toBeVisible();
+});
+
+test("flights of six can be made and played, with glass letters up to F", async ({ page }) => {
+  await richDraft(page, 6, true);
+  await expect(rows(flights(page).nth(0))).toHaveCount(6);
+  await expect(rows(flights(page).nth(1))).toHaveCount(6);
+  await expect(rows(flights(page).nth(2))).toHaveCount(1);
+  await expect(page.getByRole("radiogroup", { name: "Bottles per flight" }).getByRole("radio", { name: "6" })).toBeChecked();
+
+  await start(page);
+  await page.getByRole("link", { name: "Play" }).first().click();
+  await page.getByRole("button", { name: "Show the glasses" }).click();
+  const glasses = page.getByRole("region", { name: "Glasses" });
+  const selects = glasses.getByRole("combobox");
+  await expect(selects).toHaveCount(6);
+  expect((await selects.nth(0).locator("option").allInnerTexts()).join("")).toContain("F");
+  await glasses.getByRole("button", { name: "Hide and hand over" }).click();
+
+  const ranking = page.getByRole("region", { name: "Rank the glasses" });
+  await expect(ranking.getByRole("listitem")).toHaveCount(6);
+  await ranking.getByRole("listitem").first().getByRole("button", { name: /down$/ }).click();
+  await page.getByRole("button", { name: "Record result" }).click();
+  const result = page.getByRole("status", { name: "Result" });
+  await expect(result.getByRole("listitem")).toHaveCount(6);
+  await expect(result.getByRole("listitem").first()).toContainText(RICH_BRAND);
+});
+
+test("a bottle can be removed from a draft: its flight shrinks, the others stay, an emptied flight goes", async ({ page }) => {
+  await richDraft(page);
+  const [second, third] = [await flights(page).nth(1).innerText(), await flights(page).nth(2).innerText()];
+
+  await page.getByRole("button", { name: `Remove ${rich(RICH_NAMES.highRye[0])} from the tournament` }).click();
+  await expect(rows(flights(page).nth(0))).toHaveCount(3);
+  await expect(page.getByText(rich(RICH_NAMES.highRye[0]))).toHaveCount(0);
+  await expect(flights(page)).toHaveCount(4);
+  expect(await flights(page).nth(1).innerText()).toBe(second);
+  expect(await flights(page).nth(2).innerText()).toBe(third);
+  expect(await titles(page)).toContain("High rye bourbons");
+
+  // The lone bottle is a flight of its own: removing it takes the flight with it.
+  await page.getByRole("button", { name: `Remove ${rich(RICH_NAMES.malt)} from the tournament` }).click();
+  await expect(flights(page)).toHaveCount(3);
+  await expect(page.getByText(rich(RICH_NAMES.malt))).toHaveCount(0);
+});
+
+test("the flight with one bottle keeps its menu and its remove button", async ({ page }) => {
+  await richDraft(page);
+  const lone = flights(page).nth(3);
+  await expect(rows(lone)).toHaveCount(1);
+  await expect(lone.getByRole("button", { name: `Move ${rich(RICH_NAMES.malt)} to another flight` })).toBeVisible();
+  await expect(lone.getByRole("button", { name: `Remove ${rich(RICH_NAMES.malt)} from the tournament` })).toBeVisible();
+});
+
+test("a bottle is dragged to another flight, and onto another bottle to swap", async ({ page }) => {
+  await richDraft(page);
+  const grabbed = rich(RICH_NAMES.highRye[0]);
+
+  // To a flight with room (the lone bottle's): it moves.
+  await dragOnto(page, rows(flights(page).nth(0)).filter({ hasText: grabbed }), flights(page).nth(3).getByRole("heading", { level: 3 }));
+  await expect(rows(flights(page).nth(3))).toHaveCount(2);
+  await expect(rows(flights(page).nth(0))).toHaveCount(3);
+  await expect(rows(flights(page).nth(3)).filter({ hasText: grabbed })).toHaveCount(1);
+  await expect(status(page, `Moved ${grabbed} to Flight 4`)).toBeVisible();
+
+  // Onto a bottle of a full flight: the two trade places.
+  const [a, b] = [rich(RICH_NAMES.wheated[0]), rich(RICH_NAMES.rye[0])];
+  await dragOnto(page, rows(flights(page).nth(1)).filter({ hasText: a }), rows(flights(page).nth(2)).filter({ hasText: b }));
+  await expect(rows(flights(page).nth(1)).filter({ hasText: b })).toHaveCount(1);
+  await expect(rows(flights(page).nth(2)).filter({ hasText: a })).toHaveCount(1);
+  await expect(status(page, `Swapped ${a} with ${b}`)).toBeVisible();
+  await expect(rows(flights(page).nth(1))).toHaveCount(4);
+});
+
+test("flights are reordered by dragging and by the move buttons", async ({ page }) => {
+  await richDraft(page);
+  const order = ["High rye bourbons", "Wheated bourbons", "Wine-finished ryes"];
+  expect((await titles(page)).slice(0, 3)).toEqual(order);
+  await expect(page.getByRole("button", { name: "Move flight 1 up" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Move flight 4 down" })).toBeDisabled();
+
+  // Drag the third flight onto the first.
+  await dragOnto(page, page.getByRole("img", { name: "Drag flight 3 to reorder" }), flights(page).nth(0).getByRole("heading", { level: 3 }));
+  await expect.poll(async () => (await titles(page)).slice(0, 3)).toEqual([order[2], order[0], order[1]]);
+  await expect(status(page, "Moved flight 3 to position 1")).toBeVisible();
+
+  // The buttons do the same: first flight down one place, and the keyboard keeps its place on the button.
+  const down = page.getByRole("button", { name: "Move flight 1 down" });
+  await down.focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(async () => (await titles(page)).slice(0, 3)).toEqual([order[0], order[2], order[1]]);
+  await expect(status(page, "Moved flight 1 to position 2")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Move flight 2 down" })).toBeFocused();
+  await page.getByRole("button", { name: "Move flight 3 up" }).click();
+  await expect.poll(async () => (await titles(page)).slice(0, 3)).toEqual([order[0], order[1], order[2]]);
+});
+
+test("the menu on a bottle is short and works from the keyboard: move to a flight, swap with a bottle", async ({ page }) => {
+  await richDraft(page);
+  const mover = rich(RICH_NAMES.highRye[0]);
+
+  // Flights 1 to 3 are full; the lone bottle's has room, so it is the one place offered to Move to.
+  const menu = page.getByRole("button", { name: `Move ${mover} to another flight` });
+  await menu.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("option")).toHaveCount(2); // "Flight 4 · …" and "Swap with a bottle…"
+  await expect(page.getByRole("option").first()).toContainText("Flight 4");
+  await expect(page.getByRole("option").first()).toContainText("1 of 4");
+  await page.keyboard.press("Enter");
+  await expect(rows(flights(page).nth(3)).filter({ hasText: mover })).toHaveCount(1);
+  await expect(status(page, `Moved ${mover} to Flight 4`)).toBeVisible();
+
+  // Swap: arrow to the last item, Enter, type to find the bottle, Enter.
+  const [a, b] = [rich(RICH_NAMES.wheated[0]), rich(RICH_NAMES.rye[0])];
+  await page.getByRole("button", { name: `Move ${a} to another flight` }).focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(RICH_NAMES.rye[0]);
+  await page.keyboard.press("Enter");
+  await expect(rows(flights(page).nth(1)).filter({ hasText: b })).toHaveCount(1);
+  await expect(rows(flights(page).nth(2)).filter({ hasText: a })).toHaveCount(1);
+  await expect(status(page, `Swapped ${a} with ${b}`)).toBeVisible();
 });
