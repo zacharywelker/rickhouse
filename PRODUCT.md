@@ -14,7 +14,7 @@ Home collectors of whiskey and other spirits who want a private, accurate record
 
 Rickhouse is a bottle manager first, then a tasting log, and over time a trusted source of facts about spirits. It succeeds when a collector can see what they have, find any bottle fast (including from a phone in a store), log what they taste in seconds, and notice patterns in what they buy and drink. A collector decides what leaves their own server, and what does leave is minimal.
 
-The product grows in stages: bottle management, then the tasting log, then a central catalog the owner hosts, then social features far in the future that are not committed.
+The product has bottle management and a tasting log today. A shared catalog and social features remain future possibilities and are not committed.
 
 ## Positioning
 
@@ -28,24 +28,21 @@ The product grows in stages: bottle management, then the tasting log, then a cen
 
 - Server: two containers (the app and PostgreSQL 16) on Unraid or any Docker host, on port 1964, reached on the LAN or through a reverse proxy. Install guide: `docs/UNRAID.md`.
 - Used on a computer for dense work (sort, filter, edit) and on a phone at the shelf, in a store or at a bar, with the camera and a barcode scanner.
-- Three ways to run. Standalone: native iOS and Android apps with all data on the device. With the user's own home server (strongly recommended): the server holds the truth, and devices keep a working copy and sync. Hosted (later, optional): the owner's service.
+- Current release: the web app runs on the user's own server. The native iOS app is a server-connected companion; it requires that server and does not provide standalone storage or sync. Standalone native apps with on-device data and sync are planned. A hosted service is a possible later option, not available today.
 - The first server run creates an `admin` account with a generated password and asks for a new one.
 - Sign-in options: optional SSO, two-step sign-in, passkeys, Cloudflare Turnstile.
 - Reaching a self-hosted server from a phone away from home needs the user to expose it (a reverse proxy or a VPN such as Tailscale). The app cannot assume that works.
 
 ## Capabilities and Constraints
 
-- Surfaces: Collection (gallery and dense table, search, sort, fill level on every bottle), Labels, Groups, Numbers, tastings, What to drink tonight (phone only; the web keeps its own Spin the Bottle), linked entity pages (brands, distilleries, mashbills, finishes, stores), Accounts, Backups. Camera capture and barcode scanning on phones.
-- Source of truth: with a server, the server holds the truth. Standalone, the device holds it.
-- Standalone is full core: bottles, photos, labels and tastings all work on the device. Without a server there is no web or desktop app, no sync across devices, no household accounts, no Config and no server backups.
-- Standalone backup is manual export only. The export is a human-readable CSV of bottles that Rickhouse can import. It excludes tastings and has no standalone label records. The app says so at export time.
-- Connecting a standalone phone to a server: records that match strictly (the same barcode, or the same brand, name, proof and age statement with the same purchase date and price paid) are linked silently, then everything else goes through a duplicate review. After linking, the most recent edit wins per record. Device clocks are trusted. Tastings are copied to the server.
-- Server stack (locked by `SPEC.md`): Next.js 15 App Router, Drizzle, Postgres 16, Tailwind v4 with shadcn/ui tooling, TanStack Table, Better Auth, Zod, and `sharp` with images on local disk. No SQLite as the server database; SQLite is expected on the standalone mobile app. A bearer-token JSON API for native clients is under way and unmerged. The iOS client is SwiftUI. Android and the on-device database are undecided.
+- Surfaces: Collection (gallery and dense table, search, sort, fill level on every bottle), Labels, Groups, Numbers, tastings, What to drink tonight on iOS, Spin the Bottle on web, linked entity pages (brands, distilleries, mashbills, finishes, stores), Accounts, Backups. Camera capture and barcode scanning on phones.
+- The current iOS client requires a Rickhouse server. Standalone storage, on-device database, cross-device sync, and first-connection reconciliation are future work.
+- Server stack (locked by `SPEC.md`): Next.js App Router, Drizzle, Postgres 16, Tailwind v4, TanStack Table, Better Auth, Zod, and `sharp` with images on local disk. No SQLite as the server database; SQLite is planned for standalone mobile storage. The versioned bearer-token JSON API and SwiftUI iOS client are implemented. Android and the on-device database are future work.
 - `schema.sql` is the source of truth for the data model. Label (in the schema, `expression`) and bottle are separate. A tasting belongs to a label and optionally to a bottle. Category-specific fields are sparse nullable columns shown according to `categories.field_group`. Amaro is a category.
 - Data leaving a server: catalog lookups use a label or barcode only. Contributions share flavor tags from a fixed vocabulary only. Both are opt-in. Free text and longer descriptions never leave the user's data.
 - Terminology: **label** (in the schema, `expression`) is the product and **bottle** is the physical unit. Use "label" in UI copy.
 - Non-goals: no price scraping or market valuation; no LLM label reader for now; no merging labels with bottles; no text columns in place of join tables. Social features are a far-future possibility, not committed; each person's collection is private.
-- Next milestone: the tasting log.
+- Current focus: complete and verify the server-connected iOS companion, then prioritize standalone storage and sync against the implementation plan.
 
 ## Brand Commitments
 

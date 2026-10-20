@@ -77,9 +77,18 @@ The app icon is the brand kit's `docs/brand/app-icon-dark-square.svg` (see `docs
 
 The launch screen is plain ivory paper (`#FFF8E7`, the `LaunchBackground` color in the same asset catalog), so there is no white or black flash before the first screen. The key that names the color is the one entry in `project.yml`'s `info:` block; the rest of the Info.plist is generated from the `INFOPLIST_KEY_` settings, and XcodeGen writes `ios/Rickhouse/Info.plist` (not committed) on each generate.
 
-## Not yet
+## Current scope and gaps
 
-Finishing a bottle (marking it killed), editing a bottle's other fields, creating new labels, groups, Numbers, the Labels tab, marks (open date, gifted by, store pick), category facts such as rum age or gin style, dark mode, passkeys (they need the paid Apple Developer Program) and SSO.
+The iOS app is a server-connected companion, not a standalone app. It supports
+the collection, bottle detail and editing, adding bottles, labels and label
+editing, tasting history and logging, Numbers, What to drink tonight, and
+tournaments. Groups are not currently an iOS surface.
+
+Known gaps include finishing a bottle (marking it killed), recording bottle
+marks such as gifted by or store pick, category-specific facts such as rum age
+or gin style, dark mode, passkeys and SSO. Standalone storage, offline use,
+on-device backup, and sync are not implemented. Passkeys require the paid Apple
+Developer Program for the iOS app's associated domain.
 
 ## Tests
 
