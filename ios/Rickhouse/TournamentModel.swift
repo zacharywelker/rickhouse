@@ -23,6 +23,8 @@ final class TournamentModel {
     var chosenRound: Int?
     private(set) var zoom: ZoomLevel
     let foot = FootBar()
+    /// What the foot bar says when a change arrives while another is still being saved (drop, chevron and menu alike).
+    static let busyNotice = "One moment"
 
     @ObservationIgnored var api: () -> APIClient? = { nil }
     @ObservationIgnored var signOut: () -> Void = {}
@@ -111,7 +113,8 @@ final class TournamentModel {
 
     /// A random flight to taste (blind): hands the pourer's glasses to `open`. A failure goes to the foot bar, whose Retry draws again.
     func draw(then open: @escaping (DrawnHeat) -> Void) async {
-        guard !pending, let api = api() else { return }
+        guard !pending else { foot.show(Self.busyNotice); return }
+        guard let api = api() else { return }
         pending = true
         generation += 1
         defer { pending = false }
@@ -135,7 +138,7 @@ final class TournamentModel {
     /// for a sheet to show) and the view is loaded again.
     @discardableResult
     private func run(inline: Bool = false, after: (@MainActor () -> Void)? = nil, _ call: @escaping (APIClient) async throws -> TournamentView) async -> ActionResult {
-        guard !pending else { return .busy }
+        guard !pending else { foot.show(Self.busyNotice); return .busy }
         guard let api = api() else { return .failed(message: "Not signed in.", fields: [:]) }
         pending = true
         generation += 1

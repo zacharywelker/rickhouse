@@ -290,4 +290,14 @@ final class TournamentModelTests: XCTestCase {
         XCTAssertEqual(TournamentModel(id: 7, zoomStore: store).zoom, .map)
         XCTAssertEqual(TournamentModel(id: 8, zoomStore: store).zoom, .detail)
     }
+
+    func testAChangeWhileAnotherIsSavingSaysOneMoment() async {
+        let m = await loaded()
+        StubURLProtocol.reply = json(name: "Spring")
+        let a = Task { await m.move(entryId: 1, toHeatId: 10) }
+        let b = Task { await m.move(entryId: 2, toHeatId: 10) }
+        let results = [await a.value, await b.value]
+        XCTAssertTrue(results.contains(.busy))
+        XCTAssertEqual(m.foot.notice, "One moment")
+    }
 }

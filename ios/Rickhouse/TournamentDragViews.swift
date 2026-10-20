@@ -19,7 +19,7 @@ final class DragCoordinator {
     @ObservationIgnored var perform: (DropOutcome, String?) -> Void = { _, _ in }
     /// Shown in the foot bar when a drop arrives while another change is still being saved.
     @ObservationIgnored var notice: (String) -> Void = { _ in }
-    static let busyNotice = "One moment"
+    static let busyNotice = TournamentModel.busyNotice
 
     func heat(_ id: Int) -> TournamentHeat? { view()?.rounds.flatMap(\.heats).first { $0.id == id } }
 
