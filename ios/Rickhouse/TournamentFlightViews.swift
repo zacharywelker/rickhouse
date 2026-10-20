@@ -135,23 +135,45 @@ struct FlightRowView: View {
     }
 
     private var facts: some View {
-        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 10))
-        return layout {
-            if let glass = row.glass { Text("Glass \(glass)").fixedSize() }
-            Text(row.proof == "—" ? "No proof" : "\(row.proof) proof").monospacedDigit().fixedSize(horizontal: false, vertical: true)
-            if row.mashbill != "—" { Text(row.mashbill).frame(maxWidth: typeSize.isAccessibilitySize ? nil : .infinity, alignment: .leading) }
-            else if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
-            if row.age != "—" { Text(row.age).monospacedDigit().fixedSize() }
+        VStack(alignment: .leading, spacing: 2) {
+            if typeSize.isAccessibilitySize { labelledFacts } else { inlineFacts }
         }
         .font(.inter(13))
         .foregroundStyle(Theme.muted)
+    }
+
+    /// Proof, mashbill (with its category under it) and age on one line, then distillery and finish when known.
+    @ViewBuilder private var inlineFacts: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            if let glass = row.glass { Text("Glass \(glass)").fixedSize() }
+            Text(row.proof == "—" ? "No proof" : "\(row.proof) proof").monospacedDigit().fixedSize(horizontal: false, vertical: true)
+            if row.mashbill != "—" || row.category != nil {
+                VStack(alignment: .leading, spacing: 0) {
+                    if row.mashbill != "—" { Text(row.mashbill) }
+                    if let category = row.category { Text(category).font(.inter(12)) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else { Spacer(minLength: 0) }
+            if row.age != "—" { Text(row.age).monospacedDigit().fixedSize() }
+        }
+        if let line = TournamentFlightFacts.extraLine(row) { Text(line) }
+    }
+
+    /// At the biggest text sizes each fact is a labelled pair on its own line.
+    @ViewBuilder private var labelledFacts: some View {
+        ForEach(TournamentFlightFacts.pairs(row), id: \.label) { pair in
+            Text("\(Text(pair.label + " ").font(.inter(12, .semibold))) \(pair.value)")
+        }
     }
 
     private var spoken: String {
         var parts = [row.name]
         if row.proof != "—" { parts.append("\(row.proof) proof") }
         if row.mashbill != "—" { parts.append(row.mashbill) }
+        if let category = row.category { parts.append(category) }
         if row.age != "—" { parts.append(row.age) }
+        if !row.distilleries.isEmpty { parts.append("distillery " + row.distilleries.joined(separator: ", ")) }
+        if !row.finishes.isEmpty { parts.append("finish " + row.finishes.joined(separator: ", ")) }
         if let glass = row.glass { parts.append("glass \(glass)") }
         var line = parts.joined(separator: ", ")
         if showsPlace, let place = row.place { line = "Place \(place). " + line }

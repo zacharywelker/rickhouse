@@ -50,6 +50,21 @@ struct TournamentEntry: Decodable, Identifiable, Equatable {
     let kind: EntryKind
     let bottleId: Int?
     let expressionId: Int?
+    var category: String? = nil
+    var finishes: [String] = []
+}
+
+extension TournamentEntry {
+    private enum Keys: String, CodingKey { case id, name, status, kind, bottleId, expressionId, category, finishes }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        self.init(id: try c.decode(Int.self, forKey: .id), name: try c.decode(String.self, forKey: .name),
+                  status: try c.decode(EntryStatus.self, forKey: .status), kind: try c.decode(EntryKind.self, forKey: .kind),
+                  bottleId: try c.decodeIfPresent(Int.self, forKey: .bottleId), expressionId: try c.decodeIfPresent(Int.self, forKey: .expressionId),
+                  category: try c.decodeIfPresent(String.self, forKey: .category),
+                  finishes: try c.decodeIfPresent([String].self, forKey: .finishes) ?? [])
+    }
 }
 
 /// An entry as one flight shows it.
@@ -63,8 +78,26 @@ struct HeatEntry: Decodable, Identifiable, Equatable {
     let mashbill: String?
     let ageYears: Double?
     let distilleries: [String]
+    /// The spirit category ("Bourbon"); nil for an outside entry or when unknown (and from servers older than flights of 6).
+    var category: String? = nil
+    var finishes: [String] = []
 
     var id: Int { entryId }
+}
+
+extension HeatEntry {
+    private enum Keys: String, CodingKey { case entryId, name, place, glass, proof, mashbill, ageYears, distilleries, category, finishes }
+
+    /// `category` and `finishes` are optional keys: an older server omits them.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        self.init(entryId: try c.decode(Int.self, forKey: .entryId), name: try c.decode(String.self, forKey: .name),
+                  place: try c.decodeIfPresent(Int.self, forKey: .place), glass: try c.decodeIfPresent(String.self, forKey: .glass),
+                  proof: try c.decodeIfPresent(Double.self, forKey: .proof), mashbill: try c.decodeIfPresent(String.self, forKey: .mashbill),
+                  ageYears: try c.decodeIfPresent(Double.self, forKey: .ageYears), distilleries: try c.decode([String].self, forKey: .distilleries),
+                  category: try c.decodeIfPresent(String.self, forKey: .category),
+                  finishes: try c.decodeIfPresent([String].self, forKey: .finishes) ?? [])
+    }
 }
 
 struct TournamentHeat: Decodable, Identifiable, Equatable {
