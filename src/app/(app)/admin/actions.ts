@@ -121,11 +121,14 @@ function isDetailedResource(value: string): value is DetailedResource {
 }
 
 /** What the full form of a company, brand, distillery or mashbill needs, for a dialog opened from a picker. */
-export async function resourceFormSpecAction(resource: string): Promise<ResourceFormSpec> {
+export async function resourceFormSpecAction(resource: string, id?: number): Promise<ResourceFormSpec> {
   const user = await requireSession();
   if (!isDetailedResource(resource)) return { ok: false, error: "That is not something this app manages." };
   const config = RESOURCES[resource];
-  return { ok: true, singular: config.singular, fields: config.fields, options: await config.optionsFor(user.id) };
+  const [options, rows] = await Promise.all([config.optionsFor(user.id), id === undefined ? Promise.resolve([]) : config.list(user.id)]);
+  const row = id === undefined ? undefined : rows.find((item) => item.id === id);
+  if (id !== undefined && !row) return { ok: false, error: "That item could not be found." };
+  return { ok: true, singular: config.singular, fields: config.fields, options, ...(row ? { row } : {}) };
 }
 
 /** A row just made with its full form, as the option a picker chooses. */
