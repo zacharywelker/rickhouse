@@ -111,7 +111,9 @@ private struct BottleDragModifier: ViewModifier {
                 .onDrop(of: [.json], delegate: BracketDropDelegate(coordinator: drag, target: .bottle(entryId: entryId, heatId: heatId)))
                 // A row only speaks for itself while a bottle is over it; for a dragged flight the flight's own header says it.
                 .overlay(alignment: .trailing) {
-                    if case .bottle? = drag.current, let cue = drag.cue(for: .bottle(entryId: entryId, heatId: heatId)) { CueBadge(text: cue).padding(.trailing, 4) }
+                    // Read the cue first: `hover` must be observed even while nothing is lifted.
+                    let cue = drag.cue(for: .bottle(entryId: entryId, heatId: heatId))
+                    if let cue, case .bottle? = drag.current { CueBadge(text: cue).padding(.trailing, 4) }
                 }
                 .accessibilityDragPoint(.center, description: Text("Lift \(name)"))
                 .accessibilityDropPoint(.center, description: Text("Swap with \(name)"))
