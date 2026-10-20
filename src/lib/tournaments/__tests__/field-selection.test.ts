@@ -106,7 +106,7 @@ describe("toEntryInputs and counts", () => {
 });
 
 describe("fieldFromEntries", () => {
-  const entry = (id: number, kind: "bottle" | "label" | "adhoc", name: string, bottleId: number | null, expressionId: number | null, status: "active" | "withdrawn" = "active") => ({ id, name, status, kind, bottleId, expressionId });
+  const entry = (id: number, kind: "bottle" | "label" | "adhoc", name: string, bottleId: number | null, expressionId: number | null, status: "active" | "withdrawn" = "active") => ({ id, name, status, kind, bottleId, expressionId, category: null, finishes: [] as string[] });
 
   it("maps bottle, label-only and outside entries in order, and round-trips through toEntryInputs", () => {
     const state = fieldFromEntries([entry(1, "bottle", "A Rye", 5, 50), entry(2, "label", "B Bourbon", null, 60), entry(3, "adhoc", "  Joe's  cask ", null, null)]);

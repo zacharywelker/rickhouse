@@ -44,6 +44,10 @@ export type ViewEntry = {
   kind: EntryKind;
   bottleId: number | null;
   expressionId: number | null;
+  /** The leaf category name of the entry's label ("Bourbon"); null for an outside entry. */
+  category: string | null;
+  /** The label's finish names in listed order. */
+  finishes: string[];
 };
 
 /** A heat's entry as the owner sees it. */
@@ -56,6 +60,8 @@ export type ViewHeatEntry = {
   mashbill: string | null;
   ageYears: number | null;
   distilleries: string[];
+  category: string | null;
+  finishes: string[];
 };
 
 export type ViewHeat = {
@@ -65,7 +71,7 @@ export type ViewHeat = {
   status: "pending" | "decided" | "bye";
   /** The owner's own name for the heat, or null; withheld (null) for a hidden heat, since a name chosen at draft time can give the glass away. */
   label: string | null;
-  /** What the heat's bottles share ("MGP 95/5"), or null; hidden while a blind heat is pending. */
+  /** The heat's generated name from what its bottles share ("Buffalo Trace · High rye bourbons"; "Mixed" when nothing is shared); null only for an empty or hidden heat. Never the proof band. */
   autoLabel: string | null;
   /** "90 to 94 proof"; empty when a proof is unknown. Shown even for a hidden heat. */
   band: string;
@@ -142,6 +148,8 @@ export function buildView(input: ViewInput): TournamentView {
               mashbill: e?.mashbill ? mashbillDisplay(e.mashbill) || null : null,
               ageYears: e?.ageYears ?? null,
               distilleries: e?.distilleries ?? [],
+              category: e?.category ?? null,
+              finishes: e?.finishes ?? [],
             };
           }),
     };
@@ -183,7 +191,19 @@ export function buildView(input: ViewInput): TournamentView {
     completedAt: iso(tournament.completedAt),
     entries: [...entries]
       .sort((a, b) => a.seed - b.seed || a.id - b.id)
-      .map((e) => ({ id: e.id, name: e.displayName, status: e.status, kind: entryKind(e), bottleId: e.bottleId, expressionId: e.expressionId })),
+      .map((e) => {
+        const facts = entrants.get(e.id);
+        return {
+          id: e.id,
+          name: e.displayName,
+          status: e.status,
+          kind: entryKind(e),
+          bottleId: e.bottleId,
+          expressionId: e.expressionId,
+          category: facts?.category ?? null,
+          finishes: facts?.finishes ?? [],
+        };
+      }),
     rounds,
     plan: activeCount >= 2 ? planRounds(activeCount, tournament.heatSize) : [],
     currentRound,

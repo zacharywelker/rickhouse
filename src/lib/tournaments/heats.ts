@@ -11,7 +11,7 @@ const { tournaments, tournamentEntries, tournamentHeats, tournamentHeatEntries }
 
 const NO_HEAT = "That flight is gone.";
 const NO_ENTRY = "That entry is gone.";
-const LETTERS = ["A", "B", "C", "D"];
+const LETTERS = ["A", "B", "C", "D", "E", "F"];
 
 export type Done = { ok: true; view: TournamentView };
 
@@ -122,6 +122,33 @@ export async function withdrawEntry(ownerId: number, tournamentId: number, entry
     await tx.update(tournamentEntries).set({ status: "withdrawn" }).where(eq(tournamentEntries.id, entryId));
     await removeFromUndecided(tx, t.id, entryId);
     await settle(tx, ownerId, t);
+    return { ok: true as const, view: (await viewOf(tx, ownerId, t.id))! };
+  });
+}
+
+/**
+ * Removes a bottle from a draft's field. Only its own row goes: the flight it was in shrinks (one left is a bye, none
+ * left is removed) and every other flight keeps its bottles, name and place (slots may have gaps, nothing needs them
+ * contiguous). With fewer than two entries left there is no preview, so the flights go, as in updateDraft.
+ */
+export async function removeDraftEntry(ownerId: number, tournamentId: number, entryId: number): Promise<Done | Failure> {
+  return db.transaction(async (tx) => {
+    const t = await lockTournament(tx, ownerId, tournamentId);
+    if (!t) return fail(404, GONE);
+    if (t.status !== "draft") return fail(409, "Only a draft can have bottles removed.");
+    const state = await readState(tx, t.id);
+    if (!state.entries.some((e) => e.id === entryId)) return fail(404, NO_ENTRY);
+
+    const row = state.heatEntries.find((r) => r.entryId === entryId);
+    await tx.delete(tournamentHeatEntries).where(eq(tournamentHeatEntries.entryId, entryId));
+    await tx.delete(tournamentEntries).where(eq(tournamentEntries.id, entryId));
+    if (state.entries.length - 1 < 2) {
+      await tx.delete(tournamentHeats).where(eq(tournamentHeats.tournamentId, t.id));
+    } else if (row) {
+      const left = state.heatEntries.filter((r) => r.heatId === row.heatId).length - 1;
+      if (left === 0) await tx.delete(tournamentHeats).where(eq(tournamentHeats.id, row.heatId));
+      else await tx.update(tournamentHeats).set({ status: left === 1 ? "bye" : "pending" }).where(eq(tournamentHeats.id, row.heatId));
+    }
     return { ok: true as const, view: (await viewOf(tx, ownerId, t.id))! };
   });
 }
@@ -363,6 +390,41 @@ export async function promoteEntry(
       return fail(409, "That bottle or label is already in this tournament.");
     }
     await tx.update(tournamentEntries).set({ bottleId, expressionId }).where(eq(tournamentEntries.id, entryId));
+    return { ok: true as const, view: (await viewOf(tx, ownerId, t.id))! };
+  });
+}
+
+/**
+ * Moves a flight to place `toSlot` (1 = first) among the flights of the current round (round 1 in a draft). Rule: the
+ * round's flights are ordered by slot; the moved flight is taken out and put at that place, every other flight keeps
+ * its relative order (the ones in between shift by one), and slots are renumbered 1..n with no gaps. Only an undecided
+ * flight (pending or bye) can be moved; decided flights never move on their own but their slot number may shift with
+ * the renumbering. Allowed in a draft and in a running tournament, blind or not (the order reveals nothing). A name
+ * and the bottles travel with the flight. Reset to automatic regroups and renumbers, so a manual order is lost then.
+ */
+export async function moveHeat(ownerId: number, tournamentId: number, heatId: number, toSlot: number): Promise<Done | Failure> {
+  return db.transaction(async (tx) => {
+    const t = await lockTournament(tx, ownerId, tournamentId);
+    if (!t) return fail(404, GONE);
+    if (t.status === "complete") return fail(409, "This tournament is finished.");
+    const state = await readState(tx, t.id);
+    if (state.heats.length === 0) return fail(409, "There are no flights yet. Reset the round to make them.");
+    const round = Math.max(...state.heats.map((h) => h.round));
+    const heat = state.heats.find((h) => h.id === heatId);
+    if (!heat) return fail(404, NO_HEAT);
+    if (heat.round !== round) return fail(409, "Only a flight of the current round can be moved.");
+    if (heat.status === "decided") return fail(409, "That flight is already decided.");
+    const ordered = state.heats.filter((h) => h.round === round).sort((a, b) => a.slot - b.slot);
+    if (!Number.isInteger(toSlot) || toSlot < 1 || toSlot > ordered.length) {
+      return fail(422, `Choose a place from 1 to ${ordered.length}.`, { toSlot: `Choose a place from 1 to ${ordered.length}.` });
+    }
+    const without = ordered.filter((h) => h.id !== heat.id);
+    without.splice(toSlot - 1, 0, heat);
+    if (without.every((h, i) => h.id === ordered[i]!.id && h.slot === i + 1)) return { ok: true as const, view: (await viewOf(tx, ownerId, t.id))! };
+
+    // slot is unique per round: park every slot out of the way, then write the final numbers.
+    await tx.update(tournamentHeats).set({ slot: sql`${tournamentHeats.slot} + 1000` }).where(and(eq(tournamentHeats.tournamentId, t.id), eq(tournamentHeats.round, round)));
+    for (const [i, h] of without.entries()) await tx.update(tournamentHeats).set({ slot: i + 1 }).where(eq(tournamentHeats.id, h.id));
     return { ok: true as const, view: (await viewOf(tx, ownerId, t.id))! };
   });
 }

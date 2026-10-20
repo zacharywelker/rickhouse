@@ -3,7 +3,7 @@ import type { TournamentView, ViewHeat } from "./view";
 /** What the controls of a flight or row depend on. */
 export type ActionView = Pick<TournamentView, "status" | "blind" | "currentRound" | "rounds" | "entries">;
 
-const isCurrent = (view: ActionView, heat: ViewHeat) => view.currentRound !== null && heat.round === view.currentRound;
+const isCurrent = (view: Pick<ActionView, "currentRound">, heat: ViewHeat) => view.currentRound !== null && heat.round === view.currentRound;
 
 /** Play: a pending flight of the current round of a running tournament. */
 export function canPlay(view: ActionView, heat: ViewHeat): boolean {
@@ -26,7 +26,7 @@ export function canWithdraw(view: ActionView, heat: ViewHeat, entryId: number): 
 export const isOpen = (heat: { status: ViewHeat["status"] }): boolean => heat.status === "pending" || heat.status === "bye";
 
 /** Move and swap: a draft's flights, or a running open tournament's undecided flights of the current round. Never a blind one (the server refuses). */
-export function canMove(view: ActionView, heat: ViewHeat): boolean {
+export function canMove(view: Pick<ActionView, "status" | "blind" | "currentRound">, heat: ViewHeat): boolean {
   if (heat.hidden || !isOpen(heat)) return false;
   if (view.status === "draft") return true;
   return view.status === "active" && !view.blind && isCurrent(view, heat);

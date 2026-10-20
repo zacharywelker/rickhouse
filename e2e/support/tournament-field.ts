@@ -53,3 +53,66 @@ export async function seedTournamentField(): Promise<void> {
     await sql.end();
   }
 }
+
+/** Thirteen more bottles under their own brand, with the facts the flight names and the draft columns read. Search "Rh" to pick just these. */
+export const RICH_BRAND = "Rh";
+export const RICH_COUNT = 13;
+export const RICH_NAMES = {
+  highRye: ["Aldous", "Bexley", "Carrow", "Dunmore"],
+  wheated: ["Eastlea", "Fenwick", "Garrick", "Holloway"],
+  rye: ["Ivesham", "Jarrow", "Kestrel", "Lenham"],
+  malt: "Moorgate",
+} as const;
+/** Their two distilleries, alternated so no flight shares one (a shared distillery would prefix the flight's title). */
+export const RICH_DISTILLERIES = ["Ardmore Works", "Brightwater Works"] as const;
+export const RICH_FINISH = "Port Pipe";
+
+/**
+ * Seeds the "Rh" field. At flights of 4 (proof order) it makes three titled flights and a lone bottle:
+ * High rye bourbons (90-93 proof), Wheated bourbons (100-103), Wine-finished ryes (110-113) and a single malt (120).
+ * At flights of 6 it makes 6, 6 and a lone bottle. Run after `seedTournamentField()`; refuses anything but a throwaway database.
+ */
+export async function seedRichField(): Promise<void> {
+  assertThrowawayDatabase();
+  const sql = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
+  try {
+    const [owner] = await sql<{ id: number }[]>`SELECT id FROM users WHERE username = 'admin'`;
+    const category = async (name: string) => (await sql<{ id: number }[]>`SELECT id FROM categories WHERE name = ${name} LIMIT 1`)[0]?.id;
+    const [bourbon, rye, malt] = [await category("Bourbon"), await category("Rye"), await category("Single Malt Scotch")];
+    if (!owner || !bourbon || !rye || !malt) throw new Error("seedRichField: run db:reset first (no admin or no Bourbon, Rye or Single Malt Scotch category).");
+    const [brand] = await sql<{ id: number }[]>`INSERT INTO brands (name, slug, owner_id) VALUES (${RICH_BRAND}, 'rh-e2e', ${owner.id}) RETURNING id`;
+    const distilleries: number[] = [];
+    for (const [i, name] of RICH_DISTILLERIES.entries()) {
+      const [d] = await sql<{ id: number }[]>`INSERT INTO distilleries (name, slug, owner_id) VALUES (${name}, ${`rh-e2e-d${i}`}, ${owner.id}) RETURNING id`;
+      distilleries.push(d!.id);
+    }
+    const [port] = await sql<{ id: number }[]>`INSERT INTO finishes (name, slug, owner_id) VALUES (${RICH_FINISH}, 'rh-e2e-port', ${owner.id}) RETURNING id`;
+    const recipe = async (grains: [string, number][]) => {
+      const [m] = await sql<{ id: number }[]>`INSERT INTO mashbills (owner_id) VALUES (${owner.id}) RETURNING id`;
+      // One statement: the 100% check runs at commit, so the grains must arrive together.
+      await sql`INSERT INTO mashbill_grains ${sql(grains.map(([grain, percent], position) => ({ mashbill_id: m!.id, grain, percent, position })))}`;
+      return m!.id;
+    };
+    const highRye = await recipe([["Corn", 60], ["Rye", 28], ["Malted Barley", 12]]);
+    const wheated = await recipe([["Corn", 70], ["Wheat", 18], ["Malted Barley", 12]]);
+    const ryeBill = await recipe([["Rye", 95], ["Malted Barley", 5]]);
+
+    let n = 0;
+    const label = async (word: string, categoryId: number, proof: number, age: number, mashbillId: number | null, finish: boolean) => {
+      const i = n++;
+      const [e] = await sql<{ id: number }[]>`
+        INSERT INTO expressions (brand_id, category_id, name, slug, owner_id, proof, age_years)
+        VALUES (${brand!.id}, ${categoryId}, ${word}, ${`rh-e2e-${i}`}, ${owner.id}, ${proof}, ${age}) RETURNING id`;
+      await sql`INSERT INTO bottles (expression_id, owner_id) VALUES (${e!.id}, ${owner.id})`;
+      await sql`INSERT INTO expression_distilleries (expression_id, distillery_id) VALUES (${e!.id}, ${distilleries[i % 2]!})`;
+      if (mashbillId !== null) await sql`INSERT INTO expression_mashbills (expression_id, mashbill_id) VALUES (${e!.id}, ${mashbillId})`;
+      if (finish) await sql`INSERT INTO expression_finishes (expression_id, finish_id) VALUES (${e!.id}, ${port!.id})`;
+    };
+    for (const [i, w] of RICH_NAMES.highRye.entries()) await label(w, bourbon, 90 + i, 4 + i, highRye, false);
+    for (const [i, w] of RICH_NAMES.wheated.entries()) await label(w, bourbon, 100 + i, 6 + i, wheated, false);
+    for (const [i, w] of RICH_NAMES.rye.entries()) await label(w, rye, 110 + i, 3 + i, ryeBill, true);
+    await label(RICH_NAMES.malt, malt, 120, 12, null, false);
+  } finally {
+    await sql.end();
+  }
+}

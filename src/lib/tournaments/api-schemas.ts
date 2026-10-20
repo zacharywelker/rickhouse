@@ -16,7 +16,7 @@ const groupOrder = z
 
 const settingsShape = {
   name: z.string().trim().min(1, "Name the tournament.").max(80, "Up to 80 characters."),
-  heatSize: z.number().int().min(2, "A flight holds 2 to 4 bottles.").max(4, "A flight holds 2 to 4 bottles."),
+  heatSize: z.number().int().min(2, "A flight holds 2 to 6 bottles.").max(6, "A flight holds 2 to 6 bottles."),
   seeding: z.enum(["similar", "random"]),
   groupOrder,
   blind: z.boolean(),
@@ -45,14 +45,17 @@ export const patchSchema = z
 
 /** `POST .../result`: the entries best first, by entry id, or for a heat poured blind the glass letters best first. */
 export const resultSchema = z.union([
-  z.object({ ranking: z.array(id).min(2).max(4) }).strict(),
-  z.object({ glasses: z.array(z.enum(["A", "B", "C", "D"])).min(2).max(4) }).strict(),
+  z.object({ ranking: z.array(id).min(2).max(6) }).strict(),
+  z.object({ glasses: z.array(z.enum(["A", "B", "C", "D", "E", "F"])).min(2).max(6) }).strict(),
 ]);
 
 /** `PUT .../glass`: which letter each entry of a flight is poured into. */
-export const glassSchema = z.object({ assign: z.array(z.object({ entryId: id, glass: z.enum(["A", "B", "C", "D"]) }).strict()).min(2).max(4) }).strict();
+export const glassSchema = z.object({ assign: z.array(z.object({ entryId: id, glass: z.enum(["A", "B", "C", "D", "E", "F"]) }).strict()).min(2).max(6) }).strict();
 
 export const moveSchema = z.object({ toHeatId: id }).strict();
+
+/** `POST .../heats/:id/move`: the flight's new place among the round's flights (1 = first); the range is checked against the round. */
+export const moveHeatSchema = z.object({ toSlot: id }).strict();
 
 /** `POST .../entries/:id/swap`: trade places with another entry in a different flight. */
 export const swapSchema = z.object({ withEntryId: id }).strict();

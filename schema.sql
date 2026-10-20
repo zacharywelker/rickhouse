@@ -865,7 +865,7 @@ CREATE TABLE tournaments (
     owner_id    integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name        text NOT NULL,
     status      text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'complete')),
-    heat_size   smallint NOT NULL CHECK (heat_size BETWEEN 2 AND 4),   -- one size per tournament
+    heat_size   smallint NOT NULL CHECK (heat_size BETWEEN 2 AND 6),   -- one size per tournament
     seeding     text NOT NULL DEFAULT 'similar' CHECK (seeding IN ('similar', 'random')),
     -- What flights are matched on, highest priority first: each of the five keys exactly once.
     group_order text[] NOT NULL DEFAULT '{proof,mashbill,distillery,age,finish}'
@@ -919,7 +919,7 @@ CREATE TABLE tournament_heat_entries (
     entry_id      integer NOT NULL,
     tournament_id integer NOT NULL,
     place         smallint CHECK (place >= 1),    -- 1 is best; null until decided, and always null in a bye
-    glass         text CHECK (glass ~ '^[A-D]$'), -- the glass the entry is poured into in a blind heat
+    glass         text CHECK (glass ~ '^[A-F]$'), -- the glass the entry is poured into in a blind heat
     PRIMARY KEY (heat_id, entry_id),
     FOREIGN KEY (heat_id, tournament_id) REFERENCES tournament_heats(id, tournament_id) ON DELETE CASCADE,
     FOREIGN KEY (entry_id, tournament_id) REFERENCES tournament_entries(id, tournament_id) ON DELETE CASCADE

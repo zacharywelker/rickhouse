@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import type { FlightTitle as Title } from "@/lib/tournaments/bracket-model";
 
 /**
@@ -13,12 +14,21 @@ import type { FlightTitle as Title } from "@/lib/tournaments/bracket-model";
  */
 export function FlightTitle({
   title,
+  headingId,
+  grip,
+  extra,
   number,
   editable,
   busy,
   onRename,
 }: {
   title: Title;
+  /** The heading's DOM id, which takes focus after a bottle is removed. */
+  headingId: string;
+  /** The handle that picks the flight up, when it can be reordered. */
+  grip?: React.ReactNode;
+  /** More controls for the header, set apart on the right (the buttons that move the flight). */
+  extra?: React.ReactNode;
   number: number;
   editable: boolean;
   busy: boolean;
@@ -75,14 +85,16 @@ export function FlightTitle({
 
   return (
     <div className="flex items-center gap-2 pt-1">
-      <h3 className="min-w-0 text-base font-medium leading-snug">{title.text}</h3>
+      {grip}
+      <h3 id={headingId} tabIndex={-1} className="min-w-0 text-base font-medium leading-snug focus:outline-none">{title.text}</h3>
       {title.yours ? <Badge className="shrink-0">Yours</Badge> : null}
+      {extra ? <div className="ml-auto flex shrink-0">{extra}</div> : null}
       {editable ? (
         <Button
           ref={edit}
           type="button"
           variant="ghost"
-          className="ml-auto size-11 shrink-0 p-0"
+          className={cn("size-11 shrink-0 p-0", !extra && "ml-auto")}
           aria-label={`Rename flight ${number}`}
           onClick={() => {
             setText(title.yours ? title.text : "");

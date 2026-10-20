@@ -11,7 +11,7 @@ const entry = (id: number, name: string, proof: number | null, extra: Partial<Vi
   proof,
   mashbill: null,
   ageYears: null,
-  distilleries: [],
+  distilleries: [], category: null, finishes: [],
   ...extra,
 });
 
@@ -36,9 +36,9 @@ describe("flightTitle", () => {
   it("puts your own name first and marks it yours", () => {
     expect(flightTitle(heat(1, 1, 1, [], { label: "  High rye shelf ", autoLabel: "Low rye", band: "90 proof" }), 1)).toEqual({ text: "High rye shelf", yours: true });
   });
-  it("falls back from the generated label to the band to the flight number", () => {
-    expect(flightTitle(heat(1, 1, 1, [], { autoLabel: "MGP 95/5", band: "90 proof" }), 2)).toEqual({ text: "MGP 95/5", yours: false });
-    expect(flightTitle(heat(1, 1, 1, [], { band: "90 to 94 proof" }), 2)).toEqual({ text: "90 to 94 proof", yours: false });
+  it("falls back from the generated name to the flight number, never to the band", () => {
+    expect(flightTitle(heat(1, 1, 1, [], { autoLabel: "High rye bourbons", band: "90 proof" }), 2)).toEqual({ text: "High rye bourbons", yours: false });
+    expect(flightTitle(heat(1, 1, 1, [], { band: "90 to 94 proof" }), 2)).toEqual({ text: "Flight 2", yours: false });
     expect(flightTitle(heat(1, 1, 1, []), 2)).toEqual({ text: "Flight 2", yours: false });
   });
   it("shows only the band on a hidden flight, even if a label is somehow present", () => {
@@ -154,7 +154,7 @@ describe("buildBracketModel: a running tournament", () => {
       ["Buffalo Trace", 4, false],
     ]);
     expect(one!.flights[1]!.rows.map((r) => r.advanced)).toEqual([true]);
-    expect(one!.flights[1]!.meta).toBe("Flight 2 · Bye");
+    expect(one!.flights[1]!.meta).toBe("100 proof · Bye");
     expect([one!.state, two!.state]).toEqual(["decided", "now"]);
     expect(one!.note).toBe("Flights of 4 advanced 2, byes advanced 1");
   });
@@ -176,6 +176,19 @@ describe("buildBracketModel: a running tournament", () => {
     const col = buildBracketModel({ ...settings, status: "complete" as const, currentRound: 3, rounds: [{ round: 3, heats: [final] }] }).columns[0] as RoundColumn;
     expect(col.heading).toBe("Final");
     expect(col.flights[0]!.rows.map((r) => r.advanced)).toEqual([false, false]);
+  });
+  it("carries each bottle's category, distilleries and finishes", () => {
+    const f = buildBracketModel({
+      status: "draft" as const,
+      currentRound: null,
+      ...settings,
+      rounds: [{ round: 1, heats: [heat(1, 1, 1, [entry(1, "A", 100, { category: "Rye", distilleries: ["MGP", "Dickel"], finishes: ["Port"] }), entry(2, "B", 100)], { band: "100 proof" })] }],
+    }).columns[0] as RoundColumn;
+    expect(f.flights[0]!.rows.map((r) => [r.category, r.distilleries, r.finishes])).toEqual([["Rye", ["MGP", "Dickel"], ["Port"]], [null, [], []]]);
+  });
+  it("a lone bottle in a draft has not advanced (so its row keeps its menu)", () => {
+    const draft = buildBracketModel({ ...settings, status: "draft" as const, currentRound: null, rounds: [{ round: 1, heats: [bye, heat(5, 1, 3, [entry(1, "A", 90), entry(2, "B", 91)])] }] });
+    expect((draft.columns[0] as RoundColumn).flights[0]!.rows.map((r) => r.advanced)).toEqual([false]);
   });
   it("plans the rounds still to come", () => {
     expect(model.columns.map((c) => c.heading)).toEqual(["Round 1", "Round 2", "Final"]);

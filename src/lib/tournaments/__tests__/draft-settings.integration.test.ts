@@ -53,4 +53,21 @@ describe.skipIf(!url)("changing a draft's settings", () => {
       expect((await m.queries.getTournament(owner, id))!.rounds[0]!.heats.length).toBeGreaterThan(0);
     }
   });
+
+  it("regroups the remaining bottles when flight size or seeding change after a bottle was removed", async () => {
+    for (const patch of [{ heatSize: 2 }, { seeding: "random" as const }]) {
+      const id = await namedDraft();
+      const view = (await m.queries.getTournament(owner, id))!;
+      const gone = view.rounds[0]!.heats[0]!.entries[0]!.entryId;
+      expect((await m.heats.removeDraftEntry(owner, id, gone)).ok).toBe(true);
+      expect((await m.life.updateDraft(owner, id, patch)).ok).toBe(true);
+      const after = (await m.queries.getTournament(owner, id))!;
+      const kept = after.rounds[0]!.heats.flatMap((h) => h.entries.map((e) => e.entryId));
+      expect(kept).toHaveLength(bottles.length - 1);
+      expect(kept).not.toContain(gone);
+      expect(after.entries.map((e) => e.id)).not.toContain(gone);
+      expect(after.rounds[0]!.heats.every((h) => h.label === null)).toBe(true);
+      if ("heatSize" in patch) expect(after.rounds[0]!.heats.every((h) => h.entries.length <= 2)).toBe(true);
+    }
+  });
 });

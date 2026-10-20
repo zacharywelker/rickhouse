@@ -10,7 +10,7 @@ const tournament = (over: Partial<TournamentRow> = {}): TournamentRow => ({
 const names = ["Buffalo Trace", "Eagle Rare", "Weller 12", "Blanton's", "Booker's", "Elijah Craig"];
 const entries: EntryRow[] = names.map((displayName, i) => ({ id: i + 1, displayName, status: "active", bottleId: i + 1, expressionId: i + 1, seed: i }));
 const entrants = new Map<number, Entrant>(
-  entries.map((e, i) => [e.id, { id: e.id, name: e.displayName, proof: 90 + i * 2, mashbill: { kind: "generic", style: "High Rye" }, distilleries: ["Buffalo Trace"], ageYears: null, finishes: [] }]),
+  entries.map((e, i) => [e.id, { id: e.id, name: e.displayName, proof: 90 + i * 2, mashbill: { kind: "generic", style: "High Rye" }, distilleries: ["Buffalo Trace"], ageYears: null, finishes: ["Tawny Port", "Madeira"], category: "Bourbon" }]),
 );
 const input = (t: TournamentRow, heats: HeatRow[], heatEntries: HeatEntryRow[]) => buildView({ tournament: t, entries, heats, heatEntries, entrants });
 
@@ -32,7 +32,8 @@ describe("buildView", () => {
     const pending = v.rounds[1]!.heats[0]!;
     expect(pending.hidden).toBe(false);
     expect(pending.entries.map((e) => e.name)).toEqual(["Buffalo Trace", "Eagle Rare"]);
-    expect(pending.autoLabel).toBe("Buffalo Trace High Rye");
+    expect(pending.autoLabel).toBe("Buffalo Trace · High rye, wine-finished bourbons");
+    expect(pending.band).toBe("90 to 92 proof");
     expect(pending.label).toBe("My pour");
     expect(v.currentRound).toBe(2);
     expect(v.progress).toEqual({ done: 0, total: 1 });
@@ -86,6 +87,18 @@ describe("buildView", () => {
     expect(v.entries.map((e) => [e.name, e.kind])).toEqual([["Buffalo Trace", "bottle"], ["Eagle Rare", "bottle"], ["Friend's", "label"], ["Joe's cask", "adhoc"]]);
   });
 
+  it("carries each entry's category and finishes, in the roster and in an open heat; unknown entrants give null and none", () => {
+    const withAdHoc: EntryRow[] = [entries[0]!, { id: 9, displayName: "Joe's cask", status: "active", bottleId: null, expressionId: null, seed: 9 }];
+    const v = buildView({
+      tournament: tournament(), entries: withAdHoc,
+      heats: [{ id: 30, round: 1, slot: 1, label: null, status: "pending" }],
+      heatEntries: [{ heatId: 30, entryId: 1, place: null, glass: null }, { heatId: 30, entryId: 9, place: null, glass: null }],
+      entrants,
+    });
+    expect(v.entries.map((e) => [e.name, e.category, e.finishes])).toEqual([["Buffalo Trace", "Bourbon", ["Tawny Port", "Madeira"]], ["Joe's cask", null, []]]);
+    expect(v.rounds[0]!.heats[0]!.entries.map((e) => [e.name, e.category, e.finishes])).toEqual([["Buffalo Trace", "Bourbon", ["Tawny Port", "Madeira"]], ["Joe's cask", null, []]]);
+  });
+
   it("leaks nothing about pending heats of a blind tournament outside the roster, and does not mutate its inputs", () => {
     const blindHeats: HeatRow[] = [
       { id: 40, round: 1, slot: 1, label: "Owner pour", status: "pending" },
@@ -103,6 +116,9 @@ describe("buildView", () => {
     const json = JSON.stringify(rest);
     for (const name of names) expect(json).not.toContain(name);
     expect(json).not.toContain("High Rye");
+    expect(json).not.toContain("Bourbon");
+    expect(json).not.toContain("Port");
+    expect(json).not.toContain("Madeira");
     expect(json).not.toContain("Owner pour");
     expect(json).not.toMatch(/"entryId"/);
     expect(v.standings).toEqual([]);

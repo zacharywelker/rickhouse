@@ -14,7 +14,7 @@ export async function GET(): Promise<NextResponse> {
 }
 
 /**
- * Makes a draft tournament. `name` and `heatSize` (2 to 4) are required; `seeding` (similar or random), `groupOrder`
+ * Makes a draft tournament. `name` and `heatSize` (2 to 6) are required; `seeding` (similar or random), `groupOrder`
  * (the five keys proof, mashbill, distillery, age and finish, each once, highest priority first), `blind` and
  * `fieldNote` have defaults. `entries` is a list of `{ bottleId }`, `{ expressionId }` (a label with no bottle) or
  * `{ name }` (an outside entry), up to 500. Answers 201 with the new id.

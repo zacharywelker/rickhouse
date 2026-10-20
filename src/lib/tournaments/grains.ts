@@ -35,6 +35,63 @@ const GENERIC: Record<string, { family: string; share: number } | "four grain"> 
   "four grain": "four grain",
 };
 
+/** A recipe's share per grain family, summed over its grains (a grain whose percent is not a number is dropped). */
+function familyShares(grains: readonly { grain: string; percent: number }[]): Map<string, number> {
+  const shares = new Map<string, number>();
+  for (const { grain, percent } of grains) {
+    if (!Number.isFinite(percent)) continue;
+    const family = grainFamily(grain);
+    shares.set(family, (shares.get(family) ?? 0) + percent);
+  }
+  return shares;
+}
+
+/** A rye share at or above this is a high rye; at or below `LOW_RYE_MAX` a low rye; in between has no name. */
+export const HIGH_RYE_MIN = 20;
+export const LOW_RYE_MAX = 12;
+/** A recipe is complete when its listed grain shares total at least this much (rounding and trace grains allowed). */
+const RECIPE_MIN_TOTAL = 90;
+
+/** A recipe's corn family share must be at least this for "Low rye" or "Wheated" (a bourbon concept). */
+const CORN_MAJORITY = 51;
+
+export type MashbillClass = "High rye" | "Low rye" | "Wheated";
+
+/**
+ * The name a bourbon-style mashbill goes by, for flight titles: "High rye" (rye share of 20 or more), "Wheated" (wheat is
+ * the flavoring grain: at least 10 points and no rye flavoring), "Low rye" (rye share of 12 or less); both of the last two need a corn majority of 51 to 99 in a recipe; a recipe totalling under
+ * 90 leaves a fifth or more unaccounted for (it could be rye), so it has no class, except that a listed rye share of 20
+ * or more is certain and still reads "High rye"; null for anything
+ * else (13 to 19 rye, a blend, a recipe with no grains, an incomplete recipe, an unknown style). A generic style maps by its name.
+ */
+export function mashbillClass(mashbill: MashbillInput | null): MashbillClass | null {
+  if (mashbill === null || mashbill.kind === "blend") return null;
+  let rye: number;
+  let wheat: number;
+  // Low rye and Wheated are bourbon concepts: a recipe needs a corn majority (and some other grain) to carry either.
+  let bourbonLike = true;
+  if (mashbill.kind === "generic") {
+    const style = normalize(mashbill.style);
+    const typical = Object.hasOwn(GENERIC, style) ? GENERIC[style]! : undefined;
+    if (typical === undefined || typical === "four grain") return null;
+    rye = typical.family === "rye" ? typical.share : 0;
+    wheat = typical.family === "wheat" ? typical.share : 0;
+  } else {
+    const shares = familyShares(mashbill.grains);
+    rye = shares.get("rye") ?? 0;
+    // An incomplete recipe's missing share could be rye: only a listed rye of 20+ is certain; anything else is unknown.
+    if ([...shares.values()].reduce((a, b) => a + b, 0) < RECIPE_MIN_TOTAL) return rye >= HIGH_RYE_MIN ? "High rye" : null;
+    wheat = shares.get("wheat") ?? 0;
+    const corn = shares.get("corn") ?? 0;
+    bourbonLike = corn >= CORN_MAJORITY && corn < 100;
+  }
+  if (rye >= HIGH_RYE_MIN) return "High rye";
+  if (!bourbonLike) return null;
+  if (wheat >= FLAVORING_MIN && rye < FLAVORING_MIN) return "Wheated";
+  if (rye <= LOW_RYE_MAX) return "Low rye";
+  return null;
+}
+
 // Class kinds, in sort order.
 const CORN = 0;
 const ONE = 1;
@@ -69,11 +126,7 @@ export function mashbillKey(mashbill: MashbillInput | null): { band: Comparable;
   const grains = mashbill.grains.filter((g) => Number.isFinite(g.percent));
   if (grains.length === 0) return null;
 
-  const shares = new Map<string, number>();
-  for (const { grain, percent } of grains) {
-    const family = grainFamily(grain);
-    shares.set(family, (shares.get(family) ?? 0) + percent);
-  }
+  const shares = familyShares(grains);
   const corn = shares.get("corn") ?? 0;
   const malt = shares.get("malt") ?? 0;
   const flavoring = [...shares]

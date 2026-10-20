@@ -4,12 +4,14 @@ import * as React from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { matchEntries, stepMatch } from "@/lib/tournaments/bracket-search";
+import { canDragBottle, canDragFlight, flightSteps, type DragView } from "@/lib/tournaments/drag-model";
 import { isOpen, type FlightControls } from "@/lib/tournaments/bracket-actions";
 import type { BracketModel } from "@/lib/tournaments/bracket-model";
 import type { TournamentView } from "@/lib/tournaments/view";
 import { BracketFind } from "./bracket-find";
 import { FlightCard, rowDomId } from "./flight-card";
 import { useBracketActions } from "./use-bracket-actions";
+import { useBracketDrag } from "./use-bracket-drag";
 import { useStickyScrollPadding } from "./use-sticky-scroll-padding";
 
 /**
@@ -24,7 +26,7 @@ export function Bracket({
   heatSize,
   draft,
   controls,
-  rounds,
+  view,
 }: {
   tournamentId: number;
   model: BracketModel;
@@ -33,16 +35,38 @@ export function Bracket({
   draft: boolean;
   /** What each flight offers, by flight id. */
   controls: Record<number, FlightControls>;
-  /** For the search only; a hidden flight carries no names. */
-  rounds: TournamentView["rounds"];
+  /** What the search and the drop rules read; a hidden flight carries no names. */
+  view: DragView;
 }) {
+  const rounds = view.rounds satisfies TournamentView["rounds"];
   const actions = useBracketActions(tournamentId);
+  const nameOf = React.useCallback(
+    (t: { kind: string; entryId?: number }) => (t.entryId === undefined ? null : (rounds.flatMap((r) => r.heats).flatMap((h) => h.entries).find((e) => e.entryId === t.entryId)?.name ?? null)),
+    [rounds],
+  );
+  const dnd = useBracketDrag(view, actions, { target: nameOf });
   const host = React.useRef<HTMLDivElement>(null);
   useStickyScrollPadding(host);
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<number>>(new Set());
   const [query, setQuery] = React.useState("");
   const [index, setIndex] = React.useState<number | null>(null);
   const wantScroll = React.useRef(false);
+  // After a bottle is removed the page refreshes (a new model); focus then goes to the first of these that is still there.
+  const focusAfter = React.useRef<string[]>([]);
+  // A failed action must not leave a pending focus behind, or the next unrelated refresh would pull focus to it.
+  React.useEffect(() => {
+    if (actions.error !== null) focusAfter.current = [];
+  }, [actions.error]);
+  React.useEffect(() => {
+    const candidates = focusAfter.current;
+    if (candidates.length === 0) return;
+    focusAfter.current = [];
+    for (const id of candidates) {
+      const el = document.getElementById(id);
+      el?.focus();
+      if (el && document.activeElement === el) return; // a disabled button (a flight now first or last) takes no focus: try the next
+    }
+  }, [model]);
 
   const matches = React.useMemo(() => matchEntries({ rounds }, query), [rounds, query]);
   const current = index !== null ? (matches[index] ?? null) : null;
@@ -102,18 +126,21 @@ export function Bracket({
           onStep={step}
         />
       )}
+      <p role="status" aria-live="polite" className={dnd.message ? "text-sm text-muted-foreground" : "sr-only"}>
+        {dnd.message}
+      </p>
       {actions.error ? (
         <p role="alert" className="text-sm text-destructive">
           {actions.error}
         </p>
       ) : null}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,24rem),1fr))] items-start gap-x-8 gap-y-6">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,44rem),1fr))] items-start gap-x-8 gap-y-6">
         {model.columns.map((column) => {
           const isCollapsed = column.kind === "round" && collapsed.has(column.round);
           return (
             <section key={`${column.kind}-${column.round}`} aria-labelledby={`round-${column.round}`} className="min-w-0">
               <header className="sticky top-0 z-10 bg-background pb-1 pt-2">
-                <h2 id={`round-${column.round}`} className="flex items-baseline justify-between gap-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                <h2 id={`round-${column.round}`} tabIndex={-1} className="flex items-baseline justify-between gap-3 focus:outline-none text-sm font-medium uppercase tracking-wide text-muted-foreground">
                   <span>
                     {column.heading}
                     {column.kind === "round" && column.state ? ` · ${column.state}` : ""}
@@ -141,16 +168,31 @@ export function Bracket({
                 <div id={`round-body-${column.round}`} hidden={isCollapsed}>
                   {column.flights.map((flight) => {
                     const others = column.flights.filter((other) => other.id !== flight.id && isOpen(other));
+                    const heat = rounds.flatMap((r) => r.heats).find((h) => h.id === flight.id);
                     return (
                       <FlightCard
                         key={flight.id}
                         tournamentId={tournamentId}
                         flight={flight}
                         controls={controls[flight.id] ?? { play: false, undo: false, move: false, withdraw: [] }}
-                        moveTargets={others.map((other) => ({ heatId: other.id, title: `Flight ${other.number} · ${other.title.text}`, full: other.count >= heatSize }))}
-                        swapTargets={others.flatMap((other) => other.rows.map((row) => ({ entryId: row.entryId, name: row.name, flight: `Flight ${other.number}` })))}
+                        moveTargets={others
+                          .filter((other) => other.count < heatSize)
+                          .map((other) => ({ heatId: other.id, title: `Flight ${other.number} · ${other.title.text}`, count: other.count, size: heatSize }))}
+                        anyOther={others.some((other) => !other.hidden)}
+                        swapTargets={() => others.flatMap((other) => other.rows.map((row) => ({ entryId: row.entryId, name: row.name, flight: `Flight ${other.number}` })))}
+                        dnd={dnd}
+                        canDragRows={!!heat && canDragBottle(view, heat)}
+                        canDragFlight={!!heat && canDragFlight(view, heat)}
+                        steps={heat ? flightSteps(view, heat) : null}
                         marks={marks.get(flight.id) ?? noMarks}
                         actions={actions}
+                        draft={draft}
+                        onRemoved={(candidates) => {
+                          focusAfter.current = [...candidates, `round-${column.round}`];
+                        }}
+                        onShifted={(candidates) => {
+                          focusAfter.current = candidates;
+                        }}
                       />
                     );
                   })}

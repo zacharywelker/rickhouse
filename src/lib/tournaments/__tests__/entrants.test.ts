@@ -9,6 +9,7 @@ const facts = (over: Partial<EntryFacts> = {}): EntryFacts => ({
   fieldGroup: "whiskey",
   distilleries: [],
   finishes: [],
+  category: "Bourbon",
   mashbills: [],
   ...over,
 });
@@ -64,6 +65,11 @@ describe("buildEntrant", () => {
     const e = buildEntrant(1, "x", facts({ distilleries: ["MGP", "Barton"], finishes: ["Sherry", "Port"] }));
     expect(e.distilleries).toEqual(["MGP", "Barton"]);
     expect(e.finishes).toEqual(["Sherry", "Port"]);
+  });
+
+  it("carries the leaf category name, or null when unknown", () => {
+    expect(buildEntrant(1, "x", facts({ category: "Single Malt Scotch" })).category).toBe("Single Malt Scotch");
+    expect(buildEntrant(1, "x", facts({ category: null })).category).toBeNull();
   });
 
   it("reads a recipe, a secret mashbill's name, a generic style, several mashbills and none", () => {

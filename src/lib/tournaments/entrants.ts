@@ -18,6 +18,8 @@ export type EntryFacts = {
   ageMonths: number | null;
   ageDays: number | null;
   fieldGroup: string | null;
+  /** The label's own (leaf) category name. */
+  category: string | null;
   distilleries: string[];
   finishes: string[];
   mashbills: MashbillRow[];
@@ -99,5 +101,6 @@ export function buildEntrant(id: number, name: string, facts: EntryFacts): Entra
     distilleries: facts.distilleries,
     ageYears: ageInYears(facts.ageYears, facts.ageMonths, facts.ageDays),
     finishes: facts.finishes,
+    category: facts.category,
   };
 }

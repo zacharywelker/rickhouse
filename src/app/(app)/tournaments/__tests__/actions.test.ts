@@ -6,7 +6,7 @@ const { requireSession, revalidatePath, life, heats, field, calls } = vi.hoisted
     requireSession: vi.fn(),
     revalidatePath: vi.fn(),
     life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
-    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
+    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), removeDraftEntry: fn(), moveHeat: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     field: { fieldCandidates: fn(), labelCandidates: fn() },
     calls: [] as string[],
   };
@@ -50,6 +50,7 @@ const viewActions: [string, () => Promise<unknown>, ReturnType<typeof vi.fn>, un
   ["recordHeatAction", () => actions.recordHeatAction(3, 5, { ranking: [1, 2] }), heats.recordHeat, [7, 3, 5, { ranking: [1, 2] }, 7]],
   ["undoHeatAction", () => actions.undoHeatAction(3, 5), heats.undoHeat, [7, 3, 5]],
   ["withdrawEntryAction", () => actions.withdrawEntryAction(3, 9), heats.withdrawEntry, [7, 3, 9]],
+  ["removeDraftEntryAction", () => actions.removeDraftEntryAction(3, 9), heats.removeDraftEntry, [7, 3, 9]],
   [
     "setGlassesAction",
     () => actions.setGlassesAction(3, 5, [{ entryId: 1, glass: "A" }, { entryId: 2, glass: "B" }]),
@@ -60,6 +61,7 @@ const viewActions: [string, () => Promise<unknown>, ReturnType<typeof vi.fn>, un
   ["swapEntriesAction", () => actions.swapEntriesAction(3, 9, 5), heats.swapEntries, [7, 3, 9, 5]],
   ["promoteEntryAction", () => actions.promoteEntryAction(3, 9, { bottleId: 4 }), heats.promoteEntry, [7, 3, 9, { bottleId: 4 }]],
   ["renameHeatAction", () => actions.renameHeatAction(3, 5, "Finals"), heats.renameHeat, [7, 3, 5, "Finals"]],
+  ["moveHeatAction", () => actions.moveHeatAction(3, 5, 2), heats.moveHeat, [7, 3, 5, 2]],
 ];
 
 describe.each(viewActions)("%s", (_name, run, command, args) => {
@@ -103,6 +105,7 @@ describe("invalid input never reaches the command", () => {
     ["swapEntriesAction", () => actions.swapEntriesAction(3, 9, 0), heats.swapEntries],
     ["promoteEntryAction", () => actions.promoteEntryAction(3, 9, {}), heats.promoteEntry],
     ["renameHeatAction", () => actions.renameHeatAction(3, 5, "x".repeat(81)), heats.renameHeat],
+    ["moveHeatAction", () => actions.moveHeatAction(3, 5, 0), heats.moveHeat],
   ])("%s", async (_name, run, command) => {
     const out = (await run()) as { ok: boolean; error?: string };
     expect(out.ok).toBe(false);
@@ -116,6 +119,9 @@ describe("invalid input never reaches the command", () => {
     expect(await actions.startTournamentAction(Number.NaN)).toEqual({ ok: false, error: "That tournament is gone." });
     expect(await actions.undoHeatAction(3, -1)).toEqual({ ok: false, error: "That flight is gone." });
     expect(await actions.withdrawEntryAction(3, 1.5)).toEqual({ ok: false, error: "That entry is gone." });
+    expect(await actions.removeDraftEntryAction(3, 0)).toEqual({ ok: false, error: "That entry is gone." });
+    expect(await actions.removeDraftEntryAction(Number.NaN, 4)).toEqual({ ok: false, error: "That tournament is gone." });
+    expect(heats.removeDraftEntry).not.toHaveBeenCalled();
     expect(await actions.deleteTournamentAction(0)).toEqual({ ok: false, error: "That tournament is gone." });
     expect(await actions.drawHeatAction(Number.NaN)).toEqual({ ok: false, error: "That tournament is gone." });
     expect(life.startTournament).not.toHaveBeenCalled();
@@ -143,7 +149,7 @@ describe("createTournamentAction", () => {
 
   it("rejects a bad input with field errors", async () => {
     const out = await actions.createTournamentAction({ name: "", heatSize: 9 });
-    expect(out).toMatchObject({ ok: false, error: "Name the tournament.", fieldErrors: { name: "Name the tournament.", heatSize: "A flight holds 2 to 4 bottles." } });
+    expect(out).toMatchObject({ ok: false, error: "Name the tournament.", fieldErrors: { name: "Name the tournament.", heatSize: "A flight holds 2 to 6 bottles." } });
     expect(life.createTournament).not.toHaveBeenCalled();
     expect(calls).toEqual(["session"]);
   });

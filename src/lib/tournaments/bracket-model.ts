@@ -11,6 +11,10 @@ export type RowModel = {
   proof: string;
   mashbill: string;
   age: string;
+  /** The spirit category ("Bourbon", "Rye"); null for an outside entry or when unknown. */
+  category: string | null;
+  distilleries: string[];
+  finishes: string[];
   /** True when no proof is recorded, so the grouping put the bottle last. */
   unknownProof: boolean;
   place: number | null;
@@ -80,18 +84,18 @@ export function pourOrder(entries: ViewHeatEntry[]): ViewHeatEntry[] {
 }
 
 /**
- * A flight's title: your own name wins and is marked yours; else what its bottles share; else its proof band. A hidden
+ * A flight's title: your own name wins and is marked yours; else what its bottles share (the engine's generated name,
+ * never the proof band, which the meta line carries); else its number. A hidden
  * flight (pending in a running blind tournament) shows only its band: even a name you gave it could give the glass away.
  */
 export function flightTitle(heat: ViewHeat, number: number): FlightTitle {
-  const fallback = heat.band || `Flight ${number}`;
-  if (heat.hidden) return { text: fallback, yours: false };
+  if (heat.hidden) return { text: heat.band || `Flight ${number}`, yours: false };
   const custom = heat.label?.trim();
   if (custom) return { text: custom, yours: true };
-  return { text: heat.autoLabel ?? fallback, yours: false };
+  return { text: heat.autoLabel ?? `Flight ${number}`, yours: false };
 }
 
-function flightModel(heat: ViewHeat, number: number, final: boolean): FlightModel {
+function flightModel(heat: ViewHeat, number: number, final: boolean, draft: boolean): FlightModel {
   const title = flightTitle(heat, number);
   const metaParts: string[] = [];
   if (title.text !== `Flight ${number}`) metaParts.push(`Flight ${number}`);
@@ -99,8 +103,8 @@ function flightModel(heat: ViewHeat, number: number, final: boolean): FlightMode
   if (!heat.hidden && !heat.band && heat.entries.length > 0) metaParts.push("Proof unknown for some");
   if (heat.status === "bye") metaParts.push("Bye");
 
-  // Nobody advances out of a final; the champion line shows who won.
-  const finished = heat.status !== "pending" && !final;
+  // Nobody advances out of a final; the champion line shows who won. A draft decides nothing, so a lone bottle (a bye) has not advanced yet.
+  const finished = heat.status !== "pending" && !final && !draft;
   const through = new Set(
     finished
       ? advancers({
@@ -126,6 +130,9 @@ function flightModel(heat: ViewHeat, number: number, final: boolean): FlightMode
       proof: formatProof(e.proof),
       mashbill: e.mashbill ?? "—",
       age: formatAge(e.ageYears),
+      category: e.category,
+      distilleries: e.distilleries,
+      finishes: e.finishes,
       unknownProof: e.proof === null,
       place: e.place,
       advanced: through.has(e.entryId),
@@ -164,7 +171,7 @@ export function buildBracketModel(view: Pick<TournamentView, "status" | "heatSiz
   let renamed = 0;
   for (const { round, heats } of view.rounds) {
     const final = heats.length === 1;
-    const flights = heats.map((h, i) => flightModel(h, i + 1, final));
+    const flights = heats.map((h, i) => flightModel(h, i + 1, final, view.status === "draft"));
     renamed += heats.filter((h) => h.label?.trim()).length;
     const allDone = heats.every((h) => h.status !== "pending");
     columns.push({

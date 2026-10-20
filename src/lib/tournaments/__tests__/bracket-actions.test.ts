@@ -6,8 +6,8 @@ const heat = (id: number, round: number, status: ViewHeat["status"], extra: Part
   id, round, slot: id, status, label: null, autoLabel: null, band: "", hidden: false, entryCount: 2, glasses: [], entries: [], ...extra,
 });
 const entries = [
-  { id: 1, name: "A", status: "active" as const, kind: "bottle" as const, bottleId: 1, expressionId: 1 },
-  { id: 2, name: "B", status: "withdrawn" as const, kind: "bottle" as const, bottleId: 2, expressionId: 2 },
+  { id: 1, name: "A", status: "active" as const, kind: "bottle" as const, bottleId: 1, expressionId: 1, category: null, finishes: [] as string[] },
+  { id: 2, name: "B", status: "withdrawn" as const, kind: "bottle" as const, bottleId: 2, expressionId: 2, category: null, finishes: [] as string[] },
 ];
 const view = (status: ActionView["status"], rounds: ViewHeat[][], blind = false): ActionView => ({
   status, blind, entries,
@@ -67,6 +67,11 @@ describe("canMove", () => {
     expect(canMove(v, v.rounds[1]!.heats[0]!)).toBe(true);
     expect(canMove(v, v.rounds[0]!.heats[0]!)).toBe(false);
   });
+  it("a draft of 9 in flights of 4 ends in a lone bottle (a bye) that still offers Move", () => {
+    const lone = heat(3, 1, "bye", { entryCount: 1, entries: [{ entryId: 9, name: "Lone", place: null, glass: null, proof: 100, mashbill: null, ageYears: null, distilleries: [], category: null, finishes: [] }] });
+    const v = view("draft", [[heat(1, 1, "pending", { entryCount: 4 }), heat(2, 1, "pending", { entryCount: 4 }), lone]]);
+    expect(flightControls(v, lone)).toMatchObject({ move: true, play: false });
+  });
   it("a bye's lone bottle can move too, in a draft or the current round", () => {
     expect(canMove(view("draft", [[heat(1, 1, "bye")]]), heat(1, 1, "bye"))).toBe(true);
     expect(canMove(view("active", [[heat(1, 1, "bye"), heat(2, 1, "pending")]]), heat(1, 1, "bye"))).toBe(true);
@@ -97,7 +102,7 @@ describe("canReset", () => {
 });
 
 describe("flightControls", () => {
-  const e = (entryId: number) => ({ entryId, name: "x", place: null, glass: null, proof: null, mashbill: null, ageYears: null, distilleries: [] });
+  const e = (entryId: number) => ({ entryId, name: "x", place: null, glass: null, proof: null, mashbill: null, ageYears: null, distilleries: [], category: null, finishes: [] });
   it("lists what a pending flight of a running open tournament offers", () => {
     const h = heat(1, 1, "pending", { entries: [e(1), e(2)] });
     expect(flightControls(view("active", [[h]]), h)).toEqual({ play: true, undo: false, move: true, withdraw: [1] });

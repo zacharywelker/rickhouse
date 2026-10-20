@@ -55,6 +55,7 @@ export type Cat = { whiskey: number; rum: number };
 export function fixtures(m: Db) {
   const users: number[] = [];
   const cats: number[] = [];
+  const finishIds: number[] = [];
   let seq = 0;
   // Test files run in parallel, so the id carries the process and a random part as well as a counter.
   const uid = () => `${process.pid.toString(36)}${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -76,7 +77,7 @@ export function fixtures(m: Db) {
   }
 
   /** A label with its brand, and optionally a generic mashbill style (every account starts with them) and a distillery. */
-  async function mkLabel(owner: number, cat: number, name: string, opts: { proof?: number; style?: string; distillery?: string; ageYears?: number } = {}): Promise<number> {
+  async function mkLabel(owner: number, cat: number, name: string, opts: { proof?: number; style?: string; distillery?: string; ageYears?: number; finishes?: string[] } = {}): Promise<number> {
     const [brand] = await m.sql<{ id: number }>(`INSERT INTO brands (name, slug, owner_id) VALUES ($1, $2, $3) RETURNING id`, `B ${name}`, `b-${uid()}`, owner);
     const [label] = await m.sql<{ id: number }>(
       `INSERT INTO expressions (brand_id, category_id, name, slug, owner_id, proof, age_years) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
@@ -89,6 +90,11 @@ export function fixtures(m: Db) {
     if (opts.distillery) {
       const [d] = await m.sql<{ id: number }>(`INSERT INTO distilleries (name, slug, owner_id) VALUES ($1, $2, $3) RETURNING id`, `${opts.distillery} ${uid()}`, `d-${uid()}`, owner);
       await m.sql(`INSERT INTO expression_distilleries (expression_id, distillery_id) VALUES ($1, $2)`, label!.id, d!.id);
+    }
+    for (const [position, finish] of (opts.finishes ?? []).entries()) {
+      const [f] = await m.sql<{ id: number }>(`INSERT INTO finishes (name, slug, owner_id) VALUES ($1, $2, $3) RETURNING id`, `${finish} ${uid()}`, `f-${uid()}`, owner);
+      finishIds.push(f!.id);
+      await m.sql(`INSERT INTO expression_finishes (expression_id, finish_id, position) VALUES ($1, $2, $3)`, label!.id, f!.id, position);
     }
     return label!.id;
   }
@@ -128,6 +134,7 @@ export function fixtures(m: Db) {
 
   async function cleanup(): Promise<void> {
     for (const id of users) await m.sql(`DELETE FROM users WHERE id = $1`, id);
+    for (const id of finishIds) await m.sql(`DELETE FROM finishes WHERE id = $1`, id);
     for (const id of cats) await m.sql(`DELETE FROM categories WHERE id = $1`, id);
   }
 

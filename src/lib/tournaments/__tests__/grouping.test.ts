@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { autoLabel, groupAtRandom, groupIntoHeats, heatBand } from "../grouping";
+import { groupAtRandom, groupIntoHeats, heatBand } from "../grouping";
 import { DEFAULT_GROUP_ORDER, isGroupOrder, type Entrant, type MashbillInput } from "../types";
 
 const generic = (style: string): MashbillInput => ({ kind: "generic", style });
 const entrant = (id: number, name: string, over: Partial<Entrant> = {}): Entrant => ({
-  id, name, proof: null, mashbill: null, distilleries: [], ageYears: null, finishes: [], ...over,
+  id, name, proof: null, mashbill: null, distilleries: [], ageYears: null, finishes: [], category: null, ...over,
 });
 const names = (heats: Entrant[][]) => heats.map((h) => h.map((e) => e.name));
 
@@ -99,7 +99,6 @@ describe("groupIntoHeats: edges", () => {
     const field = [entrant(1, "a", { proof: 99.9 }), entrant(2, "b", { proof: 100 }), entrant(3, "c", { proof: 104.9 }), entrant(4, "d", { proof: 105 })];
     // 99.9 is in the 95 band, 100 and 104.9 share the 100 band, 105 starts the next: the order is by band, then exact proof.
     expect(names(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 2))).toEqual([["a", "b"], ["c", "d"]]);
-    expect(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 1).map((h) => h[0]!.name)).toEqual(["a", "b", "c", "d"]);
   });
 
   it("falls back to entry id when nothing separates two entrants", () => {
@@ -107,16 +106,17 @@ describe("groupIntoHeats: edges", () => {
     expect(names(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 2))).toEqual([["earlier", "later"]]);
   });
 
-  it("refuses a heat size that is not a whole number of at least 1", () => {
+  it("refuses a heat size that is not a whole number from 2 to 6", () => {
     const field = [entrant(1, "a"), entrant(2, "b")];
-    for (const size of [0, -1, 1.5, NaN]) {
+    for (const size of [0, 1, -1, 7, 1.5, NaN]) {
       expect(() => groupIntoHeats(field, DEFAULT_GROUP_ORDER, size)).toThrow(RangeError);
     }
   });
 
-  it("makes every entrant its own heat when the heat size is 1", () => {
-    const field = [entrant(3, "c"), entrant(1, "a"), entrant(2, "b")];
-    expect(names(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 1))).toEqual([["a"], ["b"], ["c"]]);
+  it("cuts flights of up to 6 and leaves a short last flight", () => {
+    const field = Array.from({ length: 13 }, (_, i) => entrant(i + 1, `e${i + 1}`));
+    expect(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 6).map((h) => h.length)).toEqual([6, 6, 1]);
+    expect(groupIntoHeats(field, DEFAULT_GROUP_ORDER, 5).map((h) => h.length)).toEqual([5, 5, 3]);
   });
 });
 
@@ -125,54 +125,6 @@ describe("heatBand", () => {
     expect(heatBand([entrant(1, "a", { proof: 90 }), entrant(2, "b", { proof: 94 })])).toBe("90 to 94 proof");
     expect(heatBand([entrant(1, "a", { proof: 100 }), entrant(2, "b", { proof: 100 })])).toBe("100 proof");
     expect(heatBand([entrant(1, "a", { proof: 90 }), entrant(2, "b")])).toBe("");
-  });
-});
-
-describe("autoLabel", () => {
-  const recipe = (name: string | null, grains: [string, number][]): MashbillInput => ({
-    kind: "recipe", name, grains: grains.map(([grain, percent]) => ({ grain, percent })),
-  });
-
-  it("names a shared secret mashbill, without repeating its distillery", () => {
-    const m = recipe("Buffalo Trace High Rye", [["Corn", 75]]);
-    const heat = [1, 2].map((id) => entrant(id, `b${id}`, { mashbill: m, distilleries: ["Buffalo Trace"] }));
-    expect(autoLabel(heat)).toBe("Buffalo Trace High Rye");
-  });
-
-  it("puts a shared distillery in front of a shared recipe", () => {
-    const m = recipe(null, [["Rye", 95], ["Malted Barley", 5]]);
-    const heat = [1, 2].map((id) => entrant(id, `b${id}`, { mashbill: m, distilleries: ["MGP"] }));
-    expect(autoLabel(heat)).toBe("MGP 95/5");
-  });
-
-  it("falls back to whichever of the two is shared, and to null when neither is", () => {
-    const high = generic("High Rye");
-    expect(autoLabel([entrant(1, "a", { mashbill: high, distilleries: ["X"] }), entrant(2, "b", { mashbill: high, distilleries: ["Y"] })])).toBe("High Rye");
-    expect(autoLabel([entrant(1, "a", { distilleries: ["X"] }), entrant(2, "b", { distilleries: ["X"] })])).toBe("X");
-    expect(autoLabel([entrant(1, "a", { mashbill: high }), entrant(2, "b", { mashbill: generic("Wheated") })])).toBeNull();
-  });
-
-  it("calls a heat of several-distillery labels a blend, and is null when anything is unknown", () => {
-    expect(autoLabel([entrant(1, "a", { distilleries: ["X", "Y"] }), entrant(2, "b", { distilleries: ["Z", "W"] })])).toBe("Blend");
-    expect(autoLabel([entrant(1, "a", { distilleries: ["X"] }), entrant(2, "b")])).toBeNull();
-  });
-
-  it("matches distilleries that differ only in case, keeping the first spelling", () => {
-    const m = recipe(null, [["Rye", 95], ["Malted Barley", 5]]);
-    const heat = [entrant(1, "a", { mashbill: m, distilleries: ["MGP"] }), entrant(2, "b", { mashbill: m, distilleries: ["mgp"] })];
-    expect(autoLabel(heat)).toBe("MGP 95/5");
-  });
-
-  it("falls back to the shared distillery when both mashbills display as blank", () => {
-    const blank = recipe(null, []);
-    const heat = [1, 2].map((id) => entrant(id, `b${id}`, { mashbill: blank, distilleries: ["MGP"] }));
-    expect(autoLabel(heat)).toBe("MGP");
-    const noStyle = generic("  ");
-    expect(autoLabel([1, 2].map((id) => entrant(id, `b${id}`, { mashbill: noStyle, distilleries: ["MGP"] })))).toBe("MGP");
-  });
-
-  it("treats a whitespace-only distillery as unknown", () => {
-    expect(autoLabel([entrant(1, "a", { distilleries: ["  "] }), entrant(2, "b", { distilleries: ["  "] })])).toBeNull();
   });
 });
 
@@ -199,6 +151,6 @@ describe("groupAtRandom", () => {
   });
 
   it("refuses an unusable heat size, like groupIntoHeats", () => {
-    for (const bad of [0, -1, 1.5, Number.NaN]) expect(() => groupAtRandom(field, bad)).toThrow(RangeError);
+    for (const bad of [0, 1, -1, 7, 1.5, Number.NaN]) expect(() => groupAtRandom(field, bad)).toThrow(RangeError);
   });
 });

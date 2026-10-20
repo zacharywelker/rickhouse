@@ -19,12 +19,14 @@ describe("moveItem", () => {
 });
 
 describe("letters", () => {
-  it("run from A, up to four", () => {
+  it("run from A, up to six", () => {
     expect(lettersFor(3)).toEqual(["A", "B", "C"]);
     expect(lettersFor(2)).toEqual(["A", "B"]);
   });
   it("a shuffle uses each letter once", () => {
     for (let i = 0; i < 20; i++) expect(shuffledLetters(4).sort()).toEqual(["A", "B", "C", "D"]);
+    expect(lettersFor(6)).toEqual(["A", "B", "C", "D", "E", "F"]);
+    expect(shuffledLetters(6).sort()).toEqual(["A", "B", "C", "D", "E", "F"]);
     expect(shuffledLetters(3, () => 0)).toEqual(["B", "C", "A"]);
   });
   it("problems: missing, outside the set, repeated", () => {

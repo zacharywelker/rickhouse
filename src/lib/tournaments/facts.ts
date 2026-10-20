@@ -17,6 +17,7 @@ type ValueRow = {
   age_months: number | null;
   age_days: number | null;
   field_group?: string | null;
+  category_name?: string | null;
 };
 
 /**
@@ -34,7 +35,7 @@ export async function loadEntrants(tx: Tx, ownerId: number, entries: EntryRef[])
     ? await run<ValueRow>(sql`SELECT id, proof, age_years, age_months, age_days FROM bottle_list WHERE owner_id = ${ownerId} AND id IN (${list(bottleIds)})`)
     : [];
   const labelRows = expressionIds.length
-    ? await run<ValueRow>(sql`SELECT e.id, e.proof, e.age_years, e.age_months, e.age_days, c.field_group
+    ? await run<ValueRow>(sql`SELECT e.id, e.proof, e.age_years, e.age_months, e.age_days, c.field_group, c.name AS category_name
         FROM expressions e JOIN categories c ON c.id = e.category_id
         WHERE e.owner_id = ${ownerId} AND e.id IN (${list(expressionIds)})`)
     : [];
@@ -86,6 +87,7 @@ export async function loadEntrants(tx: Tx, ownerId: number, entries: EntryRef[])
       ageMonths: values?.age_months ?? null,
       ageDays: values?.age_days ?? null,
       fieldGroup: label?.field_group ?? null,
+      category: label?.category_name ?? null,
       distilleries: exprId !== null ? (distilleries.get(exprId) ?? []).map((d) => d.name) : [],
       finishes: exprId !== null ? (finishes.get(exprId) ?? []).map((f) => f.name) : [],
       mashbills:

@@ -6,7 +6,7 @@ const { getCurrentUser, life, heats, queries, rankingFor, field } = vi.hoisted((
   return {
     getCurrentUser: vi.fn(),
     life: { createTournament: fn(), updateDraft: fn(), deleteTournament: fn(), startTournament: fn(), resetRound: fn() },
-    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
+    heats: { recordHeat: fn(), undoHeat: fn(), withdrawEntry: fn(), removeDraftEntry: fn(), moveHeat: fn(), drawHeat: fn(), setGlasses: fn(), moveEntry: fn(), swapEntries: fn(), promoteEntry: fn(), renameHeat: fn() },
     queries: { getTournament: fn(), listTournaments: fn() },
     rankingFor: vi.fn(),
     field: { fieldCandidates: fn(), labelCandidates: fn() },
@@ -28,6 +28,7 @@ import * as draw from "../[id]/draw/route";
 import * as heat from "../[id]/heats/[heatId]/route";
 import * as result from "../[id]/heats/[heatId]/result/route";
 import * as glass from "../[id]/heats/[heatId]/glass/route";
+import * as moveHeatRoute from "../[id]/heats/[heatId]/move/route";
 import * as move from "../[id]/entries/[entryId]/move/route";
 import * as swap from "../[id]/entries/[entryId]/swap/route";
 import * as withdraw from "../[id]/entries/[entryId]/withdraw/route";
@@ -67,10 +68,12 @@ const routes: [string, Parameters<typeof call>[0], string, Record<string, string
   ["POST result", result.POST as never, "POST", { id: "3", heatId: "5" }, { ranking: [1, 2] }],
   ["DELETE result", result.DELETE as never, "DELETE", { id: "3", heatId: "5" }, undefined],
   ["PUT glass", glass.PUT as never, "PUT", { id: "3", heatId: "5" }, { assign: [{ entryId: 1, glass: "A" }, { entryId: 2, glass: "B" }] }],
+  ["POST heat move", moveHeatRoute.POST as never, "POST", { id: "3", heatId: "5" }, { toSlot: 2 }],
   ["POST move", move.POST as never, "POST", { id: "3", entryId: "9" }, { toHeatId: 5 }],
   ["POST swap", swap.POST as never, "POST", { id: "3", entryId: "9" }, { withEntryId: 5 }],
   ["POST withdraw", withdraw.POST as never, "POST", { id: "3", entryId: "9" }, {}],
   ["PATCH entry", promote.PATCH as never, "PATCH", { id: "3", entryId: "9" }, { bottleId: 4 }],
+  ["DELETE entry", promote.DELETE as never, "DELETE", { id: "3", entryId: "9" }, undefined],
 ];
 
 describe("every tournament route", () => {
@@ -130,7 +133,7 @@ describe("the list and create routes", () => {
   });
 
   it.each([
-    ["a heat size of 5", { name: "x", heatSize: 5 }, "heatSize"],
+    ["a heat size of 7", { name: "x", heatSize: 7 }, "heatSize"],
     ["a heat size of 1", { name: "x", heatSize: 1 }, "heatSize"],
     ["no name", { heatSize: 3 }, "name"],
     ["a group order missing a key", { name: "x", heatSize: 3, groupOrder: ["proof", "mashbill"] }, "groupOrder"],
@@ -203,7 +206,7 @@ describe("flights and entries", () => {
     expect(heats.recordHeat).toHaveBeenLastCalledWith(7, 3, 5, { ranking: [4, 3, 2, 1] }, 7);
     expect((await call(result.POST as never, "POST", { id: "3", heatId: "5" }, { glasses: ["B", "A", "C"] })).status).toBe(200);
     expect(heats.recordHeat).toHaveBeenLastCalledWith(7, 3, 5, { glasses: ["B", "A", "C"] }, 7);
-    for (const bad of [{ ranking: [1, 2], glasses: ["A", "B"] }, {}, { ranking: [1] }, { ranking: [1, 2, 3, 4, 5] }, { glasses: ["A", "E"] }, { ranking: [1.5, 2] }]) {
+    for (const bad of [{ ranking: [1, 2], glasses: ["A", "B"] }, {}, { ranking: [1] }, { ranking: [1, 2, 3, 4, 5, 6, 7] }, { glasses: ["A", "G"] }, { ranking: [1.5, 2] }]) {
       expect((await call(result.POST as never, "POST", { id: "3", heatId: "5" }, bad)).status).toBe(422);
     }
   });
@@ -227,12 +230,27 @@ describe("flights and entries", () => {
     expect((await call(swap.POST as never, "POST", { id: "3", entryId: "x" }, { withEntryId: 6 })).status).toBe(404);
     expect((await call(withdraw.POST as never, "POST", { id: "3", entryId: "9" }, {})).status).toBe(200);
     expect(heats.withdrawEntry).toHaveBeenCalledWith(7, 3, 9);
+    heats.removeDraftEntry.mockResolvedValue({ ok: true, view });
+    expect((await call(promote.DELETE as never, "DELETE", { id: "3", entryId: "9" })).status).toBe(200);
+    expect(heats.removeDraftEntry).toHaveBeenCalledWith(7, 3, 9);
+    expect((await call(promote.DELETE as never, "DELETE", { id: "3", entryId: "x" })).status).toBe(404);
+    heats.removeDraftEntry.mockResolvedValue({ ok: false, status: 409, error: "Only a draft can have bottles removed." });
+    expect((await call(promote.DELETE as never, "DELETE", { id: "3", entryId: "9" })).status).toBe(409);
     expect((await call(promote.PATCH as never, "PATCH", { id: "3", entryId: "9" }, { expressionId: 4 })).status).toBe(200);
     expect(heats.promoteEntry).toHaveBeenCalledWith(7, 3, 9, { expressionId: 4 });
     expect((await call(promote.PATCH as never, "PATCH", { id: "3", entryId: "9" }, { bottleId: 1, expressionId: 4 })).status).toBe(422);
     expect((await call(heat.PATCH as never, "PATCH", { id: "3", heatId: "5" }, { label: null })).status).toBe(200);
     expect(heats.renameHeat).toHaveBeenCalledWith(7, 3, 5, null);
     expect((await call(heat.PATCH as never, "PATCH", { id: "3", heatId: "5" }, { label: "x".repeat(81) })).status).toBe(422);
+    heats.moveHeat.mockResolvedValue({ ok: true, view });
+    expect((await call(moveHeatRoute.POST as never, "POST", { id: "3", heatId: "5" }, { toSlot: 2 })).status).toBe(200);
+    expect(heats.moveHeat).toHaveBeenCalledWith(7, 3, 5, 2);
+    for (const bad of [{ toSlot: 0 }, { toSlot: 1.5 }, { toSlot: "2" }, {}, { toSlot: 2, extra: 1 }]) {
+      expect((await call(moveHeatRoute.POST as never, "POST", { id: "3", heatId: "5" }, bad)).status).toBe(422);
+    }
+    expect((await call(moveHeatRoute.POST as never, "POST", { id: "3", heatId: "x" }, { toSlot: 2 })).status).toBe(404);
+    heats.moveHeat.mockResolvedValue({ ok: false, status: 422, message: "Choose a place from 1 to 3." });
+    expect((await call(moveHeatRoute.POST as never, "POST", { id: "3", heatId: "5" }, { toSlot: 9 })).status).toBe(422);
   });
 });
 
