@@ -54,6 +54,8 @@ export function OrderedPicker({
   emptyHint,
   distilleryChoices,
   inferable = false,
+  onSuggestMashbill,
+  chosenMashbillIds,
   undisclosable = false,
   onOptionCreated,
 }: {
@@ -78,6 +80,13 @@ export function OrderedPicker({
   distilleryChoices?: Array<{ id: number; name: string }>;
   /** Distilleries only: each row gets an "Inferred" tick, for a source the label never names. */
   inferable?: boolean;
+  /**
+   * Distilleries only: where a "Common mashbills" suggestion goes. It belongs
+   * in the label's mashbill list, not this one, so the form supplies the way in.
+   */
+  onSuggestMashbill?: (row: LinkedRow) => void;
+  /** Distilleries only: mashbills already on the label, so a suggestion is not offered twice. */
+  chosenMashbillIds?: ReadonlySet<number>;
   /**
    * Distilleries only: a "Distillery not disclosed" tick under the list, for a
    * label that names a place and no distillery. Those links live behind the
@@ -143,17 +152,14 @@ export function OrderedPicker({
   };
 
   const addSuggestedMashbill = (distillery: LinkedRow, option: Option) => {
-    if (chosen.has(option.value)) return;
-    onChange([
-      ...value,
-      {
-        id: option.value,
-        label: option.label,
-        hint: option.hint,
-        amount: "",
-        distilleryId: distilleryChoices && distilleryChoices.length > 1 ? distillery.id : null,
-      },
-    ]);
+    // With one distillery the save attributes it automatically (issue #13).
+    onSuggestMashbill?.({
+      id: option.value,
+      label: option.label,
+      hint: option.hint,
+      amount: "",
+      distilleryId: value.length > 1 ? distillery.id : null,
+    });
   };
 
   return (
@@ -308,7 +314,7 @@ export function OrderedPicker({
                       variant="ghost"
                       size="sm"
                       className="h-auto px-1 py-0 text-xs underline underline-offset-2"
-                      disabled={chosen.has(suggestion.value)}
+                      disabled={chosenMashbillIds?.has(suggestion.value)}
                       onClick={() => addSuggestedMashbill(row, suggestion)}
                     >
                       {suggestion.label}

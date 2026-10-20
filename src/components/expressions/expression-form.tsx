@@ -427,6 +427,8 @@ export function ExpressionFields({
             undisclosable
             value={links.distilleries}
             onChange={(rows) => changeLinks({ ...links, distilleries: rows })}
+            chosenMashbillIds={new Set(links.mashbills.map((m) => m.id))}
+            onSuggestMashbill={(row) => changeLinks({ ...links, mashbills: [...links.mashbills, row] })}
           />
           {baseReplacesMashbills(fieldGroup) ? (
             <>
