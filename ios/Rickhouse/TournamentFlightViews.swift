@@ -11,12 +11,19 @@ struct FlightCardView: View {
     let moves: MoveOptions?
     var run: FlightRunOptions?
     var onRename: () -> Void = {}
+    /// Where the flight can go in its round (the buttons that stand in for dragging); nil when it cannot move.
+    var steps: FlightActions.Steps?
+    var onShift: (_ toSlot: Int) -> Void = { _ in }
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     /// What a bottle's ⋯ menu offers, and what it does: move and swap (a draft, or an open running tournament), withdraw (running).
     struct MoveOptions {
         let targets: [MoveTarget]
         let swaps: [SwapTarget]
         var withdrawable: Set<Int> = []
+        /// A draft: each bottle has a Remove button (no confirmation).
+        var removable = false
+        var onRemove: (_ entryId: Int, _ name: String) -> Void = { _, _ in }
         let onMove: (_ entryId: Int, _ heatId: Int) -> Void
         let onSwap: (_ entryId: Int) -> Void
         var onWithdraw: (_ entryId: Int, _ name: String) -> Void = { _, _ in }
@@ -47,17 +54,34 @@ struct FlightCardView: View {
     }
 
     private var titleRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 4))
+        return layout {
             title.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
-            if renamable {
-                Button(action: onRename) {
-                    Image(systemName: "pencil").font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44)
+            HStack(spacing: 0) {
+                if let steps {
+                    shiftButton(.up, to: steps.up)
+                    shiftButton(.down, to: steps.down)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(Theme.ink)
-                .accessibilityLabel("Rename flight \(flight.number)")
+                if renamable {
+                    Button(action: onRename) {
+                        Image(systemName: "pencil").font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityLabel("Rename flight \(flight.number)")
+                }
             }
         }
+    }
+
+    private func shiftButton(_ way: FlightShift, to slot: Int?) -> some View {
+        Button { if let slot { onShift(slot) } } label: {
+            Image(systemName: way == .up ? "chevron.up" : "chevron.down").font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(slot == nil ? Theme.muted.opacity(0.5) : Theme.ink)
+        .disabled(slot == nil)
+        .accessibilityLabel("Move flight \(flight.number) \(way.rawValue)")
     }
 
     private var title: some View {
@@ -81,6 +105,8 @@ struct FlightCardView: View {
         }
     }
 }
+
+enum FlightShift: String { case up, down }
 
 /// One bottle in the Detail layout.
 struct FlightRowView: View {
@@ -107,8 +133,9 @@ struct FlightRowView: View {
             if row.advanced || champion {
                 Label(champion ? "Champion" : "Advances", systemImage: champion ? "trophy" : "arrow.right").font(.inter(12, .semibold)).foregroundStyle(Theme.ink)
                     .padding(.top, 12).accessibilityHidden(true)
-            } else if let moves, moves.hasMenu(for: row.entryId) {
-                menu(moves)
+            } else {
+                if let moves, moves.hasMenu(for: row.entryId) { menu(moves) }
+                if let moves, moves.removable { removeButton(moves) }
             }
         }
         .padding(.leading, 8)
@@ -130,6 +157,7 @@ struct FlightRowView: View {
                 ForEach(moves.targets.filter { !$0.full }) { t in Button("Move to \(t.title)") { moves.onMove(row.entryId, t.heatId) } }
                 if !moves.swaps.isEmpty { Button("Swap with…") { moves.onSwap(row.entryId) } }
                 if moves.withdrawable.contains(row.entryId) { Button("Withdraw") { moves.onWithdraw(row.entryId, row.name) } }
+                if moves.removable { Button("Remove from tournament") { moves.onRemove(row.entryId, row.name) } }
             }
         }
     }
@@ -179,6 +207,15 @@ struct FlightRowView: View {
         if showsPlace, let place = row.place { line = "Place \(place). " + line }
         if highlight.entryIds.contains(row.entryId) { line += ", search match" }
         return row.advanced ? line + ", advances" : champion ? line + ", champion" : line
+    }
+
+    private func removeButton(_ moves: FlightCardView.MoveOptions) -> some View {
+        Button { moves.onRemove(row.entryId, row.name) } label: {
+            Image(systemName: "xmark").font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.ink)
+        .accessibilityLabel("Remove \(row.name) from the tournament")
     }
 
     private func menu(_ moves: FlightCardView.MoveOptions) -> some View {

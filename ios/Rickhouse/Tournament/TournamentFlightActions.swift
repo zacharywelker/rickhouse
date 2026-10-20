@@ -1,6 +1,6 @@
 import Foundation
 
-// Mirrors src/lib/tournaments/bracket-actions.ts: change both together.
+// Mirrors src/lib/tournaments/bracket-actions.ts and the flight rules of drag-model.ts (canDragFlight, flightSteps): change both together.
 // Swift shape: the functions take the whole `TournamentView` where the web takes a `Pick` of it.
 
 /// Everything one flight offers, worked out here so the screen only draws what is allowed.
@@ -42,6 +42,32 @@ enum FlightActions {
         if heat.hidden || !isOpen(heat) { return false }
         if view.status == .draft { return true }
         return view.status == .active && !view.blind && isCurrent(view, heat)
+    }
+
+    /// Remove a bottle: a draft only, and not from a hidden flight. No confirmation: the other flights keep their shape.
+    static func canRemove(_ view: TournamentView, _ heat: TournamentHeat) -> Bool { view.status == .draft && !heat.hidden }
+
+    /// Reorder: an undecided flight of a draft, or of the current round of a running tournament; never a hidden one or a finished tournament.
+    static func canReorder(_ view: TournamentView, _ heat: TournamentHeat) -> Bool {
+        if heat.hidden || !isOpen(heat) || view.status == .complete || view.status == .unknown { return false }
+        return view.status == .draft || isCurrent(view, heat)
+    }
+
+    /// The button alternative to dragging: this flight's place in its round, and the place one step up and one step down
+    /// (nil where it cannot go: first, last, or not movable at all).
+    struct Steps: Equatable {
+        let place: Int
+        let of: Int
+        let up: Int?
+        let down: Int?
+    }
+
+    static func flightSteps(_ view: TournamentView, _ heat: TournamentHeat) -> Steps? {
+        guard canReorder(view, heat) else { return nil }
+        let round = view.rounds.first { $0.round == heat.round }?.heats ?? []
+        let place = round.filter { $0.slot < heat.slot }.count + 1
+        guard round.count >= 2 else { return nil }
+        return Steps(place: place, of: round.count, up: place > 1 ? place - 1 : nil, down: place < round.count ? place + 1 : nil)
     }
 
     /// Rename: any flight in any state (the server has no status rule), except a hidden one, whose name would show what is in it.

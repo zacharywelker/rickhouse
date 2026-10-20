@@ -177,6 +177,15 @@ final class TournamentAPITests: XCTestCase {
         try expect("POST", "/api/v1/tournaments", body: ["name": "Big", "heatSize": 6, "entries": [["name": "A"], ["name": "B"]]])
     }
 
+    func testRemoveAnEntryAndMoveAFlight() async throws {
+        answer(view)
+        _ = try await api.removeEntry(tournamentId: 3, entryId: 9)
+        try expect("DELETE", "/api/v1/tournaments/3/entries/9")
+        XCTAssertNil(try last().body, "removing sends no body")
+        _ = try await api.moveFlight(tournamentId: 3, heatId: 5, toSlot: 2)
+        try expect("POST", "/api/v1/tournaments/3/heats/5/move", body: ["toSlot": 2])
+    }
+
     func testEntryCommands() async throws {
         answer(view)
         _ = try await api.moveEntry(tournamentId: 3, entryId: 9, toHeatId: 6)

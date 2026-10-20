@@ -81,6 +81,16 @@ extension APIClient {
         try await sendObject("POST", entryPath(tournamentId, entryId, "withdraw"), json: Self.nothing, as: TournamentView.self)
     }
 
+    /// Takes a bottle out of a draft (no body); the others keep their flights. A started tournament is a 409.
+    func removeEntry(tournamentId: Int, entryId: Int) async throws -> TournamentView {
+        try await sendBodiless("DELETE", "api/v1/tournaments/\(tournamentId)/entries/\(entryId)", as: TournamentView.self)
+    }
+
+    /// Moves a flight to place `toSlot` among its round's flights (a draft, or an undecided flight of the current round).
+    func moveFlight(tournamentId: Int, heatId: Int, toSlot: Int) async throws -> TournamentView {
+        try await sendObject("POST", "api/v1/tournaments/\(tournamentId)/heats/\(heatId)/move", json: ["toSlot": toSlot], as: TournamentView.self)
+    }
+
     /// Matches an outside entry to one of your bottles.
     func promoteEntry(tournamentId: Int, entryId: Int, bottleId: Int) async throws -> TournamentView {
         try await sendObject("PATCH", "api/v1/tournaments/\(tournamentId)/entries/\(entryId)", json: ["bottleId": bottleId], as: TournamentView.self)

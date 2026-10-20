@@ -79,6 +79,15 @@ final class TournamentModel {
         await run(inline: true) { try await $0.swapEntries(tournamentId: self.id, entryId: entryId, withEntryId: other) }
     }
 
+    /// Takes a bottle out of a draft at once; the foot bar says so. A failure reloads and offers Retry (see `run`).
+    func remove(entryId: Int, name: String) async {
+        if await run({ try await $0.removeEntry(tournamentId: self.id, entryId: entryId) }) == .done { foot.show("Removed \(name)") }
+    }
+
+    func moveFlight(heatId: Int, toSlot: Int) async {
+        await run { try await $0.moveFlight(tournamentId: self.id, heatId: heatId, toSlot: toSlot) }
+    }
+
     func start() async {
         if await run({ try await $0.startTournament(id: self.id) }) == .done { chosenRound = nil }
     }

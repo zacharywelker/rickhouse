@@ -180,6 +180,34 @@ final class TournamentModelTests: XCTestCase {
         XCTAssertEqual(m.view?.name, "After undo")
     }
 
+    func testRemovingABottleDeletesTheEntryAndSaysSo() async throws {
+        let m = await loaded()
+        StubURLProtocol.reply = json(name: "After remove")
+        await m.remove(entryId: 4, name: "Old Forester")
+        let s = try lastSent()
+        XCTAssertEqual([s.method, s.path], ["DELETE", "/api/v1/tournaments/3/entries/4"])
+        XCTAssertEqual(m.view?.name, "After remove")
+        XCTAssertEqual(m.foot.notice, "Removed Old Forester")
+    }
+
+    func testAFailedRemoveReloadsOffersRetryAndSaysNothingWasRemoved() async {
+        let m = await loaded("Before")
+        StubURLProtocol.queue = [(409, Data("{\"error\":{\"code\":\"conflict\",\"message\":\"It has started.\"}}".utf8)), (200, json(name: "Fresh"))]
+        await m.remove(entryId: 4, name: "Old Forester")
+        XCTAssertEqual(StubURLProtocol.sent.map(\.method), ["DELETE", "GET"])
+        XCTAssertEqual(m.view?.name, "Fresh")
+        XCTAssertEqual(m.foot.failure?.message, "It has started.")
+        XCTAssertNil(m.foot.notice)
+    }
+
+    func testMovingAFlightPostsTheSlot() async throws {
+        let m = await loaded()
+        await m.moveFlight(heatId: 10, toSlot: 2)
+        let s = try lastSent()
+        XCTAssertEqual([s.method, s.path], ["POST", "/api/v1/tournaments/3/heats/10/move"])
+        XCTAssertEqual(s.body?["toSlot"] as? Int, 2)
+    }
+
     func testWithdrawPostsToTheEntry() async throws {
         let m = await loaded()
         await m.withdraw(entryId: 2)

@@ -12,6 +12,9 @@ struct TournamentBracketView: View {
     let onRename: (FlightModel) -> Void
     /// Running only: Play and Undo for a flight.
     var run: (FlightModel) -> FlightRunOptions? = { _ in nil }
+    /// Where a flight can go in its round, and moving it there.
+    var steps: (FlightModel) -> FlightActions.Steps? = { _ in nil }
+    var onShift: (FlightModel, Int) -> Void = { _, _ in }
     @Environment(\.dynamicTypeSize) private var typeSize
 
     private var options: [RoundOption] { TournamentScreenLogic.roundOptions(bracket) }
@@ -63,7 +66,7 @@ struct TournamentBracketView: View {
         } else {
             ForEach(c.flights) { f in
                 FlightCardView(flight: f, renamable: FlightActions.canRename(hidden: f.hidden), moves: f.hidden ? nil : moves(c, f), run: run(f),
-                               onRename: { onRename(f) })
+                               onRename: { onRename(f) }, steps: steps(f), onShift: { onShift(f, $0) })
             }
         }
     }

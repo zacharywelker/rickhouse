@@ -78,7 +78,9 @@ struct TournamentScreen: View {
                                 FindBar(find: find, count: matches.count, onQuery: { find.setQuery($0) }, onStep: { step($0, matches, proxy) })
                             }
                             TournamentBracketView(view: view, bracket: bracket, zoom: model.zoom, chosenRound: $model.chosenRound,
-                                                  moves: { moveOptions(view, $0, $1) }, onRename: { rename($0) }, run: runOptions(view))
+                                                  moves: { moveOptions(view, $0, $1) }, onRename: { rename($0) }, run: runOptions(view),
+                                                  steps: { flight in heat(view, flight.id).flatMap { FlightActions.flightSteps(view, $0) } },
+                                                  onShift: { flight, slot in Task { await model.moveFlight(heatId: flight.id, toSlot: slot) } })
                         }
                         if typeSize.isAccessibilitySize, let offer = TournamentRunLogic.bar(view) { runBar(offer).padding(.horizontal, -16) }
                         StandingsSection(title: TournamentRunLogic.standingsTitle(view), rows: TournamentStandings.rows(view))
@@ -152,11 +154,13 @@ struct TournamentScreen: View {
     private func moveOptions(_ view: TournamentView, _ column: RoundColumn, _ flight: FlightModel) -> FlightCardView.MoveOptions? {
         guard let heat = heat(view, flight.id) else { return nil }
         let controls = FlightActions.flightControls(view, heat)
-        guard controls.move || !controls.withdraw.isEmpty else { return nil }
+        let removable = FlightActions.canRemove(view, heat)
+        guard controls.move || !controls.withdraw.isEmpty || removable else { return nil }
         let swaps = controls.move ? TournamentScreenLogic.swapTargets(column, from: flight) : []
         return FlightCardView.MoveOptions(
             targets: controls.move ? TournamentScreenLogic.moveTargets(column, from: flight, heatSize: view.heatSize) : [], swaps: swaps,
-            withdrawable: Set(controls.withdraw),
+            withdrawable: Set(controls.withdraw), removable: removable,
+            onRemove: { entry, name in Task { await model.remove(entryId: entry, name: name) } },
             onMove: { entry, heat in Task { await model.move(entryId: entry, toHeatId: heat) } },
             onSwap: { entry in
                 let name = flight.rows.first { $0.entryId == entry }?.name ?? "bottle"
