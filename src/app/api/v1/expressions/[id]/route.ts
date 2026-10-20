@@ -13,7 +13,7 @@ import { proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules"
 import { labelFactsSchema, patchLabel } from "@/lib/expressions/label-patch";
 import { linkRowSchema } from "@/lib/expressions/schema";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
-import { bottlesOfLabel, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
+import { bottlesOfLabel, categoryKindForExpression, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
 import { expressionReleaseList } from "@/lib/releases-store";
 import { expressionNames } from "@/db/schema";
 import { asc } from "drizzle-orm";
@@ -63,10 +63,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     brandId: expression.brandId,
     name: expression.name,
     category: row.category.name,
+    categoryGroup: row.category.fieldGroup,
+    categoryKind: await categoryKindForExpression(expression.id),
     categoryId: expression.categoryId,
     upc: expression.upc,
     proof: expression.proof,
     ageStatement: expression.ageStatement,
+    tequilaClass: expression.tequilaClass,
+    brandyGrade: expression.brandyGrade,
+    ginStyle: expression.ginStyle,
+    isAgedGin: expression.isAgedGin,
     ageYears: expression.ageYears,
     ageMonths: expression.ageMonths,
     ageDays: expression.ageDays,
@@ -99,10 +105,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       distilleries: links.distilleries.map((d) => ({ id: d.id, name: d.name, amount: d.amount === null ? null : Number(d.amount), inferred: d.inferred === true })),
       mashbills: links.mashbills.map((m) => ({ id: m.id, name: m.name, amount: m.amount === null ? null : Number(m.amount), distilleryId: m.distilleryId ?? null })),
       finishes: links.finishes.map((f) => ({ id: f.id, name: f.name, amount: f.amount === null ? null : Number(f.amount) })),
+      ingredients: links.ingredients.map((i) => ({ name: i.name, family: i.family, kind: i.kind })),
     },
     distilleries: links.distilleries.map((d) => d.name),
     finishes: links.finishes.map((f) => f.name),
     mashbills: links.mashbills.map((m) => m.recipe),
+    ingredients: links.ingredients.map((i) => i.name),
+    botanicals: links.ingredients.filter((i) => i.kind === "botanical").map((i) => i.name),
+    ginBases: links.ingredients.filter((i) => i.kind === "gin_base").map((i) => i.name),
     releases: releases.map((r) => ({
       id: r.id,
       name: r.name,
@@ -141,6 +151,7 @@ const linkRow = z.preprocess(
 );
 /** Duplicates would break the join table's key, and an order is what was sent. */
 const linkList = z.array(linkRow).max(50).refine((rows) => new Set(rows.map((r) => r.id)).size === rows.length, "A row appears twice.");
+const ingredientList = z.array(z.object({ name: z.string().trim().min(1).max(120), family: z.enum(["grape", "apple", "pear", "other"]).nullable().optional(), kind: z.enum(["maguey", "distillate", "rum_base", "botanical", "gin_base"]).optional() })).max(100);
 
 const patchBody = labelFactsSchema
   .partial()
@@ -149,6 +160,7 @@ const patchBody = labelFactsSchema
     distilleries: linkList,
     mashbills: linkList,
     finishes: linkList,
+    ingredients: ingredientList,
     otherNames: z
       .string()
       .max(10_000)
@@ -195,11 +207,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!parsed.success) {
     return apiError(422, "invalid", parsed.error.issues[0]?.message ?? "Check the fields.", issueFields(parsed.error.issues));
   }
-  const { brand, distilleries, mashbills, finishes, otherNames, ...facts } = parsed.data;
+  const { brand, distilleries, mashbills, finishes, ingredients, otherNames, ...facts } = parsed.data;
   const outcome = await patchLabel(user.id, id, {
     facts,
     ...(brand !== undefined ? { brand } : {}),
-    ...(distilleries && mashbills && finishes ? { links: { distilleries, mashbills, finishes } } : {}),
+    ...(distilleries && mashbills && finishes ? { links: { distilleries, mashbills, finishes, ingredients } } : {}),
+    ...(ingredients !== undefined ? { ingredients } : {}),
     ...(otherNames !== undefined ? { otherNames } : {}),
   });
   if (!outcome.ok) {

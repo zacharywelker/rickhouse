@@ -67,7 +67,7 @@ struct NewLabelView: View {
             .disabled(made != nil)
             Section {
                 LabelFactRows(
-                    draft: $draft, errors: fieldErrors, rules: LabelRules(category: categories.first { $0.id == categoryId }, ginAged: ginAged),
+                    draft: $draft, errors: fieldErrors, rules: LabelRules(category: categories.first { $0.id == categoryId }, ginAged: draft[.isAgedGin].trimmed == "true"),
                     ginAged: $ginAged, tracksChanges: false, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
             } header: {
                 SectionLabel("About the label")
@@ -129,7 +129,9 @@ struct NewLabelView: View {
             if case .list(let list) = target {
                 PickerSheet(
                     kind: LabelEditor.kind(list), title: LabelEditor.listTitle(list), multiple: true,
-                    initial: draft.rows(list).map { LookupItem(id: $0.id, name: $0.name) }
+                    initial: draft.rows(list).map { LookupItem(id: $0.id, name: $0.name) },
+                    spiritKind: list == .distilleries && ["tequila", "mezcal", "cognac", "armagnac", "calvados", "pisco"].contains(categories.first { $0.id == categoryId }?.kind ?? "")
+                        ? categories.first { $0.id == categoryId }?.kind : nil
                 ) { chosen in draft.setList(list, to: chosen) }
             }
         }
@@ -230,7 +232,7 @@ struct NewLabelView: View {
     /// The label exists; its facts, then its photo, follow. A failure keeps the screen and the label, and Save retries
     /// what is left.
     private func finish(_ label: LabelOption, api: APIClient) async {
-        let changes = LabelRules(category: categories.first { $0.id == categoryId }, ginAged: ginAged).prepared(draft).patch()
+        let changes = LabelRules(category: categories.first { $0.id == categoryId }, ginAged: draft[.isAgedGin].trimmed == "true").prepared(draft).patch()
         if !factsSaved, !changes.isEmpty {
             do {
                 try await api.updateLabel(id: label.id, changes)

@@ -23,6 +23,9 @@ struct LabelRules {
     /// Straight and Bottled In Bond are American designations.
     var showsAmerican: Bool { showsAging && (kind == nil || kind == "american") }
     var baseReplacesMashbill: Bool { group == "rum" }
+    var usesIngredients: Bool { group == "rum" || group == "agave" || group == "brandy" || group == "gin" }
+    var isAgave: Bool { kind == "tequila" || kind == "mezcal" }
+    var hasBrandyGrade: Bool { SpiritChoices.brandyMinimum[kind ?? ""] != nil }
     var isGin: Bool { group == "gin" }
     /// Tequila and mezcal: unaged ones can be marked still proof.
     var showsStillProof: Bool { group == "agave" }
@@ -41,7 +44,6 @@ struct LabelRules {
     }
 
     static let bondProof = "100"
-    static let rumBases: [(value: String, title: String)] = [("molasses", "Molasses"), ("sugarcane", "Sugarcane"), ("honey", "Honey"), ("other", "Other")]
     static let sizes = [200, 375, 500, 700, 750, 1000]
 
     static func sizeTitle(_ ml: Int) -> String {

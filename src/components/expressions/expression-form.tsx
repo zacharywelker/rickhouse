@@ -19,7 +19,6 @@ import { cn } from "@/lib/utils";
 import {
   BOND_PROOF,
   STRENGTH_TIER_LABELS,
-  baseReplacesMashbills,
   followsProof,
   hiddenFields,
   isSingleMaltCategory,
@@ -37,7 +36,11 @@ import {
   type NameContext,
   type ProofSpread,
 } from "@/lib/expressions/rules";
-import { RUM_BASES, SCOTCH_REGIONS } from "@/db/schema";
+import { SCOTCH_REGIONS } from "@/db/schema";
+import type { IngredientChoice } from "@/lib/expressions/spirit-details";
+import { BRANDY_MINIMUM_YEARS, countryForDistillery, isAgaveKind } from "@/lib/expressions/spirit-details";
+import { isGinKind } from "@/lib/expressions/gin-details";
+import { IngredientPicker } from "./ingredient-picker";
 import { DeriveAge } from "./bottle-form";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
@@ -56,9 +59,9 @@ const SECTION_OF: ReadonlyMap<string, (typeof EXPRESSION_SECTIONS)[number]> = ne
   EXPRESSION_SECTIONS.flatMap((section) => section.fields.map((field) => [field.name, section] as const)),
 );
 
-export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
+export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[]; ingredients?: IngredientChoice[] };
 
-export const EMPTY_LINKS: LabelLinks = { distilleries: [], mashbills: [], finishes: [] };
+export const EMPTY_LINKS: LabelLinks = { distilleries: [], mashbills: [], finishes: [], ingredients: [] };
 
 /**
  * One field changed, with what follows from it: Straight and Bottled In Bond
@@ -116,47 +119,6 @@ function RegionPicker({
   );
 }
 
-/** The rum's base, as buttons in a box like the distilleries and finishes: one at a time, and again to clear it. */
-function BasePicker({
-  idPrefix,
-  value,
-  onChange,
-  error,
-}: {
-  idPrefix: string;
-  value: string;
-  onChange: (base: string) => void;
-  error?: string | undefined;
-}) {
-  return (
-    <fieldset className="flex flex-col gap-2 border border-border p-4">
-      <legend className="px-1 text-sm font-medium">Base</legend>
-      <p className="-mt-1 text-xs text-muted-foreground">What the rum is made from.</p>
-      <div className="flex flex-wrap gap-2">
-        {RUM_BASES.map((base) => (
-          <Button
-            key={base}
-            id={`${idPrefix}-base-${base}`}
-            type="button"
-            size="sm"
-            variant={value === base ? "default" : "outline"}
-            aria-pressed={value === base}
-            onClick={() => onChange(value === base ? "" : base)}
-          >
-            {base[0]!.toUpperCase() + base.slice(1)}
-          </Button>
-        ))}
-      </div>
-      <input type="hidden" name="molassesOrCane" value={value} />
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-    </fieldset>
-  );
-}
-
 /**
  * The label's fields and its three ordered lists, without a form around
  * them: New Label and Edit Label wrap them in their own form, and the
@@ -204,8 +166,7 @@ export function ExpressionFields({
   const kind: CategoryKind | null = categoryKinds ? (categoryId !== null ? (categoryKinds[categoryId] ?? "other") : "other") : null;
 
   // A gin is unaged until it is marked aged; one that already has an age opens as aged.
-  const [ginChoice, setGinChoice] = React.useState<boolean | null>(null);
-  const ginAged = ginChoice ?? looksAged(values, links.finishes.length);
+  const ginAged = values.isAgedGin === true || (values.isAgedGin == null && looksAged(values, links.finishes.length));
   const context = { group: fieldGroup, kind, values, ginAged };
   const hidden = hiddenFields(context);
   const regions = parseRegions(values.regions);
@@ -299,6 +260,8 @@ export function ExpressionFields({
                   ? "Greyed out for NAS. Triple-click to edit anyway."
                   : "Greyed out while an age is filled in. Triple-click to edit anyway.",
               }
+            : field.name === "brandyGrade" && kind && BRANDY_MINIMUM_YEARS[kind] && values.brandyGrade
+              ? { ...field, help: `At least ${BRANDY_MINIMUM_YEARS[kind]![String(values.brandyGrade) as "VS" | "VSOP" | "XO"]} years. Enter an exact age only when known.` }
             : entry && entryGreyed
               ? { ...field, help: "Follows Proof, as the name says Full Proof. Triple-click to edit anyway." }
               : field
@@ -371,22 +334,6 @@ export function ExpressionFields({
                 {section.id === "identity" ? photoSlot : null}
                 <div className="flex min-w-0 flex-1 flex-col gap-4">
                   {section.rows.map((row, index) => renderRow(row, index))}
-                  {section.id === "strength" && fieldGroup === "gin" ? (
-                    <div className="flex items-center gap-3">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={ginAged ? "default" : "outline"}
-                        aria-pressed={ginAged}
-                        onClick={() => setGinChoice(!ginAged)}
-                      >
-                        Aged
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {ginAged ? "Age, age statement and finishes apply." : "Gin is unaged unless you say it was aged."}
-                      </span>
-                    </div>
-                  ) : null}
                 </div>
               </SectionContent>
             ) : (
@@ -416,10 +363,11 @@ export function ExpressionFields({
           ) : null}
           <OrderedPicker
             name="distilleryLinks"
-            label="Distilleries"
+            label={fieldGroup === "rum" ? "Distilleries / Estates" : "Distilleries"}
             description="Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere."
             resource="distilleries"
-            options={options.distilleryLinks ?? []}
+            options={(options.distilleryLinks ?? []).filter((option) => !option.country || countryForDistillery(kind, option.country))}
+            {...(isAgaveKind(kind) ? { defaultCountry: "Mexico" } : kind === "cognac" || kind === "armagnac" || kind === "calvados" ? { defaultCountry: "France" } : kind === "pisco" ? { defaultCountry: "Peru" } : {})}
             amountLabel="Share"
             amountSuffix="%"
             amountMax={100}
@@ -428,15 +376,26 @@ export function ExpressionFields({
             value={links.distilleries}
             onChange={(rows) => changeLinks({ ...links, distilleries: rows })}
           />
-          {baseReplacesMashbills(fieldGroup) ? (
+          {fieldGroup === "gin" && isGinKind(kind) ? (
             <>
-              <BasePicker
-                idPrefix={idPrefix}
-                value={String(values.molassesOrCane ?? "")}
-                onChange={(next) => change("molassesOrCane", next)}
-                error={errors.molassesOrCane}
-              />
-              {/* Rum has no mashbill list, but one it already has is kept. */}
+              <IngredientPicker kind="botanical" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
+                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "botanical"), ...selected] })} />
+              <IngredientPicker kind="gin_base" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
+                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "gin_base"), ...selected] })} />
+              <input type="hidden" name="ingredientLinks" value={JSON.stringify(links.ingredients ?? [])} />
+              <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
+            </>
+          ) : (fieldGroup === "agave" || fieldGroup === "rum" || fieldGroup === "brandy") ? (
+            <IngredientPicker
+              kind={fieldGroup === "agave" ? "maguey" : fieldGroup === "rum" ? "rum_base" : "distillate"}
+              categoryKind={kind}
+              value={links.ingredients ?? []}
+              onChange={(ingredients) => onLinksChange({ ...links, ingredients })}
+            />
+          ) : null}
+          {fieldGroup === "gin" ? null : fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" ? (
+            <>
+              {/* Older mashbill links remain stored while the relevant spirit uses ingredients. */}
               <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
             </>
           ) : singleMalt ? (
@@ -628,7 +587,7 @@ export function ExpressionForm({
 }: {
   expressionId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
-  initialLinks: { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
+  initialLinks: LabelLinks;
   /** Older names, one per line, as `otherNamesText` writes them. */
   initialOtherNames?: string;
   /** Known releases, as `releaseRow` shapes them. */

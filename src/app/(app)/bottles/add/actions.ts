@@ -14,6 +14,8 @@ import { NotOwned, attachPendingColas, fieldErrorsOf, labelValues, linksFrom, wr
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { pendingTtbIds } from "@/lib/cola/ids";
 import type { FieldValue } from "@/lib/forms/values";
+import { bottleSpiritForExpression, categoryKindsById } from "@/lib/expressions/queries";
+import { withBottleSpiritFacts } from "@/lib/expressions/spirit-details";
 
 export type CatalogHit = {
   id: number;
@@ -67,7 +69,7 @@ export type CatalogInput = {
   /** The label's fields: a new label's, or a chosen label's when edited in place. Null leaves a chosen label as it is. */
   label: Record<string, FieldValue> | null;
   /** The label's lists, as the pickers submit them (JSON). */
-  links: { distilleryLinks: string; mashbillLinks: string; finishLinks: string } | null;
+  links: { distilleryLinks: string; mashbillLinks: string; finishLinks: string; ingredientLinks?: string } | null;
   /** TTB approvals picked for a new label. */
   ttbIds: string;
   bottle: Record<string, FieldValue>;
@@ -104,7 +106,14 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
   }
 
   // A release can only be one of a chosen label's; a new label has none yet.
-  const bottleData = chosenId === null ? { ...bottle.data, releaseId: null } : await settleLabelChoices({ ...bottle.data });
+  const bottleSpirit = chosenId === null
+    ? { kind: (await categoryKindsById())[label?.success ? label.data.categoryId : -1] ?? "other", ginAged: label?.success ? label.data.isAgedGin : false }
+    : await bottleSpiritForExpression(chosenId);
+  const bottleData = withBottleSpiritFacts(
+    chosenId === null ? { ...bottle.data, releaseId: null } : await settleLabelChoices({ ...bottle.data }),
+    bottleSpirit.kind,
+    bottleSpirit.ginAged,
+  );
 
   const links = linksFrom(input.links ?? {});
   // Which write a database error came from, so it lands on the right half of the page.

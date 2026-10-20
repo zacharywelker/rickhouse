@@ -27,7 +27,8 @@ import { getCurrency } from "@/lib/preferences";
 import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category-color";
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { ageLabel } from "@/lib/expressions/display";
-import { bottlesOfLabel, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
+import { bottlesOfLabel, categoryKindsById, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
+import { spiritAgeLabel } from "@/lib/expressions/spirit-details";
 import { provenanceOf, provenanceTags, type ProvenanceInput } from "@/lib/provenance";
 import { STRENGTH_TIER_LABELS, proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
 import { cn, formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
@@ -109,6 +110,9 @@ export default async function LabelPage({
 
   const e = row.expression;
   const group = row.category.fieldGroup;
+  const kind = (await categoryKindsById())[row.category.id] ?? "other";
+  const knownAge = ageLabel({ ageYears: e.ageYears, ageMonths: e.ageMonths, ageDays: e.ageDays, ageStatement: null });
+  const shownAge = group === "gin" && !e.isAgedGin ? null : group === "gin" && e.isNas ? "NAS" : spiritAgeLabel(kind, e.tequilaClass, e.brandyGrade, knownAge) ?? ageLabel(e) ?? (e.isNas ? "NAS" : null);
   const title = `${row.brand.name} ${e.name}`;
   // A cask-strength label has no one proof: show what its releases and bottles span. Navy Strength and Overproof
   // come from the proof itself.
@@ -126,7 +130,7 @@ export default async function LabelPage({
     { kind: "bottled-in-bond", ownerId: e.id, active: e.isBottledInBond },
     { kind: "cask-strength", ownerId: e.id, active: e.isCaskStrength, detail: e.proof ? `${formatNumeric(e.proof)}°` : undefined },
     { kind: "straight", ownerId: e.id, active: e.isStraight },
-    { kind: "nas", ownerId: e.id, active: e.isNas },
+    { kind: "nas", ownerId: e.id, active: e.isNas && (group !== "gin" || e.isAgedGin) },
   ];
 
   return (
@@ -215,7 +219,9 @@ export default async function LabelPage({
             />
             <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
             {tier ? <Spec label="Strength" value={STRENGTH_TIER_LABELS[tier]} /> : null}
-            <Spec label="Age" value={ageLabel(e)} />
+            <Spec label="Age" value={shownAge} />
+            {group === "gin" ? <Spec label="Style" value={kind === "genever" ? null : e.ginStyle} /> : null}
+            {group === "gin" ? <Spec label="Aged" value={e.isAgedGin ? "Yes" : "No"} /> : null}
             <Spec label="Size" value={formatSize(e.sizeMl)} />
             <Spec label="UPC" value={e.upc} />
             {group === "whiskey" ? <Spec label="Cooperage" value={row.cooperage} /> : null}
@@ -228,30 +234,31 @@ export default async function LabelPage({
 
           <div className="flex flex-col gap-4 border-t border-border pt-6">
             <Chips
-              label="Distilleries"
+              label={group === "rum" ? "Distilleries / Estates" : "Distilleries"}
               items={links.distilleries}
               hrefFor={(item) => (item.slug ? (`/distilleries/${item.slug}` as Route) : null)}
             />
-            <Mashbills items={links.mashbills} />
-            <Chips
+            {group === "gin" ? <>
+                <Chips label="Botanicals" items={links.ingredients.filter((item) => item.kind === "botanical")} hrefFor={() => null} />
+                <Chips label="Base spirits" items={links.ingredients.filter((item) => item.kind === "gin_base")} hrefFor={() => null} />
+              </> : group === "rum" || group === "agave" || group === "brandy"
+              ? <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients} hrefFor={() => null} />
+              : <Mashbills items={links.mashbills} />}
+            {group !== "gin" || e.isAgedGin ? <Chips
               label="Finishes"
               items={links.finishes}
               hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}
-            />
+            /> : null}
             {group === "rum" ? (
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <Spec label="Still" value={humanise(e.stillType)} />
-                <Spec label="Estate" value={e.estate} />
                 <Spec label="Marque" value={e.marque} />
                 <Spec label="Esters" value={e.esterGl ? `${Number(e.esterGl)} g/hLAA` : null} />
                 <Spec label="Added sugar" value={e.sugarGPerL ? `${Number(e.sugarGPerL)} g/L` : null} />
-                <Spec label="Base" value={humanise(e.molassesOrCane)} />
               </dl>
             ) : null}
             {group === "agave" ? (
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
-                <Spec label="Agave" value={e.agaveType} />
-                <Spec label="Region" value={e.agaveRegion} />
                 <Spec label="Cooking" value={humanise(e.cookingMethod)} />
                 <Spec label="Extraction" value={humanise(e.extraction)} />
               </dl>

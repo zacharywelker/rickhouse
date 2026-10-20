@@ -1,5 +1,7 @@
 import type { FieldGroup } from "@/db/schema";
 import { ageFilled, withAgeDefaults } from "@/lib/bottles/age";
+import { BRANDY_MINIMUM_YEARS, isAgaveKind } from "./spirit-details";
+import { isGinKind, NAVY_GIN_PROOF } from "./gin-details";
 
 /**
  * What a label's category decides about its form, as pure functions so the
@@ -9,7 +11,9 @@ import { ageFilled, withAgeDefaults } from "@/lib/bottles/age";
  * kind below says which whiskey, because "Straight" is an American
  * designation and Scotch has regions instead.
  */
-export type CategoryKind = "american" | "scotch" | "other";
+export type CategoryKind = "american" | "scotch" | "tequila" | "mezcal" | "cognac" | "armagnac" | "calvados" | "pisco" | "gin" | "genever" | "other";
+
+const SPECIAL_KINDS = new Set<CategoryKind>(["tequila", "mezcal", "cognac", "armagnac", "calvados", "pisco", "genever"]);
 
 /** Each category's kind, by walking up its parents: Bourbon is American, Blended Scotch is Scotch. */
 export function categoryKinds(
@@ -24,6 +28,8 @@ export function categoryKinds(
       seen.add(at.id);
       if (at.slug === "american-whiskey") kind = "american";
       else if (at.slug === "scotch") kind = "scotch";
+      else if (at.slug === "gin") kind = "gin";
+      else if (SPECIAL_KINDS.has(at.slug as CategoryKind)) kind = at.slug as CategoryKind;
       else continue;
       break;
     }
@@ -69,6 +75,23 @@ export function looksAged(values: Record<string, unknown>, finishCount: number):
 export function hiddenFields(context: FormContext): Set<string> {
   const hidden = new Set<string>();
   if (isUnaged(context)) for (const name of AGING_FIELDS) hidden.add(name);
+  if (context.kind !== "tequila") hidden.add("tequilaClass");
+  if (!context.kind || !BRANDY_MINIMUM_YEARS[context.kind]) hidden.add("brandyGrade");
+  if (isAgaveKind(context.kind)) {
+    hidden.add("barrelFilledOn");
+    hidden.add("bottledOn");
+    hidden.add("isNas");
+  }
+  if (context.kind === "tequila") hidden.add("ageStatement");
+  if (context.kind === "tequila" && context.values.tequilaClass === "blanco") {
+    hidden.add("ageYears"); hidden.add("ageMonths"); hidden.add("ageDays");
+  }
+  if (isGinKind(context.kind)) {
+    hidden.add("barrelFilledOn"); hidden.add("bottledOn"); hidden.add("ageStatement");
+    if (context.kind === "genever") hidden.add("ginStyle");
+  } else {
+    hidden.add("ginStyle"); hidden.add("isAgedGin");
+  }
   // Straight and Bottled In Bond are American designations.
   if (context.kind !== null && context.kind !== "american") {
     hidden.add("isStraight");
@@ -102,7 +125,7 @@ export function strengthTier(group: FieldGroup | null | undefined, proof: unknow
   const abv = Number(text) / 2;
   if (!Number.isFinite(abv)) return null;
   if (group === "rum" && abv >= 57) return "overproof";
-  return abv >= 54 ? "navy" : null;
+  return group === "gin" ? (Number(proof) >= NAVY_GIN_PROOF ? "navy" : null) : abv >= 54 ? "navy" : null;
 }
 
 /** What a name can say about a label; each ticks or sets something when the name starts to say it. */

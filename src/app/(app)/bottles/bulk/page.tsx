@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Section, SectionContent } from "@/components/ui/section";
 import { BottleBulkGrid } from "@/components/bottles/bottle-bulk-grid";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
-import { expressionOptions } from "@/lib/expressions/queries";
+import { categoryFieldGroups, categoryKindsById, expressionOptions } from "@/lib/expressions/queries";
 import { releaseChoices } from "@/lib/releases-store";
 import { requireSession } from "@/lib/auth";
 
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function BulkBottlesPage() {
   const user = await requireSession();
-  const [expressions, stores] = await Promise.all([expressionOptions(user.id), REFERENCE_OPTION_LOADERS.stores(user.id)]);
+  const [expressions, stores, categoryGroups, categoryKinds] = await Promise.all([expressionOptions(user.id), REFERENCE_OPTION_LOADERS.stores(user.id), categoryFieldGroups(), categoryKindsById()]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,7 +34,7 @@ export default async function BulkBottlesPage() {
           </SectionContent>
         </Section>
       ) : (
-        <BottleBulkGrid expressions={expressions} stores={stores} releases={await releaseChoices(user.id)} />
+        <BottleBulkGrid expressions={expressions} stores={stores} releases={await releaseChoices(user.id)} categoryGroups={categoryGroups} categoryKinds={categoryKinds} />
       )}
     </div>
   );

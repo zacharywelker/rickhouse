@@ -7,6 +7,7 @@ import { describeRecipe } from "@/lib/expressions/queries";
 import { mashbillTitle } from "@/lib/mashbills";
 import { normalizeLocation } from "@/lib/places";
 import { resolveSlug } from "@/lib/slug";
+import type { CategoryKind } from "@/lib/expressions/rules";
 
 /**
  * The names behind the phone's pickers (spec 2026-10-08-edit-facts-design.md, section 5): the caller's own
@@ -24,7 +25,7 @@ const LIMIT = 200;
 /** `%` and `_` in a search are the person's characters, not wildcards. */
 const contains = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
-export async function listLookup(kind: LookupKind, ownerId: number, q: string | null): Promise<LookupItem[]> {
+export async function listLookup(kind: LookupKind, ownerId: number, q: string | null, spiritKind: CategoryKind | null = null): Promise<LookupItem[]> {
   const term = q?.trim() || null;
   switch (kind) {
     case "brands": {
@@ -34,10 +35,18 @@ export async function listLookup(kind: LookupKind, ownerId: number, q: string | 
       return rows.map((r) => ({ ...r, detail: null }));
     }
     case "distilleries": {
-      const rows = await db.select({ id: distilleries.id, name: distilleries.name, state: distilleries.state, country: distilleries.country }).from(distilleries)
-        .where(and(eq(distilleries.ownerId, ownerId), term ? ilike(distilleries.name, contains(term)) : undefined))
+      const countries = spiritKind === "tequila" || spiritKind === "mezcal" ? ["mx", "mexico", "méxico"]
+        : spiritKind === "cognac" || spiritKind === "armagnac" || spiritKind === "calvados" ? ["fr", "france"]
+        : spiritKind === "pisco" ? ["pe", "peru", "perú", "cl", "chile"] : null;
+      const rows = await db.select({ id: distilleries.id, name: distilleries.name, state: distilleries.state, country: distilleries.country, nom: distilleries.nomNumber }).from(distilleries)
+        .where(and(eq(distilleries.ownerId, ownerId), term ? ilike(distilleries.name, contains(term)) : undefined,
+          countries ? sql`lower(trim(${distilleries.country})) in (${sql.join(countries.map((country) => sql`${country}`), sql`, `)})` : undefined))
         .orderBy(asc(distilleries.name)).limit(LIMIT);
-      return rows.map((r) => ({ id: r.id, name: r.name, detail: [r.state, r.country].filter(Boolean).join(", ") || null }));
+      return rows.map((r) => ({
+        id: r.id,
+        name: r.nom && ["mx", "mexico", "méxico"].includes((r.country ?? "").trim().toLocaleLowerCase()) ? `NOM-${r.nom.replace(/^NOM-?/i, "")}: ${r.name}` : r.name,
+        detail: [r.state, r.country].filter(Boolean).join(", ") || null,
+      }));
     }
     case "finishes": {
       const rows = await db.select({ id: finishes.id, name: finishes.name }).from(finishes)

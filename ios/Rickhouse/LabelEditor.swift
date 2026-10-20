@@ -29,7 +29,7 @@ struct LabelEditor: View {
     @State private var releaseSheet: ReleaseTarget?
 
     private var rules: LabelRules {
-        LabelRules(category: categories.first { $0.id == Int(draft?[.category].text ?? "") }, ginAged: ginAged)
+        LabelRules(category: categories.first { $0.id == Int(draft?[.category].text ?? "") }, ginAged: draft?[.isAgedGin].trimmed == "true")
     }
 
     var body: some View {
@@ -218,7 +218,7 @@ struct LabelEditor: View {
             let fresh = try await detail
             label = fresh
             let made = LabelDraft(fresh)
-            ginAged = LabelRules.looksAged(made)
+            ginAged = made[.isAgedGin].trimmed == "true"
             draft = made
         } catch APIError.unauthorized {
             session.signOut()
@@ -316,7 +316,8 @@ struct LabelEditor: View {
             case .list(let list):
                 PickerSheet(
                     kind: Self.kind(list), title: Self.listTitle(list), multiple: true,
-                    initial: draft.rows(list).map { LookupItem(id: $0.id, name: $0.name) }
+                    initial: draft.rows(list).map { LookupItem(id: $0.id, name: $0.name) },
+                    spiritKind: list == .distilleries && ["tequila", "mezcal", "cognac", "armagnac", "calvados", "pisco"].contains(rules.kind ?? "") ? rules.kind : nil
                 ) { chosen in self.draft?.setList(list, to: chosen) }
             case .store:
                 EmptyView()
@@ -373,21 +374,25 @@ struct LabelFactRows: View {
     private var bonded: Bool { rules.showsAmerican && draft[.isBottledInBond].trimmed == "true" }
 
     var body: some View {
-        if rules.isGin && !ginAged {
-            Button { ginAged = true } label: {
-                Label("Aged gin? Add age and finishes", systemImage: "plus.circle")
-                    .font(.inter(15, .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .contentShape(Rectangle())
+        if rules.isGin {
+            if rules.kind != "genever" {
+                Picker(selection: field(.ginStyle).text) {
+                    Text("Choose style").tag("")
+                    ForEach(SpiritChoices.ginStyles, id: \.self) { Text($0).tag($0) }
+                } label: { Text("Style").foregroundStyle(Theme.muted) }.tint(Theme.ink)
             }
-            .foregroundStyle(Theme.ink)
+            Toggle("Aged", isOn: Binding(get: { draft[.isAgedGin].trimmed == "true" }, set: {
+                draft[.isAgedGin].text = $0 ? "true" : "false"
+                ginAged = $0
+                onEdit(.isAgedGin)
+            })).tint(Theme.ink)
         }
         if rules.showsAging {
             TickGrid(items: [
                 ("Cask Strength", tick(.isCaskStrength), true),
                 ("Bottled in Bond", tick(.isBottledInBond), rules.showsAmerican),
                 ("Straight", tick(.isStraight), rules.showsAmerican),
-                ("NAS", tick(.isNas), true),
+                ("NAS", tick(.isNas), !rules.isAgave),
                 ("Still proof", tick(.isStillProof), rules.showsStillProof && !AgeDefaults.ageFilled(draft) && draft[.ageStatement].isEmpty),
             ])
         }
@@ -404,7 +409,7 @@ struct LabelFactRows: View {
         if let tier = Strength.tier(group: rules.group, proof: draft[.proof].trimmed) {
             Text(tier).font(.inter(12, .semibold, relativeTo: .caption)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .trailing)
         }
-        if rules.showsAging {
+        if rules.showsAging && !rules.isAgave && !rules.isGin {
             DateRow(title: "Distilled / barrel filled", field: field(.distilled), error: errors[LabelFact.distilled.rawValue], tracksChanges: tracksChanges)
             DateRow(title: "Bottled", field: field(.bottled), error: errors[LabelFact.bottled.rawValue], tracksChanges: tracksChanges)
             DeriveAgeRow(draft: $draft) { onEdit(.ageYears) }
@@ -413,36 +418,53 @@ struct LabelFactRows: View {
             Text("Bottled in Bond is 100 proof.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
         }
         if rules.showsAging {
+            if rules.kind == "tequila" {
+                Picker(selection: field(.tequilaClass).text) {
+                    Text("Choose class").tag("")
+                    ForEach(SpiritChoices.tequila, id: \.value) { Text($0.title).tag($0.value) }
+                } label: { Text("Class").foregroundStyle(Theme.muted) }.tint(Theme.ink)
+                if let guidance = SpiritChoices.tequilaGuidance[draft[.tequilaClass].trimmed] {
+                    Text(guidance).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                }
+            }
+            if rules.hasBrandyGrade {
+                Picker(selection: field(.brandyGrade).text) {
+                    Text("No designation").tag("")
+                    ForEach(SpiritChoices.brandyGrades, id: \.self) { Text($0).tag($0) }
+                } label: { Text("Designation").foregroundStyle(Theme.muted) }.tint(Theme.ink)
+                if let minimum = SpiritChoices.brandyMinimum[rules.kind ?? ""]?[draft[.brandyGrade].trimmed] {
+                    Text("At least \(minimum) years; add exact age only if known.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                }
+            }
             let nasLocked = draft[.isNas].trimmed == "true" && !ageUnlocked
-            HStack {
+            if !(rules.kind == "tequila" && draft[.tequilaClass].trimmed == "blanco") { HStack {
                 AgeRow(years: field(.ageYears), months: field(.ageMonths), days: field(.ageDays),
                        error: errors[LabelFact.ageYears.rawValue] ?? errors[LabelFact.ageMonths.rawValue] ?? errors[LabelFact.ageDays.rawValue])
                     .disabled(nasLocked)
                     .opacity(nasLocked ? 0.5 : 1)
                 if nasLocked { unlockButton("Edit the age anyway") { ageUnlocked = true } }
-            }
+            }.onTapGesture(count: 3) { ageUnlocked = true } }
             let locked = (nasLocked || AgeDefaults.ageFilled(draft)) && !ageUnlocked
-            HStack {
+            if rules.kind != "tequila" && !rules.isGin { HStack {
                 EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: errors[LabelFact.ageStatement.rawValue], tracksChanges: tracksChanges)
                     .disabled(locked)
                     .opacity(locked ? 0.5 : 1)
                 if locked { unlockButton("Edit the age statement anyway") { ageUnlocked = true } }
-            }
+            } }
         }
         SizeRow(field: field(.size), error: errors[LabelFact.size.rawValue])
         EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: session.currencySymbol, error: errors[LabelFact.msrp.rawValue])
         LinkChipsRow(
-            title: LabelEditor.listTitle(.distilleries), rows: draft.rows(.distilleries), changed: tracksChanges && draft.listChanged(.distilleries),
+            title: rules.group == "rum" ? "Distilleries / Estates" : LabelEditor.listTitle(.distilleries), rows: draft.rows(.distilleries), changed: tracksChanges && draft.listChanged(.distilleries),
             onRemove: { draft.remove(.distilleries, id: $0.id) }, onAdd: { onPick(.distilleries) }
         )
-        if rules.baseReplacesMashbill {
-            Picker(selection: field(.base).text) {
-                Text("Not set").tag("")
-                ForEach(LabelRules.rumBases, id: \.value) { Text($0.title).tag($0.value) }
-            } label: {
-                Text("Base").foregroundStyle(Theme.muted)
+        if rules.usesIngredients {
+            if rules.isGin {
+                IngredientRows(choices: $draft.ingredients, group: "gin", kind: rules.kind, ginMaterial: "botanical")
+                IngredientRows(choices: $draft.ingredients, group: "gin", kind: rules.kind, ginMaterial: "gin_base")
+            } else {
+                IngredientRows(choices: $draft.ingredients, group: rules.group ?? "", kind: rules.kind)
             }
-            .tint(Theme.ink)
         } else {
             LinkChipsRow(
                 title: LabelEditor.listTitle(.mashbills), rows: draft.rows(.mashbills), changed: tracksChanges && draft.listChanged(.mashbills),

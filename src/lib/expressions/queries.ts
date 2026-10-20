@@ -13,10 +13,12 @@ import {
   distilleries,
   expressionDistilleries,
   expressionFinishes,
+  expressionIngredients,
   expressionMashbills,
   expressionReleases,
   expressions,
   finishes,
+  ingredients,
   mashbillGrains,
   mashbills,
   stores,
@@ -58,12 +60,15 @@ export async function expressionLinks(expressionId: number): Promise<{
   distilleries: LinkedEntity[];
   mashbills: LinkedMashbill[];
   finishes: LinkedEntity[];
+  ingredients: Array<{ id: number; name: string; kind: string; family: string | null; slug: null; amount: null }>;
 }> {
-  const [d, m, f] = await Promise.all([
+  const [d, m, f, materials] = await Promise.all([
     db
       .select({
         id: distilleries.id,
         name: distilleries.name,
+        nomNumber: distilleries.nomNumber,
+        country: distilleries.country,
         slug: distilleries.slug,
         amount: expressionDistilleries.sharePct,
         inferred: expressionDistilleries.isInferred,
@@ -108,6 +113,11 @@ export async function expressionLinks(expressionId: number): Promise<{
       .innerJoin(finishes, eq(expressionFinishes.finishId, finishes.id))
       .where(eq(expressionFinishes.expressionId, expressionId))
       .orderBy(asc(expressionFinishes.position)),
+    db.select({ id: ingredients.id, name: ingredients.name, kind: ingredients.kind, family: ingredients.family })
+      .from(expressionIngredients)
+      .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
+      .where(eq(expressionIngredients.expressionId, expressionId))
+      .orderBy(asc(expressionIngredients.position)),
   ]);
 
   // On a blend, whose recipe it is matters and has to be picked; on a
@@ -117,7 +127,12 @@ export async function expressionLinks(expressionId: number): Promise<{
   const blended = d.length > 1;
 
   return {
-    distilleries: d.map(({ disclosure, ...row }) => ({ ...row, undisclosed: disclosure === "undisclosed" })),
+    distilleries: d.map(({ disclosure, nomNumber, country, ...row }) => ({
+      ...row,
+      name: nomNumber && ["mx", "mexico", "méxico"].includes(country.trim().toLocaleLowerCase())
+        ? `NOM-${nomNumber.replace(/^NOM-?/i, "")}: ${row.name}` : row.name,
+      undisclosed: disclosure === "undisclosed",
+    })),
     mashbills: m.map((row) => ({
       id: row.id,
       name: mashbillTitle(row, describeRecipe(row.recipe)),
@@ -132,6 +147,7 @@ export async function expressionLinks(expressionId: number): Promise<{
           : {}),
     })),
     finishes: f,
+    ingredients: materials.map((item) => ({ ...item, slug: null, amount: null })),
   };
 }
 
@@ -234,6 +250,10 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       proof: expressions.proof,
       abv: expressions.abv,
       ageStatement: expressions.ageStatement,
+      tequilaClass: expressions.tequilaClass,
+      brandyGrade: expressions.brandyGrade,
+      ginStyle: expressions.ginStyle,
+      isAgedGin: expressions.isAgedGin,
       ageYears: expressions.ageYears,
       ageMonths: expressions.ageMonths,
       ageDays: expressions.ageDays,
@@ -282,7 +302,7 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
   return { rows: rows.map((row) => ({ ...row, links: links.get(row.id)! })), total, pageCount, page };
 }
 
-export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
+export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[]; ingredients?: Array<{ name: string; family: string | null }> };
 
 /**
  * The ordered links for a page of labels, in three queries rather than three
@@ -290,11 +310,11 @@ export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; fi
  * grid can edit them in place.
  */
 async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
-  const byId = new Map<number, LabelLinks>(ids.map((id) => [id, { distilleries: [], mashbills: [], finishes: [] }]));
+  const byId = new Map<number, LabelLinks>(ids.map((id) => [id, { distilleries: [], mashbills: [], finishes: [], ingredients: [] }]));
   if (ids.length === 0) return byId;
 
   const amount = shareText;
-  const [d, m, f] = await Promise.all([
+  const [d, m, f, material] = await Promise.all([
     db
       .select({
         expressionId: expressionDistilleries.expressionId,
@@ -337,6 +357,11 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
       .innerJoin(finishes, eq(expressionFinishes.finishId, finishes.id))
       .where(inArray(expressionFinishes.expressionId, ids))
       .orderBy(asc(expressionFinishes.position)),
+    db.select({ expressionId: expressionIngredients.expressionId, name: ingredients.name, family: ingredients.family })
+      .from(expressionIngredients)
+      .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
+      .where(inArray(expressionIngredients.expressionId, ids))
+      .orderBy(asc(expressionIngredients.position)),
   ]);
 
   for (const row of d) {
@@ -365,6 +390,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
       amount: row.months === null ? "" : String(row.months),
     });
   }
+  for (const row of material) byId.get(row.expressionId)?.ingredients?.push({ name: row.name, family: row.family });
   return byId;
 }
 
@@ -381,6 +407,8 @@ export type ExpressionRow = {
   proof: string | null;
   abv: string | null;
   ageStatement: string | null;
+  tequilaClass?: string | null;
+  brandyGrade?: string | null;
   ageYears: string | null;
   ageMonths: number | null;
   ageDays: number | null;
@@ -426,6 +454,11 @@ export async function expressionOptions(ownerId: number) {
       name: expressions.name,
       brand: brands.name,
       proof: expressions.proof,
+      categoryId: expressions.categoryId,
+      tequilaClass: expressions.tequilaClass,
+      brandyGrade: expressions.brandyGrade,
+      isAgedGin: expressions.isAgedGin,
+      isNas: expressions.isNas,
     })
     .from(expressions)
     .innerJoin(brands, eq(expressions.brandId, brands.id))
@@ -435,6 +468,11 @@ export async function expressionOptions(ownerId: number) {
     value: r.value,
     label: `${r.brand} ${r.name}`,
     ...(r.proof ? { hint: `${Number(r.proof)} proof` } : {}),
+    categoryId: r.categoryId,
+    tequilaClass: r.tequilaClass,
+    brandyGrade: r.brandyGrade,
+    isAgedGin: r.isAgedGin,
+    isNas: r.isNas,
   }));
 }
 
@@ -448,6 +486,18 @@ export async function categoryFieldGroups(): Promise<Record<number, FieldGroup>>
 export async function categoryKindsById(): Promise<Record<number, CategoryKind>> {
   const rows = await db.select({ id: categories.id, slug: categories.slug, parentId: categories.parentId }).from(categories);
   return categoryKinds(rows);
+}
+
+export async function categoryKindForExpression(expressionId: number): Promise<CategoryKind> {
+  const [row] = await db.select({ categoryId: expressions.categoryId }).from(expressions)
+    .where(eq(expressions.id, expressionId)).limit(1);
+  return row ? (await categoryKindsById())[row.categoryId] ?? "other" : "other";
+}
+
+export async function bottleSpiritForExpression(expressionId: number): Promise<{ kind: CategoryKind; ginAged: boolean }> {
+  const [row] = await db.select({ categoryId: expressions.categoryId, isAgedGin: expressions.isAgedGin }).from(expressions)
+    .where(eq(expressions.id, expressionId)).limit(1);
+  return row ? { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin } : { kind: "other", ginAged: false };
 }
 
 export async function fieldGroupForCategory(categoryId: number): Promise<FieldGroup> {

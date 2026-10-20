@@ -23,6 +23,10 @@ export function ageLabel(e: {
   ageYears: string | null;
   ageMonths: number | null;
   ageDays: number | null;
+  ginAged?: boolean | null;
+  ginIsNas?: boolean | null;
 }): string | null {
+  if (e.ginAged === false) return null;
+  if (e.ginAged === true && e.ginIsNas === true) return "NAS";
   return describeAgeParts(e.ageYears, e.ageMonths, e.ageDays) ?? (e.ageStatement || null);
 }

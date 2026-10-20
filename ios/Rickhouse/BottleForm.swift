@@ -13,6 +13,7 @@ struct BottleFormSections: View {
     @State private var switchingLabel = false
     @State private var switchError: String?
     @State private var droppedRelease: String?
+    @State private var ageUnlocked = false
 
     init(draft: Binding<BottleDraft>, errors: [String: String]) {
         _draft = draft
@@ -117,11 +118,13 @@ struct BottleFormSections: View {
             if draft.onRelease {
                 FixedRow(title: "Batch and year", value: draft.releaseTitle ?? "", reason: "From its release")
             } else {
-                EditRow(title: "Batch", field: field(.batch), placeholder: "Batch 2 or B524", error: error(.batch), tracksChanges: tracks)
+                EditRow(title: draft.isAgave ? "LOT #" : "Batch", field: field(.batch), placeholder: draft.isAgave ? "Lot number" : "Batch 2 or B524", error: error(.batch), tracksChanges: tracks)
                 EditRow(title: "Release year", field: field(.releaseYear), placeholder: "2024", keyboard: .numberPad, error: error(.releaseYear), tracksChanges: tracks)
             }
-            Toggle("Single barrel", isOn: tick(.singleBarrel)).tint(Theme.ink).frame(minHeight: 44)
-            Toggle("Private selection", isOn: tick(.singleBarrelPick)).tint(Theme.ink).frame(minHeight: 44)
+            if draft.categoryGroup != "gin" || draft.labelGinAged {
+                Toggle("Single barrel", isOn: tick(.singleBarrel)).tint(Theme.ink).frame(minHeight: 44)
+                Toggle("Private selection", isOn: tick(.singleBarrelPick)).tint(Theme.ink).frame(minHeight: 44)
+            }
         } header: {
             SectionLabel("Release")
         } footer: {
@@ -137,8 +140,10 @@ struct BottleFormSections: View {
             }
             EditRow(title: "Barrel number", field: field(.barrel), error: error(.barrel), tracksChanges: tracks)
             EditRow(title: "Bottles in the release", field: field(.bottleCount), keyboard: .numberPad, error: error(.bottleCount), tracksChanges: tracks)
-            EditRow(title: "Warehouse", field: field(.warehouse), placeholder: "Warehouse H", error: error(.warehouse), tracksChanges: tracks)
-            EditRow(title: "Rick / floor", field: field(.rickFloor), placeholder: "5th floor, rick 12", error: error(.rickFloor), tracksChanges: tracks)
+            if !draft.hidesWarehouse {
+                EditRow(title: "Warehouse", field: field(.warehouse), placeholder: "Warehouse H", error: error(.warehouse), tracksChanges: tracks)
+                EditRow(title: "Rick / floor", field: field(.rickFloor), placeholder: "5th floor, rick 12", error: error(.rickFloor), tracksChanges: tracks)
+            }
         } header: {
             SectionLabel("Single-barrel detail")
         }
@@ -150,16 +155,51 @@ struct BottleFormSections: View {
         Section {
             BottleSizeRow(field: field(.size), error: error(.size))
             StrengthRow(proof: field(.proof), error: error(.proof), tracksChanges: tracks)
-            DateRow(title: "Distilled / barrel filled", field: field(.distilled), error: error(.distilled), tracksChanges: tracks)
-            if draft[.distilled].isEmpty, let label = draft.labelDistilled { InheritedNote(date: label) }
-            DateRow(title: "Bottled", field: field(.bottled), error: error(.bottled), tracksChanges: tracks)
-            if draft[.bottled].isEmpty, let label = draft.labelBottled { InheritedNote(date: label) }
-            BottleDeriveAgeRow(draft: $draft)
-            AgeRow(
-                years: field(.ageYears), months: field(.ageMonths), days: field(.ageDays),
-                error: error(.ageYears) ?? error(.ageMonths) ?? error(.ageDays)
-            )
-            EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "e.g. 7 Year", error: error(.ageStatement), tracksChanges: tracks)
+            if !draft.isAgave && draft.categoryGroup != "gin" {
+                DateRow(title: "Distilled / barrel filled", field: field(.distilled), error: error(.distilled), tracksChanges: tracks)
+                if draft[.distilled].isEmpty, let label = draft.labelDistilled { InheritedNote(date: label) }
+                DateRow(title: "Bottled", field: field(.bottled), error: error(.bottled), tracksChanges: tracks)
+                if draft[.bottled].isEmpty, let label = draft.labelBottled { InheritedNote(date: label) }
+                BottleDeriveAgeRow(draft: $draft)
+            }
+            if draft.categoryKind == "tequila" {
+                Picker(selection: field(.tequilaClass).text) {
+                    Text("Same as label").tag("")
+                    ForEach(SpiritChoices.tequila, id: \.value) { Text($0.title).tag($0.value) }
+                } label: { Text("Class").foregroundStyle(Theme.muted) }.tint(Theme.ink)
+                if let guidance = SpiritChoices.tequilaGuidance[draft[.tequilaClass].isEmpty ? draft.labelTequilaClass ?? "" : draft[.tequilaClass].trimmed] {
+                    Text(guidance).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                }
+            }
+            if SpiritChoices.brandyMinimum[draft.categoryKind ?? ""] != nil {
+                Picker(selection: field(.brandyGrade).text) {
+                    Text("Same as label").tag("")
+                    ForEach(SpiritChoices.brandyGrades, id: \.self) { Text($0).tag($0) }
+                } label: { Text("Designation").foregroundStyle(Theme.muted) }.tint(Theme.ink)
+                if let years = SpiritChoices.brandyMinimum[draft.categoryKind ?? ""]?[draft[.brandyGrade].trimmed] {
+                    Text("At least \(years) years; add exact age only if known.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+                }
+            }
+            if draft.categoryGroup == "gin" && draft.labelGinAged {
+                Picker(selection: field(.ginIsNas).text) {
+                    Text("Same as label").tag("")
+                    Text("NAS").tag("true")
+                    Text("Age stated").tag("false")
+                } label: { Text("NAS").foregroundStyle(Theme.muted) }.tint(Theme.ink)
+            }
+            if (draft.categoryGroup != "gin" || draft.labelGinAged) && (draft[.tequilaClass].isEmpty ? draft.labelTequilaClass : draft[.tequilaClass].trimmed) != "blanco" {
+                let nasLocked = draft.categoryGroup == "gin" && (draft[.ginIsNas].isEmpty ? draft.labelGinIsNas : draft[.ginIsNas].trimmed == "true") && !ageUnlocked
+                HStack {
+                AgeRow(years: field(.ageYears), months: field(.ageMonths), days: field(.ageDays),
+                       error: error(.ageYears) ?? error(.ageMonths) ?? error(.ageDays))
+                    .disabled(nasLocked).opacity(nasLocked ? 0.5 : 1)
+                if nasLocked { Button("Edit age") { ageUnlocked = true } }
+                }
+                .onTapGesture(count: 3) { ageUnlocked = true }
+            }
+            if draft.categoryKind != "tequila" && draft.categoryGroup != "gin" {
+                EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "e.g. 7 Year", error: error(.ageStatement), tracksChanges: tracks)
+            }
         } header: {
             SectionLabel("This bottle's own proof, age and size")
         } footer: {
@@ -179,6 +219,11 @@ struct BottleFormSections: View {
             draft[.label].text = String(chosen.id)
             draft.labelTitle = chosen.title
             draft.labelCategory = chosen.category
+            draft.categoryGroup = detail.categoryGroup
+            draft.categoryKind = chosen.categoryKind
+            draft.labelTequilaClass = detail.tequilaClass
+            draft.labelGinAged = detail.isAgedGin ?? false
+            draft.labelGinIsNas = detail.isNas ?? false
             draft.releases = detail.releases.map { ReleaseChoice(id: $0.id, name: $0.name, releaseYear: $0.releaseYear) }
             draft.labelDistilled = detail.barrelFilledOn
             draft.labelBottled = detail.bottledOn
@@ -200,6 +245,11 @@ struct BottleFormSections: View {
             draft[.label].revert()
             draft.labelTitle = "\(detail.brand) \(detail.name)"
             draft.labelCategory = detail.category
+            draft.categoryGroup = detail.categoryGroup
+            draft.categoryKind = detail.categoryKind
+            draft.labelTequilaClass = detail.tequilaClass
+            draft.labelGinAged = detail.isAgedGin ?? false
+            draft.labelGinIsNas = detail.isNas ?? false
             draft.releases = detail.releases.map { ReleaseChoice(id: $0.id, name: $0.name, releaseYear: $0.releaseYear) }
             draft.labelDistilled = detail.barrelFilledOn
             draft.labelBottled = detail.bottledOn

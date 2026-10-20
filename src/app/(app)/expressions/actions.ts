@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { deleteStoredImage } from "@/lib/images";
 import { db } from "@/db";
-import { bottles, distilleries, expressions, expressionDistilleries, expressionMashbills, mashbillGrains, mashbills } from "@/db/schema";
+import { bottles, distilleries, expressions, expressionDistilleries, expressionMashbills, ingredients, mashbillGrains, mashbills, type IngredientKind } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { resolveSlug } from "@/lib/slug";
@@ -13,7 +13,8 @@ import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
 import { writableFields } from "@/lib/expressions/fields";
 import { expressionGridEditSchema, expressionSchema } from "@/lib/expressions/schema";
-import { fieldGroupForCategory } from "@/lib/expressions/queries";
+import { categoryKindsById, fieldGroupForCategory } from "@/lib/expressions/queries";
+import { BRANDY_MINIMUM_YEARS, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "@/lib/expressions/spirit-details";
 import {
   NotOwned,
   attachPendingColas,
@@ -22,6 +23,7 @@ import {
   labelValues,
   linksFrom,
   replaceLinks,
+  replaceIngredients,
   valuesForGroup,
   writableValues,
   writeLabel,
@@ -34,6 +36,16 @@ import { pendingTtbIds } from "@/lib/cola/ids";
 import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
 import { describeMashbill, mashbillTitle } from "@/lib/mashbills";
 import type { Option } from "@/lib/admin/types";
+import type { IngredientChoice } from "@/lib/expressions/spirit-details";
+import { isGinKind } from "@/lib/expressions/gin-details";
+
+export async function ingredientOptionsAction(kind: IngredientKind): Promise<IngredientChoice[]> {
+  const user = await requireSession();
+  if (!["maguey", "distillate", "rum_base", "botanical", "gin_base"].includes(kind)) return [];
+  return db.select({ name: ingredients.name, family: ingredients.family, kind: ingredients.kind })
+    .from(ingredients).where(and(eq(ingredients.ownerId, user.id), eq(ingredients.kind, kind)))
+    .orderBy(ingredients.name);
+}
 
 /** The most common recipes linked to labels from this distillery in this account. */
 export async function mashbillSuggestionsAction(distilleryId: number): Promise<Option[]> {
@@ -119,6 +131,7 @@ export async function saveExpressionAction(
     distilleryLinks: formData.get("distilleryLinks"),
     mashbillLinks: formData.get("mashbillLinks"),
     finishLinks: formData.get("finishLinks"),
+    ingredientLinks: formData.get("ingredientLinks"),
   });
 
   // Only the label form sends this; the grids and Add bottle leave older names alone.
@@ -208,19 +221,11 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
 
     const input = parsed.data;
     try {
-      const allowed = writableFields(await fieldGroupForCategory(input.categoryId));
-      const slug = await resolveSlug({
-        table: expressions,
-        column: expressions.slug,
-        idColumn: expressions.id,
-        scope: { column: expressions.ownerId, value: user.id },
-        requested: input.slug,
-        fallbackFrom: input.name,
-      });
+      const values = await labelValues(input, user.id, null);
       const id = await db.transaction(async (tx) => {
         const [inserted] = await tx
           .insert(expressions)
-          .values({ ...(valuesForGroup(input, allowed, slug) as typeof expressions.$inferInsert), ownerId: user.id })
+          .values({ ...(values as typeof expressions.$inferInsert), ownerId: user.id })
           .returning({ id: expressions.id });
         await insertLinks(tx, user.id, inserted!.id, linksFrom(row));
         // The row's "Add bottle" box: same transaction, so a label is
@@ -268,7 +273,7 @@ export async function updateExpressionsBulkAction(
   const user = await requireSession();
   const results: BulkSaveResult["results"] = [];
 
-  for (const [index, { id, distilleryLinks, mashbillLinks, finishLinks, ...fields }] of rows.entries()) {
+  for (const [index, { id, distilleryLinks, mashbillLinks, finishLinks, ingredientLinks, ...fields }] of rows.entries()) {
     const parsed = expressionGridEditSchema.safeParse(fields);
     if (!parsed.success) {
       results.push({
@@ -291,8 +296,29 @@ export async function updateExpressionsBulkAction(
         continue;
       }
 
-      const allowed = writableFields(await fieldGroupForCategory(parsed.data.categoryId ?? current.categoryId));
+      const categoryId = parsed.data.categoryId ?? current.categoryId;
+      const kind = (await categoryKindsById())[categoryId] ?? "other";
+      const allowed = writableFields(await fieldGroupForCategory(categoryId));
       const values = writableValues(parsed.data, allowed);
+      if (isAgaveKind(kind)) {
+        delete values.barrelFilledOn; delete values.bottledOn; delete values.isNas;
+      }
+      if (kind === "tequila") {
+        delete values.ageStatement;
+        if (parsed.data.tequilaClass !== undefined || current.categoryId !== categoryId) {
+          values.ageStatement = parsed.data.tequilaClass ? TEQUILA_CLASS_LABELS[parsed.data.tequilaClass as TequilaClass] : null;
+          values.isNas = false;
+        }
+        if (parsed.data.tequilaClass === "blanco") { values.ageYears = null; values.ageMonths = null; values.ageDays = null; }
+      } else delete values.tequilaClass;
+      if (BRANDY_MINIMUM_YEARS[kind]) {
+        if (parsed.data.brandyGrade !== undefined) values.ageStatement = parsed.data.brandyGrade;
+      } else delete values.brandyGrade;
+      if (kind !== "gin") delete values.ginStyle;
+      if (!isGinKind(kind)) delete values.isAgedGin;
+      if (isGinKind(kind)) {
+        delete values.barrelFilledOn; delete values.bottledOn; delete values.ageStatement;
+      }
       // A cleared slug means "make me one", as it does on the form — the
       // column itself can never be empty.
       if ("slug" in values && values.slug === null) {
@@ -315,7 +341,11 @@ export async function updateExpressionsBulkAction(
             .set(values as Partial<typeof expressions.$inferInsert>)
             .where(and(eq(expressions.id, id), eq(expressions.ownerId, user.id)));
         }
-        if (relink) await replaceLinks(tx, user.id, id, linksFrom({ distilleryLinks, mashbillLinks, finishLinks }));
+        if (relink) await replaceLinks(tx, user.id, id, linksFrom({ distilleryLinks, mashbillLinks, finishLinks, ingredientLinks }));
+        else if (ingredientLinks !== undefined || (kind === "tequila" && current.categoryId !== categoryId) ||
+          (isGinKind(kind) && !isGinKind((await categoryKindsById())[current.categoryId] ?? "other"))) {
+          await replaceIngredients(tx, user.id, id, linksFrom({ ingredientLinks }).ingredients ?? []);
+        }
       });
       results.push({ index, ok: true, id });
     } catch (error: unknown) {

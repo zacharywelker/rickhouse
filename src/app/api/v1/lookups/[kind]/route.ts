@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { apiError, issueFields, readJsonObject } from "@/lib/api/v1";
 import { storeSchema } from "@/lib/admin/schemas";
 import { CREATABLE_KINDS, LOOKUP_KINDS, createLookup, createStore, listLookup, type CreatableKind, type LookupKind } from "@/lib/lookups";
+import type { CategoryKind } from "@/lib/expressions/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!user) return apiError(401, "unauthorized", "Sign in first.");
   const { kind } = await params;
   if (!isKind(kind)) return apiError(404, "not_found", "There is no such list.");
-  return NextResponse.json({ items: await listLookup(kind, user.id, request.nextUrl.searchParams.get("q")) });
+  const spiritKind = request.nextUrl.searchParams.get("spiritKind");
+  const allowed: CategoryKind[] = ["tequila", "mezcal", "cognac", "armagnac", "calvados", "pisco"];
+  const q = request.nextUrl.searchParams.get("q");
+  return NextResponse.json({ items: await (allowed.includes(spiritKind as CategoryKind)
+    ? listLookup(kind, user.id, q, spiritKind as CategoryKind)
+    : listLookup(kind, user.id, q)) });
 }
 
 /** A store is its name and its place; the web's store rules, minus the website and notes that stay on the web. */

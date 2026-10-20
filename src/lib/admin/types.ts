@@ -16,6 +16,12 @@ export type Option = {
   undisclosed?: boolean;
   /** Distilleries only: the Scotch region it sits in, copied onto a label that links it. */
   region?: string;
+  country?: string;
+  categoryId?: number;
+  tequilaClass?: string | null;
+  brandyGrade?: string | null;
+  isAgedGin?: boolean;
+  isNas?: boolean;
   /** Set on self-referencing resources, so the form can exclude descendants. */
   parentId?: number | null;
 };

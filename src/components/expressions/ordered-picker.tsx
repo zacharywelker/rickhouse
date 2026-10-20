@@ -56,12 +56,14 @@ export function OrderedPicker({
   inferable = false,
   undisclosable = false,
   onOptionCreated,
+  defaultCountry,
 }: {
   name: string;
   label: string;
   description: string;
   resource: ReferenceResource | null;
   options: Option[];
+  defaultCountry?: string;
   emptyHint?: string;
   amountLabel: string;
   amountSuffix: string;
@@ -329,6 +331,7 @@ export function OrderedPicker({
         resource={resource}
         {...(resource === null && name === "mashbillLinks" ? { detailResource: "mashbills" as const } : {})}
         options={selectable}
+        {...(defaultCountry ? { defaultCountry } : {})}
         value={null}
         onChange={(next) => {
           if (next === null) return;
@@ -354,6 +357,7 @@ export function OrderedPicker({
           onOpenChange={(open) => { if (!open) setEditing(null); }}
           initialName=""
           recordId={editing.id}
+          {...(defaultCountry ? { defaultCountry } : {})}
           onCreated={(option) => {
             onChange(value.map((row) => row.id === editing.id ? { ...row, label: option.label } : row));
             setCreated((items) => [...items.filter((item) => item.value !== option.value), option]);

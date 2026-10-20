@@ -86,6 +86,7 @@ export function BulkGrid({
   sections,
   options,
   fieldGroupFor = () => null,
+  applicabilityFor,
   onChanged,
   selectOptionsFor,
   save,
@@ -97,6 +98,8 @@ export function BulkGrid({
   options: Record<string, Option[]>;
   /** The row's spirit, for per-category sections. Null when there are none. */
   fieldGroupFor?: (values: RowValues) => FieldGroup | null;
+  /** A row-specific reason to hide a column beyond the section's general rules. */
+  applicabilityFor?: (name: string, values: RowValues) => string | null;
   /** Follow-on changes to make when a field changes — the form's niceties. */
   onChanged?: (prev: RowValues, next: RowValues, name: string) => RowValues;
   /** Extra choices for a select column that depend on the row, like a label's releases. */
@@ -139,6 +142,8 @@ export function BulkGrid({
 
   /** Whether a column applies to a row, and if not, why — for the cell's hint. */
   function applicability(column: Column, values: RowValues): { applies: true } | { applies: false; why: string } {
+    const reason = applicabilityFor?.(column.id, values);
+    if (reason) return { applies: false, why: reason };
     const { section } = column;
     const fieldGroup = fieldGroupFor(values);
     if (section.fieldGroups && (fieldGroup === null || !section.fieldGroups.includes(fieldGroup))) {

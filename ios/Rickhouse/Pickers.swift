@@ -15,6 +15,7 @@ struct PickerSheet: View {
     let initial: [LookupItem]
     /// A single choice that may be nothing (a bottle with no store).
     var allowNone = false
+    var spiritKind: String? = nil
     var onDone: ([LookupItem]) -> Void
 
     @State private var items: [LookupItem] = []
@@ -51,7 +52,7 @@ struct PickerSheet: View {
                     let near = PickerLogic.nearMatches(typed, in: items).filter { n in !rest.contains { $0.id == n.id } }
                     if !near.isEmpty { Section { ForEach(near) { row($0) } } header: { SectionLabel("Did you mean") } }
                 }
-                if PickerLogic.offersNew(typed, kind: kind, in: items) {
+                if spiritKind == nil && PickerLogic.offersNew(typed, kind: kind, in: items) {
                     Section {
                         Button { if kind.needsPlace { placing = true } else { create() } } label: {
                             HStack {
@@ -140,7 +141,7 @@ struct PickerSheet: View {
         loading = true
         defer { loading = false }
         do {
-            items = try await api.lookups(kind)
+            items = try await api.lookups(kind, spiritKind: spiritKind)
             // Whatever is already chosen is on the list, even if the list came back without it.
             for item in initial where !items.contains(where: { $0.id == item.id }) { items.append(item) }
         } catch APIError.unauthorized {

@@ -1,4 +1,7 @@
 import "server-only";
+import { asc, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { expressionIngredients, ingredients } from "@/db/schema";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import type { Option } from "@/lib/admin/types";
 import { categoryFieldGroups, categoryKindsById, expressionLinks } from "./queries";
@@ -30,7 +33,7 @@ export async function expressionFormData(expressionId: number | null, ownerId: n
 
   const links =
     expressionId === null
-      ? { distilleries: [] as LinkedRow[], mashbills: [] as LinkedRow[], finishes: [] as LinkedRow[] }
+      ? { distilleries: [] as LinkedRow[], mashbills: [] as LinkedRow[], finishes: [] as LinkedRow[], ingredients: [] as Array<{ name: string; family: string | null }> }
       : await loadLinks(expressionId);
 
   return { options, categoryGroups, categoryKinds, links };
@@ -38,7 +41,14 @@ export async function expressionFormData(expressionId: number | null, ownerId: n
 
 /** A label's three lists as the form's pickers hold them. */
 export async function loadLinks(expressionId: number) {
-  const linked = await expressionLinks(expressionId);
+  const [linked, materials] = await Promise.all([
+    expressionLinks(expressionId),
+    db.select({ name: ingredients.name, family: ingredients.family, kind: ingredients.kind })
+      .from(expressionIngredients)
+      .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
+      .where(eq(expressionIngredients.expressionId, expressionId))
+      .orderBy(asc(expressionIngredients.position)),
+  ]);
   const toRows = (rows: Array<{ id: number; name: string; amount: string | null }>): LinkedRow[] =>
     rows.map((row) => ({
       id: row.id,
@@ -62,5 +72,6 @@ export async function loadLinks(expressionId: number) {
       distilleryId: row.distilleryId ?? null,
     })),
     finishes: toRows(linked.finishes),
+    ingredients: materials,
   };
 }

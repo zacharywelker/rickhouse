@@ -8,8 +8,11 @@ import { findOrCreateBrand } from "./brand";
 import { writableFields } from "./fields";
 import { categoryFieldGroups, categoryKindsById } from "./queries";
 import { nameContextFor, nameRuleColumns, withBondProof } from "./rules";
-import { replaceLinks, writableValues, type Links } from "./save";
+import { replaceIngredients, replaceLinks, writableValues, type Links } from "./save";
+import type { IngredientChoice } from "./spirit-details";
 import { expressionSchema } from "./schema";
+import { BRANDY_MINIMUM_YEARS, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "./spirit-details";
+import { isGinKind } from "./gin-details";
 
 /**
  * Editing a label from the phone (spec 2026-10-08-edit-facts-design.md, sections 1 and 2): any of the facts
@@ -26,6 +29,10 @@ export const labelFactsSchema = expressionSchema.pick({
   ageMonths: true,
   ageDays: true,
   ageStatement: true,
+  tequilaClass: true,
+  brandyGrade: true,
+  ginStyle: true,
+  isAgedGin: true,
   isNas: true,
   isStraight: true,
   isCaskStrength: true,
@@ -48,6 +55,7 @@ export type LabelPatch = {
   brand?: string;
   /** The three ordered lists together, as `replaceLinks` rewrites them. */
   links?: Links;
+  ingredients?: IngredientChoice[];
   /** The label's older names, exactly; see `syncExpressionNames`. */
   otherNames?: OtherName[];
 };
@@ -137,6 +145,7 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       // The same category rules as the web form's save: only the columns the category writes (vodka has no aging),
       // and Bottled In Bond is 100 proof whatever was sent, including on a label that already is.
       const categoryId = facts.categoryId ?? current.categoryId;
+      const kind = (await categoryKindsById())[categoryId] ?? "other";
       const [category] = await tx
         .select({ fieldGroup: categories.fieldGroup })
         .from(categories)
@@ -151,12 +160,43 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
               await categoryKindsById(),
             ))
           : {};
-      const columns = withBondProof(writableValues({ ...byName, ...sent }, writableFields(category?.fieldGroup ?? "other")), current.isBottledInBond);
+      const allowed = writableFields(category?.fieldGroup ?? "other");
+      if (kind !== "tequila") allowed.delete("tequilaClass");
+      if (!BRANDY_MINIMUM_YEARS[kind]) allowed.delete("brandyGrade");
+      if (kind !== "gin") allowed.delete("ginStyle");
+      if (isAgaveKind(kind)) {
+        allowed.delete("barrelFilledOn"); allowed.delete("bottledOn"); allowed.delete("isNas");
+      }
+      if (kind === "tequila") allowed.delete("ageStatement");
+      const columns = withBondProof(writableValues({ ...byName, ...sent }, allowed), current.isBottledInBond);
+      if (isAgaveKind(kind)) {
+        delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.isNas;
+      }
+      if (kind !== "tequila") delete columns.tequilaClass;
+      if (!BRANDY_MINIMUM_YEARS[kind]) delete columns.brandyGrade;
+      if (kind !== "gin") delete columns.ginStyle;
+      if (!isGinKind(kind)) delete columns.isAgedGin;
+      if (isGinKind(kind)) {
+        delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.ageStatement;
+      }
+      if (kind === "tequila" && facts.tequilaClass !== undefined) {
+        columns.ageStatement = facts.tequilaClass ? TEQUILA_CLASS_LABELS[facts.tequilaClass as TequilaClass] : null;
+        columns.isNas = false;
+        if (facts.tequilaClass === "blanco") { columns.ageYears = null; columns.ageMonths = null; columns.ageDays = null; }
+      }
+      if (BRANDY_MINIMUM_YEARS[kind] && facts.brandyGrade !== undefined) columns.ageStatement = facts.brandyGrade;
       const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) } as Partial<typeof expressions.$inferInsert>;
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));
       }
       if (patch.links) await replaceLinks(tx, ownerId, id, patch.links);
+      if (patch.ingredients && !patch.links?.ingredients) await replaceIngredients(tx, ownerId, id, patch.ingredients);
+      if (kind === "tequila" && current.categoryId !== categoryId && !patch.links?.ingredients && !patch.ingredients) {
+        await replaceIngredients(tx, ownerId, id, [{ name: "Blue Weber" }]);
+      }
+      if (isGinKind(kind) && !isGinKind((await categoryKindsById())[current.categoryId] ?? "other") && !patch.links?.ingredients && !patch.ingredients) {
+        await replaceIngredients(tx, ownerId, id, [{ name: "Juniper", kind: "botanical" }]);
+      }
       if (patch.otherNames) await syncExpressionNames(tx, id, patch.otherNames);
       return { ok: true };
     });

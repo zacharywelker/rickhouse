@@ -13,10 +13,16 @@ extension BottleDetailView {
                 row("Category", b.category)
                 row("Proof", b.proof.flatMap(Double.init).map { $0.formatted() })
                 row("Strength", b.strength == "navy" ? "Navy Strength" : b.strength == "overproof" ? "Overproof" : nil)
-                row("Age", b.ageStatement)
+                row("Age", b.categoryGroup == "gin" && b.isAgedGin != true ? nil : b.categoryGroup == "gin" && b.ginIsNas == true ? "NAS" : SpiritChoices.ageText(years: b.ageYears, months: b.ageMonths, days: b.ageDays, statement: b.ageStatement))
+                if b.categoryGroup == "gin" && b.categoryKind != "genever" { row("Style", b.ginStyle) }
                 row("Size", "\(b.sizeMl) mL")
-                row("Distilleries", b.distilleries.joined(separator: ", "))
-                row("Mashbill", b.mashbills.joined(separator: ", "))
+                row(b.categoryGroup == "rum" ? "Distilleries / Estates" : "Distilleries", b.distilleries.joined(separator: ", "))
+                if b.categoryGroup == "gin" {
+                    row("Botanicals", (b.botanicals ?? []).joined(separator: ", "))
+                    row("Base spirits", (b.ginBases ?? []).joined(separator: ", "))
+                } else if b.categoryGroup == "agave" || b.categoryGroup == "brandy" || b.categoryGroup == "rum" {
+                    row(b.categoryGroup == "agave" ? "Magueys" : b.categoryGroup == "brandy" ? "Distillate" : "Base", (b.ingredients ?? []).joined(separator: ", "))
+                } else { row("Mashbill", b.mashbills.joined(separator: ", ")) }
                 row("Finishes", b.finishes.joined(separator: ", "))
             } header: {
                 SectionTitle(title: "Label", canEdit: !editingSomething && b.expressionId != nil) { stopEditing(); editingLabel = true }
@@ -32,7 +38,7 @@ extension BottleDetailView {
             Section {
                 row("Status", b.status.capitalized)
                 row("Opened", b.dateOpened.map(Format.day))
-                row("Batch", b.batch)
+                row(b.categoryKind == "tequila" || b.categoryKind == "mezcal" ? "LOT #" : "Batch", b.batch)
                 row("Release year", b.releaseYear.map(String.init))
                 row("Barrel", b.barrelNumber)
                 row("Pick", b.pickName)
@@ -40,8 +46,10 @@ extension BottleDetailView {
                 row("MSRP", b.msrp.map(Format.money))
                 row("Store", b.store)
                 row("Acquired", b.dateAcquired.map(Format.day))
-                row("Distilled / barrel filled", (b.barrelFilledOn ?? b.labelBarrelFilledOn).map(Format.day))
-                row("Bottled", (b.bottledOn ?? b.labelBottledOn).map(Format.day))
+                if b.categoryKind != "tequila" && b.categoryKind != "mezcal" && b.categoryGroup != "gin" {
+                    row("Distilled / barrel filled", (b.barrelFilledOn ?? b.labelBarrelFilledOn).map(Format.day))
+                    row("Bottled", (b.bottledOn ?? b.labelBottledOn).map(Format.day))
+                }
                 row("Where it lives", b.location)
             } header: {
                 SectionTitle(title: "Bottle", canEdit: !editingSomething) { startBottleEdit(b) }

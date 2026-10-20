@@ -141,6 +141,7 @@ export const distilleries = pgTable(
     /** Scotch region (Speyside, Islay…), copied onto a label's regions when the distillery is linked. */
     region: text("region"),
     dspNumber: text("dsp_number"),
+    nomNumber: text("nom_number"),
     founded: integer("founded"),
     isDefunct: boolean("is_defunct").notNull().default(false),
     /** How much the label told us; see DISTILLERY_DISCLOSURES. */
@@ -251,6 +252,21 @@ export const cooperages = pgTable("cooperages", {
   unique("cooperages_owner_slug_unique").on(t.ownerId, t.slug),
 ]);
 
+/** Reusable source ingredients. The label links to as many as its recipe names. */
+export const INGREDIENT_KINDS = ["maguey", "distillate", "rum_base", "botanical", "gin_base"] as const;
+export type IngredientKind = (typeof INGREDIENT_KINDS)[number];
+export const ingredients = pgTable("ingredients", {
+  id: serial("id").primaryKey(),
+  ownerId: integer("owner_id").notNull().references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: INGREDIENT_KINDS }).notNull(),
+  name: citext("name").notNull(),
+  family: text("family"),
+}, (t) => [
+  index("ingredients_owner_idx").on(t.ownerId),
+  unique("ingredients_owner_kind_name_unique").on(t.ownerId, t.kind, t.name),
+  check("ingredients_family_check", sql`${t.family} IS NULL OR ${t.family} IN ('grape', 'apple', 'pear', 'other')`),
+]);
+
 export const stores = pgTable(
   "stores",
   {
@@ -319,6 +335,11 @@ export const expressions = pgTable(
     // (>= 4 years) but the label says "7 Year", and 7 Year is what should show.
     isStraight: boolean("is_straight").notNull().default(false),
     isNas: boolean("is_nas").notNull().default(false),
+    /** A tequila class or a legally defined brandy age designation; numbers remain known ages only. */
+    tequilaClass: text("tequila_class"),
+    brandyGrade: text("brandy_grade"),
+    ginStyle: text("gin_style"),
+    isAgedGin: boolean("is_aged_gin").notNull().default(false),
 
     // Process
     isChillFiltered: boolean("is_chill_filtered"),
@@ -392,6 +413,12 @@ export const expressionDistilleries = pgTable(
   },
   (t) => [primaryKey({ columns: [t.expressionId, t.distilleryId] })],
 );
+
+export const expressionIngredients = pgTable("expression_ingredients", {
+  expressionId: integer("expression_id").notNull().references(() => expressions.id, { onDelete: "cascade" }),
+  ingredientId: integer("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
+  position: integer("position").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.expressionId, t.ingredientId] })]);
 
 /**
  * Older names a label has gone by. A bottle may say which version it is
@@ -623,6 +650,11 @@ export const bottles = pgTable(
     ageMonths: integer("age_months"),
     ageDays: integer("age_days"),
     ageStatement: text("age_statement"),
+    /** Null uses the label's class or designation. */
+    tequilaClass: text("tequila_class"),
+    brandyGrade: text("brandy_grade"),
+    /** Gin bottles inherit the label's aged state but may override NAS. */
+    ginIsNas: boolean("gin_is_nas"),
 
     // Acquisition
     pricePaid: money("price_paid"),

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { categories, expressionDistilleries, expressionFinishes, expressionMashbills, expressions, mashbillGrains, mashbills } from "@/db/schema";
+import { categories, expressionDistilleries, expressionFinishes, expressionIngredients, expressionMashbills, expressions, ingredients, mashbillGrains, mashbills, type IngredientKind } from "@/db/schema";
 import { resolveSlug } from "@/lib/slug";
 import { attachCola, colaLookupEnabled, refreshCola } from "@/lib/cola/store";
 import { writableFields } from "./fields";
@@ -9,6 +9,9 @@ import { fieldGroupForCategory } from "./queries";
 import { AGING_FIELDS, BOND_PROOF, isSingleMaltCategory } from "./rules";
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
+import { ingredientAllowed, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
+import { categoryKindsById } from "./queries";
+import { isGinKind } from "./gin-details";
 
 /**
  * Saving a label, shared by the label form, the label grids and the
@@ -58,14 +61,34 @@ export function fieldErrorsOf(issues: ReadonlyArray<{ path: PropertyKey[]; messa
 }
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-export type Links = { distilleries: LinkRow[]; mashbills: LinkRow[]; finishes: LinkRow[] };
+export type Links = { distilleries: LinkRow[]; mashbills: LinkRow[]; finishes: LinkRow[]; ingredients?: IngredientChoice[] };
+
+export function parseIngredientLinks(raw: unknown): IngredientChoice[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const data = typeof raw === "string" ? (() => { try { return JSON.parse(raw) as unknown; } catch { return null; } })() : raw;
+  if (!Array.isArray(data) || data.length > 100) return [];
+  const seen = new Set<string>();
+  return data.flatMap((item): IngredientChoice[] => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    const name = typeof record.name === "string" ? record.name.trim() : "";
+    const family = typeof record.family === "string" ? record.family.trim() : null;
+    const kind = typeof record.kind === "string" && ["maguey", "distillate", "rum_base", "botanical", "gin_base"].includes(record.kind) ? record.kind as IngredientKind : undefined;
+    if (!name || name.length > 120 || (family && !["grape", "apple", "pear", "other"].includes(family))) return [];
+    const key = `${kind ?? ""}:${name.toLocaleLowerCase()}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ name, family, kind }];
+  });
+}
 
 /** The three ordered lists, from a form or a grid row — both send the same JSON. */
-export function linksFrom(source: { distilleryLinks?: unknown; mashbillLinks?: unknown; finishLinks?: unknown }): Links {
+export function linksFrom(source: { distilleryLinks?: unknown; mashbillLinks?: unknown; finishLinks?: unknown; ingredientLinks?: unknown }): Links {
   return {
     distilleries: parseLinks(source.distilleryLinks),
     mashbills: parseLinks(source.mashbillLinks),
     finishes: parseLinks(source.finishLinks),
+    ingredients: parseIngredientLinks(source.ingredientLinks),
   };
 }
 
@@ -78,7 +101,13 @@ export async function replaceLinks(tx: Tx, ownerId: number, expressionId: number
   await tx.delete(expressionDistilleries).where(eq(expressionDistilleries.expressionId, expressionId));
   await tx.delete(expressionMashbills).where(eq(expressionMashbills.expressionId, expressionId));
   await tx.delete(expressionFinishes).where(eq(expressionFinishes.expressionId, expressionId));
+  if (links.ingredients !== undefined) await tx.delete(expressionIngredients).where(eq(expressionIngredients.expressionId, expressionId));
   await insertLinks(tx, ownerId, expressionId, links);
+}
+
+export async function replaceIngredients(tx: Tx, ownerId: number, expressionId: number, chosen: IngredientChoice[]) {
+  await tx.delete(expressionIngredients).where(eq(expressionIngredients.expressionId, expressionId));
+  await insertIngredients(tx, ownerId, expressionId, chosen);
 }
 
 export async function insertLinks(tx: Tx, ownerId: number, expressionId: number, links: Links) {
@@ -149,6 +178,43 @@ export async function insertLinks(tx: Tx, ownerId: number, expressionId: number,
       })),
     );
   }
+  await insertIngredients(tx, ownerId, expressionId, links.ingredients);
+}
+
+/** Create reusable ingredient rows and link them in the chosen order. */
+async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, submitted: IngredientChoice[] | undefined) {
+  const [label] = await tx.select({ categoryId: expressions.categoryId, group: categories.fieldGroup })
+    .from(expressions).innerJoin(categories, eq(expressions.categoryId, categories.id))
+    .where(eq(expressions.id, expressionId)).limit(1);
+  if (!label) return;
+  const kind = (await categoryKindsById())[label.categoryId] ?? "other";
+  const materialKind: IngredientKind | null = label.group === "agave" ? "maguey" : label.group === "rum" ? "rum_base" : label.group === "brandy" ? "distillate" : null;
+  if (!materialKind && label.group !== "gin") return;
+  if (submitted === undefined && kind !== "tequila" && label.group !== "gin") return;
+  if (kind === "tequila" && submitted === undefined) {
+    await tx.delete(expressionIngredients).where(eq(expressionIngredients.expressionId, expressionId));
+  }
+  const chosen: IngredientChoice[] = kind === "tequila" ? [{ name: "Blue Weber", kind: "maguey" }]
+    : label.group === "gin" ? [{ name: "Juniper", kind: "botanical" }, ...(submitted ?? []).filter((choice) =>
+      (choice.kind === "botanical" || choice.kind === "gin_base") && !(choice.kind === "botanical" && choice.name.trim().toLocaleLowerCase() === "juniper"))]
+    : (submitted ?? []);
+  const seen = new Set<string>();
+  for (const [position, choice] of chosen.entries()) {
+    const choiceKind: IngredientKind | null = label.group === "gin" ? (choice.kind === "botanical" || choice.kind === "gin_base" ? choice.kind : null) : materialKind;
+    if (!choiceKind) throw new Error(`Choose whether ${choice.name} is a botanical or base.`);
+    if (label.group !== "gin" && choice.kind && choice.kind !== choiceKind) continue;
+    const key = `${choiceKind}:${choice.name.trim().toLocaleLowerCase()}`;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    if (!ingredientAllowed(kind, choice)) throw new Error(`${choice.name} is not allowed for this category.`);
+    await tx.insert(ingredients).values({ ownerId, kind: choiceKind, name: choice.name.trim(), family: choice.family ?? null })
+      .onConflictDoNothing();
+    const [row] = await tx.select({ id: ingredients.id, family: ingredients.family }).from(ingredients)
+      .where(and(eq(ingredients.ownerId, ownerId), eq(ingredients.kind, choiceKind), eq(ingredients.name, choice.name.trim())))
+      .limit(1);
+    if (!row || !ingredientAllowed(kind, { name: choice.name, family: row.family })) throw new Error(`${choice.name} is not allowed for this category.`);
+    await tx.insert(expressionIngredients).values({ expressionId, ingredientId: row.id, position }).onConflictDoNothing();
+  }
 }
 
 /** The recipe inherent in either Single Malt category, shared by that account's labels. */
@@ -178,7 +244,16 @@ export class NotOwned extends Error {}
 
 /** A validated label's columns: only its category's sections, and a slug. */
 export async function labelValues(input: ExpressionInput, ownerId: number, id: number | null) {
-  const allowed = writableFields(await fieldGroupForCategory(input.categoryId));
+  const group = await fieldGroupForCategory(input.categoryId);
+  const kind = (await categoryKindsById())[input.categoryId] ?? "other";
+  const allowed = writableFields(group);
+  if (kind !== "tequila") allowed.delete("tequilaClass");
+  if (!["cognac", "armagnac", "calvados"].includes(kind)) allowed.delete("brandyGrade");
+  if (kind !== "gin") allowed.delete("ginStyle");
+  if (kind === "tequila" || kind === "mezcal") {
+    allowed.delete("barrelFilledOn"); allowed.delete("bottledOn"); allowed.delete("isNas");
+  }
+  if (kind === "tequila") allowed.delete("ageStatement");
   const slug = await resolveSlug({
     table: expressions,
     column: expressions.slug,
@@ -188,7 +263,26 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
     fallbackFrom: `${input.name}${input.batch ? ` ${input.batch}` : ""}`,
     ...(id !== null ? { excludeId: id } : {}),
   });
-  return valuesForGroup(input, allowed, slug);
+  const values = valuesForGroup(input, allowed, slug);
+  if (kind === "tequila" || kind === "mezcal") {
+    delete values.barrelFilledOn; delete values.bottledOn; delete values.isNas;
+  }
+  if (kind !== "tequila") delete values.tequilaClass;
+  if (!["cognac", "armagnac", "calvados"].includes(kind)) delete values.brandyGrade;
+  if (kind !== "gin") delete values.ginStyle;
+  if (!isGinKind(kind)) delete values.isAgedGin;
+  if (isGinKind(kind)) {
+    values.barrelFilledOn = null; values.bottledOn = null; values.ageStatement = null;
+  }
+  if (kind === "tequila") {
+    values.ageStatement = input.tequilaClass ? TEQUILA_CLASS_LABELS[input.tequilaClass as TequilaClass] : null;
+    values.isNas = false;
+  }
+  if (["cognac", "armagnac", "calvados"].includes(kind) && input.brandyGrade) values.ageStatement = input.brandyGrade;
+  if (kind === "tequila" && input.tequilaClass === "blanco") {
+    values.ageYears = null; values.ageMonths = null; values.ageDays = null;
+  }
+  return values;
 }
 
 /**

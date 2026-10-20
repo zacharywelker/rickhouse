@@ -7,6 +7,8 @@
  */
 import { z } from "zod";
 import { ACQUISITIONS, BOTTLE_STATUSES, CHAR_LEVELS, RUM_BASES, SCOTCH_REGIONS, STILL_TYPES, TASTING_SOURCES } from "@/db/schema";
+import { BRANDY_GRADES, TEQUILA_CLASSES } from "./spirit-details";
+import { GIN_STYLES } from "./gin-details";
 
 const trimmed = z.string().trim();
 
@@ -89,6 +91,10 @@ export const expressionSchema = z
     bottledOn: pastDate,
     isStraight: checkbox,
     isNas: checkbox,
+    tequilaClass: optionalEnum(TEQUILA_CLASSES),
+    brandyGrade: optionalEnum(BRANDY_GRADES),
+    ginStyle: optionalEnum(GIN_STYLES),
+    isAgedGin: checkbox,
 
     // Whiskey process
     isBottledInBond: checkbox,
@@ -241,6 +247,9 @@ export const bottleBase = z.object({
   ageMonths: optionalInt(0, 1200),
   ageDays: optionalInt(0, 40000),
   ageStatement: optionalText(200),
+  ginIsNas: tristate,
+  tequilaClass: optionalEnum(TEQUILA_CLASSES),
+  brandyGrade: optionalEnum(BRANDY_GRADES),
 });
 
 export const bottleSchema = bottleBase.superRefine((value, ctx) => {

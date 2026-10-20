@@ -73,6 +73,7 @@ CREATE TABLE distilleries (
     country     text NOT NULL DEFAULT 'USA',
     region      text,          -- Scotch region (Speyside, Islay…); copied onto a label's regions
     dsp_number  text,          -- e.g. DSP-KY-95
+    nom_number  text,          -- Mexican producer's NOM registration
     founded     integer,
     is_defunct  boolean NOT NULL DEFAULT false,
     -- 'named' = a real distillery; 'undisclosed' = a placeholder for a place
@@ -83,6 +84,14 @@ CREATE TABLE distilleries (
     notes       text
 );
 CREATE INDEX distilleries_company_idx ON distilleries(company_id);
+
+-- Reusable raw materials, linked to labels below so blends remain searchable.
+CREATE TABLE ingredients (
+    id serial PRIMARY KEY,
+    kind text NOT NULL CHECK (kind IN ('maguey', 'distillate', 'rum_base', 'botanical', 'gin_base')),
+    name citext NOT NULL,
+    family text CHECK (family IS NULL OR family IN ('grape', 'apple', 'pear', 'other'))
+);
 
 -- Mashbills are reusable entities so you can ask "everything using this recipe" --
 -- reused across distilleries on purpose, since the same recipe name gets used by
@@ -200,6 +209,10 @@ CREATE TABLE expressions (
     -- already typed (Old Grand Dad 7 is bottled-in-bond but reads "7 Year").
     is_straight     boolean NOT NULL DEFAULT false,
     is_nas          boolean NOT NULL DEFAULT false,
+    tequila_class   text,
+    brandy_grade    text,
+    gin_style       text,
+    is_aged_gin     boolean NOT NULL DEFAULT false,
 
     -- Process
     is_chill_filtered boolean,
@@ -256,6 +269,13 @@ CREATE TABLE expression_distilleries (
     -- on one bottle and only inferred on another.
     is_inferred   boolean NOT NULL DEFAULT false,
     PRIMARY KEY (expression_id, distillery_id)
+);
+
+CREATE TABLE expression_ingredients (
+    expression_id integer NOT NULL REFERENCES expressions(id) ON DELETE CASCADE,
+    ingredient_id integer NOT NULL REFERENCES ingredients(id) ON DELETE CASCADE,
+    position integer NOT NULL DEFAULT 0,
+    PRIMARY KEY (expression_id, ingredient_id)
 );
 
 CREATE TABLE expression_mashbills (
@@ -369,6 +389,11 @@ CREATE TABLE bottles (
     age_months      integer,
     age_days        integer,
     age_statement   text,
+
+    -- Optional bottle-specific designation; NULL inherits from its label.
+    tequila_class   text,
+    brandy_grade    text,
+    gin_is_nas      boolean,
 
     -- Acquisition
     price_paid      numeric(10,2),
@@ -714,6 +739,10 @@ ALTER TABLE brands ADD CONSTRAINT brands_id_owner_unique UNIQUE (id, owner_id);
 ALTER TABLE distilleries ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX distilleries_owner_idx ON distilleries(owner_id);
 ALTER TABLE distilleries ADD CONSTRAINT distilleries_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE ingredients ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX ingredients_owner_idx ON ingredients(owner_id);
+ALTER TABLE ingredients ADD CONSTRAINT ingredients_id_owner_unique UNIQUE (id, owner_id);
+ALTER TABLE ingredients ADD CONSTRAINT ingredients_owner_kind_name_unique UNIQUE (owner_id, kind, name);
 ALTER TABLE mashbills ADD COLUMN owner_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX mashbills_owner_idx ON mashbills(owner_id);
 ALTER TABLE mashbills ADD CONSTRAINT mashbills_id_owner_unique UNIQUE (id, owner_id);
@@ -813,6 +842,8 @@ CREATE TRIGGER expression_mashbills_same_owner BEFORE INSERT OR UPDATE ON expres
     FOR EACH ROW EXECUTE FUNCTION assert_same_owner('expression_id', 'expressions', 'mashbill_id', 'mashbills', 'distillery_id', 'distilleries');
 CREATE TRIGGER expression_finishes_same_owner BEFORE INSERT OR UPDATE ON expression_finishes
     FOR EACH ROW EXECUTE FUNCTION assert_same_owner('expression_id', 'expressions', 'finish_id', 'finishes');
+CREATE TRIGGER expression_ingredients_same_owner BEFORE INSERT OR UPDATE ON expression_ingredients
+    FOR EACH ROW EXECUTE FUNCTION assert_same_owner('expression_id', 'expressions', 'ingredient_id', 'ingredients');
 CREATE TRIGGER bottle_tags_same_owner BEFORE INSERT OR UPDATE ON bottle_tags
     FOR EACH ROW EXECUTE FUNCTION assert_same_owner('bottle_id', 'bottles', 'tag_id', 'tags');
 CREATE TRIGGER group_bottles_same_owner BEFORE INSERT OR UPDATE ON group_bottles
@@ -1060,6 +1091,19 @@ INSERT INTO categories (name, slug, parent_id, field_group, sort_order) VALUES
     ('Brandy',  'brandy',  NULL, 'brandy',  4),
     ('Gin',     'gin',     NULL, 'gin',     5),
     ('Vodka',   'vodka',   NULL, 'vodka',   6);
+
+INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
+SELECT v.name, v.slug, parent.id, v.field_group, v.sort_order
+FROM (VALUES
+    ('Tequila', 'tequila', 'agave', 'agave', 1),
+    ('Mezcal', 'mezcal', 'agave', 'agave', 2),
+    ('Cognac', 'cognac', 'brandy', 'brandy', 1),
+    ('Armagnac', 'armagnac', 'brandy', 'brandy', 2),
+    ('Calvados', 'calvados', 'brandy', 'brandy', 3),
+    ('Pisco', 'pisco', 'brandy', 'brandy', 4),
+    ('Genever', 'genever', 'gin', 'gin', 1)
+) AS v(name, slug, parent_slug, field_group, sort_order)
+JOIN categories parent ON parent.slug = v.parent_slug;
 
 INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
 SELECT v.name, v.slug, (SELECT id FROM categories WHERE slug = 'whiskey'),

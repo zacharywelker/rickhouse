@@ -1,6 +1,8 @@
-import { CHAR_LEVELS, CHAR_LEVEL_LABELS, FIELD_GROUPS, RUM_BASES, STILL_TYPES, type FieldGroup } from "@/db/schema";
+import { CHAR_LEVELS, CHAR_LEVEL_LABELS, FIELD_GROUPS, STILL_TYPES, type FieldGroup } from "@/db/schema";
 import type { FieldSpec } from "@/lib/admin/types";
 import { AGING_FIELDS, STRENGTH_FLAGS } from "./rules";
+import { BRANDY_GRADES, TEQUILA_CLASSES, TEQUILA_CLASS_GUIDANCE, TEQUILA_CLASS_LABELS } from "./spirit-details";
+import { GIN_STYLES } from "./gin-details";
 import { SIZE_PRESETS } from "./sizes";
 
 /**
@@ -83,7 +85,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     rows: [
       ["proof", "isCaskStrength", "isBottledInBond", "isStillProof", "@tier"],
       ["barrelFilledOn", "bottledOn", "@dates"],
-      ["ageYears", "ageStatement", "isNas", "isStraight"],
+      ["tequilaClass", "brandyGrade", "isAgedGin", "ageYears", "ageStatement", "isNas", "isStraight"],
       ["tropicalYears", "continentalYears", "isSolera", "soleraRange"],
     ],
     fields: [
@@ -91,10 +93,21 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
       { kind: "number", name: "proof", label: "Proof", min: 0, max: 200, step: 0.01, width: "xs" },
       { kind: "checkbox", name: "isCaskStrength", label: "Cask Strength", width: "auto" },
       { kind: "checkbox", name: "isStillProof", label: "Still Proof", help: "Still Proof — bottled undiluted from the still", width: "auto" },
+      { kind: "checkbox", name: "isAgedGin", label: "Aged", width: "auto" },
       // The two dates sit above the age, and offer to work it out (see `DeriveAge`).
       { kind: "date", name: "barrelFilledOn", label: "Distilled / Barrel Filled", width: "md" },
       { kind: "date", name: "bottledOn", label: "Bottled", width: "md" },
       { kind: "number", name: "ageYears", label: "Age — Years", min: 0, max: 100, step: 0.1, width: "xxs" },
+      {
+        kind: "select", name: "tequilaClass", label: "Tequila Class", width: "md",
+        options: [{ value: "", label: "Choose class" }, ...TEQUILA_CLASSES.map((value) => ({
+          value, label: `${TEQUILA_CLASS_LABELS[value]}${TEQUILA_CLASS_GUIDANCE[value] ? ` · ${TEQUILA_CLASS_GUIDANCE[value]}` : ""}`,
+        }))],
+      },
+      {
+        kind: "select", name: "brandyGrade", label: "Age Designation", width: "md",
+        options: [{ value: "", label: "Not stated" }, ...BRANDY_GRADES.map((value) => ({ value, label: value }))],
+      },
       { kind: "number", name: "ageMonths", label: "Age — Months", min: 0, max: 1200, step: 1, width: "xxs" },
       {
         kind: "number",
@@ -162,7 +175,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     title: "Rum detail",
     fieldGroups: ["rum"],
     rows: [
-      ["stillType", "estate", "marque"],
+      ["stillType", "marque"],
       ["esterGl", "sugarGPerL"],
     ],
     fields: [
@@ -173,19 +186,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         options: [{ value: "", label: "Unknown" }, ...STILL_TYPES.map((t) => ({ value: t, label: titleCase(t) }))],
         width: "md",
       },
-      { kind: "text", name: "estate", label: "Estate", placeholder: "Hampden, Foursquare, Worthy Park", width: "md" },
       { kind: "text", name: "marque", label: "Marque", placeholder: "LROK, DOK", width: "md" },
-      // Drawn with the distilleries, as a box of choices.
-      {
-        kind: "select",
-        name: "molassesOrCane",
-        label: "Base",
-        options: [
-          { value: "", label: "Unknown" },
-          ...RUM_BASES.map((v) => ({ value: v, label: titleCase(v) })),
-        ],
-        span: "half",
-      },
       { kind: "number", name: "esterGl", label: "Esters (g/hLAA)", min: 0, step: 0.01, width: "sm" },
       { kind: "number", name: "sugarGPerL", label: "Added Sugar (g/L)", min: 0, step: 0.01, width: "sm" },
       // These four are drawn in Strength and age, beside the age they describe.
@@ -196,12 +197,21 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     ],
   },
   {
+    id: "gin",
+    title: "Gin detail",
+    fieldGroups: ["gin"],
+    fields: [
+      { kind: "select", name: "ginStyle", label: "Style", options: [
+        { value: "", label: "Not specified" },
+        ...GIN_STYLES.map((value) => ({ value, label: value })),
+      ], span: "half" },
+    ],
+  },
+  {
     id: "agave",
     title: "Agave detail",
     fieldGroups: ["agave"],
     fields: [
-      { kind: "text", name: "agaveType", label: "Agave", placeholder: "Blue Weber, Espadín", span: "half" },
-      { kind: "text", name: "agaveRegion", label: "Region", placeholder: "Los Altos, Oaxaca", span: "half" },
       {
         kind: "select",
         name: "cookingMethod",

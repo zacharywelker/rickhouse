@@ -36,6 +36,12 @@ struct BottleSummary: Decodable, Identifiable, Hashable {
     let fillPct: Int
     let proof: String?
     let ageStatement: String?
+    var ageYears: String? = nil
+    var ageMonths: Int? = nil
+    var ageDays: Int? = nil
+    var ginAged: Bool? = nil
+    var ginIsNas: Bool? = nil
+    var ginStyle: String? = nil
     let pricePaid: String?
     let store: String?
     let thumbPath: String?
@@ -60,6 +66,8 @@ struct BottleDetail: Decodable {
     let brand: String
     let name: String
     let category: String
+    var categoryGroup: String? = nil
+    var categoryKind: String? = nil
     var status: String
     var isOpen: Bool
     let isFavorite: Bool
@@ -70,6 +78,16 @@ struct BottleDetail: Decodable {
     /// "navy" or "overproof" from this bottle's proof; absent from an older server's answer.
     var strength: String? = nil
     let ageStatement: String?
+    var ageYears: String? = nil
+    var ageMonths: Int? = nil
+    var ageDays: Int? = nil
+    var tequilaClass: String? = nil
+    var labelTequilaClass: String? = nil
+    var ginStyle: String? = nil
+    var isAgedGin: Bool? = nil
+    var ginIsNas: Bool? = nil
+    var labelGinIsNas: Bool? = nil
+    var brandyGrade: String? = nil
     let sizeMl: Int
     let msrp: String?
     let pricePaid: String?
@@ -92,6 +110,9 @@ struct BottleDetail: Decodable {
     let distilleries: [String]
     let finishes: [String]
     let mashbills: [String]
+    var ingredients: [String]? = nil
+    var botanicals: [String]? = nil
+    var ginBases: [String]? = nil
     let images: [BottleImage]
     var tastingNotes: [TastingNote]
     /// Single barrel, and a private select of one; absent from an older server's answer.
@@ -116,6 +137,9 @@ struct OwnFacts: Decodable {
     let ageMonths: Int?
     let ageDays: Int?
     let ageStatement: String?
+    var tequilaClass: String? = nil
+    var brandyGrade: String? = nil
+    var ginIsNas: Bool? = nil
     let sizeMl: Int?
 }
 
@@ -162,6 +186,13 @@ struct LabelOption: Decodable, Identifiable, Hashable {
     let name: String
     let brand: String
     let category: String
+    var categoryGroup: String? = nil
+    var categoryId: Int? = nil
+    var categoryKind: String? = nil
+    var tequilaClass: String? = nil
+    var brandyGrade: String? = nil
+    var isAgedGin: Bool? = nil
+    var isNas: Bool? = nil
     let proof: String?
     /// Absent from an older server's answer.
     let upc: String?
@@ -241,9 +272,15 @@ struct LabelDetail: Decodable {
     let brand: String
     let name: String
     let category: String
+    var categoryGroup: String? = nil
+    var categoryKind: String? = nil
     let upc: String?
     let proof: String?
     let ageStatement: String?
+    var tequilaClass: String? = nil
+    var brandyGrade: String? = nil
+    var ginStyle: String? = nil
+    var isAgedGin: Bool? = nil
     let ageYears: String?
     var ageMonths: Int? = nil
     var ageDays: Int? = nil
@@ -273,6 +310,9 @@ struct LabelDetail: Decodable {
     let distilleries: [String]
     let finishes: [String]
     let mashbills: [String]
+    var ingredients: [String]? = nil
+    var botanicals: [String]? = nil
+    var ginBases: [String]? = nil
     let releases: [LabelRelease]
     let bottles: [LabelBottle]
     let tastings: [LabelTasting]
@@ -534,7 +574,17 @@ struct LabelLinks: Decodable, Equatable {
     var distilleries: [LinkRow]
     var mashbills: [LinkRow]
     var finishes: [LinkRow]
+    var ingredients: [IngredientChoice]? = nil
 }
+
+struct IngredientChoice: Codable, Equatable, Identifiable {
+    var name: String
+    var family: String?
+    var kind: String? = nil
+    var id: String { name.lowercased() }
+}
+
+struct IngredientsResponse: Decodable { let ingredients: [IngredientChoice] }
 
 /// A list the pickers draw from: your own names for one kind of thing.
 enum LookupKind: String {

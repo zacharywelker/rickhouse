@@ -109,6 +109,8 @@ enum BottleFact: String, CaseIterable {
     case proof
     case ageYears, ageMonths, ageDays
     case ageStatement
+    case ginIsNas
+    case tequilaClass, brandyGrade
     case distilled = "barrelFilledOn"
     case bottled = "bottledOn"
     case opened = "dateOpened"
@@ -137,17 +139,30 @@ struct BottleDraft {
     /// The label this bottle is, for display; the field holds its id.
     var labelTitle: String
     var labelCategory: String
+    var categoryGroup: String?
+    var categoryKind: String?
+    var labelTequilaClass: String?
+    var labelGinAged = false
+    var labelGinIsNas = false
     /// The label's known releases, for the Release choice.
     var releases: [ReleaseChoice]
     /// The label's dates, which this bottle goes by unless it has its own.
     var labelDistilled: String?
     var labelBottled: String?
 
+    var isAgave: Bool { categoryKind == "tequila" || categoryKind == "mezcal" }
+    var hidesWarehouse: Bool { isAgave || categoryGroup == "rum" || categoryGroup == "brandy" || categoryGroup == "gin" }
+
     init(_ bottle: BottleDetail) {
         isNew = false
         storeName = bottle.store
         labelTitle = "\(bottle.brand) \(bottle.name)"
         labelCategory = bottle.category
+        categoryGroup = bottle.categoryGroup
+        categoryKind = bottle.categoryKind
+        labelTequilaClass = bottle.labelTequilaClass
+        labelGinAged = bottle.isAgedGin ?? false
+        labelGinIsNas = bottle.labelGinIsNas ?? false
         releases = bottle.releases ?? []
         labelDistilled = bottle.labelBarrelFilledOn
         labelBottled = bottle.labelBottledOn
@@ -180,6 +195,9 @@ struct BottleDraft {
             .ageMonths: Field(own?.ageMonths.map(String.init)),
             .ageDays: Field(own?.ageDays.map(String.init)),
             .ageStatement: Field(own?.ageStatement),
+            .ginIsNas: Field(own?.ginIsNas.map { $0 ? "true" : "false" }),
+            .tequilaClass: Field(own?.tequilaClass),
+            .brandyGrade: Field(own?.brandyGrade),
             .distilled: Field(bottle.barrelFilledOn.map { String($0.prefix(10)) }),
             .bottled: Field(bottle.bottledOn.map { String($0.prefix(10)) }),
             .opened: Field(bottle.dateOpened.map { String($0.prefix(10)) }),
@@ -200,6 +218,11 @@ struct BottleDraft {
         originalFill = 100
         labelTitle = label.title
         labelCategory = label.category
+        categoryGroup = label.categoryGroup
+        categoryKind = label.categoryKind
+        labelTequilaClass = label.tequilaClass
+        labelGinAged = label.isAgedGin ?? false
+        labelGinIsNas = label.isNas ?? false
         releases = []
         var made: [BottleFact: Field] = [:]
         for fact in BottleFact.allCases { made[fact] = Field(nil) }
@@ -218,10 +241,14 @@ struct BottleDraft {
     var onRelease: Bool { !self[.release].isEmpty }
     var releaseTitle: String? { releases.first { String($0.id) == self[.release].trimmed }?.title }
 
-    private func locked(_ fact: BottleFact) -> Bool { onRelease && (fact == .batch || fact == .releaseYear) }
+    private func locked(_ fact: BottleFact) -> Bool {
+        (onRelease && (fact == .batch || fact == .releaseYear)) ||
+        (categoryGroup == "gin" && ([.distilled, .bottled, .ageStatement, .warehouse, .rickFloor].contains(fact)
+            || (!labelGinAged && [.ageYears, .ageMonths, .ageDays, .ginIsNas, .singleBarrel, .singleBarrelPick].contains(fact))))
+    }
 
     /// A single barrel, or a private selection of one: the fields only those have.
-    var showsBarrelDetail: Bool { self[.singleBarrel].trimmed == "true" || self[.singleBarrelPick].trimmed == "true" }
+    var showsBarrelDetail: Bool { (categoryGroup != "gin" || labelGinAged) && (self[.singleBarrel].trimmed == "true" || self[.singleBarrelPick].trimmed == "true") }
 
     var changedFacts: [BottleFact] { BottleFact.allCases.filter { !locked($0) && self[$0].changed } }
     var isDirty: Bool { !changedFacts.isEmpty }
@@ -259,6 +286,7 @@ struct BottleDraft {
 
     /// A fact as the request carries it: ids as numbers, ticks as booleans, everything else as typed, and nothing as null.
     private func sent(_ fact: BottleFact, _ text: String) -> Any {
+        if fact == .ginIsNas { return text.isEmpty ? NSNull() : (text == "true") }
         if BottleFact.ticks.contains(fact) { return text == "true" }
         if text.isEmpty { return NSNull() }
         return BottleFact.ids.contains(fact) ? (Int(text) ?? NSNull()) : text
@@ -301,6 +329,8 @@ enum LabelFact: String, CaseIterable {
     case proof
     case ageYears, ageMonths, ageDays
     case ageStatement
+    case tequilaClass, brandyGrade
+    case ginStyle, isAgedGin
     case isNas, isStraight, isCaskStrength, isBottledInBond
     case base = "molassesOrCane"
     case size = "sizeMl"
@@ -312,7 +342,7 @@ enum LabelFact: String, CaseIterable {
     case isStillProof
 
     /// The ticks, held as "true" or "false".
-    static let ticks: [LabelFact] = [.isCaskStrength, .isBottledInBond, .isStraight, .isNas, .isStillProof]
+    static let ticks: [LabelFact] = [.isCaskStrength, .isBottledInBond, .isStraight, .isNas, .isStillProof, .isAgedGin]
 }
 
 /// The three ordered lists a label carries.
@@ -325,6 +355,8 @@ struct LabelDraft {
     var brandName: String
     private(set) var links: LabelLinks
     private let originalLinks: LabelLinks
+    var ingredients: [IngredientChoice]
+    private var originalIngredients: [IngredientChoice]
 
     /// A label not made yet: nothing filled in, the usual 750 mL. `patch()` then holds only what was typed.
     init() {
@@ -332,6 +364,8 @@ struct LabelDraft {
         brandName = ""
         links = LabelLinks(distilleries: [], mashbills: [], finishes: [])
         originalLinks = links
+        ingredients = []
+        originalIngredients = []
         fields = Dictionary(uniqueKeysWithValues: LabelFact.allCases.map { ($0, Field(nil)) })
         fields[.size] = Field("750")
         for tick in LabelFact.ticks { fields[tick] = Field("false") }
@@ -342,6 +376,8 @@ struct LabelDraft {
         brandName = label.brand
         links = label.links ?? LabelLinks(distilleries: [], mashbills: [], finishes: [])
         originalLinks = links
+        ingredients = links.ingredients ?? []
+        originalIngredients = ingredients
         fields = [
             .brand: Field(label.brandId.map(String.init)),
             .name: Field(label.name),
@@ -351,6 +387,10 @@ struct LabelDraft {
             .ageMonths: Field(label.ageMonths.map(String.init)),
             .ageDays: Field(label.ageDays.map(String.init)),
             .ageStatement: Field(label.ageStatement),
+            .tequilaClass: Field(label.tequilaClass),
+            .brandyGrade: Field(label.brandyGrade),
+            .ginStyle: Field(label.ginStyle),
+            .isAgedGin: Field(String(label.isAgedGin ?? false)),
             .isNas: Field(String(label.isNas ?? false)),
             .isStraight: Field(String(label.isStraight ?? false)),
             .isCaskStrength: Field(String(label.isCaskStrength ?? false)),
@@ -374,7 +414,7 @@ struct LabelDraft {
 
     var changedFacts: [LabelFact] { LabelFact.allCases.filter { self[$0].changed } }
     var linksChanged: Bool { links != originalLinks }
-    var isDirty: Bool { !changedFacts.isEmpty || linksChanged }
+    var isDirty: Bool { !changedFacts.isEmpty || linksChanged || ingredients != originalIngredients }
 
     func rows(_ list: LinkList) -> [LinkRow] {
         switch list {
@@ -492,7 +532,7 @@ struct LabelDraft {
     private func value(_ fact: LabelFact, of field: Field) -> Any {
         switch fact {
         case .size, .category, .brand, .ageMonths, .ageDays: Int(field.trimmed) ?? field.json
-        case .isNas, .isStraight, .isCaskStrength, .isBottledInBond, .isStillProof: field.trimmed == "true"
+        case .isNas, .isStraight, .isCaskStrength, .isBottledInBond, .isStillProof, .isAgedGin: field.trimmed == "true"
         case .barcode: field.isEmpty ? NSNull() : Self.digits(field.trimmed)
         default: field.json
         }
@@ -511,6 +551,7 @@ struct LabelDraft {
         for fact in changedFacts { body[fact.rawValue] = value(fact, of: self[fact]) }
         // The three lists are rewritten together (which distillery made each mashbill depends on the distillery list).
         if linksChanged { for list in LinkList.allCases { body[Self.key(list)] = Self.request(list, rows(list)) } }
+        if ingredients != originalIngredients { body["ingredients"] = ingredients.map { ["name": $0.name, "family": $0.family.map { $0 as Any } ?? NSNull(), "kind": $0.kind.map { $0 as Any } ?? NSNull()] as [String: Any] } }
         return body
     }
 
@@ -530,6 +571,7 @@ struct LabelDraft {
                 body[Self.key(list)] = Self.request(list, before)
             }
         }
+        if ingredients != originalIngredients { body["ingredients"] = originalIngredients.map { ["name": $0.name, "family": $0.family.map { $0 as Any } ?? NSNull(), "kind": $0.kind.map { $0 as Any } ?? NSNull()] as [String: Any] } }
         return body
     }
 }

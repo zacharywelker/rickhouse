@@ -6,6 +6,7 @@ import type { LinkedRow } from "@/components/expressions/ordered-picker";
 import { ageLabel } from "./display";
 import { loadLinks } from "./form-data";
 import { expressionLinks, getExpression } from "./queries";
+import type { IngredientChoice } from "./spirit-details";
 
 export type CatalogLabel = {
   id: number;
@@ -21,7 +22,7 @@ export type CatalogLabel = {
   finishes: string[];
   /** The label row, for the label's fields when it is edited from the page. */
   values: Record<string, string | number | boolean | null>;
-  links: { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[] };
+  links: { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[]; ingredients: IngredientChoice[] };
 };
 
 export async function loadCatalogLabel(id: number, ownerId: number): Promise<CatalogLabel | null> {
