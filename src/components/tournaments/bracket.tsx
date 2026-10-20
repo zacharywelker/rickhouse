@@ -53,6 +53,10 @@ export function Bracket({
   const wantScroll = React.useRef(false);
   // After a bottle is removed the page refreshes (a new model); focus then goes to the first of these that is still there.
   const focusAfter = React.useRef<string[]>([]);
+  // A failed action must not leave a pending focus behind, or the next unrelated refresh would pull focus to it.
+  React.useEffect(() => {
+    if (actions.error !== null) focusAfter.current = [];
+  }, [actions.error]);
   React.useEffect(() => {
     const candidates = focusAfter.current;
     if (candidates.length === 0) return;
