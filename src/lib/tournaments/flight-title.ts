@@ -12,7 +12,7 @@ export function shared(values: readonly (string | null)[]): string | null {
 
 // Wine-based finishes: fortified and sweet wines, wine itself, and the common grape and region names.
 const WINE =
-  /\b(wine|port|ruby|tawny|sherry|oloroso|px|pedro ximenez|fino|amontillado|palo cortado|cream|madeira|marsala|sauternes|tokaji|vermouth|cabernet|merlot|pinot|zinfandel|syrah|shiraz|malbec|bordeaux|burgundy|champagne|chardonnay|sauvignon|riesling|rioja)\b/i;
+  /\b(wine|port|ruby|tawny|sherry|oloroso|px|pedro ximenez|fino|amontillado|palo cortado|cream sherry|madeira|marsala|sauternes|tokaji|vermouth|cabernet|merlot|pinot|zinfandel|syrah|shiraz|malbec|bordeaux|burgundy|champagne|prosecco|cava|moscatel|muscat|tokay|sangiovese|tempranillo|barolo|amarone|chardonnay|sauvignon|riesling|rioja)\b/i;
 
 /** True when a finish's name is wine-based ("Port cask", "Oloroso sherry", "Cabernet barrel"). */
 export const isWineFinish = (finish: string): boolean => WINE.test(finish);

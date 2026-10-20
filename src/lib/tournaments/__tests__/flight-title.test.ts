@@ -66,10 +66,10 @@ describe("mashbillClass", () => {
 
 describe("isWineFinish", () => {
   it("knows the wine-based finishes and not the rest", () => {
-    for (const f of ["Port cask", "Oloroso Sherry", "PX", "Pedro Ximenez", "Fino", "Amontillado", "Cream sherry", "Madeira", "Marsala", "Sauternes", "Tokaji", "Vermouth", "Red wine", "Cabernet Sauvignon", "Merlot", "Pinot Noir", "Zinfandel", "Syrah", "Shiraz", "Malbec", "Bordeaux", "Burgundy", "Champagne"]) {
+    for (const f of ["Port cask", "Oloroso Sherry", "PX", "Pedro Ximenez", "Fino", "Amontillado", "Cream sherry", "Madeira", "Marsala", "Sauternes", "Tokaji", "Vermouth", "Red wine", "Cabernet Sauvignon", "Merlot", "Pinot Noir", "Zinfandel", "Syrah", "Shiraz", "Malbec", "Bordeaux", "Burgundy", "Champagne", "Moscatel", "Muscat", "Tokay", "Prosecco", "Cava", "Sangiovese", "Tempranillo", "Barolo", "Amarone", "Tawny Port"]) {
       expect(isWineFinish(f), f).toBe(true);
     }
-    for (const f of ["Rum cask", "Maple syrup", "Toasted oak", "Cognac", "Portugal oak"]) expect(isWineFinish(f), f).toBe(false);
+    for (const f of ["Rum cask", "Maple syrup", "Toasted oak", "Cognac", "Portugal oak", "Portable oak", "Cream", "Cream soda", "Portugal"]) expect(isWineFinish(f), f).toBe(false);
   });
 });
 
