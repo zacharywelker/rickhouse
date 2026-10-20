@@ -119,7 +119,9 @@ struct BottleCard: View {
     private var facts: [String] {
         var all: [String] = []
         if let proof = bottle.proof, let value = Double(proof) { all.append("\(value.formatted()) proof") }
-        if let age = bottle.ageStatement, !age.isEmpty { all.append(age) }
+        if let style = bottle.ginStyle, !style.isEmpty { all.append(style) }
+        let age = bottle.ginAged == false ? nil : bottle.ginAged == true && bottle.ginIsNas == true ? "NAS" : SpiritChoices.ageText(years: bottle.ageYears, months: bottle.ageMonths, days: bottle.ageDays, statement: bottle.ageStatement)
+        if let age, !age.isEmpty { all.append(age) }
         if let store = bottle.store, !store.isEmpty { all.append(store) }
         if all.isEmpty { all.append(bottle.category) }
         return Array(all.prefix(factCount))

@@ -68,6 +68,13 @@ export function ResourceForm({
         ) : null}
         {fields
           .filter((field) => !field.showWhenAny || field.showWhenAny.some((name) => values[name] === true))
+          .filter((field) => {
+            if (resourceKey !== "distilleries") return true;
+            const country = String(values.country ?? "").trim().toLocaleLowerCase();
+            if (field.name === "dspNumber") return ["us", "usa", "united states", "united states of america"].includes(country);
+            if (field.name === "nomNumber") return ["mx", "mexico", "méxico"].includes(country);
+            return true;
+          })
           .map((field) => (
           <React.Fragment key={field.name}>
             <Field

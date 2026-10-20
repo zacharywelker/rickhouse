@@ -20,6 +20,7 @@ export function CreateWithDetailsDialog({
   onOpenChange,
   initialName,
   recordId,
+  defaultCountry,
   onCreated,
 }: {
   resource: DetailedResource;
@@ -29,6 +30,7 @@ export function CreateWithDetailsDialog({
   initialName: string;
   /** Existing lookup to edit instead of making a new one. */
   recordId?: number;
+  defaultCountry?: string;
   onCreated: (option: Option) => void;
 }) {
   const [spec, setSpec] = React.useState<ResourceFormSpec | null>(null);
@@ -84,7 +86,7 @@ export function CreateWithDetailsDialog({
             options={spec.options}
             row={spec.row ?? null}
             onSaved={handleSaved}
-            {...(hasName ? { initialValues: { name: initialName.trim() } } : {})}
+            {...(recordId === undefined && (hasName || defaultCountry) ? { initialValues: { ...(hasName ? { name: initialName.trim() } : {}), ...(defaultCountry ? { country: defaultCountry } : {}) } } : {})}
           />
         )}
       </DialogContent>

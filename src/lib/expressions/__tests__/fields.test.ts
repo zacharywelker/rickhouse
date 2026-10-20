@@ -16,7 +16,7 @@ const section = (id: string) => {
 
 describe("sectionVisible", () => {
   it("always shows the sections common to every spirit", () => {
-    for (const group of ["whiskey", "rum", "agave", "other"] as const) {
+    for (const group of ["whiskey", "rum", "agave", "gin", "other"] as const) {
       expect(sectionVisible(section("identity"), group, {})).toBe(true);
       expect(sectionVisible(section("identity"), group, {})).toBe(true);
     }
@@ -119,7 +119,7 @@ describe("writableFields", () => {
   it("covers every field the form can render", () => {
     const everyField = new Set(EXPRESSION_SECTIONS.flatMap((s) => s.fields.map((f) => f.name)));
     const union = new Set<string>();
-    for (const group of ["whiskey", "rum", "agave", "other"] as const) {
+    for (const group of ["whiskey", "rum", "agave", "gin", "other"] as const) {
       for (const name of writableFields(group)) union.add(name);
     }
     expect([...everyField].filter((name) => !union.has(name))).toEqual([]);

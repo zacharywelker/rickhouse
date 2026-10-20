@@ -34,6 +34,8 @@ import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { effectiveBottleStatus, releaseUnit } from "@/lib/bottles/terminology";
 import { ageLabel } from "@/lib/expressions/display";
+import { hidesWarehouse, isAgaveKind, spiritAgeLabel } from "@/lib/expressions/spirit-details";
+import { isGinKind } from "@/lib/expressions/gin-details";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -97,7 +99,8 @@ export default async function BottlePage({
   const b = row.bottle;
   const group = row.category.fieldGroup;
   const categoryKinds = await categoryKindsById();
-  const releaseUnitName = releaseUnit(group, categoryKinds[row.category.id] ?? "other");
+  const kind = categoryKinds[row.category.id] ?? "other";
+  const releaseUnitName = releaseUnit(group, kind);
   const releaseUnitTitle = releaseUnitName[0]!.toUpperCase() + releaseUnitName.slice(1);
   const proof = b.proof ?? release?.proof ?? e.proof;
   // Worked out from this bottle's own proof, which can differ from its label's.
@@ -111,12 +114,14 @@ export default async function BottlePage({
 
   // The bottle's own age where it has one, then the release's or the label's
   // — the same inheritance as bottle_list.
-  const age = ageLabel({
+  const ageFacts = {
     ageYears: b.ageYears ?? ageSource.ageYears,
     ageMonths: b.ageMonths ?? ageSource.ageMonths,
     ageDays: b.ageDays ?? ageSource.ageDays,
     ageStatement: b.ageStatement ?? ageSource.ageStatement,
-  });
+  };
+  const age = isGinKind(kind) && !e.isAgedGin ? null : isGinKind(kind) && (b.ginIsNas ?? e.isNas) ? "NAS" : spiritAgeLabel(kind, b.tequilaClass ?? e.tequilaClass, b.brandyGrade ?? e.brandyGrade,
+    ageLabel({ ...ageFacts, ageStatement: null })) ?? ageLabel(ageFacts) ?? ((b.ginIsNas ?? e.isNas) ? "NAS" : null);
 
   // The pen this bottle's entry was "filled in" with — one hand for the
   // whole page, not a different marker per field.
@@ -126,18 +131,18 @@ export default async function BottlePage({
     { kind: "bottled-in-bond", ownerId: e.id, active: e.isBottledInBond },
     { kind: "cask-strength", ownerId: e.id, active: e.isCaskStrength, detail: proof ? `${formatNumeric(proof)}°` : undefined },
     { kind: "straight", ownerId: e.id, active: e.isStraight },
-    { kind: "nas", ownerId: e.id, active: e.isNas },
+    { kind: "nas", ownerId: e.id, active: isGinKind(kind) ? e.isAgedGin && (b.ginIsNas ?? e.isNas) : e.isNas },
     {
       kind: "single-barrel",
       ownerId: bottleId,
-      active: b.isSingleBarrel,
+      active: b.isSingleBarrel && (!isGinKind(kind) || e.isAgedGin),
       detail: b.barrelNumber ? `No. ${b.barrelNumber}` : undefined,
       unit: releaseUnitName,
     },
     {
       kind: "private-selection",
       ownerId: bottleId,
-      active: b.isSingleBarrelPick,
+      active: b.isSingleBarrelPick && (!isGinKind(kind) || e.isAgedGin),
       detail: b.pickedBy ? `Picked by ${b.pickedBy}` : undefined,
     },
   ];
@@ -244,6 +249,8 @@ export default async function BottlePage({
             {tier ? <Spec label="Strength" value={STRENGTH_TIER_LABELS[tier]} /> : null}
             <Spec label="ABV" value={proof ? `${formatNumeric((Number(proof) / 2).toFixed(2))}%` : null} />
             <Spec label="Age" value={age} />
+            {isGinKind(kind) ? <Spec label="Aged" value={e.isAgedGin ? "Yes" : "No"} /> : null}
+            {kind === "gin" ? <Spec label="Style" value={e.ginStyle} /> : null}
             <Spec label="Size" value={formatSize(row.bottle.sizeMl ?? e.sizeMl)} />
             <Spec label="MSRP" value={msrp ? formatMoney(msrp, currency) : null} />
             <Spec
@@ -309,41 +316,42 @@ export default async function BottlePage({
 
           <div className="flex flex-col gap-4 border-t border-border pt-6">
             <Chips
-              label="Distilleries"
+              label={group === "rum" ? "Distilleries / Estates" : "Distilleries"}
               items={links.distilleries}
               hrefFor={(item) => (item.slug ? (`/distilleries/${item.slug}` as Route) : null)}
             />
-            <Mashbills items={links.mashbills} />
-            <Chips
+            {group === "gin" ? <>
+                <Chips label="Botanicals" items={links.ingredients.filter((item) => item.kind === "botanical")} hrefFor={() => null} />
+                <Chips label="Base spirits" items={links.ingredients.filter((item) => item.kind === "gin_base")} hrefFor={() => null} />
+              </> : group === "rum" || group === "agave" || group === "brandy"
+              ? <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients} hrefFor={() => null} />
+              : <Mashbills items={links.mashbills} />}
+            {group !== "gin" || e.isAgedGin ? <Chips
               label="Finishes"
               items={links.finishes}
               hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}
-            />
-            {b.pickName || b.pickedBy || b.barrelNumber || b.warehouse || filledOn || bottledOn ? (
+            /> : null}
+            {(group !== "gin" || e.isAgedGin) && (b.pickName || b.pickedBy || b.barrelNumber || (!hidesWarehouse(group, kind) && b.warehouse) || (!isAgaveKind(kind) && !isGinKind(kind) && (filledOn || bottledOn))) ? (
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <Spec label="Pick" value={b.pickName} />
                 <Spec label="Picked By" value={b.pickedBy} />
                 <Spec label={`${releaseUnitTitle} number`} value={b.barrelNumber} />
-                <Spec label="Warehouse" value={b.warehouse} />
-                <Spec label="Rick / Floor" value={b.rickFloor} />
-                <Spec label="Filled" value={filledOn ? formatDate(filledOn) : null} />
-                <Spec label="Bottled" value={bottledOn ? formatDate(bottledOn) : null} />
+                {!hidesWarehouse(group, kind) ? <Spec label="Warehouse" value={b.warehouse} /> : null}
+                {!hidesWarehouse(group, kind) ? <Spec label="Rick / Floor" value={b.rickFloor} /> : null}
+                {!isAgaveKind(kind) && !isGinKind(kind) ? <Spec label="Filled" value={filledOn ? formatDate(filledOn) : null} /> : null}
+                {!isAgaveKind(kind) && !isGinKind(kind) ? <Spec label="Bottled" value={bottledOn ? formatDate(bottledOn) : null} /> : null}
               </dl>
             ) : null}
             {group === "rum" ? (
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <Spec label="Still" value={humanise(e.stillType)} />
-                <Spec label="Estate" value={e.estate} />
                 <Spec label="Marque" value={e.marque} />
                 <Spec label="Esters" value={e.esterGl ? `${Number(e.esterGl)} g/hLAA` : null} />
                 <Spec label="Added sugar" value={e.sugarGPerL ? `${Number(e.sugarGPerL)} g/L` : null} />
-                <Spec label="Base" value={humanise(e.molassesOrCane)} />
               </dl>
             ) : null}
             {group === "agave" ? (
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
-                <Spec label="Agave" value={e.agaveType} />
-                <Spec label="Region" value={e.agaveRegion} />
                 <Spec label="Cooking" value={humanise(e.cookingMethod)} />
                 <Spec label="Extraction" value={humanise(e.extraction)} />
               </dl>

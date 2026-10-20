@@ -246,6 +246,7 @@ export function CatalogBottle({
             distilleryLinks: serializeLinks(labelLinks.distilleries),
             mashbillLinks: serializeLinks(labelLinks.mashbills),
             finishLinks: serializeLinks(labelLinks.finishes),
+            ingredientLinks: JSON.stringify(labelLinks.ingredients ?? []),
           }
         : null,
       ttbIds: String(form ? (new FormData(form).get("ttbIds") ?? "") : ""),
@@ -398,6 +399,9 @@ export function CatalogBottle({
               omit={["expressionId"]}
               fieldGroup={categoryGroups[Number(phase.kind === "existing" ? phase.label.values.categoryId : labelValues.categoryId)] ?? "whiskey"}
               categoryKind={categoryKinds[Number(phase.kind === "existing" ? phase.label.values.categoryId : labelValues.categoryId)] ?? "american"}
+              inheritedTequilaClass={String(labelValues.tequilaClass || (phase.kind === "existing" ? phase.label.values.tequilaClass : "") || "")}
+              inheritedGinAged={Boolean(labelValues.isAgedGin ?? (phase.kind === "existing" ? phase.label.values.isAgedGin : false))}
+              inheritedGinNas={Boolean(labelValues.isNas ?? (phase.kind === "existing" ? phase.label.values.isNas : false))}
             />
           </div>
 

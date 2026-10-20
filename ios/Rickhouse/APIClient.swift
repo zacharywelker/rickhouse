@@ -339,8 +339,13 @@ struct APIClient {
     }
 
     /// Your own brands, distilleries, mashbills, finishes or stores, by name, for the pickers.
-    func lookups(_ kind: LookupKind) async throws -> [LookupItem] {
-        try await get("api/v1/lookups/\(kind.rawValue)", as: LookupsResponse.self).items
+    func lookups(_ kind: LookupKind, spiritKind: String? = nil) async throws -> [LookupItem] {
+        let query = spiritKind.map { [URLQueryItem(name: "spiritKind", value: $0)] } ?? []
+        return try await get("api/v1/lookups/\(kind.rawValue)", query: query, as: LookupsResponse.self).items
+    }
+
+    func ingredients(kind: String) async throws -> [IngredientChoice] {
+        try await get("api/v1/ingredients", query: [URLQueryItem(name: "kind", value: kind)], as: IngredientsResponse.self).ingredients
     }
 
     /// Makes a brand, distillery or finish by name, or hands back the one already under that name in any case.

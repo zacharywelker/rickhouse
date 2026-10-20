@@ -6,6 +6,8 @@ import { fillUpdate } from "./fill-rules";
 import { openedUpdate, type OpenedChoice } from "./opened-rules";
 import { movesHistory } from "./relabel";
 import type { tastingNoteSchema } from "@/lib/expressions/schema";
+import { bottleSpiritForExpression } from "@/lib/expressions/queries";
+import { withBottleSpiritFacts } from "@/lib/expressions/spirit-details";
 
 /**
  * Every write is scoped to the signed-in account. A bottle id that is
@@ -48,7 +50,8 @@ export type BottleColumns = Partial<
     // Which label and release this bottle is, how it came, and its own say on proof, age and size.
     | "expressionId" | "expressionNameId" | "releaseId" | "acquisition"
     | "isSingleBarrel" | "isSingleBarrelPick" | "pickedBy" | "warehouse" | "rickFloor" | "bottleCount"
-    | "sizeMl" | "proof" | "ageYears" | "ageMonths" | "ageDays" | "ageStatement"
+    | "sizeMl" | "proof" | "ageYears" | "ageMonths" | "ageDays" | "ageStatement" | "tequilaClass" | "brandyGrade"
+    | "ginIsNas"
   >
 >;
 export type BottlePatch = { fillPct?: number; dateOpened?: string | null; ifOpenedCleared?: OpenedChoice; columns?: BottleColumns };
@@ -86,6 +89,8 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
       return { ok: false, code: "invalid", message: "Choose one of your labels.", field: "expressionId" };
     }
     const labelId = columns.expressionId ?? current.expressionId;
+    const spirit = await bottleSpiritForExpression(labelId);
+    Object.assign(columns, withBottleSpiritFacts(columns, spirit.kind, spirit.ginAged));
     if (labelId !== current.expressionId) {
       // A version name and a release belong to a label: a bottle moved to another has neither unless the patch says one.
       columns.expressionNameId = null;

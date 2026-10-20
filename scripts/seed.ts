@@ -40,7 +40,15 @@ const CATEGORY_TREE = [
   { name: "Agave", slug: "agave", parent: null, fieldGroup: "agave", sortOrder: 3 },
   { name: "Brandy", slug: "brandy", parent: null, fieldGroup: "brandy", sortOrder: 4 },
   { name: "Gin", slug: "gin", parent: null, fieldGroup: "gin", sortOrder: 5 },
+  { name: "Genever", slug: "genever", parent: "gin", fieldGroup: "gin", sortOrder: 1 },
   { name: "Vodka", slug: "vodka", parent: null, fieldGroup: "vodka", sortOrder: 6 },
+
+  { name: "Tequila", slug: "tequila", parent: "agave", fieldGroup: "agave", sortOrder: 1 },
+  { name: "Mezcal", slug: "mezcal", parent: "agave", fieldGroup: "agave", sortOrder: 2 },
+  { name: "Cognac", slug: "cognac", parent: "brandy", fieldGroup: "brandy", sortOrder: 1 },
+  { name: "Armagnac", slug: "armagnac", parent: "brandy", fieldGroup: "brandy", sortOrder: 2 },
+  { name: "Calvados", slug: "calvados", parent: "brandy", fieldGroup: "brandy", sortOrder: 3 },
+  { name: "Pisco", slug: "pisco", parent: "brandy", fieldGroup: "brandy", sortOrder: 4 },
 
   { name: "American Whiskey", slug: "american-whiskey", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 1 },
   { name: "Scotch", slug: "scotch", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 2 },

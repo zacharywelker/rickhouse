@@ -316,6 +316,20 @@
       "when": 1792499374639,
       "tag": "0044_whisky_cooperage",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792585774639,
+      "tag": "0045_spirit_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1792672174639,
+      "tag": "0046_gin_details",
+      "breakpoints": true
     }
   ]
 }

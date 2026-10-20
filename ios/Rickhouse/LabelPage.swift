@@ -200,7 +200,11 @@ struct LabelPage: View {
     }
 
     private func age(_ l: LabelDetail) -> String? {
-        l.ageStatement ?? l.ageYears.flatMap(Double.init).map { "\($0.formatted()) yr" }
+        if l.categoryGroup == "gin" {
+            if l.isAgedGin != true { return nil }
+            if l.isNas == true { return "NAS" }
+        }
+        return SpiritChoices.ageText(years: l.ageYears, months: l.ageMonths, days: l.ageDays, statement: l.ageStatement)
     }
 
     // MARK: Your bottles
@@ -373,11 +377,18 @@ struct LabelPage: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .accessibilityLabel("Edit label")
             }
-            fact("Age", l.ageStatement ?? l.ageYears.flatMap(Double.init).map { "\($0.formatted()) years" })
+            fact("Age", age(l))
+            if l.categoryGroup == "gin" && l.categoryKind != "genever" { fact("Style", l.ginStyle) }
+            if l.categoryGroup == "gin" { fact("Aged", l.isAgedGin == true ? "Yes" : "No") }
             fact("Size", "\(l.sizeMl) mL")
             fact("MSRP", l.msrp.map(Format.money))
-            fact("Distilleries", l.distilleries.joined(separator: ", "))
-            fact("Mashbill", l.mashbills.joined(separator: ", "))
+            fact(l.categoryGroup == "rum" ? "Distilleries / Estates" : "Distilleries", l.distilleries.joined(separator: ", "))
+            if l.categoryGroup == "gin" {
+                fact("Botanicals", (l.botanicals ?? []).joined(separator: ", "))
+                fact("Base spirits", (l.ginBases ?? []).joined(separator: ", "))
+            } else if l.categoryGroup == "agave" || l.categoryGroup == "brandy" || l.categoryGroup == "rum" {
+                fact(l.categoryGroup == "agave" ? "Magueys" : l.categoryGroup == "brandy" ? "Distillate" : "Base", (l.ingredients ?? []).joined(separator: ", "))
+            } else { fact("Mashbill", l.mashbills.joined(separator: ", ")) }
             fact("Finishes", l.finishes.joined(separator: ", "))
             fact("Barcode", l.upc)
             if !l.releases.isEmpty {

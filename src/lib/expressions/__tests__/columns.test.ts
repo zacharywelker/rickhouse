@@ -46,10 +46,9 @@ describe("label filters: columns", () => {
   it("round-trips a chosen set through the URL", () => {
     const filters = { ...DEFAULT_FILTERS, columns: ["name", "upc", "estate", "bottles"] };
     const query = serialiseLabelFilters(filters);
-    expect(new URLSearchParams(query).get("cols")).toBe("name,estate,upc,bottles");
+    expect(new URLSearchParams(query).get("cols")).toBe("name,upc,bottles");
     expect(parseLabelFilters(Object.fromEntries(new URLSearchParams(query))).columns).toEqual([
       "name",
-      "estate",
       "upc",
       "bottles",
     ]);

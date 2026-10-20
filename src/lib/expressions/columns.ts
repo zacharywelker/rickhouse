@@ -86,6 +86,9 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
       { id: "abv", label: "ABV", specs: [], numeric: true },
       // One column over the three fields, the way the form shows them.
       { id: "age", label: "Age", specs: [spec("ageYears"), spec("ageMonths"), spec("ageDays")], sort: "age", numeric: true },
+      field("tequilaClass"),
+      field("brandyGrade"),
+      field("isAgedGin"),
       field("ageStatement"),
       // Navy Strength or Overproof, worked out from the proof and the category.
       { id: "strength", label: "Strength", specs: [] },
@@ -99,6 +102,7 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
   },
   { id: "process", title: "Process", section: section("process"), columns: all("process") },
   { id: "rum", title: "Rum detail", section: section("rum"), columns: all("rum") },
+  { id: "gin", title: "Gin detail", section: section("gin"), columns: all("gin") },
   { id: "agave", title: "Agave detail", section: section("agave"), columns: all("agave") },
   {
     id: "commercial",
@@ -112,6 +116,7 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
     columns: [
       { id: "distilleries", label: "Distilleries", specs: [] },
       { id: "mashbills", label: "Mashbills", specs: [] },
+      { id: "ingredients", label: "Maguey / Base / Distillate", specs: [] },
       { id: "finishes", label: "Finishes", specs: [] },
     ],
   },

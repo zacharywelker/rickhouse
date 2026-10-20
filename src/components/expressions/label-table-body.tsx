@@ -21,6 +21,9 @@ import { describeLinks, LINK_KINDS, type LinkKind } from "@/lib/expressions/link
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import { STRENGTH_TIER_LABELS, strengthTier } from "@/lib/expressions/rules";
 import type { FieldGroup } from "@/db/schema";
+import type { CategoryKind } from "@/lib/expressions/rules";
+import { BRANDY_MINIMUM_YEARS, countryForDistillery, isAgaveKind } from "@/lib/expressions/spirit-details";
+import { isGinKind } from "@/lib/expressions/gin-details";
 import type { LinkedRow } from "./ordered-picker";
 import { LinksCell } from "./links-cell";
 import type { RowErrors } from "./label-table";
@@ -98,6 +101,7 @@ export function LabelTableBody({
   onToggle,
   options,
   categoryGroups,
+  categoryKinds,
   originals,
   edits,
   updateEdit,
@@ -110,6 +114,7 @@ export function LabelTableBody({
   onToggle: (id: number, selected: boolean) => void;
   options: Record<string, Option[]>;
   categoryGroups: Record<number, FieldGroup>;
+  categoryKinds: Record<number, CategoryKind>;
   originals: ReadonlyMap<number, LabelEdit>;
   edits: Record<number, LabelEdit>;
   updateEdit: (row: ExpressionRow, name: string, value: LabelEdit[string]) => void;
@@ -127,6 +132,7 @@ export function LabelTableBody({
     if (LINK_COLUMNS.has(column.id)) {
       const kind = column.id as LinkKind;
       const field = LINK_KINDS[kind].field;
+      const categoryKind = categoryKinds[Number(values.categoryId ?? row.categoryId)] ?? "other";
       return (
         <LinksCell
           kind={kind}
@@ -134,7 +140,8 @@ export function LabelTableBody({
           labelledBy={labelledBy}
           value={values[field] as LinkedRow[]}
           onChange={(next) => updateEdit(row, field, next)}
-          options={optionsByField[field] ?? []}
+          options={(optionsByField[field] ?? []).filter((option) => kind !== "distilleries" || !option.country || countryForDistillery(categoryKind, option.country))}
+          {...(kind === "distilleries" ? { defaultCountry: isAgaveKind(categoryKind) ? "Mexico" : ["cognac", "armagnac", "calvados"].includes(categoryKind) ? "France" : categoryKind === "pisco" ? "Peru" : undefined } : {})}
           onOptionCreated={(option) => setOptionsByField((prev) => withOption(prev, field, option))}
           className="h-8"
           {...(kind === "mashbills"
@@ -144,6 +151,10 @@ export function LabelTableBody({
             : {})}
         />
       );
+    }
+    if (column.id === "ingredients") return <Link href={`/expressions/${row.id}/edit`} className="text-accent hover:underline">Edit ingredients</Link>;
+    if (column.id === "age" && categoryKinds[Number(values.categoryId ?? row.categoryId)] === "tequila" && values.tequilaClass === "blanco") {
+      return <span className="text-muted-foreground">Blanco</span>;
     }
     if (column.id === "abv") {
       const proof = String(values.proof ?? "");
@@ -215,13 +226,14 @@ export function LabelTableBody({
         // A zero age is no age at all: say what the label does claim instead.
         return (
           describeAgeParts(row.ageYears, row.ageMonths, row.ageDays) ??
-          (row.isNas ? "NAS" : row.isStraight ? "Straight" : DASH)
+          (row.ageStatement ?? (row.isNas ? "NAS" : row.isStraight ? "Straight" : DASH))
         );
       case "bottles":
         return row.bottleCount;
       case "distilleries":
       case "mashbills":
       case "finishes": {
+        if (column.id === "mashbills" && ["rum", "agave", "brandy", "gin"].includes(row.fieldGroup)) return DASH;
         const text = describeLinks(column.id, row.links[column.id]);
         return text === "" ? (
           DASH
@@ -230,6 +242,11 @@ export function LabelTableBody({
             {text}
           </span>
         );
+      }
+      case "ingredients": {
+        if (!["rum", "agave", "brandy", "gin"].includes(row.fieldGroup)) return DASH;
+        const text = (row.links.ingredients ?? []).map((item) => item.name).join(", ");
+        return text ? <span className="block max-w-56 truncate" title={text}>{text}</span> : DASH;
       }
       default: {
         const spec = column.specs[0]!;
@@ -244,6 +261,8 @@ export function LabelTableBody({
         const edit = edits[row.id];
         const values = edit ?? originals.get(row.id)!;
         const fieldGroup = unlocked ? fieldGroupOf(row, edit, categoryGroups) : row.fieldGroup;
+        const categoryId = Number(values.categoryId ?? row.categoryId);
+        const kind = categoryKinds[categoryId] ?? "other";
         const rowErrors = saveErrors[row.id];
         return (
           <TableRow
@@ -265,7 +284,18 @@ export function LabelTableBody({
             ) : null}
 
             {shown.map(({ column, group }) => {
-              const applies = groupApplies(group, fieldGroup);
+              const applies = groupApplies(group, fieldGroup)
+                && !(column.id === "tequilaClass" && kind !== "tequila")
+                && !(column.id === "brandyGrade" && !BRANDY_MINIMUM_YEARS[kind])
+                && !(column.id === "ginStyle" && kind !== "gin")
+                && !(column.id === "isAgedGin" && !isGinKind(kind))
+                && !(column.id === "ingredients" && !["rum", "agave", "brandy", "gin"].includes(fieldGroup))
+                && !(column.id === "mashbills" && ["rum", "agave", "brandy", "gin"].includes(fieldGroup))
+                && !(["barrelFilledOn", "bottledOn", "isNas"].includes(column.id) && isAgaveKind(kind))
+                && !(column.id === "ageStatement" && (kind === "tequila" || isGinKind(kind)))
+                && !(["barrelFilledOn", "bottledOn"].includes(column.id) && isGinKind(kind))
+                && !(column.id === "age" && isGinKind(kind) && values.isAgedGin !== true)
+                && !(column.id === "isNas" && isGinKind(kind) && values.isAgedGin !== true);
               return (
                 <TableCell
                   key={column.id}

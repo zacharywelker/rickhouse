@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function BulkExpressionsPage() {
   const user = await requireSession();
   // The same pickers and category rules as the single-label form.
-  const { options, categoryGroups } = await expressionFormData(null, user.id);
+  const { options, categoryGroups, categoryKinds } = await expressionFormData(null, user.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -17,7 +17,7 @@ export default async function BulkExpressionsPage() {
         <h1 className="text-3xl text-accent">Bulk add labels</h1>
       </div>
 
-      <ExpressionBulkGrid options={options} categoryGroups={categoryGroups} />
+      <ExpressionBulkGrid options={options} categoryGroups={categoryGroups} categoryKinds={categoryKinds} />
     </div>
   );
 }

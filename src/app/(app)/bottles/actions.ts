@@ -14,6 +14,8 @@ import { movesHistory } from "@/lib/bottles/relabel";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { z } from "zod";
 import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
+import { bottleSpiritForExpression } from "@/lib/expressions/queries";
+import { withBottleSpiritFacts } from "@/lib/expressions/spirit-details";
 
 /** The image, provided its bottle belongs to `ownerId`. */
 async function ownedImage(imageId: number, ownerId: number) {
@@ -52,7 +54,8 @@ export async function saveBottleAction(
 
   const parsed = bottleSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return invalid(parsed.error.issues);
-  const input = parsed.data;
+  const spirit = await bottleSpiritForExpression(parsed.data.expressionId);
+  const input = withBottleSpiritFacts(parsed.data, spirit.kind, spirit.ginAged);
 
   try {
     await settleLabelChoices(input);
@@ -116,7 +119,8 @@ export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Pr
       continue;
     }
 
-    const values = { ...(await settleLabelChoices(parsed.data)), ...state.data };
+    const spirit = await bottleSpiritForExpression(parsed.data.expressionId);
+    const values = { ...withBottleSpiritFacts(await settleLabelChoices(parsed.data), spirit.kind, spirit.ginAged), ...state.data };
     // Below full means it has been poured from, the same rule as the gauge.
     if (values.status === "open" || values.fillPct < 100) values.isOpen = true;
     if (values.isOpen) {

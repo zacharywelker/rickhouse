@@ -9,6 +9,8 @@ import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { parseFilters } from "@/lib/bottles/filters";
 import { bottleSchema } from "@/lib/expressions/schema";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
+import { bottleSpiritForExpression } from "@/lib/expressions/queries";
+import { withBottleSpiritFacts } from "@/lib/expressions/spirit-details";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       proof: r.proof,
       ageStatement: r.ageStatement,
       ageYears: r.ageYears,
+      ageMonths: r.ageMonths,
+      ageDays: r.ageDays,
+      ginAged: r.ginAged,
+      ginIsNas: r.ginIsNas,
+      ginStyle: r.ginStyle,
       pricePaid: r.pricePaid,
       msrp: r.msrp,
       store: r.store,
@@ -81,9 +88,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // account's label or store, but a version name and a release have plain
     // keys: each has to be one of this label's own, as in the web action.
     await settleLabelChoices(data);
+    const spirit = await bottleSpiritForExpression(data.expressionId);
     const [row] = await db
       .insert(bottles)
-      .values({ ...data, ownerId: user.id })
+      .values({ ...withBottleSpiritFacts(data, spirit.kind, spirit.ginAged), ownerId: user.id })
       .returning({ id: bottles.id });
     revalidatePath("/bottles");
     revalidatePath("/");

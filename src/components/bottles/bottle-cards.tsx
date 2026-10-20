@@ -61,7 +61,7 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
                   aria-hidden="true"
                 />
                 <span className="truncate">
-                  {[row.category, row.proof ? `${formatNumeric(row.proof)} proof` : null, ageLabel(row)]
+                  {[row.category, row.ginStyle, row.proof ? `${formatNumeric(row.proof)} proof` : null, ageLabel(row)]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>

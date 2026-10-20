@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { brands, categories, expressions } from "@/db/schema";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
+import { categoryKindsById } from "./queries";
 
 /** The columns a label shows in the add-bottle picker. */
 export const labelColumns = {
@@ -10,8 +11,13 @@ export const labelColumns = {
   name: expressions.name,
   brand: brands.name,
   category: categories.name,
+  categoryGroup: categories.fieldGroup,
   proof: expressions.proof,
   ageStatement: expressions.ageStatement,
+  tequilaClass: expressions.tequilaClass,
+  brandyGrade: expressions.brandyGrade,
+  isAgedGin: expressions.isAgedGin,
+  isNas: expressions.isNas,
   upc: expressions.upc,
   thumbPath: expressions.photoThumbPath,
   categoryId: expressions.categoryId,
@@ -21,10 +27,10 @@ export const labelColumns = {
  * Labels as the picker sends them: the flavor wheel their category uses (null where the family has none) replaces the
  * category id, so the app knows which wheel to show without matching category names.
  */
-export async function withWheels<T extends { categoryId: number }>(rows: T[]): Promise<Array<Omit<T, "categoryId"> & { wheel: string | null }>> {
+export async function withWheels<T extends { categoryId: number }>(rows: T[]): Promise<Array<T & { wheel: string | null; categoryKind: string }>> {
   if (rows.length === 0) return [];
-  const wheels = await categoryWheels();
-  return rows.map(({ categoryId, ...rest }) => ({ ...rest, wheel: wheels.get(categoryId) ?? null }));
+  const [wheels, kinds] = await Promise.all([categoryWheels(), categoryKindsById()]);
+  return rows.map((row) => ({ ...row, wheel: wheels.get(row.categoryId) ?? null, categoryKind: kinds[row.categoryId] ?? "other" }));
 }
 
 /** One of the caller's labels in the picker's shape. */

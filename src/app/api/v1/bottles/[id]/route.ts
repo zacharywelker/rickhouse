@@ -9,7 +9,7 @@ import { deleteBottleAction } from "@/app/(app)/bottles/actions";
 import { bottleBase } from "@/lib/expressions/schema";
 import { expressionReleaseList, releaseById } from "@/lib/releases-store";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
-import { bottleImagesFor, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
+import { bottleImagesFor, categoryKindForExpression, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     brand: row.brand.name,
     name: expression.name,
     category: row.category.name,
+    categoryGroup: row.category.fieldGroup,
+    categoryKind: await categoryKindForExpression(expression.id),
     status: bottle.status,
     isOpen: bottle.isOpen,
     isFavorite: bottle.isFavorite,
@@ -54,7 +56,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Navy Strength / Overproof, derived from that proof; null when neither.
     strength: strengthTier(row.category.fieldGroup, bottle.proof ?? release?.proof ?? expression.proof),
     ageStatement: bottle.ageStatement ?? ageSource.ageStatement,
+    tequilaClass: bottle.tequilaClass ?? expression.tequilaClass,
+    labelTequilaClass: expression.tequilaClass,
+    brandyGrade: bottle.brandyGrade ?? expression.brandyGrade,
+    isAgedGin: expression.isAgedGin,
+    ginStyle: expression.ginStyle,
+    ginIsNas: bottle.ginIsNas ?? expression.isNas,
+    labelGinIsNas: expression.isNas,
     ageYears: bottle.ageYears ?? ageSource.ageYears,
+    ageMonths: bottle.ageMonths ?? ageSource.ageMonths,
+    ageDays: bottle.ageDays ?? ageSource.ageDays,
     sizeMl: bottle.sizeMl ?? expression.sizeMl,
     msrp: release?.msrp ?? expression.msrp,
     pricePaid: bottle.pricePaid,
@@ -84,6 +95,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       ageMonths: bottle.ageMonths,
       ageDays: bottle.ageDays,
       ageStatement: bottle.ageStatement,
+      tequilaClass: bottle.tequilaClass,
+      brandyGrade: bottle.brandyGrade,
+      ginIsNas: bottle.ginIsNas,
       sizeMl: bottle.sizeMl,
     },
     // The label's known releases, for the Release choice.
@@ -95,6 +109,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     distilleries: links.distilleries.map((d) => d.name),
     finishes: links.finishes.map((f) => f.name),
     mashbills: links.mashbills.map((m) => m.recipe),
+    ingredients: links.ingredients.map((i) => i.name),
+    botanicals: links.ingredients.filter((i) => i.kind === "botanical").map((i) => i.name),
+    ginBases: links.ingredients.filter((i) => i.kind === "gin_base").map((i) => i.name),
     // No photo of its own: the release's, then the label's, stands in (id 0 — it isn't a bottle photo).
     images:
       images.length === 0 && (release?.photoPath ?? expression.photoPath)
@@ -135,7 +152,7 @@ const patchSchema = bottleBase
     pickName: true, barrelFilledOn: true, bottledOn: true,
     expressionId: true, releaseId: true, acquisition: true, isSingleBarrel: true, isSingleBarrelPick: true, pickedBy: true,
     warehouse: true, rickFloor: true, bottleCount: true, sizeMl: true, proof: true, ageYears: true, ageMonths: true, ageDays: true,
-    ageStatement: true,
+    ageStatement: true, tequilaClass: true, brandyGrade: true, ginIsNas: true,
   })
   .extend({
     fillPct: z.number().int().min(0).max(100),

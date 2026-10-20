@@ -37,6 +37,8 @@ type Props = {
   excludeIds?: ReadonlySet<number>;
   invalid?: boolean;
   placeholder?: string;
+  /** A country-bound picker uses the full create form so its country is recorded. */
+  defaultCountry?: string;
 };
 
 /**
@@ -60,6 +62,7 @@ export function ReferenceCombobox({
   invalid,
   emptyHint,
   placeholder,
+  defaultCountry,
 }: Props) {
   const searchPlaceholder = placeholder ?? (resource === null ? "Search…" : "Search or create…");
   const [open, setOpen] = React.useState(false);
@@ -90,7 +93,7 @@ export function ReferenceCombobox({
   }, [selectable, needle]);
 
   const exactExists = selectable.some((o) => o.label.toLowerCase() === needle);
-  const canCreate = resource !== null && needle.length > 0 && !exactExists;
+  const canCreate = resource !== null && !defaultCountry && needle.length > 0 && !exactExists;
   // A mashbill has no name to type, so its form is always on offer.
   const canDetail = detailed !== null && !exactExists && (needle.length > 0 || resource === null);
 
@@ -236,6 +239,7 @@ export function ReferenceCombobox({
           open={detailing}
           onOpenChange={setDetailing}
           initialName={query}
+          {...(defaultCountry ? { defaultCountry } : {})}
           onCreated={(option) => {
             onOptionCreated(option);
             onChange(option.value);

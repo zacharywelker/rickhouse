@@ -20,6 +20,8 @@ import { ProofAbvFields } from "./proof-abv-field";
 import { withOption } from "@/lib/forms/values";
 import { AgeFields } from "./age-fields";
 import { releaseUnit } from "@/lib/bottles/terminology";
+import { BRANDY_MINIMUM_YEARS, hidesWarehouse, isAgaveKind } from "@/lib/expressions/spirit-details";
+import { isGinKind } from "@/lib/expressions/gin-details";
 
 /**
  * Offers to work the age out from the fill and bottling dates (SPEC M8).
@@ -95,6 +97,9 @@ export function BottleFields({
   collapseLabelPicker = false,
   fieldGroup = "whiskey",
   categoryKind = "american",
+  inheritedTequilaClass = null,
+  inheritedGinAged,
+  inheritedGinNas,
 }: {
   values: Record<string, FieldValue>;
   onChange: (name: string, value: FieldValue) => void;
@@ -115,18 +120,27 @@ export function BottleFields({
   collapseLabelPicker?: boolean;
   fieldGroup?: FieldGroup;
   categoryKind?: CategoryKind;
+  inheritedTequilaClass?: string | null;
+  inheritedGinAged?: boolean;
+  inheritedGinNas?: boolean;
 }) {
   // With an age filled in the statement is greyed out; triple-clicking it makes it editable again.
   const [statementOpen, setStatementOpen] = React.useState(false);
+  const [ginAgeOpen, setGinAgeOpen] = React.useState(false);
   const statementLocked = ageFilled(values) && !statementOpen;
   const unit = releaseUnit(fieldGroup, categoryKind);
   const unitTitle = unit[0]!.toUpperCase() + unit.slice(1);
+  const effectiveTequilaClass = String(values.tequilaClass || inheritedTequilaClass || "");
+  const labelOption = options.expressionId?.find((option) => option.value === Number(values.expressionId));
+  const ginAged = isGinKind(categoryKind) && (inheritedGinAged ?? labelOption?.isAgedGin) === true;
+  const ginNas = values.ginIsNas === "true" || values.ginIsNas === true || ((values.ginIsNas === "" || values.ginIsNas == null) && (inheritedGinNas ?? labelOption?.isNas) === true);
   return (
     <>
       {BOTTLE_SECTIONS.map((section) => {
         // The pick block is revealed by the single-barrel checkboxes, the same
         // way the label form reveals its per-spirit sections.
         if (!sectionVisible(section, null, values)) return null;
+        if (section.id === "pick" && isGinKind(categoryKind) && !ginAged) return null;
         return (
         <Section key={section.id}>
           <SectionHeader>
@@ -140,6 +154,15 @@ export function BottleFields({
               : originalField.name === "barrelNumber"
                 ? { ...originalField, label: `${unitTitle} Number`, placeholder: `${unitTitle} 24` }
                 : originalField;
+            if ((field.name === "warehouse" || field.name === "rickFloor") && hidesWarehouse(fieldGroup, categoryKind)) return null;
+            if ((field.name === "barrelFilledOn" || field.name === "bottledOn") && (isAgaveKind(categoryKind) || isGinKind(categoryKind))) return null;
+            if (["isSingleBarrel", "isSingleBarrelPick"].includes(field.name) && isGinKind(categoryKind) && !ginAged) return null;
+            if (field.name === "tequilaClass" && categoryKind !== "tequila") return null;
+            if (field.name === "brandyGrade" && !BRANDY_MINIMUM_YEARS[categoryKind]) return null;
+            if (field.name === "ageStatement" && (categoryKind === "tequila" || isGinKind(categoryKind))) return null;
+            if (field.name === "ginIsNas" && !ginAged) return null;
+            if (["ageYears", "ageMonths", "ageDays"].includes(field.name) && isGinKind(categoryKind) && !ginAged) return null;
+            if (["ageYears", "ageMonths", "ageDays"].includes(field.name) && categoryKind === "tequila" && effectiveTequilaClass === "blanco") return null;
             if (!fieldVisible(field, values) || omit.includes(field.name)) return null;
             // Proof/ABV and the age triplet render as linked composites
             // rather than the generic field; see the label form for the same
@@ -186,6 +209,7 @@ export function BottleFields({
             }
             // A chosen release supplies these; the server clears them to match.
             if ((field.name === "batch" || field.name === "releaseYear") && values.releaseId) return null;
+            if (field.name === "batch" && isAgaveKind(categoryKind)) return <Field key={field.name} spec={{ ...field, label: "LOT #" }} idPrefix={idPrefix} value={values.batch ?? ""} onChange={(next) => onChange("batch", next)} error={errors.batch} />;
             if (field.name === "ageMonths" || field.name === "ageDays") return null;
             if (field.name === "ageYears") {
               return (
@@ -198,6 +222,8 @@ export function BottleFields({
                     ageDays: values.ageDays ?? "",
                   }}
                   onChange={(name, next) => onChange(name, next)}
+                  locked={isGinKind(categoryKind) && ginNas && !ginAgeOpen}
+                  onUnlock={() => setGinAgeOpen(true)}
                   errors={{
                     ageYears: errors.ageYears,
                     ageMonths: errors.ageMonths,
@@ -216,7 +242,10 @@ export function BottleFields({
             const control = (
               <Field
                 key={field.name}
-                spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } : field}
+                spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` }
+                  : field.name === "brandyGrade" && BRANDY_MINIMUM_YEARS[categoryKind] && values.brandyGrade
+                    ? { ...field, help: `At least ${BRANDY_MINIMUM_YEARS[categoryKind]![String(values.brandyGrade) as "VS" | "VSOP" | "XO"]} years. Leave age blank unless exact age is known.` }
+                    : field}
                 idPrefix={idPrefix}
                 value={values[field.name] ?? ""}
                 onChange={(next) => onChange(field.name, next)}
@@ -244,7 +273,7 @@ export function BottleFields({
             return control;
           })}
             {section.id === "override" ? (
-              <DeriveAge values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} />
+              isGinKind(categoryKind) ? null : <DeriveAge values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} />
             ) : null}
           </SectionContent>
         </Section>
@@ -314,8 +343,9 @@ export function BottleForm({
         releases={releases}
         labelDates={labelDates}
         collapseLabelPicker={collapseLabelPicker}
-        fieldGroup={categoryGroups[Number(values.expressionId)] ?? "whiskey"}
-        categoryKind={categoryKinds[Number(values.expressionId)] ?? "american"}
+        fieldGroup={categoryGroups[options.expressionId?.find((option) => option.value === Number(values.expressionId))?.categoryId ?? -1] ?? "other"}
+        categoryKind={categoryKinds[options.expressionId?.find((option) => option.value === Number(values.expressionId))?.categoryId ?? -1] ?? "other"}
+        inheritedTequilaClass={options.expressionId?.find((option) => option.value === Number(values.expressionId))?.tequilaClass ?? null}
       />
 
       {!state.ok && state.error ? (
