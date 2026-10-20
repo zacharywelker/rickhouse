@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BottleForm } from "@/components/expressions/bottle-form";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
-import { expressionOptions, getBottle, labelDateChoices } from "@/lib/expressions/queries";
+import { categoryFieldGroups, categoryKindsById, expressionOptions, getBottle, labelDateChoices } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
 import { labelVersionChoices } from "@/lib/other-names-store";
 import { releaseChoices } from "@/lib/releases-store";
@@ -21,7 +21,12 @@ export default async function EditBottlePage({ params }: { params: Promise<{ id:
   const row = await getBottle(bottleId, user.id);
   if (!row) notFound();
 
-  const [expressions, stores] = await Promise.all([expressionOptions(user.id), REFERENCE_OPTION_LOADERS.stores(user.id)]);
+  const [expressions, stores, categoryGroups, categoryKinds] = await Promise.all([
+    expressionOptions(user.id),
+    REFERENCE_OPTION_LOADERS.stores(user.id),
+    categoryFieldGroups(),
+    categoryKindsById(),
+  ]);
   const suggestions = await bottleSuggestions(user.id, stores.map((store) => store.label));
 
   return (
@@ -54,6 +59,8 @@ export default async function EditBottlePage({ params }: { params: Promise<{ id:
         labelVersions={await labelVersionChoices(user.id)}
         releases={await releaseChoices(user.id)}
         labelDates={await labelDateChoices(user.id)}
+        categoryGroups={categoryGroups}
+        categoryKinds={categoryKinds}
         collapseLabelPicker
       />
     </div>

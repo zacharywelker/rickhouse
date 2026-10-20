@@ -154,6 +154,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         look: "stave",
         options: [{ value: "", label: "Unknown" }, ...CHAR_LEVELS.map((v) => ({ value: v, label: CHAR_LEVEL_LABELS[v] }))],
       },
+      { kind: "reference", name: "cooperageId", label: "Cooperage", resource: "cooperages", help: "Who made the casks, when known." },
     ],
   },
   {

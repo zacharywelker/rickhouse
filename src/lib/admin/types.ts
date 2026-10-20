@@ -113,6 +113,7 @@ export const REFERENCE_RESOURCES = [
   "brands",
   "distilleries",
   "finishes",
+  "cooperages",
   "stores",
   "tags",
 ] as const;
@@ -154,6 +155,7 @@ export const DETAILED_RESOURCES = [
   "brands",
   "distilleries",
   "finishes",
+  "cooperages",
   "stores",
   "tags",
   "mashbills",

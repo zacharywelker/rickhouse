@@ -8,12 +8,13 @@ import type { LinkedRow } from "@/components/expressions/ordered-picker";
 /** Everything the expression form needs to render, in one round of queries. */
 /** `expressionId`, when given, must already be checked to belong to `ownerId`. */
 export async function expressionFormData(expressionId: number | null, ownerId: number) {
-  const [brands, cats, distilleries, mashbills, finishes, categoryGroups, categoryKinds] = await Promise.all([
+  const [brands, cats, distilleries, mashbills, finishes, cooperages, categoryGroups, categoryKinds] = await Promise.all([
     REFERENCE_OPTION_LOADERS.brands(ownerId),
     REFERENCE_OPTION_LOADERS.categories(ownerId),
     REFERENCE_OPTION_LOADERS.distilleries(ownerId),
     REFERENCE_OPTION_LOADERS.mashbills(ownerId),
     REFERENCE_OPTION_LOADERS.finishes(ownerId),
+    REFERENCE_OPTION_LOADERS.cooperages(ownerId),
     categoryFieldGroups(),
     categoryKindsById(),
   ]);
@@ -24,6 +25,7 @@ export async function expressionFormData(expressionId: number | null, ownerId: n
     distilleryLinks: distilleries,
     mashbillLinks: mashbills,
     finishLinks: finishes,
+    cooperageId: cooperages,
   };
 
   const links =

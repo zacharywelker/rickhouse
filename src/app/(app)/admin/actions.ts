@@ -85,6 +85,7 @@ const QUICK_CREATE_DEFAULTS: Record<ReferenceResource, Record<string, string>> =
   brands: {},
   distilleries: { country: "USA" },
   finishes: { finishType: "other" },
+  cooperages: {},
   stores: {},
   tags: {},
 };
