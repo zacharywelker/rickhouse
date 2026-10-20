@@ -18,6 +18,7 @@ struct TournamentScreen: View {
     @State private var withdrawing: (entryId: Int, name: String)?
     @State private var confirmingWithdraw = false
     @State private var drag = DragCoordinator()
+    @Environment(\.scenePhase) private var scenePhase
 
     init(id: Int) { _model = State(initialValue: TournamentModel(id: id)) }
 
@@ -56,7 +57,11 @@ struct TournamentScreen: View {
             // Coming back from a flight: what was decided there shows at once.
             .onAppear { if model.hasLoaded { Task { await model.load() } } }
             .environment(drag)
+            // A drag released outside every target has no end callback: forget it when the screen or the app goes away.
+            .onDisappear { drag.reset() }
+            .onChange(of: scenePhase) { if scenePhase != .active { drag.reset() } }
             .task {
+                drag.notice = { [model] in model.foot.show($0) }
                 drag.view = { [model] in model.view }
                 drag.busy = { [model] in model.pending }
                 drag.perform = { [model] outcome, said in

@@ -17,6 +17,9 @@ final class DragCoordinator {
     @ObservationIgnored var busy: () -> Bool = { false }
     /// Runs a saved-able outcome; the screen sends it through the model and announces the result.
     @ObservationIgnored var perform: (DropOutcome, String?) -> Void = { _, _ in }
+    /// Shown in the foot bar when a drop arrives while another change is still being saved.
+    @ObservationIgnored var notice: (String) -> Void = { _ in }
+    static let busyNotice = "One moment"
 
     func heat(_ id: Int) -> TournamentHeat? { view()?.rounds.flatMap(\.heats).first { $0.id == id } }
 
@@ -48,14 +51,19 @@ final class DragCoordinator {
     }
 
     func accepts(_ target: DropTarget) -> Bool {
-        if busy() { return false }
         if case .none? = outcome(target) { return false }
         return outcome(target) != nil
     }
 
-    func drop(_ target: DropTarget) -> Bool {
-        defer { current = nil; hover = nil }
-        guard let view = view(), let drag = current, !busy() else { return false }
+    /// Forgets a drag that never landed (released outside every target, screen left, app backgrounded).
+    func reset() { current = nil; hover = nil }
+
+    /// `payload` is what was actually dropped, decoded from the item: a drop that is not the drag this screen lifted (an
+    /// old drag that ended nowhere, a JSON item from Files or another app) is ignored.
+    func drop(_ target: DropTarget, payload: Drag?) -> Bool {
+        defer { reset() }
+        guard let payload, payload == current, let view = view(), let drag = current else { return false }
+        if busy() { notice(Self.busyNotice); return false }
         let outcome = DragModel.dropOutcome(view, drag, resolve(target))
         if case .none(let reason) = outcome {
             AccessibilityNotification.Announcement(DragModel.refusalText(reason)).post()
@@ -77,7 +85,15 @@ private struct BracketDropDelegate: DropDelegate {
         return DropProposal(operation: coordinator.accepts(target) ? .move : .forbidden)
     }
     func dropExited(info: DropInfo) { if coordinator.hover == coordinator.resolve(target) { coordinator.hover = nil } }
-    func performDrop(info: DropInfo) -> Bool { coordinator.drop(target) }
+    func performDrop(info: DropInfo) -> Bool {
+        guard coordinator.current != nil, let item = info.itemProviders(for: [.json]).first else { coordinator.reset(); return false }
+        let coordinator = coordinator, target = target
+        item.loadDataRepresentation(forTypeIdentifier: UTType.json.identifier) { data, _ in
+            let payload = data.flatMap { try? JSONDecoder().decode(Drag.self, from: $0) }
+            Task { @MainActor in _ = coordinator.drop(target, payload: payload) }
+        }
+        return true
+    }
 }
 
 private func provider(_ drag: Drag) -> NSItemProvider {
