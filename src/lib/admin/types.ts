@@ -166,5 +166,6 @@ export type ResourceFormSpec =
       singular: string;
       fields: FieldSpec[];
       options: Record<string, Option[]>;
+      row?: AdminRow;
     }
   | { ok: false; error: string };
