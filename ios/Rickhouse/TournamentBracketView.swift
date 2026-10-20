@@ -59,14 +59,22 @@ struct TournamentBracketView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        if zoom == .compact {
-            ForEach(ZoomProjection.compact(bracket, round: c.round)) { f in
-                CompactFlightView(flight: f, run: c.flights.first { $0.id == f.id }.flatMap(run))
-            }
-        } else {
-            ForEach(c.flights) { f in
-                FlightCardView(flight: f, renamable: FlightActions.canRename(hidden: f.hidden), moves: f.hidden ? nil : moves(c, f), run: run(f),
-                               onRename: { onRename(f) }, steps: steps(f), onShift: { onShift(f, $0) })
+        // Gaps between the flights are where a dragged flight can be dropped (Detail and Compact only).
+        VStack(alignment: .leading, spacing: 0) {
+            if zoom == .compact {
+                let compact = ZoomProjection.compact(bracket, round: c.round)
+                ForEach(Array(compact.enumerated()), id: \.element.id) { i, f in
+                    FlightGap(index: i, height: i == 0 ? 8 : 16)
+                    CompactFlightView(flight: f, run: c.flights.first { $0.id == f.id }.flatMap(run))
+                }
+                FlightGap(index: compact.count, height: 8)
+            } else {
+                ForEach(Array(c.flights.enumerated()), id: \.element.id) { i, f in
+                    FlightGap(index: i, height: i == 0 ? 8 : 16)
+                    FlightCardView(flight: f, renamable: FlightActions.canRename(hidden: f.hidden), moves: f.hidden ? nil : moves(c, f), run: run(f),
+                                   onRename: { onRename(f) }, steps: steps(f), onShift: { onShift(f, $0) })
+                }
+                FlightGap(index: c.flights.count, height: 8)
             }
         }
     }

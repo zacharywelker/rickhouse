@@ -17,6 +17,7 @@ struct TournamentScreen: View {
     @State private var playRoute: PlayRoute?
     @State private var withdrawing: (entryId: Int, name: String)?
     @State private var confirmingWithdraw = false
+    @State private var drag = DragCoordinator()
 
     init(id: Int) { _model = State(initialValue: TournamentModel(id: id)) }
 
@@ -54,7 +55,22 @@ struct TournamentScreen: View {
             .navigationDestination(item: $playRoute) { PlayFlightView(tournamentID: model.id, heatID: $0.heatID, drawn: $0.drawn) }
             // Coming back from a flight: what was decided there shows at once.
             .onAppear { if model.hasLoaded { Task { await model.load() } } }
+            .environment(drag)
             .task {
+                drag.view = { [model] in model.view }
+                drag.busy = { [model] in model.pending }
+                drag.perform = { [model] outcome, said in
+                    Task {
+                        let result: ActionResult
+                        switch outcome {
+                        case .move(let entryId, let toHeatId): result = await model.move(entryId: entryId, toHeatId: toHeatId)
+                        case .swap(let entryId, let other): result = await model.swap(entryId: entryId, with: other, inline: false)
+                        case .reorder(let heatId, let toSlot): result = await model.moveFlight(heatId: heatId, toSlot: toSlot)
+                        case .none: return
+                        }
+                        if result == .done, let said { AccessibilityNotification.Announcement(said).post() }
+                    }
+                }
                 model.api = { session.api }
                 model.signOut = { session.signOut() }
                 await model.load()

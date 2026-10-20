@@ -71,12 +71,15 @@ final class TournamentModel {
         await run(inline: true) { try await $0.renameFlight(tournamentId: self.id, heatId: heatId, label: label) }
     }
 
-    func move(entryId: Int, toHeatId: Int) async {
+    @discardableResult
+    func move(entryId: Int, toHeatId: Int) async -> ActionResult {
         await run { try await $0.moveEntry(tournamentId: self.id, entryId: entryId, toHeatId: toHeatId) }
     }
 
-    func swap(entryId: Int, with other: Int) async -> ActionResult {
-        await run(inline: true) { try await $0.swapEntries(tournamentId: self.id, entryId: entryId, withEntryId: other) }
+    /// `inline` for the swap sheet, which shows a failure itself; a drop shows it in the foot bar with Retry.
+    @discardableResult
+    func swap(entryId: Int, with other: Int, inline: Bool = true) async -> ActionResult {
+        await run(inline: inline) { try await $0.swapEntries(tournamentId: self.id, entryId: entryId, withEntryId: other) }
     }
 
     /// Takes a bottle out of a draft at once; the foot bar says so. A failure reloads and offers Retry (see `run`).
@@ -84,7 +87,8 @@ final class TournamentModel {
         await run(after: { [weak self] in self?.foot.show("Removed \(name)") }) { try await $0.removeEntry(tournamentId: self.id, entryId: entryId) }
     }
 
-    func moveFlight(heatId: Int, toSlot: Int) async {
+    @discardableResult
+    func moveFlight(heatId: Int, toSlot: Int) async -> ActionResult {
         await run { try await $0.moveFlight(tournamentId: self.id, heatId: heatId, toSlot: toSlot) }
     }
 

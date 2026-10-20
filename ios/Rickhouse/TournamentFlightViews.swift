@@ -43,7 +43,7 @@ struct FlightCardView: View {
             } else {
                 ForEach(flight.rows) { row in
                     Divider()
-                    FlightRowView(row: row, decided: flight.status == .decided, bye: flight.status == .bye,
+                    FlightRowView(row: row, heatId: flight.id, decided: flight.status == .decided, bye: flight.status == .bye,
                                   final: flight.status == .decided && !flight.rows.contains { $0.advanced }, moves: moves)
                 }
                 Divider()
@@ -51,6 +51,7 @@ struct FlightCardView: View {
             if let run, run.play || run.undo { FlightRunButtons(title: flight.title.text, run: run).padding(.vertical, 8) }
         }
         .accessibilityElement(children: .contain)
+        .flightDrop(heatId: flight.id)
     }
 
     private var titleRow: some View {
@@ -58,6 +59,7 @@ struct FlightCardView: View {
         return layout {
             title.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
             HStack(spacing: 0) {
+                FlightGrip(heatId: flight.id, title: flight.title.text)
                 if let steps {
                     shiftButton(.up, to: steps.up)
                     shiftButton(.down, to: steps.down)
@@ -111,6 +113,7 @@ enum FlightShift: String { case up, down }
 /// One bottle in the Detail layout.
 struct FlightRowView: View {
     let row: RowModel
+    let heatId: Int
     /// The flight is decided: show places, and who goes through.
     let decided: Bool
     let bye: Bool
@@ -143,6 +146,7 @@ struct FlightRowView: View {
         .overlay(alignment: .leading) { if row.advanced || champion { Rectangle().fill(Theme.ink).frame(width: 3) } }
         .foregroundStyle(out ? Theme.muted : Theme.ink)
         .findMark(entryId: row.entryId, highlight: highlight)
+        .bottleDrag(entryId: row.entryId, heatId: heatId, name: row.name)
     }
 
     private var text: some View {
@@ -250,7 +254,11 @@ struct CompactFlightView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Rectangle().fill(Theme.ink).frame(height: 2)
-            Text(flight.title).font(.inter(15, .semibold)).foregroundStyle(Theme.ink).padding(.vertical, 8).accessibilityAddTraits(.isHeader)
+            HStack(spacing: 0) {
+                Text(flight.title).font(.inter(15, .semibold)).foregroundStyle(Theme.ink).padding(.vertical, 8).accessibilityAddTraits(.isHeader)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                FlightGrip(heatId: flight.id, title: flight.title)
+            }
             if flight.hidden {
                 Label("\(TournamentBracketModel.bottlesText(flight.count)), hidden until tasted", systemImage: "eye.slash")
                     .font(.inter(14)).foregroundStyle(Theme.muted).padding(.bottom, 8)
@@ -263,6 +271,7 @@ struct CompactFlightView: View {
             if let run, run.play || run.undo { FlightRunButtons(title: flight.title, run: run, compact: true).padding(.vertical, 6) }
         }
         .accessibilityElement(children: .contain)
+        .flightDrop(heatId: flight.id)
     }
 
     private func line(_ row: CompactRow) -> some View {
@@ -287,6 +296,7 @@ struct CompactFlightView: View {
         .findMark(entryId: row.entryId, highlight: highlight)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(compactSpoken(row))
+        .bottleDrag(entryId: row.entryId, heatId: flight.id, name: row.name)
     }
 
     private func compactSpoken(_ row: CompactRow) -> String {

@@ -63,7 +63,7 @@ struct NewTournamentView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Bottles per flight")
                 HeatSizePicker(size: $draft.heatSize)
-                caption("A flight is one tasting. Four bottles is the most a palate holds well.")
+                caption("A flight is one tasting. Smaller flights are easier on the palate; six is the most.")
                 problem("heatSize")
             }
             VStack(alignment: .leading, spacing: 4) {
