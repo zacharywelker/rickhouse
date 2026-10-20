@@ -350,6 +350,31 @@ describe.skipIf(!url)("tournament flights against a real database", () => {
     expect(await m.heats.moveHeat(owner, made.id, c, 1)).toMatchObject({ ok: false, status: 409 });
   });
 
+  it("reorders undecided flights of a running tournament around a decided one: it is never moved by the user, slots stay contiguous", async () => {
+    type V = import("../view").TournamentView;
+    const made = (await m.life.createTournament(owner, settings({ heatSize: 2 }), bottleEntries())) as { ok: true; id: number };
+    await m.life.startTournament(owner, made.id);
+    const get = async () => (await m.queries.getTournament(owner, made.id))!;
+    const [a, b, c] = (await get()).rounds[0]!.heats.map((h) => h.id) as [number, number, number];
+    const decided = (await get()).rounds[0]!.heats[1]!;
+    expect((await m.heats.recordHeat(owner, made.id, b, { ranking: decided.entries.map((e) => e.entryId) }, owner)).ok).toBe(true);
+    const order = (v: V) => v.rounds[0]!.heats.map((h) => h.id);
+    const undecided = (v: V) => v.rounds[0]!.heats.filter((h) => h.status !== "decided").map((h) => h.id);
+
+    // The decided flight itself is refused, and nothing changes.
+    expect(await m.heats.moveHeat(owner, made.id, b, 1)).toMatchObject({ ok: false, status: 409 });
+    expect(order(await get())).toEqual([a, b, c]);
+
+    // Moving an undecided flight keeps the undecided ones in the order asked, and the decided flight's result untouched.
+    const moved = (await m.heats.moveHeat(owner, made.id, c, 1)) as { ok: true; view: V };
+    expect(moved.ok).toBe(true);
+    expect(undecided(moved.view)).toEqual([c, a]);
+    expect(moved.view.rounds[0]!.heats.map((h) => h.slot)).toEqual([1, 2, 3]);
+    const after = moved.view.rounds[0]!.heats.find((h) => h.id === b)!;
+    expect(after.status).toBe("decided");
+    expect(after.entries.map((e) => [e.entryId, e.place])).toEqual(decided.entries.map((e, i) => [e.entryId, i + 1]));
+  });
+
   it("swaps two entries between flights: in a draft, and in a running tournament with the glass letters staying with the places", async () => {
     type V = import("../view").TournamentView;
     const made = (await m.life.createTournament(owner, settings({ heatSize: 3 }), bottleEntries())) as { ok: true; id: number };
