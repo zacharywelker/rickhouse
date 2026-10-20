@@ -90,6 +90,7 @@ export function BottleFields({
   labelDates,
   omit = [],
   idPrefix = "bottle",
+  collapseLabelPicker = false,
 }: {
   values: Record<string, FieldValue>;
   onChange: (name: string, value: FieldValue) => void;
@@ -106,6 +107,8 @@ export function BottleFields({
   labelDates?: Record<number, LabelDates>;
   omit?: string[];
   idPrefix?: string;
+  /** Existing bottles keep the label picker tucked away unless changing it. */
+  collapseLabelPicker?: boolean;
 }) {
   // With an age filled in the statement is greyed out; triple-clicking it makes it editable again.
   const [statementOpen, setStatementOpen] = React.useState(false);
@@ -195,7 +198,7 @@ export function BottleFields({
               field.name === "barrelFilledOn" || field.name === "bottledOn"
                 ? labelDates?.[Number(values.expressionId)]?.[field.name]
                 : null;
-            return (
+            const control = (
               <Field
                 key={field.name}
                 spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } : field}
@@ -210,6 +213,20 @@ export function BottleFields({
                 onUnlock={() => setStatementOpen(true)}
               />
             );
+            if (field.name === "expressionId" && collapseLabelPicker) {
+              const selectedLabel = options.expressionId?.find((option) => option.value === Number(values.expressionId))?.label;
+              return (
+                <details key={field.name} className="col-span-full border border-border px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Change label <span className="font-normal text-muted-foreground">
+                      {selectedLabel ? "· " + selectedLabel : ""}
+                    </span>
+                  </summary>
+                  <div className="pt-3">{control}</div>
+                </details>
+              );
+            }
+            return control;
           })}
             {section.id === "override" ? (
               <DeriveAge values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} />
@@ -230,6 +247,7 @@ export function BottleForm({
   labelVersions,
   releases,
   labelDates,
+  collapseLabelPicker = false,
 }: {
   bottleId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
@@ -238,6 +256,7 @@ export function BottleForm({
   labelVersions?: Record<number, Array<{ value: string; label: string }>>;
   releases?: Record<number, Array<{ value: string; label: string }>>;
   labelDates?: Record<number, LabelDates>;
+  collapseLabelPicker?: boolean;
 }) {
   const router = useRouter();
   const [values, setValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, initialValues));
@@ -275,6 +294,7 @@ export function BottleForm({
         labelVersions={labelVersions}
         releases={releases}
         labelDates={labelDates}
+        collapseLabelPicker={collapseLabelPicker}
       />
 
       {!state.ok && state.error ? (
