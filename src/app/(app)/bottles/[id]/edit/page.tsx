@@ -39,7 +39,7 @@ export default async function EditBottlePage({ params }: { params: Promise<{ id:
             {row.expression.proof !== null ? <><dt className="text-muted-foreground">Proof</dt><dd>{row.expression.proof}</dd></> : null}
             {row.expression.ageStatement ? <><dt className="text-muted-foreground">Age</dt><dd>{row.expression.ageStatement}</dd></> : null}
             {row.expression.sizeMl !== null ? <><dt className="text-muted-foreground">Size</dt><dd>{row.expression.sizeMl} ml</dd></> : null}
-            {row.expression.notes ? <><dt className="text-muted-foreground">Label notes</dt><dd className="whitespace-pre-wrap">{row.expression.notes}</dd></> : null}
+            {row.expression.description ? <><dt className="text-muted-foreground">Label description</dt><dd className="whitespace-pre-wrap">{row.expression.description}</dd></> : null}
           </dl>
           <Link href={`/expressions/${row.expression.id}/edit`} className="text-sm text-primary underline underline-offset-2">
             Edit label details
