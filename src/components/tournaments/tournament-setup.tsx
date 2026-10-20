@@ -138,7 +138,7 @@ export function TournamentSetup({ categories }: { categories: Option[] }) {
         <div className="flex flex-col gap-1.5">
           <span id="heat-size-label" className="text-sm font-medium leading-none text-muted-foreground">Bottles per flight</span>
           <Segmented label="Bottles per flight" options={HEAT_SIZES} value={heatSize} onChange={setHeatSize} className="self-start" />
-          <p className="text-xs text-muted-foreground">A flight is one tasting. Four bottles is the most a palate holds well.</p>
+          <p className="text-xs text-muted-foreground">A flight is one tasting. Smaller flights are easier on the palate; six is the most.</p>
           <FieldError id="heat-size-error" message={fieldErrors.heatSize} />
         </div>
 
