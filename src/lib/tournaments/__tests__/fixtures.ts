@@ -15,6 +15,7 @@ export type Db = {
   sql: <T = Record<string, unknown>>(query: string, ...params: unknown[]) => Promise<T[]>;
   life: typeof import("../lifecycle");
   heats: typeof import("../heats");
+  transitions: typeof import("../transitions");
   ranking: typeof import("../ranking-query");
   queries: typeof import("../queries");
   end: () => Promise<void>;
@@ -34,6 +35,7 @@ export async function connect(): Promise<Db> {
     sql: async (query, ...params) => (await client.unsafe(query, params as never[])) as never,
     life: await import("../lifecycle"),
     heats: await import("../heats"),
+    transitions: await import("../transitions"),
     ranking: await import("../ranking-query"),
     queries: await import("../queries"),
     end: () => client.end(),
@@ -127,7 +129,7 @@ export function fixtures(m: Db) {
       const view = (await m.queries.getTournament(user, id)) as TournamentView;
       if (view.status === "complete") return;
       const open = view.rounds[view.rounds.length - 1]!.heats.find((h) => h.status === "pending")!;
-      expect((await m.heats.recordHeat(user, id, open.id, { ranking: open.entries.map((e) => e.entryId) }, user)).ok).toBe(true);
+      expect((await m.transitions.recordHeat(user, id, open.id, { ranking: open.entries.map((e) => e.entryId) }, user)).ok).toBe(true);
     }
     throw new Error("the tournament did not finish");
   }

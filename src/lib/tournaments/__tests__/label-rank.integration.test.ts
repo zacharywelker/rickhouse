@@ -25,7 +25,7 @@ describe.skipIf(!url)("the label-page tournament rank against a real database", 
 
   async function play(user: number, field: ({ bottleId: number } | { expressionId: number })[], name: string) {
     const made = (await m.life.createTournament(user, settings({ name, heatSize: 3 }), field)) as { ok: true; id: number };
-    await m.life.startTournament(user, made.id);
+    await m.transitions.startTournament(user, made.id);
     await fx.finish(user, made.id);
   }
 

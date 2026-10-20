@@ -1,6 +1,6 @@
 import { type NextRequest, type NextResponse } from "next/server";
 import { resultSchema } from "@/lib/tournaments/api-schemas";
-import { recordHeat, undoHeat } from "@/lib/tournaments/heats";
+import { recordHeat, undoHeat } from "@/lib/tournaments/transitions";
 import { authed, failed, ids, isHalt, json, parsed } from "@/lib/tournaments/http";
 
 export const dynamic = "force-dynamic";

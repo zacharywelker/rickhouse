@@ -28,7 +28,7 @@ describe.skipIf(!url)("the tournament ranking against a real database", () => {
     for (let i = 0; i < 3; i++) {
       const field = [...own.bottles.map((bottleId) => ({ bottleId })), ...(i === 0 ? [{ name: "Joe's cask" }] : [])];
       const made = (await m.life.createTournament(own.user, settings({ name: `Rank ${i}`, heatSize: 3 }), field)) as { ok: true; id: number };
-      await m.life.startTournament(own.user, made.id);
+      await m.transitions.startTournament(own.user, made.id);
       await fx.finish(own.user, made.id);
     }
     // The tastings: bottle 0 wins every tournament but is rated worst; bottle 1 loses early but is rated best.
@@ -56,7 +56,7 @@ describe.skipIf(!url)("the tournament ranking against a real database", () => {
     const rumBottle = await fx.mkBottle(own.user, await fx.mkLabel(own.user, cat.rum, "Rum bottle", { proof: 85 }));
     const field = [{ bottleId: own.bottles[0]! }, { bottleId: own.bottles[1]! }, { expressionId: lonely }, { bottleId: rumBottle }];
     const made = (await m.life.createTournament(own.user, settings({ name: "Mixed", heatSize: 4 }), field)) as { ok: true; id: number };
-    await m.life.startTournament(own.user, made.id);
+    await m.transitions.startTournament(own.user, made.id);
     await fx.finish(own.user, made.id);
     await m.sql(`INSERT INTO tasting_notes (owner_id, expression_id, rating) VALUES ($1, $2, 7.5)`, own.user, lonely);
 
@@ -72,7 +72,7 @@ describe.skipIf(!url)("the tournament ranking against a real database", () => {
   it("is not changed by another account's finished tournament and tastings", async () => {
     const own = await fx.mkOwnerWithField(cat.whiskey);
     const made = (await m.life.createTournament(own.user, settings({ name: "Mine", heatSize: 3 }), own.bottles.map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
-    await m.life.startTournament(own.user, made.id);
+    await m.transitions.startTournament(own.user, made.id);
     await fx.finish(own.user, made.id);
     for (const [i, rating] of [6, 7, 8, 9, 5, 4].entries()) {
       await m.sql(`INSERT INTO tasting_notes (owner_id, expression_id, bottle_id, rating) VALUES ($1, $2, $3, $4)`, own.user, own.labels[i]!, own.bottles[i]!, rating);
@@ -82,7 +82,7 @@ describe.skipIf(!url)("the tournament ranking against a real database", () => {
 
     const stranger = await fx.mkOwnerWithField(cat.whiskey);
     const theirs = (await m.life.createTournament(stranger.user, settings({ name: "Theirs", heatSize: 3 }), stranger.bottles.map((bottleId) => ({ bottleId })))) as { ok: true; id: number };
-    await m.life.startTournament(stranger.user, theirs.id);
+    await m.transitions.startTournament(stranger.user, theirs.id);
     await fx.finish(stranger.user, theirs.id);
     for (const [i, rating] of [1, 2, 3, 10, 9, 8].entries()) {
       await m.sql(`INSERT INTO tasting_notes (owner_id, expression_id, bottle_id, rating) VALUES ($1, $2, $3, $4)`, stranger.user, stranger.labels[i]!, stranger.bottles[i]!, rating);

@@ -1,7 +1,8 @@
-import { eq, inArray, sql, type SQL } from "drizzle-orm";
+import { eq, sql, type SQL } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { entryDisplayName } from "./entrants";
-import { fail, generateRound, GONE, lockTournament, readState, settle, viewOf, type Failure, type Tx } from "./state";
+import { fail, GONE, lockTournament, viewOf, type Failure, type Tx } from "./state";
+import { previewRound } from "./transitions";
 import type { TournamentView } from "./view";
 
 const { tournaments, tournamentEntries, tournamentHeats } = schema;
@@ -72,14 +73,6 @@ async function resolveEntries(tx: Tx, ownerId: number, inputs: EntryInput[]): Pr
   return { ok: true, rows };
 }
 
-/** Makes the round 1 preview of a draft that has none (call it with no heats): needs two active entries. */
-async function makePreview(tx: Tx, ownerId: number, id: number): Promise<void> {
-  const t = await lockTournament(tx, ownerId, id);
-  const { entries } = await readState(tx, id);
-  const active = entries.filter((e) => e.status === "active").map((e) => e.id);
-  if (t && active.length >= 2) await generateRound(tx, ownerId, t, 1, active);
-}
-
 /** Makes a draft tournament with its field. Needs no minimum field yet; starting does. With two or more entries it also makes the round 1 preview. */
 export async function createTournament(
   ownerId: number,
@@ -93,7 +86,7 @@ export async function createTournament(
     if (resolved.rows.length > 0) {
       await tx.insert(tournamentEntries).values(resolved.rows.map((r) => ({ tournamentId: row!.id, ownerId, ...r })));
     }
-    await makePreview(tx, ownerId, row!.id);
+    await previewRound(tx, ownerId, row!.id);
     return { ok: true as const, id: row!.id };
   });
 }
@@ -135,7 +128,7 @@ export async function updateDraft(
     }
     if (Object.keys(settings).length > 0) await tx.update(tournaments).set(settings).where(eq(tournaments.id, id));
 
-    if (regroup) await makePreview(tx, ownerId, id);
+    if (regroup) await previewRound(tx, ownerId, id);
     return { ok: true as const, view: (await viewOf(tx, ownerId, id))! };
   });
 }
@@ -148,51 +141,5 @@ export async function deleteTournament(ownerId: number, id: number): Promise<{ o
     if (t.status === "active") return fail(409, "A running tournament cannot be deleted. Finish it first.");
     await tx.delete(tournaments).where(eq(tournaments.id, id));
     return { ok: true as const };
-  });
-}
-
-/** Locks the field and starts the tournament, making round 1 if the draft has no preview. Needs two entries. */
-export async function startTournament(ownerId: number, id: number): Promise<{ ok: true; view: TournamentView } | Failure> {
-  return db.transaction(async (tx) => {
-    const t = await lockTournament(tx, ownerId, id);
-    if (!t) return fail(404, GONE);
-    if (t.status !== "draft") return fail(409, "This tournament has already started.");
-    const { entries, heats } = await readState(tx, id);
-    const active = entries.filter((e) => e.status === "active").map((e) => e.id);
-    if (active.length < 2) return fail(422, "A tournament needs at least two entries.", { entries: "Add at least two entries." });
-    if (heats.length === 0) await generateRound(tx, ownerId, t, 1, active);
-    await tx.update(tournaments).set({ status: "active", startedAt: new Date() }).where(eq(tournaments.id, id));
-    await settle(tx, ownerId, { ...t, status: "active" });
-    return { ok: true as const, view: (await viewOf(tx, ownerId, id))! };
-  });
-}
-
-/**
- * Regroups to the automatic choice. In a draft that is all of round 1; once running it is the entries of the current
- * round's undecided heats (a decided heat is never touched). Heats you renamed or moved bottles between lose both.
- */
-export async function resetRound(ownerId: number, id: number): Promise<{ ok: true; view: TournamentView } | Failure> {
-  return db.transaction(async (tx) => {
-    const t = await lockTournament(tx, ownerId, id);
-    if (!t) return fail(404, GONE);
-    if (t.status === "complete") return fail(409, "This tournament is finished.");
-    const { entries, heats, heatEntries } = await readState(tx, id);
-    const activeIds = new Set(entries.filter((e) => e.status === "active").map((e) => e.id));
-
-    if (t.status === "draft") {
-      if (activeIds.size < 2) return fail(422, "A tournament needs at least two entries.", { entries: "Add at least two entries." });
-      await tx.delete(tournamentHeats).where(eq(tournamentHeats.tournamentId, id));
-      await generateRound(tx, ownerId, t, 1, entries.filter((e) => e.status === "active").map((e) => e.id));
-    } else {
-      const round = Math.max(...heats.map((h) => h.round));
-      const undecided = heats.filter((h) => h.round === round && h.status !== "decided");
-      const regroup = [...new Set(heatEntries.filter((r) => undecided.some((h) => h.id === r.heatId) && activeIds.has(r.entryId)).map((r) => r.entryId))];
-      if (undecided.length > 0) {
-        await tx.delete(tournamentHeats).where(inArray(tournamentHeats.id, undecided.map((h) => h.id)));
-        await generateRound(tx, ownerId, t, round, regroup);
-        await settle(tx, ownerId, t);
-      }
-    }
-    return { ok: true as const, view: (await viewOf(tx, ownerId, id))! };
   });
 }
