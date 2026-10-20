@@ -39,6 +39,16 @@ describe("mashbillClass", () => {
     expect(mashbillClass(recipe([["Corn", 60], ["Wheat", 16], ["Rye", 14], ["Malted Barley", 10]]))).toBeNull();
     expect(mashbillClass(recipe([["Corn", 80], ["Wheat", 9], ["Malted Barley", 11]]))).toBe("Low rye");
   });
+  it("keeps Low rye and Wheated to bourbon-like recipes (corn majority)", () => {
+    expect(mashbillClass(recipe([["Malted Barley", 100]]))).toBeNull(); // Scotch, single malt
+    expect(mashbillClass(recipe([["Corn", 100]]))).toBeNull(); // corn whiskey
+    expect(mashbillClass(recipe([["Corn", 51], ["Rye", 12], ["Malted Barley", 37]]))).toBe("Low rye");
+    expect(mashbillClass(recipe([["Corn", 50], ["Rye", 12], ["Malted Barley", 38]]))).toBeNull();
+    expect(mashbillClass(recipe([["Wheat", 60], ["Malted Barley", 40]]))).toBeNull(); // wheat-malt is not "Wheated"
+    expect(mashbillClass(recipe([["Corn", 50], ["Wheat", 20], ["Malted Barley", 30]]))).toBeNull();
+    expect(mashbillClass(recipe([["Corn", 51], ["Wheat", 20], ["Malted Barley", 29]]))).toBe("Wheated");
+    expect(mashbillClass(recipe([["Malted Barley", 60], ["Rye", 40]]))).toBe("High rye"); // high rye stays as is
+  });
   it("maps a generic style by name and is null for the rest", () => {
     expect(mashbillClass(generic("High Rye"))).toBe("High rye");
     expect(mashbillClass(generic(" low rye "))).toBe("Low rye");
@@ -49,7 +59,7 @@ describe("mashbillClass", () => {
     expect(mashbillClass(recipe([]))).toBeNull();
     expect(mashbillClass(recipe([["Corn", 40]]))).toBeNull();
     expect(mashbillClass(recipe([["Corn", 89]]))).toBeNull();
-    expect(mashbillClass(recipe([["Corn", 90]]))).toBe("Low rye");
+    expect(mashbillClass(recipe([["Corn", 90], ["Malted Barley", 10]]))).toBe("Low rye");
     expect(mashbillClass(null)).toBeNull();
   });
 });
@@ -64,6 +74,12 @@ describe("isWineFinish", () => {
 });
 
 describe("autoLabel", () => {
+  it("does not call malt or corn whiskeys Low rye", () => {
+    const malt = recipe([["Malted Barley", 100]]);
+    expect(autoLabel(two({ category: "Scotch", mashbill: malt }))).toBe("Scotches");
+    expect(autoLabel(two({ category: "Single Malt", mashbill: malt }))).toBe("Single malts");
+    expect(autoLabel(two({ category: "Corn Whiskey", mashbill: recipe([["Corn", 100]]) }))).not.toMatch(/low rye/i);
+  });
   it("is exported through grouping too", () => {
     expect(viaGrouping).toBe(autoLabel);
   });

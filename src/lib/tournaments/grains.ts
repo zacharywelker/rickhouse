@@ -52,11 +52,14 @@ export const LOW_RYE_MAX = 12;
 /** A recipe is complete when its listed grain shares total at least this much (rounding and trace grains allowed). */
 const RECIPE_MIN_TOTAL = 90;
 
+/** A recipe's corn family share must be at least this for "Low rye" or "Wheated" (a bourbon concept). */
+const CORN_MAJORITY = 51;
+
 export type MashbillClass = "High rye" | "Low rye" | "Wheated";
 
 /**
  * The name a bourbon-style mashbill goes by, for flight titles: "High rye" (rye share of 20 or more), "Wheated" (wheat is
- * the flavoring grain: at least 10 points and no rye flavoring), "Low rye" (rye share of 12 or less); a recipe totalling under
+ * the flavoring grain: at least 10 points and no rye flavoring), "Low rye" (rye share of 12 or less); both of the last two need a corn majority of 51 to 99 in a recipe; a recipe totalling under
  * 90 leaves a fifth or more unaccounted for (it could be rye), so it has no class, except that a listed rye share of 20
  * or more is certain and still reads "High rye"; null for anything
  * else (13 to 19 rye, a blend, a recipe with no grains, an incomplete recipe, an unknown style). A generic style maps by its name.
@@ -65,6 +68,8 @@ export function mashbillClass(mashbill: MashbillInput | null): MashbillClass | n
   if (mashbill === null || mashbill.kind === "blend") return null;
   let rye: number;
   let wheat: number;
+  // Low rye and Wheated are bourbon concepts: a recipe needs a corn majority (and some other grain) to carry either.
+  let bourbonLike = true;
   if (mashbill.kind === "generic") {
     const style = normalize(mashbill.style);
     const typical = Object.hasOwn(GENERIC, style) ? GENERIC[style]! : undefined;
@@ -77,8 +82,11 @@ export function mashbillClass(mashbill: MashbillInput | null): MashbillClass | n
     // An incomplete recipe's missing share could be rye: only a listed rye of 20+ is certain; anything else is unknown.
     if ([...shares.values()].reduce((a, b) => a + b, 0) < RECIPE_MIN_TOTAL) return rye >= HIGH_RYE_MIN ? "High rye" : null;
     wheat = shares.get("wheat") ?? 0;
+    const corn = shares.get("corn") ?? 0;
+    bourbonLike = corn >= CORN_MAJORITY && corn < 100;
   }
   if (rye >= HIGH_RYE_MIN) return "High rye";
+  if (!bourbonLike) return null;
   if (wheat >= FLAVORING_MIN && rye < FLAVORING_MIN) return "Wheated";
   if (rye <= LOW_RYE_MAX) return "Low rye";
   return null;
