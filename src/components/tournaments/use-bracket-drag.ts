@@ -10,6 +10,12 @@ export type DropCue = { ok: boolean; hovered: boolean; text: string | null };
 const key = (t: DropTarget) => (t.kind === "flight" ? `f${t.heatId}` : t.kind === "bottle" ? `b${t.heatId}-${t.entryId}` : `s${t.index}`);
 const EDGE = 80;
 
+function subscribeCoarse(notify: () => void) {
+  const query = window.matchMedia("(pointer: coarse)");
+  query.addEventListener("change", notify);
+  return () => query.removeEventListener("change", notify);
+}
+
 /**
  * Native HTML5 drag and drop for the bracket: which bottle or flight is held, which target the pointer is over, what
  * a drop there would do (the pure `dropOutcome`), and the call to make on drop. Nothing here knows the rules.
@@ -17,6 +23,9 @@ const EDGE = 80;
  */
 export function useBracketDrag(view: DragView, actions: BracketActions, names: { target: (t: DropTarget) => string | null }) {
   const held = React.useRef<Drag | null>(null);
+  // On a touch screen the grips are hidden, and a long press must not start a native drag of the row. Unknown on the
+  // server and at hydration (false = draggable, same markup both sides), then read once on mount, so no mismatch.
+  const coarse = React.useSyncExternalStore(subscribeCoarse, () => window.matchMedia("(pointer: coarse)").matches, () => false);
   const [drag, setDrag] = React.useState<Drag | null>(null);
   const [overKey, setOver] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState("");
@@ -122,7 +131,7 @@ export function useBracketDrag(view: DragView, actions: BracketActions, names: {
   /** Say what a menu edit did, as a drop does. */
   const announce = (outcome: DropOutcome) => setMessage(describeOutcome(view, outcome) ?? "");
 
-  return { drag, message, announce, start, end, cue, dropProps, disabled: actions.pending };
+  return { drag, message, announce, start, end, cue, dropProps, disabled: actions.pending || coarse };
 }
 
 export type BracketDrag = ReturnType<typeof useBracketDrag>;
