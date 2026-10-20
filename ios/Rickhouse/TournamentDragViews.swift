@@ -142,9 +142,25 @@ private struct BottleDragModifier: ViewModifier {
                     let cue = drag.cue(for: .bottle(entryId: entryId, heatId: heatId))
                     if let cue, case .bottle? = drag.current { CueBadge(text: cue).padding(.trailing, 4) }
                 }
+        } else {
+            content
+        }
+    }
+}
+
+/// VoiceOver's side of a bottle's drag: lift it, drop on it, and the hint. Goes on the element that carries the row's actions
+/// (the text, not the whole row, or the hint lands on the ⋯ and ✕ buttons beside it).
+private struct BottleAccessibilityModifier: ViewModifier {
+    @Environment(DragCoordinator.self) private var drag: DragCoordinator?
+    let entryId: Int, heatId: Int, name: String
+    let hasActions: Bool
+
+    func body(content: Content) -> some View {
+        if let drag, let view = drag.view(), let heat = drag.heat(heatId), DragModel.canDragBottle(view, heat) {
+            content
                 .accessibilityDragPoint(.center, description: Text("Lift \(name)"))
                 .accessibilityDropPoint(.center, description: Text(drag.spokenDrop(.bottle(entryId: entryId, heatId: heatId), swapWith: name)))
-                .accessibilityHint("Drag to another flight, or use the actions.")
+                .accessibilityHint(hasActions ? "Drag to another flight, or use the actions." : "Drag to another flight.")
         } else {
             content
         }
@@ -174,6 +190,8 @@ private struct FlightDropModifier: ViewModifier {
 struct FlightGrip: View {
     @Environment(DragCoordinator.self) private var drag: DragCoordinator?
     let heatId: Int, title: String
+    /// Detail has move buttons beside the grip; Compact has VoiceOver actions on the title instead.
+    var buttons = true
 
     var body: some View {
         if let drag, let view = drag.view(), let heat = drag.heat(heatId), DragModel.canDragFlight(view, heat) {
@@ -187,7 +205,7 @@ struct FlightGrip: View {
                 })
                 .accessibilityDragPoint(.center, description: Text("Lift \(title)"))
                 .accessibilityLabel("Drag \(title)")
-                .accessibilityHint("Or use the move flight buttons.")
+                .accessibilityHint(buttons ? "Or use the move flight buttons." : "Or use the move flight actions.")
         }
     }
 }
@@ -220,5 +238,8 @@ private struct GapDrop: ViewModifier {
 
 extension View {
     func bottleDrag(entryId: Int, heatId: Int, name: String) -> some View { modifier(BottleDragModifier(entryId: entryId, heatId: heatId, name: name)) }
+    func bottleDragPoints(entryId: Int, heatId: Int, name: String, hasActions: Bool) -> some View {
+        modifier(BottleAccessibilityModifier(entryId: entryId, heatId: heatId, name: name, hasActions: hasActions))
+    }
     func flightDrop(heatId: Int) -> some View { modifier(FlightDropModifier(heatId: heatId)) }
 }

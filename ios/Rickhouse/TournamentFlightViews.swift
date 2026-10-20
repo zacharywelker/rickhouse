@@ -29,6 +29,8 @@ struct FlightCardView: View {
         var onWithdraw: (_ entryId: Int, _ name: String) -> Void = { _, _ in }
 
         func hasMenu(for entryId: Int) -> Bool { !targets.isEmpty || !swaps.isEmpty || withdrawable.contains(entryId) }
+        /// Anything a VoiceOver user can pick from the row's actions.
+        func hasActions(for entryId: Int) -> Bool { targets.contains { !$0.full } || !swaps.isEmpty || withdrawable.contains(entryId) || removable }
     }
 
     var body: some View {
@@ -110,6 +112,20 @@ struct FlightCardView: View {
 
 enum FlightShift: String { case up, down }
 
+extension View {
+    /// The row's actions for VoiceOver (Detail and Compact alike): the same choices as the ⋯ menu and the ✕ button.
+    func bottleActions(_ moves: FlightCardView.MoveOptions?, entryId: Int, name: String) -> some View {
+        accessibilityActions {
+            if let moves {
+                ForEach(moves.targets.filter { !$0.full }) { t in Button("Move to \(t.title)") { moves.onMove(entryId, t.heatId) } }
+                if !moves.swaps.isEmpty { Button("Swap with…") { moves.onSwap(entryId) } }
+                if moves.withdrawable.contains(entryId) { Button("Withdraw") { moves.onWithdraw(entryId, name) } }
+                if moves.removable { Button("Remove from tournament") { moves.onRemove(entryId, name) } }
+            }
+        }
+    }
+}
+
 /// One bottle in the Detail layout.
 struct FlightRowView: View {
     let row: RowModel
@@ -156,14 +172,8 @@ struct FlightRowView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(spoken)
-        .accessibilityActions {
-            if let moves {
-                ForEach(moves.targets.filter { !$0.full }) { t in Button("Move to \(t.title)") { moves.onMove(row.entryId, t.heatId) } }
-                if !moves.swaps.isEmpty { Button("Swap with…") { moves.onSwap(row.entryId) } }
-                if moves.withdrawable.contains(row.entryId) { Button("Withdraw") { moves.onWithdraw(row.entryId, row.name) } }
-                if moves.removable { Button("Remove from tournament") { moves.onRemove(row.entryId, row.name) } }
-            }
-        }
+        .bottleActions(moves, entryId: row.entryId, name: row.name)
+        .bottleDragPoints(entryId: row.entryId, heatId: heatId, name: row.name, hasActions: moves?.hasActions(for: row.entryId) ?? false)
     }
 
     private var facts: some View {
@@ -248,6 +258,10 @@ struct FlightRowView: View {
 struct CompactFlightView: View {
     let flight: CompactFlight
     var run: FlightRunOptions?
+    /// No visible buttons here: a bottle's moves and the flight's own up/down are VoiceOver actions (drag is the sighted way).
+    var moves: FlightCardView.MoveOptions?
+    var steps: FlightActions.Steps?
+    var onShift: (_ toSlot: Int) -> Void = { _ in }
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.findHighlight) private var highlight
 
@@ -257,7 +271,11 @@ struct CompactFlightView: View {
             HStack(spacing: 0) {
                 Text(flight.title).font(.inter(15, .semibold)).foregroundStyle(Theme.ink).padding(.vertical, 8).accessibilityAddTraits(.isHeader)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                FlightGrip(heatId: flight.id, title: flight.title)
+                    .accessibilityActions {
+                        if let up = steps?.up { Button("Move flight up") { onShift(up) } }
+                        if let down = steps?.down { Button("Move flight down") { onShift(down) } }
+                    }
+                FlightGrip(heatId: flight.id, title: flight.title, buttons: false)
             }
             if flight.hidden {
                 Label("\(TournamentBracketModel.bottlesText(flight.count)), hidden until tasted", systemImage: "eye.slash")
@@ -296,6 +314,8 @@ struct CompactFlightView: View {
         .findMark(entryId: row.entryId, highlight: highlight)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(compactSpoken(row))
+        .bottleActions(moves, entryId: row.entryId, name: row.name)
+        .bottleDragPoints(entryId: row.entryId, heatId: flight.id, name: row.name, hasActions: moves?.hasActions(for: row.entryId) ?? false)
         .bottleDrag(entryId: row.entryId, heatId: flight.id, name: row.name)
     }
 

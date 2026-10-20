@@ -65,7 +65,9 @@ struct TournamentBracketView: View {
                 let compact = ZoomProjection.compact(bracket, round: c.round)
                 ForEach(Array(compact.enumerated()), id: \.element.id) { i, f in
                     FlightGap(index: i, height: i == 0 ? 8 : 16)
-                    CompactFlightView(flight: f, run: c.flights.first { $0.id == f.id }.flatMap(run))
+                    let model = c.flights.first { $0.id == f.id }
+                    CompactFlightView(flight: f, run: model.flatMap(run), moves: model.flatMap { $0.hidden ? nil : moves(c, $0) },
+                                      steps: model.flatMap(steps), onShift: { slot in if let model { onShift(model, slot) } })
                 }
                 FlightGap(index: compact.count, height: 8)
             } else {
