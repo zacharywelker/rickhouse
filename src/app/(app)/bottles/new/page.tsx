@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { BottleForm } from "@/components/expressions/bottle-form";
 import { Button } from "@/components/ui/button";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
-import { expressionOptions, labelDateChoices } from "@/lib/expressions/queries";
+import { categoryFieldGroups, categoryKindsById, expressionOptions, labelDateChoices } from "@/lib/expressions/queries";
 import { requireSession } from "@/lib/auth";
 import { labelVersionChoices } from "@/lib/other-names-store";
 import { releaseChoices } from "@/lib/releases-store";
@@ -26,9 +26,11 @@ export default async function NewBottlePage({
   if (preferences.searchFirstAdd) {
     redirect(expression && /^\d+$/.test(expression) ? `/bottles/add?expression=${expression}` : "/bottles/add");
   }
-  const [expressions, stores] = await Promise.all([
+  const [expressions, stores, categoryGroups, categoryKinds] = await Promise.all([
     expressionOptions(user.id),
     REFERENCE_OPTION_LOADERS.stores(user.id),
+    categoryFieldGroups(),
+    categoryKindsById(),
   ]);
   const suggestions = await bottleSuggestions(user.id, stores.map((store) => store.label));
 
@@ -59,6 +61,8 @@ export default async function NewBottlePage({
           labelVersions={await labelVersionChoices(user.id)}
           releases={await releaseChoices(user.id)}
         labelDates={await labelDateChoices(user.id)}
+          categoryGroups={categoryGroups}
+          categoryKinds={categoryKinds}
         />
       )}
     </div>

@@ -237,6 +237,20 @@ export const finishes = pgTable("finishes", {
   unique("finishes_owner_slug_unique").on(t.ownerId, t.slug),
 ]);
 
+export const cooperages = pgTable("cooperages", {
+  id: serial("id").primaryKey(),
+  ownerId: integer("owner_id")
+    .notNull()
+    .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+  name: citext("name").notNull(),
+  slug: text("slug").notNull(),
+  notes: text("notes"),
+}, (t) => [
+  index("cooperages_owner_idx").on(t.ownerId),
+  unique("cooperages_owner_name_unique").on(t.ownerId, t.name),
+  unique("cooperages_owner_slug_unique").on(t.ownerId, t.slug),
+]);
+
 export const stores = pgTable(
   "stores",
   {
@@ -311,6 +325,8 @@ export const expressions = pgTable(
     colorAdded: boolean("color_added"),
     entryProof: pct("entry_proof"),
     charLevel: text("char_level"),
+    /** Barrel maker, relevant to whisky maturation. */
+    cooperageId: integer("cooperage_id").references(() => cooperages.id, { onDelete: "set null" }),
 
     msrp: money("msrp"),
     sizeMl: integer("size_ml").notNull().default(750),
@@ -1169,6 +1185,7 @@ export type Brand = typeof brands.$inferSelect;
 export type Distillery = typeof distilleries.$inferSelect;
 export type Mashbill = typeof mashbills.$inferSelect;
 export type Finish = typeof finishes.$inferSelect;
+export type Cooperage = typeof cooperages.$inferSelect;
 export type Store = typeof stores.$inferSelect;
 export type Expression = typeof expressions.$inferSelect;
 export type Bottle = typeof bottles.$inferSelect;

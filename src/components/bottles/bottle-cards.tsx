@@ -9,6 +9,7 @@ import { ageLabel } from "@/lib/expressions/display";
 import { useMoney } from "@/components/currency-context";
 import { cn, formatNumeric } from "@/lib/utils";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
+import { effectiveBottleStatus } from "@/lib/bottles/terminology";
 import type { GridRow } from "@/lib/bottles/grid";
 import { FillGauge } from "./fill-gauge";
 import { StatusMark } from "./status-mark";
@@ -66,7 +67,7 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
                 </span>
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                <StatusMark status={row.status} className="text-muted-foreground" />
+                <StatusMark status={effectiveBottleStatus(row)} className="text-muted-foreground" />
                 <span className="text-muted-foreground">{fillStateText(row.fillPct)}</span>
                 {row.pricePaid ? <span className="tabular-nums">{money(row.pricePaid)}</span> : null}
                 {row.avgRating ? <span className="tabular-nums text-accent">{Number(row.avgRating)}/10</span> : null}

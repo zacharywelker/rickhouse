@@ -96,6 +96,7 @@ export const expressionSchema = z
     isChillFiltered: tristate,
     colorAdded: tristate,
     charLevel: optionalEnum(CHAR_LEVELS),
+    cooperageId: optionalRef,
     /** Scotch regions as comma-separated text; kept as a list, in the order given. */
     regions: blankIfAbsent(
       trimmed

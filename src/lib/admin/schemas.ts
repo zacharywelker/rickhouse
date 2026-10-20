@@ -221,6 +221,12 @@ export const finishSchema = z.object({
   notes: optionalText(),
 });
 
+export const cooperageSchema = z.object({
+  name: requiredText(120),
+  slug: optionalSlug,
+  notes: optionalText(),
+});
+
 export const storeSchema = z.object({
   name: requiredText(120),
   slug: optionalSlug,

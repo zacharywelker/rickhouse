@@ -15,6 +15,7 @@ import {
   bottles,
   categories,
   companies,
+  cooperages,
   distilleries,
   distilleryNames,
   expressionDistilleries,
@@ -39,6 +40,7 @@ import {
   companySchema,
   distillerySchema,
   finishSchema,
+  cooperageSchema,
   mashbillSchema,
   storeSchema,
   tagSchema,
@@ -51,6 +53,7 @@ export const RESOURCE_KEYS = [
   "distilleries",
   "mashbills",
   "finishes",
+  "cooperages",
   "stores",
   "tags",
 ] as const;
@@ -1021,6 +1024,66 @@ const finishesConfig: ResourceConfig = {
   },
 };
 
+const cooperagesConfig: ResourceConfig = {
+  key: "cooperages",
+  label: "Cooperages",
+  singular: "Cooperage",
+  description: "Makers of casks and barrels used to mature whisky.",
+  columns: [nameColumn, { key: "uses", label: "Labels", numeric: true, secondary: true }],
+  fields: [
+    { kind: "text", name: "name", label: "Name", required: true, span: "half" },
+    slugField,
+    notesField,
+  ],
+  list: async (ownerId) => {
+    const rows = await db
+      .select({
+        id: cooperages.id,
+        name: cooperages.name,
+        slug: cooperages.slug,
+        notes: cooperages.notes,
+        uses: sql<number>`(select count(*)::int from ${expressions} where ${expressions.cooperageId} = ${cooperages.id})`,
+      })
+      .from(cooperages)
+      .where(eq(cooperages.ownerId, ownerId))
+      .orderBy(asc(cooperages.name));
+    return rows.map((r) => ({
+      id: r.id,
+      cells: { name: r.name, uses: r.uses },
+      values: { name: r.name, slug: r.slug, notes: r.notes },
+    }));
+  },
+  optionsFor: async () => ({}),
+  save: async (raw, id, ownerId) => {
+    const parsed = cooperageSchema.safeParse(raw);
+    if (!parsed.success) return invalid(parsed.error);
+    const input = parsed.data;
+    const slug = await resolveSlug({
+      table: cooperages,
+      column: cooperages.slug,
+      idColumn: cooperages.id,
+      scope: { column: cooperages.ownerId, value: ownerId },
+      requested: input.slug,
+      fallbackFrom: input.name,
+      ...(id !== null ? { excludeId: id } : {}),
+    });
+    const values = { name: input.name, slug, notes: input.notes };
+    if (id === null) {
+      const [row] = await db.insert(cooperages).values({ ...values, ownerId }).returning({ id: cooperages.id });
+      return { ok: true, id: row!.id };
+    }
+    const updated = await db
+      .update(cooperages)
+      .set(values)
+      .where(and(eq(cooperages.id, id), eq(cooperages.ownerId, ownerId)))
+      .returning({ id: cooperages.id });
+    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
+  },
+  remove: async (id, ownerId) => {
+    await db.delete(cooperages).where(and(eq(cooperages.id, id), eq(cooperages.ownerId, ownerId)));
+  },
+};
+
 // ------------------------------------------------------------
 // Stores
 // ------------------------------------------------------------
@@ -1196,6 +1259,7 @@ export const RESOURCES: Record<ResourceKey, ResourceConfig> = {
   distilleries: distilleriesConfig,
   mashbills: mashbillsConfig,
   finishes: finishesConfig,
+  cooperages: cooperagesConfig,
   stores: storesConfig,
   tags: tagsConfig,
 };
@@ -1217,6 +1281,14 @@ async function finishOptions(ownerId: number): Promise<Option[]> {
     .where(eq(finishes.ownerId, ownerId))
     .orderBy(asc(finishes.name));
   return rows.map((r) => ({ value: r.value, label: r.label, hint: r.hint }));
+}
+
+async function cooperageOptions(ownerId: number): Promise<Option[]> {
+  return db
+    .select({ value: cooperages.id, label: cooperages.name })
+    .from(cooperages)
+    .where(eq(cooperages.ownerId, ownerId))
+    .orderBy(asc(cooperages.name));
 }
 
 async function storeOptions(ownerId: number): Promise<Option[]> {
@@ -1279,6 +1351,7 @@ export const REFERENCE_OPTION_LOADERS = {
   distilleries: distilleryOptions,
   mashbills: mashbillOptions,
   finishes: finishOptions,
+  cooperages: cooperageOptions,
   stores: storeOptions,
   tags: tagOptions,
 } as const;

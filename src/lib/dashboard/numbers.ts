@@ -19,6 +19,9 @@ import { outright } from "./findings";
  */
 
 const ON_SHELF = sql.raw(`b.status IN ('owned', 'open')`);
+// Reconcile the explicit flag with status/fill data from older imports.
+const IS_OPEN = sql.raw(`(b.is_open OR b.status = 'open' OR b.fill_pct < 100)`);
+const IS_SEALED = sql.raw(`NOT (b.is_open OR b.status = 'open' OR b.fill_pct < 100)`);
 const ACQUIRED = sql.raw(`b.status <> 'wishlist'`);
 
 export type YearCount = { year: number; count: number };
@@ -42,18 +45,18 @@ export async function stockpile(ownerId: number): Promise<Stockpile> {
   const [head, finishedRows, sealedRows] = await Promise.all([
     db.execute<Omit<Stockpile, "finishedByYear" | "sealedByYear">>(sql`
       SELECT count(*) FILTER (WHERE ${ON_SHELF})::int AS "onShelf",
-             count(*) FILTER (WHERE ${ON_SHELF} AND b.is_open)::int AS open,
-             count(*) FILTER (WHERE ${ON_SHELF} AND NOT b.is_open)::int AS sealed,
-             count(*) FILTER (WHERE ${ON_SHELF} AND NOT b.is_open AND b.date_acquired IS NOT NULL)::int AS "sealedDated",
-             extract(year FROM min(b.date_acquired) FILTER (WHERE ${ON_SHELF} AND NOT b.is_open))::int AS "sealedSince",
+             count(*) FILTER (WHERE ${ON_SHELF} AND ${IS_OPEN})::int AS open,
+             count(*) FILTER (WHERE ${ON_SHELF} AND ${IS_SEALED})::int AS sealed,
+             count(*) FILTER (WHERE ${ON_SHELF} AND ${IS_SEALED} AND b.date_acquired IS NOT NULL)::int AS "sealedDated",
+             extract(year FROM min(b.date_acquired) FILTER (WHERE ${ON_SHELF} AND ${IS_SEALED}))::int AS "sealedSince",
              count(*) FILTER (
-               WHERE ${ON_SHELF} AND NOT b.is_open
+               WHERE ${ON_SHELF} AND ${IS_SEALED}
                  AND b.date_acquired <= current_date - interval '2 years'
              )::int AS "sealedTwoYears",
              (percentile_cont(0.5) WITHIN GROUP (ORDER BY b.date_opened - b.date_acquired)
                 FILTER (WHERE ${ACQUIRED} AND b.date_opened >= b.date_acquired))::int AS "medianWaitDays",
              count(*) FILTER (WHERE ${ACQUIRED} AND b.date_opened >= b.date_acquired)::int AS "waitSample",
-             count(*) FILTER (WHERE ${ON_SHELF} AND b.is_open AND b.fill_pct <= 10)::int AS "lastPour",
+             count(*) FILTER (WHERE ${ON_SHELF} AND ${IS_OPEN} AND b.fill_pct <= 10)::int AS "lastPour",
              count(*) FILTER (WHERE b.status = 'killed')::int AS finished
         FROM bottles b
        WHERE b.owner_id = ${ownerId}
@@ -67,7 +70,7 @@ export async function stockpile(ownerId: number): Promise<Stockpile> {
     db.execute<YearCount>(sql`
       SELECT extract(year FROM b.date_acquired)::int AS year, count(*)::int AS count
         FROM bottles b
-       WHERE b.owner_id = ${ownerId} AND ${ON_SHELF} AND NOT b.is_open AND b.date_acquired IS NOT NULL
+       WHERE b.owner_id = ${ownerId} AND ${ON_SHELF} AND ${IS_SEALED} AND b.date_acquired IS NOT NULL
        GROUP BY year ORDER BY year
     `),
   ]);
@@ -126,8 +129,8 @@ export async function money(ownerId: number): Promise<Money> {
              count(*) FILTER (WHERE ${ACQUIRED} AND b.price_paid > e.msrp)::int AS "overMsrp",
              coalesce(sum(b.price_paid) FILTER (WHERE ${ACQUIRED} AND b.store_id IS NOT NULL), 0)::float8 AS "storedSpend",
              count(*) FILTER (WHERE ${ACQUIRED} AND b.store_id IS NOT NULL AND b.price_paid IS NOT NULL)::int AS "storedCount",
-             coalesce(sum(b.price_paid) FILTER (WHERE ${ON_SHELF} AND b.is_open), 0)::float8 AS "openValue",
-             coalesce(sum(b.price_paid) FILTER (WHERE ${ON_SHELF} AND NOT b.is_open), 0)::float8 AS "sealedValue"
+             coalesce(sum(b.price_paid) FILTER (WHERE ${ON_SHELF} AND ${IS_OPEN}), 0)::float8 AS "openValue",
+             coalesce(sum(b.price_paid) FILTER (WHERE ${ON_SHELF} AND ${IS_SEALED}), 0)::float8 AS "sealedValue"
         FROM bottles b
         JOIN expressions e ON e.id = b.expression_id
        WHERE b.owner_id = ${ownerId}

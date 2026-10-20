@@ -9,6 +9,7 @@ import {
   bottles,
   brands,
   categories,
+  cooperages,
   distilleries,
   expressionDistilleries,
   expressionFinishes,
@@ -153,10 +154,12 @@ export async function getExpression(id: number, ownerId: number) {
       expression: expressions,
       brand: { id: brands.id, name: brands.name, slug: brands.slug },
       category: { id: categories.id, name: categories.name, slug: categories.slug, fieldGroup: categories.fieldGroup },
+      cooperage: cooperages.name,
     })
     .from(expressions)
     .innerJoin(brands, eq(expressions.brandId, brands.id))
     .innerJoin(categories, eq(expressions.categoryId, categories.id))
+    .leftJoin(cooperages, eq(expressions.cooperageId, cooperages.id))
     .where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)))
     .limit(1);
   return row ?? null;
@@ -467,12 +470,14 @@ export async function getBottle(id: number, ownerId: number) {
       expression: expressions,
       brand: { id: brands.id, name: brands.name, slug: brands.slug },
       category: { id: categories.id, name: categories.name, slug: categories.slug, fieldGroup: categories.fieldGroup },
+      cooperage: cooperages.name,
       store: { id: stores.id, name: stores.name, slug: stores.slug },
     })
     .from(bottles)
     .innerJoin(expressions, eq(bottles.expressionId, expressions.id))
     .innerJoin(brands, eq(expressions.brandId, brands.id))
     .innerJoin(categories, eq(expressions.categoryId, categories.id))
+    .leftJoin(cooperages, eq(expressions.cooperageId, cooperages.id))
     .leftJoin(stores, eq(bottles.storeId, stores.id))
     .where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId)))
     .limit(1);

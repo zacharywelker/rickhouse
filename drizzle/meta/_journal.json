@@ -309,6 +309,13 @@
       "when": 1792412974639,
       "tag": "0043_mashbill_style",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792499374639,
+      "tag": "0044_whisky_cooperage",
+      "breakpoints": true
     }
   ]
 }
