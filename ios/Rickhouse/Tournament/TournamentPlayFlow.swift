@@ -19,10 +19,10 @@ enum RankList {
     }
 }
 
-/// Glass letters for a blind flight: A up to D, one per bottle.
+/// Glass letters for a blind flight: A up to F, one per bottle.
 enum GlassMapping {
     /// Glass letters a flight can use, from A (the server's set).
-    static func letters(_ count: Int) -> [String] { Array(["A", "B", "C", "D"].prefix(max(count, 0))) }
+    static func letters(_ count: Int) -> [String] { Array(["A", "B", "C", "D", "E", "F"].prefix(max(count, 0))) }
 
     /// A random order of the first `count` letters (Fisher-Yates). The generator is injectable for tests; the index is taken
     /// as `next() % (i + 1)` so a scripted generator that answers 0 always picks the first slot.
