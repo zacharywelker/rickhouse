@@ -179,9 +179,9 @@ function buildWhere(filters: BottleFilters, ownerId: number): SQL | undefined {
  */
 const { search: _search, searchText: _searchText, ...GRID_COLUMNS } = getViewSelectedFields(bottleList);
 const GIN_COLUMNS = {
-  ginStyle: sql<string | null>`(SELECT e.gin_style FROM expressions e JOIN categories c ON c.id = e.category_id WHERE e.id = ${bottleList.expressionId} AND c.field_group = 'gin')`,
-  ginAged: sql<boolean | null>`(SELECT e.is_aged_gin FROM expressions e JOIN categories c ON c.id = e.category_id WHERE e.id = ${bottleList.expressionId} AND c.field_group = 'gin')`,
-  ginIsNas: sql<boolean | null>`(SELECT coalesce(b.gin_is_nas, e.is_nas) FROM bottles b JOIN expressions e ON e.id = b.expression_id JOIN categories c ON c.id = e.category_id WHERE b.id = ${bottleList.id} AND c.field_group = 'gin')`,
+  ginStyle: sql<string | null>`(SELECT e.gin_style FROM expressions e JOIN categories c ON c.id = e.category_id WHERE e.id = bottle_list.expression_id AND c.field_group = 'gin')`,
+  ginAged: sql<boolean | null>`(SELECT e.is_aged_gin FROM expressions e JOIN categories c ON c.id = e.category_id WHERE e.id = bottle_list.expression_id AND c.field_group = 'gin')`,
+  ginIsNas: sql<boolean | null>`(SELECT coalesce(b.gin_is_nas, e.is_nas) FROM bottles b JOIN expressions e ON e.id = b.expression_id JOIN categories c ON c.id = e.category_id WHERE b.id = bottle_list.id AND c.field_group = 'gin')`,
 };
 
 export type GridRow = Omit<typeof bottleList.$inferSelect, "search" | "searchText"> & { ginStyle?: string | null; ginAged?: boolean | null; ginIsNas?: boolean | null };
