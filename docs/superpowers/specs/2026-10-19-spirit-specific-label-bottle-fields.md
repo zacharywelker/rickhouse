@@ -36,4 +36,4 @@ Confirmed by the collection owner on 2026-10-19. These rules apply to adding, ed
 
 ## Next category pass
 
-Whiskey, vodka, and remaining categories need their own decision rounds with the owner. Do not infer their spirit-specific fields from this brief.
+The whiskey rounds are recorded in [American whiskey label and bottle facts](2026-10-20-american-whiskey-label-bottle-fields.md), [Canadian Whisky label and bottle facts](2026-10-20-canadian-whisky-label-bottle-fields.md), [Irish Whiskey label and bottle facts](2026-10-23-irish-whiskey-label-bottle-fields.md), and [Scotch Whisky label and bottle facts](2026-10-25-scotch-whisky-label-bottle-fields.md). [Vodka and Flavored Vodka](2026-10-25-vodka-label-bottle-fields.md), [Amaro](2026-10-25-amaro-label-bottle-fields.md), and [Liqueur](2026-10-26-liqueur-label-bottle-fields.md) have their own decision rounds. Any additional categories still need their own decisions with the owner; do not infer their spirit-specific fields from this brief.
