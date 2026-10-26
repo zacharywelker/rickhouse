@@ -1,6 +1,18 @@
 import Foundation
 @testable import Rickhouse
 
+/// Polls until `condition` holds, so a test waits for the thing it needs instead of sleeping for a guessed time.
+/// Returns false on timeout, leaving the caller's own assertion to report what was missing.
+@MainActor
+func eventually(timeout: Duration = .seconds(2), _ condition: () -> Bool) async -> Bool {
+    let deadline = ContinuousClock.now + timeout
+    while !condition() {
+        if ContinuousClock.now >= deadline { return false }
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+    return true
+}
+
 /// Builders for the tournament logic tests, the Swift counterpart of the helpers at the top of the web tests.
 enum Fx {
     static let defaultOrder = ["proof", "mashbill", "distillery", "age", "finish"]

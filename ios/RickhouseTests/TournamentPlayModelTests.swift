@@ -237,7 +237,7 @@ final class TournamentPlayModelTests: XCTestCase {
         let offer = try XCTUnwrap(m.foot.undo)
         StubURLProtocol.reply = view()
         m.runUndo(offer)
-        for _ in 0..<50 where !m.undone { try await Task.sleep(for: .milliseconds(20)) }
+        _ = await eventually { m.undone }
         XCTAssertTrue(m.undone)
         XCTAssertEqual(posts().last?.method, "DELETE")
         XCTAssertEqual(posts().last?.path, "/api/v1/tournaments/3/heats/10/result")
