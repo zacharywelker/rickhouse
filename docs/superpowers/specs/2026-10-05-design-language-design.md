@@ -255,8 +255,8 @@ A fixed template. Only the content of the fact slot varies by category.
 | Agave | Expression (blanco, reposado, anejo and so on) |
 | Gin | Style (London dry, modern, Old Tom and so on) |
 | Vodka | Base ingredient |
-| Liqueur | Flavor |
-| Amaro | Region |
+| Liqueur | Flavor; confirmed in [Liqueur label and bottle facts](2026-10-26-liqueur-label-bottle-fields.md) |
+| Amaro | Style; supersedes the earlier Region choice per [Amaro label and bottle facts](2026-10-25-amaro-label-bottle-fields.md) |
 | Brandy | Not decided |
 | Other | Not decided |
 
@@ -265,8 +265,10 @@ slot can show a data fact.
 
 ### 9.2 Fallback (Proposed)
 
-A slot is never blank. If the preferred fact is missing, show the next one in
-a per-category priority list (for example Rum: age, then origin, then proof).
+A slot generally falls back to the next fact in a per-category priority list
+(for example Rum: age, then origin, then proof). Amaro is an exception: when
+Style is unset, its spirit-specific fact is blank as confirmed in the
+[Amaro label and bottle facts](2026-10-25-amaro-label-bottle-fields.md).
 
 ### 9.3 Density (Decided)
 
@@ -283,12 +285,12 @@ Defaults live in a per-category setting, which fits the existing
 
 ### 9.4 Data gaps
 
-The schema has no columns today for gin style, vodka base, liqueur flavor,
-or amaro region, and no field group for amaro. Agave has `agave_type`, but
-whether it holds species or expression has not been checked. Closing these
-gaps (new columns and a hand-written migration) is a prerequisite for the card
-showing those facts. Amaro's default (region) will mostly read "Italy" and may
-turn out to be a poor fact; revisit after real data.
+At the time of this design, the schema had no columns for gin style, vodka
+base, liqueur flavor, or amaro style, and no field group for amaro. Agave had
+`agave_type`, but whether it held species or expression had not been checked.
+Closing the relevant gaps is a prerequisite for the cards to show those facts.
+The later [Amaro label and bottle facts](2026-10-25-amaro-label-bottle-fields.md)
+replace Region with Style as Amaro's default fact.
 
 ## 10. Collection views (Decided)
 
