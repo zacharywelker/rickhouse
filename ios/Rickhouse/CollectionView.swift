@@ -6,6 +6,9 @@ struct CollectionView: View {
     @State private var total = 0
     @State private var pagination = PageLoadState()
     @State private var query = ""
+    @State private var pending: Task<BottlePage, Error>?
+    @State private var pendingQuery: String?
+    @State private var pendingPage: PageLoadState.Request?
     @State private var error: String?
     /// False until the first fetch succeeds, so the screen never claims "0 bottles" or "No bottles yet" early.
     @State private var hasLoaded = false
@@ -78,6 +81,10 @@ struct CollectionView: View {
             if !Task.isCancelled { await reload() }
         }
         .onChange(of: reloadSignal) { Task { await reload() } }
+        .onChange(of: query) { _, next in
+            if pendingQuery != next { pending?.cancel() }
+        }
+        .onDisappear { pending?.cancel() }
         .refreshable { await reload() }
     }
 
@@ -213,24 +220,40 @@ struct CollectionView: View {
         await fetch(request)
     }
 
-    private func fetch(_ request: PageLoadState.Request) async {
-        guard let api = session.api else { _ = pagination.fail(request); return }
+    private func fetch(_ pageRequest: PageLoadState.Request) async {
+        guard !Task.isCancelled, let api = session.api else { _ = pagination.fail(pageRequest); return }
         let sessionID = session.id
         let requestedQuery = query
-        do {
-            let result = try await api.bottles(query: requestedQuery, status: nil, page: request.page)
-            guard !Task.isCancelled, session.id == sessionID, query == requestedQuery else {
-                _ = pagination.fail(request)
-                return
+        pending?.cancel()
+        let request = Task { try await api.bottles(query: requestedQuery, status: nil, page: pageRequest.page) }
+        pending = request
+        pendingQuery = requestedQuery
+        pendingPage = pageRequest
+        defer {
+            // A cancelled load releases its page; an older load cannot clear a newer one.
+            _ = pagination.fail(pageRequest)
+            if pendingPage == pageRequest {
+                pending = nil
+                pendingQuery = nil
+                pendingPage = nil
             }
-            guard pagination.finish(request, pageCount: result.pageCount) else { return }
-            bottles = request.page == 1 ? result.bottles : bottles + result.bottles
+        }
+        do {
+            let result = try await withTaskCancellationHandler {
+                try await request.value
+            } onCancel: {
+                request.cancel()
+            }
+            guard !Task.isCancelled, !request.isCancelled,
+                  session.id == sessionID, query == requestedQuery else { return }
+            guard pagination.finish(pageRequest, pageCount: result.pageCount) else { return }
+            bottles = pageRequest.page == 1 ? result.bottles : bottles + result.bottles
             total = result.total
             hasLoaded = true
             error = nil
         } catch {
-            guard pagination.fail(request), session.id == sessionID, query == requestedQuery,
-                  !Task.isCancelled, !APIError.isCancellation(error) else { return }
+            guard pagination.isCurrent(pageRequest), session.id == sessionID, query == requestedQuery,
+                  !Task.isCancelled, !request.isCancelled, !APIError.isCancellation(error) else { return }
             if case APIError.unauthorized = error { session.signOut() }
             else { self.error = error.localizedDescription }
         }

@@ -57,11 +57,13 @@ struct AddPhotoTile: View {
         uploading = true
         Task {
             defer { uploading = false }
-            let cut = await Task.detached { image.cutout() }.value
-            var photo = FormPhoto(original: image)
-            photo.cutout = cut
-            guard let bytes = photo.encoded() else { foot.fail("That photo couldn't be read.") { showLibrary = true }; return }
-            do { try await upload(bytes) } catch { foot.fail("The photo wasn't saved: \(error.localizedDescription)") { send(image) } }
+            do {
+                let bytes = try await PhotoProcessor.shared.prepare(image)
+                try await upload(bytes)
+            } catch {
+                guard !Task.isCancelled, !APIError.isCancellation(error) else { return }
+                foot.fail("The photo wasn't saved: \(error.localizedDescription)") { send(image) }
+            }
         }
     }
 }

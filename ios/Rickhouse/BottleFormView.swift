@@ -53,7 +53,8 @@ struct BottleFormView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button(saving ? "Saving…" : error == nil ? "Save" : "Retry", action: save).disabled(saving)
+                Button(saving ? "Saving…" : error == nil ? "Save" : "Retry", action: save)
+                    .disabled(saving || photos.contains(where: \.working))
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -69,18 +70,22 @@ struct BottleFormView: View {
                 pickerItems = []
             }
         }
+        .task(id: photos.map(\.id)) {
+            for photo in photos where photo.working {
+                do {
+                    let cut = try await PhotoProcessor.shared.cutout(photo.original)
+                    try Task.checkCancellation()
+                    guard let i = photos.firstIndex(where: { $0.id == photo.id }) else { continue }
+                    photos[i].cutout = cut
+                    photos[i].working = false
+                } catch { return }
+            }
+        }
     }
 
     /// Shows the photo at once, then swaps in the cutout if Vision can make one.
     private func add(_ image: UIImage) {
-        let photo = FormPhoto(original: image)
-        photos.append(photo)
-        Task {
-            let cut = await Task.detached { image.cutout() }.value
-            guard let i = photos.firstIndex(where: { $0.id == photo.id }) else { return }
-            photos[i].cutout = cut
-            photos[i].working = false
-        }
+        photos.append(FormPhoto(original: image))
     }
 
     private func save() {
@@ -108,7 +113,8 @@ struct BottleFormView: View {
                 if !photos.isEmpty {
                     // Downscaled so a 12 MP photo doesn't cross the home network at full size.
                     // A cutout goes as PNG so the server keeps its transparency and crops to the bottle.
-                    try await api.uploadImages(bottleId: id, images: photos.compactMap { $0.encoded() })
+                    let images = try await PhotoProcessor.shared.encode(photos)
+                    try await api.uploadImages(bottleId: id, images: images)
                 }
                 onSaved()
             } catch APIError.unauthorized {
