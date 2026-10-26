@@ -129,11 +129,21 @@ struct SignInView: View {
                 if let pending = try await session.signIn(baseURL: url, username: username, password: password, emailCodes: emailCodes) {
                     challenge = pending
                 }
+            } catch let error as APIError where error.isServerProblem {
+                backToServerStep(from: url, error)
             } catch {
                 self.error = error.localizedDescription
             }
             busy = false
         }
+    }
+
+    /// A saved server that has stopped answering is not a wrong password: go back to the address step with it filled in.
+    private func backToServerStep(from url: URL, _ failure: Error) {
+        password = ""
+        server = url.absoluteString
+        session.forgetServer()
+        error = failure.localizedDescription
     }
 }
 
