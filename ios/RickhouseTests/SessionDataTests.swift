@@ -2,18 +2,12 @@ import XCTest
 @testable import Rickhouse
 
 @MainActor
-final class SessionDataTests: XCTestCase {
-    private var savedNetworkSession: URLSession!
+final class SessionDataTests: StubbedSessionTestCase {
     private var savedToken: String?
     private var savedServer: String?
     private var session: Session!
 
     override func setUp() {
-        savedNetworkSession = APIClient.session
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [StubURLProtocol.self]
-        APIClient.session = URLSession(configuration: config)
-        StubURLProtocol.reset()
         savedToken = Keychain.read("authToken")
         savedServer = UserDefaults.standard.string(forKey: "serverURL")
         Keychain.write("authToken", value: "session-test-token")
@@ -22,7 +16,6 @@ final class SessionDataTests: XCTestCase {
     }
 
     override func tearDown() {
-        APIClient.session = savedNetworkSession
         if let savedToken { Keychain.write("authToken", value: savedToken) }
         else { Keychain.delete("authToken") }
         if let savedServer { UserDefaults.standard.set(savedServer, forKey: "serverURL") }
