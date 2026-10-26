@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ProofAbvFields } from "./proof-abv-field";
+import { withStatementAge } from "@/lib/expressions/whiskey-age";
 
 export type RowColumn = {
   key: string;
@@ -102,7 +103,7 @@ export function RowListEditor({
   const remove = (id: string) => setRows((prev) => prev.filter((r) => r._id !== id));
 
   const set = (id: string, key: string, value: string) =>
-    setRows((prev) => prev.map((row) => (row._id === id ? { ...row, [key]: value } : row)));
+    setRows((prev) => prev.map((row) => (row._id === id ? withStatementAge(row, { ...row, [key]: value }, key) as Row : row)));
 
   // Rows with no name are left out rather than failing the whole save.
   const filled = rows.filter((row) => (row[columns[0]!.key] ?? "").trim() !== "");

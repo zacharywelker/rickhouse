@@ -125,6 +125,7 @@ export const mashbillSchema = z
   .object({
     isSecret: checkbox,
     isGeneric: checkbox,
+    isPartial: checkbox,
     // The reference name of a secret mashbill or the style of a generic one; ignored otherwise.
     name: optionalText(120),
     notes: optionalText(),
@@ -206,11 +207,11 @@ export const mashbillSchema = z
     // published bills.
     if (value.grains.length === 0) return;
     const total = value.grains.reduce((sum, row) => sum + row.percent, 0);
-    if (total < 99 || total > 101) {
+    if (total > 101 || (!value.isPartial && total < 99)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["grains"],
-        message: `The grains add up to ${Number(total.toFixed(2))}%, not 100%.`,
+        message: value.isPartial ? `The disclosed grains exceed 100% (${Number(total.toFixed(2))}%).` : `The grains add up to ${Number(total.toFixed(2))}%, not 100%.`,
       });
     }
   });

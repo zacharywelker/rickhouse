@@ -49,7 +49,7 @@ export type DrawnHeat = {
   round: number;
   slot: number;
   band: string;
-  glasses: { glass: string; entry: Pick<ViewHeatEntry, "entryId" | "name" | "proof" | "mashbill" | "ageYears" | "distilleries"> }[];
+  glasses: { glass: string; entry: Pick<ViewHeatEntry, "entryId" | "name" | "proof" | "mashbill" | "ageYears" | "ageDisplay" | "ageInferred" | "spiritFact" | "distilleries"> }[];
 };
 
 /**
@@ -114,6 +114,9 @@ export async function drawHeat(ownerId: number, tournamentId: number, heatId?: n
             proof: e.proof,
             mashbill: e.mashbill ? mashbillDisplay(e.mashbill) || null : null,
             ageYears: e.ageYears,
+            ageDisplay: e.ageDisplay ?? null,
+            ageInferred: e.ageInferred ?? false,
+            spiritFact: e.spiritFact ?? null,
             distilleries: e.distilleries,
           },
         };

@@ -30,11 +30,9 @@ export async function saveReleaseAction(releaseId: number, _prev: ActionResult, 
   if (!release) return { ok: false, error: "That release is gone." };
 
   const row: Partial<ReleaseRow> = {};
-  for (const key of ["name", "year", "proof", "ageYears", "ageMonths", "ageDays", "msrp"] as const) {
+  for (const key of ["name", "year", "proof", "ageYears", "ageMonths", "ageDays", "ageStatement", "ageYearsSource", "msrp"] as const) {
     row[key] = String(formData.get(key) ?? "");
   }
-  // Not on this form; kept as it was.
-  row.ageStatement = release.ageStatement ?? "";
   const parsed = parseReleaseRow(row);
   if (parsed.error !== null) return { ok: false, error: parsed.error };
   const notes = String(formData.get("notes") ?? "").trim();

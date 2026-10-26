@@ -149,6 +149,9 @@ function BlindFlight(props: Props) {
         proof: g.entry.proof,
         mashbill: g.entry.mashbill,
         ageYears: g.entry.ageYears,
+        ageDisplay: g.entry.ageDisplay ?? null,
+        ageInferred: g.entry.ageInferred ?? false,
+        spiritFact: g.entry.spiritFact ?? null,
         glass: g.glass,
       }));
       dispatch({ type: "loaded", rows });

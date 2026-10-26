@@ -119,6 +119,9 @@ export function mashbillKey(mashbill: MashbillInput | null): { band: Comparable;
     return { band: [ONE, typical.family, band(typical.share), UNKNOWN], exact: [ONE, typical.family, typical.share, UNKNOWN] };
   }
 
+  // A disclosed fragment cannot safely determine the style of the whole recipe.
+  if (mashbill.partial) return null;
+
   // A recipe with no grains says nothing to compare.
   if (mashbill.grains.length === 0) return null;
 

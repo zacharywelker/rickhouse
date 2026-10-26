@@ -124,7 +124,9 @@ export function offeredAgeStatement(
 
 /** One label field changed: the age Straight implies, then the statement a designation offers. */
 export function withAgeDefaults<T extends Record<string, unknown>>(prev: T, next: T, name: string): T {
-  const aged = withImpliedAge(prev, next, name);
-  const offered = offeredAgeStatement(prev, aged, name);
-  return offered === null ? aged : { ...aged, ageStatement: offered };
+  // Designations imply a minimum; they are not a known numeric age. Keep the
+  // age columns for ages the owner actually entered. Existing old defaults
+  // remain untouched because their provenance cannot be recovered safely.
+  const offered = offeredAgeStatement(prev, next, name);
+  return offered === null ? next : { ...next, ageStatement: offered };
 }

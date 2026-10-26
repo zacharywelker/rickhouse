@@ -22,6 +22,7 @@ import { IDLE_RESULT, type ActionResult } from "@/lib/admin/types";
 import type { ReleaseRow } from "@/lib/releases";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
+import { withStatementAge } from "@/lib/expressions/whiskey-age";
 
 /**
  * A release's own page form: the same name, year, proof, age and MSRP as its
@@ -30,7 +31,8 @@ import { AgeFields } from "./age-fields";
 export function ReleaseForm({ releaseId, initial, notes }: { releaseId: number; initial: ReleaseRow; notes: string }) {
   const router = useRouter();
   const [values, setValues] = React.useState(initial);
-  const set = (key: keyof ReleaseRow, value: string) => setValues((prev) => ({ ...prev, [key]: value }));
+  const [ageOpen, setAgeOpen] = React.useState(false);
+  const set = (key: keyof ReleaseRow, value: string) => setValues((prev) => withStatementAge(prev, { ...prev, [key]: value }, key));
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(
     saveReleaseAction.bind(null, releaseId),
     IDLE_RESULT,
@@ -42,6 +44,7 @@ export function ReleaseForm({ releaseId, initial, notes }: { releaseId: number; 
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      <input type="hidden" name="ageYearsSource" value={values.ageYearsSource ?? "entered"} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_8rem]">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="release-name">Name</Label>
@@ -81,7 +84,13 @@ export function ReleaseForm({ releaseId, initial, notes }: { releaseId: number; 
         onChange={(name, next) => set(name, String(next ?? ""))}
         errors={{}}
         help="Leave blank to use the label's age."
+        locked={values.ageYearsSource === "derived" && !ageOpen}
+        onUnlock={() => { setAgeOpen(true); set("ageYearsSource", "entered"); }}
       />
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="release-age-statement">Age Statement</Label>
+        <Input id="release-age-statement" name="ageStatement" value={values.ageStatement} onChange={(e) => set("ageStatement", e.target.value)} placeholder="Blend of 8 to 16 year old" />
+      </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="release-notes">Notes</Label>
         <Textarea

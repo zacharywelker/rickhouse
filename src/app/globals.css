@@ -170,6 +170,7 @@
   --category-rum: light-dark(#c94b3f, #dd6153);
   --category-vodka: light-dark(#3d82b8, #5a9fd4);
   --category-liqueur: light-dark(#8b5aa8, #a476c2);
+  --category-amaro: light-dark(#9b523d, #ca775b);
   --category-brandy: light-dark(#b87333, #cf8c4c);
   --category-wine: light-dark(#9a4161, #b85a7d);
   --category-other: light-dark(#6d6a63, #8f8b81);
@@ -242,6 +243,7 @@
   --color-category-rum: var(--category-rum);
   --color-category-vodka: var(--category-vodka);
   --color-category-liqueur: var(--category-liqueur);
+  --color-category-amaro: var(--category-amaro);
   --color-category-brandy: var(--category-brandy);
   --color-category-wine: var(--category-wine);
   --color-category-other: var(--category-other);

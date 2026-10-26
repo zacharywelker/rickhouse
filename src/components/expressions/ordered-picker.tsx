@@ -49,6 +49,8 @@ export function OrderedPicker({
   amountLabel,
   amountSuffix,
   amountMax,
+  showAmount = true,
+  showOrder = true,
   value: allRows,
   onChange: onAllRowsChange,
   emptyHint,
@@ -71,6 +73,8 @@ export function OrderedPicker({
   amountSuffix: string;
   /** The most the amount can be: 100 for a share. Months have no cap. */
   amountMax?: number;
+  showAmount?: boolean;
+  showOrder?: boolean;
   value: LinkedRow[];
   onChange: (rows: LinkedRow[]) => void;
   /**
@@ -173,7 +177,7 @@ export function OrderedPicker({
         <ol className="flex flex-col gap-2">
           {value.map((row, index) => (
             <li key={row.id} className="flex flex-wrap items-center gap-2 border border-border bg-muted/30 p-2">
-              <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+              {showOrder ? <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{index + 1}</span> : null}
               {/*
                 On a phone the name takes the whole first line (less the index
                 number) and the controls wrap below it; a long recipe would
@@ -247,7 +251,7 @@ export function OrderedPicker({
                 </label>
               ) : null}
 
-              <div className="flex items-center gap-1">
+              {showAmount ? <div className="flex items-center gap-1">
                 <Label htmlFor={`${name}-amount-${row.id}`} className="text-xs">
                   {amountLabel}
                 </Label>
@@ -271,10 +275,10 @@ export function OrderedPicker({
                   className="h-8 w-[calc(3ch_+_0.75rem_+_2px)] px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
                 <span className="text-xs text-muted-foreground">{amountSuffix}</span>
-              </div>
+              </div> : null}
 
               <div className="flex items-center gap-0.5">
-                <Button
+                {showOrder ? <Button
                   type="button"
                   variant="ghost"
                   size="sm"
@@ -284,8 +288,8 @@ export function OrderedPicker({
                   title={`Move ${row.label} up`}
                 >
                   <ChevronUp className="size-4" />
-                </Button>
-                <Button
+                </Button> : null}
+                {showOrder ? <Button
                   type="button"
                   variant="ghost"
                   size="sm"
@@ -295,7 +299,7 @@ export function OrderedPicker({
                   title={`Move ${row.label} down`}
                 >
                   <ChevronDown className="size-4" />
-                </Button>
+                </Button> : null}
                 <Button
                   type="button"
                   variant="ghost"

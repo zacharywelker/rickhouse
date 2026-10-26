@@ -89,6 +89,7 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
       field("tequilaClass"),
       field("brandyGrade"),
       field("isAgedGin"),
+      field("isAged"),
       field("ageStatement"),
       // Navy Strength or Overproof, worked out from the proof and the category.
       { id: "strength", label: "Strength", specs: [] },
@@ -104,6 +105,8 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
   { id: "rum", title: "Rum detail", section: section("rum"), columns: all("rum") },
   { id: "gin", title: "Gin detail", section: section("gin"), columns: all("gin") },
   { id: "agave", title: "Agave detail", section: section("agave"), columns: all("agave") },
+  { id: "amaro", title: "Amaro detail", section: section("amaro"), columns: all("amaro") },
+  { id: "liqueur", title: "Liqueur detail", section: section("liqueur"), columns: all("liqueur") },
   {
     id: "commercial",
     title: "On the shelf",
@@ -116,8 +119,8 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
     columns: [
       { id: "distilleries", label: "Distilleries", specs: [] },
       { id: "mashbills", label: "Mashbills", specs: [] },
-      { id: "ingredients", label: "Maguey / Base / Distillate", specs: [] },
-      { id: "finishes", label: "Finishes", specs: [] },
+      { id: "ingredients", label: "Ingredients / Flavors", specs: [] },
+      { id: "finishes", label: "Finishes / Cask Types", specs: [] },
     ],
   },
   {

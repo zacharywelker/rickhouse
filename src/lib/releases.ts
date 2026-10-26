@@ -7,12 +7,14 @@
  * it in place rather than replacing it — bottles, its photo and its notes all
  * hang off that id.
  */
+import { youngestStatementYears } from "./expressions/whiskey-age";
 
 export type Release = {
   name: string;
   releaseYear: number | null;
   proof: string | null;
   ageYears: string | null;
+  ageYearsSource?: "entered" | "derived";
   ageMonths: number | null;
   ageDays: number | null;
   /** Wording only; not shown on the forms, but kept when they save. */
@@ -30,6 +32,7 @@ export type ReleaseRow = {
   year: string;
   proof: string;
   ageYears: string;
+  ageYearsSource?: string;
   ageMonths: string;
   ageDays: string;
   ageStatement: string;
@@ -85,13 +88,17 @@ export function parseReleaseRow(row: Partial<ReleaseRow>): Parsed<ReleaseInput> 
   const msrp = decimal(row.msrp ?? "", "a price", 99_999_999, 2);
   if (msrp.error) return named(msrp.error);
   const ageStatement = (row.ageStatement ?? "").trim().slice(0, 200) || null;
+  const suggested = youngestStatementYears(ageStatement);
+  const source = row.ageYearsSource === "derived" ? "derived" : "entered";
+  const derived = suggested !== null && (source === "derived" || (ageYears.value === null && ageMonths.value === null && ageDays.value === null));
 
   return ok({
     id,
     name,
     releaseYear,
     proof: proof.value,
-    ageYears: ageYears.value,
+    ageYears: derived ? String(suggested) : source === "derived" && ageStatement === null ? null : ageYears.value,
+    ageYearsSource: derived ? "derived" : "entered",
     ageMonths: ageMonths.value,
     ageDays: ageDays.value,
     ageStatement,
@@ -137,6 +144,7 @@ export function releaseRow(r: Release & { id: number }): ReleaseRow {
     year: r.releaseYear !== null ? String(r.releaseYear) : "",
     proof: r.proof !== null ? String(Number(r.proof)) : "",
     ageYears: r.ageYears !== null ? String(Number(r.ageYears)) : "",
+    ageYearsSource: r.ageYearsSource ?? "entered",
     ageMonths: r.ageMonths !== null ? String(r.ageMonths) : "",
     ageDays: r.ageDays !== null ? String(r.ageDays) : "",
     ageStatement: r.ageStatement ?? "",

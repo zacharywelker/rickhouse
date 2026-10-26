@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { env } from "./env";
@@ -81,6 +81,28 @@ export function resolveUpload(relative: string): string {
     throw new ImageError("Refusing to read outside the uploads directory.");
   }
   return resolved;
+}
+
+/** Give a duplicated physical bottle its own photo files, so deleting either bottle cannot remove the other's image. */
+export async function duplicateBottleImage(filePath: string, thumbPath: string | null): Promise<{ filePath: string; thumbPath: string | null }> {
+  const id = randomUUID();
+  const copiedFile = path.posix.join(ORIGINALS, `${id}${path.posix.extname(filePath) || ".webp"}`);
+  const copiedThumb = thumbPath ? path.posix.join(THUMBS, `${id}${path.posix.extname(thumbPath) || ".webp"}`) : null;
+  try {
+    await copyFile(resolveUpload(filePath), resolveUpload(copiedFile));
+    if (thumbPath && copiedThumb) {
+      await copyFile(resolveUpload(thumbPath), resolveUpload(copiedThumb));
+      const oldTile = tilePathFor(thumbPath);
+      const newTile = tilePathFor(copiedThumb);
+      if (oldTile && newTile) await copyFile(resolveUpload(oldTile), resolveUpload(newTile)).catch((error: unknown) => {
+        if ((error as { code?: string }).code !== "ENOENT") throw error;
+      });
+    }
+    return { filePath: copiedFile, thumbPath: copiedThumb };
+  } catch (error) {
+    await deleteStoredImage(copiedFile, copiedThumb);
+    throw error;
+  }
 }
 
 async function storeImage(file: File, originalsDir: string, thumbsDir: string): Promise<StoredImage> {

@@ -15,6 +15,7 @@ const columns = {
   releaseYear: expressionReleases.releaseYear,
   proof: expressionReleases.proof,
   ageYears: expressionReleases.ageYears,
+  ageYearsSource: expressionReleases.ageYearsSource,
   ageMonths: expressionReleases.ageMonths,
   ageDays: expressionReleases.ageDays,
   ageStatement: expressionReleases.ageStatement,

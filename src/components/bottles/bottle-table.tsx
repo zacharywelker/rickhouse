@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { ageLabel } from "@/lib/expressions/display";
+import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { useCurrency, useMoney } from "@/components/currency-context";
 import { cn, formatDate, formatNumeric } from "@/lib/utils";
 import { fillState, fillStateDescription } from "@/lib/bottles/fill-state";
@@ -287,6 +288,7 @@ export function BottleTable({
             {row.original.isFavorite ? (
               <Star className="ml-1 inline size-3.5 fill-accent text-accent" aria-label="Favorite" />
             ) : null}
+            {row.original.spiritFact ? <span className="block truncate text-xs font-normal text-muted-foreground" title={row.original.spiritFact}>{row.original.spiritFact}</span> : null}
           </Link>
         ),
       }),
@@ -340,11 +342,13 @@ export function BottleTable({
       helper.accessor("ageYears", {
         id: "age",
         header: "Age",
-        cell: ({ row }) => (
-          <span className="block min-w-16 max-w-40 tabular-nums">
-            {ageLabel(row.original) ?? "—"}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const value = row.original;
+          const resolved = value.fieldGroup === "whiskey" ? whiskeyAge({ ...value, isStraight: value.isStraight, isNas: value.isNas, isBottledInBond: value.isBottledInBond }, value.whiskeyKind ?? "other") : null;
+          return <span className="block min-w-16 max-w-40 tabular-nums">
+            {resolved?.inferred ? <abbr tabIndex={0} title={resolved.explanation ?? undefined} className="cursor-help italic no-underline">{resolved.text}</abbr> : resolved?.text ?? ageLabel(value) ?? "—"}
+          </span>;
+        },
       }),
       helper.accessor("pricePaid", {
         id: "price",

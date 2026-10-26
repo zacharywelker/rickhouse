@@ -11,7 +11,7 @@ import { isGinKind, NAVY_GIN_PROOF } from "./gin-details";
  * kind below says which whiskey, because "Straight" is an American
  * designation and Scotch has regions instead.
  */
-export type CategoryKind = "american" | "scotch" | "tequila" | "mezcal" | "cognac" | "armagnac" | "calvados" | "pisco" | "gin" | "genever" | "other";
+export type CategoryKind = "american" | "canadian" | "irish" | "scotch" | "tequila" | "mezcal" | "cognac" | "armagnac" | "calvados" | "pisco" | "gin" | "genever" | "vodka" | "flavored-vodka" | "amaro" | "liqueur" | "chocolate-liqueur" | "cream-liqueur" | "other";
 
 const SPECIAL_KINDS = new Set<CategoryKind>(["tequila", "mezcal", "cognac", "armagnac", "calvados", "pisco", "genever"]);
 
@@ -27,7 +27,15 @@ export function categoryKinds(
     for (let at: (typeof rows)[number] | undefined = row; at && !seen.has(at.id); at = byId.get(at.parentId ?? -1)) {
       seen.add(at.id);
       if (at.slug === "american-whiskey") kind = "american";
+      else if (at.slug === "canadian-whisky") kind = "canadian";
+      else if (at.slug === "irish-whiskey") kind = "irish";
       else if (at.slug === "scotch") kind = "scotch";
+      else if (at.slug === "flavored-vodka") kind = "flavored-vodka";
+      else if (at.slug === "vodka") kind = "vodka";
+      else if (at.slug === "amaro") kind = "amaro";
+      else if (at.slug === "chocolate-liqueur") kind = "chocolate-liqueur";
+      else if (at.slug === "cream-liqueur") kind = "cream-liqueur";
+      else if (at.slug === "liqueur") kind = "liqueur";
       else if (at.slug === "gin") kind = "gin";
       else if (SPECIAL_KINDS.has(at.slug as CategoryKind)) kind = at.slug as CategoryKind;
       else continue;
@@ -62,8 +70,9 @@ export type FormContext = {
 };
 
 /** Whether aging matters: not for vodka, and not for a gin nobody has marked aged. */
-export function isUnaged(context: Pick<FormContext, "group" | "ginAged">): boolean {
-  return context.group === "vodka" || (context.group === "gin" && !context.ginAged);
+export function isUnaged(context: Pick<FormContext, "group" | "ginAged"> & { values?: Record<string, unknown> }): boolean {
+  return context.group === "vodka" || (context.group === "gin" && !context.ginAged) ||
+    ((context.group === "amaro" || context.group === "liqueur") && context.values?.isAged !== true);
 }
 
 /** Whether a gin already carries something only an aged one has, so it opens as aged. */
@@ -91,6 +100,25 @@ export function hiddenFields(context: FormContext): Set<string> {
     if (context.kind === "genever") hidden.add("ginStyle");
   } else {
     hidden.add("ginStyle"); hidden.add("isAgedGin");
+  }
+  if (context.group !== "amaro" && context.group !== "liqueur") hidden.add("isAged");
+  if (context.group === "amaro" || context.group === "liqueur") {
+    hidden.add("ageDays"); hidden.add("barrelFilledOn"); hidden.add("bottledOn");
+    hidden.add("isCaskStrength"); hidden.add("isStillProof");
+  }
+  if (context.group !== "amaro") hidden.add("amaroStyle");
+  if (context.group !== "amaro" && context.group !== "liqueur") {
+    hidden.add("originCountry"); hidden.add("originRegion");
+  }
+  if (context.group !== "liqueur" || !["liqueur", "chocolate-liqueur", "cream-liqueur"].includes(context.kind ?? "")) hidden.add("dairyStatus");
+  if (context.group === "whiskey") {
+    hidden.add("isChillFiltered"); hidden.add("colorAdded"); hidden.add("charLevel");
+    if (context.kind === "scotch") {
+      hidden.add("entryProof"); hidden.add("cooperageId"); hidden.add("isAdditiveFree");
+    } else if (context.kind === "american") hidden.add("isAdditiveFree");
+    if (context.kind !== "irish" && context.kind !== "scotch") hidden.add("peatStatus");
+  } else {
+    hidden.add("isNonChillFiltered"); hidden.add("peatStatus");
   }
   // Straight and Bottled In Bond are American designations.
   if (context.kind !== null && context.kind !== "american") {
@@ -144,9 +172,9 @@ export type NameContext = { group: FieldGroup; kind: CategoryKind | null };
 
 /** Whether a name's say-so means anything for this spirit: cask strength needs an age, bond and full proof need whiskey. */
 function nameFlagApplies(flag: NameFlag, { group, kind }: NameContext): boolean {
-  if (flag === "isCaskStrength") return group !== "vodka" && group !== "gin";
+  if (flag === "isCaskStrength") return group === "whiskey" || group === "rum" || group === "brandy" || group === "agave";
   if (flag === "fullProof") return group === "whiskey";
-  return group === "whiskey" && kind !== "scotch" && kind !== "other";
+  return group === "whiskey" && kind === "american";
 }
 
 /** The words in `name` that say something about the label, by what they say. */
@@ -221,7 +249,7 @@ export function nameRuleColumns(
 export const followsProof = (name: unknown, context: NameContext) => nameSays(name, context).fullProof !== undefined;
 
 /** The finishes list: aging matters to it too. */
-export const showsFinishes = (context: Pick<FormContext, "group" | "ginAged">) => !isUnaged(context);
+export const showsFinishes = (context: Pick<FormContext, "group" | "ginAged"> & { values?: Record<string, unknown> }) => !isUnaged(context);
 
 /** Rum records its base where other spirits record a mashbill. */
 export const baseReplacesMashbills = (group: FieldGroup) => group === "rum";

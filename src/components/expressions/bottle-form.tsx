@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { saveBottleAction } from "@/app/(app)/bottles/actions";
-import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "@/lib/expressions/bottle-fields";
+import { BOTTLE_FIELDS, BOTTLE_SECTIONS, BOTTLE_STATE_SECTION } from "@/lib/expressions/bottle-fields";
 import { fieldVisible, sectionVisible } from "@/lib/expressions/fields";
 import type { FieldGroup } from "@/db/schema";
 import type { CategoryKind, LabelDates } from "@/lib/expressions/rules";
@@ -22,6 +22,7 @@ import { AgeFields } from "./age-fields";
 import { releaseUnit } from "@/lib/bottles/terminology";
 import { BRANDY_MINIMUM_YEARS, hidesWarehouse, isAgaveKind } from "@/lib/expressions/spirit-details";
 import { isGinKind } from "@/lib/expressions/gin-details";
+import { withStatementAge } from "@/lib/expressions/whiskey-age";
 
 /**
  * Offers to work the age out from the fill and bottling dates (SPEC M8).
@@ -127,7 +128,8 @@ export function BottleFields({
   // With an age filled in the statement is greyed out; triple-clicking it makes it editable again.
   const [statementOpen, setStatementOpen] = React.useState(false);
   const [ginAgeOpen, setGinAgeOpen] = React.useState(false);
-  const statementLocked = ageFilled(values) && !statementOpen;
+  const [whiskeyAgeOpen, setWhiskeyAgeOpen] = React.useState(false);
+  const statementLocked = fieldGroup !== "whiskey" && ageFilled(values) && !statementOpen;
   const unit = releaseUnit(fieldGroup, categoryKind);
   const unitTitle = unit[0]!.toUpperCase() + unit.slice(1);
   const effectiveTequilaClass = String(values.tequilaClass || inheritedTequilaClass || "");
@@ -136,11 +138,13 @@ export function BottleFields({
   const ginNas = values.ginIsNas === "true" || values.ginIsNas === true || ((values.ginIsNas === "" || values.ginIsNas == null) && (inheritedGinNas ?? labelOption?.isNas) === true);
   return (
     <>
+      <input type="hidden" name="ageYearsSource" value={String(values.ageYearsSource ?? "entered")} />
       {BOTTLE_SECTIONS.map((section) => {
         // The pick block is revealed by the single-barrel checkboxes, the same
         // way the label form reveals its per-spirit sections.
         if (!sectionVisible(section, null, values)) return null;
         if (section.id === "pick" && isGinKind(categoryKind) && !ginAged) return null;
+        if ((fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") && (section.id === "release" || section.id === "pick")) return null;
         return (
         <Section key={section.id}>
           <SectionHeader>
@@ -155,6 +159,8 @@ export function BottleFields({
                 ? { ...originalField, label: `${unitTitle} Number`, placeholder: `${unitTitle} 24` }
                 : originalField;
             if ((field.name === "warehouse" || field.name === "rickFloor") && hidesWarehouse(fieldGroup, categoryKind)) return null;
+            if (fieldGroup === "vodka" && ["barrelFilledOn", "bottledOn", "ageYears", "ageMonths", "ageDays", "ageStatement"].includes(field.name)) return null;
+            if ((fieldGroup === "amaro" || fieldGroup === "liqueur") && ["proof", "barrelFilledOn", "bottledOn", "ageYears", "ageMonths", "ageDays", "ageStatement"].includes(field.name)) return null;
             if ((field.name === "barrelFilledOn" || field.name === "bottledOn") && (isAgaveKind(categoryKind) || isGinKind(categoryKind))) return null;
             if (["isSingleBarrel", "isSingleBarrelPick"].includes(field.name) && isGinKind(categoryKind) && !ginAged) return null;
             if (field.name === "tequilaClass" && categoryKind !== "tequila") return null;
@@ -222,8 +228,8 @@ export function BottleFields({
                     ageDays: values.ageDays ?? "",
                   }}
                   onChange={(name, next) => onChange(name, next)}
-                  locked={isGinKind(categoryKind) && ginNas && !ginAgeOpen}
-                  onUnlock={() => setGinAgeOpen(true)}
+                  locked={(isGinKind(categoryKind) && ginNas && !ginAgeOpen) || (fieldGroup === "whiskey" && values.ageYearsSource === "derived" && !whiskeyAgeOpen)}
+                  onUnlock={() => { setGinAgeOpen(true); setWhiskeyAgeOpen(true); onChange("ageYearsSource", "entered"); }}
                   errors={{
                     ageYears: errors.ageYears,
                     ageMonths: errors.ageMonths,
@@ -273,7 +279,7 @@ export function BottleFields({
             return control;
           })}
             {section.id === "override" ? (
-              isGinKind(categoryKind) ? null : <DeriveAge values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} />
+              isGinKind(categoryKind) || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur" ? null : <DeriveAge values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} />
             ) : null}
           </SectionContent>
         </Section>
@@ -294,6 +300,9 @@ export function BottleForm({
   collapseLabelPicker = false,
   categoryGroups,
   categoryKinds,
+  duplicateSourceId = null,
+  tagOptions = [],
+  initialTagIds = [],
 }: {
   bottleId: number | null;
   initialValues: Record<string, string | number | boolean | null> | null;
@@ -305,9 +314,15 @@ export function BottleForm({
   collapseLabelPicker?: boolean;
   categoryGroups: Record<number, FieldGroup>;
   categoryKinds: Record<number, CategoryKind>;
+  duplicateSourceId?: number | null;
+  tagOptions?: Option[];
+  initialTagIds?: number[];
 }) {
   const router = useRouter();
-  const [values, setValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, initialValues));
+  const [values, setValues] = React.useState<Record<string, FieldValue>>(() => ({ ...initialFieldValues(BOTTLE_FIELDS, initialValues), ageYearsSource: initialValues?.ageYearsSource === "derived" ? "derived" : "entered" }));
+  const [copyState, setCopyState] = React.useState(() => initialFieldValues(BOTTLE_STATE_SECTION.fields, initialValues));
+  const [copyPhotos, setCopyPhotos] = React.useState(true);
+  const [copiedTagIds, setCopiedTagIds] = React.useState(initialTagIds);
   const [optionsByField, setOptionsByField] = React.useState(options);
 
   const action = saveBottleAction.bind(null, bottleId);
@@ -324,14 +339,21 @@ export function BottleForm({
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
   // Changing the label drops a version or release picked for the previous one.
   const set = (name: string, value: FieldValue) =>
-    setValues((prev) => ({
-      ...prev,
-      [name]: value,
-      ...(name === "expressionId" ? { expressionNameId: "", releaseId: "" } : {}),
-    }));
+    setValues((prev) => {
+      const next: Record<string, FieldValue> = {
+        ...prev,
+        [name]: value,
+        ...(name === "expressionId" ? { expressionNameId: "", releaseId: "" } : {}),
+      };
+      const selected = options.expressionId?.find((option) => option.value === Number(next.expressionId));
+      return categoryGroups[selected?.categoryId ?? -1] === "whiskey" ? withStatementAge(prev, next, name) : next;
+    });
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
+      {duplicateSourceId !== null ? <input type="hidden" name="duplicateSourceId" value={duplicateSourceId} /> : null}
+      {duplicateSourceId !== null ? <input type="hidden" name="copyPhotos" value={copyPhotos ? "1" : "0"} /> : null}
+      {duplicateSourceId !== null ? <input type="hidden" name="duplicateTagIds" value={JSON.stringify(copiedTagIds)} /> : null}
       <BottleFields
         values={values}
         onChange={set}
@@ -347,6 +369,21 @@ export function BottleForm({
         categoryKind={categoryKinds[options.expressionId?.find((option) => option.value === Number(values.expressionId))?.categoryId ?? -1] ?? "other"}
         inheritedTequilaClass={options.expressionId?.find((option) => option.value === Number(values.expressionId))?.tequilaClass ?? null}
       />
+
+      {duplicateSourceId !== null ? <Section>
+        <SectionHeader><SectionTitle>Copied bottle state</SectionTitle><SectionDescription>Adjust the original bottle's opened state, fill level, dates, and favorite status for this new bottle.</SectionDescription></SectionHeader>
+        <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {BOTTLE_STATE_SECTION.fields.map((field) => <Field key={field.name} spec={field} idPrefix="duplicate" value={copyState[field.name] ?? ""} onChange={(value) => setCopyState((current) => ({ ...current, [field.name]: value }))} error={fieldErrors[field.name]} />)}
+          <label className="col-span-full flex items-center gap-2 text-sm"><input type="checkbox" checked={copyPhotos} onChange={(event) => setCopyPhotos(event.target.checked)} />Copy bottle photos</label>
+          {tagOptions.length > 0 ? <fieldset className="col-span-full flex flex-wrap gap-3 border-t border-border pt-3">
+            <legend className="text-sm font-medium">Tags for the new bottle</legend>
+            {tagOptions.map((tag) => <label key={tag.value} className="flex items-center gap-1.5 text-sm">
+              <input type="checkbox" checked={copiedTagIds.includes(tag.value)} onChange={(event) => setCopiedTagIds((ids) => event.target.checked ? [...ids, tag.value] : ids.filter((id) => id !== tag.value))} />
+              {tag.label}
+            </label>)}
+          </fieldset> : null}
+        </SectionContent>
+      </Section> : null}
 
       {!state.ok && state.error ? (
         <p

@@ -9,9 +9,10 @@ import { ingredientAllowed, type IngredientChoice } from "@/lib/expressions/spir
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { X } from "lucide-react";
 import { GIN_BASES, GIN_BOTANICALS } from "@/lib/expressions/gin-details";
+import { isGinKind } from "@/lib/expressions/gin-details";
 
 const STANDARD_BASES = ["Molasses", "Sugarcane", "Honey"];
-const labelFor = (kind: IngredientKind) => kind === "maguey" ? "Magueys" : kind === "distillate" ? "Distillate" : kind === "botanical" ? "Botanicals" : "Base";
+const labelFor = (kind: IngredientKind) => kind === "maguey" ? "Magueys" : kind === "distillate" ? "Distillate" : kind === "botanical" ? "Botanicals" : kind === "flavor" ? "Flavors" : kind === "vodka_base" || kind === "liqueur_base" ? "Base Ingredients" : "Base";
 
 export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenName = "ingredientLinks" }: {
   kind: IngredientKind;
@@ -32,19 +33,24 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
   }, [kind]);
 
   const selected = categoryKind === "tequila" ? [{ name: "Blue Weber", kind: "maguey" as const }]
-    : kind === "botanical" ? [{ name: "Juniper", kind: "botanical" as const }, ...value.filter((item) => item.kind === "botanical" && item.name.toLocaleLowerCase() !== "juniper")]
+    : kind === "botanical" && isGinKind(categoryKind) ? [{ name: "Juniper", kind: "botanical" as const }, ...value.filter((item) => item.kind === "botanical" && item.name.toLocaleLowerCase() !== "juniper")]
     : value.filter((item) => (!item.kind || item.kind === kind) && ingredientAllowed(categoryKind, item));
-  const presets = kind === "rum_base" ? STANDARD_BASES : kind === "botanical" ? GIN_BOTANICALS : kind === "gin_base" ? GIN_BASES : [];
+  const presets = kind === "rum_base" ? STANDARD_BASES : kind === "botanical" && isGinKind(categoryKind) ? GIN_BOTANICALS : kind === "gin_base" ? GIN_BASES : kind === "vodka_base" ? ["Wheat", "Rye", "Potato", "Corn", "Grape"] : [];
   const suggestions = [...presets.map((name): IngredientChoice => ({ name, kind })), ...known]
     .filter((item, index, all) => ingredientAllowed(categoryKind, item) && all.findIndex((candidate) => candidate.name.toLocaleLowerCase() === item.name.toLocaleLowerCase()) === index);
   const add = (name: string) => {
     const trimmed = name.trim();
     if (!trimmed || trimmed.length > 120) return;
     const existing = suggestions.find((item) => item.name.toLocaleLowerCase() === trimmed.toLocaleLowerCase());
-    const item: IngredientChoice = existing ?? { name: trimmed, kind, ...(kind === "distillate" ? {
+    const item: IngredientChoice = { ...(existing ?? { name: trimmed, kind, ...(kind === "distillate" ? {
       family: categoryKind === "calvados" ? (family === "pear" ? "pear" : "apple") : categoryKind === "cognac" || categoryKind === "armagnac" ? "grape" : family,
-    } : {}) };
-    if (!ingredientAllowed(categoryKind, item) || selected.some((row) => row.name.toLocaleLowerCase() === item.name.toLocaleLowerCase())) return;
+    } : {}) }), isManual: true };
+    if (!ingredientAllowed(categoryKind, item)) return;
+    if (selected.some((row) => row.name.toLocaleLowerCase() === item.name.toLocaleLowerCase())) {
+      onChange(selected.map((row) => row.name.toLocaleLowerCase() === item.name.toLocaleLowerCase() ? { ...row, isManual: true } : row));
+      setText("");
+      return;
+    }
     onChange([...selected, item]);
     setText("");
     setCustomBase(false);
@@ -62,7 +68,7 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
               {selected.map((item) => (
                 <li key={item.name} className="flex items-center gap-2 border border-border px-2 py-1 text-sm">
                   {item.name}{item.family ? <span className="text-xs text-muted-foreground">{item.family}</span> : null}
-                  {!(kind === "botanical" && item.name.toLocaleLowerCase() === "juniper") ? <button type="button" aria-label={`Remove ${item.name}`} onClick={() => onChange(selected.filter((row) => row.name !== item.name))}><X className="size-3" aria-hidden="true" /></button> : <span className="text-xs text-muted-foreground">fixed</span>}
+                  {item.isManual === false ? <span className="text-xs text-muted-foreground">from style</span> : !(kind === "botanical" && isGinKind(categoryKind) && item.name.toLocaleLowerCase() === "juniper") ? <button type="button" aria-label={`Remove ${item.name}`} onClick={() => onChange(selected.filter((row) => row.name !== item.name))}><X className="size-3" aria-hidden="true" /></button> : <span className="text-xs text-muted-foreground">fixed</span>}
                 </li>
               ))}
             </ul>

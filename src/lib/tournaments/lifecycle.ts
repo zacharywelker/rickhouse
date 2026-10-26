@@ -34,8 +34,13 @@ async function resolveEntries(tx: Tx, ownerId: number, inputs: EntryInput[]): Pr
   const run = async <T>(query: SQL): Promise<T[]> => (await tx.execute(query)) as unknown as T[];
   const bottles = bottleIds.length
     ? await run<{ id: number; expression_id: number; brand: string; name: string; pick_name: string | null; barrel_number: string | null; release_name: string | null; batch: string | null }>(
-        sql`SELECT b.id, b.expression_id, br.name AS brand, e.name, b.pick_name, b.barrel_number, r.name AS release_name, b.batch
+        sql`SELECT b.id, b.expression_id, br.name AS brand, e.name,
+          CASE WHEN c.field_group IN ('vodka', 'amaro', 'liqueur') THEN NULL ELSE b.pick_name END AS pick_name,
+          CASE WHEN c.field_group IN ('vodka', 'amaro', 'liqueur') THEN NULL ELSE b.barrel_number END AS barrel_number,
+          CASE WHEN c.field_group IN ('vodka', 'amaro', 'liqueur') THEN NULL ELSE r.name END AS release_name,
+          CASE WHEN c.field_group IN ('vodka', 'amaro', 'liqueur') THEN NULL ELSE b.batch END AS batch
           FROM bottles b JOIN expressions e ON e.id = b.expression_id JOIN brands br ON br.id = e.brand_id
+          JOIN categories c ON c.id = e.category_id
           LEFT JOIN expression_releases r ON r.id = b.release_id
           WHERE b.owner_id = ${ownerId} AND b.id IN (${list(bottleIds)})`,
       )

@@ -5,6 +5,7 @@ export type MashbillRow = {
   name: string | null;
   style?: string | null;
   isGeneric: boolean;
+  isPartial?: boolean;
   isSecret: boolean;
   grains: { grain: string; percent: string | number }[];
 };
@@ -18,11 +19,15 @@ export type EntryFacts = {
   ageYears: string | number | null;
   ageMonths: number | null;
   ageDays: number | null;
+  ageDisplay?: string | null;
+  ageInferred?: boolean;
+  spiritFact?: string | null;
   fieldGroup: string | null;
   /** The label's own (leaf) category name. */
   category: string | null;
   distilleries: string[];
   finishes: string[];
+  caskTypeMode?: boolean;
   mashbills: MashbillRow[];
 };
 
@@ -86,6 +91,7 @@ function mashbillInput(rows: MashbillRow[], fieldGroup: string | null): Mashbill
   return {
     kind: "recipe",
     name: row.isSecret ? row.name : null,
+    ...(row.isPartial ? { partial: true } : {}),
     grains: row.grains.flatMap((g) => {
       const percent = toNumber(g.percent);
       return percent === null ? [] : [{ grain: g.grain, percent }];
@@ -102,7 +108,11 @@ export function buildEntrant(id: number, name: string, facts: EntryFacts): Entra
     mashbill: mashbillInput(facts.mashbills, facts.fieldGroup),
     distilleries: facts.distilleries,
     ageYears: ageInYears(facts.ageYears, facts.ageMonths, facts.ageDays),
+    ...(facts.ageDisplay !== undefined ? { ageDisplay: facts.ageDisplay } : {}),
+    ...(facts.ageInferred !== undefined ? { ageInferred: facts.ageInferred } : {}),
+    ...(facts.spiritFact !== undefined ? { spiritFact: facts.spiritFact } : {}),
     finishes: facts.finishes,
     category: facts.category,
+    ...(facts.caskTypeMode !== undefined ? { caskTypeMode: facts.caskTypeMode } : {}),
   };
 }

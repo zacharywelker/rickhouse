@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { Star } from "lucide-react";
 import { fillStateText } from "@/lib/bottles/fill-state";
 import { ageLabel } from "@/lib/expressions/display";
+import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { useMoney } from "@/components/currency-context";
 import { cn, formatNumeric } from "@/lib/utils";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
@@ -55,16 +56,21 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
                   <Star className="size-3.5 shrink-0 fill-accent text-accent" aria-label="Favorite" />
                 ) : null}
               </p>
+              {row.spiritFact ? <p className="truncate text-xs text-muted-foreground" title={row.spiritFact}>{row.spiritFact}</p> : null}
               <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
                 <span
                   className={cn("size-2 shrink-0 rounded-full", categorySwatchClass(row.fieldGroup))}
                   aria-hidden="true"
                 />
                 <span className="truncate">
-                  {[row.category, row.ginStyle, row.proof ? `${formatNumeric(row.proof)} proof` : null, ageLabel(row)]
+                  {[row.category, row.ginStyle, row.proof ? `${formatNumeric(row.proof)} proof` : null]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
+                {row.whiskeyKind ? (() => {
+                  const age = whiskeyAge(row, row.whiskeyKind!);
+                  return age.text ? <span className={age.inferred ? "italic" : undefined}> · {age.text}</span> : null;
+                })() : ageLabel(row) ? <span> · {ageLabel(row)}</span> : null}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 <StatusMark status={effectiveBottleStatus(row)} className="text-muted-foreground" />

@@ -1,7 +1,7 @@
 import { CHAR_LEVELS, CHAR_LEVEL_LABELS, FIELD_GROUPS, STILL_TYPES, type FieldGroup } from "@/db/schema";
 import type { FieldSpec } from "@/lib/admin/types";
 import { AGING_FIELDS, STRENGTH_FLAGS } from "./rules";
-import { BRANDY_GRADES, TEQUILA_CLASSES, TEQUILA_CLASS_GUIDANCE, TEQUILA_CLASS_LABELS } from "./spirit-details";
+import { AMARO_STYLES, BRANDY_GRADES, DAIRY_STATUSES, PEAT_STATUSES, TEQUILA_CLASSES, TEQUILA_CLASS_GUIDANCE, TEQUILA_CLASS_LABELS } from "./spirit-details";
 import { GIN_STYLES } from "./gin-details";
 import { SIZE_PRESETS } from "./sizes";
 
@@ -85,7 +85,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     rows: [
       ["proof", "isCaskStrength", "isBottledInBond", "isStillProof", "@tier"],
       ["barrelFilledOn", "bottledOn", "@dates"],
-      ["tequilaClass", "brandyGrade", "isAgedGin", "ageYears", "ageStatement", "isNas", "isStraight"],
+      ["tequilaClass", "brandyGrade", "isAgedGin", "isAged", "ageYears", "ageStatement", "isNas", "isStraight"],
       ["tropicalYears", "continentalYears", "isSolera", "soleraRange"],
     ],
     fields: [
@@ -94,6 +94,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
       { kind: "checkbox", name: "isCaskStrength", label: "Cask Strength", width: "auto" },
       { kind: "checkbox", name: "isStillProof", label: "Still Proof", help: "Still Proof — bottled undiluted from the still", width: "auto" },
       { kind: "checkbox", name: "isAgedGin", label: "Aged", width: "auto" },
+      { kind: "checkbox", name: "isAged", label: "Aged", width: "auto" },
       // The two dates sit above the age, and offer to work it out (see `DeriveAge`).
       { kind: "date", name: "barrelFilledOn", label: "Distilled / Barrel Filled", width: "md" },
       { kind: "date", name: "bottledOn", label: "Bottled", width: "md" },
@@ -158,7 +159,10 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         help: "Scotch regions, comma separated. Drawn with the distilleries.",
       },
       { kind: "number", name: "entryProof", label: "Entry Proof", min: 0, max: 200, step: 0.01, span: "half" },
+      { kind: "checkbox", name: "isNonChillFiltered", label: "Non-chill filtered", span: "half", help: "Checked records a positive claim; unchecked means unknown." },
       { kind: "select", name: "isChillFiltered", label: "Chill Filtered", options: TRISTATE, span: "half" },
+      { kind: "checkbox", name: "isAdditiveFree", label: "Additive Free", span: "half", help: "Checked records a positive claim; unchecked means unknown." },
+      { kind: "select", name: "peatStatus", label: "Peat", options: PEAT_STATUSES.map((value) => ({ value, label: titleCase(value) })), span: "half" },
       { kind: "select", name: "colorAdded", label: "Colour Added", options: TRISTATE, span: "half" },
       {
         kind: "slider",
@@ -236,6 +240,26 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         span: "half",
       },
       { kind: "select", name: "isAdditiveFree", label: "Additive Free", options: TRISTATE, span: "half" },
+    ],
+  },
+  {
+    id: "amaro",
+    title: "Amaro detail",
+    fieldGroups: ["amaro"],
+    fields: [
+      { kind: "select", name: "amaroStyle", label: "Style", options: [{ value: "", label: "Not specified" }, ...AMARO_STYLES.map((value) => ({ value, label: value }))], span: "half" },
+      { kind: "text", name: "originCountry", label: "Country", span: "half" },
+      { kind: "text", name: "originRegion", label: "Region", span: "half" },
+    ],
+  },
+  {
+    id: "liqueur",
+    title: "Liqueur detail",
+    fieldGroups: ["liqueur"],
+    fields: [
+      { kind: "text", name: "originCountry", label: "Country", span: "half" },
+      { kind: "text", name: "originRegion", label: "Region", span: "half" },
+      { kind: "select", name: "dairyStatus", label: "Dairy", options: DAIRY_STATUSES.map((value) => ({ value, label: value === "unknown" ? "Unknown" : value === "dairy" ? "Dairy" : "Non-dairy" })), span: "half" },
     ],
   },
 ];
