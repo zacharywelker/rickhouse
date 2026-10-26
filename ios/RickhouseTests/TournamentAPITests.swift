@@ -56,20 +56,19 @@ final class StubURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-final class TournamentAPITests: XCTestCase {
-    private let api = APIClient(baseURL: URL(string: "https://rickhouse.example.com")!, token: "tok")
-    private var saved: URLSession!
-
-    override func setUp() {
-        saved = APIClient.session
+/// Runs each test with `APIClient.session` bound to a session whose configuration carries `StubURLProtocol`,
+/// so no server is needed. Tasks the test starts inherit the binding.
+class StubbedSessionTestCase: XCTestCase {
+    override func invokeTest() {
+        StubURLProtocol.reset()
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubURLProtocol.self]
-        APIClient.session = URLSession(configuration: config)
-        StubURLProtocol.reset()
+        APIClient.$session.withValue(URLSession(configuration: config)) { super.invokeTest() }
     }
+}
 
-    override func tearDown() { APIClient.session = saved }
-
+final class TournamentAPITests: StubbedSessionTestCase {
+    private let api = APIClient(baseURL: URL(string: "https://rickhouse.example.com")!, token: "tok")
     private func answer(_ json: String, status: Int = 200) {
         StubURLProtocol.reply = Data(json.utf8)
         StubURLProtocol.status = status

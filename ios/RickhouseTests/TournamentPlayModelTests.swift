@@ -3,19 +3,7 @@ import XCTest
 
 /// The play model against the URLProtocol stub: what each step sends, and what a failure keeps.
 @MainActor
-final class TournamentPlayModelTests: XCTestCase {
-    private var saved: URLSession!
-
-    override func setUp() {
-        saved = APIClient.session
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [StubURLProtocol.self]
-        APIClient.session = URLSession(configuration: config)
-        StubURLProtocol.reset()
-    }
-
-    override func tearDown() { APIClient.session = saved }
-
+final class TournamentPlayModelTests: StubbedSessionTestCase {
     /// Heat 10 of a running tournament with Alpha (100 proof) and Beta (90): pending, or decided with Beta first.
     private func view(blind: Bool = false, decided: Bool = false, hidden: Bool = false, status: String = "active") -> Data {
         func entry(_ id: Int, _ name: String, _ proof: Int, _ place: Int?) -> String {

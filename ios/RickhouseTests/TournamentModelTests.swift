@@ -3,23 +3,13 @@ import XCTest
 
 /// The screen model against the URLProtocol stub: what each draft action sends, and what a failure does.
 @MainActor
-final class TournamentModelTests: XCTestCase {
+final class TournamentModelTests: StubbedSessionTestCase {
     private var saved: URLSession!
 
     private struct MemoryZoom: ZoomStore {
         func level(forTournament id: Int) -> ZoomLevel { .detail }
         func set(_ level: ZoomLevel, forTournament id: Int) {}
     }
-
-    override func setUp() {
-        saved = APIClient.session
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [StubURLProtocol.self]
-        APIClient.session = URLSession(configuration: config)
-        StubURLProtocol.reset()
-    }
-
-    override func tearDown() { APIClient.session = saved }
 
     private func json(name: String) -> Data {
         Data("""

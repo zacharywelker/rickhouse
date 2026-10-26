@@ -452,9 +452,9 @@ struct APIClient {
         return try Self.decoder.decode(T.self, from: data)
     }
 
-    /// The session every request goes through. Tests (and the throwaway screenshot harness) swap in one whose
-    /// configuration carries a stub `URLProtocol`, so no server is needed.
-    nonisolated(unsafe) static var session: URLSession = .shared
+    /// The session every request goes through. Task-local, so a test binds its own (`StubbedSessionTestCase`) for
+    /// the duration of its run and nothing it sets can outlive it or reach another test.
+    @TaskLocal static var session: URLSession = .shared
 
     fileprivate static func send(_ request: URLRequest, body: Data? = nil) async throws -> (Data, URLResponse) {
         do {

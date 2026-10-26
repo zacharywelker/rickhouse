@@ -3,19 +3,7 @@ import XCTest
 
 /// The ranking screen's model against the URLProtocol stub, and the label's `tournamentRank` decoding.
 @MainActor
-final class RankingModelTests: XCTestCase {
-    private var saved: URLSession!
-
-    override func setUp() {
-        saved = APIClient.session
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [StubURLProtocol.self]
-        APIClient.session = URLSession(configuration: config)
-        StubURLProtocol.reset()
-    }
-
-    override func tearDown() { APIClient.session = saved }
-
+final class RankingModelTests: StubbedSessionTestCase {
     private let ranking = """
     {"competitors":[{"id":"b:1","name":"Old Forester 100","bottleId":1,"expressionId":1,"rating":8.5,"theta":1.2,"rank":1,"heats":4,"provisional":false,"singleBand":false,"group":1,"groupSize":2},
                     {"id":"b:2","name":"Buffalo Trace","bottleId":2,"expressionId":2,"rating":9.0,"theta":0.1,"rank":2,"heats":4,"provisional":false,"singleBand":false,"group":1,"groupSize":2}],
