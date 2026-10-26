@@ -33,6 +33,14 @@ enum APIError: LocalizedError {
 }
 
 extension APIError {
+    /// The server is the problem (unreachable, not Rickhouse, too old or new, not https), not the username or password.
+    var isServerProblem: Bool {
+        switch self {
+        case .badServer, .serverNotFound, .insecureServer, .serverTooOld, .appTooOld, .transport: true
+        default: false
+        }
+    }
+
     /// A request that was cancelled on purpose (a newer keystroke replaced it): nothing to tell the person.
     static func isCancellation(_ error: Error) -> Bool {
         if error is CancellationError { return true }
