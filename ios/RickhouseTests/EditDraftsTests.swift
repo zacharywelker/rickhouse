@@ -2,6 +2,11 @@ import XCTest
 @testable import Rickhouse
 
 final class EditDraftsTests: XCTestCase {
+    /// A patch's row list, failing the test (not crashing the run) when the key is missing or the wrong shape.
+    private func rows(_ value: Any?, file: StaticString = #filePath, line: UInt = #line) throws -> [[String: Any]] {
+        try XCTUnwrap(value as? [[String: Any]], "expected a list of rows", file: file, line: line)
+    }
+
     private func bottle(_ overrides: [String: Any] = [:]) throws -> BottleDetail {
         var json: [String: Any] = [
             "id": 5, "expressionId": 10, "brand": "Wild Turkey", "name": "Rare Breed", "category": "Bourbon",
@@ -320,23 +325,23 @@ final class EditDraftsTests: XCTestCase {
         XCTAssertTrue(draft.isDirty)
         let body = draft.patch()
         XCTAssertEqual(Set(body.keys), ["distilleries", "mashbills", "finishes"])
-        let distilleries = body["distilleries"] as! [[String: Any]]
-        XCTAssertEqual(distilleries.map { $0["id"] as! Int }, [2, 1], "in the order chosen")
+        let distilleries = try rows(body["distilleries"])
+        XCTAssertEqual(distilleries.compactMap { $0["id"] as? Int }, [2, 1], "in the order chosen")
         XCTAssertTrue(distilleries[0]["amount"] is NSNull, "a new row has no share yet")
         XCTAssertEqual(distilleries[1]["amount"] as? Double, 100, "an existing row keeps its share")
-        let mashbills = body["mashbills"] as! [[String: Any]]
+        let mashbills = try rows(body["mashbills"])
         XCTAssertEqual(mashbills[0]["distilleryId"] as? Int, 1)
-        XCTAssertEqual((body["finishes"] as! [[String: Any]])[0]["amount"] as? Double, 6)
+        XCTAssertEqual(try rows(body["finishes"])[0]["amount"] as? Double, 6)
     }
 
     func testRemovingARowAndUndoingIt() throws {
         var draft = LabelDraft(try linked())
         draft.remove(.finishes, id: 9)
         XCTAssertTrue(draft.rows(.finishes).isEmpty)
-        XCTAssertEqual((draft.patch()["finishes"] as! [[String: Any]]).count, 0)
+        XCTAssertEqual(try rows(draft.patch()["finishes"]).count, 0)
         let undo = draft.undoPatch()
-        XCTAssertEqual((undo["finishes"] as! [[String: Any]]).map { $0["id"] as! Int }, [9])
-        XCTAssertEqual((undo["distilleries"] as! [[String: Any]]).map { $0["id"] as! Int }, [1])
+        XCTAssertEqual(try rows(undo["finishes"]).compactMap { $0["id"] as? Int }, [9])
+        XCTAssertEqual(try rows(undo["distilleries"]).compactMap { $0["id"] as? Int }, [1])
     }
 
     func testTakingARowOffAndPuttingItBackLosesItsShare() throws {
@@ -390,8 +395,8 @@ final class EditDraftsTests: XCTestCase {
         ]]))
         draft.setSource(ofMashbill: 5, to: 2)
         XCTAssertTrue(draft.linksChanged)
-        XCTAssertEqual((draft.patch()["mashbills"] as! [[String: Any]])[0]["distilleryId"] as? Int, 2)
-        XCTAssertTrue((draft.undoPatch()["mashbills"] as! [[String: Any]])[0]["distilleryId"] is NSNull)
+        XCTAssertEqual(try rows(draft.patch()["mashbills"])[0]["distilleryId"] as? Int, 2)
+        XCTAssertTrue(try rows(draft.undoPatch()["mashbills"])[0]["distilleryId"] is NSNull)
         draft.setSource(ofMashbill: 5, to: 9)
         XCTAssertEqual(sources(draft), [nil], "a distillery that is not on the label is not kept")
     }

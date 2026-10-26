@@ -85,10 +85,10 @@ final class TournamentStandingsSearchTests: XCTestCase {
 
     private let order = TournamentPriority.defaultOrder
 
-    func testEveryKeyHasACapitalisedLabelAndAHelpLine() {
+    func testEveryKeyHasACapitalisedLabelAndAHelpLine() throws {
         XCTAssertEqual(Set(TournamentPriority.labels.keys), Set(TournamentPriority.keys))
         XCTAssertEqual(Set(TournamentPriority.help.keys), Set(TournamentPriority.keys))
-        for key in TournamentPriority.keys { XCTAssertTrue(TournamentPriority.labels[key]!.first!.isUppercase) }
+        for key in TournamentPriority.keys { XCTAssertTrue(try XCTUnwrap(TournamentPriority.labels[key]?.first).isUppercase) }
     }
 
     func testMoveKeyMovesDownAndUpByOnePlace() {
