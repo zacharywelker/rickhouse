@@ -371,7 +371,7 @@ export function BottleForm({
       />
 
       {duplicateSourceId !== null ? <Section>
-        <SectionHeader><SectionTitle>Copied bottle state</SectionTitle><SectionDescription>Adjust the original bottle's opened state, fill level, dates, and favorite status for this new bottle.</SectionDescription></SectionHeader>
+        <SectionHeader><SectionTitle>Copied bottle state</SectionTitle><SectionDescription>Adjust the original bottle&apos;s opened state, fill level, dates, and favorite status for this new bottle.</SectionDescription></SectionHeader>
         <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {BOTTLE_STATE_SECTION.fields.map((field) => <Field key={field.name} spec={field} idPrefix="duplicate" value={copyState[field.name] ?? ""} onChange={(value) => setCopyState((current) => ({ ...current, [field.name]: value }))} error={fieldErrors[field.name]} />)}
           <label className="col-span-full flex items-center gap-2 text-sm"><input type="checkbox" checked={copyPhotos} onChange={(event) => setCopyPhotos(event.target.checked)} />Copy bottle photos</label>

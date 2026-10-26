@@ -29,7 +29,7 @@ import { nameContextFor, type CategoryKind, type LabelDates } from "@/lib/expres
 import { formatNumeric } from "@/lib/utils";
 import type { BottleSuggestions } from "@/lib/bottles/suggestions";
 import type { FieldGroup } from "@/db/schema";
-import type { ActionResult, Option } from "@/lib/admin/types";
+import type { Option } from "@/lib/admin/types";
 import {
   catalogBottleAction,
   catalogLabelAction,
