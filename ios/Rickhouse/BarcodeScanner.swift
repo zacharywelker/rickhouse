@@ -116,12 +116,12 @@ struct ScanScreen: View {
             }
             .padding(16)
         }
+        .sensoryFeedback(.success, trigger: found)
     }
 
     /// A light tap and "Got it", then the code goes on a moment later so the cue is seen.
     private func read(_ code: String) {
         guard !found else { return }
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
         found = true
         Task {
             try? await Task.sleep(for: .milliseconds(350))
