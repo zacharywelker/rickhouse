@@ -46,6 +46,7 @@ struct NewLabelView: View {
     }
 
     private var canSave: Bool {
+        guard photo?.working != true else { return false }
         if made != nil { return !saving }
         return brand != nil
             && !name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -149,18 +150,21 @@ struct NewLabelView: View {
         }
         .task { await loadCategories() }
         .task(id: "\(name)|\(categoryId.map(String.init) ?? "")") { await followName() }
+        .task(id: photo?.id) {
+            guard let added = photo, added.working else { return }
+            do {
+                let cut = try await PhotoProcessor.shared.cutout(added.original)
+                try Task.checkCancellation()
+                guard photo?.id == added.id else { return }
+                photo?.cutout = cut
+                photo?.working = false
+            } catch { return }
+        }
     }
 
     /// Shows the photo at once, then swaps in the cutout if Vision can make one.
     private func add(_ image: UIImage) {
-        let added = FormPhoto(original: image)
-        photo = added
-        Task {
-            let cut = await Task.detached { image.cutout() }.value
-            guard photo?.id == added.id else { return }
-            photo?.cutout = cut
-            photo?.working = false
-        }
+        photo = FormPhoto(original: image)
     }
 
     private func loadCategories() async {
@@ -249,8 +253,9 @@ struct NewLabelView: View {
             }
         }
         factsSaved = true
-        guard let image = photo?.encoded() else { onDone(label); return }
+        guard let photo else { onDone(label); return }
         do {
+            let image = try await PhotoProcessor.shared.encode(photo)
             try await api.uploadLabelPhoto(expressionId: label.id, image: image)
             onDone(label)
         } catch APIError.unauthorized {

@@ -13,10 +13,16 @@ struct FieldPickerSheet: View {
     @State private var searching = false
     @State private var failed: String?
     @State private var ticket = RequestTicket()
-    @State private var pending: Task<Void, Never>?
+    @State private var previousQuery = ""
+    @State private var attempt = 0
     @State private var categories: [CategoryOption] = []
     @State private var choosingCategory = false
     @State private var addingLabel = false
+
+    private struct SearchRequest: Equatable {
+        let filters: FieldFilters
+        let attempt: Int
+    }
 
     var body: some View {
         NavigationStack {
@@ -41,8 +47,15 @@ struct FieldPickerSheet: View {
             .navigationTitle(FieldPickerText.summaryTitle(field.entries.count))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .onChange(of: filters) { old, new in schedule(delay: old.q != new.q ? 250 : 0) }
-            .task { await search() }
+            .task(id: SearchRequest(filters: filters, attempt: attempt)) {
+                let asked = filters
+                let debounce = previousQuery != asked.q
+                previousQuery = asked.q
+                if debounce {
+                    do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+                }
+                await search(asked)
+            }
             .task { categories = (try? await session.api?.categories()) ?? [] }
             .optionSheet("Category", isPresented: $choosingCategory, options: categoryOptions, selection: categorySelection) { id in
                 filters.categoryIds = id.isEmpty ? [] : [Int(id) ?? 0]
@@ -131,7 +144,7 @@ struct FieldPickerSheet: View {
         } else if let failed {
             VStack(alignment: .leading, spacing: 8) {
                 ErrorText(failed)
-                Button("Try again") { Task { await search() } }.frame(minHeight: 44)
+                Button("Try again") { attempt += 1 }.frame(minHeight: 44)
             }
         } else {
             HStack(spacing: 8) { ProgressView(); Text("Loading your bottles…").foregroundStyle(Theme.muted) }.frame(minHeight: 44)
@@ -169,31 +182,23 @@ struct FieldPickerSheet: View {
 
     // MARK: Search
 
-    /// Typing waits 250 ms; a chip or a filter goes at once. Only the latest answer is kept.
-    private func schedule(delay: Int) {
-        pending?.cancel()
-        pending = Task {
-            if delay > 0 { try? await Task.sleep(for: .milliseconds(delay)) }
-            if !Task.isCancelled { await search() }
-        }
-    }
-
-    private func search() async {
-        guard let api = session.api else { return }
+    private func search(_ asked: FieldFilters) async {
+        guard !Task.isCancelled, let api = session.api else { return }
         let mine = ticket.issue()
         searching = true
         defer { if ticket.isCurrent(mine) { searching = false } }
         do {
-            let answer = try await api.fieldCandidates(filters)
-            guard ticket.isCurrent(mine) else { return }
+            let answer = try await api.fieldCandidates(asked)
+            guard !Task.isCancelled, ticket.isCurrent(mine), asked == filters else { return }
             page = answer
             failed = nil
         } catch APIError.unauthorized {
+            guard !Task.isCancelled, ticket.isCurrent(mine), asked == filters else { return }
             session.signOut()
         } catch {
             // A keystroke cancels the request before it; that is not a failure to show.
             if Task.isCancelled || APIError.isCancellation(error) { return }
-            guard ticket.isCurrent(mine) else { return }
+            guard ticket.isCurrent(mine), asked == filters else { return }
             failed = error.localizedDescription
         }
     }

@@ -34,7 +34,7 @@ struct LabelSearchSheet: View {
     @State private var rows: [LabelCandidate]?
     @State private var failed: String?
     @State private var ticket = RequestTicket()
-    @State private var pending: Task<Void, Never>?
+    @State private var attempt = 0
 
     var body: some View {
         NavigationStack {
@@ -46,8 +46,7 @@ struct LabelSearchSheet: View {
             .navigationTitle("Add a label")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-            .onChange(of: query) { _, _ in schedule(delay: 250) }
-            .task { await search() }
+            .task(id: "\(query)#\(attempt)") { await search() }
         }
     }
 
@@ -71,32 +70,29 @@ struct LabelSearchSheet: View {
         } else if let failed {
             ContentUnavailableView {
                 Label("Couldn't search", systemImage: "wifi.slash")
-            } description: { Text(failed) } actions: { Button("Try again") { Task { await search() } } }
+            } description: { Text(failed) } actions: { Button("Try again") { attempt += 1 } }
         } else {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
-    private func schedule(delay: Int) {
-        pending?.cancel()
-        pending = Task {
-            try? await Task.sleep(for: .milliseconds(delay))
-            if !Task.isCancelled { await search() }
-        }
-    }
-
     private func search() async {
-        guard let api = session.api else { return }
+        if !query.isEmpty {
+            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+        }
+        guard !Task.isCancelled, let api = session.api else { return }
+        let asked = query
         let mine = ticket.issue()
         do {
-            let found = try await api.labelCandidates(matching: query.trimmingCharacters(in: .whitespaces))
-            guard ticket.isCurrent(mine) else { return }
+            let found = try await api.labelCandidates(matching: asked.trimmingCharacters(in: .whitespaces))
+            guard !Task.isCancelled, ticket.isCurrent(mine), asked == query else { return }
             rows = found
             failed = nil
         } catch APIError.unauthorized {
+            guard !Task.isCancelled, ticket.isCurrent(mine), asked == query else { return }
             session.signOut()
         } catch {
-            guard ticket.isCurrent(mine) else { return }
+            guard !Task.isCancelled, !APIError.isCancellation(error), ticket.isCurrent(mine), asked == query else { return }
             if rows == nil { failed = error.localizedDescription }
         }
     }

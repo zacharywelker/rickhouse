@@ -137,15 +137,19 @@ struct FindLabelView: View {
     private func search() async {
         try? await Task.sleep(for: .milliseconds(200))
         guard !Task.isCancelled, let api = session.api else { return }
+        let askedQuery = query
         do {
-            results = try await api.labels(matching: query)
+            let found = try await api.labels(matching: askedQuery)
+            guard !Task.isCancelled, askedQuery == query else { return }
+            results = found
             failure = nil
             searched = true
         } catch APIError.unauthorized {
+            guard !Task.isCancelled, askedQuery == query else { return }
             session.signOut()
         } catch {
             // A newer keystroke cancels this request; that isn't a failure.
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, !APIError.isCancellation(error), askedQuery == query else { return }
             results = []
             failure = error.localizedDescription
         }

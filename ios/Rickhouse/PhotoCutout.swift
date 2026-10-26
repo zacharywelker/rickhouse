@@ -3,7 +3,7 @@ import UIKit
 import Vision
 
 /// One photo in the bottle form: what the camera gave us, plus the background-removed version once Vision has made one.
-struct FormPhoto: Identifiable {
+struct FormPhoto: Identifiable, Sendable {
     let id = UUID()
     let original: UIImage
     var cutout: UIImage?
@@ -14,7 +14,7 @@ struct FormPhoto: Identifiable {
     var chosen: UIImage { useCutout ? (cutout ?? original) : original }
 
     /// The upload bytes: a cutout goes as PNG to keep its transparency, an ordinary photo as JPEG.
-    func encoded() -> UploadImage? {
+    fileprivate func encoded() -> UploadImage? {
         if useCutout, let cutout {
             return cutout.scaled(maxEdge: 2000).pngData().map { UploadImage(data: $0, mime: "image/png", ext: "png") }
         }
@@ -22,10 +22,42 @@ struct FormPhoto: Identifiable {
     }
 }
 
-struct UploadImage {
+struct UploadImage: Sendable {
     let data: Data
     let mime: String
     let ext: String
+}
+
+/// Serializes expensive image work off the UI actor, including batches of selected photos.
+/// These methods don't suspend internally, so only one image is processed at a time.
+actor PhotoProcessor {
+    static let shared = PhotoProcessor()
+
+    func cutout(_ image: UIImage) throws -> UIImage? {
+        try Task.checkCancellation()
+        let result = autoreleasepool { image.cutout() }
+        try Task.checkCancellation()
+        return result
+    }
+
+    func encode(_ photo: FormPhoto) throws -> UploadImage {
+        try Task.checkCancellation()
+        guard let result = autoreleasepool(invoking: { photo.encoded() }) else {
+            throw APIError.server("That photo couldn't be read.")
+        }
+        try Task.checkCancellation()
+        return result
+    }
+
+    func encode(_ photos: [FormPhoto]) throws -> [UploadImage] {
+        try photos.map { try encode($0) }
+    }
+
+    func prepare(_ image: UIImage) throws -> UploadImage {
+        var photo = FormPhoto(original: image)
+        photo.cutout = try cutout(image)
+        return try encode(photo)
+    }
 }
 
 extension UIImage {
