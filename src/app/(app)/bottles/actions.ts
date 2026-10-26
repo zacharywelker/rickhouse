@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleImages, bottles, expressions } from "@/db/schema";
+import { bottleImages, bottleTags, bottles, expressions, tags } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
-import { deleteStoredImage } from "@/lib/images";
+import { deleteStoredImage, duplicateBottleImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
 import { addTastingNote, deleteTastingNote, ownedBottle, ownsBottle, setFill, updateBottle, updateTastingNote } from "@/lib/bottles/state";
@@ -55,20 +55,71 @@ export async function saveBottleAction(
   const parsed = bottleSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return invalid(parsed.error.issues);
   const spirit = await bottleSpiritForExpression(parsed.data.expressionId);
-  const input = withBottleSpiritFacts(parsed.data, spirit.kind, spirit.ginAged);
+  const input = withBottleSpiritFacts(await settleLabelChoices(parsed.data), spirit.kind, spirit.ginAged);
+  const duplicateRaw = formData.get("duplicateSourceId");
+  const duplicateId = typeof duplicateRaw === "string" && /^\d+$/.test(duplicateRaw) ? Number(duplicateRaw) : null;
+  if (duplicateRaw !== null && duplicateId === null) return { ok: false, error: "That source bottle is not available." };
+  const copiedState = duplicateId !== null ? bottleStateSchema.safeParse(Object.fromEntries(formData.entries())) : null;
+  if (copiedState && !copiedState.success) return invalid(copiedState.error.issues);
+  let copiedTagIds: number[] | null = null;
+  if (duplicateId !== null && formData.has("duplicateTagIds")) {
+    try {
+      const raw: unknown = JSON.parse(String(formData.get("duplicateTagIds")));
+      if (!Array.isArray(raw) || raw.length > 100 || raw.some((item) => !Number.isInteger(item) || item < 1)) throw new Error("Invalid tags");
+      copiedTagIds = [...new Set(raw as number[])];
+    } catch { return { ok: false, error: "Check the copied tags." }; }
+    if (copiedTagIds.length > 0) {
+      const owned = await db.select({ id: tags.id }).from(tags).where(and(eq(tags.ownerId, user.id), inArray(tags.id, copiedTagIds)));
+      if (owned.length !== copiedTagIds.length) return { ok: false, error: "Choose tags from your collection." };
+    }
+  }
 
   try {
-    await settleLabelChoices(input);
+    if (!(await ownsLabel(input.expressionId, user.id))) return { ok: false, error: "Choose one of your labels.", fieldErrors: { expressionId: "Choose one of your labels." } };
     if (id === null) {
-      const [row] = await db
-        .insert(bottles)
-        .values({ ...input, ownerId: user.id })
-        .returning({ id: bottles.id });
+      const [source] = duplicateId === null ? [] : await db.select().from(bottles).where(ownedBottle(duplicateId, user.id)).limit(1);
+      if (duplicateId !== null && !source) return { ok: false, error: "That source bottle is not available." };
+      const copiedFiles: Array<{ filePath: string; thumbPath: string | null }> = [];
+      let createdId: number;
+      try {
+        createdId = await db.transaction(async (tx) => {
+          const sourceValues = source ? (() => {
+            const { id: _id, ownerId: _owner, abv: _abv, createdAt: _created, updatedAt: _updated, ...copy } = source;
+            return copy;
+          })() : {};
+          const values = { ...sourceValues, ...input, ...(copiedState?.success ? copiedState.data : {}) };
+          if (values.status === "open" || (values.fillPct !== undefined && values.fillPct < 100)) values.isOpen = true;
+          if (values.isOpen) {
+            if (values.status === "owned") values.status = "open";
+            values.dateOpened ??= new Date().toISOString().slice(0, 10);
+          }
+          const [row] = await tx.insert(bottles).values({ ...values, ownerId: user.id }).returning({ id: bottles.id });
+          if (source) {
+            const tagIds = copiedTagIds ?? (await tx.select({ tagId: bottleTags.tagId }).from(bottleTags).where(eq(bottleTags.bottleId, source.id))).map((item) => item.tagId);
+            if (tagIds.length > 0) await tx.insert(bottleTags).values(tagIds.map((tagId) => ({ bottleId: row!.id, tagId })));
+          }
+          if (source && formData.get("copyPhotos") === "1") {
+            const photos = await tx.select().from(bottleImages).where(eq(bottleImages.bottleId, source.id));
+            for (const photo of photos) {
+              const image = await duplicateBottleImage(photo.filePath, photo.thumbPath);
+              copiedFiles.push(image);
+              await tx.insert(bottleImages).values({
+                bottleId: row!.id, filePath: image.filePath, thumbPath: image.thumbPath,
+                isCutout: photo.isCutout, caption: photo.caption, kind: photo.kind,
+                isPrimary: photo.isPrimary, sortOrder: photo.sortOrder,
+              });
+            }
+          }
+          return row!.id;
+        });
+      } catch (error) {
+        await Promise.all(copiedFiles.map((photo) => deleteStoredImage(photo.filePath, photo.thumbPath)));
+        throw error;
+      }
       revalidatePath("/bottles");
       revalidatePath("/");
-      return { ok: true, message: "Bottle added.", createdId: row!.id };
+      return { ok: true, message: "Bottle added.", createdId };
     }
-    if (!(await ownsLabel(input.expressionId, user.id))) return { ok: false, error: "Choose one of your labels.", fieldErrors: { expressionId: "Choose one of your labels." } };
     // A new label takes the bottle's tastings and tournament entries with it, in the same statement.
     const updated = await db
       .with(...movesHistory(user.id, [id], input.expressionId))

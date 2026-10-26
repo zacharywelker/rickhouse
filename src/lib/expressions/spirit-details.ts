@@ -1,6 +1,17 @@
 import type { CategoryKind } from "./rules";
 import { isGinKind } from "./gin-details";
 
+export const AMARO_STYLES = ["Fernet", "Alpine", "Citrus", "New-World", "Old-World", "Medium-Bodied", "Aperitivo", "Carciofo", "Genepy", "Rabarbaro"] as const;
+export const PEAT_STATUSES = ["unknown", "unpeated", "peated"] as const;
+export const DAIRY_STATUSES = ["unknown", "dairy", "non-dairy"] as const;
+
+/** Category composition is known even when a producer's exact recipe is not. */
+export function whiskeyCategoryGrains(slug: string): string | null {
+  if (slug === "single-malt-scotch" || slug === "malt-irish-whiskey") return "100% malted barley";
+  if (slug === "pot-still-irish-whiskey") return "Malted and unmalted barley (at least 30% each; exact shares unknown)";
+  return null;
+}
+
 export const TEQUILA_CLASSES = ["blanco", "joven", "reposado", "anejo", "extra-anejo", "cristalino"] as const;
 export type TequilaClass = (typeof TEQUILA_CLASSES)[number];
 export const TEQUILA_CLASS_LABELS: Record<TequilaClass, string> = {
@@ -24,17 +35,20 @@ export const BRANDY_MINIMUM_YEARS: Partial<Record<CategoryKind, Record<BrandyGra
 export const isAgaveKind = (kind: CategoryKind | null) => kind === "tequila" || kind === "mezcal";
 export const isFrenchBrandy = (kind: CategoryKind | null) => kind === "cognac" || kind === "armagnac" || kind === "calvados";
 export const hidesWarehouse = (group: string, kind: CategoryKind | null) =>
-  group === "rum" || group === "brandy" || group === "gin" || isAgaveKind(kind);
+  group === "rum" || group === "brandy" || group === "gin" || group === "vodka" || group === "amaro" || group === "liqueur" ||
+  kind === "canadian" || kind === "irish" || kind === "scotch" || isAgaveKind(kind);
 
 export function countryForDistillery(kind: CategoryKind | null, country: string): boolean {
   const normalized = country.trim().toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (isAgaveKind(kind)) return normalized === "mx" || normalized === "mexico";
   if (isFrenchBrandy(kind)) return normalized === "fr" || normalized === "france";
   if (kind === "pisco") return ["pe", "peru", "cl", "chile"].includes(normalized);
+  if (kind === "canadian") return normalized === "ca" || normalized === "canada";
+  if (kind === "irish") return ["ie", "ireland", "northern ireland", "uk", "united kingdom", "gb"].includes(normalized);
   return true;
 }
 
-export type IngredientChoice = { name: string; family?: string | null; kind?: "maguey" | "distillate" | "rum_base" | "botanical" | "gin_base" };
+export type IngredientChoice = { name: string; family?: string | null; kind?: "maguey" | "distillate" | "rum_base" | "botanical" | "gin_base" | "vodka_base" | "flavor" | "liqueur_base"; isManual?: boolean };
 export function ingredientAllowed(kind: CategoryKind | null, ingredient: IngredientChoice): boolean {
   if (kind === "tequila") return ingredient.name.trim().toLocaleLowerCase() === "blue weber";
   if (kind === "calvados") return ingredient.family === "apple" || ingredient.family === "pear";
@@ -64,27 +78,34 @@ export function withBottleSpiritFacts<T extends Record<string, unknown>>(facts: 
     if ("brandyGrade" in out) out.ageStatement = out.brandyGrade ?? null;
   } else if ("brandyGrade" in out) out.brandyGrade = null;
   if (isAgaveKind(kind)) {
-    if ("barrelFilledOn" in out) out.barrelFilledOn = null;
-    if ("bottledOn" in out) out.bottledOn = null;
+    delete out.barrelFilledOn;
+    delete out.bottledOn;
   }
   if (isGinKind(kind)) {
-    if ("barrelFilledOn" in out) out.barrelFilledOn = null;
-    if ("bottledOn" in out) out.bottledOn = null;
-    if ("ageStatement" in out) out.ageStatement = null;
-    if ("warehouse" in out) out.warehouse = null;
-    if ("rickFloor" in out) out.rickFloor = null;
+    delete out.barrelFilledOn;
+    delete out.bottledOn;
+    delete out.ageStatement;
+    delete out.warehouse;
+    delete out.rickFloor;
     if (!ginAged) {
-      out.isSingleBarrel = false;
-      out.isSingleBarrelPick = false;
-      if ("ageYears" in out) out.ageYears = null;
-      if ("ageMonths" in out) out.ageMonths = null;
-      if ("ageDays" in out) out.ageDays = null;
-      if ("ginIsNas" in out) out.ginIsNas = null;
+      delete out.isSingleBarrel;
+      delete out.isSingleBarrelPick;
+      delete out.ageYears;
+      delete out.ageMonths;
+      delete out.ageDays;
+      delete out.ageYearsSource;
+      delete out.ginIsNas;
     }
-  } else if ("ginIsNas" in out) out.ginIsNas = null;
+  } else delete out.ginIsNas;
+  if (kind === "vodka" || kind === "flavored-vodka" || kind === "amaro" || kind === "liqueur" || kind === "chocolate-liqueur" || kind === "cream-liqueur") {
+    for (const name of ["releaseId", "batch", "releaseYear", "isSingleBarrel", "isSingleBarrelPick", "barrelNumber", "bottleCount", "pickName", "pickedBy", "warehouse", "rickFloor", "barrelFilledOn", "bottledOn"]) delete out[name];
+    if (kind !== "vodka" && kind !== "flavored-vodka") delete out.proof;
+    for (const name of ["ageYears", "ageMonths", "ageDays", "ageStatement"]) delete out[name];
+    delete out.ageYearsSource;
+  }
   if (hidesWarehouse(kind, kind)) {
-    if ("warehouse" in out) out.warehouse = null;
-    if ("rickFloor" in out) out.rickFloor = null;
+    delete out.warehouse;
+    delete out.rickFloor;
   }
   return out as T;
 }

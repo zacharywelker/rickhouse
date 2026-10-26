@@ -59,6 +59,9 @@ export type ViewHeatEntry = {
   proof: number | null;
   mashbill: string | null;
   ageYears: number | null;
+  ageDisplay?: string | null;
+  ageInferred?: boolean;
+  spiritFact?: string | null;
   distilleries: string[];
   category: string | null;
   finishes: string[];
@@ -147,6 +150,9 @@ export function buildView(input: ViewInput): TournamentView {
               proof: e?.proof ?? null,
               mashbill: e?.mashbill ? mashbillDisplay(e.mashbill) || null : null,
               ageYears: e?.ageYears ?? null,
+              ageDisplay: e?.ageDisplay ?? null,
+              ageInferred: e?.ageInferred ?? false,
+              spiritFact: e?.spiritFact ?? null,
               distilleries: e?.distilleries ?? [],
               category: e?.category ?? null,
               finishes: e?.finishes ?? [],

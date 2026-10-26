@@ -29,7 +29,7 @@ export function lettersProblem(glasses: readonly (string | null)[]): string | nu
 }
 
 /** A bottle in the pourer's set-up screen. Names live only in this stage. */
-export type MappingRow = { entryId: number; name: string; proof: number | null; mashbill: string | null; ageYears: number | null; glass: string };
+export type MappingRow = { entryId: number; name: string; proof: number | null; mashbill: string | null; ageYears: number | null; ageDisplay?: string | null; ageInferred?: boolean; spiritFact?: string | null; glass: string };
 
 export type Flow =
   | { stage: "start" }

@@ -213,7 +213,7 @@ export function FilterBar({
     { key: "brandIds", label: "Brand", options: options.brands },
     { key: "distilleryIds", label: "Distillery", options: options.distilleries },
     { key: "mashbillIds", label: "Mashbill", options: options.mashbills },
-    { key: "finishIds", label: "Finish", options: options.finishes },
+    { key: "finishIds", label: "Finish / Cask Type", options: options.finishes },
     { key: "storeIds", label: "Store", options: options.stores },
     { key: "tagIds", label: "Tag", options: options.tags },
   ];

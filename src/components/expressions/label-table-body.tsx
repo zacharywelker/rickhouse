@@ -19,11 +19,12 @@ import { describeAgeParts } from "@/lib/expressions/display";
 import { fieldGroupOf, groupApplies, type LabelEdit } from "@/lib/expressions/label-edits";
 import { describeLinks, LINK_KINDS, type LinkKind } from "@/lib/expressions/links";
 import type { ExpressionRow } from "@/lib/expressions/queries";
-import { STRENGTH_TIER_LABELS, strengthTier } from "@/lib/expressions/rules";
+import { STRENGTH_TIER_LABELS, hiddenFields, strengthTier } from "@/lib/expressions/rules";
 import type { FieldGroup } from "@/db/schema";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { BRANDY_MINIMUM_YEARS, countryForDistillery, isAgaveKind } from "@/lib/expressions/spirit-details";
 import { isGinKind } from "@/lib/expressions/gin-details";
+import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import type { LinkedRow } from "./ordered-picker";
 import { LinksCell } from "./links-cell";
 import type { RowErrors } from "./label-table";
@@ -205,6 +206,12 @@ export function LabelTableBody({
             <Link href={`/expressions/${row.id}`} className="text-accent hover:underline">
               {row.name}
             </Link>
+            {row.fieldGroup === "amaro" && row.amaroStyle ? <span className="block truncate text-xs text-muted-foreground">{row.amaroStyle}</span> : null}
+            {row.fieldGroup === "liqueur" || row.fieldGroup === "vodka" ? (() => {
+              const chosenKind = row.fieldGroup === "vodka" && categoryKinds[row.categoryId] !== "flavored-vodka" ? "vodka_base" : "flavor";
+              const ingredients = (row.links.ingredients ?? []).filter((item) => item.kind === chosenKind).map((item) => item.name).join(", ");
+              return ingredients ? <span className="block max-w-56 truncate text-xs text-muted-foreground" title={ingredients}>{ingredients}</span> : null;
+            })() : null}
             {row.pickCount > 0 ? (
               <Badge className="ml-2 border-primary/40 text-primary">
                 {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}
@@ -223,6 +230,11 @@ export function LabelTableBody({
         return tier ? STRENGTH_TIER_LABELS[tier] : DASH;
       }
       case "age":
+        if (row.fieldGroup === "vodka" || ((row.fieldGroup === "amaro" || row.fieldGroup === "liqueur") && !row.isAged)) return DASH;
+        if (row.fieldGroup === "whiskey") {
+          const resolved = whiskeyAge(row, categoryKinds[row.categoryId] ?? "other");
+          return resolved.inferred ? <abbr tabIndex={0} title={resolved.explanation ?? undefined} className="cursor-help italic no-underline">{resolved.text}</abbr> : resolved.text ?? DASH;
+        }
         // A zero age is no age at all: say what the label does claim instead.
         return (
           describeAgeParts(row.ageYears, row.ageMonths, row.ageDays) ??
@@ -233,7 +245,7 @@ export function LabelTableBody({
       case "distilleries":
       case "mashbills":
       case "finishes": {
-        if (column.id === "mashbills" && ["rum", "agave", "brandy", "gin"].includes(row.fieldGroup)) return DASH;
+        if (column.id === "mashbills" && ["rum", "agave", "brandy", "gin", "vodka", "amaro", "liqueur"].includes(row.fieldGroup)) return DASH;
         const text = describeLinks(column.id, row.links[column.id]);
         return text === "" ? (
           DASH
@@ -244,8 +256,10 @@ export function LabelTableBody({
         );
       }
       case "ingredients": {
-        if (!["rum", "agave", "brandy", "gin"].includes(row.fieldGroup)) return DASH;
-        const text = (row.links.ingredients ?? []).map((item) => item.name).join(", ");
+        if (!["rum", "agave", "brandy", "gin", "vodka", "amaro", "liqueur"].includes(row.fieldGroup)) return DASH;
+        const categoryKind = categoryKinds[row.categoryId] ?? "other";
+        const wanted = categoryKind === "flavored-vodka" || row.fieldGroup === "liqueur" ? "flavor" : row.fieldGroup === "vodka" ? "vodka_base" : row.fieldGroup === "amaro" ? "botanical" : null;
+        const text = (row.links.ingredients ?? []).filter((item) => wanted === null || item.kind === wanted).map((item) => item.name).join(", ");
         return text ? <span className="block max-w-56 truncate" title={text}>{text}</span> : DASH;
       }
       default: {
@@ -263,6 +277,7 @@ export function LabelTableBody({
         const fieldGroup = unlocked ? fieldGroupOf(row, edit, categoryGroups) : row.fieldGroup;
         const categoryId = Number(values.categoryId ?? row.categoryId);
         const kind = categoryKinds[categoryId] ?? "other";
+        const hidden = hiddenFields({ group: fieldGroup, kind, values: values as Record<string, unknown>, ginAged: values.isAgedGin === true });
         const rowErrors = saveErrors[row.id];
         return (
           <TableRow
@@ -285,12 +300,14 @@ export function LabelTableBody({
 
             {shown.map(({ column, group }) => {
               const applies = groupApplies(group, fieldGroup)
+                && !hidden.has(column.id)
+                && !(column.id === "age" && hidden.has("ageYears"))
                 && !(column.id === "tequilaClass" && kind !== "tequila")
                 && !(column.id === "brandyGrade" && !BRANDY_MINIMUM_YEARS[kind])
                 && !(column.id === "ginStyle" && kind !== "gin")
                 && !(column.id === "isAgedGin" && !isGinKind(kind))
-                && !(column.id === "ingredients" && !["rum", "agave", "brandy", "gin"].includes(fieldGroup))
-                && !(column.id === "mashbills" && ["rum", "agave", "brandy", "gin"].includes(fieldGroup))
+                && !(column.id === "ingredients" && !["rum", "agave", "brandy", "gin", "vodka", "amaro", "liqueur"].includes(fieldGroup))
+                && !(column.id === "mashbills" && ["rum", "agave", "brandy", "gin", "vodka", "amaro", "liqueur"].includes(fieldGroup))
                 && !(["barrelFilledOn", "bottledOn", "isNas"].includes(column.id) && isAgaveKind(kind))
                 && !(column.id === "ageStatement" && (kind === "tequila" || isGinKind(kind)))
                 && !(["barrelFilledOn", "bottledOn"].includes(column.id) && isGinKind(kind))

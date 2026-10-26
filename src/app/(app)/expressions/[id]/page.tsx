@@ -28,7 +28,8 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { ageLabel } from "@/lib/expressions/display";
 import { bottlesOfLabel, categoryKindsById, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
-import { spiritAgeLabel } from "@/lib/expressions/spirit-details";
+import { spiritAgeLabel, whiskeyCategoryGrains } from "@/lib/expressions/spirit-details";
+import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { provenanceOf, provenanceTags, type ProvenanceInput } from "@/lib/provenance";
 import { STRENGTH_TIER_LABELS, proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
 import { cn, formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
@@ -47,7 +48,8 @@ function yesNo(value: boolean | null): string | null {
 }
 
 /** What tells one bottle of this label from another, in a few words. */
-function releaseOf(bottle: Awaited<ReturnType<typeof bottlesOfLabel>>[number]): string {
+function releaseOf(bottle: Awaited<ReturnType<typeof bottlesOfLabel>>[number], group: string): string {
+  if (["vodka", "amaro", "liqueur"].includes(group)) return "Standard bottle";
   const parts = [
     bottle.pickName ? `“${bottle.pickName}”` : null,
     bottle.pickedBy ? `picked by ${bottle.pickedBy}` : bottle.isSingleBarrelPick ? "private selection" : null,
@@ -111,8 +113,9 @@ export default async function LabelPage({
   const e = row.expression;
   const group = row.category.fieldGroup;
   const kind = (await categoryKindsById())[row.category.id] ?? "other";
+  const whiskeyAgeInfo = group === "whiskey" ? whiskeyAge(e, kind) : null;
   const knownAge = ageLabel({ ageYears: e.ageYears, ageMonths: e.ageMonths, ageDays: e.ageDays, ageStatement: null });
-  const shownAge = group === "gin" && !e.isAgedGin ? null : group === "gin" && e.isNas ? "NAS" : spiritAgeLabel(kind, e.tequilaClass, e.brandyGrade, knownAge) ?? ageLabel(e) ?? (e.isNas ? "NAS" : null);
+  const shownAge = whiskeyAgeInfo?.text ?? (group === "vodka" || (group === "gin" && !e.isAgedGin) || ((group === "amaro" || group === "liqueur") && !e.isAged) ? null : group === "gin" && e.isNas ? "NAS" : spiritAgeLabel(kind, e.tequilaClass, e.brandyGrade, knownAge) ?? ageLabel(e) ?? (e.isNas ? "NAS" : null));
   const title = `${row.brand.name} ${e.name}`;
   // A cask-strength label has no one proof: show what its releases and bottles span. Navy Strength and Overproof
   // come from the proof itself.
@@ -127,10 +130,10 @@ export default async function LabelPage({
   const averageRating = ratings.length > 0 ? ratings.reduce((sum, v) => sum + v, 0) / ratings.length : null;
 
   const stamps: StampSpec[] = [
-    { kind: "bottled-in-bond", ownerId: e.id, active: e.isBottledInBond },
-    { kind: "cask-strength", ownerId: e.id, active: e.isCaskStrength, detail: e.proof ? `${formatNumeric(e.proof)}°` : undefined },
-    { kind: "straight", ownerId: e.id, active: e.isStraight },
-    { kind: "nas", ownerId: e.id, active: e.isNas && (group !== "gin" || e.isAgedGin) },
+    { kind: "bottled-in-bond", ownerId: e.id, active: kind === "american" && e.isBottledInBond },
+    { kind: "cask-strength", ownerId: e.id, active: !["vodka", "amaro", "liqueur"].includes(group) && e.isCaskStrength, detail: e.proof ? `${formatNumeric(e.proof)}°` : undefined },
+    { kind: "straight", ownerId: e.id, active: kind === "american" && e.isStraight },
+    { kind: "nas", ownerId: e.id, active: e.isNas && (group === "whiskey" || (group === "gin" && e.isAgedGin) || ((group === "amaro" || group === "liqueur") && e.isAged)) },
   ];
 
   return (
@@ -219,17 +222,25 @@ export default async function LabelPage({
             />
             <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />
             {tier ? <Spec label="Strength" value={STRENGTH_TIER_LABELS[tier]} /> : null}
-            <Spec label="Age" value={shownAge} />
+            <Spec label="Age" value={whiskeyAgeInfo?.inferred ? <abbr tabIndex={0} title={whiskeyAgeInfo.explanation ?? undefined} className="cursor-help italic no-underline">{shownAge}</abbr> : shownAge} />
             {group === "gin" ? <Spec label="Style" value={kind === "genever" ? null : e.ginStyle} /> : null}
             {group === "gin" ? <Spec label="Aged" value={e.isAgedGin ? "Yes" : "No"} /> : null}
+            {group === "amaro" ? <Spec label="Style" value={e.amaroStyle} /> : null}
+            {group === "amaro" || group === "liqueur" ? <Spec label="Aged" value={e.isAged ? "Yes" : null} /> : null}
+            {group === "amaro" || group === "liqueur" ? <Spec label="Country" value={e.originCountry} /> : null}
+            {group === "amaro" || group === "liqueur" ? <Spec label="Region" value={e.originRegion} /> : null}
+            {group === "liqueur" && ["liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? <Spec label="Dairy" value={e.dairyStatus === "unknown" ? null : e.dairyStatus} /> : null}
+            {(kind === "irish" || kind === "scotch") && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
+            {group === "whiskey" && e.isNonChillFiltered ? <Spec label="Filtration" value="Non-chill filtered" /> : null}
+            {(kind === "canadian" || kind === "irish") && e.isAdditiveFree ? <Spec label="Additives" value="Additive free" /> : null}
             <Spec label="Size" value={formatSize(e.sizeMl)} />
             <Spec label="UPC" value={e.upc} />
-            {group === "whiskey" ? <Spec label="Cooperage" value={row.cooperage} /> : null}
-            <Spec label="Entry Proof" value={e.entryProof ? formatNumeric(e.entryProof) : null} />
-            <Spec label="Chill Filtered" value={yesNo(e.isChillFiltered)} />
-            <Spec label="Colour Added" value={yesNo(e.colorAdded)} />
+            {group === "whiskey" && kind !== "scotch" ? <Spec label="Cooperage" value={row.cooperage} /> : null}
+            {kind !== "scotch" ? <Spec label="Entry Proof" value={e.entryProof ? formatNumeric(e.entryProof) : null} /> : null}
+            {group !== "whiskey" ? <Spec label="Chill Filtered" value={yesNo(e.isChillFiltered)} /> : null}
+            {group !== "whiskey" ? <Spec label="Colour Added" value={yesNo(e.colorAdded)} /> : null}
           </dl>
-          <CharLevelSpec value={e.charLevel} />
+          {group !== "whiskey" ? <CharLevelSpec value={e.charLevel} /> : null}
           <StampDesignations stamps={stamps} />
 
           <div className="flex flex-col gap-4 border-t border-border pt-6">
@@ -241,11 +252,16 @@ export default async function LabelPage({
             {group === "gin" ? <>
                 <Chips label="Botanicals" items={links.ingredients.filter((item) => item.kind === "botanical")} hrefFor={() => null} />
                 <Chips label="Base spirits" items={links.ingredients.filter((item) => item.kind === "gin_base")} hrefFor={() => null} />
+              </> : group === "vodka" || group === "amaro" || group === "liqueur" ? <>
+                {group === "vodka" ? <Chips label="Base Ingredients" items={links.ingredients.filter((item) => item.kind === "vodka_base")} hrefFor={() => null} /> : null}
+                {group === "amaro" ? <Chips label="Botanicals" items={links.ingredients.filter((item) => item.kind === "botanical")} hrefFor={() => null} /> : null}
+                {group === "liqueur" ? <Chips label="Base Ingredients" items={links.ingredients.filter((item) => item.kind === "liqueur_base")} hrefFor={() => null} /> : null}
+                {group === "liqueur" || kind === "flavored-vodka" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={() => null} /> : null}
               </> : group === "rum" || group === "agave" || group === "brandy"
               ? <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients} hrefFor={() => null} />
-              : <Mashbills items={links.mashbills} />}
-            {group !== "gin" || e.isAgedGin ? <Chips
-              label="Finishes"
+              : <>{whiskeyCategoryGrains(row.category.slug) ? <dl><Spec label="Category grains" value={whiskeyCategoryGrains(row.category.slug)} /></dl> : null}<Mashbills items={links.mashbills} /></>}
+            {(group !== "gin" || e.isAgedGin) && (group !== "vodka") && ((group !== "amaro" && group !== "liqueur") || e.isAged) ? <Chips
+              label={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? "Cask Types" : "Finishes"}
               items={links.finishes}
               hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}
             /> : null}
@@ -265,7 +281,7 @@ export default async function LabelPage({
             ) : null}
           </div>
 
-          {releases.length > 0 ? (
+          {releases.length > 0 && !["vodka", "amaro", "liqueur"].includes(group) ? (
             <div className="border-t border-border pt-6">
               <h2 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Known releases</h2>
               <table className="w-full text-sm tabular-nums">
@@ -334,7 +350,7 @@ export default async function LabelPage({
                         </td>
                         <td className="py-2 pr-4">
                           <Link href={`/bottles/${bottle.id}`} className="font-medium hover:text-accent hover:underline">
-                            {releaseOf(bottle)}
+                            {releaseOf(bottle, group)}
                           </Link>
                         </td>
                         <td className="py-2 pr-4 tabular-nums">

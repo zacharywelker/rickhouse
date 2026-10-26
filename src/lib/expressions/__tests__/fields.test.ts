@@ -119,7 +119,7 @@ describe("writableFields", () => {
   it("covers every field the form can render", () => {
     const everyField = new Set(EXPRESSION_SECTIONS.flatMap((s) => s.fields.map((f) => f.name)));
     const union = new Set<string>();
-    for (const group of ["whiskey", "rum", "agave", "gin", "other"] as const) {
+    for (const group of ["whiskey", "rum", "agave", "gin", "amaro", "liqueur", "other"] as const) {
       for (const name of writableFields(group)) union.add(name);
     }
     expect([...everyField].filter((name) => !union.has(name))).toEqual([]);

@@ -50,9 +50,20 @@ import { PendingColas } from "./cola-approvals";
 import { RowListEditor } from "./row-list-editor";
 import { otherNamesRowsText, parseOtherNames } from "@/lib/other-names";
 import type { ReleaseRow } from "@/lib/releases";
+import { withStatementAge } from "@/lib/expressions/whiskey-age";
 
 /** Every field on the label form, for seeding state from a row or from nothing. */
 export const LABEL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
+
+/** Additive Free is a checkbox for whiskey and a three-state select for agave. */
+export function initialLabelValues(
+  existing: Record<string, string | number | boolean | null> | null,
+  categoryGroups: Record<number, FieldGroup>,
+): Record<string, FieldValue> {
+  const values = initialFieldValues(LABEL_FIELDS, existing);
+  if (categoryGroups[Number(existing?.categoryId)] === "whiskey") values.isAdditiveFree = existing?.isAdditiveFree === true;
+  return values;
+}
 
 /** The section each field belongs to, for the spirit-by-spirit rule when a line draws fields from several. */
 const SECTION_OF: ReadonlyMap<string, (typeof EXPRESSION_SECTIONS)[number]> = new Map(
@@ -75,7 +86,13 @@ export function withLabelChange(
   /** What the name can say depends on the category; without it the name says nothing. */
   resolve?: (values: Record<string, FieldValue>) => NameContext,
 ): Record<string, FieldValue> {
-  const next = withAgeDefaults(prev, { ...prev, [name]: value }, name);
+  let next = withAgeDefaults(prev, { ...prev, [name]: value }, name);
+  if (name === "categoryId" && resolve) {
+    const group = resolve(next).group;
+    if (group === "whiskey") next.isAdditiveFree = next.isAdditiveFree === true || next.isAdditiveFree === "true";
+    if (group === "agave") next.isAdditiveFree = next.isAdditiveFree === true ? "true" : typeof next.isAdditiveFree === "string" ? next.isAdditiveFree : "";
+  }
+  if (resolve?.(next).group === "whiskey") next = withStatementAge(prev, next, name);
   if (name === "isBottledInBond" && value === true) next.proof = BOND_PROOF;
   return resolve ? withNameRules(prev, next, resolve) : next;
 }
@@ -175,15 +192,26 @@ export function ExpressionFields({
   const [forced, setForced] = React.useState<ReadonlySet<string>>(new Set());
   const unlock = (group: string) => setForced((now) => new Set(now).add(group));
   const nas = values.isNas === true;
-  const ageGreyed = nas && !forced.has("age");
-  const statementGreyed = (nas || ageFilled(values)) && !forced.has("age");
+  const ageGreyed = (nas || (fieldGroup === "whiskey" && values.ageYearsSource === "derived")) && !forced.has("age");
+  const statementGreyed = (nas || (fieldGroup !== "whiskey" && ageFilled(values))) && !forced.has("age");
   const proofGreyed = values.isCaskStrength === true && !hidden.has("isCaskStrength") && !forced.has("proof");
   const nameContext: NameContext = { group: fieldGroup, kind };
   const says = nameSays(values.name, nameContext);
   const entryGreyed = followsProof(values.name, nameContext) && !forced.has("entry");
   const change = (name: string, value: FieldValue) => {
+    if ((name === "originCountry" || name === "originRegion") && (fieldGroup === "amaro" || fieldGroup === "liqueur")) {
+      onChange(`${name}Manual`, String(value ?? "").trim() !== "");
+    }
     if (name === "isNas") setForced((now) => (now.has("age") ? new Set([...now].filter((g) => g !== "age")) : now));
     if (name === "isCaskStrength") setForced((now) => (now.has("proof") ? new Set([...now].filter((g) => g !== "proof")) : now));
+    if (name === "amaroStyle") {
+      // A style contributes one botanical. Only style-added choices are
+      // removed when it changes; a manually chosen botanical stays.
+      const botanical = value === "Carciofo" ? "Artichoke" : value === "Rabarbaro" ? "Rhubarb" : value === "Genepy" ? "Wormwood" : null;
+      const manual = (links.ingredients ?? []).filter((item) => item.kind !== "botanical" || item.isManual !== false);
+      const present = botanical && manual.some((item) => item.kind === "botanical" && item.name.toLocaleLowerCase() === botanical.toLocaleLowerCase());
+      onLinksChange({ ...links, ingredients: botanical && !present ? [...manual, { name: botanical, kind: "botanical", isManual: false }] : manual });
+    }
     onChange(name, value);
   };
 
@@ -192,6 +220,21 @@ export function ExpressionFields({
   /** A linked distillery brings its Scotch region along. */
   const changeLinks = (next: LabelLinks) => {
     onLinksChange(next);
+    if (fieldGroup === "amaro" || fieldGroup === "liqueur") {
+      const selected = next.distilleries.map((row) => options.distilleryLinks?.find((option) => option.value === row.id));
+      if (selected.length > 0 && selected.every((row) => row?.country) && values.originCountryManual !== true) {
+        const countries = [...new Set(selected.map((row) => row!.country!.trim()))];
+        onChange("originCountry", countries.length === 1 ? countries[0]! : "");
+      } else if (values.originCountryManual !== true) {
+        onChange("originCountry", "");
+      }
+      if (selected.length > 0 && selected.every((row) => row?.region) && values.originRegionManual !== true) {
+        const originRegions = [...new Set(selected.map((row) => row!.region!.trim()))];
+        onChange("originRegion", originRegions.length === 1 ? originRegions[0]! : "");
+      } else if (values.originRegionManual !== true) {
+        onChange("originRegion", "");
+      }
+    }
     if (!showsRegions(context)) return;
     const known = new Set(links.distilleries.map((row) => row.id));
     const brought = next.distilleries
@@ -223,6 +266,26 @@ export function ExpressionFields({
     }
     if (field.name === "ageMonths" || field.name === "ageDays") return null;
     if (hidden.has(field.name)) return null;
+    if (field.name === "peatStatus" && kind === "irish") return (
+      <label key="peatStatus" className="flex items-center gap-2 text-sm">
+        <input type="hidden" name="peatStatus" value={String(values.peatStatus ?? "unknown")} />
+        <input type="checkbox" checked={values.peatStatus === "peated"} onChange={(event) => change("peatStatus", event.target.checked ? "peated" : "unknown")} />
+        Peated
+      </label>
+    );
+    if (field.name === "peatStatus" && kind === "scotch") return (
+      <fieldset key="peatStatus" className="flex flex-col gap-2 text-sm">
+        <legend className="font-medium">Peat</legend>
+        <div className="inline-flex w-fit border border-border">
+          {(["unknown", "unpeated", "peated"] as const).map((status) => (
+            <label key={status} className={`cursor-pointer px-3 py-2 ${values.peatStatus === status || (!values.peatStatus && status === "unknown") ? "bg-foreground text-background" : ""}`}>
+              <input className="sr-only" type="radio" name="peatStatus" value={status} checked={(values.peatStatus ?? "unknown") === status} onChange={() => change("peatStatus", status)} />
+              {status[0]!.toUpperCase() + status.slice(1)}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    );
     // The slug is made from the name, so it is not asked for; a saved one is carried through unchanged.
     if (field.name === "slug") return <input key="slug" type="hidden" name="slug" value={String(values.slug ?? "")} />;
     if (field.name === "ageYears") {
@@ -231,8 +294,9 @@ export function ExpressionFields({
           key="age"
           idPrefix={idPrefix}
           compact
+          showDays={!hidden.has("ageDays")}
           locked={ageGreyed}
-          onUnlock={() => unlock("age")}
+          onUnlock={() => { unlock("age"); change("ageYearsSource", "entered"); }}
           values={{
             ageYears: values.ageYears ?? "",
             ageMonths: values.ageMonths ?? "",
@@ -321,6 +385,9 @@ export function ExpressionFields({
 
   return (
     <>
+      <input type="hidden" name="ageYearsSource" value={String(values.ageYearsSource ?? "entered")} />
+      <input type="hidden" name="originCountryManual" value={values.originCountryManual === true ? "true" : "false"} />
+      <input type="hidden" name="originRegionManual" value={values.originRegionManual === true ? "true" : "false"} />
       {EXPRESSION_SECTIONS.map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
         return (
@@ -367,7 +434,7 @@ export function ExpressionFields({
             description="Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere."
             resource="distilleries"
             options={(options.distilleryLinks ?? []).filter((option) => !option.country || countryForDistillery(kind, option.country))}
-            {...(isAgaveKind(kind) ? { defaultCountry: "Mexico" } : kind === "cognac" || kind === "armagnac" || kind === "calvados" ? { defaultCountry: "France" } : kind === "pisco" ? { defaultCountry: "Peru" } : {})}
+            {...(isAgaveKind(kind) ? { defaultCountry: "Mexico" } : kind === "cognac" || kind === "armagnac" || kind === "calvados" ? { defaultCountry: "France" } : kind === "pisco" ? { defaultCountry: "Peru" } : kind === "canadian" ? { defaultCountry: "Canada" } : kind === "irish" ? { defaultCountry: "Ireland" } : {})}
             amountLabel="Share"
             amountSuffix="%"
             amountMax={100}
@@ -387,6 +454,18 @@ export function ExpressionFields({
               <input type="hidden" name="ingredientLinks" value={JSON.stringify(links.ingredients ?? [])} />
               <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
             </>
+          ) : fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur" ? (
+            <>
+              {fieldGroup === "vodka" ? <IngredientPicker kind="vodka_base" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
+                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "vodka_base"), ...selected] })} /> : null}
+              {fieldGroup === "amaro" ? <IngredientPicker kind="botanical" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
+                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "botanical"), ...selected] })} /> : null}
+              {fieldGroup === "liqueur" ? <IngredientPicker kind="liqueur_base" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
+                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "liqueur_base"), ...selected] })} /> : null}
+              {fieldGroup === "liqueur" || kind === "flavored-vodka" ? <IngredientPicker kind="flavor" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
+                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "flavor"), ...selected] })} /> : null}
+              <input type="hidden" name="ingredientLinks" value={JSON.stringify(links.ingredients ?? [])} />
+            </>
           ) : (fieldGroup === "agave" || fieldGroup === "rum" || fieldGroup === "brandy") ? (
             <IngredientPicker
               kind={fieldGroup === "agave" ? "maguey" : fieldGroup === "rum" ? "rum_base" : "distillate"}
@@ -395,7 +474,7 @@ export function ExpressionFields({
               onChange={(ingredients) => onLinksChange({ ...links, ingredients })}
             />
           ) : null}
-          {fieldGroup === "gin" ? null : fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" ? (
+          {fieldGroup === "gin" ? null : fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur" ? (
             <>
               {/* Older mashbill links remain stored while the relevant spirit uses ingredients. */}
               <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
@@ -409,7 +488,11 @@ export function ExpressionFields({
               <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
             </>
           ) : (
-            <OrderedPicker
+            <>{(() => {
+              const categoryName = options.categoryId?.find((option) => option.value === categoryId)?.label;
+              return categoryName === "Pot Still Irish Whiskey" ? <p className="text-sm text-muted-foreground">Category grains: malted and unmalted barley, at least 30% each. Link a recipe only for disclosed details; its undisclosed share can stay unknown.</p> :
+                categoryName === "Malt Irish Whiskey" || categoryName === "Single Malt Scotch Whisky" ? <p className="text-sm text-muted-foreground">Category grains: 100% malted barley. A linked recipe is optional.</p> : null;
+            })()}<OrderedPicker
               name="mashbillLinks"
               label="Mashbills"
               description="One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
@@ -422,26 +505,28 @@ export function ExpressionFields({
               value={links.mashbills}
               onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
               distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
-            />
+            /></>
           )}
           {showsFinishes(context) ? (
             <OrderedPicker
               name="finishLinks"
-              label="Finishes"
-              description="In sequence, for a double or triple finish."
+              label={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "") ? "Cask Types" : "Finishes"}
+              description={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "") ? "Known casks, without assuming a finishing order or duration." : "In sequence, for a double or triple finish."}
               resource="finishes"
               options={options.finishLinks ?? []}
               amountLabel="Months"
               amountSuffix="mo"
+              showOrder={!(["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? ""))}
+              showAmount={!["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "")}
               value={links.finishes}
               onChange={(rows) => onLinksChange({ ...links, finishes: rows })}
             />
           ) : (
-            // Vodka never has finishes, but any it already has are kept; an unaged gin has none.
+            // A hidden picker is not an instruction to erase previously saved casks.
             <input
               type="hidden"
               name="finishLinks"
-              value={serializeLinks(fieldGroup === "vodka" ? links.finishes : [])}
+              value={serializeLinks(links.finishes)}
             />
           )}
         </SectionContent>
@@ -607,7 +692,7 @@ export function ExpressionForm({
   bottleProofs?: string[];
 }) {
   const router = useRouter();
-  const [values, setValues] = React.useState(() => initialFieldValues(LABEL_FIELDS, initialValues));
+  const [values, setValues] = React.useState<Record<string, FieldValue>>(() => ({ ...initialLabelValues(initialValues, categoryGroups), ageYearsSource: initialValues?.ageYearsSource === "derived" ? "derived" : "entered", originCountryManual: initialValues?.originCountryManual === true, originRegionManual: initialValues?.originRegionManual === true }));
   const [optionsByField, setOptionsByField] = React.useState(options);
   const [links, setLinks] = React.useState(initialLinks);
 
@@ -717,7 +802,9 @@ export function ExpressionForm({
         </SectionContent>
       </Section>
 
-      <Section>
+      {!["vodka", "amaro", "liqueur"].includes(
+        (typeof values.categoryId === "string" && values.categoryId !== "" ? categoryGroups[Number(values.categoryId)] : undefined) ?? "other",
+      ) ? <Section>
         <SectionHeader>
           <SectionTitle>Known releases</SectionTitle>
           <SectionDescription>
@@ -737,6 +824,7 @@ export function ExpressionForm({
               { key: "ageYears", label: "Years", placeholder: "7", inputMode: "decimal", pattern: "\\d+(\\.\\d)?", title: "Years, like 7 or 7.5", className: "sm:w-16" },
               { key: "ageMonths", label: "Months", placeholder: "2", inputMode: "numeric", pattern: "\\d+", title: "Whole months", className: "sm:w-16" },
               { key: "ageDays", label: "Days", placeholder: "3", inputMode: "numeric", pattern: "\\d+", title: "Whole days", className: "sm:w-16" },
+              { key: "ageStatement", label: "Age Statement", placeholder: "8–16 years", className: "sm:w-36" },
               { key: "msrp", label: "MSRP", placeholder: "99.99", inputMode: "decimal", pattern: "\\$?\\d+(\\.\\d{1,2})?", title: "A price, like 99.99", className: "sm:w-24" },
             ]}
             initialRows={initialReleases}
@@ -745,7 +833,7 @@ export function ExpressionForm({
             error={fieldErrors.releases}
           />
         </SectionContent>
-      </Section>
+      </Section> : null}
 
       {expressionId === null ? (
         // A new label's approvals, attached on create (SPEC M11). An existing

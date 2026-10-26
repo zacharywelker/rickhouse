@@ -64,8 +64,8 @@ export function PlayMapping({
               <span className="text-sm leading-snug">{row.name}</span>
               <span className="text-xs tabular-nums text-muted-foreground">
                 {formatProof(row.proof)}
-                {row.proof === null ? "" : " proof"} · {row.mashbill ?? "—"} ·{" "}
-                {formatAge(row.ageYears)}
+                {row.proof === null ? "" : " proof"} · {row.spiritFact ?? row.mashbill ?? "—"} ·{" "}
+                <span className={row.ageInferred ? "italic" : undefined}>{row.ageDisplay ?? formatAge(row.ageYears)}</span>
               </span>
             </span>
           </li>

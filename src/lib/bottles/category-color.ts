@@ -14,6 +14,7 @@ const CATEGORY_COLOR: Record<FieldGroup, string> = {
   brandy: "bg-category-brandy",
   gin: "bg-category-gin",
   vodka: "bg-category-vodka",
+  amaro: "bg-category-amaro",
   liqueur: "bg-category-liqueur",
   other: "bg-category-other",
 };
@@ -30,6 +31,7 @@ const CATEGORY_TINT: Record<FieldGroup, string> = {
   brandy: "bg-category-brandy/10",
   gin: "bg-category-gin/10",
   vodka: "bg-category-vodka/10",
+  amaro: "bg-category-amaro/10",
   liqueur: "bg-category-liqueur/10",
   other: "bg-category-other/10",
 };
@@ -46,6 +48,7 @@ const CATEGORY_BACKDROP: Record<FieldGroup, string> = {
   brandy: "bg-category-brandy/25",
   gin: "bg-category-gin/25",
   vodka: "bg-category-vodka/25",
+  amaro: "bg-category-amaro/25",
   liqueur: "bg-category-liqueur/25",
   other: "bg-category-other/25",
 };
@@ -61,6 +64,7 @@ const CATEGORY_TEXT: Record<FieldGroup, string> = {
   brandy: "text-category-brandy",
   gin: "text-category-gin",
   vodka: "text-category-vodka",
+  amaro: "text-category-amaro",
   liqueur: "text-category-liqueur",
   other: "text-category-other",
 };
@@ -77,6 +81,7 @@ const CATEGORY_VAR: Record<FieldGroup, string> = {
   brandy: "var(--category-brandy)",
   gin: "var(--category-gin)",
   vodka: "var(--category-vodka)",
+  amaro: "var(--category-amaro)",
   liqueur: "var(--category-liqueur)",
   other: "var(--category-other)",
 };

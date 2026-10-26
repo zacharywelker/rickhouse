@@ -47,6 +47,10 @@ export function keyValue(entrant: Entrant, key: GroupKey): KeyValue {
       return age === null ? null : { band: [Math.floor(age / AGE_BAND_YEARS)], exact: [age] };
     }
     case "finish": {
+      if (entrant.caskTypeMode) {
+        const casks = [...new Set(entrant.finishes.map((item) => item.trim().toLowerCase()).filter(Boolean))].sort();
+        return casks.length ? { band: casks, exact: casks } : null;
+      }
       const first = entrant.finishes[0]?.trim().toLowerCase();
       return first ? { band: [first], exact: [first] } : null;
     }

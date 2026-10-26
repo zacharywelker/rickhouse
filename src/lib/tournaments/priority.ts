@@ -9,7 +9,7 @@ export const GROUP_KEY_LABELS: Record<GroupKey, string> = {
   mashbill: "Mashbill",
   distillery: "Distillery",
   age: "Age",
-  finish: "Finish",
+  finish: "Finish / Cask Type",
 };
 
 /** One line under each key, so the order can be chosen without knowing how the engine compares. */
@@ -18,7 +18,7 @@ export const GROUP_KEY_HELP: Record<GroupKey, string> = {
   mashbill: "Matching recipes or styles together.",
   distillery: "Bottles from the same distillery together.",
   age: "Similar stated ages together.",
-  finish: "The same finish together.",
+  finish: "The same finish or cask type together.",
 };
 
 /** A copy of `order` with the key at `index` moved by `delta` places; unchanged when that would leave the list. */

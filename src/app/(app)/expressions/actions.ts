@@ -24,7 +24,6 @@ import {
   linksFrom,
   replaceLinks,
   replaceIngredients,
-  valuesForGroup,
   writableValues,
   writeLabel,
 } from "@/lib/expressions/save";
@@ -41,7 +40,7 @@ import { isGinKind } from "@/lib/expressions/gin-details";
 
 export async function ingredientOptionsAction(kind: IngredientKind): Promise<IngredientChoice[]> {
   const user = await requireSession();
-  if (!["maguey", "distillate", "rum_base", "botanical", "gin_base"].includes(kind)) return [];
+  if (!["maguey", "distillate", "rum_base", "botanical", "gin_base", "vodka_base", "flavor", "liqueur_base"].includes(kind)) return [];
   return db.select({ name: ingredients.name, family: ingredients.family, kind: ingredients.kind })
     .from(ingredients).where(and(eq(ingredients.ownerId, user.id), eq(ingredients.kind, kind)))
     .orderBy(ingredients.name);
@@ -133,6 +132,11 @@ export async function saveExpressionAction(
     finishLinks: formData.get("finishLinks"),
     ingredientLinks: formData.get("ingredientLinks"),
   });
+  const category = (await categoryKindsById())[input.categoryId] ?? "other";
+  if ((category === "flavored-vodka" || category === "liqueur" || category === "chocolate-liqueur" || category === "cream-liqueur") &&
+    !links.ingredients?.some((choice) => choice.kind === "flavor")) {
+    return { ok: false, error: "Add at least one flavor.", fieldErrors: { ingredientLinks: "Add at least one flavor." } };
+  }
 
   // Only the label form sends this; the grids and Add bottle leave older names alone.
   const otherNames = formData.has("otherNames") ? parseOtherNames(String(formData.get("otherNames"))) : null;
@@ -220,6 +224,13 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
     }
 
     const input = parsed.data;
+    const category = (await categoryKindsById())[input.categoryId] ?? "other";
+    const links = linksFrom(row);
+    if ((category === "flavored-vodka" || category === "liqueur" || category === "chocolate-liqueur" || category === "cream-liqueur") &&
+      !links.ingredients?.some((choice) => choice.kind === "flavor")) {
+      results.push({ index, ok: false, error: "Add at least one flavor.", fieldErrors: { ingredientLinks: "Add at least one flavor." } });
+      continue;
+    }
     try {
       const values = await labelValues(input, user.id, null);
       const id = await db.transaction(async (tx) => {
@@ -227,7 +238,7 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
           .insert(expressions)
           .values({ ...(values as typeof expressions.$inferInsert), ownerId: user.id })
           .returning({ id: expressions.id });
-        await insertLinks(tx, user.id, inserted!.id, linksFrom(row));
+        await insertLinks(tx, user.id, inserted!.id, links);
         // The row's "Add bottle" box: same transaction, so a label is
         // never saved without the bottle that was asked for.
         if (row.addBottle === true) {

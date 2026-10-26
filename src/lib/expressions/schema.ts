@@ -7,7 +7,7 @@
  */
 import { z } from "zod";
 import { ACQUISITIONS, BOTTLE_STATUSES, CHAR_LEVELS, RUM_BASES, SCOTCH_REGIONS, STILL_TYPES, TASTING_SOURCES } from "@/db/schema";
-import { BRANDY_GRADES, TEQUILA_CLASSES } from "./spirit-details";
+import { AMARO_STYLES, BRANDY_GRADES, DAIRY_STATUSES, PEAT_STATUSES, TEQUILA_CLASSES } from "./spirit-details";
 import { GIN_STYLES } from "./gin-details";
 
 const trimmed = z.string().trim();
@@ -84,6 +84,7 @@ export const expressionSchema = z
     isCaskStrength: checkbox,
     isStillProof: checkbox,
     ageYears: optionalDecimal(0, 100),
+    ageYearsSource: z.enum(["entered", "derived"]).default("entered"),
     ageMonths: optionalInt(0, 1200),
     ageDays: optionalInt(0, 40000),
     ageStatement: optionalText(200),
@@ -95,6 +96,15 @@ export const expressionSchema = z
     brandyGrade: optionalEnum(BRANDY_GRADES),
     ginStyle: optionalEnum(GIN_STYLES),
     isAgedGin: checkbox,
+    isAged: checkbox,
+    amaroStyle: optionalEnum(AMARO_STYLES),
+    peatStatus: z.enum(PEAT_STATUSES).default("unknown"),
+    originCountry: optionalText(80),
+    originRegion: optionalText(120),
+    originCountryManual: checkbox,
+    originRegionManual: checkbox,
+    dairyStatus: z.enum(DAIRY_STATUSES).default("unknown"),
+    isNonChillFiltered: checkbox,
 
     // Whiskey process
     isBottledInBond: checkbox,
@@ -139,7 +149,7 @@ export const expressionSchema = z
     agaveRegion: optionalText(120),
     cookingMethod: optionalEnum(["brick oven", "autoclave", "pit"] as const),
     extraction: optionalEnum(["tahona", "roller mill"] as const),
-    isAdditiveFree: tristate,
+    isAdditiveFree: z.preprocess((value) => value === "on" ? "true" : value, tristate),
 
     // Commercial
     msrp: optionalDecimal(0, 99_999_999),
@@ -244,6 +254,7 @@ export const bottleBase = z.object({
   sizeMl: optionalInt(1, 20000),
   proof: optionalDecimal(0, 200),
   ageYears: optionalDecimal(0, 100),
+  ageYearsSource: z.enum(["entered", "derived"]).default("entered"),
   ageMonths: optionalInt(0, 1200),
   ageDays: optionalInt(0, 40000),
   ageStatement: optionalText(200),
@@ -327,7 +338,11 @@ export type BottleGridEditInput = z.infer<typeof bottleGridEditSchema>;
  * Distilleries, mashbills and finishes are edited in the grid too, but as the
  * same ordered lists the form submits (`parseLinks`), not through this schema.
  */
-export const expressionGridEditSchema = expressionSchema.omit({ batch: true, releaseYear: true }).partial();
+export const expressionGridEditSchema = expressionSchema.omit({ batch: true, releaseYear: true }).partial().extend({
+  ageYearsSource: z.enum(["entered", "derived"]).optional(),
+  peatStatus: z.enum(PEAT_STATUSES).optional(),
+  dairyStatus: z.enum(DAIRY_STATUSES).optional(),
+});
 
 export type ExpressionGridEditInput = z.infer<typeof expressionGridEditSchema>;
 

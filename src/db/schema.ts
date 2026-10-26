@@ -185,6 +185,8 @@ export const mashbills = pgTable("mashbills", {
    * account starts with a few (drizzle/0024).
    */
   isGeneric: boolean("is_generic").notNull().default(false),
+  /** Disclosed shares do not account for every grain; the remainder is unknown. */
+  isPartial: boolean("is_partial").notNull().default(false),
   notes: text("notes"),
 }, (t) => [
   index("mashbills_owner_idx").on(t.ownerId),
@@ -253,7 +255,7 @@ export const cooperages = pgTable("cooperages", {
 ]);
 
 /** Reusable source ingredients. The label links to as many as its recipe names. */
-export const INGREDIENT_KINDS = ["maguey", "distillate", "rum_base", "botanical", "gin_base"] as const;
+export const INGREDIENT_KINDS = ["maguey", "distillate", "rum_base", "botanical", "gin_base", "vodka_base", "flavor", "liqueur_base"] as const;
 export type IngredientKind = (typeof INGREDIENT_KINDS)[number];
 export const ingredients = pgTable("ingredients", {
   id: serial("id").primaryKey(),
@@ -323,6 +325,7 @@ export const expressions = pgTable(
     // Age, as the product is normally sold. A bottle may override it.
     // NULL age_years = NAS; age_statement carries the human text.
     ageYears: numeric("age_years", { precision: 4, scale: 1 }),
+    ageYearsSource: text("age_years_source").notNull().default("entered").$type<"entered" | "derived">(),
     ageMonths: integer("age_months"),
     ageDays: integer("age_days"),
     ageStatement: text("age_statement"),
@@ -340,6 +343,17 @@ export const expressions = pgTable(
     brandyGrade: text("brandy_grade"),
     ginStyle: text("gin_style"),
     isAgedGin: boolean("is_aged_gin").notNull().default(false),
+    /** Used by Amaro and Liqueur; ordinary labels in those groups do not expose age or casks. */
+    isAged: boolean("is_aged").notNull().default(false),
+    amaroStyle: text("amaro_style"),
+    /** Scotch: unknown, unpeated, or peated. Irish uses unknown or peated. */
+    peatStatus: text("peat_status").notNull().default("unknown"),
+    originCountry: text("origin_country"),
+    originRegion: text("origin_region"),
+    originCountryManual: boolean("origin_country_manual").notNull().default(false),
+    originRegionManual: boolean("origin_region_manual").notNull().default(false),
+    dairyStatus: text("dairy_status").notNull().default("unknown"),
+    isNonChillFiltered: boolean("is_non_chill_filtered").notNull().default(false),
 
     // Process
     isChillFiltered: boolean("is_chill_filtered"),
@@ -418,6 +432,8 @@ export const expressionIngredients = pgTable("expression_ingredients", {
   expressionId: integer("expression_id").notNull().references(() => expressions.id, { onDelete: "cascade" }),
   ingredientId: integer("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
   position: integer("position").notNull().default(0),
+  /** An Amaro botanical may be present because of its style and independently entered by the owner. */
+  isManual: boolean("is_manual").notNull().default(true),
 }, (t) => [primaryKey({ columns: [t.expressionId, t.ingredientId] })]);
 
 /**
@@ -461,6 +477,7 @@ export const expressionReleases = pgTable(
     proof: pct("proof"),
     abv: pct("abv").generatedAlwaysAs(sql`(proof / 2.0)`),
     ageYears: numeric("age_years", { precision: 4, scale: 1 }),
+    ageYearsSource: text("age_years_source").notNull().default("entered").$type<"entered" | "derived">(),
     ageMonths: integer("age_months"),
     ageDays: integer("age_days"),
     ageStatement: text("age_statement"),
@@ -647,6 +664,7 @@ export const bottles = pgTable(
     proof: pct("proof"),
     abv: pct("abv").generatedAlwaysAs(sql`(proof / 2.0)`),
     ageYears: numeric("age_years", { precision: 4, scale: 1 }),
+    ageYearsSource: text("age_years_source").notNull().default("entered").$type<"entered" | "derived">(),
     ageMonths: integer("age_months"),
     ageDays: integer("age_days"),
     ageStatement: text("age_statement"),
@@ -1177,7 +1195,7 @@ export const bottleList = pgView("bottle_list", {
 // data change, not a migration; narrowed here and validated with Zod.
 // ------------------------------------------------------------
 
-export const FIELD_GROUPS = ["whiskey", "rum", "agave", "brandy", "gin", "vodka", "liqueur", "other"] as const;
+export const FIELD_GROUPS = ["whiskey", "rum", "agave", "brandy", "gin", "vodka", "amaro", "liqueur", "other"] as const;
 export type FieldGroup = (typeof FIELD_GROUPS)[number];
 
 export const FINISH_TYPES = ["wood", "wine", "fortified", "beer", "spirit", "other"] as const;

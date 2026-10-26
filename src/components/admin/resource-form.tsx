@@ -64,7 +64,7 @@ export function ResourceForm({
       <div className="grid min-h-0 grid-cols-1 gap-4 overflow-y-auto p-6 sm:grid-cols-2">
         {/* A generic mashbill is a style with no recipe, so it has no grains to edit. */}
         {resourceKey === "mashbills" && values.isGeneric !== true ? (
-          <GrainEditor rows={grains} onChange={setGrains} error={fieldErrors.grains} />
+          <GrainEditor rows={grains} onChange={setGrains} error={fieldErrors.grains} isPartial={values.isPartial === true} />
         ) : null}
         {fields
           .filter((field) => !field.showWhenAny || field.showWhenAny.some((name) => values[name] === true))

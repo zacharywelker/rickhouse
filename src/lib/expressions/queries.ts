@@ -51,6 +51,7 @@ export type LinkedEntity = {
  */
 export type LinkedMashbill = LinkedEntity & {
   recipe: string;
+  isPartial?: boolean;
   distilleryId?: number | null;
   attribution?: string;
   attributionSlug?: string | null;
@@ -60,7 +61,7 @@ export async function expressionLinks(expressionId: number): Promise<{
   distilleries: LinkedEntity[];
   mashbills: LinkedMashbill[];
   finishes: LinkedEntity[];
-  ingredients: Array<{ id: number; name: string; kind: string; family: string | null; slug: null; amount: null }>;
+  ingredients: Array<{ id: number; name: string; kind: string; family: string | null; isManual: boolean; slug: null; amount: null }>;
 }> {
   const [d, m, f, materials] = await Promise.all([
     db
@@ -84,6 +85,7 @@ export async function expressionLinks(expressionId: number): Promise<{
         name: mashbills.name,
         isSecret: mashbills.isSecret,
         isGeneric: mashbills.isGeneric,
+        isPartial: mashbills.isPartial,
         amount: expressionMashbills.sharePct,
         // Which distillery's recipe this is, as picked on this label — a
         // mashbill has no distillery of its own (issue #13). Surfaced on a
@@ -113,7 +115,7 @@ export async function expressionLinks(expressionId: number): Promise<{
       .innerJoin(finishes, eq(expressionFinishes.finishId, finishes.id))
       .where(eq(expressionFinishes.expressionId, expressionId))
       .orderBy(asc(expressionFinishes.position)),
-    db.select({ id: ingredients.id, name: ingredients.name, kind: ingredients.kind, family: ingredients.family })
+    db.select({ id: ingredients.id, name: ingredients.name, kind: ingredients.kind, family: ingredients.family, isManual: expressionIngredients.isManual })
       .from(expressionIngredients)
       .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
       .where(eq(expressionIngredients.expressionId, expressionId))
@@ -139,6 +141,7 @@ export async function expressionLinks(expressionId: number): Promise<{
       slug: null,
       amount: row.amount,
       recipe: describeRecipe(row.recipe),
+      isPartial: row.isPartial,
       distilleryId: solo ? solo.id : blended ? row.distilleryId : null,
       ...(solo
         ? { attribution: solo.name, attributionSlug: solo.slug }
@@ -201,14 +204,26 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
   page: number;
 }> {
   const bottleCount = sql<number>`(select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id})`;
-  const pickCount = sql<number>`(select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id} and (${bottles.isSingleBarrel} or ${bottles.isSingleBarrelPick}))`;
+  const pickCount = sql<number>`CASE WHEN ${categories.fieldGroup} IN ('vodka', 'amaro', 'liqueur') THEN 0 ELSE (select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id} and (${bottles.isSingleBarrel} or ${bottles.isSingleBarrelPick})) END`;
+  const ageForSort = sql<number | null>`CASE WHEN ${categories.fieldGroup} = 'vodka' OR (${categories.fieldGroup} IN ('amaro', 'liqueur') AND NOT ${expressions.isAged}) THEN NULL ELSE coalesce(
+    CASE WHEN ${expressions.ageYears} IS NOT NULL OR ${expressions.ageMonths} IS NOT NULL OR ${expressions.ageDays} IS NOT NULL
+      THEN coalesce(${expressions.ageYears}, 0)::numeric + coalesce(${expressions.ageMonths}, 0)::numeric / 12 + coalesce(${expressions.ageDays}, 0)::numeric / 365 END,
+    nullif(substring(${expressions.ageStatement} from '([0-9]{1,3}(\\.[0-9])?)[[:space:]]*(to|[-–—])[[:space:]]*[0-9]{1,3}(\\.[0-9])?[[:space:]]*(years?|yrs?)'), '')::numeric,
+    nullif(substring(${expressions.ageStatement} from '([0-9]{1,3}(\\.[0-9])?)[[:space:]]*(years?|yrs?)'), '')::numeric,
+    CASE WHEN nullif(trim(${expressions.ageStatement}), '') IS NULL OR upper(trim(${expressions.ageStatement})) = 'NAS' THEN CASE
+      WHEN (${categories.slug} = 'american-whiskey' OR (SELECT slug FROM categories WHERE id = ${categories.parentId}) = 'american-whiskey') AND ${expressions.isBottledInBond} THEN 4
+      WHEN (${categories.slug} = 'american-whiskey' OR (SELECT slug FROM categories WHERE id = ${categories.parentId}) = 'american-whiskey') AND ${expressions.isStraight} AND ${expressions.isNas} THEN 4
+      WHEN (${categories.slug} = 'american-whiskey' OR (SELECT slug FROM categories WHERE id = ${categories.parentId}) = 'american-whiskey') AND ${expressions.isStraight} THEN 2
+      WHEN ${categories.slug} IN ('canadian-whisky', 'irish-whiskey', 'scotch') OR (SELECT slug FROM categories WHERE id = ${categories.parentId}) IN ('irish-whiskey', 'scotch') THEN 3
+      ELSE NULL END ELSE NULL END
+  ) END`;
 
   const columns = {
     brand: sql`${brands.name}`,
     name: sql`${expressions.name}`,
     category: sql`${categories.name}`,
     proof: sql`${expressions.proof}`,
-    age: sql`${expressions.ageYears}`,
+    age: ageForSort,
     msrp: sql`${expressions.msrp}`,
     bottles: bottleCount,
   } as const;
@@ -254,6 +269,13 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       brandyGrade: expressions.brandyGrade,
       ginStyle: expressions.ginStyle,
       isAgedGin: expressions.isAgedGin,
+      isAged: expressions.isAged,
+      amaroStyle: expressions.amaroStyle,
+      peatStatus: expressions.peatStatus,
+      originCountry: expressions.originCountry,
+      originRegion: expressions.originRegion,
+      dairyStatus: expressions.dairyStatus,
+      isNonChillFiltered: expressions.isNonChillFiltered,
       ageYears: expressions.ageYears,
       ageMonths: expressions.ageMonths,
       ageDays: expressions.ageDays,
@@ -302,7 +324,7 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
   return { rows: rows.map((row) => ({ ...row, links: links.get(row.id)! })), total, pageCount, page };
 }
 
-export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[]; ingredients?: Array<{ name: string; family: string | null }> };
+export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[]; ingredients?: Array<{ name: string; family: string | null; kind: string; isManual: boolean }> };
 
 /**
  * The ordered links for a page of labels, in three queries rather than three
@@ -357,7 +379,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
       .innerJoin(finishes, eq(expressionFinishes.finishId, finishes.id))
       .where(inArray(expressionFinishes.expressionId, ids))
       .orderBy(asc(expressionFinishes.position)),
-    db.select({ expressionId: expressionIngredients.expressionId, name: ingredients.name, family: ingredients.family })
+    db.select({ expressionId: expressionIngredients.expressionId, name: ingredients.name, family: ingredients.family, kind: ingredients.kind, isManual: expressionIngredients.isManual })
       .from(expressionIngredients)
       .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
       .where(inArray(expressionIngredients.expressionId, ids))
@@ -390,7 +412,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
       amount: row.months === null ? "" : String(row.months),
     });
   }
-  for (const row of material) byId.get(row.expressionId)?.ingredients?.push({ name: row.name, family: row.family });
+  for (const row of material) byId.get(row.expressionId)?.ingredients?.push({ name: row.name, family: row.family, kind: row.kind, isManual: row.isManual });
   return byId;
 }
 
@@ -407,6 +429,13 @@ export type ExpressionRow = {
   proof: string | null;
   abv: string | null;
   ageStatement: string | null;
+  isAged?: boolean;
+  amaroStyle?: string | null;
+  peatStatus?: string;
+  originCountry?: string | null;
+  originRegion?: string | null;
+  dairyStatus?: string;
+  isNonChillFiltered?: boolean;
   tequilaClass?: string | null;
   brandyGrade?: string | null;
   ageYears: string | null;

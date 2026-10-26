@@ -18,6 +18,22 @@ export const isOwnedNow = sql`(${bottleList.status} IN ('owned', 'open'))`;
 /** Money actually spent: a wishlist price is a hope, not a purchase. Killed and sold bottles were still paid for. */
 export const wasBought = sql`(${bottleList.status} <> 'wishlist')`;
 
+/** Numeric grouping age: entered value, youngest age in a clear statement, then a category minimum. */
+export const groupingAge = sql<number | null>`coalesce(
+  CASE WHEN ${bottleList.ageYears} IS NOT NULL OR ${bottleList.ageMonths} IS NOT NULL OR ${bottleList.ageDays} IS NOT NULL
+    THEN coalesce(${bottleList.ageYears}, 0)::numeric + coalesce(${bottleList.ageMonths}, 0)::numeric / 12 + coalesce(${bottleList.ageDays}, 0)::numeric / 365 END,
+  nullif(substring(${bottleList.ageStatement} from '([0-9]{1,3}(\\.[0-9])?)[[:space:]]*(to|[-–—])[[:space:]]*[0-9]{1,3}(\\.[0-9])?[[:space:]]*(years?|yrs?)'), '')::numeric,
+  nullif(substring(${bottleList.ageStatement} from '([0-9]{1,3}(\\.[0-9])?)[[:space:]]*(years?|yrs?)'), '')::numeric,
+  CASE WHEN nullif(trim(${bottleList.ageStatement}), '') IS NULL OR upper(trim(${bottleList.ageStatement})) = 'NAS' THEN (SELECT CASE
+    WHEN (c.slug = 'american-whiskey' OR p.slug = 'american-whiskey') AND e.is_bottled_in_bond THEN 4
+    WHEN (c.slug = 'american-whiskey' OR p.slug = 'american-whiskey') AND e.is_straight AND e.is_nas THEN 4
+    WHEN (c.slug = 'american-whiskey' OR p.slug = 'american-whiskey') AND e.is_straight THEN 2
+    WHEN c.slug IN ('canadian-whisky', 'irish-whiskey', 'scotch') OR p.slug IN ('irish-whiskey', 'scotch') THEN 3
+    ELSE NULL END
+   FROM expressions e JOIN categories c ON c.id = e.category_id
+   LEFT JOIN categories p ON p.id = c.parent_id WHERE e.id = ${bottleList.expressionId}) ELSE NULL END
+)`;
+
 /**
  * The grid query: filtering, sorting and pagination, all in Postgres.
  *
@@ -35,7 +51,7 @@ const SORT_COLUMNS: Record<SortKey, SQL | ReturnType<typeof sql>> = {
   expression: sql`${bottleList.expressionName}`,
   category: sql`${bottleList.category}`,
   proof: sql`${bottleList.proof}`,
-  age: sql`${bottleList.ageYears}`,
+  age: groupingAge,
   price: sql`${bottleList.pricePaid}`,
   msrp: sql`${bottleList.msrp}`,
   // By percentage, so a $20 premium on a $40 bottle outranks one on a $200 bottle.
@@ -142,8 +158,8 @@ function buildWhere(filters: BottleFilters, ownerId: number): SQL | undefined {
 
   if (filters.proof.min !== null) clauses.push(gte(bottleList.proof, String(filters.proof.min)));
   if (filters.proof.max !== null) clauses.push(lte(bottleList.proof, String(filters.proof.max)));
-  if (filters.age.min !== null) clauses.push(gte(bottleList.ageYears, String(filters.age.min)));
-  if (filters.age.max !== null) clauses.push(lte(bottleList.ageYears, String(filters.age.max)));
+  if (filters.age.min !== null) clauses.push(gte(groupingAge, filters.age.min));
+  if (filters.age.max !== null) clauses.push(lte(groupingAge, filters.age.max));
   if (filters.price.min !== null) clauses.push(gte(bottleList.pricePaid, String(filters.price.min)));
   if (filters.price.max !== null) clauses.push(lte(bottleList.pricePaid, String(filters.price.max)));
 
@@ -183,8 +199,32 @@ const GIN_COLUMNS = {
   ginAged: sql<boolean | null>`(SELECT e.is_aged_gin FROM expressions e JOIN categories c ON c.id = e.category_id WHERE e.id = bottle_list.expression_id AND c.field_group = 'gin')`,
   ginIsNas: sql<boolean | null>`(SELECT coalesce(b.gin_is_nas, e.is_nas) FROM bottles b JOIN expressions e ON e.id = b.expression_id JOIN categories c ON c.id = e.category_id WHERE b.id = bottle_list.id AND c.field_group = 'gin')`,
 };
+const WHISKEY_COLUMNS = {
+  whiskeyKind: sql<"american" | "canadian" | "irish" | "scotch" | null>`(SELECT CASE
+    WHEN c.slug = 'american-whiskey' OR p.slug = 'american-whiskey' THEN 'american'
+    WHEN c.slug = 'canadian-whisky' THEN 'canadian'
+    WHEN c.slug = 'irish-whiskey' OR p.slug = 'irish-whiskey' THEN 'irish'
+    WHEN c.slug = 'scotch' OR p.slug = 'scotch' THEN 'scotch'
+    ELSE NULL END FROM categories c LEFT JOIN categories p ON p.id = c.parent_id WHERE c.id = ${bottleList.categoryId})`,
+  isStraight: sql<boolean>`(SELECT is_straight FROM expressions WHERE id = ${bottleList.expressionId})`,
+  isNas: sql<boolean>`(SELECT is_nas FROM expressions WHERE id = ${bottleList.expressionId})`,
+  isBottledInBond: sql<boolean>`(SELECT is_bottled_in_bond FROM expressions WHERE id = ${bottleList.expressionId})`,
+};
 
-export type GridRow = Omit<typeof bottleList.$inferSelect, "search" | "searchText"> & { ginStyle?: string | null; ginAged?: boolean | null; ginIsNas?: boolean | null };
+const SPIRIT_COLUMNS = {
+  spiritFact: sql<string | null>`(SELECT CASE
+    WHEN c.field_group = 'amaro' THEN e.amaro_style
+    WHEN c.field_group = 'liqueur' OR c.slug = 'flavored-vodka' THEN
+      (SELECT string_agg(i.name::text, ', ' ORDER BY ei.position) FROM expression_ingredients ei
+        JOIN ingredients i ON i.id = ei.ingredient_id WHERE ei.expression_id = e.id AND i.kind = 'flavor')
+    WHEN c.field_group = 'vodka' THEN
+      (SELECT string_agg(i.name::text, ', ' ORDER BY ei.position) FROM expression_ingredients ei
+        JOIN ingredients i ON i.id = ei.ingredient_id WHERE ei.expression_id = e.id AND i.kind = 'vodka_base')
+    ELSE NULL END
+    FROM expressions e JOIN categories c ON c.id = e.category_id WHERE e.id = ${bottleList.expressionId})`,
+};
+
+export type GridRow = Omit<typeof bottleList.$inferSelect, "search" | "searchText"> & { ginStyle?: string | null; ginAged?: boolean | null; ginIsNas?: boolean | null; whiskeyKind?: "american" | "canadian" | "irish" | "scotch" | null; isStraight?: boolean; isNas?: boolean; isBottledInBond?: boolean; spiritFact?: string | null };
 
 export async function queryBottles(filters: BottleFilters, ownerId: number): Promise<{
   rows: GridRow[];
@@ -206,7 +246,7 @@ export async function queryBottles(filters: BottleFilters, ownerId: number): Pro
   const page = Math.min(filters.page, pageCount);
 
   const rows = await db
-    .select({ ...GRID_COLUMNS, ...GIN_COLUMNS })
+    .select({ ...GRID_COLUMNS, ...GIN_COLUMNS, ...WHISKEY_COLUMNS, ...SPIRIT_COLUMNS })
     .from(bottleList)
     .where(where)
     .orderBy(sql`${direction} NULLS LAST`, desc(bottleList.id))

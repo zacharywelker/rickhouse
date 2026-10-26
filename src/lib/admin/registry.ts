@@ -743,13 +743,14 @@ const mashbillsConfig: ResourceConfig = {
   label: "Mashbills",
   singular: "Mashbill",
   description:
-    "Recipes, stored once and reused, so you can ask what else uses the same recipe. Percentages have to add up to 100, and any ingredient can go in — oats, molasses, whatever the distillery actually used. A distillery that keeps its recipe secret is entered as an inferred recipe under a reference name, which is what shows. A label that says no more than High Rye or Wheated gets a generic style instead, with no recipe; a few come ready-made. The same recipe can come from more than one distillery, so which one applies is set per label, not here.",
+    "Recipes, stored once and reused, so you can ask what else uses the same recipe. Disclosed percentages usually add up to 100; select Partial disclosure when the remaining share is unknown. Any ingredient can go in. A distillery that keeps its recipe secret is entered as an inferred recipe under a reference name. A label that says no more than High Rye or Wheated gets a generic style instead, with no recipe.",
   columns: [
     // A mashbill is its recipe; a secret or generic one shows its name instead.
     { key: "name", label: "Recipe" },
     { key: "style", label: "Style" },
     { key: "secret", label: "Secret" },
     { key: "generic", label: "Generic" },
+    { key: "partial", label: "Partial" },
     { key: "uses", label: "Labels", numeric: true, secondary: true },
   ],
   // The grain list is rendered by GrainEditor, not as a FieldSpec — it is a
@@ -769,6 +770,7 @@ const mashbillsConfig: ResourceConfig = {
       help: "A style such as High Rye or Wheated, with no recipe.",
       span: "half",
     },
+    { kind: "checkbox", name: "isPartial", label: "Partial disclosure", help: "Only some grain shares are known. Leave the rest unknown rather than filling to 100%.", span: "half" },
     {
       kind: "text",
       name: "name",
@@ -788,6 +790,7 @@ const mashbillsConfig: ResourceConfig = {
         style: mashbills.style,
         isSecret: mashbills.isSecret,
         isGeneric: mashbills.isGeneric,
+        isPartial: mashbills.isPartial,
         notes: mashbills.notes,
         uses: sql<number>`(select count(*)::int from ${expressionMashbills} where ${expressionMashbills.mashbillId} = ${mashbills.id})`,
       })
@@ -823,6 +826,7 @@ const mashbillsConfig: ResourceConfig = {
           style: r.style,
           secret: r.isSecret,
           generic: r.isGeneric,
+          partial: r.isPartial,
           uses: r.uses,
         },
         values: {
@@ -830,6 +834,7 @@ const mashbillsConfig: ResourceConfig = {
           style: r.style,
           isSecret: r.isSecret,
           isGeneric: r.isGeneric,
+          isPartial: r.isPartial,
           notes: r.notes,
           // The editor reads this back out of its hidden field.
           grains: JSON.stringify(orderGrains(mine).map((g) => ({ grain: g.grain, percent: String(Number(g.percent)) }))),
@@ -848,6 +853,7 @@ const mashbillsConfig: ResourceConfig = {
       style: inferMashbillStyle(input.name),
       isSecret: input.isSecret,
       isGeneric: input.isGeneric,
+      isPartial: input.isPartial && !input.isGeneric,
       notes: input.notes,
     };
     // A style has no recipe, whatever the form still carried.
@@ -959,9 +965,9 @@ function parseRecipe(raw: string | null): Array<{ grain: string; percent: string
 
 const finishesConfig: ResourceConfig = {
   key: "finishes",
-  label: "Finishes",
-  singular: "Finish",
-  description: "Secondary maturation: French oak, PX sherry, maple. Expressions can carry several, in sequence.",
+  label: "Finishes / Cask Types",
+  singular: "Finish / Cask Type",
+  description: "Reusable cask choices such as French oak or PX sherry. A label can list several; only spirit forms that call them Finishes treat the sequence as meaningful.",
   columns: [
     nameColumn,
     { key: "finishType", label: "Type" },

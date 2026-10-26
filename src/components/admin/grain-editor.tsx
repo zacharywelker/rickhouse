@@ -117,17 +117,19 @@ export function GrainEditor({
   rows,
   onChange,
   error,
+  isPartial = false,
 }: {
   rows: GrainRow[];
   onChange: (next: GrainRow[]) => void;
   error?: string;
+  isPartial?: boolean;
 }) {
   const id = React.useId();
   const total = sumGrains(rows as Grain[]);
   const rounded = Number(total.toFixed(2));
   const empty = rows.length === 0;
   const exact = rounded === GRAIN_TOTAL.exact;
-  const acceptable = rounded >= GRAIN_TOTAL.min && rounded <= GRAIN_TOTAL.max;
+  const acceptable = rounded <= GRAIN_TOTAL.max && (isPartial || rounded >= GRAIN_TOTAL.min);
 
   const update = (index: number, patch: Partial<GrainRow>) =>
     onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -241,6 +243,8 @@ export function GrainEditor({
           <p className={cn("text-xs", acceptable ? "text-muted-foreground" : "text-destructive")} aria-live="polite">
             {exact
               ? "Adds up to 100%."
+              : isPartial && rounded < GRAIN_TOTAL.min
+                ? `${Number((100 - rounded).toFixed(2))}% remains undisclosed.`
               : acceptable
                 ? "Within the rounding tolerance the database allows (99–101%)."
                 : rounded < GRAIN_TOTAL.min

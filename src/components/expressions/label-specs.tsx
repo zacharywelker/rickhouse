@@ -64,6 +64,7 @@ export function Mashbills({
     name: string;
     amount: string | null;
     recipe: string;
+    isPartial?: boolean;
     attribution?: string;
     attributionSlug?: string | null;
   }>;
@@ -79,6 +80,7 @@ export function Mashbills({
               {/* A generic style, or a secret one not yet inferred, has no recipe to show. */}
               {item.recipe || item.name}
             </Link>
+            {item.isPartial ? <span className="text-xs text-muted-foreground">partial disclosure</span> : null}
             {item.amount !== null ? (
               <span className="text-muted-foreground">{Math.round(Number(item.amount))}% of the blend</span>
             ) : null}

@@ -42,6 +42,16 @@ const CATEGORY_TREE = [
   { name: "Gin", slug: "gin", parent: null, fieldGroup: "gin", sortOrder: 5 },
   { name: "Genever", slug: "genever", parent: "gin", fieldGroup: "gin", sortOrder: 1 },
   { name: "Vodka", slug: "vodka", parent: null, fieldGroup: "vodka", sortOrder: 6 },
+  { name: "Flavored Vodka", slug: "flavored-vodka", parent: "vodka", fieldGroup: "vodka", sortOrder: 1 },
+  { name: "Amaro", slug: "amaro", parent: null, fieldGroup: "amaro", sortOrder: 7 },
+  { name: "Liqueur", slug: "liqueur", parent: null, fieldGroup: "liqueur", sortOrder: 8 },
+  { name: "Herbal Liqueur", slug: "herbal-liqueur", parent: "liqueur", fieldGroup: "liqueur", sortOrder: 1 },
+  { name: "Nut Liqueur", slug: "nut-liqueur", parent: "liqueur", fieldGroup: "liqueur", sortOrder: 2 },
+  { name: "Chocolate Liqueur", slug: "chocolate-liqueur", parent: "liqueur", fieldGroup: "liqueur", sortOrder: 3 },
+  { name: "Coffee Liqueur", slug: "coffee-liqueur", parent: "liqueur", fieldGroup: "liqueur", sortOrder: 4 },
+  { name: "Cream Liqueur", slug: "cream-liqueur", parent: "liqueur", fieldGroup: "liqueur", sortOrder: 5 },
+  { name: "Anise Liqueur", slug: "anise-liqueur", parent: "liqueur", fieldGroup: "liqueur", sortOrder: 6 },
+  { name: "Fruit Liqueur", slug: "fruit-liqueur", parent: "liqueur", fieldGroup: "liqueur", sortOrder: 7 },
 
   { name: "Tequila", slug: "tequila", parent: "agave", fieldGroup: "agave", sortOrder: 1 },
   { name: "Mezcal", slug: "mezcal", parent: "agave", fieldGroup: "agave", sortOrder: 2 },
@@ -51,17 +61,26 @@ const CATEGORY_TREE = [
   { name: "Pisco", slug: "pisco", parent: "brandy", fieldGroup: "brandy", sortOrder: 4 },
 
   { name: "American Whiskey", slug: "american-whiskey", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 1 },
-  { name: "Scotch", slug: "scotch", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 2 },
+  { name: "Scotch Whisky", slug: "scotch", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 2 },
   { name: "Irish Whiskey", slug: "irish-whiskey", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 3 },
+  { name: "Canadian Whisky", slug: "canadian-whisky", parent: "whiskey", fieldGroup: "whiskey", sortOrder: 4 },
+  { name: "Pot Still Irish Whiskey", slug: "pot-still-irish-whiskey", parent: "irish-whiskey", fieldGroup: "whiskey", sortOrder: 1 },
+  { name: "Malt Irish Whiskey", slug: "malt-irish-whiskey", parent: "irish-whiskey", fieldGroup: "whiskey", sortOrder: 2 },
+  { name: "Grain Irish Whiskey", slug: "grain-irish-whiskey", parent: "irish-whiskey", fieldGroup: "whiskey", sortOrder: 3 },
+  { name: "Blended Irish Whiskey", slug: "blended-irish-whiskey", parent: "irish-whiskey", fieldGroup: "whiskey", sortOrder: 4 },
 
-  { name: "Single Malt Scotch", slug: "single-malt-scotch", parent: "scotch", fieldGroup: "whiskey", sortOrder: 1 },
-  { name: "Blended Scotch", slug: "blended-scotch", parent: "scotch", fieldGroup: "whiskey", sortOrder: 2 },
+  { name: "Single Malt Scotch Whisky", slug: "single-malt-scotch", parent: "scotch", fieldGroup: "whiskey", sortOrder: 1 },
+  { name: "Single Grain Scotch Whisky", slug: "single-grain-scotch", parent: "scotch", fieldGroup: "whiskey", sortOrder: 2 },
+  { name: "Blended Scotch Whisky", slug: "blended-scotch", parent: "scotch", fieldGroup: "whiskey", sortOrder: 3 },
+  { name: "Blended Grain Scotch Whisky", slug: "blended-grain-scotch", parent: "scotch", fieldGroup: "whiskey", sortOrder: 4 },
+  { name: "Blended Malt Scotch Whisky", slug: "blended-malt-scotch", parent: "scotch", fieldGroup: "whiskey", sortOrder: 5 },
 
   { name: "Bourbon", slug: "bourbon", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 1 },
   { name: "Rye", slug: "rye", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 2 },
   { name: "Wheat Whiskey", slug: "wheat-whiskey", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 3 },
-  { name: "Single Malt", slug: "american-single-malt", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 4 },
-  { name: "Light Whiskey", slug: "light-whiskey", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 5 },
+  { name: "Corn Whiskey", slug: "corn-whiskey", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 4 },
+  { name: "American Single Malt", slug: "american-single-malt", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 5 },
+  { name: "Light Whiskey", slug: "light-whiskey", parent: "american-whiskey", fieldGroup: "whiskey", sortOrder: 6 },
 ] as const satisfies ReadonlyArray<{
   name: string;
   slug: string;

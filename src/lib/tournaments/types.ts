@@ -6,7 +6,7 @@ export type Grain = { grain: string; percent: number };
  * "Buffalo Trace High Rye"); a generic style ("High Rye") has none; a label with several mashbills is a blend.
  */
 export type MashbillInput =
-  | { kind: "recipe"; grains: Grain[]; name: string | null }
+  | { kind: "recipe"; grains: Grain[]; name: string | null; partial?: boolean }
   | { kind: "generic"; style: string }
   | { kind: "blend" };
 
@@ -28,10 +28,14 @@ export type Entrant = {
   /** Every distillery of the label. None is unknown; more than one is a blend. */
   distilleries: string[];
   ageYears: number | null;
+  ageDisplay?: string | null;
+  ageInferred?: boolean;
+  spiritFact?: string | null;
   /** The label's finishes in listed order; the first is the one compared. */
   finishes: string[];
   /** The leaf category name of the label ("Bourbon", "Rye"); null when unknown or for an ad hoc entry. */
   category: string | null;
+  caskTypeMode?: boolean;
 };
 
 /** True when `order` holds each of the five keys exactly once. */

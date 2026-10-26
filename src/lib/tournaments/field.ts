@@ -101,7 +101,9 @@ export async function fieldCandidates(
     tastings: number;
     total: number;
   }>(sql`
-    SELECT bl.id, bl.expression_id, bl.brand, bl.expression_name, bl.pick_name, b.barrel_number, bl.release_name, bl.batch,
+    SELECT bl.id, bl.expression_id, bl.brand, bl.expression_name, bl.pick_name,
+           CASE WHEN bl.field_group IN ('vodka', 'amaro', 'liqueur') THEN NULL ELSE b.barrel_number END AS barrel_number,
+           CASE WHEN bl.field_group IN ('vodka', 'amaro', 'liqueur') THEN NULL ELSE bl.release_name END AS release_name, bl.batch,
            bl.category, bl.category_id, bl.proof, bl.status, bl.is_open, bl.avg_rating,
            (SELECT count(*)::int FROM tasting_notes tn WHERE tn.bottle_id = bl.id AND tn.owner_id = ${ownerId}) AS tastings,
            count(*) OVER ()::int AS total
