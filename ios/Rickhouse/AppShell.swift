@@ -5,9 +5,9 @@ import SwiftUI
 /// The tab bar is the system's. The middle tab is a placeholder with a
 /// circled-plus icon for emphasis: choosing it opens the Add sheet and leaves the selection where it was.
 struct AppShell: View {
-    private enum Tab { case collection, labels, add, numbers, account }
+    private enum Destination { case collection, labels, add, numbers, account }
 
-    @State private var tab = Tab.collection
+    @State private var tab = Destination.collection
     @State private var showingAddSheet = false
     /// The flow chosen in the Add sheet; set while it closes, shown once it has.
     @State private var chosen: AddChoice?
@@ -20,21 +20,21 @@ struct AppShell: View {
 
     var body: some View {
         TabView(selection: selection) {
-            NavigationStack { CollectionView(reloadSignal: reloadSignal) }
-                .tabItem { Self.icon("square.grid.2x2", label: "Collection") }
-                .tag(Tab.collection)
-            LabelsView(reloadSignal: tastingSignal)
-                .tabItem { Self.icon("text.magnifyingglass", label: "Labels") }
-                .tag(Tab.labels)
-            Color.clear
-                .tabItem { Self.icon("plus.app.fill", label: "Add") }
-                .tag(Tab.add)
-            NumbersView()
-                .tabItem { Self.icon("chart.bar", label: "Numbers") }
-                .tag(Tab.numbers)
-            AccountView()
-                .tabItem { Self.icon("person.circle", label: "Account") }
-                .tag(Tab.account)
+            Tab(value: Destination.collection) {
+                NavigationStack { CollectionView(reloadSignal: reloadSignal) }
+            } label: { Self.icon("square.grid.2x2", label: "Collection") }
+            Tab(value: Destination.labels) {
+                LabelsView(reloadSignal: tastingSignal)
+            } label: { Self.icon("text.magnifyingglass", label: "Labels") }
+            Tab(value: Destination.add) {
+                Color.clear
+            } label: { Self.icon("plus.app.fill", label: "Add") }
+            Tab(value: Destination.numbers) {
+                NumbersView()
+            } label: { Self.icon("chart.bar", label: "Numbers") }
+            Tab(value: Destination.account) {
+                AccountView()
+            } label: { Self.icon("person.circle", label: "Account") }
         }
         .background(Theme.paper)
         .sheet(isPresented: $showingAddSheet, onDismiss: {
@@ -56,7 +56,7 @@ struct AppShell: View {
 
     /// Choosing the middle tab opens the sheet without ever changing the selection,
     /// so the bar's highlight has nothing to snap back from.
-    private var selection: Binding<Tab> {
+    private var selection: Binding<Destination> {
         Binding(
             get: { tab },
             set: { new in
