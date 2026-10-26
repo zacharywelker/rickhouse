@@ -4,7 +4,7 @@ import Observation
 
 /// Server address and bearer token. The token lives in the Keychain; the
 /// address is not secret, so it sits in UserDefaults.
-@Observable
+@MainActor @Observable
 final class Session {
     private(set) var token: String?
     private(set) var user: User?
