@@ -338,7 +338,11 @@ export type BottleGridEditInput = z.infer<typeof bottleGridEditSchema>;
  * Distilleries, mashbills and finishes are edited in the grid too, but as the
  * same ordered lists the form submits (`parseLinks`), not through this schema.
  */
-export const expressionGridEditSchema = expressionSchema.omit({ batch: true, releaseYear: true }).partial();
+export const expressionGridEditSchema = expressionSchema.omit({ batch: true, releaseYear: true }).partial().extend({
+  ageYearsSource: z.enum(["entered", "derived"]).optional(),
+  peatStatus: z.enum(PEAT_STATUSES).optional(),
+  dairyStatus: z.enum(DAIRY_STATUSES).optional(),
+});
 
 export type ExpressionGridEditInput = z.infer<typeof expressionGridEditSchema>;
 

@@ -64,7 +64,10 @@ function field(name: string, extra: Partial<LabelColumn> = {}): LabelColumn {
 const all = (id: string) =>
   section(id)
     .fields.filter((f) => !NOT_COLUMNS.has(f.name))
-    .map((f) => field(f.name));
+    .map((f) => field(f.name, {
+      ...(id === "agave" && f.name === "isAdditiveFree" ? { id: "agaveAdditiveFree" } : {}),
+      ...(id === "liqueur" && ["originCountry", "originRegion"].includes(f.name) ? { id: `liqueur-${f.name}` } : {}),
+    }));
 
 export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
   {

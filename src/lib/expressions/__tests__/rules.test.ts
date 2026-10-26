@@ -18,7 +18,7 @@ describe("categoryKinds", () => {
     expect(kinds[3]).toBe("american");
     expect(kinds[5]).toBe("scotch");
     expect(kinds[4]).toBe("scotch");
-    expect(kinds[6]).toBe("other");
+    expect(kinds[6]).toBe("irish");
     expect(kinds[1]).toBe("other");
   });
 
@@ -189,7 +189,7 @@ describe("what a name says", () => {
 
   it("leaves Bottled In Bond to American whiskey and Cask Strength to spirits with an age", () => {
     expect(nameSays("Bonded Malt", { group: "whiskey", kind: "scotch" }).isBottledInBond).toBeUndefined();
-    expect(nameSays("Bonded", { group: "whiskey", kind: null }).isBottledInBond).toBeDefined();
+    expect(nameSays("Bonded", { group: "whiskey", kind: null }).isBottledInBond).toBeUndefined();
     expect(nameSays("Cask Strength Gin", { group: "gin", kind: null }).isCaskStrength).toBeUndefined();
     expect(nameSays("Cask Strength Vodka", { group: "vodka", kind: null }).isCaskStrength).toBeUndefined();
     expect(nameSays("Cask Strength Rum", { group: "rum", kind: null }).isCaskStrength).toBeDefined();
@@ -208,9 +208,9 @@ describe("withNameRules", () => {
     expect(next.isCaskStrength).toBe(true);
   });
 
-  it("ticks Bottled In Bond with 100 proof and 4 years", () => {
+  it("ticks Bottled In Bond with 100 proof and an inferred minimum age", () => {
     const next = withNameRules(blank, { ...blank, name: "Old Fitz Bonded" }, resolve);
-    expect(next).toMatchObject({ isBottledInBond: true, proof: "100", ageYears: "4" });
+    expect(next).toMatchObject({ isBottledInBond: true, proof: "100", ageYears: "" });
   });
 
   it("does not tick it again once it was unticked by hand", () => {
@@ -265,8 +265,8 @@ describe("nameRuleColumns", () => {
   const stored = { name: "Eagle Rare", categoryId: 1, proof: "90", entryProof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, isNas: false, isStraight: false, isBottledInBond: false, isCaskStrength: false };
   const american = () => ({ group: "whiskey" as const, kind: "american" as const });
 
-  it("ticks Bonded with its proof and age when a rename starts to say it", () => {
-    expect(nameRuleColumns(stored, { name: "Eagle Rare Bottled in Bond" }, american)).toEqual({ isBottledInBond: true, proof: "100", ageYears: "4" });
+  it("ticks Bonded with its proof when a rename starts to say it", () => {
+    expect(nameRuleColumns(stored, { name: "Eagle Rare Bottled in Bond" }, american)).toEqual({ isBottledInBond: true, proof: "100" });
   });
 
   it("leaves a column the edit sent, and does nothing when the name already said it", () => {
