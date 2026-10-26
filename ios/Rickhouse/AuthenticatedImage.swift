@@ -15,15 +15,20 @@ struct AuthenticatedImage: View {
     /// Called when the fetch fails, so a caller can fall back to another picture.
     var onFailure: (() -> Void)?
     @State private var image: UIImage?
+    @State private var imageRequest: ImageRequestID?
     /// The fetch failed; shows a different glyph. It runs again when the view is next created.
     @State private var failed = false
 
-    private static let cache = NSCache<NSString, UIImage>()
+    private static let cache = AuthenticatedImageCache()
+
+    private var requestID: ImageRequestID {
+        ImageRequestID(sessionID: session.id, serverURL: session.serverURL, path: path)
+    }
 
     var body: some View {
         ZStack {
             background
-            if let image {
+            if let image, imageRequest == requestID {
                 Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
             } else {
@@ -31,19 +36,33 @@ struct AuthenticatedImage: View {
             }
         }
         .clipped()
-        .task(id: path) { await load() }
+        .task(id: requestID) {
+            let request = requestID
+            await load(request)
+        }
     }
 
-    private func load() async {
+    private func load(_ request: ImageRequestID) async {
+        guard !Task.isCancelled, requestID == request else { return }
+        imageRequest = request
+        image = nil
         failed = false
-        guard let path, let api = session.api else { image = nil; return }
-        if let cached = Self.cache.object(forKey: path as NSString) { image = cached; return }
-        guard let data = try? await api.imageData(path: path), let loaded = UIImage(data: data) else {
-            failed = !Task.isCancelled
-            if failed { onFailure?() }
-            return
+        guard let path = request.path, let api = session.api else { return }
+        if let cached = Self.cache.image(for: request) { image = cached; return }
+        do {
+            let data = try await api.imageData(path: path)
+            guard !Task.isCancelled, requestID == request else { return }
+            guard let loaded = UIImage(data: data) else {
+                failed = true
+                onFailure?()
+                return
+            }
+            Self.cache.insert(loaded, for: request)
+            image = loaded
+        } catch {
+            guard !Task.isCancelled, requestID == request, !APIError.isCancellation(error) else { return }
+            failed = true
+            onFailure?()
         }
-        Self.cache.setObject(loaded, forKey: path as NSString)
-        image = loaded
     }
 }

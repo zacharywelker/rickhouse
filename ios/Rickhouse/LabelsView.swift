@@ -20,10 +20,8 @@ struct LabelsView: View {
     @State private var indexFailure: String?
 
     @State private var history: [TastingEntry] = []
-    @State private var historyPage = 1
-    @State private var historyPageCount = 1
+    @State private var historyPagination = PageLoadState()
     @State private var historyLoaded = false
-    @State private var loadingHistory = false
     @State private var historyFailure: String?
     @State private var attempt = 0
     @State private var deletingTasting: Int?
@@ -209,35 +207,33 @@ struct LabelsView: View {
     }
 
     private func reloadHistory() async {
-        historyPage = 1
-        await fetchHistory(replacing: true)
+        await fetchHistory(historyPagination.reload())
     }
 
     private func loadMoreHistory() async {
-        guard !loadingHistory, historyPage < historyPageCount else { return }
-        historyPage += 1
-        // A failed page must be asked for again, not skipped.
-        if !(await fetchHistory(replacing: false)) { historyPage -= 1 }
+        guard let request = historyPagination.next() else { return }
+        await fetchHistory(request)
     }
 
-    @discardableResult
-    private func fetchHistory(replacing: Bool) async -> Bool {
-        guard let api = session.api else { return false }
-        loadingHistory = true
-        defer { loadingHistory = false }
+    private func fetchHistory(_ request: PageLoadState.Request) async {
+        guard let api = session.api else { _ = historyPagination.fail(request); return }
+        let sessionID = session.id
         do {
-            let page = try await api.tastings(page: historyPage)
-            history = replacing ? page.tastings : history + page.tastings
-            historyPageCount = page.pageCount
+            let page = try await api.tastings(page: request.page)
+            guard !Task.isCancelled, session.id == sessionID else {
+                _ = historyPagination.fail(request)
+                return
+            }
+            guard historyPagination.finish(request, pageCount: page.pageCount) else { return }
+            history = request.page == 1 ? page.tastings : history + page.tastings
             historyLoaded = true
             historyFailure = nil
-            return true
-        } catch APIError.unauthorized {
-            session.signOut()
         } catch {
-            if !(error is CancellationError) { historyFailure = error.localizedDescription }
+            guard historyPagination.fail(request), session.id == sessionID,
+                  !Task.isCancelled, !APIError.isCancellation(error) else { return }
+            if case APIError.unauthorized = error { session.signOut() }
+            else { historyFailure = error.localizedDescription }
         }
-        return false
     }
 }
 

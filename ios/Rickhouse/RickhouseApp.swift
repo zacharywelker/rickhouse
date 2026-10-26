@@ -23,6 +23,7 @@ struct RootView: View {
         Group {
             if session.isSignedIn {
                 AppShell()
+                    .id(session.id)
             } else {
                 SignInView()
             }
