@@ -4,10 +4,8 @@ struct CollectionView: View {
     @Environment(Session.self) private var session
     @State private var bottles: [BottleSummary] = []
     @State private var total = 0
-    @State private var page = 1
-    @State private var pageCount = 1
+    @State private var pagination = PageLoadState()
     @State private var query = ""
-    @State private var loading = false
     @State private var error: String?
     /// False until the first fetch succeeds, so the screen never claims "0 bottles" or "No bottles yet" early.
     @State private var hasLoaded = false
@@ -74,6 +72,7 @@ struct CollectionView: View {
         }
         .footBar(foot)
         .task(id: query) {
+            pagination.invalidate()
             // Debounce typing; .task(id:) cancels the previous run.
             try? await Task.sleep(for: .milliseconds(250))
             if !Task.isCancelled { await reload() }
@@ -206,37 +205,35 @@ struct CollectionView: View {
     }
 
     private func reload() async {
-        page = 1
-        await fetch(replacing: true)
+        await fetch(pagination.reload())
     }
 
     private func loadMore() async {
-        guard !loading, page < pageCount else { return }
-        page += 1
-        // A failed page must be asked for again, not skipped.
-        if !(await fetch(replacing: false)) { page -= 1 }
+        guard let request = pagination.next() else { return }
+        await fetch(request)
     }
 
-    /// Whether the page arrived.
-    @discardableResult
-    private func fetch(replacing: Bool) async -> Bool {
-        guard let api = session.api else { return false }
-        loading = true
-        defer { loading = false }
+    private func fetch(_ request: PageLoadState.Request) async {
+        guard let api = session.api else { _ = pagination.fail(request); return }
+        let sessionID = session.id
+        let requestedQuery = query
         do {
-            let result = try await api.bottles(query: query, status: nil, page: page)
-            bottles = replacing ? result.bottles : bottles + result.bottles
+            let result = try await api.bottles(query: requestedQuery, status: nil, page: request.page)
+            guard !Task.isCancelled, session.id == sessionID, query == requestedQuery else {
+                _ = pagination.fail(request)
+                return
+            }
+            guard pagination.finish(request, pageCount: result.pageCount) else { return }
+            bottles = request.page == 1 ? result.bottles : bottles + result.bottles
             total = result.total
-            pageCount = result.pageCount
             hasLoaded = true
             error = nil
-            return true
-        } catch APIError.unauthorized {
-            session.signOut()
         } catch {
-            if !(error is CancellationError) { self.error = error.localizedDescription }
+            guard pagination.fail(request), session.id == sessionID, query == requestedQuery,
+                  !Task.isCancelled, !APIError.isCancellation(error) else { return }
+            if case APIError.unauthorized = error { session.signOut() }
+            else { self.error = error.localizedDescription }
         }
-        return false
     }
 }
 

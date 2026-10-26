@@ -8,7 +8,10 @@ import Observation
 final class Session {
     private(set) var token: String?
     private(set) var user: User?
-    var serverURL: URL?
+    private(set) var id = UUID()
+    var serverURL: URL? {
+        didSet { if serverURL != oldValue { resetCachedData() } }
+    }
 
     private static let serverKey = "serverURL"
     private static let tokenAccount = "authToken"
@@ -22,7 +25,9 @@ final class Session {
     var currencySymbol: String { currencies.first { $0.code == currency }?.symbol ?? currency }
 
     func loadPreferences() async {
-        guard let api, let answer = try? await api.preferences() else { return }
+        let started = id
+        guard let api, let answer = try? await api.preferences(),
+              id == started, !Task.isCancelled else { return }
         currencies = answer.currencies
         currency = answer.currency
     }
@@ -30,7 +35,10 @@ final class Session {
     /// Saves a new currency on the server first, so the phone never shows one the web doesn't.
     func setCurrency(_ code: String) async throws {
         guard let api else { return }
-        currency = try await api.setCurrency(code).currency
+        let started = id
+        let answer = try await api.setCurrency(code)
+        guard id == started, !Task.isCancelled else { return }
+        currency = answer.currency
     }
 
     /// The flavor wheels by id, loaded once when first needed. A tasting stores descriptor keys, and these say what
@@ -39,7 +47,9 @@ final class Session {
     private var flavorNames: [String: String] = [:]
 
     func loadWheels() async {
-        guard wheels.isEmpty, let api, let list = try? await api.tastingWheels() else { return }
+        let started = id
+        guard wheels.isEmpty, let api, let list = try? await api.tastingWheels(),
+              id == started, !Task.isCancelled else { return }
         wheels = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
         flavorNames = Dictionary(
             list.flatMap { $0.categories.flatMap(\.descriptors) }.map { ($0.key, $0.label) },
@@ -83,9 +93,13 @@ final class Session {
     /// On launch, drop a token the server no longer accepts.
     func restore() async {
         guard let api else { return }
+        let started = id
         do {
-            user = try await api.me()
+            let restored = try await api.me()
+            guard id == started, !Task.isCancelled else { return }
+            user = restored
         } catch APIError.unauthorized {
+            guard id == started, !Task.isCancelled else { return }
             signOut()
         } catch {
             // Offline or server down: stay signed in and let screens report it.
@@ -109,6 +123,7 @@ final class Session {
         case .needsSecondFactor(let challenge):
             return challenge
         case .signedIn(let token, let user):
+            resetCachedData()
             Keychain.write(Self.tokenAccount, value: token)
             UserDefaults.standard.set(baseURL.absoluteString, forKey: Self.serverKey)
             serverURL = baseURL
@@ -122,7 +137,15 @@ final class Session {
         Keychain.delete(Self.tokenAccount)
         token = nil
         user = nil
+        resetCachedData()
+    }
+
+    private func resetCachedData() {
+        id = UUID()
         currency = "USD"
+        currencies = []
+        wheels = [:]
+        flavorNames = [:]
     }
 
     /// "rickhouse.example.com" -> https://rickhouse.example.com. Release builds
