@@ -36,7 +36,7 @@ const MAX_CATEGORIES = 50;
 /** A list as an array of its items: an array stays, "1,2,3" is split, anything else is empty. */
 const items = (raw: unknown): unknown[] => (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : []);
 
-const categoryIds = z.unknown().transform((raw) => {
+const categoryIds = z.unknown().optional().transform((raw) => {
   const seen = new Set<number>();
   for (const item of items(raw)) {
     const n = typeof item === "string" && item.trim() !== "" ? Number(item) : item;
@@ -47,7 +47,7 @@ const categoryIds = z.unknown().transform((raw) => {
 });
 
 /** Missing or nothing recognisable: the default. An explicit empty list or "all": every status. */
-const statuses = z.unknown().transform((raw): BottleStatus[] => {
+const statuses = z.unknown().optional().transform((raw): BottleStatus[] => {
   if (raw === undefined || raw === null) return [...DEFAULT_FIELD_STATUSES];
   if (raw === "all" || (Array.isArray(raw) && raw.length === 0)) return [];
   const seen = new Set<BottleStatus>();
@@ -61,6 +61,7 @@ const statuses = z.unknown().transform((raw): BottleStatus[] => {
 const schema = z.object({
   q: z
     .unknown()
+    .optional()
     .transform((raw) => (typeof raw === "string" ? raw.replace(/\s+/g, " ").trim().slice(0, 80) : "")),
   categoryIds,
   statuses,
