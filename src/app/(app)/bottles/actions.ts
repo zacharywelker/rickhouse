@@ -87,7 +87,13 @@ export async function saveBottleAction(
             const { id: _id, ownerId: _owner, abv: _abv, createdAt: _created, updatedAt: _updated, ...copy } = source;
             return copy;
           })() : {};
-          const [row] = await tx.insert(bottles).values({ ...sourceValues, ...input, ...(copiedState?.success ? copiedState.data : {}), ownerId: user.id }).returning({ id: bottles.id });
+          const values = { ...sourceValues, ...input, ...(copiedState?.success ? copiedState.data : {}) };
+          if (values.status === "open" || (values.fillPct !== undefined && values.fillPct < 100)) values.isOpen = true;
+          if (values.isOpen) {
+            if (values.status === "owned") values.status = "open";
+            values.dateOpened ??= new Date().toISOString().slice(0, 10);
+          }
+          const [row] = await tx.insert(bottles).values({ ...values, ownerId: user.id }).returning({ id: bottles.id });
           if (source) {
             const tagIds = copiedTagIds ?? (await tx.select({ tagId: bottleTags.tagId }).from(bottleTags).where(eq(bottleTags.bottleId, source.id))).map((item) => item.tagId);
             if (tagIds.length > 0) await tx.insert(bottleTags).values(tagIds.map((tagId) => ({ bottleId: row!.id, tagId })));

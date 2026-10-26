@@ -55,6 +55,16 @@ import { withStatementAge } from "@/lib/expressions/whiskey-age";
 /** Every field on the label form, for seeding state from a row or from nothing. */
 export const LABEL_FIELDS: FieldSpec[] = EXPRESSION_SECTIONS.flatMap((section) => section.fields);
 
+/** Additive Free is a checkbox for whiskey and a three-state select for agave. */
+export function initialLabelValues(
+  existing: Record<string, string | number | boolean | null> | null,
+  categoryGroups: Record<number, FieldGroup>,
+): Record<string, FieldValue> {
+  const values = initialFieldValues(LABEL_FIELDS, existing);
+  if (categoryGroups[Number(existing?.categoryId)] === "whiskey") values.isAdditiveFree = existing?.isAdditiveFree === true;
+  return values;
+}
+
 /** The section each field belongs to, for the spirit-by-spirit rule when a line draws fields from several. */
 const SECTION_OF: ReadonlyMap<string, (typeof EXPRESSION_SECTIONS)[number]> = new Map(
   EXPRESSION_SECTIONS.flatMap((section) => section.fields.map((field) => [field.name, section] as const)),
@@ -77,6 +87,11 @@ export function withLabelChange(
   resolve?: (values: Record<string, FieldValue>) => NameContext,
 ): Record<string, FieldValue> {
   let next = withAgeDefaults(prev, { ...prev, [name]: value }, name);
+  if (name === "categoryId" && resolve) {
+    const group = resolve(next).group;
+    if (group === "whiskey") next.isAdditiveFree = next.isAdditiveFree === true || next.isAdditiveFree === "true";
+    if (group === "agave") next.isAdditiveFree = next.isAdditiveFree === true ? "true" : typeof next.isAdditiveFree === "string" ? next.isAdditiveFree : "";
+  }
   if (resolve?.(next).group === "whiskey") next = withStatementAge(prev, next, name);
   if (name === "isBottledInBond" && value === true) next.proof = BOND_PROOF;
   return resolve ? withNameRules(prev, next, resolve) : next;
@@ -677,7 +692,7 @@ export function ExpressionForm({
   bottleProofs?: string[];
 }) {
   const router = useRouter();
-  const [values, setValues] = React.useState<Record<string, FieldValue>>(() => ({ ...initialFieldValues(LABEL_FIELDS, initialValues), ageYearsSource: initialValues?.ageYearsSource === "derived" ? "derived" : "entered", originCountryManual: initialValues?.originCountryManual === true, originRegionManual: initialValues?.originRegionManual === true }));
+  const [values, setValues] = React.useState<Record<string, FieldValue>>(() => ({ ...initialLabelValues(initialValues, categoryGroups), ageYearsSource: initialValues?.ageYearsSource === "derived" ? "derived" : "entered", originCountryManual: initialValues?.originCountryManual === true, originRegionManual: initialValues?.originRegionManual === true }));
   const [optionsByField, setOptionsByField] = React.useState(options);
   const [links, setLinks] = React.useState(initialLinks);
 

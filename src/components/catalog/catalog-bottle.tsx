@@ -16,6 +16,7 @@ import {
   EMPTY_LINKS,
   ExpressionFields,
   LABEL_FIELDS,
+  initialLabelValues,
   withLabelChange,
   type LabelLinks,
 } from "@/components/expressions/expression-form";
@@ -194,7 +195,7 @@ export function CatalogBottle({
   };
 
   const editChosen = (label: CatalogLabel) => {
-    setLabelValues({ ...initialFieldValues(LABEL_FIELDS, label.values), originCountryManual: label.values.originCountryManual === true, originRegionManual: label.values.originRegionManual === true });
+    setLabelValues({ ...initialLabelValues(label.values, categoryGroups), ageYearsSource: label.values.ageYearsSource === "derived" ? "derived" : "entered", originCountryManual: label.values.originCountryManual === true, originRegionManual: label.values.originRegionManual === true });
     setLabelLinks(label.links);
     setPhase({ kind: "existing", label, editing: true });
   };

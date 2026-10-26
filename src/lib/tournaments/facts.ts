@@ -27,6 +27,7 @@ type ValueRow = {
   is_bottled_in_bond?: boolean;
   amaro_style?: string | null;
   is_aged?: boolean;
+  is_aged_gin?: boolean;
 };
 
 /**
@@ -45,7 +46,7 @@ export async function loadEntrants(tx: Tx, ownerId: number, entries: EntryRef[])
     : [];
   const labelRows = expressionIds.length
     ? await run<ValueRow>(sql`SELECT e.id, e.proof, e.age_years, e.age_months, e.age_days, e.age_statement,
-        e.category_id, e.is_straight, e.is_nas, e.is_bottled_in_bond, e.amaro_style, e.is_aged, c.field_group, c.name AS category_name
+        e.category_id, e.is_straight, e.is_nas, e.is_bottled_in_bond, e.amaro_style, e.is_aged, e.is_aged_gin, c.field_group, c.name AS category_name
         FROM expressions e JOIN categories c ON c.id = e.category_id
         WHERE e.owner_id = ${ownerId} AND e.id IN (${list(expressionIds)})`)
     : [];
@@ -108,7 +109,7 @@ export async function loadEntrants(tx: Tx, ownerId: number, entries: EntryRef[])
       isNas: label.is_nas,
       isBottledInBond: label.is_bottled_in_bond,
     }, kinds[label.category_id ?? -1] ?? "other") : null;
-    const hideAge = label?.field_group === "vodka" || ((label?.field_group === "amaro" || label?.field_group === "liqueur") && !label.is_aged);
+    const hideAge = label?.field_group === "vodka" || (label?.field_group === "gin" && !label.is_aged_gin) || ((label?.field_group === "amaro" || label?.field_group === "liqueur") && !label.is_aged);
     const exprId = entry.expressionId;
     const facts: EntryFacts = {
       proof: values?.proof ?? null,

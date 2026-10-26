@@ -348,7 +348,7 @@ export async function writeLabel(
     const ids = links.mashbills.map((row) => row.id).filter((id) => id > 0);
     if (ids.length > 0) {
       const [peated] = await tx.select({ id: mashbillGrains.id }).from(mashbillGrains)
-        .where(and(inArray(mashbillGrains.mashbillId, ids), sql`lower(${mashbillGrains.grain}) LIKE '%peated%'`, sql`lower(${mashbillGrains.grain}) LIKE '%barley%'`))
+        .where(and(inArray(mashbillGrains.mashbillId, ids), sql`lower(${mashbillGrains.grain}) LIKE '%peated%'`, sql`lower(${mashbillGrains.grain}) NOT LIKE '%unpeated%'`, sql`lower(${mashbillGrains.grain}) NOT LIKE '%non-peated%'`, sql`lower(${mashbillGrains.grain}) LIKE '%barley%'`))
         .limit(1);
       if (peated) await tx.update(expressions).set({ peatStatus: "peated" }).where(eq(expressions.id, target));
     }

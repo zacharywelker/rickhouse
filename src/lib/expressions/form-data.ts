@@ -43,7 +43,7 @@ export async function expressionFormData(expressionId: number | null, ownerId: n
 export async function loadLinks(expressionId: number) {
   const [linked, materials] = await Promise.all([
     expressionLinks(expressionId),
-    db.select({ name: ingredients.name, family: ingredients.family, kind: ingredients.kind })
+    db.select({ name: ingredients.name, family: ingredients.family, kind: ingredients.kind, isManual: expressionIngredients.isManual })
       .from(expressionIngredients)
       .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
       .where(eq(expressionIngredients.expressionId, expressionId))
