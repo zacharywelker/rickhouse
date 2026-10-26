@@ -121,7 +121,8 @@ final class TournamentModelTests: XCTestCase {
         StubURLProtocol.delays = [0.3]
         StubURLProtocol.reply = json(name: "Fresh")
         let slow = Task { await m.load() }
-        try await Task.sleep(for: .milliseconds(80))
+        let started = await eventually { !StubURLProtocol.sent.isEmpty }
+        XCTAssertTrue(started, "the slow load has sent its request before the change")
         _ = await m.rename(heatId: 10, label: "Rye night")
         XCTAssertEqual(m.view?.name, "Fresh")
         await slow.value
@@ -200,7 +201,7 @@ final class TournamentModelTests: XCTestCase {
         XCTAssertNil(m.foot.notice)
         StubURLProtocol.queue = [(200, json(name: "Done"))]
         m.foot.failure?.retry()
-        try? await Task.sleep(for: .milliseconds(300))
+        _ = await eventually { m.foot.notice != nil }
         XCTAssertEqual(m.foot.notice, "Removed Old Forester", "the retry says so too")
     }
 
@@ -281,8 +282,9 @@ final class TournamentModelTests: XCTestCase {
     }
 
     func testZoomIsRemembered() {
-        let defaults = UserDefaults(suiteName: "TournamentModelTests")!
-        defaults.removePersistentDomain(forName: "TournamentModelTests")
+        let suite = "zoom-remembered-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         let store = UserDefaultsZoomStore(defaults: defaults)
         let m = TournamentModel(id: 7, zoomStore: store)
         XCTAssertEqual(m.zoom, .detail)

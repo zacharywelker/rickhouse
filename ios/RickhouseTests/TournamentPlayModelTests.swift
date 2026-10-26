@@ -36,13 +36,13 @@ final class TournamentPlayModelTests: XCTestCase {
         """.utf8)
     }
 
-    private func drawn() -> DrawnHeat {
+    private func drawn() throws -> DrawnHeat {
         let json = """
         {"heatId":10,"round":1,"slot":1,"band":"90 to 100 proof","glasses":[
          {"glass":"A","entry":{"entryId":1,"name":"Alpha","proof":100,"mashbill":null,"ageYears":4,"distilleries":[]}},
          {"glass":"B","entry":{"entryId":2,"name":"Beta","proof":90,"mashbill":null,"ageYears":4,"distilleries":[]}}]}
         """
-        return try! JSONDecoder().decode(DrawnHeat.self, from: Data(json.utf8))
+        return try JSONDecoder().decode(DrawnHeat.self, from: Data(json.utf8))
     }
 
     private func model(drawn: DrawnHeat? = nil, holder: DrawnHeatHolder? = nil) -> PlayModel {
@@ -123,8 +123,8 @@ final class TournamentPlayModelTests: XCTestCase {
         XCTAssertTrue(m.order.isEmpty)
     }
 
-    func testArrivingFromDrawOpensTheGlassesAtOnce() async {
-        let m = await loaded(blind: true, drawn: drawn(), hidden: true)
+    func testArrivingFromDrawOpensTheGlassesAtOnce() async throws {
+        let m = await loaded(blind: true, drawn: try drawn(), hidden: true)
         guard case .mapping(let rows, let saved, _) = m.flow else { return XCTFail("\(m.flow)") }
         XCTAssertEqual(rows.map(\.name), ["Alpha", "Beta"])
         XCTAssertTrue(saved)
@@ -144,8 +144,8 @@ final class TournamentPlayModelTests: XCTestCase {
         Data(String(decoding: data, as: UTF8.self).replacingOccurrences(of: "Alpha", with: "Field1").replacingOccurrences(of: "Beta", with: "Field2").utf8)
     }
 
-    func testTheHolderHandsTheDrawnFlightOverOnceAndTheModelKeepsNoName() async {
-        let holder = DrawnHeatHolder(drawn())
+    func testTheHolderHandsTheDrawnFlightOverOnceAndTheModelKeepsNoName() async throws {
+        let holder = DrawnHeatHolder(try drawn())
         let m = await loaded(blind: true, hidden: true, holder: holder, reply: fieldRenamed(view(blind: true, hidden: true)))
         XCTAssertFalse(holder.isFull, "the route's holder is emptied by the first load")
         XCTAssertNil(holder.take())
@@ -155,8 +155,8 @@ final class TournamentPlayModelTests: XCTestCase {
         XCTAssertFalse(strings(in: m).contains { $0 == "Alpha" || $0 == "Beta" }, "no drawn name is reachable after Hide")
     }
 
-    func testAStoppedFlightStillEmptiesTheHolder() async {
-        let holder = DrawnHeatHolder(drawn())
+    func testAStoppedFlightStillEmptiesTheHolder() async throws {
+        let holder = DrawnHeatHolder(try drawn())
         let m = await loaded(blind: true, hidden: true, holder: holder, reply: view(blind: true, decided: true))
         XCTAssertNotNil(m.stopped)
         XCTAssertFalse(holder.isFull)
@@ -201,7 +201,7 @@ final class TournamentPlayModelTests: XCTestCase {
     }
 
     func testSaveSendsTheLettersAndHideNeedsThemSaved() async throws {
-        let m = await loaded(blind: true, drawn: drawn(), hidden: true)
+        let m = await loaded(blind: true, drawn: try drawn(), hidden: true)
         m.setGlass(entryId: 1, glass: "B")
         m.hide()
         guard case .mapping = m.flow else { return XCTFail("hid with unsaved letters") }
@@ -217,7 +217,7 @@ final class TournamentPlayModelTests: XCTestCase {
     }
 
     func testAfterHideNoNameIsKeptAndRecordSendsGlassLetters() async throws {
-        let m = await loaded(blind: true, drawn: drawn(), hidden: true)
+        let m = await loaded(blind: true, drawn: try drawn(), hidden: true)
         m.hide()
         let held = String(reflecting: m.flow) + m.order.map(\.name).joined()
         XCTAssertFalse(held.contains("Alpha"))
@@ -237,7 +237,7 @@ final class TournamentPlayModelTests: XCTestCase {
         let offer = try XCTUnwrap(m.foot.undo)
         StubURLProtocol.reply = view()
         m.runUndo(offer)
-        for _ in 0..<50 where !m.undone { try await Task.sleep(for: .milliseconds(20)) }
+        _ = await eventually { m.undone }
         XCTAssertTrue(m.undone)
         XCTAssertEqual(posts().last?.method, "DELETE")
         XCTAssertEqual(posts().last?.path, "/api/v1/tournaments/3/heats/10/result")
