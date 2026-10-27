@@ -27,7 +27,7 @@ import { cn, formatDate, formatNumeric } from "@/lib/utils";
 import { fillState, fillStateDescription } from "@/lib/bottles/fill-state";
 import type { BottleFilters, SortKey } from "@/lib/bottles/filters";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
-import { effectiveBottleStatus } from "@/lib/bottles/terminology";
+import { effectiveBottleStatus, isSealedBottle } from "@/lib/bottles/terminology";
 import type { GridRow } from "@/lib/bottles/grid";
 import { describeMarkup, markup, shortMarkup } from "@/lib/bottles/markup";
 import { deleteBottlesBulkAction, updateBottlesBulkAction } from "@/app/(app)/bottles/actions";
@@ -257,6 +257,7 @@ export function BottleTable({
               readOnly
               fieldGroup={row.original.fieldGroup}
               height={28}
+              sealed={isSealedBottle(row.original)}
               label={`${row.original.expressionName} fill`}
             />
             <span className="whitespace-nowrap text-muted-foreground" title={fillStateDescription(getValue())}>

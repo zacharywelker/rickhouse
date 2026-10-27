@@ -47,7 +47,8 @@ test("the gauge is a real slider, not just a picture", async ({ page }) => {
   await expect(gauge).toBeVisible();
   await expect(gauge).toHaveAttribute("aria-valuemin", "0");
   await expect(gauge).toHaveAttribute("aria-valuemax", "100");
-  await expect(gauge).toHaveAttribute("aria-valuetext", "Full");
+  // The seeded bottle is unopened, so the dial is sealed: hatched, no needle, no level to read yet.
+  await expect(gauge).toHaveAttribute("aria-valuetext", "Sealed");
 });
 
 test("the gauge can be poured with the keyboard and the level sticks", async ({ page }) => {
@@ -57,32 +58,43 @@ test("the gauge can be poured with the keyboard and the level sticks", async ({ 
   await gauge.focus();
   await expect(gauge).toHaveAttribute("aria-valuenow", "100");
 
-  // Shift+Arrow moves in tens.
+  // Shift+Arrow moves a quarter; an arrow moves one 5% tick.
   await page.keyboard.press("Shift+ArrowDown");
   await page.keyboard.press("Shift+ArrowDown");
-  await expect(gauge).toHaveAttribute("aria-valuenow", "80");
+  await expect(gauge).toHaveAttribute("aria-valuenow", "50");
 
   await page.keyboard.press("ArrowDown");
-  await expect(gauge).toHaveAttribute("aria-valuenow", "79");
+  await expect(gauge).toHaveAttribute("aria-valuenow", "45");
 
   // It is written through to the database, not just held in the page.
   await page.waitForTimeout(1200);
   await page.reload();
-  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuenow", "79");
-  // 79% reads as the nearest quick state.
-  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Three quarters full");
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuenow", "45");
+  // 45% reads in the half band.
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Half full");
 });
 
-test("tapping the dial sets the nearest quick state in one go", async ({ page }) => {
+test("tapping the dial lands on the tick, not just a quick state", async ({ page }) => {
   await openSeededBottle(page);
-  await tapDial(page, 50);
+  await tapDial(page, 55);
   const gauge = page.getByRole("slider", { name: "Fill level" });
-  await expect(gauge).toHaveAttribute("aria-valuenow", "50");
+  await expect(gauge).toHaveAttribute("aria-valuenow", "55");
   await expect(gauge).toHaveAttribute("aria-valuetext", "Half full");
 
   await page.waitForTimeout(1200);
   await page.reload();
   await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Half full");
+});
+
+test("moving a sealed dial opens the bottle", async ({ page }) => {
+  await addFreshBottle(page);
+  const gauge = page.getByRole("slider", { name: "Fill level" });
+  await expect(gauge).toHaveAttribute("aria-valuetext", "Sealed");
+  await expect(page.getByLabel("Opened", { exact: true })).not.toBeChecked();
+
+  await tapDial(page, 50);
+  await expect(gauge).toHaveAttribute("aria-valuetext", "Half full");
+  await expect(page.getByLabel("Opened", { exact: true })).toBeChecked({ timeout: 10000 });
 });
 
 test("opening a bottle stamps the date", async ({ page }) => {

@@ -21,9 +21,10 @@ import {
   setBottleFillAction,
   setBottleOpenAction,
 } from "@/app/(app)/bottles/actions";
-import type { FieldGroup } from "@/db/schema";
+import type { BottleStatus, FieldGroup } from "@/db/schema";
 import { clampPct } from "@/lib/bottles/geometry";
-import { fillStateText } from "@/lib/bottles/fill-state";
+import { isSealedBottle } from "@/lib/bottles/terminology";
+import { fillReadout } from "@/lib/bottles/fill-state";
 import { formatDate } from "@/lib/utils";
 import { FillGauge } from "./fill-gauge";
 
@@ -63,6 +64,8 @@ export function FillControl({
   const [answering, setAnswering] = React.useState(false);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const killed = status === "killed";
+  // From the local copies, so the dial un-hatches the moment it is moved.
+  const sealed = isSealedBottle({ status: status as BottleStatus, isOpen: open, fillPct: pct });
 
   // The local copies move at once while a save is in flight; a refresh that
   // brings new props wins.
@@ -127,9 +130,9 @@ export function FillControl({
        * assistive tech the same control.
        */}
       <div className="flex flex-col items-center gap-1">
-        <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={104} label="Fill level" />
+        <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={104} label="Fill level" sealed={sealed} />
         <p className="flex h-6 items-center gap-2 text-base font-medium" aria-hidden="true">
-          {fillStateText(pct)}
+          {fillReadout(pct, sealed)}
           {saving ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Saving" /> : null}
         </p>
       </div>

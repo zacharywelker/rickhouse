@@ -1,19 +1,22 @@
 import "server-only";
 import { and, asc, eq, getViewSelectedFields, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottleList, groupBottles, groups, type FieldGroup, type Group } from "@/db/schema";
+import { bottleList, groupBottles, groups, type BottleStatus, type FieldGroup, type Group } from "@/db/schema";
 import { queryBottles, type GridRow } from "@/lib/bottles/grid";
 import { smartGroupFilters } from "./smart";
 
 /** Every bottle_list column except the two search-only ones (see lib/bottles/grid.ts). */
 const { search: _search, searchText: _searchText, ...GRID_COLUMNS } = getViewSelectedFields(bottleList);
 
+/** What a member's small dial needs: its level, spirit family, and whether it is sealed. */
+export type GroupMemberBottle = { fillPct: number; fieldGroup: FieldGroup; status: BottleStatus; isOpen: boolean };
+
 export type GroupSummary = Group & {
   bottleCount: number;
   /** Up to three member thumbnails, for a cover collage when there's no cover image. */
   memberThumbs: string[];
   /** The first few members' fill and spirit family, drawn as bottles when nobody has a photo yet. */
-  memberBottles: Array<{ fillPct: number; fieldGroup: FieldGroup }>;
+  memberBottles: GroupMemberBottle[];
 };
 
 const MAX_COLLAGE_THUMBS = 3;
@@ -30,10 +33,10 @@ export async function listGroups(ownerId: number): Promise<GroupSummary[]> {
           '{}'
         )
       `,
-      memberBottles: sql<Array<{ fillPct: number; fieldGroup: FieldGroup }>>`
+      memberBottles: sql<GroupMemberBottle[]>`
         coalesce(
           json_agg(
-            json_build_object('fillPct', ${bottleList.fillPct}, 'fieldGroup', ${bottleList.fieldGroup})
+            json_build_object('fillPct', ${bottleList.fillPct}, 'fieldGroup', ${bottleList.fieldGroup}, 'status', ${bottleList.status}, 'isOpen', ${bottleList.isOpen})
             order by ${groupBottles.position}
           ) filter (where ${bottleList.id} is not null),
           '[]'
@@ -63,7 +66,7 @@ export async function listGroups(ownerId: number): Promise<GroupSummary[]> {
         ...group,
         bottleCount: total,
         memberThumbs: first.flatMap((row) => (row.thumbPath ? [row.thumbPath] : [])),
-        memberBottles: first.map((row) => ({ fillPct: row.fillPct, fieldGroup: row.fieldGroup })),
+        memberBottles: first.map((row) => ({ fillPct: row.fillPct, fieldGroup: row.fieldGroup, status: row.status, isOpen: row.isOpen })),
       };
     }),
   );
