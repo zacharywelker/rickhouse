@@ -145,9 +145,10 @@ struct BottleDetailView: View {
                     }
                 }
                 .padding(.horizontal, 16)
+                // The list rounds the first and last row's corners (large, on iOS 26) and clips to them; without this the
+                // outline's left corners were cut off.
+                .padding(.vertical, 12)
             }
-            // iOS 26 softens a scroll view's edges; on the photo's outline that read as it fading out at the left.
-            .scrollEdgeEffectHidden(true, for: .horizontal)
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
             Section {

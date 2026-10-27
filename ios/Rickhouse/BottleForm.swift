@@ -195,6 +195,7 @@ struct BottleFormSections: View {
                     .disabled(nasLocked).opacity(nasLocked ? 0.5 : 1)
                 if nasLocked { Button("Edit age") { ageUnlocked = true } }
                 }
+                .tightRow()
                 .onTapGesture(count: 3) { ageUnlocked = true }
             }
             if draft.categoryKind != "tequila" && draft.categoryGroup != "gin" {

@@ -52,7 +52,7 @@ struct EditRow: View {
             if let prefix, !field.isEmpty { Text(prefix).foregroundStyle(Theme.muted) }
             sized(TextField(placeholder.isEmpty ? title : placeholder, text: $field.text, axis: multiline ? .vertical : .horizontal)
                 .multilineTextAlignment(stacked ? .leading : .trailing)
-                .lineLimit(multiline ? 4...12 : 1...1)
+                .lineLimit(multiline ? 3...12 : 1...1)
                 .keyboardType(keyboard)
                 .focused($focused)
                 .foregroundStyle(error == nil ? Theme.ink : Theme.error)
@@ -79,7 +79,7 @@ struct EditRow: View {
     }
 
     var body: some View {
-        VStack(alignment: stacked ? .leading : .trailing, spacing: 2) {
+        VStack(alignment: stacked ? .leading : .trailing, spacing: multiline ? 8 : 2) {
             if stacked {
                 nameLabel
                 HStack(spacing: 8) { input; revertButton }
