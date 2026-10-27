@@ -220,6 +220,9 @@ struct SectionTitle: View {
                 .disabled(!canEdit)
                 .accessibilityLabel("Edit \(title.lowercased())")
         }
+        // The button's 44 pt target is taller than the label; take the spare height off the bottom so the box sits as close
+        // as under a header with no button. The target itself still overflows and stays tappable.
+        .padding(.bottom, -12)
     }
 }
 
