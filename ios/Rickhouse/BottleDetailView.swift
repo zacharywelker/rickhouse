@@ -105,7 +105,7 @@ struct BottleDetailView: View {
                 NavigationStack {
                     TastingFormView(
                         label: TastingLabel(id: expressionId, title: "\(bottle.brand) \(bottle.name)", category: bottle.category, wheel: bottle.wheel),
-                        bottle: TastingBottle(id: id, title: Self.title(of: bottle)),
+                        bottle: TastingBottle(bottle, title: Self.title(of: bottle)),
                         existing: edit.note.map { LabelTasting($0, bottleId: id) }
                     ) {
                         editing = nil

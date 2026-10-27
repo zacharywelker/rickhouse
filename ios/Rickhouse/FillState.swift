@@ -77,6 +77,14 @@ enum FillTicks {
     }
 }
 
+/// Whether to ask "How much is left?" after a tasting is saved: only for a new tasting from one of your own bottles
+/// that is still on the shelf. Never for an edit, a pour from elsewhere, or a killed bottle.
+enum FillNudge {
+    static func shouldNudge(isNew: Bool, ownedBottle: TastingBottle?) -> Bool {
+        isNew && (ownedBottle?.canNudge ?? false)
+    }
+}
+
 /// A fuel dial for the fill level: Empty at the left, Full at the right, the needle straight up at half.
 /// Tap or drag anywhere on it; the needle detents onto the nearest 5% tick with a haptic click, and the level is
 /// committed when the finger lifts. Same drawing as the web's FillGauge (src/components/bottles/fill-gauge.tsx),

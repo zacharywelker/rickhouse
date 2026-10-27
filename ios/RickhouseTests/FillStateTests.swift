@@ -96,4 +96,43 @@ final class FillStateTests: XCTestCase {
         XCTAssertEqual(FillState.of(87).id, "three-quarters")
         XCTAssertEqual(FillState.of(88).id, "full")
     }
+
+    // MARK: The nudge after a tasting
+
+    private func tastingBottle(canNudge: Bool = true) -> TastingBottle {
+        TastingBottle(id: 1, title: "Rare Breed", fillPct: 100, isSealed: true, canNudge: canNudge)
+    }
+
+    func testNewTastingFromAnOwnedBottleNudges() {
+        XCTAssertTrue(FillNudge.shouldNudge(isNew: true, ownedBottle: tastingBottle()))
+    }
+
+    func testEditingNeverNudges() {
+        XCTAssertFalse(FillNudge.shouldNudge(isNew: false, ownedBottle: tastingBottle()))
+    }
+
+    func testATastingWithNoOwnedBottleNeverNudges() {
+        XCTAssertFalse(FillNudge.shouldNudge(isNew: true, ownedBottle: nil))
+    }
+
+    func testAKilledBottleNeverNudges() {
+        XCTAssertFalse(FillNudge.shouldNudge(isNew: true, ownedBottle: tastingBottle(canNudge: false)))
+    }
+
+    func testTastingBottleCarriesTheLevelFromALabelBottle() throws {
+        let sealed = TastingBottle(try labelBottle(status: "owned", isOpen: false, fillPct: 100))
+        XCTAssertEqual(sealed.fillPct, 100)
+        XCTAssertTrue(sealed.isSealed)
+        XCTAssertTrue(sealed.canNudge)
+        let killed = TastingBottle(try labelBottle(status: "killed", isOpen: false, fillPct: 0))
+        XCTAssertFalse(killed.canNudge)
+    }
+
+    func testTastingBottleCarriesTheLevelFromABottlePage() throws {
+        let open = TastingBottle(try bottleDetail(status: "open", isOpen: true, fillPct: 60), title: "Wild Turkey Rare Breed")
+        XCTAssertEqual(open.fillPct, 60)
+        XCTAssertFalse(open.isSealed)
+        XCTAssertTrue(open.canNudge)
+        XCTAssertEqual(open.title, "Wild Turkey Rare Breed")
+    }
 }

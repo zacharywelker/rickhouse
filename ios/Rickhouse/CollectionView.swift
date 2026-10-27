@@ -201,7 +201,7 @@ struct CollectionView: View {
                 await session.loadWheels()
                 logging = LogTarget(
                     label: TastingLabel(id: detail.expressionId ?? bottle.expressionId ?? 0, title: "\(bottle.brand) \(bottle.name)", category: bottle.category, wheel: detail.wheel),
-                    bottle: TastingBottle(id: bottle.id, title: "\(bottle.brand) \(bottle.name)")
+                    bottle: TastingBottle(detail, title: "\(bottle.brand) \(bottle.name)")
                 )
             } catch APIError.unauthorized {
                 session.signOut()

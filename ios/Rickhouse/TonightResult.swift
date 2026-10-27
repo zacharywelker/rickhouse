@@ -306,7 +306,7 @@ struct TonightResultView: View {
                 await session.loadWheels()
                 logging = LogTarget(
                     label: TastingLabel(id: detail.expressionId ?? bottle.expressionId, title: bottle.title, category: bottle.category, wheel: detail.wheel),
-                    bottle: TastingBottle(id: bottle.id, title: bottle.title)
+                    bottle: TastingBottle(detail, title: bottle.title)
                 )
             } catch APIError.unauthorized {
                 session.signOut()
