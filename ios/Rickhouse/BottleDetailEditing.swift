@@ -61,8 +61,11 @@ extension BottleDetailView {
     /// The edit page: the form's sections (BottleForm.swift), then the Opened date, which only an existing bottle has.
     @ViewBuilder
     func bottleEditSections(_ b: BottleDetail) -> some View {
-        if bottleDraft != nil {
-            BottleFormSections(draft: Binding($bottleDraft)!, errors: fieldErrors)
+        if let live = bottleDraft {
+            // Cancel clears `bottleDraft` while the sheet is still on screen, and SwiftUI reads this binding once more
+            // as it goes: `Binding($bottleDraft)!` trapped on that read. Fall back to the last draft instead, and never write one
+            // back once it is cleared: a field committing its text on the way out would reopen the sheet.
+            BottleFormSections(draft: Binding(get: { bottleDraft ?? live }, set: { if bottleDraft != nil { bottleDraft = $0 } }), errors: fieldErrors)
             Section {
                 DateRow(title: "Opened", field: bottleField(.opened), error: fieldErrors[BottleFact.opened.rawValue])
                 FixedRow(title: "Status", value: "\(b.status.capitalized) · follows fill")
@@ -166,6 +169,7 @@ extension BottleDetailView {
     // MARK: Leaving, errors, undo
 
     func cancelEditing() {
+        guard !discarding else { return }  // a second tap while the question rises
         if bottleDraft?.isDirty ?? false { discarding = true } else { stopEditing() }
     }
 

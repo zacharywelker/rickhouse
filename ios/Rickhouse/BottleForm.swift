@@ -122,8 +122,8 @@ struct BottleFormSections: View {
                 EditRow(title: "Release year", field: field(.releaseYear), placeholder: "2024", keyboard: .numberPad, error: error(.releaseYear), tracksChanges: tracks)
             }
             if draft.categoryGroup != "gin" || draft.labelGinAged {
-                Toggle("Single barrel", isOn: tick(.singleBarrel)).tint(Theme.ink).frame(minHeight: 44)
-                Toggle("Private selection", isOn: tick(.singleBarrelPick)).tint(Theme.ink).frame(minHeight: 44)
+                Toggle("Single barrel", isOn: tick(.singleBarrel)).tint(Theme.ink).frame(minHeight: 44).tightRow()
+                Toggle("Private selection", isOn: tick(.singleBarrelPick)).tint(Theme.ink).frame(minHeight: 44).tightRow()
             }
         } header: {
             SectionLabel("Release")
@@ -195,6 +195,7 @@ struct BottleFormSections: View {
                     .disabled(nasLocked).opacity(nasLocked ? 0.5 : 1)
                 if nasLocked { Button("Edit age") { ageUnlocked = true } }
                 }
+                .tightRow()
                 .onTapGesture(count: 3) { ageUnlocked = true }
             }
             if draft.categoryKind != "tequila" && draft.categoryGroup != "gin" {

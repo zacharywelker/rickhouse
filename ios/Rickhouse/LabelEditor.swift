@@ -228,6 +228,7 @@ struct LabelEditor: View {
     }
 
     private func cancel() {
+        guard !discarding else { return }  // a second tap while the question rises
         if draft?.isDirty ?? false { discarding = true } else { dismiss() }
     }
 
@@ -403,6 +404,7 @@ struct LabelFactRows: View {
                 .opacity(caskLocked ? 0.5 : 1)
             if caskLocked { unlockButton("Edit the proof anyway") { proofUnlocked = true } }
         }
+        .tightRow()
         if caskLocked {
             Text(proofSpread.map { "Cask Strength: \($0) proof across its releases and bottles." } ?? "Cask Strength: the proof differs by release, so it isn't set here.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
         }
@@ -443,14 +445,14 @@ struct LabelFactRows: View {
                     .disabled(nasLocked)
                     .opacity(nasLocked ? 0.5 : 1)
                 if nasLocked { unlockButton("Edit the age anyway") { ageUnlocked = true } }
-            }.onTapGesture(count: 3) { ageUnlocked = true } }
+            }.tightRow().onTapGesture(count: 3) { ageUnlocked = true } }
             let locked = (nasLocked || AgeDefaults.ageFilled(draft)) && !ageUnlocked
             if rules.kind != "tequila" && !rules.isGin { HStack {
                 EditRow(title: "Age statement", field: field(.ageStatement), placeholder: "Add age statement", error: errors[LabelFact.ageStatement.rawValue], tracksChanges: tracksChanges)
                     .disabled(locked)
                     .opacity(locked ? 0.5 : 1)
                 if locked { unlockButton("Edit the age statement anyway") { ageUnlocked = true } }
-            } }
+            }.tightRow() }
         }
         SizeRow(field: field(.size), error: errors[LabelFact.size.rawValue])
         EditRow(title: "MSRP", field: field(.msrp), placeholder: "Add MSRP", keyboard: .decimalPad, prefix: session.currencySymbol, error: errors[LabelFact.msrp.rawValue])
@@ -520,6 +522,7 @@ struct TickGrid: View {
                 .accessibilityAddTraits(on.wrappedValue ? .isSelected : [])
             }
         }
+        .tightRow()
     }
 }
 
@@ -541,7 +544,7 @@ struct AgeRow: View {
             }
             if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
         }
-        .padding(.vertical, 2)
+        .tightRow()
     }
 
     private func part(_ text: Binding<String>, _ unit: String, keyboard: UIKeyboardType, label: String) -> some View {
@@ -624,7 +627,7 @@ struct StrengthRow: View {
             }
             if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
         }
-        .padding(.vertical, 2)
+        .tightRow()
         .onAppear { abv = Strength.abv(fromProof: proof.text) }
         // Whichever side is being typed in drives the other.
         .onChange(of: abv) { _, typed in if focus == .abv { proof.text = Strength.proof(fromABV: typed) } }
@@ -636,11 +639,11 @@ struct StrengthRow: View {
             .keyboardType(.decimalPad)
             .multilineTextAlignment(.trailing)
             .fixedSize()
-            .frame(minWidth: 44, alignment: .trailing)
+            .frame(minHeight: 44)
             .focused($focus, equals: side)
             .foregroundStyle(error == nil ? Theme.ink : Theme.error)
             .overlay(alignment: .bottom) {
-                if focus == side || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 2) }
+                if focus == side || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 1) }
             }
             .accessibilityLabel(side == .proof ? "Proof" : "ABV percent")
     }

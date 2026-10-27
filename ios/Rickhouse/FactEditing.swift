@@ -37,7 +37,8 @@ struct EditRow: View {
     }
 
     /// At accessibility text sizes the name sits above a full-width field (DESIGN.md 12.7), so neither is squeezed.
-    private var stacked: Bool { typeSize.isAccessibilitySize }
+    /// A long-form field (Notes) always stacks, so its text has the full width to flow in.
+    private var stacked: Bool { typeSize.isAccessibilitySize || multiline }
 
     private var nameLabel: some View {
         HStack(spacing: 6) {
@@ -51,12 +52,13 @@ struct EditRow: View {
             if let prefix, !field.isEmpty { Text(prefix).foregroundStyle(Theme.muted) }
             sized(TextField(placeholder.isEmpty ? title : placeholder, text: $field.text, axis: multiline ? .vertical : .horizontal)
                 .multilineTextAlignment(stacked ? .leading : .trailing)
+                .lineLimit(multiline ? 3...12 : 1...1)
                 .keyboardType(keyboard)
                 .focused($focused)
                 .foregroundStyle(error == nil ? Theme.ink : Theme.error)
                 .padding(.bottom, 1)
                 .overlay(alignment: .bottom) {
-                    if focused || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 2) }
+                    if focused || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 1) }
                 }
                 .accessibilityLabel(title))
             if stacked && !isMoney { Spacer(minLength: 0) }
@@ -77,7 +79,7 @@ struct EditRow: View {
     }
 
     var body: some View {
-        VStack(alignment: stacked ? .leading : .trailing, spacing: 2) {
+        VStack(alignment: stacked ? .leading : .trailing, spacing: multiline ? 8 : 2) {
             if stacked {
                 nameLabel
                 HStack(spacing: 8) { input; revertButton }
@@ -94,8 +96,9 @@ struct EditRow: View {
             }
             if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
         }
-        .frame(maxWidth: .infinity, alignment: stacked ? .leading : .trailing)
-        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, minHeight: multiline ? nil : 44, alignment: stacked ? .leading : .trailing)
+        .padding(.vertical, multiline ? 10 : 0)
+        .tightRow()
         .onAppear { if focusOnAppear { focused = true } }
         .onChange(of: field.text) { _, text in
             // A price: stop at the cents rather than refuse the save.
@@ -174,7 +177,7 @@ struct DateRow: View {
             if let error { Text(error).font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.error) }
         }
         .frame(maxWidth: .infinity, alignment: stacked ? .leading : .trailing)
-        .padding(.vertical, 2)
+        .tightRow()
     }
 }
 
@@ -193,7 +196,8 @@ struct FixedRow: View {
             }
             if let reason { Text(reason).font(.inter(11, relativeTo: .caption2)).foregroundStyle(Theme.muted) }
         }
-        .padding(.vertical, 2)
+        .frame(minHeight: 44)
+        .tightRow()
         .accessibilityElement(children: .combine)
     }
 }
@@ -216,6 +220,9 @@ struct SectionTitle: View {
                 .disabled(!canEdit)
                 .accessibilityLabel("Edit \(title.lowercased())")
         }
+        // The button's 44 pt target is taller than the label; take the spare height off the bottom so the box sits as close
+        // as under a header with no button. The target itself still overflows and stays tappable.
+        .padding(.bottom, -12)
     }
 }
 

@@ -145,6 +145,9 @@ struct BottleDetailView: View {
                     }
                 }
                 .padding(.horizontal, 16)
+                // The list rounds the first and last row's corners (large, on iOS 26) and clips to them; without this the
+                // outline's left corners were cut off.
+                .padding(.vertical, 12)
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)

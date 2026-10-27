@@ -91,7 +91,7 @@ struct NumbersView: View {
     }
 
     private func leadView(_ lead: NumbersFinding) -> some View {
-        let text = Text("\(lead.figure) ").font(.headline(34)).monospacedDigit() + Text(lead.sentence).font(.headline(27))
+        let text = Text("\(Text(lead.figure).font(.headline(34)).monospacedDigit()) \(Text(lead.sentence).font(.headline(27)))")
         return Group {
             if let target = lead.target {
                 NavigationLink(value: target) {
