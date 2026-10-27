@@ -289,7 +289,9 @@ struct BottleDraft {
         if fact == .ginIsNas { return text.isEmpty ? NSNull() : (text == "true") }
         if BottleFact.ticks.contains(fact) { return text == "true" }
         if text.isEmpty { return NSNull() }
-        return BottleFact.ids.contains(fact) ? (Int(text) ?? NSNull()) : text
+        guard BottleFact.ids.contains(fact) else { return text }
+        if let id = Int(text) { return id }
+        return NSNull()
     }
 
     /// The request that saves the changes (or, for a new bottle, makes it). `choice` is required when the Opened date of an

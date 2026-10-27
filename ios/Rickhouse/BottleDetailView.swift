@@ -146,6 +146,8 @@ struct BottleDetailView: View {
                 }
                 .padding(.horizontal, 16)
             }
+            // iOS 26 softens a scroll view's edges; on the photo's outline that read as it fading out at the left.
+            .scrollEdgeEffectHidden(true, for: .horizontal)
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
             Section {

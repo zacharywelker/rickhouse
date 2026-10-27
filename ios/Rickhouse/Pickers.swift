@@ -248,6 +248,7 @@ struct PickerRow: View {
                 .accessibilityLabel("Put back \(title)")
             }
         }
+        .tightRow()
     }
 }
 

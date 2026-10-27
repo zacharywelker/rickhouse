@@ -45,6 +45,14 @@ struct FactRow: View {
     }
 }
 
+extension View {
+    /// A form row that sets its own 44 pt target (`frame(minHeight: 44)`): the list's default vertical inset on top of it
+    /// made it ~70 pt tall, so every editable row uses this and they all come out the same height.
+    func tightRow() -> some View {
+        listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+    }
+}
+
 struct PickerOption: Identifiable, Hashable {
     let id: String
     let title: String
