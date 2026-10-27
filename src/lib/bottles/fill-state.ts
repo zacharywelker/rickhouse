@@ -51,3 +51,13 @@ export function fillStateText(pct: number): string {
     ? `${state.label} full`
     : state.label;
 }
+
+/** What the dial's readout says: a sealed bottle has no level to read yet. */
+export function fillReadout(pct: number, sealed: boolean): string {
+  return sealed ? "Sealed" : fillStateText(pct);
+}
+
+/** Screen-reader text for the dial, the same idea as `fillReadout`. */
+export function fillSpoken(pct: number, sealed: boolean): string {
+  return sealed ? "Sealed" : fillStateDescription(pct);
+}
