@@ -209,7 +209,7 @@ struct BottleDetailView: View {
 
     private func fillSection(_ b: BottleDetail) -> some View {
         Section {
-            FillPicker(percent: b.fillPct, disabled: settingFill, suffix: b.isOpen ? " · open" : "") { percent in Task { await setFill(percent) } }
+            FillPicker(percent: b.fillPct, disabled: settingFill, sealed: b.isSealed) { percent in Task { await setFill(percent) } }
                 .padding(.vertical, 4)
             if let actionError {
                 ErrorText(actionError)

@@ -720,7 +720,7 @@ struct UpdateFillSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("How much is left?").font(.headline(20)).foregroundStyle(Theme.ink).accessibilityAddTraits(.isHeader)
-            FillPicker(percent: percent, disabled: saving) { picked in Task { await save(picked) } }
+            FillPicker(percent: percent, disabled: saving, sealed: bottle.isSealed) { picked in Task { await save(picked) } }
             if let problem { ErrorText(problem) }
         }
         .padding(16)

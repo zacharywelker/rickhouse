@@ -12,10 +12,17 @@ final class FillStateTests: XCTestCase {
         XCTAssertEqual(FillState.percent(dx: -40, dy: 0), 0)
     }
 
-    func testTheDialDetentsOntoTheQuickStates() {
-        // 60 degrees along from the left horizon is 33%: closer to a quarter than to half.
-        let angle = Double.pi - Double.pi / 3
-        XCTAssertEqual(FillState.percent(dx: cos(angle) * 40, dy: -sin(angle) * 40), 25)
+    /// A point `pct` of the way round the dial from the left horizon, 40 out from the hub.
+    private func along(_ pct: Double) -> (dx: Double, dy: Double) {
+        let angle = Double.pi - pct / 100 * Double.pi
+        return (cos(angle) * 40, -sin(angle) * 40)
+    }
+
+    func testTheDialDetentsOntoTheNearestTick() {
+        let a = along(33)
+        XCTAssertEqual(FillState.percent(dx: a.dx, dy: a.dy), 35)
+        let b = along(5)
+        XCTAssertEqual(FillState.percent(dx: b.dx, dy: b.dy), 5)
     }
 
     func testBelowTheHubSticksToTheNearerPeg() {
@@ -24,8 +31,63 @@ final class FillStateTests: XCTestCase {
     }
 
     func testOnlyTheVeryEndOfTheDialIsEmpty() {
-        let angle = Double.pi * 5 / 100 // 5% along from the left
-        XCTAssertEqual(FillState.percent(dx: -cos(angle) * 40, dy: -sin(angle) * 40), 10)
+        let a = along(2)
+        XCTAssertEqual(FillState.percent(dx: a.dx, dy: a.dy), 0)
+    }
+
+    func testSnapGoesToTheNearestFive() {
+        XCTAssertEqual(FillTicks.snap(63), 65)
+        XCTAssertEqual(FillTicks.snap(62), 60)
+        XCTAssertEqual(FillTicks.snap(100), 100)
+    }
+
+    func testNudgeStepsOneTickEitherWay() {
+        XCTAssertEqual(FillTicks.nudge(63, up: false), 60)
+        XCTAssertEqual(FillTicks.nudge(63, up: true), 65)
+        XCTAssertEqual(FillTicks.nudge(60, up: true), 65)
+        XCTAssertEqual(FillTicks.nudge(60, up: false), 55)
+        XCTAssertEqual(FillTicks.nudge(100, up: true), 100)
+        XCTAssertEqual(FillTicks.nudge(0, up: false), 0)
+        XCTAssertEqual(FillTicks.nudge(3, up: false), 0)
+        XCTAssertEqual(FillTicks.nudge(3, up: true), 5)
+    }
+
+    // MARK: Sealed
+
+    private func labelBottle(status: String, isOpen: Bool, fillPct: Int) throws -> LabelBottle {
+        let json: [String: Any] = ["id": 1, "status": status, "isOpen": isOpen, "fillPct": fillPct]
+        return try JSONDecoder().decode(LabelBottle.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    private func bottleDetail(status: String, isOpen: Bool, fillPct: Int) throws -> BottleDetail {
+        let json: [String: Any] = [
+            "id": 5, "expressionId": 10, "brand": "Wild Turkey", "name": "Rare Breed", "category": "Bourbon",
+            "status": status, "isOpen": isOpen, "isFavorite": false, "fillPct": fillPct, "sizeMl": 750,
+            "pricePaid": "49.99", "dateAcquired": "2026-08-30", "dateOpened": "2026-09-14",
+            "distilleries": [], "finishes": [], "mashbills": [], "images": [], "tastingNotes": [],
+        ]
+        return try JSONDecoder().decode(BottleDetail.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    func testAnOwnedUnopenedFullBottleIsSealed() throws {
+        XCTAssertTrue(try labelBottle(status: "owned", isOpen: false, fillPct: 100).isSealed)
+        XCTAssertTrue(try bottleDetail(status: "owned", isOpen: false, fillPct: 100).isSealed)
+    }
+
+    func testASealedLookingBottleIsNotSealedBelowFull() throws {
+        // The server treats an owned bottle under full as open.
+        XCTAssertFalse(try labelBottle(status: "owned", isOpen: false, fillPct: 60).isSealed)
+        XCTAssertFalse(try bottleDetail(status: "owned", isOpen: false, fillPct: 60).isSealed)
+    }
+
+    func testAnOpenBottleIsNotSealed() throws {
+        XCTAssertFalse(try labelBottle(status: "owned", isOpen: true, fillPct: 100).isSealed)
+        XCTAssertFalse(try labelBottle(status: "open", isOpen: false, fillPct: 100).isSealed)
+    }
+
+    func testKilledAndWishlistAreNeverSealed() throws {
+        XCTAssertFalse(try labelBottle(status: "killed", isOpen: false, fillPct: 100).isSealed)
+        XCTAssertFalse(try bottleDetail(status: "wishlist", isOpen: false, fillPct: 100).isSealed)
     }
 
     func testTheBandsMeetOnTheSameLinesAsTheWeb() {
