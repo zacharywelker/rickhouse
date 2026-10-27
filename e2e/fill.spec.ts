@@ -97,6 +97,31 @@ test("moving a sealed dial opens the bottle", async ({ page }) => {
   await expect(page.getByLabel("Opened", { exact: true })).toBeChecked({ timeout: 10000 });
 });
 
+test("pressing End on a sealed bottle leaves it sealed", async ({ page }) => {
+  await addFreshBottle(page);
+  const gauge = page.getByRole("slider", { name: "Fill level" });
+  await gauge.focus();
+  await page.keyboard.press("End");
+  await page.waitForTimeout(800);
+  await expect(gauge).toHaveAttribute("aria-valuetext", "Sealed");
+  await expect(page.getByLabel("Opened", { exact: true })).not.toBeChecked();
+});
+
+test("pressing Home again after leaving a bottle empty does not ask a second time", async ({ page }) => {
+  await addFreshBottle(page);
+  const gauge = page.getByRole("slider", { name: "Fill level" });
+  await gauge.focus();
+  await page.keyboard.press("Home");
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 10000 });
+  await page.getByRole("button", { name: "Leave it empty" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+
+  await gauge.focus();
+  await page.keyboard.press("Home");
+  await page.waitForTimeout(1200);
+  await expect(page.getByRole("dialog")).toBeHidden();
+});
+
 test("opening a bottle stamps the date", async ({ page }) => {
   await openSeededBottle(page);
   await page.getByLabel("Opened", { exact: true }).check();

@@ -41,6 +41,10 @@ struct FillState: Identifiable, Equatable {
         return raw < 3 ? 0 : FillTicks.snap(raw)
     }
 
+    /// A bottle you still have, sealed or open: the only kind anyone is asked "how much is left?" about.
+    /// Mirrors `isOnShelf` in src/lib/bottles/terminology.ts.
+    static func isOnShelf(status: String) -> Bool { status == "owned" || status == "open" }
+
     /// Owned, unopened and full: the one state the dial draws hatched and sealed. The server treats an owned bottle
     /// under full as open, so this does too. Mirrors `isSealedBottle` in src/lib/bottles/terminology.ts.
     static func isSealed(status: String, isOpen: Bool, fillPct: Int) -> Bool {
@@ -96,10 +100,14 @@ struct FillPicker: View {
     var sealed = false
     let onPick: (Int) -> Void
 
-    @State private var dragPercent: Int?
+    /// The level under the finger. A `GestureState`, so it resets by itself when the gesture is cancelled (a scroll
+    /// taking over from the drag), and the dial never keeps showing a level that was not saved.
+    @GestureState private var dragPercent: Int?
+    /// The picked level for the moment between lifting the finger and the caller's own copy updating.
+    @State private var pending: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var shown: Int { dragPercent ?? percent }
+    private var shown: Int { dragPercent ?? pending ?? percent }
     /// Sealed until the dial is moved, so it un-hatches under the finger.
     private var isSealed: Bool { sealed && shown >= 100 }
 
@@ -177,17 +185,22 @@ struct FillPicker: View {
     }
 
     private func drag(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                guard !disabled else { return }
-                let hub = DialShape.point(50, radius: 0, width: width)
-                dragPercent = FillState.percent(dx: value.location.x - hub.x, dy: value.location.y - hub.y)
+        let hub = DialShape.point(50, radius: 0, width: width)
+        func level(_ value: DragGesture.Value) -> Int {
+            FillState.percent(dx: value.location.x - hub.x, dy: value.location.y - hub.y)
+        }
+        return DragGesture(minimumDistance: 0)
+            .updating($dragPercent) { value, state, _ in
+                if !disabled { state = level(value) }
             }
-            .onEnded { _ in
-                guard let picked = dragPercent else { return }
-                if picked != percent { onPick(picked) }
+            .onEnded { value in
+                guard !disabled else { return }
+                let picked = level(value)
+                guard picked != percent else { return }
+                pending = picked
+                onPick(picked)
                 // After onPick's task has had its turn, so the needle doesn't jump back for a frame.
-                DispatchQueue.main.async { dragPercent = nil }
+                DispatchQueue.main.async { pending = nil }
             }
     }
 }

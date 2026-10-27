@@ -135,4 +135,14 @@ final class FillStateTests: XCTestCase {
         XCTAssertTrue(open.canNudge)
         XCTAssertEqual(open.title, "Wild Turkey Rare Breed")
     }
+
+    func testOnlyABottleOnTheShelfIsAsked() throws {
+        for status in ["owned", "open"] {
+            XCTAssertTrue(TastingBottle(try labelBottle(status: status, isOpen: false, fillPct: 100)).canNudge, status)
+        }
+        for status in ["killed", "sold", "traded", "wishlist", "sampled"] {
+            XCTAssertFalse(TastingBottle(try labelBottle(status: status, isOpen: false, fillPct: 100)).canNudge, status)
+        }
+        XCTAssertFalse(TastingBottle(try bottleDetail(status: "sold", isOpen: false, fillPct: 100), title: "x").canNudge)
+    }
 }

@@ -23,7 +23,7 @@ import {
 } from "@/app/(app)/bottles/actions";
 import type { BottleStatus, FieldGroup } from "@/db/schema";
 import { clampPct } from "@/lib/bottles/geometry";
-import { isSealedBottle } from "@/lib/bottles/terminology";
+import { isOnShelf, isSealedBottle } from "@/lib/bottles/terminology";
 import { fillReadout } from "@/lib/bottles/fill-state";
 import { cn, formatDate } from "@/lib/utils";
 import { FillGauge } from "./fill-gauge";
@@ -66,7 +66,7 @@ export function FillControl({
   const nudge = useFillNudge();
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const killed = status === "killed";
-  const nudging = nudge.active && !killed;
+  const nudging = nudge.active && isOnShelf(status as BottleStatus);
   // From the local copies, so the dial un-hatches the moment it is moved.
   const sealed = isSealedBottle({ status: status as BottleStatus, isOpen: open, fillPct: pct });
 
@@ -103,6 +103,8 @@ export function FillControl({
 
   function change(next: number) {
     const value = clampPct(next);
+    // Pressing End on a full bottle, or Home on an empty one, moves nothing: no write, no second "mark it killed?".
+    if (value === pct) return;
     nudge.dismiss();
     setPct(value);
     commit(value);

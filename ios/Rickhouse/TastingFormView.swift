@@ -35,7 +35,7 @@ struct TastingBottle: Hashable {
     let id: Int
     let title: String
     /// What the "How much is left?" after a new tasting needs: the bottle's level, whether it is still sealed, and
-    /// whether it is still on the shelf (a killed bottle is never asked).
+    /// whether it is still on the shelf (killed, sold, traded, wishlist and sampled bottles are never asked).
     let fillPct: Int
     let isSealed: Bool
     let canNudge: Bool
@@ -49,11 +49,11 @@ struct TastingBottle: Hashable {
     }
 
     init(_ bottle: LabelBottle) {
-        self.init(id: bottle.id, title: bottle.title, fillPct: bottle.fillPct, isSealed: bottle.isSealed, canNudge: bottle.status != "killed")
+        self.init(id: bottle.id, title: bottle.title, fillPct: bottle.fillPct, isSealed: bottle.isSealed, canNudge: FillState.isOnShelf(status: bottle.status))
     }
 
     init(_ bottle: BottleDetail, title: String) {
-        self.init(id: bottle.id, title: title, fillPct: bottle.fillPct, isSealed: bottle.isSealed, canNudge: bottle.status != "killed")
+        self.init(id: bottle.id, title: title, fillPct: bottle.fillPct, isSealed: bottle.isSealed, canNudge: FillState.isOnShelf(status: bottle.status))
     }
 }
 

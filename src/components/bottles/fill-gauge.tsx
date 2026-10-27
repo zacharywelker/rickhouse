@@ -135,7 +135,8 @@ export function FillGauge({
       width={(height * VIEW_W) / VIEW_H}
       className={cn(
         "shrink-0 select-none overflow-visible",
-        interactive && "cursor-pointer touch-none focus-visible:outline-none",
+        interactive &&
+          "cursor-pointer touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className,
       )}
       role={interactive ? "slider" : decorative ? undefined : "img"}

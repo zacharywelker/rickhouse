@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effectiveBottleStatus, isSealedBottle, releaseUnit } from "../terminology";
+import { effectiveBottleStatus, isOnShelf, isSealedBottle, releaseUnit } from "../terminology";
 
 describe("releaseUnit", () => {
   it("uses barrels for American whiskey", () => {
@@ -45,5 +45,18 @@ describe("isSealedBottle", () => {
   it("is false for killed and wishlist bottles", () => {
     expect(isSealedBottle({ status: "killed", isOpen: false, fillPct: 100 })).toBe(false);
     expect(isSealedBottle({ status: "wishlist", isOpen: false, fillPct: 100 })).toBe(false);
+  });
+});
+
+describe("isOnShelf", () => {
+  it("is true for a bottle you have, sealed or open", () => {
+    expect(isOnShelf("owned")).toBe(true);
+    expect(isOnShelf("open")).toBe(true);
+  });
+
+  it("is false for everything else, which is never asked how much is left", () => {
+    for (const status of ["killed", "sold", "traded", "wishlist", "sampled"] as const) {
+      expect(isOnShelf(status)).toBe(false);
+    }
   });
 });
