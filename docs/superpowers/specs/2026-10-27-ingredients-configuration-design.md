@@ -46,10 +46,10 @@ The spirit-specific label rules (2026-10-19 onward) moved rum bases, gin bases, 
 
 - `ingredients` is added to `RESOURCE_KEYS` and to `RESOURCES` with a `ResourceConfig`, following the `cooperages` pattern, plus an `ingredientSchema` in `src/lib/admin/schemas.ts`.
 - Columns: Name, Kind, Family, Labels (count of this account's labels using it).
-- Add form: Name (required, trimmed, max 120), Kind (select of the eight kinds, required), Family (select of grape, apple, pear, other; shown with `showWhenAny` only when Kind is distillate, required there).
+- Add form: Name (required, trimmed, max 120), Kind (select of the eight kinds, required), Family (select of grape, apple, pear, other; required for distillates). `showWhenAny` only reacts to sibling boolean fields, so Family is shown only when Kind is Distillate by a resource-specific filter in `resource-form.tsx`, the same pattern the distilleries form uses for its DSP and NOM fields.
 - Edit form: Name and Family. Kind is read-only after creation, because moving a row to another kind could leave it linked to a label whose spirit rejects it (`ingredientAllowed`).
 - Save: unique key is `(ownerId, kind, name)`. A collision returns a field error "Already exists." There is no auto-merge.
-- Built-in names are reserved. Add or rename onto a preset name for the same kind (case-insensitive) fails with "Sugarcane is a built-in choice. Use Merge into... to combine.", whether or not a label uses that preset yet. This stops a rename from silently turning a custom row into a locked Built-in row.
+- Built-in names are reserved. Add or rename onto a preset name for the same kind (case-insensitive) fails with "Sugarcane is a built-in choice." (Phase 2 appends " Use Merge into... to combine."), whether or not a label uses that preset yet. This stops a rename from silently turning a custom row into a locked Built-in row.
 - Server-side enforcement (the UI hiding a control is not enforcement): `save()` ignores or rejects `kind` when editing; Zod requires `family` for distillates and forces it to null for every other kind; `save()` and `remove()` recheck the lock; `remove()` throws "N labels use this" when the guarded delete matches zero rows, so the action never reports "deleted" for a row that is still there.
 - Renaming goes through the row id, so every linked label updates at once.
 - Delete: blocked while any label uses the row (`deleteBlockedBy: "N labels use this"`). The actual delete is one guarded statement (`DELETE ... WHERE id = $1 AND owner_id = $2 AND NOT EXISTS (SELECT 1 FROM expression_ingredients WHERE ingredient_id = $1)`), so a label saved between the check and the delete cannot be stripped by the `ON DELETE CASCADE`.
@@ -60,9 +60,11 @@ The spirit-specific label rules (2026-10-19 onward) moved rum bases, gin bases, 
 
 - `GET /api/v1/ingredients` accepts all eight `INGREDIENT_KINDS`. Unknown kinds still return 422. The change is additive for iOS.
 
-## Phase 2: built-in rows and merge
+## Phase 2: unused built-ins and merge
 
-### Preset source
+The preset module, the `locked` row plumbing, the reserved-name rule and the Built-in and Fixed tags land in Phase 1, because the reserved-name rule and the locks need them. Phase 2 adds the unused-built-ins section, Merge, and the "Use Merge into... to combine." pointer on the reserved-name message.
+
+### Preset source (lands in Phase 1)
 
 - New module `src/lib/expressions/ingredient-presets.ts` exports the preset names per kind, replacing:
   - `GIN_BASES` and `GIN_BOTANICALS` from `gin-details.ts` (re-exported from the new module so existing imports keep working),
@@ -84,9 +86,9 @@ The spirit-specific label rules (2026-10-19 onward) moved rum bases, gin bases, 
 - One transaction, rows locked with `FOR UPDATE`, both filtered by `ownerId`:
   1. If the target is an unused built-in, insert its row.
   2. For each label linking the loser: if it already links the target, delete the loser's link and set the target link's `isManual` to true if either was manual. Otherwise repoint the link, keeping its `position`.
-  3. Renumber each affected label's links of that kind to a dense `0..n-1`, keeping their current order, so two links never tie on `position`.
+  3. Renumber all of each affected label's ingredient links to a dense `0..n-1`, keeping their current order, so two links never tie on `position`. A label's ingredients share one position sequence (gin keeps botanicals and bases together), so renumbering only the merged kind would collide with the others.
   4. Delete the loser row.
-- Merge is irreversible, so it requires a confirm dialog that states the effect and the count: "Merge 'Sugar cane' into 'Sugarcane'? 3 labels will use Sugarcane. 'Sugar cane' will be deleted. This can't be undone." The count query is scoped by `ownerId`.
+- Merge is irreversible, so it requires a confirm dialog that states the effect and the count: "Merge 'Sugar cane' into 'Sugarcane'? 3 labels will use Sugarcane. 'Sugar cane' will be deleted. This can't be undone." The count is the row's Labels cell, which `list()` already scopes by `ownerId`.
 - After a merge or rename the action revalidates the Configuration page, the label pages and the collection.
 - If the loser no longer exists the action returns "Already merged or deleted. Refresh." and writes nothing.
 - Accepted limits, documented rather than fixed. A label form opened before a merge, or an iOS picker holding a cached list, submits the old name and the label save re-creates it, because the save path upserts by `(owner, kind, name)`; the success message says open label forms may need a refresh. A label save running at the same moment as a merge in another tab can fail on the foreign key and roll back; the error reads "Something changed while saving. Try again."
@@ -112,6 +114,10 @@ Vitest unless noted.
 - API: all eight kinds return 200; an unknown kind returns 422.
 - Ownership: `/ingredients/[id]` for another account's id returns 404.
 - Playwright: add a rum base in Configuration, find it in the label picker, save a label with it, follow the chip to a page that lists the bottle.
+
+## Known simplification
+
+Botanical presets are gin's list, so an amaro botanical with the same name (for example "Lemon") also shows as Built-in. It is the same name, so this is harmless.
 
 ## Rollout
 
