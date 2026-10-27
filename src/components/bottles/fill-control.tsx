@@ -25,8 +25,9 @@ import type { BottleStatus, FieldGroup } from "@/db/schema";
 import { clampPct } from "@/lib/bottles/geometry";
 import { isSealedBottle } from "@/lib/bottles/terminology";
 import { fillReadout } from "@/lib/bottles/fill-state";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { FillGauge } from "./fill-gauge";
+import { useFillNudge } from "./fill-nudge";
 
 /**
  * The gauge plus everything that has to happen around it: the open/closed
@@ -62,8 +63,10 @@ export function FillControl({
   // Clearing the opened date of an open bottle asks what to do with it, as the phone does.
   const [askOpened, setAskOpened] = React.useState(false);
   const [answering, setAnswering] = React.useState(false);
+  const nudge = useFillNudge();
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const killed = status === "killed";
+  const nudging = nudge.active && !killed;
   // From the local copies, so the dial un-hatches the moment it is moved.
   const sealed = isSealedBottle({ status: status as BottleStatus, isOpen: open, fillPct: pct });
 
@@ -100,6 +103,7 @@ export function FillControl({
 
   function change(next: number) {
     const value = clampPct(next);
+    nudge.dismiss();
     setPct(value);
     commit(value);
   }
@@ -130,7 +134,15 @@ export function FillControl({
        * assistive tech the same control.
        */}
       <div className="flex flex-col items-center gap-1">
-        <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={104} label="Fill level" sealed={sealed} />
+        {nudging ? (
+          <div role="status" className="flex w-full items-center justify-between gap-2 border border-foreground px-3 py-2 text-sm">
+            <span>How much is left?</span>
+            <Button type="button" size="sm" variant="outline" onClick={nudge.dismiss}>
+              Done
+            </Button>
+          </div>
+        ) : null}
+        <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={104} label="Fill level" sealed={sealed} className={cn(nudging && "rounded-sm ring-2 ring-ring ring-offset-4")} />
         <p className="flex h-6 items-center gap-2 text-base font-medium" aria-hidden="true">
           {fillReadout(pct, sealed)}
           {saving ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Saving" /> : null}
