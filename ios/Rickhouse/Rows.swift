@@ -41,6 +41,7 @@ struct FactRow: View {
             .padding(.vertical, 8)
         }
         .frame(minHeight: 44)
+        .tightRow()
         .accessibilityElement(children: .combine)
     }
 }
