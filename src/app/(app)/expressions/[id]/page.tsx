@@ -201,7 +201,7 @@ export default async function LabelPage({
                   className="size-full object-contain"
                 />
               ) : (
-                <FillGauge value={100} readOnly decorative fieldGroup={group} height={220} label={`${e.name}`} />
+                <p className="text-sm text-muted-foreground">No photo yet</p>
               )}
             </div>
           </Polaroid>
@@ -346,7 +346,7 @@ export default async function LabelPage({
                     {owned.map((bottle) => (
                       <tr key={bottle.id} className="border-b border-border align-middle">
                         <td className="py-2 pr-3">
-                          <FillGauge value={bottle.fillPct} readOnly fieldGroup={group} height={36} label={`Fill ${bottle.fillPct}%`} />
+                          <FillGauge value={bottle.fillPct} readOnly fieldGroup={group} height={32} label={`Fill ${bottle.fillPct}%`} />
                         </td>
                         <td className="py-2 pr-4">
                           <Link href={`/bottles/${bottle.id}`} className="font-medium hover:text-accent hover:underline">

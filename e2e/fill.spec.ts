@@ -19,6 +19,21 @@ async function addFreshBottle(page: Page) {
   await expect(page).toHaveURL(/\/bottles\/\d+$/);
 }
 
+/**
+ * Taps the dial where the needle would point for `pct`. The dial detents onto
+ * the nearest quick state, so any point inside its band lands on that state.
+ */
+async function tapDial(page: Page, pct: number) {
+  const box = await page.getByRole("slider", { name: "Fill level" }).boundingBox();
+  if (!box) throw new Error("the dial is not on the page");
+  // The hub sits 62/72 of the way down the 120x72 viewBox; the arc is 48/72 of the height out from it.
+  const hubX = box.x + box.width / 2;
+  const hubY = box.y + (box.height * 62) / 72;
+  const r = (box.height * 36) / 72;
+  const angle = Math.PI - (pct / 100) * Math.PI;
+  await page.mouse.click(hubX + Math.cos(angle) * r, hubY - Math.sin(angle) * r);
+}
+
 // Specs create real rows; start each file from the seeded baseline.
 test.beforeAll(resetDatabase);
 
@@ -32,7 +47,6 @@ test("the gauge is a real slider, not just a picture", async ({ page }) => {
   await expect(gauge).toBeVisible();
   await expect(gauge).toHaveAttribute("aria-valuemin", "0");
   await expect(gauge).toHaveAttribute("aria-valuemax", "100");
-  await expect(gauge).toHaveAttribute("aria-orientation", "vertical");
   await expect(gauge).toHaveAttribute("aria-valuetext", "Full");
 });
 
@@ -56,19 +70,19 @@ test("the gauge can be poured with the keyboard and the level sticks", async ({ 
   await page.reload();
   await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuenow", "79");
   // 79% reads as the nearest quick state.
-  await expect(page.getByRole("radio", { name: "Three quarters full" })).toBeChecked();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Three quarters full");
 });
 
-test("a quick state sets the level in one tap", async ({ page }) => {
+test("tapping the dial sets the nearest quick state in one go", async ({ page }) => {
   await openSeededBottle(page);
-  await page.getByText("½", { exact: true }).click();
+  await tapDial(page, 50);
   const gauge = page.getByRole("slider", { name: "Fill level" });
   await expect(gauge).toHaveAttribute("aria-valuenow", "50");
   await expect(gauge).toHaveAttribute("aria-valuetext", "Half full");
 
   await page.waitForTimeout(1200);
   await page.reload();
-  await expect(page.getByRole("radio", { name: "Half full" })).toBeChecked();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Half full");
 });
 
 test("opening a bottle stamps the date", async ({ page }) => {
@@ -115,7 +129,7 @@ test("clearing the opened date asks, and keeping it open leaves the bottle open 
 
 test("clearing the opened date and marking it sealed closes the bottle at full", async ({ page }) => {
   await addFreshBottle(page);
-  await page.getByText("½", { exact: true }).click();
+  await tapDial(page, 50);
   const gauge = page.getByRole("slider", { name: "Fill level" });
   await expect(gauge).toHaveAttribute("aria-valuenow", "50");
   // Pouring opens a sealed bottle and stamps today.

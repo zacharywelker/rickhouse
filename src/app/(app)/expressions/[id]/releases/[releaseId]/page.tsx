@@ -112,7 +112,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
                   className={cn("size-full object-contain", release.photoPath === null && "opacity-60")}
                 />
               ) : (
-                <FillGauge value={100} readOnly decorative fieldGroup={group} height={220} label={release.name} />
+                <p className="text-sm text-muted-foreground">No photo yet</p>
               )}
             </div>
           </Polaroid>
@@ -145,7 +145,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
               <ul className="flex flex-col divide-y divide-border">
                 {owned.map((bottle) => (
                   <li key={bottle.id} className="flex items-center gap-3 py-2 text-sm">
-                    <FillGauge value={bottle.fillPct} readOnly fieldGroup={group} height={36} label={`Fill ${bottle.fillPct}%`} />
+                    <FillGauge value={bottle.fillPct} readOnly fieldGroup={group} height={32} label={`Fill ${bottle.fillPct}%`} />
                     <Link href={`/bottles/${bottle.id}`} className="font-medium hover:text-accent hover:underline">
                       {bottle.dateAcquired ? `Acquired ${formatDate(bottle.dateAcquired)}` : `Bottle #${bottle.id}`}
                     </Link>

@@ -39,7 +39,7 @@ function MemberTile({ row, onRemove }: { row: GridRow; onRemove: (() => void) | 
               value={row.fillPct}
               readOnly
               fieldGroup={row.fieldGroup}
-              height={110}
+              height={72}
               label={`${row.expressionName} fill`}
             />
           )}

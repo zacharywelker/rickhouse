@@ -208,14 +208,8 @@ struct BottleDetailView: View {
     // MARK: Fill level
 
     private func fillSection(_ b: BottleDetail) -> some View {
-        let state = FillState.of(b.fillPct)
-        return Section {
-            HStack(spacing: 10) {
-                FillGauge(percent: b.fillPct, track: Theme.ink.opacity(0.15)).frame(width: 4, height: 28)
-                Text(state.text + (b.isOpen ? " · open" : "")).font(.inter(16, .medium))
-            }
-            .accessibilityElement(children: .combine)
-            FillPicker(percent: b.fillPct, disabled: settingFill) { percent in Task { await setFill(percent) } }
+        Section {
+            FillPicker(percent: b.fillPct, disabled: settingFill, suffix: b.isOpen ? " · open" : "") { percent in Task { await setFill(percent) } }
                 .padding(.vertical, 4)
             if let actionError {
                 ErrorText(actionError)

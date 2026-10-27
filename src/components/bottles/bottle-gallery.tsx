@@ -103,7 +103,7 @@ function Frame({ row, children }: { row: GridRow; children?: React.ReactNode }) 
             value={row.fillPct}
             readOnly
             fieldGroup={row.fieldGroup}
-            height={130}
+            height={72}
             label={`${row.expressionName} fill`}
           />
         </div>
