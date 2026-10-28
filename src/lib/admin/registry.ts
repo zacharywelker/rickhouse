@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, ne, not, or, sql } from "drizzle-orm";
+import { and, asc, eq, ne, not, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import { db } from "@/db";
@@ -8,6 +8,7 @@ import { inferMashbillStyle } from "@/lib/mashbill-style";
 import {
   FIELD_GROUPS,
   FINISH_TYPES,
+  INGREDIENT_KINDS,
   SCOTCH_REGIONS,
   type DistilleryDisclosure,
   brands,
@@ -20,9 +21,11 @@ import {
   distilleryNames,
   expressionDistilleries,
   expressionFinishes,
+  expressionIngredients,
   expressionMashbills,
   expressions,
   finishes,
+  ingredients,
   mashbillGrains,
   mashbills,
   stores,
@@ -33,6 +36,8 @@ import { otherNamesText, parseOtherNames } from "@/lib/other-names";
 import { syncDistilleryNames } from "@/lib/other-names-store";
 import { resolveSlug } from "@/lib/slug";
 import { createsCycle } from "./tree";
+import { AdminRuleError } from "./errors";
+import { FAMILIES, INGREDIENT_KIND_LABELS, lockFor, reservedNameError } from "@/lib/expressions/ingredient-rules";
 import type { AdminRow, ColumnSpec, FieldSpec, Option } from "./types";
 import {
   brandSchema,
@@ -41,6 +46,7 @@ import {
   distillerySchema,
   finishSchema,
   cooperageSchema,
+  ingredientSchema,
   mashbillSchema,
   storeSchema,
   tagSchema,
@@ -54,6 +60,7 @@ export const RESOURCE_KEYS = [
   "mashbills",
   "finishes",
   "cooperages",
+  "ingredients",
   "stores",
   "tags",
 ] as const;
@@ -1101,6 +1108,150 @@ const cooperagesConfig: ResourceConfig = {
 };
 
 // ------------------------------------------------------------
+// Ingredients
+// ------------------------------------------------------------
+
+/** Links that exist only because an amaro style put the botanical there; a save re-adds them by name. */
+const styleLinkCount = sql<number>`(select count(*)::int from expression_ingredients ei where ei.ingredient_id = ${ingredients.id} and ei.is_manual = false)`;
+const labelsUsing = sql<number>`(select count(*)::int from expression_ingredients ei where ei.ingredient_id = ${ingredients.id})`;
+
+const ingredientsConfig: ResourceConfig = {
+  key: "ingredients",
+  label: "Ingredients",
+  singular: "Ingredient",
+  description:
+    "What goes into a spirit: rum and gin bases, botanicals, magueys, distillates and flavors. A name you add here is suggested in every label form for that kind.",
+  columns: [
+    nameColumn,
+    { key: "kind", label: "Kind" },
+    { key: "family", label: "Family", secondary: true },
+    { key: "uses", label: "Labels", numeric: true, secondary: true },
+  ],
+  fields: [
+    { kind: "text", name: "name", label: "Name", required: true, span: "half" },
+    {
+      kind: "select",
+      name: "kind",
+      label: "Kind",
+      required: true,
+      options: [
+        { value: "", label: "Choose a kind" },
+        ...INGREDIENT_KINDS.map((kind) => ({ value: kind, label: INGREDIENT_KIND_LABELS[kind] })),
+      ],
+      help: "Fixed once the ingredient exists.",
+      span: "half",
+    },
+    {
+      kind: "select",
+      name: "family",
+      label: "Family",
+      options: [{ value: "", label: "Not set" }, ...FAMILIES.map((f) => ({ value: f, label: f[0]!.toUpperCase() + f.slice(1) }))],
+      help: "Calvados takes apple or pear; Cognac and Armagnac take grape.",
+      span: "half",
+    },
+  ],
+  list: async (ownerId) => {
+    const rows = await db
+      .select({
+        id: ingredients.id,
+        name: ingredients.name,
+        kind: ingredients.kind,
+        family: ingredients.family,
+        uses: labelsUsing,
+        styleLinks: styleLinkCount,
+      })
+      .from(ingredients)
+      .where(eq(ingredients.ownerId, ownerId))
+      .orderBy(asc(ingredients.kind), asc(ingredients.name));
+    return rows.map((r) => {
+      const lock = lockFor(r);
+      return {
+        id: r.id,
+        cells: { name: r.name, kind: INGREDIENT_KIND_LABELS[r.kind], family: r.family, uses: r.uses },
+        values: { name: r.name, kind: r.kind, family: r.family ?? "" },
+        ...(lock ? { locked: lock } : {}),
+        ...(r.uses > 0 ? { deleteBlockedBy: `${r.uses} label${r.uses === 1 ? " uses" : "s use"} this ingredient` } : {}),
+      };
+    });
+  },
+  optionsFor: async () => ({}),
+  save: async (raw, id, ownerId) => {
+    let kind = raw.kind;
+    if (id !== null) {
+      const [existing] = await db
+        .select({ kind: ingredients.kind, name: ingredients.name, styleLinks: styleLinkCount })
+        .from(ingredients)
+        .where(and(eq(ingredients.id, id), eq(ingredients.ownerId, ownerId)))
+        .limit(1);
+      if (!existing) return { ok: false, error: "That no longer exists." };
+      const lock = lockFor(existing);
+      if (lock) return { ok: false, error: lock.reason };
+      // The form hides Kind on edit; a request that sends one anyway is overridden here.
+      kind = existing.kind;
+    }
+    const parsed = ingredientSchema.safeParse({ ...raw, kind });
+    if (!parsed.success) return invalid(parsed.error);
+    const input = parsed.data;
+
+    const reserved = reservedNameError(input.kind, input.name);
+    if (reserved) return { ok: false, error: reserved, fieldErrors: { name: reserved } };
+
+    const [clash] = await db
+      .select({ id: ingredients.id })
+      .from(ingredients)
+      .where(
+        and(
+          eq(ingredients.ownerId, ownerId),
+          eq(ingredients.kind, input.kind),
+          eq(ingredients.name, input.name),
+          id !== null ? ne(ingredients.id, id) : undefined,
+        ),
+      )
+      .limit(1);
+    if (clash) return { ok: false, error: "Already exists.", fieldErrors: { name: "Already exists." } };
+
+    if (id === null) {
+      const [row] = await db
+        .insert(ingredients)
+        .values({ ownerId, kind: input.kind, name: input.name, family: input.family })
+        .returning({ id: ingredients.id });
+      return { ok: true, id: row!.id };
+    }
+    const updated = await db
+      .update(ingredients)
+      .set({ name: input.name, family: input.family })
+      .where(and(eq(ingredients.id, id), eq(ingredients.ownerId, ownerId)))
+      .returning({ id: ingredients.id });
+    return updated.length > 0 ? { ok: true, id } : { ok: false, error: "That no longer exists." };
+  },
+  remove: async (id, ownerId) => {
+    const [row] = await db
+      .select({ kind: ingredients.kind, name: ingredients.name, styleLinks: styleLinkCount, uses: labelsUsing })
+      .from(ingredients)
+      .where(and(eq(ingredients.id, id), eq(ingredients.ownerId, ownerId)))
+      .limit(1);
+    if (!row) return;
+    const lock = lockFor(row);
+    if (lock && !lock.allowDelete) throw new AdminRuleError(lock.reason);
+    // One statement: a label saved between a check and a delete cannot be stripped by the cascade.
+    const deleted = await db
+      .delete(ingredients)
+      .where(
+        and(
+          eq(ingredients.id, id),
+          eq(ingredients.ownerId, ownerId),
+          notExists(db.select({ one: sql`1` }).from(expressionIngredients).where(eq(expressionIngredients.ingredientId, id))),
+        ),
+      )
+      .returning({ id: ingredients.id });
+    if (deleted.length === 0) {
+      const n = Math.max(row.uses, 1);
+      throw new AdminRuleError(`${n} label${n === 1 ? " uses" : "s use"} this ingredient`);
+    }
+  },
+};
+
+// ------------------------------------------------------------
 // Stores
 // ------------------------------------------------------------
 
@@ -1276,6 +1427,7 @@ export const RESOURCES: Record<ResourceKey, ResourceConfig> = {
   mashbills: mashbillsConfig,
   finishes: finishesConfig,
   cooperages: cooperagesConfig,
+  ingredients: ingredientsConfig,
   stores: storesConfig,
   tags: tagsConfig,
 };
