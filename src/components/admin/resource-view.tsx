@@ -171,14 +171,15 @@ export function ResourceView({
                     </TableCell>
                   ))}
                   <TableCell className="text-right">
-                    {row.locked && !readOnly ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={row.locked.reason}>
-                        <Lock className="size-3.5" aria-hidden="true" />
-                        {row.locked.tag}
-                        <span className="sr-only">: {row.locked.reason}</span>
-                      </span>
-                    ) : null}
-                    <div className={cn("flex justify-end gap-1", readOnly && "hidden")}>
+                    <div className={cn("flex min-h-8 items-center justify-end gap-2", readOnly && "hidden")}>
+                      {row.locked ? (
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground" title={row.locked.reason}>
+                          <Lock className="size-3.5" aria-hidden="true" />
+                          {row.locked.tag}
+                          <span className="sr-only">: {row.locked.reason}</span>
+                        </span>
+                      ) : null}
+                      <div className="flex gap-1">
                       {row.locked ? null : (
                         <Button variant="ghost" size="sm" onClick={() => setEditing(row)} aria-label={`Edit ${String(row.cells.name ?? "")}`} title={`Edit ${String(row.cells.name ?? "")}`}>
                           <Pencil className="size-4" />
@@ -198,6 +199,7 @@ export function ResourceView({
                           <Trash2 className="size-4" />
                         </Button>
                       )}
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
