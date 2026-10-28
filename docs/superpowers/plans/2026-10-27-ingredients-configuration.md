@@ -37,6 +37,15 @@ The spec is edited to match these in the same commit as this plan.
 - Run `npm run typecheck`, `npm run lint` and `npx vitest run` before every PR.
 - DB-backed tests are opt-in: `TOURNAMENT_TEST_DATABASE_URL=postgres://user:pass@localhost:5432/scratch npx vitest run integration` (database name must contain test, proto, scratch or tourney; migrations applied).
 
+## Scratch environment recipe (worked on 2026-10-28)
+
+- **Database:** `docker run -d --name rickhouse-scratch -e POSTGRES_USER=scratch -e POSTGRES_PASSWORD=scratch -e POSTGRES_DB=rickhouse_scratch -p 55432:5432 postgres:16-alpine`, then `TOURNAMENT_TEST_DATABASE_URL=postgres://scratch:scratch@localhost:55432/rickhouse_scratch`.
+- **Migrations at the time of writing do not apply to an empty database:** `drizzle/0050_bottle_list_age_precedence.sql` does `CREATE OR REPLACE VIEW "bottle_list"` and Postgres refuses the `age_years` type change (42P16). Not part of this work. To migrate a scratch database anyway, apply `drizzle/*.sql` in journal order through `psql -1`, streaming 0050 through `sed 's/^CREATE OR REPLACE VIEW "bottle_list"/DROP VIEW IF EXISTS "bottle_list";\nCREATE VIEW "bottle_list"/'`. Nothing in the repo changes. If main has fixed 0050 by then, use `npm run db:migrate` instead.
+- **node_modules in a worktree must be a real hard-linked copy:** `cp -al ../../../node_modules node_modules` (this worktree is three levels deep). A symlink, or a missing directory, makes Turbopack stop with "Could not find the Next.js package". If `node_modules` already exists as an empty directory, `rm -rf` it first, or the copy nests inside it.
+- **Drizzle and correlated subqueries:** in a single-table select, `${ingredients.id}` inside a raw `sql` subquery renders as a bare `"id"`, which binds to the inner table when it also has an `id` column (for example `bottles`). Write `"ingredients"."id"` by hand there.
+- **Vitest:** a `beforeEach` that returns a function runs it as teardown. Use braces: `beforeEach(() => { mock.mockReset(); })`.
+- **Never `pkill -f` a pattern that appears in your own command line.**
+
 ## File Structure
 
 Create:
@@ -1523,8 +1532,12 @@ test("an ingredient added in Configuration is offered on a rum label and its chi
   await pick(page, "Brand", "Pursuit Spirits");
   await pick(page, "Category", "Rum");
   await page.getByLabel("Label Name").fill(`Palm Rum ${stamp()}`);
-  // If the suggestion is not a button, match the markup in ingredient-picker.tsx instead.
-  await page.getByRole("group", { name: "Base" }).getByRole("button", { name: base }).click();
+  // Rum shows three preset buttons; any other base, including one added in Configuration, is typed under "Other…" with typeahead.
+  const baseGroup = page.getByRole("group", { name: "Base" });
+  await baseGroup.getByRole("button", { name: "Other…" }).click();
+  await expect(page.locator(`datalist#ingredient-rum_base-suggestions option[value="${base}"]`)).toHaveCount(1);
+  await baseGroup.getByLabel("Add base").fill(base);
+  await baseGroup.getByRole("button", { name: "Add", exact: true }).click();
   await page.getByRole("button", { name: "Create Label", exact: true }).click();
   await expect(page).toHaveURL(/\/expressions\/\d+$/);
 
@@ -2371,7 +2384,10 @@ test("merging an ingredient moves a label to the survivor", async ({ page }) => 
   await pick(page, "Brand", "Pursuit Spirits");
   await pick(page, "Category", "Rum");
   await page.getByLabel("Label Name").fill(`Merge Rum ${stamp()}`);
-  await page.getByRole("group", { name: "Base" }).getByRole("button", { name: from }).click();
+  const baseGroup = page.getByRole("group", { name: "Base" });
+  await baseGroup.getByRole("button", { name: "Other…" }).click();
+  await baseGroup.getByLabel("Add base").fill(from);
+  await baseGroup.getByRole("button", { name: "Add", exact: true }).click();
   await page.getByRole("button", { name: "Create Label", exact: true }).click();
   await expect(page).toHaveURL(/\/expressions\/\d+$/);
   const labelUrl = page.url();
