@@ -550,7 +550,10 @@ vi.mock("@/lib/admin/registry", () => ({
 
 import { deleteResourceAction } from "../actions";
 
-beforeEach(() => remove.mockReset());
+// Braces matter: a beforeEach that returns a function has it run as teardown, which would call the mock.
+beforeEach(() => {
+  remove.mockReset();
+});
 
 describe("deleteResourceAction", () => {
   it("shows a rule error's own words", async () => {
