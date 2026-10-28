@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   brands,
@@ -7,6 +7,7 @@ import {
   distilleries,
   expressionMashbills,
   finishes,
+  ingredients,
   mashbillGrains,
   mashbills,
   stores,
@@ -69,6 +70,32 @@ export async function getFinish(slug: string, ownerId: number) {
     .where(and(eq(finishes.ownerId, ownerId), eq(finishes.slug, slug)))
     .limit(1);
   return row ?? null;
+}
+
+export async function getIngredient(id: number, ownerId: number) {
+  const [row] = await db
+    .select({ id: ingredients.id, name: ingredients.name, kind: ingredients.kind, family: ingredients.family })
+    .from(ingredients)
+    .where(and(eq(ingredients.id, id), eq(ingredients.ownerId, ownerId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * The same name under other kinds (Wheat is a gin base and a vodka base), so a click on one can reach
+ * the other. Scoped by owner twice: the rows themselves and the bottles counted under them.
+ */
+export async function getAlsoUsedAs(row: { id: number; name: string }, ownerId: number) {
+  return db
+    .select({
+      id: ingredients.id,
+      kind: ingredients.kind,
+      // Qualified by hand: Drizzle renders a bare "id" here, which would bind to bottles.id inside the subquery.
+      bottles: sql<number>`(select count(distinct b.id)::int from bottles b join expression_ingredients ei on ei.expression_id = b.expression_id where ei.ingredient_id = "ingredients"."id" and b.owner_id = ${ownerId})`,
+    })
+    .from(ingredients)
+    .where(and(eq(ingredients.ownerId, ownerId), eq(ingredients.name, row.name), ne(ingredients.id, row.id)))
+    .orderBy(asc(ingredients.kind));
 }
 
 export async function getStore(slug: string, ownerId: number) {

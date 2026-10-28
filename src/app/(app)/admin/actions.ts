@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
+import { AdminRuleError } from "@/lib/admin/errors";
 import { RESOURCES, isResourceKey } from "@/lib/admin/registry";
 import { quickCreateSchema } from "@/lib/admin/schemas";
 import {
@@ -54,6 +55,7 @@ export async function saveResourceAction(
       createdId: outcome.id,
     };
   } catch (error: unknown) {
+    if (error instanceof AdminRuleError) return { ok: false, error: error.message };
     return mapDbError(error, { singular: config.singular });
   }
 }
@@ -70,6 +72,7 @@ export async function deleteResourceAction(key: string, id: number): Promise<Act
     revalidatePath("/");
     return { ok: true, message: `${config.singular} deleted.` };
   } catch (error: unknown) {
+    if (error instanceof AdminRuleError) return { ok: false, error: error.message };
     return mapDbError(error, { singular: config.singular });
   }
 }

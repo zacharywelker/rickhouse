@@ -6,7 +6,7 @@ import { parseAdminSort } from "@/lib/admin/sort";
 import { requireSession } from "@/lib/auth";
 
 /**
- * One route for all eight lookup entities; the registry supplies the rest.
+ * One route for every lookup entity; the registry supplies the rest.
  *
  * Deliberately no `generateStaticParams`: it would prerender these at build
  * time, and the image is built in CI with no database to read from.

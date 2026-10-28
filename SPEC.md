@@ -131,6 +131,9 @@ Shipped as **Configuration**; "taxonomy" was a database word.
   leaving the form to go create a distillery first. This is important — it is
   the single biggest source of friction in this kind of app.~~
 - ~~**Done when:** every lookup entity is manageable in the UI.~~
+- Ingredients (rum and gin bases, botanicals, magueys, distillates, flavors) are
+  managed in Configuration too; their chips on label and bottle pages open a
+  page of matching bottles.
 
 ### ~~M3 — Expressions and bottles~~ ✅
 - ~~Expression form with multi-select for distilleries, mashbills and finishes,

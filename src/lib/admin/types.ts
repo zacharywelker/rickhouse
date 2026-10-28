@@ -144,6 +144,8 @@ export type AdminRow = {
   values: Record<string, CellValue>;
   /** Blocks delete and explains why, e.g. "used by 3 expressions". */
   deleteBlockedBy?: string;
+  /** Cannot be edited, and why. The tag is the short word shown in the row; allowDelete says whether Delete and Merge stay available. */
+  locked?: { tag: string; reason: string; allowDelete: boolean };
 };
 
 export type ActionResult =

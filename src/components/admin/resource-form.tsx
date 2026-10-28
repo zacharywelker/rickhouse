@@ -9,6 +9,8 @@ import { saveResourceAction } from "@/app/(app)/admin/actions";
 import { IDLE_RESULT, type ActionResult, type AdminRow, type FieldSpec, type Option } from "@/lib/admin/types";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { GrainEditor, parseGrainRows, type GrainRow } from "./grain-editor";
+import { INGREDIENT_KIND_LABELS } from "@/lib/expressions/ingredient-rules";
+import type { IngredientKind } from "@/db/schema";
 
 type FormValues = Record<string, FieldValue>;
 
@@ -62,6 +64,11 @@ export function ResourceForm({
       className="flex min-h-0 flex-col"
     >
       <div className="grid min-h-0 grid-cols-1 gap-4 overflow-y-auto p-6 sm:grid-cols-2">
+        {resourceKey === "ingredients" && row ? (
+          <p className="col-span-full text-sm text-muted-foreground">
+            Kind: {INGREDIENT_KIND_LABELS[String(values.kind) as IngredientKind] ?? ""}
+          </p>
+        ) : null}
         {/* A generic mashbill is a style with no recipe, so it has no grains to edit. */}
         {resourceKey === "mashbills" && values.isGeneric !== true ? (
           <GrainEditor rows={grains} onChange={setGrains} error={fieldErrors.grains} isPartial={values.isPartial === true} />
@@ -73,6 +80,13 @@ export function ResourceForm({
             const country = String(values.country ?? "").trim().toLocaleLowerCase();
             if (field.name === "dspNumber") return ["us", "usa", "united states", "united states of america"].includes(country);
             if (field.name === "nomNumber") return ["mx", "mexico", "méxico"].includes(country);
+            return true;
+          })
+          .filter((field) => {
+            if (resourceKey !== "ingredients") return true;
+            // Kind is chosen once; Family only means something for a distillate.
+            if (field.name === "kind") return row === null;
+            if (field.name === "family") return values.kind === "distillate";
             return true;
           })
           .map((field) => (
