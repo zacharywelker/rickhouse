@@ -1,3 +1,4 @@
+import { ingredientHref } from "@/lib/expressions/ingredient-rules";
 import { STRENGTH_TIER_LABELS, strengthTier } from "@/lib/expressions/rules";
 import { formatSize } from "@/lib/expressions/sizes";
 import type { Metadata } from "next";
@@ -320,15 +321,15 @@ export default async function BottlePage({
               hrefFor={(item) => (item.slug ? (`/distilleries/${item.slug}` as Route) : null)}
             />
             {group === "gin" ? <>
-                <Chips label="Botanicals" items={links.ingredients.filter((item) => item.kind === "botanical")} hrefFor={() => null} />
-                <Chips label="Base spirits" items={links.ingredients.filter((item) => item.kind === "gin_base")} hrefFor={() => null} />
+                <Chips label="Botanicals" items={links.ingredients.filter((item) => item.kind === "botanical")} hrefFor={ingredientHref} />
+                <Chips label="Base spirits" items={links.ingredients.filter((item) => item.kind === "gin_base")} hrefFor={ingredientHref} />
               </> : group === "vodka" || group === "amaro" || group === "liqueur" ? <>
-                {group === "vodka" ? <Chips label="Base Ingredients" items={links.ingredients.filter((item) => item.kind === "vodka_base")} hrefFor={() => null} /> : null}
-                {group === "amaro" ? <Chips label="Botanicals" items={links.ingredients.filter((item) => item.kind === "botanical")} hrefFor={() => null} /> : null}
-                {group === "liqueur" ? <Chips label="Base Ingredients" items={links.ingredients.filter((item) => item.kind === "liqueur_base")} hrefFor={() => null} /> : null}
-                {group === "liqueur" || kind === "flavored-vodka" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={() => null} /> : null}
+                {group === "vodka" ? <Chips label="Base Ingredients" items={links.ingredients.filter((item) => item.kind === "vodka_base")} hrefFor={ingredientHref} /> : null}
+                {group === "amaro" ? <Chips label="Botanicals" items={links.ingredients.filter((item) => item.kind === "botanical")} hrefFor={ingredientHref} /> : null}
+                {group === "liqueur" ? <Chips label="Base Ingredients" items={links.ingredients.filter((item) => item.kind === "liqueur_base")} hrefFor={ingredientHref} /> : null}
+                {group === "liqueur" || kind === "flavored-vodka" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={ingredientHref} /> : null}
               </> : group === "rum" || group === "agave" || group === "brandy"
-              ? <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients} hrefFor={() => null} />
+              ? <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients} hrefFor={ingredientHref} />
               : <>{whiskeyCategoryGrains(row.category.slug) ? <dl><Spec label="Category grains" value={whiskeyCategoryGrains(row.category.slug)} /></dl> : null}<Mashbills items={links.mashbills} /></>}
             {(group !== "gin" || e.isAgedGin) && group !== "vodka" && ((group !== "amaro" && group !== "liqueur") || e.isAged) ? <Chips
               label={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? "Cask Types" : "Finishes"}
