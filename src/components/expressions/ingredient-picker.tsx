@@ -8,10 +8,9 @@ import type { IngredientKind } from "@/db/schema";
 import { ingredientAllowed, type IngredientChoice } from "@/lib/expressions/spirit-details";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { X } from "lucide-react";
-import { GIN_BASES, GIN_BOTANICALS } from "@/lib/expressions/gin-details";
+import { GIN_BASES, GIN_BOTANICALS, RUM_BASES, VODKA_BASES } from "@/lib/expressions/ingredient-presets";
 import { isGinKind } from "@/lib/expressions/gin-details";
 
-const STANDARD_BASES = ["Molasses", "Sugarcane", "Honey"];
 const labelFor = (kind: IngredientKind) => kind === "maguey" ? "Magueys" : kind === "distillate" ? "Distillate" : kind === "botanical" ? "Botanicals" : kind === "flavor" ? "Flavors" : kind === "vodka_base" || kind === "liqueur_base" ? "Base Ingredients" : "Base";
 
 export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenName = "ingredientLinks" }: {
@@ -35,7 +34,7 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
   const selected = categoryKind === "tequila" ? [{ name: "Blue Weber", kind: "maguey" as const }]
     : kind === "botanical" && isGinKind(categoryKind) ? [{ name: "Juniper", kind: "botanical" as const }, ...value.filter((item) => item.kind === "botanical" && item.name.toLocaleLowerCase() !== "juniper")]
     : value.filter((item) => (!item.kind || item.kind === kind) && ingredientAllowed(categoryKind, item));
-  const presets = kind === "rum_base" ? STANDARD_BASES : kind === "botanical" && isGinKind(categoryKind) ? GIN_BOTANICALS : kind === "gin_base" ? GIN_BASES : kind === "vodka_base" ? ["Wheat", "Rye", "Potato", "Corn", "Grape"] : [];
+  const presets = kind === "rum_base" ? RUM_BASES : kind === "botanical" && isGinKind(categoryKind) ? GIN_BOTANICALS : kind === "gin_base" ? GIN_BASES : kind === "vodka_base" ? VODKA_BASES : [];
   const suggestions = [...presets.map((name): IngredientChoice => ({ name, kind })), ...known]
     .filter((item, index, all) => ingredientAllowed(categoryKind, item) && all.findIndex((candidate) => candidate.name.toLocaleLowerCase() === item.name.toLocaleLowerCase()) === index);
   const add = (name: string) => {
@@ -84,7 +83,7 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
           ) : null}
           {kind === "rum_base" && !customBase ? (
             <div className="flex flex-wrap gap-2">
-              {STANDARD_BASES.map((base) => <Button key={base} type="button" size="sm" variant="outline" onClick={() => add(base)}>{base}</Button>)}
+              {RUM_BASES.map((base) => <Button key={base} type="button" size="sm" variant="outline" onClick={() => add(base)}>{base}</Button>)}
               <Button type="button" size="sm" variant="outline" onClick={() => setCustomBase(true)}>Other…</Button>
             </div>
           ) : (
