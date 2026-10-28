@@ -34,14 +34,26 @@ struct TastingLabel: Hashable {
 struct TastingBottle: Hashable {
     let id: Int
     let title: String
+    /// What the "How much is left?" after a new tasting needs: the bottle's level, whether it is still sealed, and
+    /// whether it is still on the shelf (killed, sold, traded, wishlist and sampled bottles are never asked).
+    let fillPct: Int
+    let isSealed: Bool
+    let canNudge: Bool
 
-    init(id: Int, title: String) {
+    init(id: Int, title: String, fillPct: Int, isSealed: Bool, canNudge: Bool) {
         self.id = id
         self.title = title
+        self.fillPct = fillPct
+        self.isSealed = isSealed
+        self.canNudge = canNudge
     }
 
     init(_ bottle: LabelBottle) {
-        self.init(id: bottle.id, title: bottle.title)
+        self.init(id: bottle.id, title: bottle.title, fillPct: bottle.fillPct, isSealed: bottle.isSealed, canNudge: FillState.isOnShelf(status: bottle.status))
+    }
+
+    init(_ bottle: BottleDetail, title: String) {
+        self.init(id: bottle.id, title: title, fillPct: bottle.fillPct, isSealed: bottle.isSealed, canNudge: FillState.isOnShelf(status: bottle.status))
     }
 }
 
@@ -72,6 +84,7 @@ struct TastingFormView: View {
     @State private var confirmingDelete = false
     @State private var error: String?
     @State private var filled = false
+    @State private var nudging = false
 
     init(label: TastingLabel, bottle: TastingBottle? = nil, existing: LabelTasting? = nil, onSaved: @escaping () -> Void) {
         self.label = label
@@ -144,6 +157,12 @@ struct TastingFormView: View {
             }
         }
         .confirmSheet("Delete this tasting?", message: "This can't be undone.", confirm: "Delete tasting", isPresented: $confirmingDelete, perform: delete)
+        .sheet(isPresented: $nudging, onDismiss: onSaved) {
+            if let bottle {
+                UpdateFillSheet(bottleId: bottle.id, fillPct: bottle.fillPct, sealed: bottle.isSealed) { nudging = false }
+                    .presentationDetents([.height(330)])
+            }
+        }
         .task { await session.loadWheels() }
         .onAppear(perform: fill)
     }
@@ -194,7 +213,8 @@ struct TastingFormView: View {
                 } else {
                     _ = try await api.createTasting(tasting)
                 }
-                onSaved()
+                // A new tasting from one of your own bottles asks how much is left; the sheet's dismissal finishes the flow.
+                if FillNudge.shouldNudge(isNew: existing == nil, ownedBottle: bottle) { nudging = true } else { onSaved() }
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {

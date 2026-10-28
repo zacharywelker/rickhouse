@@ -91,7 +91,7 @@ struct LabelPage: View {
                 fillingBottle = nil
                 Task { await load() }
             }
-            .presentationDetents([.height(210)])
+            .presentationDetents([.height(330)])
         }
     }
 
@@ -704,23 +704,36 @@ struct ScoreLine: View {
 /// Update fill, from the label page: the bottle page's fill picker, saved the same way, in a short sheet.
 struct UpdateFillSheet: View {
     @Environment(Session.self) private var session
-    let bottle: LabelBottle
+    let bottleId: Int
+    /// The level when the sheet opened: what a failed save goes back to, and what "no change" means.
+    let startPct: Int
+    let sealed: Bool
     var onDone: () -> Void
 
     @State private var percent: Int
     @State private var saving = false
     @State private var problem: String?
 
-    init(bottle: LabelBottle, onDone: @escaping () -> Void) {
-        self.bottle = bottle
+    init(bottleId: Int, fillPct: Int, sealed: Bool, onDone: @escaping () -> Void) {
+        self.bottleId = bottleId
+        self.startPct = fillPct
+        self.sealed = sealed
         self.onDone = onDone
-        _percent = State(initialValue: bottle.fillPct)
+        _percent = State(initialValue: fillPct)
+    }
+
+    init(bottle: LabelBottle, onDone: @escaping () -> Void) {
+        self.init(bottleId: bottle.id, fillPct: bottle.fillPct, sealed: bottle.isSealed, onDone: onDone)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("How much is left?").font(.headline(20)).foregroundStyle(Theme.ink).accessibilityAddTraits(.isHeader)
-            FillPicker(percent: percent, disabled: saving) { picked in Task { await save(picked) } }
+            HStack {
+                Text("How much is left?").font(.headline(20)).foregroundStyle(Theme.ink).accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button("Done") { onDone() }.font(.inter(16, .medium)).disabled(saving)
+            }
+            FillPicker(percent: percent, disabled: saving, sealed: sealed) { picked in Task { await save(picked) } }
             if let problem { ErrorText(problem) }
         }
         .padding(16)
@@ -730,17 +743,17 @@ struct UpdateFillSheet: View {
 
     /// The server decides what else changes: below full opens a sealed bottle.
     private func save(_ picked: Int) async {
-        guard let api = session.api, picked != bottle.fillPct else { onDone(); return }
+        guard let api = session.api, picked != startPct else { onDone(); return }
         saving = true
         defer { saving = false }
         percent = picked
         do {
-            _ = try await api.setFill(bottleId: bottle.id, to: picked)
+            _ = try await api.setFill(bottleId: bottleId, to: picked)
             onDone()
         } catch APIError.unauthorized {
             session.signOut()
         } catch {
-            percent = bottle.fillPct
+            percent = startPct
             problem = error.localizedDescription
         }
     }

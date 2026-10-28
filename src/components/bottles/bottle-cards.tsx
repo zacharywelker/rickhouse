@@ -10,7 +10,7 @@ import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { useMoney } from "@/components/currency-context";
 import { cn, formatNumeric } from "@/lib/utils";
 import { categorySwatchClass } from "@/lib/bottles/category-color";
-import { effectiveBottleStatus } from "@/lib/bottles/terminology";
+import { effectiveBottleStatus, isSealedBottle } from "@/lib/bottles/terminology";
 import type { GridRow } from "@/lib/bottles/grid";
 import { FillGauge } from "./fill-gauge";
 import { StatusMark } from "./status-mark";
@@ -45,7 +45,7 @@ export function BottleCards({ rows }: { rows: GridRow[] }) {
                 className="size-14 shrink-0 border border-border object-cover"
               />
             ) : (
-              <FillGauge value={row.fillPct} readOnly decorative fieldGroup={row.fieldGroup} height={56} />
+              <FillGauge value={row.fillPct} readOnly decorative fieldGroup={row.fieldGroup} height={34} sealed={isSealedBottle(row)} />
             )}
 
             <div className="min-w-0 flex-1">

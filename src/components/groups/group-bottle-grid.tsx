@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FillGauge } from "@/components/bottles/fill-gauge";
+import { isSealedBottle } from "@/lib/bottles/terminology";
 import { humanise } from "@/lib/utils";
 import { setBottleGroupMembershipAction } from "@/app/(app)/groups/actions";
 import type { GridRow } from "@/lib/bottles/grid";
@@ -39,7 +40,8 @@ function MemberTile({ row, onRemove }: { row: GridRow; onRemove: (() => void) | 
               value={row.fillPct}
               readOnly
               fieldGroup={row.fieldGroup}
-              height={110}
+              height={72}
+              sealed={isSealedBottle(row)}
               label={`${row.expressionName} fill`}
             />
           )}

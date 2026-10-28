@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FillGauge } from "@/components/bottles/fill-gauge";
+import { isSealedBottle } from "@/lib/bottles/terminology";
 import { cn } from "@/lib/utils";
 import type { GroupSummary } from "@/lib/groups/queries";
 
@@ -16,7 +17,7 @@ function CoverCollage({ thumbs, bottles }: { thumbs: string[]; bottles: GroupSum
     return (
       <div className="flex items-end justify-center gap-3">
         {bottles.map((bottle, i) => (
-          <FillGauge key={i} value={bottle.fillPct} readOnly fieldGroup={bottle.fieldGroup} height={96} decorative />
+          <FillGauge key={i} value={bottle.fillPct} readOnly fieldGroup={bottle.fieldGroup} height={44} decorative sealed={isSealedBottle(bottle)} />
         ))}
       </div>
     );

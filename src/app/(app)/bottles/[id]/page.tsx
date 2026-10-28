@@ -14,7 +14,7 @@ import { BottleStamps, StampDesignations, type StampSpec } from "@/components/bo
 import { DeleteBottleButton } from "@/components/bottles/delete-bottle-button";
 import { FavoriteToggle } from "@/components/bottles/favorite-toggle";
 import { FillControl } from "@/components/bottles/fill-control";
-import { FillGauge } from "@/components/bottles/fill-gauge";
+import { FillNudgeProvider } from "@/components/bottles/fill-nudge";
 import { TastingNotes } from "@/components/expressions/tasting-notes";
 import { CharLevelSpec, Chips, Mashbills, Spec } from "@/components/expressions/label-specs";
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
@@ -146,6 +146,7 @@ export default async function BottlePage({
   ];
 
   return (
+    <FillNudgeProvider>
     <div className="relative flex flex-col gap-8">
       <BottleStamps stamps={stamps} />
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -214,14 +215,7 @@ export default async function BottlePage({
                     className="size-full object-contain"
                   />
                 ) : (
-                  <FillGauge
-                    value={row.bottle.fillPct}
-                    readOnly
-                    decorative
-                    fieldGroup={group}
-                    height={220}
-                    label={`${e.name} fill`}
-                  />
+<p className="text-sm text-muted-foreground">No photo yet</p>
                 )}
               </div>
             </Polaroid>
@@ -401,5 +395,6 @@ export default async function BottlePage({
         </div>
       </div>
     </div>
+    </FillNudgeProvider>
   );
 }

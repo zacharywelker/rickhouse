@@ -21,16 +21,17 @@ import {
   setBottleFillAction,
   setBottleOpenAction,
 } from "@/app/(app)/bottles/actions";
-import type { FieldGroup } from "@/db/schema";
+import type { BottleStatus, FieldGroup } from "@/db/schema";
 import { clampPct } from "@/lib/bottles/geometry";
-import { FILL_STATES, fillState, fillStateDescription } from "@/lib/bottles/fill-state";
+import { isOnShelf, isSealedBottle } from "@/lib/bottles/terminology";
+import { fillReadout } from "@/lib/bottles/fill-state";
 import { cn, formatDate } from "@/lib/utils";
 import { FillGauge } from "./fill-gauge";
+import { useFillNudge } from "./fill-nudge";
 
 /**
- * The gauge plus everything that has to happen around it: quick fill states
- * (Full, ¾, ½, ¼, Almost gone, Empty), the open/closed toggle, and the prompt
- * that appears when a bottle reaches empty.
+ * The gauge plus everything that has to happen around it: the open/closed
+ * toggle and the prompt that appears when a bottle reaches empty.
  *
  * Writes are debounced, because dragging the gauge produces a value on every
  * pointer move and each one would otherwise be a round trip.
@@ -62,8 +63,12 @@ export function FillControl({
   // Clearing the opened date of an open bottle asks what to do with it, as the phone does.
   const [askOpened, setAskOpened] = React.useState(false);
   const [answering, setAnswering] = React.useState(false);
+  const nudge = useFillNudge();
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const killed = status === "killed";
+  const nudging = nudge.active && isOnShelf(status as BottleStatus);
+  // From the local copies, so the dial un-hatches the moment it is moved.
+  const sealed = isSealedBottle({ status: status as BottleStatus, isOpen: open, fillPct: pct });
 
   // The local copies move at once while a save is in flight; a refresh that
   // brings new props wins.
@@ -77,7 +82,6 @@ export function FillControl({
     setPrevIsOpen(isOpen);
     setOpen(isOpen);
   }
-  const current = fillState(pct);
 
   const commit = React.useCallback(
     (next: number) => {
@@ -99,6 +103,9 @@ export function FillControl({
 
   function change(next: number) {
     const value = clampPct(next);
+    // Pressing End on a full bottle, or Home on an empty one, moves nothing: no write, no second "mark it killed?".
+    if (value === pct) return;
+    nudge.dismiss();
     setPct(value);
     commit(value);
   }
@@ -121,46 +128,30 @@ export function FillControl({
 
   return (
     <div className="flex flex-col items-center gap-4 border-t border-foreground pt-5">
-      <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={220} label="Fill level" />
+      {/*
+       * A fuel dial, not a percentage box or a row of buttons (DESIGN.md §21):
+       * the level is visual, and nobody knows their bottle is at 63%. Tap or
+       * drag anywhere on the dial and the needle detents onto the nearest
+       * quick state; the arrow keys step it freely, and the slider role gives
+       * assistive tech the same control.
+       */}
+      <div className="flex flex-col items-center gap-1">
+        {nudging ? (
+          <div role="status" className="flex w-full items-center justify-between gap-2 border border-foreground px-3 py-2 text-sm">
+            <span>How much is left?</span>
+            <Button type="button" size="sm" variant="outline" onClick={nudge.dismiss}>
+              Done
+            </Button>
+          </div>
+        ) : null}
+        <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={104} label="Fill level" sealed={sealed} className={cn(nudging && "rounded-sm ring-2 ring-ring ring-offset-4")} />
+        <p className="flex h-6 items-center gap-2 text-base font-medium" aria-hidden="true">
+          {fillReadout(pct, sealed)}
+          {saving ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Saving" /> : null}
+        </p>
+      </div>
 
       <div className="flex w-full flex-col gap-3">
-        <fieldset className="flex flex-col gap-1.5">
-          <legend className="mb-1.5 flex w-full items-center justify-between text-sm font-medium">
-            How much is left
-            {saving ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Saving" /> : null}
-          </legend>
-          {/*
-           * Quick states, not a percentage box (DESIGN.md §21): the level is
-           * visual, and nobody knows their bottle is at 63%. Native radios, so
-           * arrow keys move between states for free. Dragging the gauge still
-           * sets anything in between; the nearest state lights up.
-           */}
-          <div className="grid grid-cols-3 border-l border-t border-border">
-            {FILL_STATES.map((state) => (
-              <label key={state.key} className="relative">
-                <input
-                  type="radio"
-                  name="fill-state"
-                  value={state.key}
-                  checked={current.key === state.key}
-                  onChange={() => change(state.pct)}
-                  className="peer sr-only"
-                  aria-label={fillStateDescription(state.pct)}
-                />
-                <span
-                  className={cn(
-                    "flex h-10 cursor-pointer items-center justify-center border-b border-r border-border px-1 text-center text-sm peer-checked:bg-foreground peer-checked:text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-[-2px] peer-focus-visible:outline-ring hover:bg-muted peer-checked:hover:bg-foreground",
-                    // Fraction glyphs run small; set them a size up so ¾ reads as easily as "Full".
-                    state.label.length === 1 && "text-lg",
-                  )}
-                >
-                  {state.label}
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
         <div className="flex items-center gap-2">
           <Checkbox id="is-open" checked={open} onCheckedChange={(c) => void toggleOpen(c === true)} />
           <Label htmlFor="is-open" className="cursor-pointer text-foreground">

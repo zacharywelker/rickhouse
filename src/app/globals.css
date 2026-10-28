@@ -92,16 +92,6 @@
      turn dark just because the room's lights dim, so it's fixed rather than
      following --card into dark mode. */
   --color-paper: #fffefa;
-
-  /*
-   * Deprecated — kept only because src/components/bottles/fill-gauge.tsx
-   * reads --color-oak-700, --color-amber-spirit and --color-rye-gold
-   * directly for its liquid-fill gradient. Retune or remove when that
-   * component is touched (Phase 2/3); nothing else should reference these.
-   */
-  --color-oak-700: #4e3920;
-  --color-amber-spirit: #d98b2b;
-  --color-rye-gold: #e8b55c;
 }
 
 :root {

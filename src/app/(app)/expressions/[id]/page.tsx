@@ -10,6 +10,7 @@ import { Polaroid } from "@/components/ui/polaroid";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { BottleStamps, StampDesignations, type StampSpec } from "@/components/bottles/bottle-stamp";
 import { FillGauge } from "@/components/bottles/fill-gauge";
+import { isSealedBottle } from "@/lib/bottles/terminology";
 import { StatusMark } from "@/components/bottles/status-mark";
 import { ColaApprovals } from "@/components/expressions/cola-approvals";
 import { NoteWhen, pourNote } from "@/components/expressions/note-when";
@@ -201,7 +202,7 @@ export default async function LabelPage({
                   className="size-full object-contain"
                 />
               ) : (
-                <FillGauge value={100} readOnly decorative fieldGroup={group} height={220} label={`${e.name}`} />
+                <p className="text-sm text-muted-foreground">No photo yet</p>
               )}
             </div>
           </Polaroid>
@@ -346,7 +347,7 @@ export default async function LabelPage({
                     {owned.map((bottle) => (
                       <tr key={bottle.id} className="border-b border-border align-middle">
                         <td className="py-2 pr-3">
-                          <FillGauge value={bottle.fillPct} readOnly fieldGroup={group} height={36} label={`Fill ${bottle.fillPct}%`} />
+                          <FillGauge value={bottle.fillPct} readOnly fieldGroup={group} height={32} label={`Fill ${bottle.fillPct}%`} sealed={isSealedBottle(bottle)} />
                         </td>
                         <td className="py-2 pr-4">
                           <Link href={`/bottles/${bottle.id}`} className="font-medium hover:text-accent hover:underline">

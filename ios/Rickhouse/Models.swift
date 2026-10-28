@@ -70,6 +70,7 @@ struct BottleDetail: Decodable {
     var categoryKind: String? = nil
     var status: String
     var isOpen: Bool
+    var isSealed: Bool { FillState.isSealed(status: status, isOpen: isOpen, fillPct: fillPct) }
     let isFavorite: Bool
     /// Set while the bottle is muted from What to drink tonight (a date in the future); absent from an older server.
     var mutedUntil: String?
@@ -363,6 +364,7 @@ struct LabelBottle: Decodable, Identifiable, Hashable {
     let status: String
     let isOpen: Bool
     let fillPct: Int
+    var isSealed: Bool { FillState.isSealed(status: status, isOpen: isOpen, fillPct: fillPct) }
     let release: String?
     let releaseYear: Int?
     let pickName: String?

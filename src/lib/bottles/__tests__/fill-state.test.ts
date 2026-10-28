@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FILL_STATES, fillState, fillStateDescription, fillStateText } from "../fill-state";
+import { FILL_STATES, fillReadout, fillSpoken, fillState, fillStateDescription, fillStateText } from "../fill-state";
 
 describe("fillState", () => {
   it("reads each set-point as its own state", () => {
@@ -32,5 +32,17 @@ describe("fillState", () => {
     expect(fillStateText(50)).toBe("½ full");
     expect(fillStateText(100)).toBe("Full");
     expect(fillStateText(0)).toBe("Empty");
+  });
+});
+
+describe("sealed wording", () => {
+  it("reads a sealed bottle as Sealed, in text and for screen readers", () => {
+    expect(fillReadout(100, true)).toBe("Sealed");
+    expect(fillSpoken(100, true)).toBe("Sealed");
+  });
+
+  it("reads an open bottle by its level", () => {
+    expect(fillReadout(50, false)).toBe("½ full");
+    expect(fillSpoken(50, false)).toBe("Half full");
   });
 });

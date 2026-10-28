@@ -9,6 +9,7 @@ import { ageLabel } from "@/lib/expressions/display";
 import { cn, formatNumeric } from "@/lib/utils";
 import type { GridRow } from "@/lib/bottles/grid";
 import { FillGauge } from "./fill-gauge";
+import { isSealedBottle } from "@/lib/bottles/terminology";
 
 /** A slight, deterministic stagger per stack position, never more than 2 degrees (DESIGN.md §5). */
 const STACK_TILT = ["-rotate-2", "rotate-1", "-rotate-1"];
@@ -103,7 +104,8 @@ function Frame({ row, children }: { row: GridRow; children?: React.ReactNode }) 
             value={row.fillPct}
             readOnly
             fieldGroup={row.fieldGroup}
-            height={130}
+            height={72}
+            sealed={isSealedBottle(row)}
             label={`${row.expressionName} fill`}
           />
         </div>

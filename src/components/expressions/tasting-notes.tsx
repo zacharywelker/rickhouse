@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { T8keHint } from "./t8ke-hint";
 import { Label } from "@/components/ui/label";
+import { useFillNudge } from "@/components/bottles/fill-nudge";
 import { Textarea } from "@/components/ui/textarea";
 import { deleteTastingNoteAction, saveTastingNoteAction } from "@/app/(app)/bottles/actions";
 import { IDLE_RESULT, type ActionResult } from "@/lib/admin/types";
@@ -126,6 +127,12 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
   // `undefined` means closed; `null` means the add form; a note means editing.
   const [editing, setEditing] = React.useState<TastingNote | null | undefined>(undefined);
   const close = React.useCallback(() => setEditing(undefined), []);
+  const { start: startNudge } = useFillNudge();
+  // A new note, not an edit, is the moment to ask how much is left in the bottle.
+  const saved = React.useCallback(() => {
+    if (editing === null) startNudge();
+    close();
+  }, [editing, startNudge, close]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -202,7 +209,7 @@ export function TastingNotes({ bottleId, notes }: { bottleId: number; notes: Tas
               key={editing ? `edit-${editing.id}` : "create"}
               bottleId={bottleId}
               note={editing}
-              onSaved={close}
+              onSaved={saved}
             />
           ) : null}
         </DialogContent>

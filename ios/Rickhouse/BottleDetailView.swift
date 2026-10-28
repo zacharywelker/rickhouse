@@ -105,7 +105,7 @@ struct BottleDetailView: View {
                 NavigationStack {
                     TastingFormView(
                         label: TastingLabel(id: expressionId, title: "\(bottle.brand) \(bottle.name)", category: bottle.category, wheel: bottle.wheel),
-                        bottle: TastingBottle(id: id, title: Self.title(of: bottle)),
+                        bottle: TastingBottle(bottle, title: Self.title(of: bottle)),
                         existing: edit.note.map { LabelTasting($0, bottleId: id) }
                     ) {
                         editing = nil
@@ -211,14 +211,8 @@ struct BottleDetailView: View {
     // MARK: Fill level
 
     private func fillSection(_ b: BottleDetail) -> some View {
-        let state = FillState.of(b.fillPct)
-        return Section {
-            HStack(spacing: 10) {
-                FillGauge(percent: b.fillPct, track: Theme.ink.opacity(0.15)).frame(width: 4, height: 28)
-                Text(state.text + (b.isOpen ? " · open" : "")).font(.inter(16, .medium))
-            }
-            .accessibilityElement(children: .combine)
-            FillPicker(percent: b.fillPct, disabled: settingFill) { percent in Task { await setFill(percent) } }
+        Section {
+            FillPicker(percent: b.fillPct, disabled: settingFill, sealed: b.isSealed) { percent in Task { await setFill(percent) } }
                 .padding(.vertical, 4)
             if let actionError {
                 ErrorText(actionError)

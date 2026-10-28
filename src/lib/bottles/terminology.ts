@@ -9,6 +9,16 @@ export function effectiveBottleStatus(bottle: { status: BottleStatus; isOpen: bo
     : bottle.status;
 }
 
+/** A bottle you still have, sealed or open: the only kind anyone is asked "how much is left?" about. */
+export function isOnShelf(status: BottleStatus): boolean {
+  return status === "owned" || status === "open";
+}
+
+/** Owned, unopened and full: the one state the dial draws as a hatched, sealed gauge. */
+export function isSealedBottle(bottle: { status: BottleStatus; isOpen: boolean; fillPct: number }): boolean {
+  return effectiveBottleStatus(bottle) === "owned";
+}
+
 /** Labels for the release unit follow the spirit's regional language. */
 export function releaseUnit(fieldGroup: FieldGroup, categoryKind: CategoryKind): ReleaseUnit {
   if (fieldGroup === "agave") return "lot";
