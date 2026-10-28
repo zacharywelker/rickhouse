@@ -1112,8 +1112,8 @@ const cooperagesConfig: ResourceConfig = {
 // ------------------------------------------------------------
 
 /** Links that exist only because an amaro style put the botanical there; a save re-adds them by name. */
-const styleLinkCount = sql<number>`(select count(*)::int from expression_ingredients ei where ei.ingredient_id = ${ingredients.id} and ei.is_manual = false)`;
-const labelsUsing = sql<number>`(select count(*)::int from expression_ingredients ei where ei.ingredient_id = ${ingredients.id})`;
+const styleLinkCount = sql<number>`(select count(*)::int from expression_ingredients ei where ei.ingredient_id = "ingredients"."id" and ei.is_manual = false)`;
+const labelsUsing = sql<number>`(select count(*)::int from expression_ingredients ei where ei.ingredient_id = "ingredients"."id")`;
 
 const ingredientsConfig: ResourceConfig = {
   key: "ingredients",

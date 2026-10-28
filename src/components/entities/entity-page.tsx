@@ -28,6 +28,7 @@ export async function EntityPage({
   kind,
   name,
   badges,
+  extra,
   meta,
   notes,
   alsoKnownAs,
@@ -38,6 +39,8 @@ export async function EntityPage({
   kind: string;
   name: string;
   badges?: React.ReactNode;
+  /** Anything that belongs under the title and badges, such as links to related entities. */
+  extra?: React.ReactNode;
   meta?: EntityMeta[];
   notes?: string | null;
   /** Older names, already with their years, shown under the title. */
@@ -67,6 +70,7 @@ export async function EntityPage({
           <span className="text-accent">{name}</span>
         </h1>
         {badges ? <div className="mt-2 flex flex-wrap items-center gap-2">{badges}</div> : null}
+        {extra}
       </div>
 
       {meta && meta.length > 0 ? (
