@@ -29,10 +29,11 @@ The spec is edited to match these in the same commit as this plan.
 - Names: trimmed, 1 to 120 characters. Unique per `(ownerId, kind, name)`, case-insensitive (citext).
 - Every query, server action and page filters by `ownerId` and starts with `requireSession()` (REST: `getCurrentUser()`).
 - `/ingredients/[id]` for another account's id returns 404.
-- Built-in names are reserved. Rows are locked when a preset matches or when any link has `is_manual = false`.
+- Built-in names are reserved. **Built-in** rows (a preset matches the name) cannot be renamed but can be deleted while unused and merged away. **Fixed** rows (any link has `is_manual = false`) cannot be renamed, deleted or merged away.
 - Delete is blocked while any label uses the ingredient, enforced server-side by a guarded statement that throws when it matches zero rows.
 - Merge: same kind only, same family for distillates, confirm dialog with label count, irreversible, one transaction.
-- Copy: "Already exists.", "N labels use this ingredient", "Something changed while saving. Try again."
+- Copy: "Already exists.", "N labels use this ingredient", "Something changed while saving. Try again.", Phase 1 reserved name: "Sugarcane is a built-in choice. Pick Sugarcane on the label itself instead." (Phase 2: "... Use Merge into… to combine.").
+- Integration suites skip in CI (no Postgres there) and are the only coverage of the riskiest logic: every PR must run them against a scratch database and paste the pass counts, or say plainly that they were not run.
 - Run `npm run typecheck`, `npm run lint` and `npx vitest run` before every PR.
 - DB-backed tests are opt-in: `TOURNAMENT_TEST_DATABASE_URL=postgres://user:pass@localhost:5432/scratch npx vitest run integration` (database name must contain test, proto, scratch or tourney; migrations applied).
 
@@ -92,6 +93,37 @@ Expected: the spec and plan commits sit on top of `origin/main`.
 
 Run: `npm run typecheck && npx vitest run`
 Expected: PASS. If it fails on a clean main, fix that as its own small PR first.
+
+- [ ] **Step 4: Confirm a scratch database exists**
+
+`.github/workflows/ci.yml` runs typecheck, lint and `npm test` with no Postgres, so every `describe.skipIf(!url)` suite skips there. They are the only coverage of server-side locks, ownership, the guarded delete, the grid clause and the merge transaction. Before writing feature code, confirm a throwaway Postgres whose name contains `test`, `proto`, `scratch` or `tourney`, with migrations applied (`npm run db:migrate` against it), and that `TOURNAMENT_TEST_DATABASE_URL` points at it. If there is none, stop and ask the owner; do not proceed on unit tests alone. Sanity check: `TOURNAMENT_TEST_DATABASE_URL=... npx vitest run integration` should report existing suites as passed, not skipped.
+
+- [ ] **Step 5: Compile spike for the Drizzle and Zod calls**
+
+Create `src/spike.ts` (never commit it):
+
+```ts
+import { and, eq, notExists, sql } from "drizzle-orm";
+import { z } from "zod";
+import { db } from "@/db";
+import { expressionIngredients, ingredients, INGREDIENT_KINDS } from "@/db/schema";
+
+export async function spike() {
+  const gone = await db
+    .delete(ingredients)
+    .where(and(eq(ingredients.id, 1), notExists(db.select({ one: sql`1` }).from(expressionIngredients).where(eq(expressionIngredients.ingredientId, 1)))))
+    .returning({ id: ingredients.id });
+  await db.transaction(async (tx) => {
+    const [row] = await tx.select({ id: ingredients.id, n: sql<number>`(select 1)` }).from(ingredients).where(eq(ingredients.id, 1)).for("update");
+    await tx.execute(sql`UPDATE expression_ingredients SET position = position WHERE expression_id IN (${sql.join([1, 2].map((id) => sql`${id}`), sql`, `)})`);
+    return row;
+  });
+  return { gone, kind: z.enum(INGREDIENT_KINDS, { message: "Choose a kind." }) };
+}
+```
+
+Run: `npm run typecheck`, then delete `src/spike.ts`.
+Expected: PASS. If a call does not compile, fix the matching snippet in Task 3, 5 or 14 of this plan before building on it (for Zod, `{ error: "Choose a kind." }` is the alternative form).
 
 ---
 
@@ -238,7 +270,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Produces: `INGREDIENT_KIND_LABELS`, `FAMILIES`, `isIngredientKind(value: unknown): value is IngredientKind`, `type Lock`, `lockFor(row): Lock | null`, `reservedNameError(kind, name): string | null`, `ingredientHref(item): Route`.
 
 **Acceptance Criteria:**
-- A row with a preset name is locked as "Built-in"; a row with any style-derived link is locked as "Fixed"; style wins when both apply.
+- A row with a preset name is locked as "Built-in" (rename blocked, delete allowed); a row with any style-derived link is locked as "Fixed" (rename, delete and merge-away blocked); Fixed wins when both apply.
 - `reservedNameError` returns a message only for preset names of that kind.
 - `isIngredientKind` accepts exactly the eight kinds and rejects prototype keys like `"toString"`.
 
@@ -251,11 +283,11 @@ import { FAMILIES, INGREDIENT_KIND_LABELS, ingredientHref, isIngredientKind, loc
 
 describe("lockFor", () => {
   it("locks a preset name as Built-in", () => {
-    expect(lockFor({ kind: "botanical", name: "juniper", styleLinks: 0 })?.tag).toBe("Built-in");
+    expect(lockFor({ kind: "botanical", name: "juniper", styleLinks: 0 })).toMatchObject({ tag: "Built-in", allowDelete: true });
   });
 
   it("locks a row with a style-derived link as Fixed, even when it is not a preset", () => {
-    expect(lockFor({ kind: "botanical", name: "Wormwood", styleLinks: 1 })?.tag).toBe("Fixed");
+    expect(lockFor({ kind: "botanical", name: "Wormwood", styleLinks: 1 })).toMatchObject({ tag: "Fixed", allowDelete: false });
   });
 
   it("prefers Fixed when both apply", () => {
@@ -269,7 +301,7 @@ describe("lockFor", () => {
 
 describe("reservedNameError", () => {
   it("names the canonical spelling for a preset of that kind", () => {
-    expect(reservedNameError("rum_base", "sugarcane")).toBe("Sugarcane is a built-in choice.");
+    expect(reservedNameError("rum_base", "sugarcane")).toBe("Sugarcane is a built-in choice. Pick Sugarcane on the label itself instead.");
   });
 
   it("allows a name that is a preset only of another kind", () => {
@@ -325,26 +357,28 @@ export function isIngredientKind(value: unknown): value is IngredientKind {
   return typeof value === "string" && Object.hasOwn(INGREDIENT_KIND_LABELS, value);
 }
 
-export type Lock = { tag: "Built-in" | "Fixed"; reason: string };
+export type Lock = { tag: "Built-in" | "Fixed"; reason: string; allowDelete: boolean };
 
 /**
- * Why a row cannot be renamed or deleted, or null. A style-derived link means an amaro save will
- * re-add the botanical by name, so a rename would be undone; a preset would come straight back as
- * a suggestion. Decided from data, not a name list, so a new amaro style is covered automatically.
+ * Why a row is locked, or null. Fixed: an amaro style adds it by name on every save, so a rename
+ * would be undone and a delete or merge-away would be re-created. Built-in: the name is a preset
+ * and would come straight back as a suggestion after a rename; but deleting or merging away a row
+ * loses nothing, so that stays allowed (the guarded delete still stops it while a label uses it).
+ * Decided from data, not a name list, so a new amaro style is covered automatically.
  */
 export function lockFor(row: { kind: IngredientKind; name: string; styleLinks: number }): Lock | null {
   if (row.styleLinks > 0) {
-    return { tag: "Fixed", reason: "An amaro style adds this automatically, so it can't be renamed or deleted." };
+    return { tag: "Fixed", reason: "An amaro style adds this automatically, so it can't be renamed or deleted.", allowDelete: false };
   }
   if (isPreset(row.kind, row.name)) {
-    return { tag: "Built-in", reason: "This comes with the app, so it can't be renamed or deleted." };
+    return { tag: "Built-in", reason: "This comes with the app, so it can't be renamed.", allowDelete: true };
   }
   return null;
 }
 
 export function reservedNameError(kind: IngredientKind, name: string): string | null {
   const preset = presetFor(kind, name);
-  return preset ? `${preset} is a built-in choice.` : null;
+  return preset ? `${preset} is a built-in choice. Pick ${preset} on the label itself instead.` : null;
 }
 
 export const ingredientHref = (item: { id: number }): Route => `/ingredients/${item.id}` as Route;
@@ -590,7 +624,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Edit changes name and family only; a different `kind` in the request is ignored.
 - Another account's id cannot be edited or deleted.
 - Delete throws "N labels use this ingredient" while linked, and never reports success for a row that is still there.
-- A locked row rejects edit and delete on the server.
+- A Fixed row rejects edit and delete on the server; a Built-in row rejects edit but can be deleted while no label uses it.
 
 - [ ] **Step 1: Write the failing integration test (opt-in, needs the scratch database)**
 
@@ -651,7 +685,7 @@ describe.skipIf(!url)("the Ingredients resource against a real database", () => 
 
   it("refuses a built-in name and creates nothing", async () => {
     const result = await add("rum_base", "molasses");
-    expect(result).toMatchObject({ ok: false, fieldErrors: { name: "Molasses is a built-in choice." } });
+    expect(result).toMatchObject({ ok: false, fieldErrors: { name: "Molasses is a built-in choice. Pick Molasses on the label itself instead." } });
     expect((await res().list(owner)).some((r) => r.cells.name === "molasses")).toBe(false);
   });
 
@@ -697,11 +731,17 @@ describe.skipIf(!url)("the Ingredients resource against a real database", () => 
     await expect(res().remove(id, owner)).rejects.toThrow(AdminRuleError);
   });
 
-  it("locks a row whose name is a preset, and refuses to delete it", async () => {
+  it("locks a preset-named row against rename, but lets it be deleted while no label uses it", async () => {
     await m.sql(`INSERT INTO ingredients (owner_id, kind, name) VALUES ($1, 'rum_base', 'Honey')`, owner);
     const id = await idOf("Honey");
-    expect((await res().list(owner)).find((r) => r.id === id)!.locked?.tag).toBe("Built-in");
-    await expect(res().remove(id, owner)).rejects.toThrow(AdminRuleError);
+    const row = (await res().list(owner)).find((r) => r.id === id)!;
+    expect(row.locked).toMatchObject({ tag: "Built-in", allowDelete: true });
+    expect(await res().save({ kind: "rum_base", name: "Honey Two", family: "" }, id, owner)).toMatchObject({ ok: false });
+    await link(id);
+    await expect(res().remove(id, owner)).rejects.toThrow(/1 label uses this ingredient/);
+    await m.sql(`DELETE FROM expression_ingredients WHERE ingredient_id = $1`, id);
+    await res().remove(id, owner);
+    expect((await res().list(owner)).some((r) => r.id === id)).toBe(false);
   });
 });
 ```
@@ -716,8 +756,8 @@ Expected: FAIL, `RESOURCES.ingredients` is undefined. Without the env var the fi
 In `src/lib/admin/types.ts`, after `deleteBlockedBy?: string;`:
 
 ```ts
-  /** Cannot be edited or deleted, and why. The tag is the short word shown in the row. */
-  locked?: { tag: string; reason: string };
+  /** Cannot be edited, and why. The tag is the short word shown in the row; allowDelete says whether Delete and Merge stay available. */
+  locked?: { tag: string; reason: string; allowDelete: boolean };
 ```
 
 - [ ] **Step 4: Register the resource**
@@ -862,7 +902,7 @@ const ingredientsConfig: ResourceConfig = {
       .limit(1);
     if (!row) return;
     const lock = lockFor(row);
-    if (lock) throw new AdminRuleError(lock.reason);
+    if (lock && !lock.allowDelete) throw new AdminRuleError(lock.reason);
     // One statement: a label saved between a check and a delete cannot be stripped by the cascade.
     const deleted = await db
       .delete(ingredients)
@@ -920,7 +960,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: `AdminRow.locked` (Task 5), `INGREDIENT_KIND_LABELS` (Task 2).
 
 **Acceptance Criteria:**
-- A locked row shows its tag ("Built-in" or "Fixed") instead of Edit and Delete, with the reason readable by keyboard and screen reader users.
+- A locked row shows its tag ("Built-in" or "Fixed") with the reason readable by keyboard and screen reader users, and has no Edit. Delete stays available only when the lock allows it (Built-in); the usual in-use dialog still blocks it while labels use the row.
 - The ingredient form hides Kind on edit and shows it as text; Family appears only when the kind is Distillate.
 - Other resources are unchanged.
 
@@ -932,7 +972,7 @@ Add `Lock` to the lucide import (line 6):
 import { ArrowDown, ArrowUp, ChevronsUpDown, Loader2, Lock, Pencil, Trash2 } from "lucide-react";
 ```
 
-In the actions `TableCell`, replace the opening of the `<div className={cn("flex justify-end gap-1", readOnly && "hidden")}>` line with:
+In the actions cell, render the tag above the buttons and change the container class so only `readOnly` hides it:
 
 ```tsx
                   <TableCell className="text-right">
@@ -943,10 +983,12 @@ In the actions `TableCell`, replace the opening of the `<div className={cn("flex
                         <span className="sr-only">: {row.locked.reason}</span>
                       </span>
                     ) : null}
-                    <div className={cn("flex justify-end gap-1", (readOnly || row.locked) && "hidden")}>
+                    <div className={cn("flex justify-end gap-1", readOnly && "hidden")}>
 ```
 
-(Keep the existing `<TableCell className="text-right">` opening only once: this replaces that line and the `<div ...>` line below it.)
+(This replaces the existing `<TableCell className="text-right">` line and the `<div ...>` line below it; keep the cell opening only once.) Then wrap the two existing buttons:
+- the Edit `<Button ...>` becomes `{row.locked ? null : (<Button ...>...</Button>)}`
+- the Delete `<Button ...>` becomes `{row.locked && !row.locked.allowDelete ? null : (<Button ...>...</Button>)}`
 
 - [ ] **Step 2: The ingredient form in `ResourceForm`**
 
@@ -982,7 +1024,7 @@ Add this as the first child inside the grid `div`, above the mashbill grain edit
 - [ ] **Step 3: Verify**
 
 Run: `npm run typecheck && npm run lint`
-Expected: PASS. Then start the dev server (use `localhost`, not `127.0.0.1`), open `/admin/ingredients` signed in, and confirm by eye: Add shows Name and Kind; picking Distillate reveals Family; a locked row shows its tag with no buttons; existing resources (Finishes, Tags) still show Edit and Delete.
+Expected: PASS. Then start the dev server (use `localhost`, not `127.0.0.1`), open `/admin/ingredients` signed in, and confirm by eye: Add shows Name and Kind; picking Distillate reveals Family; a Fixed row shows its tag with no buttons and a Built-in row shows its tag with Delete only; existing resources (Finishes, Tags) still show Edit and Delete.
 
 - [ ] **Step 4: Commit**
 
@@ -1509,17 +1551,22 @@ test("a built-in name is refused", async ({ page }) => {
 Run: `npx playwright test e2e/ingredients.spec.ts`
 Expected: PASS. Fix selectors against the real markup if a locator misses; do not weaken an assertion to make it pass.
 
-- [ ] **Step 3: Full checks, then commit and open the PR**
+- [ ] **Step 3: Docs**
+
+In `src/app/(app)/admin/[resource]/page.tsx` change the comment `One route for all eight lookup entities` to `One route for every lookup entity`. In `SPEC.md`, under the M2 heading (around line 121), add one line: `Ingredients (rum and gin bases, botanicals, magueys, distillates, flavors) are managed in Configuration; their chips on label and bottle pages open a page of matching bottles.`
+
+- [ ] **Step 4: Full checks, then commit and open the PR**
 
 ```bash
 npm run typecheck && npm run lint && npx vitest run
-git add e2e/ingredients.spec.ts
+TOURNAMENT_TEST_DATABASE_URL=postgres://user:pass@localhost:5432/scratch npx vitest run integration
+git add e2e/ingredients.spec.ts SPEC.md "src/app/(app)/admin/[resource]/page.tsx"
 git commit -m "Add the ingredients end-to-end spec
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
-Open Phase 1 as a PR from `claude/ingredients-config-phase-1`. Check the PR template under `.github/` first. Regression-check by hand that Finishes, Tags and Categories still list, add, edit and delete.
+Open Phase 1 as a PR from `claude/ingredients-config-phase-1`. Check the PR template under `.github/` first. In the description, paste the integration run's passed counts (CI skips these suites), or state plainly that they were not run. Regression-check by hand that Finishes, Tags and Categories still list, add, edit and delete.
 
 ---
 
@@ -1745,7 +1792,8 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 **Acceptance Criteria:**
 - One transaction: loser and target locked `FOR UPDATE`, both scoped by `ownerId`.
 - Labels move to the target keeping their order; a label linking both ends with one link whose `is_manual` is true if either was manual; the label's links are renumbered `0..n-1`; the loser row is deleted.
-- Refused with a plain-language `AdminRuleError`: other kind, different distillate family, itself, another account's row, a locked loser, an unknown preset, a loser that no longer exists.
+- Refused with a plain-language `AdminRuleError`: other kind, different distillate family, itself, another account's row, a Fixed (style-derived) loser, an unknown preset, a loser that no longer exists. A Built-in-named loser is allowed.
+- All of a label's ingredient links end dense across kinds (a gin label keeps botanicals and bases in one sequence); a loser with no links merges cleanly; links tied on position come out ordered by ingredient id.
 - An unused preset target is created inside the transaction.
 
 - [ ] **Step 1: Write the failing integration test (opt-in)**
@@ -1836,17 +1884,71 @@ describe.skipIf(!url)("merging ingredients against a real database", () => {
     const grape = await ing(owner, "distillate", "Refuse grape", "grape");
     const pear = await ing(owner, "distillate", "Refuse pear", "pear");
     const theirs = await ing(stranger, "rum_base", "Refuse theirs");
-    const locked = await ing(owner, "botanical", "Juniper");
+    const fixed = await ing(owner, "botanical", "Refuse fixed");
+    await link(await label(owner, "Fixed label"), fixed, 0, false);
     const rejects = (promise: Promise<unknown>, text: RegExp) => expect(promise).rejects.toThrow(text);
     await rejects(merge.mergeIngredient(owner, rum, { id: gin }), /same kind/);
     await rejects(merge.mergeIngredient(owner, grape, { id: pear }), /same family/);
     await rejects(merge.mergeIngredient(owner, rum, { id: rum }), /different ingredient/);
     await rejects(merge.mergeIngredient(owner, rum, { id: theirs }), /no longer exists/);
     await rejects(merge.mergeIngredient(owner, theirs, { id: rum }), /no longer exists/);
-    await rejects(merge.mergeIngredient(owner, locked, { id: gin }), /can't be renamed or deleted/);
+    await rejects(merge.mergeIngredient(owner, fixed, { id: gin }), /can't be renamed or deleted/);
     await rejects(merge.mergeIngredient(owner, rum, { preset: "Not A Preset" }), /not a built-in/);
     await expect(merge.mergeIngredient(owner, rum, { id: gin })).rejects.toBeInstanceOf(AdminRuleError);
     expect(await exists(rum)).toBe(true);
+  });
+
+  it("keeps positions dense across kinds when a gin label's botanical is merged", async () => {
+    const loser = await ing(owner, "botanical", "Mixed loser x5");
+    const target = await ing(owner, "botanical", "Mixed target x5");
+    const botanical = await ing(owner, "botanical", "Mixed botanical x5");
+    const base = await ing(owner, "gin_base", "Mixed base x5");
+    const a = await label(owner, "Mixed");
+    await link(a, botanical, 0);
+    await link(a, loser, 1);
+    await link(a, base, 2);
+    await link(a, target, 3);
+    await merge.mergeIngredient(owner, loser, { id: target });
+    expect(await links(a)).toEqual([
+      { ingredient_id: botanical, position: 0, is_manual: true },
+      { ingredient_id: base, position: 1, is_manual: true },
+      { ingredient_id: target, position: 2, is_manual: true },
+    ]);
+  });
+
+  it("merges a row with no links without touching other labels", async () => {
+    const loser = await ing(owner, "flavor", "Unlinked loser x6");
+    const target = await ing(owner, "flavor", "Unlinked target x6");
+    const other = await label(owner, "Untouched");
+    await link(other, target, 4);
+    expect(await merge.mergeIngredient(owner, loser, { id: target })).toMatchObject({ labels: 0 });
+    expect(await links(other)).toEqual([{ ingredient_id: target, position: 4, is_manual: true }]);
+    expect(await exists(loser)).toBe(false);
+  });
+
+  it("orders links that tie on position by ingredient id", async () => {
+    const loser = await ing(owner, "botanical", "Tie loser x7");
+    const target = await ing(owner, "botanical", "Tie target x7");
+    const first = await ing(owner, "botanical", "Tie first x7");
+    const second = await ing(owner, "botanical", "Tie second x7");
+    const a = await label(owner, "Tied");
+    await link(a, second, 1);
+    await link(a, first, 1);
+    await link(a, loser, 0);
+    await merge.mergeIngredient(owner, loser, { id: target });
+    // The loser's link moved to the target at 0; first and second tied at 1, so the lower id comes first.
+    expect((await links(a)).map((l) => l.ingredient_id)).toEqual([target, first, second]);
+    expect((await links(a)).map((l) => l.position)).toEqual([0, 1, 2]);
+  });
+
+  it("lets a built-in-named row be merged away, since its name stays available as a preset", async () => {
+    const stray = await ing(owner, "botanical", "Rose");
+    const target = await ing(owner, "botanical", "Rosewater x8");
+    const a = await label(owner, "Stray rose");
+    await link(a, stray, 0);
+    await merge.mergeIngredient(owner, stray, { id: target });
+    expect((await links(a))[0]!.ingredient_id).toBe(target);
+    expect(await exists(stray)).toBe(false);
   });
 
   it("offers targets of the same kind only, from this account", async () => {
@@ -1906,7 +2008,7 @@ export async function mergeIngredient(
     const [loser] = await tx.select({ ...columns, styleLinks }).from(ingredients).where(own(loserId)).for("update");
     if (!loser) throw new AdminRuleError("That ingredient no longer exists. Refresh and try again.");
     const lock = lockFor(loser);
-    if (lock) throw new AdminRuleError(lock.reason);
+    if (lock && !lock.allowDelete) throw new AdminRuleError(lock.reason);
 
     let target: { id: number; name: string };
     if ("id" in token) {
@@ -2249,9 +2351,9 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - A merge through the UI moves a label's chip to the survivor.
 - Finishes, Tags, Categories, Mashbills, Stores and the other resources still list, add, edit and delete.
 
-- [ ] **Step 1: Update the message and its tests**
+- [ ] **Step 1: Swap the Phase 1 message for the Merge pointer**
 
-In `reservedNameError` return `` `${preset} is a built-in choice. Use Merge into… to combine.` ``. Update the expected strings in `ingredient-rules.test.ts` ("Sugarcane is a built-in choice. Use Merge into… to combine.") and in `ingredients.integration.test.ts` ("Molasses is a built-in choice. Use Merge into… to combine."). Update the e2e text match in the built-in test to `Molasses is a built-in choice. Use Merge into… to combine.`
+In `reservedNameError` change the message from `` `${preset} is a built-in choice. Pick ${preset} on the label itself instead.` `` to `` `${preset} is a built-in choice. Use Merge into… to combine.` ``. Update the expected strings in `ingredient-rules.test.ts` ("Sugarcane is a built-in choice. Use Merge into… to combine.") and in `ingredients.integration.test.ts` ("Molasses is a built-in choice. Use Merge into… to combine."). Update the e2e text match in the built-in test to `Molasses is a built-in choice. Use Merge into… to combine.`
 
 - [ ] **Step 2: Add the merge e2e** (append to `e2e/ingredients.spec.ts`)
 
@@ -2291,16 +2393,20 @@ npm run typecheck && npm run lint && npx vitest run
 TOURNAMENT_TEST_DATABASE_URL=postgres://user:pass@localhost:5432/scratch npx vitest run integration
 npx playwright test e2e/ingredients.spec.ts e2e/admin.spec.ts e2e/entities.spec.ts
 ```
-Expected: all PASS. `admin.spec.ts` and `entities.spec.ts` are the regression check for the shared `ResourceView`.
+Expected: all PASS, with the integration suites reporting passed rather than skipped. `admin.spec.ts` and `entities.spec.ts` are the regression check for the shared `ResourceView`.
 
 - [ ] **Step 4: Hand regression pass**
 
 Open each of `/admin/categories` (as admin and non-admin), `companies`, `brands`, `distilleries`, `mashbills`, `finishes`, `cooperages`, `stores`, `tags`. For each: the table renders, Edit and Delete show on every row, no Merge button, no stray footer, add and edit open the dialog. Confirm the Configuration index shows Ingredients with its real-row count.
 
-- [ ] **Step 5: Commit and open PR 2**
+- [ ] **Step 5: Docs**
+
+In `SPEC.md` under the M2 heading, add: `Merge folds one ingredient into another of the same kind. It is irreversible, so it asks for confirmation, and it is available only from Configuration.`
+
+- [ ] **Step 6: Commit and open PR 2**
 
 ```bash
-git add src e2e
+git add src e2e SPEC.md
 git commit -m "Point reserved-name errors at Merge and cover merge end to end
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
@@ -2335,3 +2441,28 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 **Placeholder scan:** no TBD or TODO. Two steps say "if the markup differs, match it" (the e2e picker locator and the lint note on an unused import); both name the file to read.
 
 **Type consistency:** `lockFor`, `reservedNameError`, `INGREDIENT_KIND_LABELS`, `FAMILIES`, `ingredientHref`, `isIngredientKind` (Task 2) are used by their exact names in Tasks 3, 5, 6, 9, 10. `AdminRow.locked` is `{ tag, reason }` in Tasks 5, 6, 12. `MergeToken`, `MergeTarget`, `parseMergeToken`, `mergeTargets` (Task 13) match Tasks 14 and 15. `getIngredient` and `getAlsoUsedAs` (Task 8) match their page usage.
+
+## Stress Test Results: ingredients in Configuration plan
+
+Run 2026-10-28. 9 branches interrogated, 9 resolved (9 agreed, 6 changed the plan).
+
+### Resolved Decisions
+- **Where tests run.** CI has no Postgres, so every integration suite skips there. Each PR must run them against a scratch database and paste pass counts or say they were not run; Task 0 stops if no scratch database exists. A CI Postgres service is a separate PR.
+- **Merge SQL coverage.** Added a mixed-kind gin label, an unlinked loser and tied-position cases. A worry about quoting the `position` column was checked and dropped: `facts.ts:59` uses it unquoted.
+- **Preset locks.** Built-in blocks rename only; an unused preset-named row can be deleted and a preset-named row can be merged away. Fixed still blocks rename, delete and merge-away. The UI keeps Delete for Built-in rows.
+- **Phase 1 dead end.** The reserved-name error says to pick the preset on the label itself; Phase 2 swaps it for the Merge pointer.
+- **Unverified APIs.** Task 0 compile spike for `notExists`, `.for("update")`, `tx.execute` with `sql.join`, and `z.enum` with a message.
+- **Docs.** Stale "eight lookup entities" comment fixed; two lines added to `SPEC.md` M2.
+- **Security.** No regression found; ownership, probing responses, tampered input, mass assignment and the merge lock were checked. No plan change.
+- **Scale and rollback.** No index; code-only revert; merged rows are the only irreversible data. The Phase 2 PR notes say to run `npm run backup` first if the collection matters.
+
+### Changes Made
+- Task 0 (scratch database, compile spike), Task 2 (`allowDelete`, Phase 1 message), Task 5 (remove and test), Task 6 (Delete stays for Built-in), Task 11 and 16 (docs, PR evidence, backup note), Task 14 (tests, Built-in loser allowed).
+
+### Deferred / Parking Lot
+- A Postgres service in `ci.yml` so the opt-in suites run on every PR.
+- Playwright in CI.
+
+### Confidence Assessment
+- Overall: Medium-High. The plan's code was written without compiling it; the Task 0 spike and per-task typecheck are the control.
+- Areas of concern: the shared `ResourceView` changes in Tasks 6, 12 and 15; the merge SQL in Task 14.

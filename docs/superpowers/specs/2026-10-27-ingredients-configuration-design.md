@@ -49,11 +49,11 @@ The spirit-specific label rules (2026-10-19 onward) moved rum bases, gin bases, 
 - Add form: Name (required, trimmed, max 120), Kind (select of the eight kinds, required), Family (select of grape, apple, pear, other; required for distillates). `showWhenAny` only reacts to sibling boolean fields, so Family is shown only when Kind is Distillate by a resource-specific filter in `resource-form.tsx`, the same pattern the distilleries form uses for its DSP and NOM fields.
 - Edit form: Name and Family. Kind is read-only after creation, because moving a row to another kind could leave it linked to a label whose spirit rejects it (`ingredientAllowed`).
 - Save: unique key is `(ownerId, kind, name)`. A collision returns a field error "Already exists." There is no auto-merge.
-- Built-in names are reserved. Add or rename onto a preset name for the same kind (case-insensitive) fails with "Sugarcane is a built-in choice." (Phase 2 appends " Use Merge into... to combine."), whether or not a label uses that preset yet. This stops a rename from silently turning a custom row into a locked Built-in row.
+- Built-in names are reserved. Add or rename onto a preset name for the same kind (case-insensitive) fails with "Sugarcane is a built-in choice. Pick Sugarcane on the label itself instead." (Phase 2 replaces the second sentence with "Use Merge into... to combine."), whether or not a label uses that preset yet. This stops a rename from silently turning a custom row into a locked Built-in row.
 - Server-side enforcement (the UI hiding a control is not enforcement): `save()` ignores or rejects `kind` when editing; Zod requires `family` for distillates and forces it to null for every other kind; `save()` and `remove()` recheck the lock; `remove()` throws "N labels use this" when the guarded delete matches zero rows, so the action never reports "deleted" for a row that is still there.
 - Renaming goes through the row id, so every linked label updates at once.
 - Delete: blocked while any label uses the row (`deleteBlockedBy: "N labels use this"`). The actual delete is one guarded statement (`DELETE ... WHERE id = $1 AND owner_id = $2 AND NOT EXISTS (SELECT 1 FROM expression_ingredients WHERE ingredient_id = $1)`), so a label saved between the check and the delete cannot be stripped by the `ON DELETE CASCADE`.
-- Locked rows show "Fixed" and have no rename or delete. A row is locked when any of its links has `is_manual = false` (a style-derived botanical such as Artichoke, Rhubarb or Wormwood on an amaro), or when it is a built-in (Juniper and Blue Weber are presets). The lock comes from data, not a name list: an amaro save re-adds those botanicals by name, so a rename would be silently undone, but Wormwood on a gin label stays editable until an amaro style links it. The lock rule lives in one helper that the label save path also uses, so the two cannot disagree. The plan must locate how the label forms enforce Juniper, Blue Weber and style-derived botanicals today and reuse that, or extract it if it is inline.
+- Two kinds of lock, both shown as a tag. **Fixed**: any of the row's links has `is_manual = false` (a style-derived botanical such as Artichoke, Rhubarb or Wormwood on an amaro); it cannot be renamed, deleted or merged away. **Built-in**: the name matches a preset (Juniper and Blue Weber are presets); it cannot be renamed, but it can be deleted while no label uses it and can be merged away, because the preset stays in the picker either way and a stray custom row (an unused "Rose" amaro botanical) must be removable. The lock comes from data, not a name list: an amaro save re-adds those botanicals by name, so a rename would be silently undone, but Wormwood on a gin label stays editable until an amaro style links it. The lock rule lives in one helper that the label save path also uses, so the two cannot disagree. The plan must locate how the label forms enforce Juniper, Blue Weber and style-derived botanicals today and reuse that, or extract it if it is inline.
 - A new row created here has no label links. It appears as a suggestion in `IngredientPicker` for that kind, because the picker's known list reads all of the account's rows of the kind.
 
 ### API fix
@@ -73,16 +73,16 @@ The preset module, the `locked` row plumbing, the reserved-name rule and the Bui
 
 ### Built-in rows
 
-- The main table lists real rows only. A real row whose kind and case-insensitive name match a preset shows a "Built-in" tag, its Labels count, and no Edit, Delete or Merge-into actions. The picker would bring a renamed or deleted preset straight back.
+- The main table lists real rows only. A real row whose kind and case-insensitive name match a preset shows a "Built-in" tag, its Labels count, and no Edit action. Delete is offered while no label uses it, and Merge-into is offered, because the name stays in the picker as a preset either way. A rename is refused because the picker would bring the old name straight back.
 - Unused presets are not rows. They appear in a separate read-only section under the table, "Built-in choices not used yet", grouped by kind as plain text with no ids, no actions and no dialogs. No negative or synthetic ids exist anywhere.
 - `ResourceView` gains an optional `footer` slot for that section, rendered by the server page. The Configuration card count is the number of real rows, so a new account does not show roughly 70 ingredients it never created.
-- `AdminRow` gains an optional `locked?: string` (the reason shown), used by built-in and fixed rows. `ResourceView` hides Edit, Delete and Merge for a locked row.
-- Built-ins stay read-only on purpose: they are constants in code, and the picker unions them with the account's rows by name, so a rename or delete would be undone. Hiding or respelling presets would mean moving them into the database for every account and removing the copies from the web picker and iOS `SpiritChoices.swift`. That is a separate spec spanning web and iOS.
+- `AdminRow` gains an optional `locked?: { tag; reason; allowDelete }`, used by built-in and fixed rows. `ResourceView` hides Edit for any locked row, and hides Delete and Merge only when `allowDelete` is false (Fixed rows).
+- Built-ins stay read-only on purpose: they are constants in code, and the picker unions them with the account's rows by name, so a rename would be undone. Hiding or respelling presets would mean moving them into the database for every account and removing the copies from the web picker and iOS `SpiritChoices.swift`. That is a separate spec spanning web and iOS.
 
 ### Merge
 
 - Each custom (non-locked) row gets "Merge into..." in `ResourceView`, a new optional `mergeTargets` capability on `ResourceConfig` so other resources are unaffected.
-- The picker lists other rows of the same kind. For distillates it lists only the same family, so a grape distillate cannot be folded into an apple one and break the Cognac and Calvados rules. Built-ins are valid targets, locked rows are never the loser.
+- The picker lists other rows of the same kind. For distillates it lists only the same family, so a grape distillate cannot be folded into an apple one and break the Cognac and Calvados rules. Built-ins are valid targets and may be merged away; Fixed rows are never the loser.
 - One transaction, rows locked with `FOR UPDATE`, both filtered by `ownerId`:
   1. If the target is an unused built-in, insert its row.
   2. For each label linking the loser: if it already links the target, delete the loser's link and set the target link's `isManual` to true if either was manual. Otherwise repoint the link, keeping its `position`.
@@ -105,8 +105,8 @@ The preset module, the `locked` row plumbing, the reserved-name rule and the Bui
 
 Vitest unless noted.
 
-- Merge: survivor keeps `position` order; a label linking both ends with one link; `isManual` true if either was manual; kind or family mismatch refused; another account's row refused; locked row as loser refused; unused built-in survivor is created.
-- Resource: collision gives a field error; add or rename onto a built-in name is rejected with the Merge pointer; locked rows (built-in, or any `is_manual = false` link) reject rename and delete on the server, not just in the UI; Wormwood on a gin-only account stays editable; delete blocked while in use and `remove()` throws rather than reporting success on zero rows; a request that sends a different `kind` on edit is ignored or rejected; family required for distillates and nulled for other kinds.
+- Merge: survivor keeps `position` order; a label linking both ends with one link; `isManual` true if either was manual; kind or family mismatch refused; another account's row refused; Fixed row as loser refused; a built-in-named row can be merged away; unused built-in survivor is created; positions stay dense across kinds on a mixed gin label.
+- Resource: collision gives a field error; add or rename onto a built-in name is rejected with the Merge pointer; Fixed rows reject rename and delete and Built-in rows reject rename, on the server and not just in the UI; an unused Built-in-named row can be deleted; Wormwood on a gin-only account stays editable; delete blocked while in use and `remove()` throws rather than reporting success on zero rows; a request that sends a different `kind` on edit is ignored or rejected; family required for distillates and nulled for other kinds.
 - Presets: one module, no case-insensitive duplicates within a kind; a database row matching a built-in is tagged Built-in rather than listed twice; unused presets appear only in the read-only section; the card count equals the number of real rows.
 - Merge: the confirm count matches the labels actually repointed; positions are dense `0..n-1` afterwards.
 - Also used as: lists same-name rows of other kinds with correct counts, and never shows another account's same-name ingredient.
@@ -117,7 +117,7 @@ Vitest unless noted.
 
 ## Known simplification
 
-Botanical presets are gin's list, so an amaro botanical with the same name (for example "Lemon") also shows as Built-in. It is the same name, so this is harmless.
+Botanical presets are gin's list, so an amaro botanical with the same name (for example "Lemon") also shows as Built-in. It is the same name, and because Built-in blocks rename only, a stray unused row with such a name can still be deleted.
 
 ## Rollout
 
