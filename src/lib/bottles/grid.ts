@@ -142,6 +142,13 @@ function buildWhere(filters: BottleFilters, ownerId: number): SQL | undefined {
          AND ef.finish_id IN (${sql.join(filters.finishIds.map((id) => sql`${id}`), sql`, `)})
     )`);
   }
+  if (filters.ingredientIds.length > 0) {
+    clauses.push(sql`EXISTS (
+      SELECT 1 FROM expression_ingredients ei
+       WHERE ei.expression_id = ${bottleList.expressionId}
+         AND ei.ingredient_id IN (${sql.join(filters.ingredientIds.map((id) => sql`${id}`), sql`, `)})
+    )`);
+  }
   if (filters.tagIds.length > 0) {
     clauses.push(sql`EXISTS (
       SELECT 1 FROM bottle_tags bt
