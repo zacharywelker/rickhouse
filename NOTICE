@@ -1,0 +1,36 @@
+Rickhouse
+Copyright (C) 2026 zacharywelker (https://github.com/zacharywelker)
+
+The source code in this repository is licensed under the GNU Affero General
+Public License, version 3 or (at your option) any later version
+(AGPL-3.0-or-later). The full text is in the LICENSE file.
+
+NAME AND LOGO ARE NOT LICENSED
+------------------------------
+The AGPL covers the code. It does not give you any right to the Rickhouse
+name or to the Rickhouse logo and brand artwork. That means:
+
+  - "Rickhouse", the wordmark and lockup, the circular plank mark, the app
+    icons and the other brand artwork (in docs/brand/, public/icon.svg and the
+    iOS app's icon files) are NOT licensed to you. All rights are reserved.
+  - You may say, truthfully, that your own software is "based on Rickhouse" or
+    "compatible with Rickhouse".
+  - If you fork or redistribute a modified version, call it something else and
+    use your own logo, so that nobody mistakes it for the official Rickhouse.
+  - Nothing in the AGPL changes any of this.
+
+Screenshots and photographs published on getrickhouse.com show the author's own
+collection and are not licensed for reuse.
+
+THIRD-PARTY MATERIAL
+--------------------
+Other material keeps its own license and is not relicensed under the AGPL:
+
+  - Inter and Source Serif 4 fonts: SIL Open Font License 1.1. The license
+    texts are in ios/Rickhouse/Fonts/ (and site/fonts/ when the website is
+    added).
+  - npm packages: each under its own license, listed in package-lock.json.
+    These include the libvips image libraries bundled with "sharp"
+    (LGPL-3.0-or-later), which are also present in the published Docker image.
+  - Flavor-wheel descriptors in the tasting log: see CREDITS.md. Permission for
+    these is still being sorted out and is not covered by the code license.
