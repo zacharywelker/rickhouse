@@ -71,3 +71,29 @@ describe("shareText", () => {
     expect(shareText("")).toBe("");
   });
 });
+
+describe("finish pairs on the wire", () => {
+  const rows = [
+    { id: 10, label: "Cognac", amount: "6", share: "15", mashbills: [{ id: 1, share: "3" }, { id: 3, share: "12" }] },
+    { id: 0, label: "No finish", amount: "", unfinished: true, share: "5", mashbills: [{ id: 1, share: "5" }] },
+  ];
+
+  it("round-trips pairs and the unfinished row through the JSON the form submits", () => {
+    const parsed = parseLinks(linksPayload(rows));
+    expect(parsed[0]).toMatchObject({ id: 10, amount: 6, share: 15, mashbills: [{ id: 1, share: 3 }, { id: 3, share: 12 }] });
+    expect(parsed[1]).toMatchObject({ id: 0, unfinished: true, mashbills: [{ id: 1, share: 5 }] });
+  });
+
+  it("refuses an id of 0 on anything but the unfinished row, and the unfinished row on any other id", () => {
+    expect(parseLinks(JSON.stringify([{ id: 0, amount: "" }]))).toEqual([]);
+    expect(parseLinks(JSON.stringify([{ id: 4, amount: "", unfinished: true }]))).toEqual([]);
+  });
+
+  it("sends a grid's finishes without pairs, so the saved pairs are carried over", async () => {
+    const { finishesWithoutPairs } = await import("../links");
+    const sent = parseLinks(linksPayload(finishesWithoutPairs(rows)));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.share).toBeUndefined();
+    expect(sent[0]!.mashbills).toBeUndefined();
+  });
+});

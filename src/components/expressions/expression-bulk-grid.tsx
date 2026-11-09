@@ -8,7 +8,7 @@ import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import { withAgeDefaults } from "@/lib/bottles/age";
 import type { FieldGroup } from "@/db/schema";
 import type { Option } from "@/lib/admin/types";
-import { LINK_KINDS, linksPayload, type LinkKind } from "@/lib/expressions/links";
+import { LINK_KINDS, finishesWithoutPairs, linksPayload, type LinkKind } from "@/lib/expressions/links";
 import type { LinkedRow } from "./ordered-picker";
 import { LinksCell } from "./links-cell";
 import { IngredientPicker } from "./ingredient-picker";
@@ -41,14 +41,15 @@ export function ExpressionBulkGrid({
       id: LINK_KINDS[kind].field,
       label: kind === "distilleries" ? "Distilleries / Estates" : LINK_KINDS[kind].label,
       initial: () => [],
-      toPayload: (value) => linksPayload(value as LinkedRow[]),
+      toPayload: (value) => linksPayload(kind === "finishes" ? finishesWithoutPairs(value as LinkedRow[]) : (value as LinkedRow[])),
       className: "min-w-48",
       render: ({ id, labelledBy, value, onChange, values, options, onOptionCreated }) => (
         <LinksCell
           kind={kind}
           id={id}
           labelledBy={labelledBy}
-          value={value as LinkedRow[]}
+          // The grid cannot edit which mashbill a finish went on, so the unfinished portion is not offered here as a finish.
+          value={kind === "finishes" ? (value as LinkedRow[]).filter((row) => !row.unfinished) : (value as LinkedRow[])}
           onChange={onChange}
           options={(options[LINK_KINDS[kind].field] ?? []).filter((option) => kind !== "distilleries" || !option.country || countryForDistillery(categoryKinds[Number(values.categoryId)] ?? "other", option.country))}
           onOptionCreated={(option) => onOptionCreated(LINK_KINDS[kind].field, option)}

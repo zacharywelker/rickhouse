@@ -90,3 +90,11 @@ export function linksPayload(rows: ReadonlyArray<LinkedRow>): string {
     })),
   );
 }
+
+/**
+ * A finish list as a place that cannot edit pairs (the bulk grid) should send it: ids, names and months
+ * only, and no unfinished row. The save then carries the pairs already on the label over unchanged.
+ */
+export function finishesWithoutPairs(rows: ReadonlyArray<LinkedRow>): LinkedRow[] {
+  return rows.filter((row) => !row.unfinished).map(({ id, label, amount }) => ({ id, label, amount }));
+}

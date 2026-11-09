@@ -122,7 +122,8 @@ function carryPairs(links: Links, kept: KeptPair[]): Links | null {
   const linesFor = (finishId: number | null) => kept.filter((pair) => pair.finishId === finishId)
     .map((pair) => ({ id: pair.mashbillId, share: pair.share === null ? null : Math.round(Number(pair.share)) }));
   const finishes: LinkRow[] = links.finishes.map((row) => (kept.some((pair) => pair.finishId === row.id) ? { ...row, mashbills: linesFor(row.id) } : row));
-  if (kept.some((pair) => pair.finishId === null)) finishes.push({ id: 0, amount: null, unfinished: true, mashbills: linesFor(null) });
+  // An unfinished portion is what is left after finishes; with none on the label there is nothing for it to be the remainder of.
+  if (links.finishes.length > 0 && kept.some((pair) => pair.finishId === null)) finishes.push({ id: 0, amount: null, unfinished: true, mashbills: linesFor(null) });
   return { ...links, finishes };
 }
 

@@ -137,6 +137,16 @@ describe.skipIf(!url)("finish and mashbill pairs against a real database", () =>
     expect(last).toMatchObject({ id: 0, unfinished: true, share: "60", mashbills: [{ id: b, share: "60" }] });
   });
 
+  it("leaves no pairs behind when a caller that does not know about pairs removes every finish", async () => {
+    const b = await mkMashbill();
+    const sherry = await mkFinish("Sherry");
+    const label = await fx.mkLabel(owner, cat.whiskey, `All finishes removed ${finishSeq}`);
+    await saveLinks(label, { mashbillLinks: [{ id: b, amount: "" }], finishLinks: [{ id: sherry, amount: "", share: 40 }, { id: 0, amount: "", unfinished: true, share: 60 }] });
+    expect(await pairsOf(label)).toHaveLength(2);
+    await saveLinks(label, { mashbillLinks: [{ id: b, amount: "" }], finishLinks: [] });
+    expect(await pairsOf(label)).toEqual([]);
+  });
+
   it("refuses the same pair twice at the database even if the app check were skipped", async () => {
     const { label, b, f } = await blueNote();
     await expect(m.sql(`INSERT INTO expression_finish_mashbills (expression_id, mashbill_id, finish_id, position) VALUES ($1, $2, $3, 99)`, label, b.b1, f.port)).rejects.toThrow(/unique/i);
