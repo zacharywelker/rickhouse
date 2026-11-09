@@ -1,7 +1,7 @@
 import "server-only";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { categories, expressionDistilleries, expressionFinishes, expressionIngredients, expressionMashbills, expressions, ingredients, mashbillGrains, mashbills, type IngredientKind } from "@/db/schema";
+import { categories, expressionDistilleries, expressionFinishMashbills, expressionFinishes, expressionIngredients, expressionMashbills, expressions, ingredients, mashbillGrains, mashbills, type IngredientKind } from "@/db/schema";
 import { resolveSlug } from "@/lib/slug";
 import { attachCola, colaLookupEnabled, refreshCola } from "@/lib/cola/store";
 import { writableFields } from "./fields";
@@ -9,6 +9,7 @@ import { fieldGroupForCategory } from "./queries";
 import { AGING_FIELDS, BOND_PROOF, hiddenFields, isSingleMaltCategory } from "./rules";
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
+import { FinishPairsInvalid, resolveFinishPairs, type FinishRowInput } from "./finish-pairs";
 import { ingredientAllowed, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
 import { categoryKindsById } from "./queries";
 import { isGinKind } from "./gin-details";
@@ -98,17 +99,38 @@ export function linksFrom(source: { distilleryLinks?: unknown; mashbillLinks?: u
  * which distillery made each mashbill depends on the distillery list.
  */
 export async function replaceLinks(tx: Tx, ownerId: number, expressionId: number, links: Links) {
+  // Deleting the mashbill and finish links cascades to their pairs, so read them first.
+  const kept = await tx.select({ mashbillId: expressionFinishMashbills.mashbillId, finishId: expressionFinishMashbills.finishId, share: expressionFinishMashbills.sharePct })
+    .from(expressionFinishMashbills).where(eq(expressionFinishMashbills.expressionId, expressionId)).orderBy(asc(expressionFinishMashbills.position));
   await tx.delete(expressionDistilleries).where(eq(expressionDistilleries.expressionId, expressionId));
   await tx.delete(expressionMashbills).where(eq(expressionMashbills.expressionId, expressionId));
   await tx.delete(expressionFinishes).where(eq(expressionFinishes.expressionId, expressionId));
-  await insertLinks(tx, ownerId, expressionId, links);
+  const carried = carryPairs(links, kept);
+  await insertLinks(tx, ownerId, expressionId, carried ?? links, carried !== null);
+}
+
+type KeptPair = { mashbillId: number; finishId: number | null; share: string | null };
+
+/**
+ * A caller that does not know about pairs (the phone, the grid) sends finish rows with no share,
+ * mashbills or unfinished row. Its save must not erase what the web form recorded, so the saved
+ * pairs ride along on those rows. Null when the caller sent pairs itself or none were saved.
+ */
+function carryPairs(links: Links, kept: KeptPair[]): Links | null {
+  if (kept.length === 0) return null;
+  if (links.finishes.some((row) => row.share !== undefined || row.mashbills !== undefined || row.unfinished)) return null;
+  const linesFor = (finishId: number | null) => kept.filter((pair) => pair.finishId === finishId)
+    .map((pair) => ({ id: pair.mashbillId, share: pair.share === null ? null : Math.round(Number(pair.share)) }));
+  const finishes: LinkRow[] = links.finishes.map((row) => (kept.some((pair) => pair.finishId === row.id) ? { ...row, mashbills: linesFor(row.id) } : row));
+  if (kept.some((pair) => pair.finishId === null)) finishes.push({ id: 0, amount: null, unfinished: true, mashbills: linesFor(null) });
+  return { ...links, finishes };
 }
 
 export async function replaceIngredients(tx: Tx, ownerId: number, expressionId: number, chosen: IngredientChoice[]) {
   await insertIngredients(tx, ownerId, expressionId, chosen);
 }
 
-export async function insertLinks(tx: Tx, ownerId: number, expressionId: number, links: Links) {
+export async function insertLinks(tx: Tx, ownerId: number, expressionId: number, links: Links, carriedPairs = false) {
   // An undisclosed place typed into the form arrives as a negative id plus its
   // place; it becomes the account's placeholder row here, in this transaction.
   // Mashbills that named it by that temporary id follow it to the real one.
@@ -176,7 +198,43 @@ export async function insertLinks(tx: Tx, ownerId: number, expressionId: number,
       })),
     );
   }
+  await writeFinishPairs(tx, expressionId, linkedMashbills.map((row) => row.id), linkedFinishes, links.finishes.find((row) => row.unfinished), carriedPairs);
   await insertIngredients(tx, ownerId, expressionId, links.ingredients);
+}
+
+/**
+ * Stores which finish went on which mashbill, and rewrites the shares kept on the mashbill and
+ * finish links from the pairs. `carried` pairs came from an earlier save rather than the caller, so
+ * one that no longer fits (a mashbill was removed, the shares stopped adding up) loses its share
+ * instead of failing the save.
+ */
+async function writeFinishPairs(tx: Tx, expressionId: number, mashbillIds: number[], finishRows: LinkRow[], unfinished: LinkRow | undefined, carried: boolean) {
+  if (mashbillIds.length === 0) return;
+  const stillLinked = new Set(mashbillIds);
+  const toInput = (row: LinkRow, finishId: number | null): FinishRowInput => ({
+    finishId,
+    share: row.share ?? null,
+    ...(row.mashbills ? { mashbills: row.mashbills.filter((line) => !carried || stillLinked.has(line.id)).map((line) => ({ mashbillId: line.id, share: line.share ?? null })) } : {}),
+  });
+  const rows = [...finishRows.map((row) => toInput(row, row.id)), ...(unfinished ? [toInput(unfinished, null)] : [])];
+  let out = resolveFinishPairs(mashbillIds, rows);
+  if (out.errors.length > 0 && carried) {
+    out = resolveFinishPairs(mashbillIds, rows.map((row) => ({ ...row, share: null, ...(row.mashbills ? { mashbills: row.mashbills.map((line) => ({ ...line, share: null })) } : {}) })));
+  }
+  if (out.errors.length > 0) throw new FinishPairsInvalid(out.errors[0]!);
+  if (out.pairs.length === 0) return;
+  await tx.insert(expressionFinishMashbills).values(out.pairs.map((pair) => ({
+    expressionId, mashbillId: pair.mashbillId, finishId: pair.finishId, position: pair.position,
+    sharePct: pair.share === null ? null : String(pair.share),
+  })));
+  for (const [mashbillId, share] of out.mashbillShares) {
+    await tx.update(expressionMashbills).set({ sharePct: String(share) })
+      .where(and(eq(expressionMashbills.expressionId, expressionId), eq(expressionMashbills.mashbillId, mashbillId)));
+  }
+  for (const [finishId, share] of out.finishShares) {
+    await tx.update(expressionFinishes).set({ sharePct: String(share) })
+      .where(and(eq(expressionFinishes.expressionId, expressionId), eq(expressionFinishes.finishId, finishId)));
+  }
 }
 
 /** Create reusable ingredient rows and link them in the chosen order. */

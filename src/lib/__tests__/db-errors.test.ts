@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mapDbError } from "../db-errors";
+import { FinishPairsInvalid } from "../expressions/finish-pairs";
 
 /** Drizzle throws its own Error and hangs the driver error off `cause`. */
 function drizzleWrapped(pg: Record<string, unknown>): Error {
@@ -9,6 +10,11 @@ function drizzleWrapped(pg: Record<string, unknown>): Error {
 const ctx = { singular: "Finish" };
 
 describe("mapDbError", () => {
+  it("says in words why a label's finish shares were refused", () => {
+    const result = mapDbError(new FinishPairsInvalid("Shares add up to 99%: 1 under."), { singular: "Label" });
+    expect(result).toEqual({ ok: false, error: "Shares add up to 99%: 1 under.", fieldErrors: { finishLinks: "Shares add up to 99%: 1 under." } });
+  });
+
   it("finds the Postgres code through Drizzle's wrapper", () => {
     const result = mapDbError(
       drizzleWrapped({ code: "23505", detail: "Key (name)=(French Oak) already exists.", constraint_name: "finishes_name_unique" }),

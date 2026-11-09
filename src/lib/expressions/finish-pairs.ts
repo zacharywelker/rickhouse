@@ -7,7 +7,7 @@
 export type FinishRowInput = {
   finishId: number | null;
   share: number | null;
-  /** One line per mashbill the finish went on. Omitted means the label's first mashbill. */
+  /** One line per mashbill the finish went on. Omitted means the label's first mashbill; empty means none. */
   mashbills?: { mashbillId: number; share: number | null }[];
 };
 
@@ -24,6 +24,9 @@ export type Resolved = {
 export const FINISH_PAIR_TOTAL_MESSAGE = (diff: number): string =>
   diff > 0 ? `Shares add up to ${100 + diff}%: ${diff} over.` : `Shares add up to ${100 + diff}%: ${-diff} under.`;
 
+/** Thrown by the save path when the pairs a caller sent cannot be stored; the message is meant for the person. */
+export class FinishPairsInvalid extends Error {}
+
 const NOT_ON_LABEL = "A finish names a mashbill that is not on this label.";
 const SAME_PAIR = "A finish is listed twice on the same mashbill.";
 const SAME_UNFINISHED = "The unfinished portion is listed twice on the same mashbill.";
@@ -39,7 +42,7 @@ export function resolveFinishPairs(labelMashbillIds: number[], rows: FinishRowIn
   const seen = new Set<string>();
   const pairs: Pair[] = [];
   for (const row of rows) {
-    const lines = row.mashbills && row.mashbills.length > 0 ? row.mashbills : [{ mashbillId: labelMashbillIds[0]!, share: row.share }];
+    const lines = row.mashbills ?? [{ mashbillId: labelMashbillIds[0]!, share: row.share }];
     for (const line of lines) {
       if (!onLabel.has(line.mashbillId)) { errors.add(NOT_ON_LABEL); continue; }
       const key = `${line.mashbillId}:${row.finishId ?? "none"}`;

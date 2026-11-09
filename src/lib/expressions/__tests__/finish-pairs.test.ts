@@ -36,6 +36,11 @@ describe("resolveFinishPairs", () => {
     expect(out.errors).toEqual([]);
   });
 
+  it("makes no pairs for a finish whose mashbill list is explicitly empty", () => {
+    const out = resolveFinishPairs([1], [{ finishId: 10, share: null, mashbills: [] }]);
+    expect(out).toMatchObject({ pairs: [], errors: [] });
+  });
+
   it("makes no pairs, and no complaint, when the label has no mashbills", () => {
     expect(resolveFinishPairs([], [{ finishId: 10, share: null }])).toMatchObject({ pairs: [], errors: [] });
   });
