@@ -7,7 +7,8 @@
  * should be parsing form values by hand.
  */
 import { z } from "zod";
-import { DISTILLERY_DISCLOSURES, FIELD_GROUPS, FINISH_TYPES, SCOTCH_REGIONS } from "@/db/schema";
+import { DISTILLERY_DISCLOSURES, FIELD_GROUPS, FINISH_TYPES, INGREDIENT_KINDS, SCOTCH_REGIONS } from "@/db/schema";
+import { FAMILIES } from "@/lib/expressions/ingredient-rules";
 import { normalizeGrainName } from "@/lib/mashbills";
 
 const trimmed = z.string().trim();
@@ -228,6 +229,20 @@ export const cooperageSchema = z.object({
   slug: optionalSlug,
   notes: optionalText(),
 });
+
+export const ingredientSchema = z
+  .object({
+    name: requiredText(120),
+    kind: z.enum(INGREDIENT_KINDS, { message: "Choose a kind." }),
+    family: blankIfAbsent(trimmed),
+  })
+  .superRefine((value, ctx) => {
+    if (value.kind === "distillate" && !(FAMILIES as readonly string[]).includes(value.family)) {
+      ctx.addIssue({ code: "custom", path: ["family"], message: "Choose a family." });
+    }
+  })
+  // Family only means something for a distillate; anything sent with another kind is discarded.
+  .transform((value) => ({ name: value.name, kind: value.kind, family: value.kind === "distillate" ? value.family : null }));
 
 export const storeSchema = z.object({
   name: requiredText(120),

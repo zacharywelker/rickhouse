@@ -67,6 +67,7 @@ export type BottleFilters = {
   distilleryIds: number[];
   mashbillIds: number[];
   finishIds: number[];
+  ingredientIds: number[];
   storeIds: number[];
   tagIds: number[];
   statuses: BottleStatus[];
@@ -99,6 +100,7 @@ export const DEFAULT_FILTERS: BottleFilters = {
   distilleryIds: [],
   mashbillIds: [],
   finishIds: [],
+  ingredientIds: [],
   storeIds: [],
   tagIds: [],
   statuses: DEFAULT_STATUSES,
@@ -187,6 +189,7 @@ export function parseFilters(params: Params): BottleFilters {
     distilleryIds: idList(params, "distillery"),
     mashbillIds: idList(params, "mashbill"),
     finishIds: idList(params, "finish"),
+    ingredientIds: idList(params, "ingredient"),
     storeIds: idList(params, "store"),
     tagIds: idList(params, "tag"),
     statuses: parseStatuses(first(params, "status")),
@@ -228,6 +231,7 @@ export function serialiseFilters(filters: BottleFilters): string {
   ids("distillery", filters.distilleryIds);
   ids("mashbill", filters.mashbillIds);
   ids("finish", filters.finishIds);
+  ids("ingredient", filters.ingredientIds);
   ids("store", filters.storeIds);
   ids("tag", filters.tagIds);
   if (!isDefaultStatuses(filters.statuses)) params.set("status", filters.statuses.length > 0 ? filters.statuses.join(",") : "all");
@@ -270,6 +274,7 @@ export function activeFilterCount(filters: BottleFilters): number {
   count += filters.distilleryIds.length > 0 ? 1 : 0;
   count += filters.mashbillIds.length > 0 ? 1 : 0;
   count += filters.finishIds.length > 0 ? 1 : 0;
+  count += filters.ingredientIds.length > 0 ? 1 : 0;
   count += filters.storeIds.length > 0 ? 1 : 0;
   count += filters.tagIds.length > 0 ? 1 : 0;
   count += isDefaultStatuses(filters.statuses) ? 0 : 1;

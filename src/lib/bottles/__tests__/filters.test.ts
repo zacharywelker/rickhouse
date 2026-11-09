@@ -175,3 +175,20 @@ describe("activeFilterCount", () => {
     ).toBe(0);
   });
 });
+
+describe("ingredientIds", () => {
+  it("reads the ingredient list and drops junk and duplicates", () => {
+    expect(parse("ingredient=3,7,abc,3,-1").ingredientIds).toEqual([3, 7]);
+  });
+
+  it("defaults to none and survives a round trip", () => {
+    expect(parse("").ingredientIds).toEqual([]);
+    const filters: BottleFilters = { ...DEFAULT_FILTERS, ingredientIds: [4, 9] };
+    expect(parse(serialiseFilters(filters)).ingredientIds).toEqual([4, 9]);
+    expect(serialiseFilters(DEFAULT_FILTERS)).not.toContain("ingredient");
+  });
+
+  it("counts as one narrowing filter", () => {
+    expect(activeFilterCount({ ...DEFAULT_FILTERS, ingredientIds: [1, 2] })).toBe(1);
+  });
+});

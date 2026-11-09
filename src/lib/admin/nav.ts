@@ -13,6 +13,7 @@ export const ADMIN_NAV: ReadonlyArray<{ href: Route; label: string }> = [
   { href: "/admin/distilleries" as Route, label: "Distilleries" },
   { href: "/admin/mashbills" as Route, label: "Mashbills" },
   { href: "/admin/finishes" as Route, label: "Finishes" },
+  { href: "/admin/ingredients" as Route, label: "Ingredients" },
   { href: "/admin/stores" as Route, label: "Stores" },
   { href: "/admin/tags" as Route, label: "Tags" },
 ];

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Loader2, Lock, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -171,22 +171,35 @@ export function ResourceView({
                     </TableCell>
                   ))}
                   <TableCell className="text-right">
-                    <div className={cn("flex justify-end gap-1", readOnly && "hidden")}>
-                      <Button variant="ghost" size="sm" onClick={() => setEditing(row)} aria-label={`Edit ${String(row.cells.name ?? "")}`} title={`Edit ${String(row.cells.name ?? "")}`}>
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setDeleteError(null);
-                          setDeleting(row);
-                        }}
-                        aria-label={`Delete ${String(row.cells.name ?? "")}`}
-                        title={`Delete ${String(row.cells.name ?? "")}`}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                    <div className={cn("flex min-h-8 items-center justify-end gap-2", readOnly && "hidden")}>
+                      {row.locked ? (
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground" title={row.locked.reason}>
+                          <Lock className="size-3.5" aria-hidden="true" />
+                          {row.locked.tag}
+                          <span className="sr-only">: {row.locked.reason}</span>
+                        </span>
+                      ) : null}
+                      <div className="flex gap-1">
+                      {row.locked ? null : (
+                        <Button variant="ghost" size="sm" onClick={() => setEditing(row)} aria-label={`Edit ${String(row.cells.name ?? "")}`} title={`Edit ${String(row.cells.name ?? "")}`}>
+                          <Pencil className="size-4" />
+                        </Button>
+                      )}
+                      {row.locked && !row.locked.allowDelete ? null : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeleting(row);
+                          }}
+                          aria-label={`Delete ${String(row.cells.name ?? "")}`}
+                          title={`Delete ${String(row.cells.name ?? "")}`}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
