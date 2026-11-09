@@ -57,6 +57,7 @@ struct ReleaseEditor: View {
                 if let error { Section { ErrorText(error) } }
             }
             .scrollContentBackground(.hidden)
+            .keyboardDone()
             .background(Theme.paper)
             .navigationTitle(isNew ? "Add release" : "Release")
             .navigationBarTitleDisplayMode(.inline)

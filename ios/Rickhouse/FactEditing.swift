@@ -10,6 +10,8 @@ struct EditRow: View {
     var keyboard: UIKeyboardType = .default
     var prefix: String?
     var multiline = false
+    /// How tall a multiline field is before it scrolls: it starts at the first and grows to the last as you type.
+    var lines: ClosedRange<Int> = 3...12
     var error: String?
     /// Set on a row the person just asked for, so they can type at once.
     var focusOnAppear = false
@@ -52,14 +54,10 @@ struct EditRow: View {
             if let prefix, !field.isEmpty { Text(prefix).foregroundStyle(Theme.muted) }
             sized(TextField(placeholder.isEmpty ? title : placeholder, text: $field.text, axis: multiline ? .vertical : .horizontal)
                 .multilineTextAlignment(stacked ? .leading : .trailing)
-                .lineLimit(multiline ? 3...12 : 1...1)
+                .lineLimit(multiline ? lines : 1...1)
                 .keyboardType(keyboard)
                 .focused($focused)
                 .foregroundStyle(error == nil ? Theme.ink : Theme.error)
-                .padding(.bottom, 1)
-                .overlay(alignment: .bottom) {
-                    if focused || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 1) }
-                }
                 .accessibilityLabel(title))
             if stacked && !isMoney { Spacer(minLength: 0) }
         }

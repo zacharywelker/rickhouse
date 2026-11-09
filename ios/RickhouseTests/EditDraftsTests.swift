@@ -430,6 +430,17 @@ final class EditDraftsTests: XCTestCase {
         return AgeDefaults.apply(prev: draft, next: next, changed: fact)
     }
 
+    func testCaskStrengthDropsTheProofButBondKeepsIt() {
+        var d = blank()
+        d[.proof].text = "112"
+        d = ticking(d, .isCaskStrength)
+        XCTAssertEqual(d[.proof].text, "")
+        d = ticking(d, .isBottledInBond)
+        XCTAssertEqual(d[.proof].text, "100")
+        d = ticking(d, .isBottledInBond, false)
+        XCTAssertEqual(d[.proof].text, "")
+    }
+
     func testStraightImpliesYearsOnlyOverBlankOrItsOwn() {
         var d = ticking(blank(), .isStraight)
         XCTAssertEqual(d[.ageYears].text, "2")

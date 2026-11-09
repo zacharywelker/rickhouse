@@ -54,6 +54,54 @@ extension View {
     }
 }
 
+extension View {
+    /// Lets a form give the keyboard back, as in any iOS app: a tap anywhere that isn't a text field puts it away
+    /// (a number pad has no return key), and so does scrolling.
+    func keyboardDone() -> some View {
+        scrollDismissesKeyboard(.immediately)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in TapAway.install() }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in TapAway.remove() }
+    }
+}
+
+/// One tap recognizer on the window while the keyboard is up. It never cancels the touch, so buttons still work, and it
+/// ignores touches on a text field so tapping from one field to the next keeps the keyboard.
+@MainActor
+private final class TapAway: NSObject, UIGestureRecognizerDelegate {
+    private static let shared = TapAway()
+    private let recognizer = UITapGestureRecognizer()
+
+    private override init() {
+        super.init()
+        recognizer.addTarget(self, action: #selector(tapped))
+        recognizer.cancelsTouchesInView = false
+        recognizer.delegate = self
+    }
+
+    static func install() {
+        guard shared.recognizer.view == nil else { return }
+        let window = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows).first { $0.isKeyWindow }
+        window?.addGestureRecognizer(shared.recognizer)
+    }
+
+    static func remove() { shared.recognizer.view?.removeGestureRecognizer(shared.recognizer) }
+
+    @objc private func tapped() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        var view = touch.view
+        while let current = view {
+            if current is UITextField || current is UITextView { return false }
+            view = current.superview
+        }
+        return true
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+}
+
 struct PickerOption: Identifiable, Hashable {
     let id: String
     let title: String

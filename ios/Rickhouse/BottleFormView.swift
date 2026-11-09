@@ -48,6 +48,7 @@ struct BottleFormView: View {
             if let error { Section { ErrorText(error) } }
         }
         .scrollContentBackground(.hidden)
+        .keyboardDone()
         .background(Theme.paper)
         .navigationTitle("Add bottle")
         .navigationBarTitleDisplayMode(.inline)

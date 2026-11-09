@@ -25,6 +25,7 @@ struct NewLabelView: View {
     @State private var photo: FormPhoto?
     @State private var pickerItem: PhotosPickerItem?
     @State private var showCamera = false
+    @State private var scanning = false
     /// The label is saved but its details or photo aren't: Save retries them, and the label can be used without them.
     @State private var made: LabelOption?
     /// The facts past brand, name and category. Sent as a second request once the label exists.
@@ -77,7 +78,22 @@ struct NewLabelView: View {
             }
             .disabled(factsSaved)
             Section {
-                TextField("Barcode", text: $barcode).keyboardType(.numberPad)
+                HStack(spacing: 8) {
+                    Text("Barcode").foregroundStyle(Theme.muted)
+                    Spacer(minLength: 8)
+                    TextField("Scan or type", text: $barcode)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .accessibilityLabel("Barcode")
+                    Button { scanning = true } label: {
+                        Image(systemName: "barcode.viewfinder").font(.system(size: 22)).frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityLabel("Scan barcode")
+                }
+                .frame(minHeight: 44)
+                .tightRow()
             } footer: {
                 Text("Optional. The digits under the barcode, so a scan finds this label next time.")
             }
@@ -115,6 +131,7 @@ struct NewLabelView: View {
             if let error { Section { ErrorText(error) } }
         }
         .scrollContentBackground(.hidden)
+        .keyboardDone()
         .background(Theme.paper)
         .navigationTitle("New label")
         .navigationBarTitleDisplayMode(.inline)
@@ -138,6 +155,14 @@ struct NewLabelView: View {
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { add($0) }.ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $scanning) {
+            ScanScreen { code in
+                barcode = Barcode.normalise(code) ?? code
+                scanning = false
+            } onType: {
+                scanning = false
+            }
         }
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
