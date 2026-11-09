@@ -32,14 +32,30 @@ export const BRANDY_FRUITS: Readonly<Record<string, FruitFamily>> = {
   "Apricot": "other", "Cherry": "other", "Plum": "other", "Peach": "other", "Raspberry": "other", "Blackberry": "other", "Quince": "other", "Fig": "other",
 };
 
+/**
+ * Fruits whose name reads as another fruit's. Checked ahead of the category default and the name
+ * match, so Pineapple is never an apple, Grapefruit never a grape, and Crabapple still an apple.
+ */
+export const FRUIT_FAMILY_EXCEPTIONS: Readonly<Record<string, FruitFamily>> = {
+  "Pineapple": "other", "Grapefruit": "other", "Prickly Pear": "other", "Pineapple Guava": "other",
+  "Crabapple": "apple",
+};
+
+const familyOf = (table: Readonly<Record<string, FruitFamily>>, wanted: string): FruitFamily | null =>
+  Object.entries(table).find(([fruit]) => fruit.toLocaleLowerCase() === wanted)?.[1] ?? null;
+
 /** The family of a base fruit: a listed fruit keeps its own, an unlisted one follows the category, else "other". */
 export function fruitFamily(categoryKind: string | null, name: string): FruitFamily {
   const wanted = name.trim().toLocaleLowerCase();
-  const listed = Object.entries(BRANDY_FRUITS).find(([fruit]) => fruit.toLocaleLowerCase() === wanted);
-  if (listed) return listed[1];
+  const listed = familyOf(BRANDY_FRUITS, wanted) ?? familyOf(FRUIT_FAMILY_EXCEPTIONS, wanted);
+  if (listed) return listed;
   if (categoryKind === "cognac" || categoryKind === "armagnac") return "grape";
-  if (categoryKind === "calvados") return /pear|poire/i.test(wanted) ? "pear" : "apple";
-  return /grape|pomace|marc/i.test(wanted) ? "grape" : /pear|poire/i.test(wanted) ? "pear" : /apple|cider/i.test(wanted) ? "apple" : "other";
+  if (categoryKind === "calvados") return /\b(pears?|poire)\b/.test(wanted) ? "pear" : "apple";
+  // Whole words only, and the named fruit before the pressing: "Apple Pomace" is an apple.
+  if (/\b(pears?|poire)\b/.test(wanted)) return "pear";
+  if (/\b(apples?|cider)\b/.test(wanted)) return "apple";
+  if (/\b(grapes?|pomace|marc)\b/.test(wanted)) return "grape";
+  return "other";
 }
 
 export const INGREDIENT_PRESETS: Partial<Record<IngredientKind, readonly string[]>> = {

@@ -86,7 +86,7 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
           ) : (
             <div className="flex flex-wrap gap-2">
               <Input aria-label={`Add ${labelFor(kind).toLowerCase()}`} list={`ingredient-${kind}-suggestions`} value={text} onChange={(event) => setText(event.target.value)}
-                onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(text); } }}
+                onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); add(text); } }}
                 placeholder={kind === "maguey" ? "Espadín, Tobalá…" : kind === "rum_base" ? "Name the other base" : kind === "botanical" ? "Search or add a botanical" : kind === "gin_base" ? "Search or add a base" : kind === "distillate" ? "Type a fruit — Ugni Blanc, Apple, Apricot…" : "Apple, Ugni Blanc…"} className="max-w-xs" />
               <datalist id={`ingredient-${kind}-suggestions`}>{suggestions.map((item) => <option key={item.name} value={item.name} />)}</datalist>
               <Button type="button" size="sm" onClick={() => add(text)}>Add</Button>
