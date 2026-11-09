@@ -41,6 +41,8 @@ import type { IngredientChoice } from "@/lib/expressions/spirit-details";
 import { BRANDY_MINIMUM_YEARS, countryForDistillery, isAgaveKind } from "@/lib/expressions/spirit-details";
 import { isGinKind } from "@/lib/expressions/gin-details";
 import { IngredientPicker } from "./ingredient-picker";
+import { FinishPicker } from "./finish-picker";
+import { effectiveRows, totalsOf } from "@/lib/expressions/finish-picker-model";
 import { DeriveAge } from "./bottle-form";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
@@ -216,6 +218,12 @@ export function ExpressionFields({
   };
 
   const bonded = fieldGroup === "whiskey" && !hidden.has("isBottledInBond") && values.isBottledInBond === true;
+
+  // Once every finish share is filled and adds to 100, each mashbill's share is their sum and is not typed.
+  const pairTotals = totalsOf(links.finishes, links.mashbills.map((row) => row.id));
+  const lockedMashbillShares = pairTotals.started && !pairTotals.error && Object.keys(pairTotals.mashbillShares).length > 0
+    ? Object.fromEntries(Object.entries(pairTotals.mashbillShares).map(([id, share]) => [id, String(share)]))
+    : undefined;
 
   /** A linked distillery brings its Scotch region along. */
   const changeLinks = (next: LabelLinks) => {
@@ -505,10 +513,13 @@ export function ExpressionFields({
               value={links.mashbills}
               onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
               distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
+              {...(lockedMashbillShares ? { lockedAmounts: lockedMashbillShares } : {})}
             /></>
           )}
           {showsFinishes(context) ? (
-            <OrderedPicker
+            <FinishPicker
+              mashbills={links.mashbills}
+              finishes={links.finishes}
               name="finishLinks"
               label={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "") ? "Cask Types" : "Finishes"}
               description={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "") ? "Known casks, without assuming a finishing order or duration." : "In sequence, for a double or triple finish."}
@@ -518,7 +529,6 @@ export function ExpressionFields({
               amountSuffix="mo"
               showOrder={!(["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? ""))}
               showAmount={!["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "")}
-              value={links.finishes}
               onChange={(rows) => onLinksChange({ ...links, finishes: rows })}
             />
           ) : (
@@ -526,7 +536,7 @@ export function ExpressionFields({
             <input
               type="hidden"
               name="finishLinks"
-              value={serializeLinks(links.finishes)}
+              value={serializeLinks(effectiveRows(links.finishes, links.mashbills.map((row) => row.id)))}
             />
           )}
         </SectionContent>
