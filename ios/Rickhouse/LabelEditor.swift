@@ -138,14 +138,16 @@ struct LabelEditor: View {
                     onRevert: { self.draft?[.category].revert(); self.draft?.categoryName = label.category }
                 )
                 LabelFactRows(draft: Binding($draft)!, errors: fieldErrors, rules: rules, ginAged: $ginAged, proofSpread: label.proofSpread, onEdit: { fieldErrors[$0.rawValue] = nil }) { picking = .list($0) }
-                EditRow(title: "Barcode", field: field(.barcode), placeholder: "Scan or type", keyboard: .numberPad, error: fieldErrors[LabelFact.barcode.rawValue])
-                Button { scanning = true } label: {
-                    Label("Scan barcode", systemImage: "barcode.viewfinder")
-                        .font(.inter(15, .semibold))
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
+                HStack(spacing: 8) {
+                    EditRow(title: "Barcode", field: field(.barcode), placeholder: "Scan or type", keyboard: .numberPad, error: fieldErrors[LabelFact.barcode.rawValue])
+                    Button { scanning = true } label: {
+                        Image(systemName: "barcode.viewfinder").font(.system(size: 22)).frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityLabel("Scan barcode")
                 }
-                .foregroundStyle(Theme.ink)
+                .tightRow()
             }
             Section {
                 ForEach(label.releases) { release in
@@ -178,6 +180,7 @@ struct LabelEditor: View {
             if let factError { Section { ErrorText(factError) } }
         }
         .scrollContentBackground(.hidden)
+        .keyboardDone()
     }
 
     /// Reads the label again after a release was saved, for its list; the unsaved edits to the label's own facts are
@@ -401,7 +404,7 @@ struct LabelFactRows: View {
         HStack {
             StrengthRow(proof: field(.proof), error: errors[LabelFact.proof.rawValue], tracksChanges: tracksChanges)
                 .disabled(bonded || caskLocked)
-                .opacity(caskLocked ? 0.5 : 1)
+                .opacity(caskLocked || bonded ? 0.5 : 1)
             if caskLocked { unlockButton("Edit the proof anyway") { proofUnlocked = true } }
         }
         .tightRow()
@@ -415,9 +418,6 @@ struct LabelFactRows: View {
             DateRow(title: "Distilled / barrel filled", field: field(.distilled), error: errors[LabelFact.distilled.rawValue], tracksChanges: tracksChanges)
             DateRow(title: "Bottled", field: field(.bottled), error: errors[LabelFact.bottled.rawValue], tracksChanges: tracksChanges)
             DeriveAgeRow(draft: $draft) { onEdit(.ageYears) }
-        }
-        if bonded {
-            Text("Bottled in Bond is 100 proof.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
         }
         if rules.showsAging {
             if rules.kind == "tequila" {
@@ -482,7 +482,7 @@ struct LabelFactRows: View {
         }
         EditRow(title: "Description", field: field(.description), placeholder: "What the label says", multiline: true, error: errors[LabelFact.description.rawValue], tracksChanges: tracksChanges)
         VStack(alignment: .leading, spacing: 2) {
-            EditRow(title: "Other names", field: field(.otherNames), placeholder: "Older names", multiline: true, error: errors[LabelFact.otherNames.rawValue], tracksChanges: tracksChanges)
+            EditRow(title: "Other names", field: field(.otherNames), placeholder: "Older names", multiline: true, lines: 1...6, error: errors[LabelFact.otherNames.rawValue], tracksChanges: tracksChanges)
             Text("One per line. Years in brackets: Hirsch (until 1985).").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
         }
     }
@@ -642,9 +642,6 @@ struct StrengthRow: View {
             .frame(minHeight: 44)
             .focused($focus, equals: side)
             .foregroundStyle(error == nil ? Theme.ink : Theme.error)
-            .overlay(alignment: .bottom) {
-                if focus == side || error != nil { Rectangle().fill(error == nil ? Theme.ink : Theme.error).frame(height: 1) }
-            }
             .accessibilityLabel(side == .proof ? "Proof" : "ABV percent")
     }
 }

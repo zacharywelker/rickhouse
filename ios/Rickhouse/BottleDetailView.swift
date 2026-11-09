@@ -55,6 +55,7 @@ struct BottleDetailView: View {
                 if let bottle {
                     List { bottleEditSections(bottle) }
                         .scrollContentBackground(.hidden)
+                        .keyboardDone()
                         .background(Theme.paper)
                         .navigationTitle("Edit bottle")
                         .navigationBarTitleDisplayMode(.inline)

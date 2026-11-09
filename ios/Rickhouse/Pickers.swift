@@ -265,11 +265,12 @@ struct LinkChipsRow: View {
     var onSource: (LinkRow, Int?) -> Void = { _, _ in }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 if changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
                 Text(title).foregroundStyle(Theme.muted)
             }
+            .padding(.top, 10)
             FlowLayout(spacing: 6) {
                 ForEach(rows) { row in
                     Button { onRemove(row) } label: {
@@ -279,7 +280,7 @@ struct LinkChipsRow: View {
                         }
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .overlay(Capsule().strokeBorder(Theme.ink, lineWidth: 1))
-                        .frame(minHeight: 44)
+                        .frame(minHeight: 40)
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -290,7 +291,7 @@ struct LinkChipsRow: View {
                     Text("+ Add").font(.inter(14, .medium))
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .overlay(Capsule().strokeBorder(Theme.muted, style: StrokeStyle(lineWidth: 1, dash: [3])))
-                        .frame(minHeight: 44)
+                        .frame(minHeight: 40)
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -301,7 +302,8 @@ struct LinkChipsRow: View {
                 ForEach(rows) { row in sourceMenu(row) }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.bottom, 4)
+        .tightRow()
     }
 
     @ViewBuilder

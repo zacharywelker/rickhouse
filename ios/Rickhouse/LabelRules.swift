@@ -88,6 +88,11 @@ enum AgeDefaults {
             if current.isEmpty || current == defaultStatement(prev) { next[.ageStatement].text = defaultStatement(next) }
         }
         if changed == .isBottledInBond, on(next, .isBottledInBond) { next[.proof].text = LabelRules.bondProof }
+        // A cask strength proof differs by release, so none is kept on the label: a proof typed before the tick goes, and
+        // so does the 100 a Bottled In Bond tick put there once it is off. "Edit the proof anyway" can still set one.
+        if on(next, .isCaskStrength), !on(next, .isBottledInBond), changed == .isCaskStrength || changed == .isBottledInBond {
+            next[.proof].text = ""
+        }
         return next
     }
 }

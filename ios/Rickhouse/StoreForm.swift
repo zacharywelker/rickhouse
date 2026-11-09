@@ -36,6 +36,7 @@ struct StoreForm: View {
                 if let error { Section { ErrorText(error) } }
             }
             .scrollContentBackground(.hidden)
+            .keyboardDone()
             .background(Theme.paper)
             .navigationTitle("New store")
             .navigationBarTitleDisplayMode(.inline)

@@ -495,10 +495,13 @@ struct LabelDraft {
     /// The name has started to say something it did not before: tick that, as the web form does. Only on the change, so
     /// a switch turned off by hand stays off while the name still says it.
     mutating func apply(_ said: NameSays, after previous: NameSays) {
-        if said.isCaskStrength, !previous.isCaskStrength { self[.isCaskStrength].text = "true" }
+        if said.isCaskStrength, !previous.isCaskStrength {
+            self[.isCaskStrength].text = "true"
+            if self[.isBottledInBond].trimmed != "true" { self[.proof].text = "" }  // its proof differs by release
+        }
         if said.isBottledInBond, !previous.isBottledInBond {
             self[.isBottledInBond].text = "true"
-            if let proof = said.proof { self[.proof].text = proof }
+            self[.proof].text = said.proof ?? LabelRules.bondProof
             if let years = said.ageYears, !AgeDefaults.ageFilled(self) { self[.ageYears].text = years }
         }
     }
