@@ -13,6 +13,7 @@ import {
   check,
   customType,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -548,8 +549,33 @@ export const expressionFinishes = pgTable(
     /** Sequence for double finishes. */
     position: integer("position").notNull().default(0),
     months: integer("months"),
+    /** Computed from the pairs below when every pair has a share; the save path writes it. */
+    sharePct: pct("share_pct"),
   },
   (t) => [primaryKey({ columns: [t.expressionId, t.finishId] })],
+);
+
+/**
+ * Which finish went on which mashbill of a label, and that combination's share of the blend.
+ * `finishId` NULL is the unfinished portion of that mashbill. Both foreign keys are composite and
+ * cascade, so taking a mashbill or a finish off the label takes its pairs with it.
+ */
+export const expressionFinishMashbills = pgTable(
+  "expression_finish_mashbills",
+  {
+    id: serial("id").primaryKey(),
+    expressionId: integer("expression_id").notNull(),
+    mashbillId: integer("mashbill_id").notNull(),
+    finishId: integer("finish_id"),
+    sharePct: pct("share_pct"),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [
+    foreignKey({ columns: [t.expressionId, t.mashbillId], foreignColumns: [expressionMashbills.expressionId, expressionMashbills.mashbillId] }).onDelete("cascade"),
+    foreignKey({ columns: [t.expressionId, t.finishId], foreignColumns: [expressionFinishes.expressionId, expressionFinishes.finishId] }).onDelete("cascade"),
+    uniqueIndex("expression_finish_mashbills_pair_unique").on(t.expressionId, t.mashbillId, sql`coalesce(${t.finishId}, 0)`),
+    check("expression_finish_mashbills_share_check", sql`${t.sharePct} IS NULL OR (${t.sharePct} >= 0 AND ${t.sharePct} <= 100)`),
+  ],
 );
 
 /**
