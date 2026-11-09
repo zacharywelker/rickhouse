@@ -24,7 +24,7 @@ struct PickerSheet: View {
     @State private var searching = false
     @State private var loading = true
     @State private var creating = false
-    /// The store form is open, for the name that was typed.
+    /// The store, distillery or mashbill form is open, for the name that was typed.
     @State private var placing = false
     @State private var error: String?
 
@@ -54,7 +54,7 @@ struct PickerSheet: View {
                 }
                 if spiritKind == nil && PickerLogic.offersNew(typed, kind: kind, in: items) {
                     Section {
-                        Button { if kind.needsPlace { placing = true } else { create() } } label: {
+                        Button { if kind.opensDetailsForm { placing = true } else { create() } } label: {
                             HStack {
                                 Text("Add “\(typed)” as a new \(kind.singular)").font(.inter(16, .semibold))
                                 Spacer()
@@ -66,12 +66,32 @@ struct PickerSheet: View {
                         .foregroundStyle(Theme.paper)
                         .listRowBackground(Theme.ink)
                     } footer: {
-                        Text(kind.needsPlace ? "A store is its name and where it is." : "New names join your list and can be used on any label.")
+                        Text(kind.needsPlace ? "A store is its name and where it is."
+                             : kind == .distilleries ? "You can add where it is and its Scotch region on the next page."
+                             : "New names join your list and can be used on any label.")
+                    }
+                }
+                // A recipe has no name to type, so this row is always there rather than following the search box.
+                if kind == .mashbills {
+                    Section {
+                        Button { placing = true } label: {
+                            HStack {
+                                Text("New mashbill").font(.inter(16, .semibold))
+                                Spacer()
+                                Image(systemName: "plus")
+                            }
+                            .frame(minHeight: 44)
+                        }
+                        .foregroundStyle(Theme.paper)
+                        .listRowBackground(Theme.ink)
+                    } footer: {
+                        Text("A recipe, a secret mashbill or a generic style such as High Rye.")
                     }
                 }
                 if !loading && items.isEmpty && typed.isEmpty && error == nil {
                     Section {
-                        Text(kind.creatable ? "Nothing here yet. Type a name to add one." : "Nothing here yet. Add them on the web.")
+                        Text(kind == .mashbills ? "Nothing here yet. Add one below."
+                             : kind.creatable ? "Nothing here yet. Type a name to add one." : "Nothing here yet. Add them on the web.")
                             .foregroundStyle(Theme.muted)
                     }
                 }
@@ -94,14 +114,24 @@ struct PickerSheet: View {
         }
         .task { await load() }
         .sheet(isPresented: $placing) {
-            StoreForm(name: typed) { made in
-                if !items.contains(where: { $0.id == made.id }) {
-                    items.append(made)
-                    items.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-                }
-                choose(made)
+            if kind == .distilleries {
+                DistilleryForm(name: typed, onMade: madeWithDetails)
+            } else if kind == .mashbills {
+                MashbillForm(name: typed, onMade: madeWithDetails)
+            } else {
+                StoreForm(name: typed, onMade: madeWithDetails)
             }
         }
+    }
+
+    /// A store, distillery or mashbill the details form made (or found): list it, close the form and choose it.
+    private func madeWithDetails(_ made: LookupItem) {
+        if !items.contains(where: { $0.id == made.id }) {
+            items.append(made)
+            items.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+        placing = false
+        choose(made)
     }
 
     private func row(_ item: LookupItem) -> some View {

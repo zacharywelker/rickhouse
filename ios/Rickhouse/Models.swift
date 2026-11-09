@@ -602,12 +602,16 @@ enum LookupKind: String {
         }
     }
 
-    /// These can be made from the phone. A mashbill is a recipe, so it is made on the web.
+    /// These can be made from just a name. A mashbill is a recipe, so it has its own page (`opensDetailsForm`).
     var creatable: Bool { self != .mashbills }
 
     /// A store is its name and its place: "Total Wine" in Austin and in Dallas are two stores, so the picker asks for
     /// the place instead of making one from the name alone.
     var needsPlace: Bool { self == .stores }
+
+    /// "Add as new" opens a page of details instead of making one from the name: a store's place (#203), a
+    /// distillery's place, Scotch region and numbers, and a mashbill's recipe (#223).
+    var opensDetailsForm: Bool { needsPlace || self == .distilleries || self == .mashbills }
 }
 
 struct LookupItem: Decodable, Identifiable, Hashable {

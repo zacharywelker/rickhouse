@@ -361,6 +361,18 @@ struct APIClient {
         try await sendObject("POST", "api/v1/lookups/\(kind.rawValue)", json: ["name": name], as: CreatedLookup.self)
     }
 
+    /// Makes a distillery with its details, through the same rules as the web's form. If one is already under that name
+    /// (any case) it is handed back untouched with `created` false: the details sent are not saved.
+    func createDistillery(_ draft: DistilleryDraft) async throws -> CreatedLookup {
+        try await sendObject("POST", "api/v1/lookups/distilleries", json: draft.body(), as: CreatedLookup.self)
+    }
+
+    /// Makes a mashbill (a recipe, a secret one or a generic style) through the same rules as the web's form. The answer
+    /// carries the name the pickers show for it. A recipe you already have is refused with the web's message.
+    func createMashbill(_ draft: MashbillDraft) async throws -> CreatedLookup {
+        try await sendObject("POST", "api/v1/lookups/mashbills", json: draft.body(), as: CreatedLookup.self)
+    }
+
     /// Makes a store from its name and place, or hands back the one already at that name and place in any case.
     /// A blank place is sent as blank (an online store has none).
     func createStore(name: String, city: String, state: String, country: String, isOnline: Bool) async throws -> CreatedLookup {
