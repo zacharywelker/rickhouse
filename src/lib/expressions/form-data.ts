@@ -49,12 +49,9 @@ export async function loadLinks(expressionId: number) {
       .where(eq(expressionIngredients.expressionId, expressionId))
       .orderBy(asc(expressionIngredients.position)),
   ]);
-  const toRows = (rows: Array<{ id: number; name: string; amount: string | null }>): LinkedRow[] =>
-    rows.map((row) => ({
-      id: row.id,
-      label: row.name,
-      amount: row.amount === null ? "" : String(Number(row.amount)),
-    }));
+  /** The total of the lines, or null while any line has no share. */
+  const sumShares = (lines: Array<{ share: string | null }>) =>
+    lines.some((line) => line.share === null) ? null : String(lines.reduce((sum, line) => sum + Number(line.share), 0));
   return {
     distilleries: linked.distilleries.map((row) => ({
       id: row.id,
@@ -71,7 +68,18 @@ export async function loadLinks(expressionId: number) {
       // picker preselects this once there is more than one to choose from.
       distilleryId: row.distilleryId ?? null,
     })),
-    finishes: toRows(linked.finishes),
+    finishes: [
+      ...linked.finishes.map((row): LinkedRow => ({
+        id: row.id,
+        label: row.name,
+        amount: row.amount === null ? "" : String(Number(row.amount)),
+        share: shareText(row.share),
+        mashbills: row.mashbills.map((line) => ({ id: line.mashbillId, share: shareText(line.share) })),
+      })),
+      ...(linked.unfinished.length > 0
+        ? [{ id: 0, label: "No finish", amount: "", unfinished: true, share: shareText(sumShares(linked.unfinished)), mashbills: linked.unfinished.map((line) => ({ id: line.mashbillId, share: shareText(line.share) })) } satisfies LinkedRow]
+        : []),
+    ],
     ingredients: materials,
   };
 }

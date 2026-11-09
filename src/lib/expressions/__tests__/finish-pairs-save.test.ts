@@ -108,6 +108,35 @@ describe.skipIf(!url)("finish and mashbill pairs against a real database", () =>
     expect((await mashbillShares(label))[b]).toBe(100);
   });
 
+  it("reads the pairs back with each finish and as the form's rows", async () => {
+    const { label, b, f } = await blueNote();
+    const queries = await import("../queries");
+    const linked = await queries.expressionLinks(label);
+    const cognac = linked.finishes.find((row) => row.id === f.cognac)!;
+    expect(Number(cognac.share)).toBe(15);
+    expect(cognac.mashbills.map((line) => [line.mashbillId, Number(line.share)])).toEqual([[b.b1, 3], [b.b3, 12]]);
+    expect(linked.unfinished).toEqual([]);
+
+    const { loadLinks } = await import("../form-data");
+    const rows = await loadLinks(label);
+    const formCognac = rows.finishes.find((row) => row.id === f.cognac)!;
+    expect(formCognac.share).toBe("15");
+    expect(formCognac.mashbills).toEqual([{ id: b.b1, share: "3" }, { id: b.b3, share: "12" }]);
+    expect(rows.finishes.some((row) => row.unfinished)).toBe(false);
+  });
+
+  it("reads an unfinished portion as a row with no finish", async () => {
+    const b = await mkMashbill();
+    const sherry = await mkFinish("Sherry");
+    const label = await fx.mkLabel(owner, cat.whiskey, `Unfinished read ${finishSeq}`);
+    await saveLinks(label, { mashbillLinks: [{ id: b, amount: "" }], finishLinks: [{ id: sherry, amount: "", share: 40 }, { id: 0, amount: "", unfinished: true, share: 60 }] });
+    const queries = await import("../queries");
+    expect((await queries.expressionLinks(label)).unfinished.map((line) => [line.mashbillId, Number(line.share)])).toEqual([[b, 60]]);
+    const { loadLinks } = await import("../form-data");
+    const last = (await loadLinks(label)).finishes.at(-1)!;
+    expect(last).toMatchObject({ id: 0, unfinished: true, share: "60", mashbills: [{ id: b, share: "60" }] });
+  });
+
   it("refuses the same pair twice at the database even if the app check were skipped", async () => {
     const { label, b, f } = await blueNote();
     await expect(m.sql(`INSERT INTO expression_finish_mashbills (expression_id, mashbill_id, finish_id, position) VALUES ($1, $2, $3, 99)`, label, b.b1, f.port)).rejects.toThrow(/unique/i);

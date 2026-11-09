@@ -13,6 +13,7 @@ import {
   distilleries,
   expressionDistilleries,
   expressionFinishes,
+  expressionFinishMashbills,
   expressionIngredients,
   expressionMashbills,
   expressionReleases,
@@ -29,6 +30,11 @@ import type { LabelFilters } from "@/lib/expressions/filters";
 import { matchingLabelIds } from "@/lib/expressions/label-search";
 import { loadLabelDocs } from "@/lib/expressions/label-search-docs";
 import type { LinkedRow } from "@/components/expressions/ordered-picker";
+
+/** One line of a finish: the mashbill it went on and that combination's share of the label. */
+export type PairLine = { mashbillId: number; share: string | null };
+/** A finish with its own share (the sum of its lines, once every line has one) and the mashbills it went on. */
+export type LinkedFinish = LinkedEntity & { share: string | null; mashbills: PairLine[] };
 
 export type LinkedEntity = {
   id: number;
@@ -60,10 +66,12 @@ export type LinkedMashbill = LinkedEntity & {
 export async function expressionLinks(expressionId: number): Promise<{
   distilleries: LinkedEntity[];
   mashbills: LinkedMashbill[];
-  finishes: LinkedEntity[];
+  finishes: LinkedFinish[];
+  /** The part of the blend that was not finished, one line per mashbill. */
+  unfinished: PairLine[];
   ingredients: Array<{ id: number; name: string; kind: string; family: string | null; isManual: boolean; slug: null; amount: null }>;
 }> {
-  const [d, m, f, materials] = await Promise.all([
+  const [d, m, f, materials, pairs] = await Promise.all([
     db
       .select({
         id: distilleries.id,
@@ -110,6 +118,7 @@ export async function expressionLinks(expressionId: number): Promise<{
         name: finishes.name,
         slug: finishes.slug,
         amount: sql<string | null>`${expressionFinishes.months}::text`,
+        share: expressionFinishes.sharePct,
       })
       .from(expressionFinishes)
       .innerJoin(finishes, eq(expressionFinishes.finishId, finishes.id))
@@ -120,7 +129,12 @@ export async function expressionLinks(expressionId: number): Promise<{
       .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
       .where(eq(expressionIngredients.expressionId, expressionId))
       .orderBy(asc(expressionIngredients.position)),
+    db.select({ mashbillId: expressionFinishMashbills.mashbillId, finishId: expressionFinishMashbills.finishId, share: expressionFinishMashbills.sharePct })
+      .from(expressionFinishMashbills)
+      .where(eq(expressionFinishMashbills.expressionId, expressionId))
+      .orderBy(asc(expressionFinishMashbills.position)),
   ]);
+  const lines = (finishId: number | null): PairLine[] => pairs.filter((pair) => pair.finishId === finishId).map(({ mashbillId, share }) => ({ mashbillId, share }));
 
   // On a blend, whose recipe it is matters and has to be picked; on a
   // single-distillery label there is only one possible answer, so it is
@@ -149,7 +163,8 @@ export async function expressionLinks(expressionId: number): Promise<{
           ? { attribution: row.distillery, attributionSlug: row.distillerySlug }
           : {}),
     })),
-    finishes: f,
+    finishes: f.map((row) => ({ ...row, mashbills: lines(row.id) })),
+    unfinished: lines(null),
     ingredients: materials.map((item) => ({ ...item, slug: null, amount: null })),
   };
 }

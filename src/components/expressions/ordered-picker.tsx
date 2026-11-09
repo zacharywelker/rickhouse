@@ -30,6 +30,12 @@ export type LinkedRow = {
   undisclosed?: boolean;
   /** An undisclosed place typed into the tick box, not yet a row: the save resolves it. */
   place?: { city: string; state: string; country: string };
+  /** Finishes only: this finish's share of the label, a whole percentage as text. */
+  share?: string;
+  /** Finishes only: one line per mashbill it went on. Absent means the label's first mashbill. */
+  mashbills?: { id: number; share: string }[];
+  /** Finishes only: the part of the blend that was not finished (id 0). */
+  unfinished?: boolean;
 };
 
 /**
