@@ -76,7 +76,7 @@ export function FinishPicker({ finishes, mashbills, onChange, ...picker }: { fin
                 <span className="text-muted-foreground">%</span>
               </>
             ) : null}
-            {!multi && canAdd ? <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-xs text-muted-foreground underline underline-offset-2" onClick={addLine}>+ Add mashbill</Button> : null}
+            {!multi && canAdd ? <Button type="button" variant="outline" size="sm" className="h-7 w-fit px-2 text-xs" onClick={addLine}>+ Add mashbill</Button> : null}
             {multi ? <Button type="button" variant="ghost" size="sm" aria-label={`Remove ${nameOf(line.id)} from ${row.label}`} onClick={() => setLines(row, lines.filter((_, i) => i !== index))}><X className="size-4" /></Button> : null}
           </div>
         ))}
