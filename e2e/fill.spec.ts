@@ -174,6 +174,29 @@ test("unticking Opened on a half-full bottle asks, and sealing puts it back to f
   await expect(page.getByLabel("Opened", { exact: true })).not.toBeChecked();
 });
 
+test("a seal request that never reaches the server puts the bottle back and says so", async ({ page }) => {
+  await addFreshBottle(page);
+  await tapDial(page, 50);
+  const gauge = page.getByRole("slider", { name: "Fill level" });
+  const opened = page.getByLabel("Opened", { exact: true });
+  await expect(opened).toBeChecked({ timeout: 10000 });
+  await page.waitForTimeout(1200);
+  await expect(gauge).toHaveAttribute("aria-valuenow", "50");
+
+  await opened.click();
+  await expect(page.getByRole("dialog")).toContainText("Mark it sealed?");
+  // Dropping the server-action POST is the network going away: the promise rejects instead of returning { ok: false }.
+  await page.route("**/bottles/*", (route) =>
+    route.request().headers()["next-action"] ? route.abort() : route.continue(),
+  );
+  await page.getByRole("button", { name: "Mark it sealed" }).click();
+
+  await expect(page.getByText("Couldn't mark it sealed")).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(gauge).toHaveAttribute("aria-valuenow", "50");
+  await expect(opened).toBeChecked();
+});
+
 test("choosing to keep it open leaves the level and the tick alone", async ({ page }) => {
   await addFreshBottle(page);
   await tapDial(page, 50);

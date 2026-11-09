@@ -173,20 +173,23 @@ export function FillControl({
     setPct(100);
     // A level save already in flight must not put the old level back if it fails after this.
     wanted.current = 100;
-    void setBottleDateAction(bottleId, "dateOpened", "", "seal").then((result) => {
-      setAnswering(false);
-      setAskSeal(false);
-      setAskOpened(false);
-      if (result.ok) {
-        saved.current = 100;
-        setError(null);
-      } else {
-        setOpen(true);
-        setPct(saved.current);
-        setError(result.error);
-      }
-      router.refresh();
-    });
+    // A rejected request (offline, the server fell over) counts as a refusal: put the saved state back and clear the pending state.
+    void setBottleDateAction(bottleId, "dateOpened", "", "seal")
+      .catch(() => null)
+      .then((result) => {
+        setAnswering(false);
+        setAskSeal(false);
+        setAskOpened(false);
+        if (result?.ok) {
+          saved.current = 100;
+          setError(null);
+        } else {
+          setOpen(true);
+          setPct(saved.current);
+          setError(result ? result.error : "Couldn't mark it sealed. Check the connection and try again.");
+        }
+        router.refresh();
+      });
   }
 
   function answerOpened(choice: "keep_open" | "seal") {
