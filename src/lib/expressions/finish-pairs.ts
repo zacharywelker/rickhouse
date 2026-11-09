@@ -7,7 +7,7 @@
 export type FinishRowInput = {
   finishId: number | null;
   share: number | null;
-  /** One line per mashbill the finish went on. Omitted means the label's first mashbill; empty means none. */
+  /** One line per mashbill the finish went on. Omitted means the label's only mashbill when it has exactly one, and none otherwise; empty means none. */
   mashbills?: { mashbillId: number; share: number | null }[];
 };
 
@@ -42,7 +42,8 @@ export function resolveFinishPairs(labelMashbillIds: number[], rows: FinishRowIn
   const seen = new Set<string>();
   const pairs: Pair[] = [];
   for (const row of rows) {
-    const lines = row.mashbills ?? [{ mashbillId: labelMashbillIds[0]!, share: row.share }];
+    // With several mashbills nothing says which one a finish went on, so no mashbill is guessed.
+    const lines = row.mashbills ?? (labelMashbillIds.length === 1 ? [{ mashbillId: labelMashbillIds[0]!, share: row.share }] : []);
     for (const line of lines) {
       if (!onLabel.has(line.mashbillId)) { errors.add(NOT_ON_LABEL); continue; }
       const key = `${line.mashbillId}:${row.finishId ?? "none"}`;

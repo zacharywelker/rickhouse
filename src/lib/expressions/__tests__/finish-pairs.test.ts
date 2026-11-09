@@ -30,10 +30,9 @@ describe("resolveFinishPairs", () => {
     expect(out.pairs).toEqual([{ mashbillId: 7, finishId: 10, share: null, position: 0 }]);
   });
 
-  it("defaults a finish with none listed to the first mashbill when there are several", () => {
-    const out = resolveFinishPairs([4, 5], [{ finishId: 10, share: 60 }, { finishId: 11, share: 40 }]);
-    expect(out.pairs.map((p) => p.mashbillId)).toEqual([4, 4]);
-    expect(out.errors).toEqual([]);
+  it("does not guess a mashbill for a finish with none listed when there are several", () => {
+    const out = resolveFinishPairs([4, 5], [{ finishId: 10, share: null }, { finishId: 11, share: null }]);
+    expect(out).toMatchObject({ pairs: [], errors: [] });
   });
 
   it("makes no pairs for a finish whose mashbill list is explicitly empty", () => {
