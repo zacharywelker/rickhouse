@@ -149,7 +149,9 @@ export const expressionSchema = z
     agaveRegion: optionalText(120),
     cookingMethod: optionalEnum(["brick oven", "autoclave", "pit"] as const),
     extraction: optionalEnum(["tahona", "roller mill"] as const),
-    isAdditiveFree: z.preprocess((value) => value === "on" ? "true" : value, tristate),
+    // A checkbox (whiskey) arrives as "on" from FormData but as a real boolean from the catalog form's
+    // JSON; unchecked is "unknown", never false. The agave select sends "", "true" or "false".
+    isAdditiveFree: z.preprocess((value) => (value === "on" || value === true ? "true" : value === false ? "" : value), tristate),
 
     // Commercial
     msrp: optionalDecimal(0, 99_999_999),
