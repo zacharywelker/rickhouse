@@ -20,8 +20,8 @@ async function addFreshBottle(page: Page) {
 }
 
 /**
- * Taps the dial where the needle would point for `pct`. The dial detents onto
- * the nearest quick state, so any point inside its band lands on that state.
+ * Taps the dial where the needle would point for `pct`. The dial snaps to the
+ * nearest 5% tick, so a point a little off still lands on that tick.
  */
 async function tapDial(page: Page, pct: number) {
   const box = await page.getByRole("slider", { name: "Fill level" }).boundingBox();
@@ -97,6 +97,22 @@ test("moving a sealed dial opens the bottle", async ({ page }) => {
   await expect(page.getByLabel("Opened", { exact: true })).toBeChecked({ timeout: 10000 });
 });
 
+test("a level that fails to save goes back to the saved one and says so", async ({ page }) => {
+  await addFreshBottle(page);
+  const gauge = page.getByRole("slider", { name: "Fill level" });
+  // Server actions are POSTs carrying a Next-Action header; dropping them is the network going away.
+  await page.route("**/bottles/*", (route) =>
+    route.request().headers()["next-action"] ? route.abort() : route.continue(),
+  );
+
+  await gauge.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(gauge).toHaveAttribute("aria-valuenow", "95");
+  await expect(page.getByText("Couldn't save the level")).toBeVisible({ timeout: 10000 });
+  await expect(gauge).toHaveAttribute("aria-valuenow", "100");
+  await expect(gauge).toHaveAttribute("aria-valuetext", "Sealed");
+});
+
 test("pressing End on a sealed bottle leaves it sealed", async ({ page }) => {
   await addFreshBottle(page);
   const gauge = page.getByRole("slider", { name: "Fill level" });
@@ -120,6 +136,56 @@ test("pressing Home again after leaving a bottle empty does not ask a second tim
   await page.keyboard.press("Home");
   await page.waitForTimeout(1200);
   await expect(page.getByRole("dialog")).toBeHidden();
+});
+
+test("unticking Opened on a full bottle seals it again", async ({ page }) => {
+  await addFreshBottle(page);
+  const opened = page.getByLabel("Opened", { exact: true });
+  await opened.check();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Full");
+
+  await opened.click();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Sealed");
+  await expect(opened).not.toBeChecked();
+
+  // The dial answers before the save does, and the seal queues behind the open request: wait for both.
+  await page.waitForLoadState("networkidle");
+  await page.reload();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Sealed");
+  await expect(page.getByLabel("Opened", { exact: true })).not.toBeChecked();
+});
+
+test("unticking Opened on a half-full bottle asks, and sealing puts it back to full", async ({ page }) => {
+  await addFreshBottle(page);
+  await tapDial(page, 50);
+  const opened = page.getByLabel("Opened", { exact: true });
+  await expect(opened).toBeChecked({ timeout: 10000 });
+  await page.waitForTimeout(1200);
+
+  await opened.click();
+  const prompt = page.getByRole("dialog");
+  await expect(prompt).toContainText("Mark it sealed?");
+  await page.getByRole("button", { name: "Mark it sealed" }).click();
+  await expect(prompt).toBeHidden();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Sealed");
+
+  await page.reload();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Sealed");
+  await expect(page.getByLabel("Opened", { exact: true })).not.toBeChecked();
+});
+
+test("choosing to keep it open leaves the level and the tick alone", async ({ page }) => {
+  await addFreshBottle(page);
+  await tapDial(page, 50);
+  const opened = page.getByLabel("Opened", { exact: true });
+  await expect(opened).toBeChecked({ timeout: 10000 });
+  await page.waitForTimeout(1200);
+
+  await opened.click();
+  await page.getByRole("button", { name: "Keep it open" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(opened).toBeChecked();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuetext", "Half full");
 });
 
 test("opening a bottle stamps the date", async ({ page }) => {

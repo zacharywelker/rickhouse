@@ -32,6 +32,10 @@ const RADIUS = 48;
 const SWEEP_PATH = `M ${HUB_X - RADIUS} ${HUB_Y} A ${RADIUS} ${RADIUS} 0 0 1 ${HUB_X + RADIUS} ${HUB_Y}`;
 /** Where the red zone ends: the same line the quick states use between Almost gone and ¼. */
 const LOW_FUEL_PCT = 18;
+/** A plain fade, for the parts that only change opacity when a bottle opens or reseals. */
+const SOFT = "motion-safe:transition-opacity motion-safe:duration-500";
+/** How long the unlock takes to play out, delays included; after this the dial is just a dial again. */
+const OPENING_MS = 1100;
 
 /** A point on the dial, `pct` of the way from Empty to Full, `r` out from the hub. */
 function dialPoint(pct: number, r: number): [number, number] {
@@ -42,6 +46,12 @@ function dialPoint(pct: number, r: number): [number, number] {
 export type FillGaugeProps = {
   value: number;
   onChange?: (value: number) => void;
+  /**
+   * The person let go of the dial, or finished a key press. Whatever should change layout in response to a new
+   * level belongs here, not in `onChange`: the dial reads the pointer against its own rectangle on every move,
+   * so it must not shift while a drag is under way.
+   */
+  onSettle?: () => void;
   readOnly?: boolean;
   /**
    * The bottle's spirit family (DESIGN.md §4.3) — the sweep is tinted with
@@ -67,6 +77,7 @@ export type FillGaugeProps = {
 export function FillGauge({
   value,
   onChange,
+  onSettle,
   readOnly = false,
   fieldGroup,
   height = 120,
@@ -78,6 +89,18 @@ export function FillGauge({
   const svgRef = React.useRef<SVGSVGElement>(null);
   const hatchId = React.useId();
   const [dragging, setDragging] = React.useState(false);
+  // True for the moment after a sealed dial opens, so the delays below shape the unlock and never a drag.
+  const [prevSealed, setPrevSealed] = React.useState(sealed);
+  const [opening, setOpening] = React.useState(false);
+  if (sealed !== prevSealed) {
+    setPrevSealed(sealed);
+    setOpening(!sealed);
+  }
+  React.useEffect(() => {
+    if (!opening) return;
+    const timer = setTimeout(() => setOpening(false), OPENING_MS);
+    return () => clearTimeout(timer);
+  }, [opening]);
   const spirit = fieldGroup ? categoryColorVar(fieldGroup) : "var(--category-other)";
 
   const pct = clampPct(value);
@@ -98,14 +121,17 @@ export function FillGauge({
   React.useEffect(() => {
     if (!dragging || !interactive) return;
     const move = (event: PointerEvent) => onChange?.(pctFromPointer(event.clientX, event.clientY));
-    const up = () => setDragging(false);
+    const up = () => {
+      setDragging(false);
+      onSettle?.();
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
     };
-  }, [dragging, interactive, onChange, pctFromPointer]);
+  }, [dragging, interactive, onChange, onSettle, pctFromPointer]);
 
   function onKeyDown(event: React.KeyboardEvent) {
     if (!interactive) return;
@@ -114,18 +140,24 @@ export function FillGauge({
     if (dir) {
       event.preventDefault();
       onChange?.(nudgePct(pct, dir, event.shiftKey || event.key.startsWith("Page")));
+      onSettle?.();
     } else if (event.key === "Home") {
       event.preventDefault();
       onChange?.(0);
+      onSettle?.();
     } else if (event.key === "End") {
       event.preventDefault();
       onChange?.(100);
+      onSettle?.();
     }
   }
 
   const strokeWidth = detailed ? 9 : 12;
   const hatch = detailed ? 5 : 8;
   const low = pct < LOW_FUEL_PCT;
+  // Opening plays in order: the lock clicks, the hatching lifts, the needle sweeps out. Each part waits its turn
+  // on the way open; sealing again, and every ordinary move of the needle, starts at once.
+  const after = (seconds: number): React.CSSProperties => ({ transitionDelay: opening ? `${seconds}s` : "0s" });
 
   return (
     <svg
@@ -176,24 +208,34 @@ export function FillGauge({
         </pattern>
       </defs>
 
-      {/* Track, then the sweep up to the needle. Sealed: the track is hatched and nothing sweeps. */}
+      {/*
+       * Sealed and open are the same drawing with different settings, never different elements: the needle, the
+       * sweep, the hatching and the seal all stay mounted, so opening a bottle (or sealing it again) is one CSS
+       * transition. Opening is a quick click: the lock presses in, the shackle snaps up and the lock hops away, then
+       * the needle swings out from Empty with the spring and the sweep draws in. About half a second. Reduced motion
+       * gets the end state at once.
+       */}
+      <path d={SWEEP_PATH} fill="none" strokeWidth={strokeWidth} className="stroke-muted" />
       <path
+        data-part="hatch"
         d={SWEEP_PATH}
         fill="none"
         strokeWidth={strokeWidth}
-        {...(sealed ? { stroke: `url(#${hatchId})` } : { className: "stroke-muted" })}
+        stroke={`url(#${hatchId})`}
+        style={{ opacity: sealed ? 1 : 0, ...after(0.4) }}
+        className={SOFT}
       />
-      {sealed ? null : (
-        <path
-          d={SWEEP_PATH}
-          fill="none"
-          strokeWidth={strokeWidth}
-          pathLength={100}
-          strokeDasharray={`${pct} 100`}
-          stroke={low ? "var(--color-destructive)" : spirit}
-          className="motion-safe:transition-[stroke-dasharray] motion-safe:duration-500 motion-safe:ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-        />
-      )}
+      <path
+        data-part="sweep"
+        d={SWEEP_PATH}
+        fill="none"
+        strokeWidth={strokeWidth}
+        pathLength={100}
+        strokeDasharray={`${sealed ? 0 : pct} 100`}
+        stroke={low ? "var(--color-destructive)" : spirit}
+        style={after(0.45)}
+        className="motion-safe:transition-[stroke-dasharray] motion-safe:duration-500 motion-safe:ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+      />
 
       {detailed
         ? Array.from({ length: 100 / FILL_TICK_STEP + 1 }, (_, i) => i * FILL_TICK_STEP).map((tickPct) => {
@@ -234,35 +276,64 @@ export function FillGauge({
         </g>
       ) : null}
 
-      {sealed ? (
-        detailed ? (
-          <g transform={`translate(${HUB_X} ${HUB_Y - 10})`}>
-            <circle r="11" className="fill-foreground" />
-            <circle r="8" fill="none" strokeWidth="1.1" strokeDasharray="2 1.5" stroke="var(--background)" />
-            <rect x="-3.8" y="-0.8" width="7.6" height="6" rx="1" fill="var(--background)" />
-            <path d="M-2.1 -0.8 v-2.1 a2.1 2.1 0 0 1 4.2 0 V-0.8" fill="none" strokeWidth="1.2" stroke="var(--background)" />
-          </g>
-        ) : null
-      ) : (
-        <>
-          {/* The needle points straight up and is rotated about the hub, so the swing is one CSS transition. */}
+      {detailed ? (
+        <g transform={`translate(${HUB_X} ${HUB_Y - 10})`}>
           <g
-            style={{ transform: `rotate(${needleDeg(pct)}deg)`, transformOrigin: `${HUB_X}px ${HUB_Y}px` }}
-            className="motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+            data-part="seal"
+            style={{
+              transformOrigin: "0px 0px",
+              transform: sealed ? "none" : "translateY(-10px) scale(0.4)",
+              opacity: sealed ? 1 : 0,
+              ...after(0.28),
+            }}
+            className="motion-safe:transition-[transform,opacity] motion-safe:duration-500 motion-safe:ease-[cubic-bezier(0.34,1.56,0.64,1)]"
           >
-            <line
-              x1={HUB_X}
-              y1={HUB_Y}
-              x2={HUB_X}
-              y2={HUB_Y - RADIUS + (detailed ? 12 : 8)}
-              strokeWidth={detailed ? 2.5 : 3}
-              strokeLinecap="round"
-              className="stroke-foreground"
-            />
+            {/* The press: the lock dips, then rebounds, just before it hops away. */}
+            <g style={{ transformOrigin: "0px 0px" }} className={opening ? "motion-safe:animate-[fill-lock-press_0.28s_ease-out]" : undefined}>
+              <circle r="11" className="fill-foreground" />
+              <rect x="-3.8" y="-0.8" width="7.6" height="6" rx="1" fill="var(--background)" />
+              <path
+                data-part="shackle"
+                d="M-2.1 -0.8 v-2.1 a2.1 2.1 0 0 1 4.2 0 V-0.8"
+                fill="none"
+                strokeWidth="1.2"
+                stroke="var(--background)"
+                style={{ transform: sealed ? "none" : "translateY(-2.6px)", ...after(0) }}
+                className="motion-safe:transition-transform motion-safe:duration-100 motion-safe:ease-out"
+              />
+            </g>
           </g>
-          <circle cx={HUB_X} cy={HUB_Y} r={detailed ? 4.5 : 5} className="fill-foreground" />
-        </>
-      )}
+        </g>
+      ) : null}
+
+      {/* The needle points straight up and is rotated about the hub, so the swing is one CSS transition. Parked at Empty while sealed. */}
+      <g
+        data-part="needle"
+        style={{
+          transform: `rotate(${sealed ? -90 : needleDeg(pct)}deg)`,
+          transformOrigin: `${HUB_X}px ${HUB_Y}px`,
+          opacity: sealed ? 0 : 1,
+          ...after(0.45),
+        }}
+        className="motion-safe:transition-[transform,opacity] motion-safe:duration-500 motion-safe:ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+      >
+        <line
+          x1={HUB_X}
+          y1={HUB_Y}
+          x2={HUB_X}
+          y2={HUB_Y - RADIUS + (detailed ? 12 : 8)}
+          strokeWidth={detailed ? 2.5 : 3}
+          strokeLinecap="round"
+          className="stroke-foreground"
+        />
+      </g>
+      <circle
+        cx={HUB_X}
+        cy={HUB_Y}
+        r={detailed ? 4.5 : 5}
+        style={{ opacity: sealed ? 0 : 1, ...after(0.7) }}
+        className={cn("fill-foreground", SOFT)}
+      />
     </svg>
   );
 }

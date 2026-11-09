@@ -55,6 +55,36 @@ test("moving the dial from the prompt saves the level and dismisses the prompt",
   await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuenow", "95");
 });
 
+test("dragging the dial from the prompt does not shift it under the pointer, and dismisses on release", async ({ page }) => {
+  await addFreshBottle(page);
+  await addNote(page, "Toasted vanilla.");
+  await expect(page.getByText(PROMPT)).toBeVisible();
+
+  const gauge = page.getByRole("slider", { name: "Fill level" });
+  const box = (await gauge.boundingBox())!;
+  const at = (fx: number, fy: number) => [box.x + box.width * fx, box.y + box.height * fy] as const;
+
+  await page.mouse.move(...at(0.25, 0.55));
+  await page.mouse.down();
+  await expect(gauge).not.toHaveAttribute("aria-valuenow", "100");
+  await page.mouse.move(...at(0.4, 0.3), { steps: 4 });
+  // The gauge reads the pointer against its own rectangle on every move, so it must not jump mid-drag.
+  expect((await gauge.boundingBox())?.y).toBe(box.y);
+  await expect(page.getByText(PROMPT)).toBeVisible();
+
+  await page.mouse.up();
+  await expect(page.getByText(PROMPT)).toBeHidden();
+});
+
+test("pressing the dial where it already is leaves the prompt up", async ({ page }) => {
+  await addFreshBottle(page);
+  await addNote(page, "Candied orange.");
+  const gauge = page.getByRole("slider", { name: "Fill level" });
+  await gauge.focus();
+  await page.keyboard.press("End"); // already full: no change
+  await expect(page.getByText(PROMPT)).toBeVisible();
+});
+
 test("Done dismisses the prompt and leaves the level alone", async ({ page }) => {
   await addFreshBottle(page);
   await addNote(page, "Dry finish.");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openedUpdate, type OpenedState } from "../opened-rules";
+import { openedUpdate, type OpenedState, untickOpened } from "../opened-rules";
 
 const TODAY = "2026-10-08";
 const open: OpenedState = { isOpen: true, dateOpened: "2026-09-14", dateKilled: null, status: "open", fillPct: 60 };
@@ -77,5 +77,36 @@ describe("clearing Opened on a bottle that is not open", () => {
 
   it("drops a stale date left by a resealed bottle, without asking", () => {
     expect(openedUpdate({ ...sealed, dateOpened: "2026-09-14" }, null, undefined, TODAY)).toEqual({ ok: true, set: { dateOpened: null } });
+  });
+});
+
+describe("untickOpened", () => {
+  it("seals a full bottle at once: nothing is lost", () => {
+    expect(untickOpened(100)).toBe("seal");
+  });
+
+  it("asks first when the bottle is under full, since sealing puts the level back to full", () => {
+    expect(untickOpened(99)).toBe("ask");
+    expect(untickOpened(60)).toBe("ask");
+    expect(untickOpened(0)).toBe("ask");
+  });
+});
+
+describe("clearing Opened on a bottle that reads as open without the flag", () => {
+  it.each([
+    ["status open", { ...sealed, status: "open" }],
+    ["a level under full", { ...sealed, fillPct: 60 }],
+  ])("asks first, and seals it for real, when it has %s", (_name, state) => {
+    const current = { ...state, dateOpened: "2026-09-14" };
+    expect(openedUpdate(current, null, undefined, TODAY)).toMatchObject({ ok: false, code: "opened_cleared" });
+    expect(openedUpdate(current, null, "seal", TODAY)).toEqual({
+      ok: true,
+      set: { dateOpened: null, isOpen: false, fillPct: 100, ...(state.status === "open" ? { status: "owned" } : {}) },
+    });
+  });
+
+  it("still only drops the date of a finished bottle", () => {
+    const killed: OpenedState = { ...sealed, status: "killed", fillPct: 0, dateOpened: "2026-09-14" };
+    expect(openedUpdate(killed, null, undefined, TODAY)).toEqual({ ok: true, set: { dateOpened: null } });
   });
 });

@@ -22,6 +22,18 @@ function isRealDate(value: string): boolean {
 /** Statuses of a bottle that is gone from the shelf; there is nothing to seal. */
 const FINISHED = new Set(["killed", "sold", "traded", "sampled"]);
 
+function isEffectivelyOpen(current: OpenedState): boolean {
+  return current.isOpen || (!FINISHED.has(current.status) && (current.status === "open" || current.fillPct < 100));
+}
+
+/**
+ * Unticking Opened seals the bottle, and sealed means full. A full bottle loses nothing by it; one under full
+ * would lose its level, so that one asks first.
+ */
+export function untickOpened(fillPct: number): "seal" | "ask" {
+  return fillPct >= 100 ? "seal" : "ask";
+}
+
 export function openedUpdate(current: OpenedState, dateOpened: string | null, choice: OpenedChoice | undefined, today: string): OpenedResult {
   if (dateOpened !== null) {
     if (!isRealDate(dateOpened)) {
@@ -38,8 +50,9 @@ export function openedUpdate(current: OpenedState, dateOpened: string | null, ch
     };
   }
 
-  // Cleared, and the bottle was never open: only a stale date to drop.
-  if (!current.isOpen) return { ok: true, set: current.dateOpened === null ? {} : { dateOpened: null } };
+  // Cleared, and the bottle was never open: only a stale date to drop. "Open" is the same test the grid and the
+  // dial use, not just the flag: a bottle under full, or with status open, reads as open even where `is_open` is off.
+  if (!isEffectivelyOpen(current)) return { ok: true, set: current.dateOpened === null ? {} : { dateOpened: null } };
 
   if (choice === undefined) {
     return { ok: false, code: "opened_cleared", message: "This bottle is open. Keep it open, or mark it sealed?" };
