@@ -145,4 +145,31 @@ final class FillStateTests: XCTestCase {
         }
         XCTAssertFalse(TastingBottle(try bottleDetail(status: "sold", isOpen: false, fillPct: 100), title: "x").canNudge)
     }
+
+    // MARK: Opening and resealing the dial
+
+    func testOnlyAnOpeningDialMakesAnythingWait() {
+        let parts: [FillDialMotion.Part] = [.shackle, .seal, .hatch, .needle, .hub]
+        for way in [FillDialMotion.resealing, .moving] {
+            for part in parts { XCTAssertEqual(way.delay(part), 0, "\(way) \(part)") }
+        }
+        XCTAssertGreaterThan(FillDialMotion.opening.delay(.needle), 0)
+    }
+
+    func testAnOpeningDialPlaysInOrder() {
+        // The lock clicks (shackle, then the lock hops away), the hatching lifts, the needle swings out, the hub returns.
+        let open = FillDialMotion.opening
+        let order = [open.delay(.shackle), open.delay(.seal), open.delay(.hatch), open.delay(.needle), open.delay(.hub)]
+        XCTAssertEqual(order, order.sorted())
+        XCTAssertEqual(Set(order).count, order.count, "each part has its own turn")
+        // The lock has finished pressing in before it hops away.
+        XCTAssertGreaterThanOrEqual(open.delay(.seal), FillDialMotion.press)
+    }
+
+    func testTheMotionIsReadFromTheSealBeforeAndAfter() {
+        XCTAssertEqual(FillDialMotion.between(wasSealed: true, isSealed: false), .opening)
+        XCTAssertEqual(FillDialMotion.between(wasSealed: false, isSealed: true), .resealing)
+        XCTAssertEqual(FillDialMotion.between(wasSealed: false, isSealed: false), .moving)
+        XCTAssertEqual(FillDialMotion.between(wasSealed: true, isSealed: true), .moving)
+    }
 }

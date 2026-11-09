@@ -23,8 +23,9 @@ import {
 } from "@/app/(app)/bottles/actions";
 import type { BottleStatus, FieldGroup } from "@/db/schema";
 import { clampPct } from "@/lib/bottles/geometry";
-import { isOnShelf, isSealedBottle } from "@/lib/bottles/terminology";
-import { fillReadout } from "@/lib/bottles/fill-state";
+import { effectiveBottleStatus, isOnShelf, isSealedBottle } from "@/lib/bottles/terminology";
+import { fillReadout, fillStateText } from "@/lib/bottles/fill-state";
+import { untickOpened } from "@/lib/bottles/opened-rules";
 import { cn, formatDate } from "@/lib/utils";
 import { FillGauge } from "./fill-gauge";
 import { useFillNudge } from "./fill-nudge";
@@ -58,17 +59,27 @@ export function FillControl({
   const [open, setOpen] = React.useState(isOpen);
   const [saving, setSaving] = React.useState(false);
   const [askKill, setAskKill] = React.useState(false);
-  const [dateError, setDateError] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
   const [killing, setKilling] = React.useState(false);
   // Clearing the opened date of an open bottle asks what to do with it, as the phone does.
   const [askOpened, setAskOpened] = React.useState(false);
   const [answering, setAnswering] = React.useState(false);
+  // Unticking Opened on a bottle under full asks first, since sealing puts the level back to full.
+  const [askSeal, setAskSeal] = React.useState(false);
   const nudge = useFillNudge();
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set when the level really moved, so letting go of the dial dismisses the nudge only after a change.
+  const moved = React.useRef(false);
+  // The last level the server confirmed, and the latest one asked for, so a failed save can put the dial back
+  // without undoing a newer drag.
+  const saved = React.useRef(fillPct);
+  const wanted = React.useRef(fillPct);
   const killed = status === "killed";
   const nudging = nudge.active && isOnShelf(status as BottleStatus);
   // From the local copies, so the dial un-hatches the moment it is moved.
   const sealed = isSealedBottle({ status: status as BottleStatus, isOpen: open, fillPct: pct });
+  // The flag alone misses a bottle whose status says open or whose level is under full; the dial already counts those.
+  const opened = open || effectiveBottleStatus({ status: status as BottleStatus, isOpen: open, fillPct: pct }) === "open";
 
   // The local copies move at once while a save is in flight; a refresh that
   // brings new props wins.
@@ -83,17 +94,34 @@ export function FillControl({
     setOpen(isOpen);
   }
 
+  React.useEffect(() => {
+    saved.current = fillPct;
+  }, [fillPct]);
+
   const commit = React.useCallback(
     (next: number) => {
+      wanted.current = next;
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => {
+      timer.current = setTimeout(async () => {
         setSaving(true);
-        void setBottleFillAction(bottleId, next).then(() => {
-          setSaving(false);
+        let result: Awaited<ReturnType<typeof setBottleFillAction>> | null = null;
+        try {
+          result = await setBottleFillAction(bottleId, next);
+        } catch {
+          // Offline or the server fell over: handled below, same as a refusal.
+        }
+        setSaving(false);
+        if (result?.ok) {
+          saved.current = next;
+          setError(null);
           router.refresh();
           // Reaching empty is the moment to ask, not on every drag frame.
           if (next === 0 && !killed) setAskKill(true);
-        });
+          return;
+        }
+        // Not saved: show what the server still has, unless the dial has already moved on to a newer level.
+        if (wanted.current === next) setPct(saved.current);
+        setError(result ? result.error : "Couldn't save the level. Check the connection and try again.");
       }, 400);
     },
     [bottleId, killed, router],
@@ -105,23 +133,75 @@ export function FillControl({
     const value = clampPct(next);
     // Pressing End on a full bottle, or Home on an empty one, moves nothing: no write, no second "mark it killed?".
     if (value === pct) return;
-    nudge.dismiss();
+    // The prompt stays until the dial is let go: removing it mid-drag would shift the dial under the pointer.
+    moved.current = true;
     setPct(value);
     commit(value);
   }
 
+  function settle() {
+    if (!moved.current) return;
+    moved.current = false;
+    nudge.dismiss();
+  }
+
   async function toggleOpen(next: boolean) {
-    setOpen(next);
-    await setBottleOpenAction(bottleId, next);
+    if (!next) {
+      // Back to unopened: the dial reseals, so the level and the opened date go with it.
+      if (untickOpened(pct) === "seal") seal();
+      else setAskSeal(true);
+      return;
+    }
+    setOpen(true);
+    const result = await setBottleOpenAction(bottleId, true).catch(() => null);
+    if (result?.ok) {
+      setError(null);
+    } else {
+      setOpen(false);
+      setError(result ? result.error : "Couldn't mark it opened. Check the connection and try again.");
+    }
     router.refresh();
   }
 
+  /** Marks the bottle sealed (full, unopened, no opened date), at once on screen and then on the server. */
+  function seal() {
+    // A level write still waiting out its debounce must not land after the seal.
+    if (timer.current) clearTimeout(timer.current);
+    nudge.dismiss();
+    setAnswering(true);
+    setOpen(false);
+    setPct(100);
+    // A level save already in flight must not put the old level back if it fails after this.
+    wanted.current = 100;
+    // A rejected request (offline, the server fell over) counts as a refusal: put the saved state back and clear the pending state.
+    void setBottleDateAction(bottleId, "dateOpened", "", "seal")
+      .catch(() => null)
+      .then((result) => {
+        setAnswering(false);
+        setAskSeal(false);
+        setAskOpened(false);
+        if (result?.ok) {
+          saved.current = 100;
+          setError(null);
+        } else {
+          setOpen(true);
+          setPct(saved.current);
+          setError(result ? result.error : "Couldn't mark it sealed. Check the connection and try again.");
+        }
+        router.refresh();
+      });
+  }
+
   function answerOpened(choice: "keep_open" | "seal") {
+    if (choice === "seal") {
+      seal();
+      return;
+    }
     setAnswering(true);
     void setBottleDateAction(bottleId, "dateOpened", "", choice).then((result) => {
       setAnswering(false);
       setAskOpened(false);
-      setDateError(result.ok ? null : result.error);
+      setError(result.ok ? null : result.error);
       router.refresh();
     });
   }
@@ -131,9 +211,9 @@ export function FillControl({
       {/*
        * A fuel dial, not a percentage box or a row of buttons (DESIGN.md §21):
        * the level is visual, and nobody knows their bottle is at 63%. Tap or
-       * drag anywhere on the dial and the needle detents onto the nearest
-       * quick state; the arrow keys step it freely, and the slider role gives
-       * assistive tech the same control.
+       * drag anywhere on the dial and the needle snaps to the nearest 5% tick;
+       * the arrow keys step it, and the slider role gives assistive tech the
+       * same control.
        */}
       <div className="flex flex-col items-center gap-1">
         {nudging ? (
@@ -144,7 +224,7 @@ export function FillControl({
             </Button>
           </div>
         ) : null}
-        <FillGauge value={pct} onChange={change} fieldGroup={fieldGroup} height={104} label="Fill level" sealed={sealed} className={cn(nudging && "rounded-sm ring-2 ring-ring ring-offset-4")} />
+        <FillGauge value={pct} onChange={change} onSettle={settle} fieldGroup={fieldGroup} height={104} label="Fill level" sealed={sealed} className={cn(nudging && "rounded-sm ring-2 ring-ring ring-offset-4")} />
         <p className="flex h-6 items-center gap-2 text-base font-medium" aria-hidden="true">
           {fillReadout(pct, sealed)}
           {saving ? <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Saving" /> : null}
@@ -153,20 +233,20 @@ export function FillControl({
 
       <div className="flex w-full flex-col gap-3">
         <div className="flex items-center gap-2">
-          <Checkbox id="is-open" checked={open} onCheckedChange={(c) => void toggleOpen(c === true)} />
+          <Checkbox id="is-open" checked={opened} onCheckedChange={(c) => void toggleOpen(c === true)} />
           <Label htmlFor="is-open" className="cursor-pointer text-foreground">
             Opened
           </Label>
         </div>
 
         <dl className="flex flex-col gap-1 text-xs text-muted-foreground">
-          {open ? (
+          {opened ? (
             <EditableDate
               bottleId={bottleId}
               field="dateOpened"
               label="Opened"
               value={dateOpened}
-              onError={setDateError}
+              onError={setError}
               onNeedsChoice={() => setAskOpened(true)}
             />
           ) : null}
@@ -176,14 +256,14 @@ export function FillControl({
               field="dateKilled"
               label="Killed"
               value={dateKilled}
-              onError={setDateError}
+              onError={setError}
               onNeedsChoice={() => {}}
             />
           ) : null}
         </dl>
-        {dateError ? (
+        {error ? (
           <p role="alert" className="text-xs text-destructive">
-            {dateError}
+            {error}
           </p>
         ) : null}
       </div>
@@ -213,6 +293,29 @@ export function FillControl({
             <Button type="button" disabled={answering} onClick={() => answerOpened("keep_open")}>
               {answering ? <Loader2 className="size-4 animate-spin" /> : null}
               Keep it open, no date
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={askSeal} onOpenChange={setAskSeal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark it sealed?</DialogTitle>
+            <DialogDescription>
+              Right now it reads &ldquo;{fillStateText(pct)}&rdquo;. Marking it sealed sets the level back to full and
+              clears the opened date.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={answering}>
+                Keep it open
+              </Button>
+            </DialogClose>
+            <Button type="button" disabled={answering} onClick={seal}>
+              {answering ? <Loader2 className="size-4 animate-spin" /> : null}
+              Mark it sealed
             </Button>
           </DialogFooter>
         </DialogContent>
