@@ -302,6 +302,8 @@ struct LabelDetail: Decodable {
     var barrelFilledOn: String? = nil
     var bottledOn: String? = nil
     var isStillProof: Bool? = nil
+    /// A Scotch label's regions, in the order given. Absent from an older server.
+    var regions: [String]? = nil
     /// "navy" or "overproof", worked out by the server from the proof; nil when neither.
     var strength: String? = nil
     /// What a cask-strength label with no proof shows in its place: one known proof, a range, or "Cask Strength".

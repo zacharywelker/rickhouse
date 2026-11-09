@@ -27,6 +27,8 @@ struct LabelRules {
     var isAgave: Bool { kind == "tequila" || kind == "mezcal" }
     var hasBrandyGrade: Bool { SpiritChoices.brandyMinimum[kind ?? ""] != nil }
     var isGin: Bool { group == "gin" }
+    /// Regions belong to Scotch; the web form only shows them there, and the server ignores them for anything else.
+    var showsRegions: Bool { kind == "scotch" }
     /// Tequila and mezcal: unaged ones can be marked still proof.
     var showsStillProof: Bool { group == "agave" }
 

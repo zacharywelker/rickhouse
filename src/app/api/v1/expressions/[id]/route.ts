@@ -87,6 +87,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     barrelFilledOn: expression.barrelFilledOn,
     bottledOn: expression.bottledOn,
     isStillProof: expression.isStillProof,
+    // Scotch regions in the order given; PATCH takes the same list back. Empty for a label with none.
+    regions: expression.regions ?? [],
     // Derived, never stored: Navy Strength / Overproof from the proof, and what a cask-strength label with no proof shows.
     strength: strengthTier(row.category.fieldGroup, expression.proof),
     proofLabel:
@@ -162,6 +164,9 @@ const ingredientList = z.array(z.object({ name: z.string().trim().min(1).max(120
 const patchBody = labelFactsSchema
   .partial()
   .extend({
+    // A list of Scotch regions, as GET gives it (the web form's comma text also passes). Its rules are the form's: only
+    // the six regions, once each, and null or [] clears them.
+    regions: z.preprocess((value) => (Array.isArray(value) && value.every((r) => typeof r === "string") ? value.join(", ") : value), labelFactsSchema.shape.regions),
     brand: z.string().trim().min(1, "Enter a brand.").max(120, "Keep this under 120 characters."),
     distilleries: linkList,
     mashbills: linkList,

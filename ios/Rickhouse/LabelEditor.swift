@@ -460,6 +460,15 @@ struct LabelFactRows: View {
             title: rules.group == "rum" ? "Distilleries / Estates" : LabelEditor.listTitle(.distilleries), rows: draft.rows(.distilleries), changed: tracksChanges && draft.listChanged(.distilleries),
             onRemove: { draft.remove(.distilleries, id: $0.id) }, onAdd: { onPick(.distilleries) }
         )
+        if rules.showsRegions {
+            RegionChipsRow(
+                selected: ScotchRegions.list(draft[.regions].text), changed: tracksChanges && draft[.regions].changed,
+                onToggle: { region in
+                    draft[.regions].text = ScotchRegions.toggled(region, in: draft[.regions].text)
+                    onEdit(.regions)
+                }
+            )
+        }
         if rules.usesIngredients {
             if rules.isGin {
                 IngredientRows(choices: $draft.ingredients, group: "gin", kind: rules.kind, ginMaterial: "botanical")

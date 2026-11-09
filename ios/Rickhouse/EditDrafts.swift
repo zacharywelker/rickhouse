@@ -364,6 +364,8 @@ enum LabelFact: String, CaseIterable {
     case distilled = "barrelFilledOn"
     case bottled = "bottledOn"
     case isStillProof
+    /// Held as comma text ("Islay, Speyside"), sent as a list.
+    case regions
 
     /// The ticks, held as "true" or "false".
     static let ticks: [LabelFact] = [.isCaskStrength, .isBottledInBond, .isStraight, .isNas, .isStillProof, .isAgedGin]
@@ -424,6 +426,7 @@ struct LabelDraft {
             .distilled: Field(label.barrelFilledOn),
             .bottled: Field(label.bottledOn),
             .isStillProof: Field(String(label.isStillProof ?? false)),
+            .regions: Field(ScotchRegions.text(label.regions ?? [])),
             .otherNames: Field(label.otherNames),
             .size: Field(String(label.sizeMl)),
             .msrp: Field(label.msrp),
@@ -561,6 +564,7 @@ struct LabelDraft {
         case .size, .category, .brand, .ageMonths, .ageDays: Int(field.trimmed) ?? field.json
         case .isNas, .isStraight, .isCaskStrength, .isBottledInBond, .isStillProof, .isAgedGin: field.trimmed == "true"
         case .barcode: field.isEmpty ? NSNull() : Self.digits(field.trimmed)
+        case .regions: ScotchRegions.list(field.trimmed).isEmpty ? NSNull() : ScotchRegions.list(field.trimmed)
         default: field.json
         }
     }

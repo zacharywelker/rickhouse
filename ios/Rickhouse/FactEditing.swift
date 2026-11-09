@@ -230,3 +230,41 @@ struct UndoOffer: Identifiable {
     let message: String
     let run: () async throws -> Void
 }
+
+/// A Scotch label's regions: the six, each a toggle (issue #223). Tapping one adds it after those already chosen, or takes
+/// it off; the web form's picker does the same.
+struct RegionChipsRow: View {
+    let selected: [String]
+    var changed = false
+    var onToggle: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                if changed { Circle().fill(Theme.ink).frame(width: 6, height: 6).accessibilityHidden(true) }
+                Text("Regions").foregroundStyle(Theme.muted)
+            }
+            .padding(.top, 10)
+            FlowLayout(spacing: 6) {
+                ForEach(ScotchRegions.all, id: \.self) { region in
+                    let on = selected.contains { $0.caseInsensitiveCompare(region) == .orderedSame }
+                    Button { onToggle(region) } label: {
+                        Text(region).font(.inter(14, on ? .semibold : .regular))
+                            .padding(.horizontal, 12).padding(.vertical, 5)
+                            .foregroundStyle(on ? Theme.paper : Theme.ink)
+                            .background(Capsule().fill(on ? Theme.ink : Color.clear))
+                            .overlay(Capsule().strokeBorder(on ? Theme.ink : Theme.muted, lineWidth: 1))
+                            .frame(minHeight: 40)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                    .accessibilityLabel(region)
+                    .accessibilityHint(on ? "Tap to remove" : "Tap to add")
+                }
+            }
+        }
+        .padding(.bottom, 4)
+        .tightRow()
+    }
+}

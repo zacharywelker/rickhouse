@@ -20,7 +20,7 @@ struct DistilleryDraft: Equatable {
     var notes = ""
 
     /// The server's list (`SCOTCH_REGIONS`), in its order.
-    static let scotchRegions = ["Speyside", "Highland", "Lowland", "Islay", "Campbeltown", "Islands"]
+    static let scotchRegions = ScotchRegions.all
 
     private var countryKey: String { country.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
 

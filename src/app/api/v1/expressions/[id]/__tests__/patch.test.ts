@@ -15,7 +15,7 @@ vi.mock("@/lib/expressions/label-patch", async () => {
     labelFactsSchema: expressionSchema.pick({
       brandId: true, categoryId: true, name: true, proof: true, ageYears: true, ageMonths: true, ageDays: true, ageStatement: true,
       isNas: true, isStraight: true, isCaskStrength: true, isBottledInBond: true, molassesOrCane: true, description: true,
-      sizeMl: true, msrp: true, upc: true,
+      sizeMl: true, msrp: true, upc: true, regions: true,
     }),
     patchLabel: (...args: unknown[]) => patchLabel(...args),
   };
@@ -77,6 +77,30 @@ describe("PATCH /api/v1/expressions/:id: editing the label", () => {
     const res = await patch("10", { ageYears: 4, ageMonths: 6, ageDays: null, isStraight: true, isBottledInBond: false, molassesOrCane: "molasses", description: " Kentucky " });
     expect(res.status).toBe(200);
     expect(patchLabel.mock.calls[0]![2].facts).toEqual({ ageYears: "4", ageMonths: 6, ageDays: null, isStraight: true, isBottledInBond: false, molassesOrCane: "molasses", description: "Kentucky" });
+  });
+
+  it("takes Scotch regions as a list, in the order given and once each, in the web's spelling", async () => {
+    const res = await patch("10", { regions: ["islay", "Speyside", "ISLAY"] });
+    expect(res.status).toBe(200);
+    expect(patchLabel.mock.calls[0]![2].facts).toEqual({ regions: ["Islay", "Speyside"] });
+  });
+
+  it("clears regions with null or an empty list, and still takes the web form's comma text", async () => {
+    await patch("10", { regions: null });
+    await patch("10", { regions: [] });
+    await patch("10", { regions: "Highland, Islands" });
+    expect(patchLabel.mock.calls.map((c) => c[2].facts)).toEqual([{ regions: null }, { regions: null }, { regions: ["Highland", "Islands"] }]);
+  });
+
+  it.each([
+    ["a region that isn't Scotch", { regions: ["Speyside", "Atlantis"] }],
+    ["a list of things that aren't names", { regions: [1, 2] }],
+    ["a bare number", { regions: 5 }],
+  ])("refuses %s with a 422 and does not save", async (_n, body) => {
+    const res = await patch("10", body);
+    expect(res.status).toBe(422);
+    expect((await res.json()).error.fields).toHaveProperty("regions");
+    expect(patchLabel).not.toHaveBeenCalled();
   });
 
   it("reads other names as the web form's lines, and refuses a bad line", async () => {

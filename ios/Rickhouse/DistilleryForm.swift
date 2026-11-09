@@ -50,7 +50,7 @@ struct DistilleryForm: View {
                         }
                     Toggle("Defunct", isOn: $draft.isDefunct)
                 } header: { SectionLabel("Details") } footer: {
-                    Text("A Scotch region is added to a Scotch label when you link this distillery to it.")
+                    Text("Which Scotch region it is in, if any. Set a Scotch label's regions on the label itself.")
                 }
                 Section {
                     TextField("Notes", text: $draft.notes, axis: .vertical).lineLimit(3...6)
