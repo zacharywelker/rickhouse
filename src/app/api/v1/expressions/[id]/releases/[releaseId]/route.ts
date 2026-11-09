@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { releaseBodySchema } from "@/lib/api/releases";
-import { saveRelease } from "@/lib/releases-store";
+import { removeRelease, saveRelease } from "@/lib/releases-store";
 
 export const dynamic = "force-dynamic";
 
@@ -33,4 +33,28 @@ export async function PATCH(
   if (!saved.ok) return apiError(saved.status, saved.code, saved.message);
   revalidatePath(`/expressions/${id}`);
   return NextResponse.json(saved.release);
+}
+
+/**
+ * Removes one known release of one of your labels, with its photo and notes. Its bottles and their tastings stay but
+ * lose the release; `bottles` says how many. It cannot be undone: the label read gives each release a `removal` line
+ * saying what it would take with it, for the app to show first.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string; releaseId: string }> },
+): Promise<NextResponse> {
+  const user = await getCurrentUser();
+  if (!user) return apiError(401, "unauthorized", "Sign in first.");
+
+  const { id: rawId, releaseId: rawRelease } = await params;
+  const id = parseId(rawId);
+  const releaseId = parseId(rawRelease);
+  if (id === null || releaseId === null) return apiError(404, "not_found", "That release is gone.");
+
+  const removed = await removeRelease(user.id, id, releaseId);
+  if (!removed.ok) return apiError(removed.status, removed.code, removed.message);
+  revalidatePath(`/expressions/${id}`);
+  revalidatePath("/bottles");
+  return NextResponse.json({ id: releaseId, bottles: removed.bottles });
 }
