@@ -1177,9 +1177,11 @@ const ingredientsConfig: ResourceConfig = {
   optionsFor: async () => ({}),
   save: async (raw, id, ownerId) => {
     let kind = raw.kind;
+    let existingFamily: string | null | undefined;
+    let existingUses = 0;
     if (id !== null) {
       const [existing] = await db
-        .select({ kind: ingredients.kind, name: ingredients.name, styleLinks: styleLinkCount })
+        .select({ kind: ingredients.kind, name: ingredients.name, family: ingredients.family, styleLinks: styleLinkCount, uses: labelsUsing })
         .from(ingredients)
         .where(and(eq(ingredients.id, id), eq(ingredients.ownerId, ownerId)))
         .limit(1);
@@ -1188,10 +1190,18 @@ const ingredientsConfig: ResourceConfig = {
       if (lock) return { ok: false, error: lock.reason };
       // The form hides Kind on edit; a request that sends one anyway is overridden here.
       kind = existing.kind;
+      existingFamily = existing.family;
+      existingUses = existing.uses;
     }
     const parsed = ingredientSchema.safeParse({ ...raw, kind });
     if (!parsed.success) return invalid(parsed.error);
     const input = parsed.data;
+    // A label's category decides which families it accepts (Cognac takes grape only), and the picker
+    // drops a rejected ingredient on the next label save. So a family can't change under a label.
+    if (existingFamily !== undefined && input.family !== existingFamily && existingUses > 0) {
+      const error = `${existingUses} label${existingUses === 1 ? " uses" : "s use"} this ingredient, so its family can't change.`;
+      return { ok: false, error, fieldErrors: { family: error } };
+    }
 
     const reserved = reservedNameError(input.kind, input.name);
     if (reserved) return { ok: false, error: reserved, fieldErrors: { name: reserved } };
@@ -1233,17 +1243,26 @@ const ingredientsConfig: ResourceConfig = {
     if (!row) return;
     const lock = lockFor(row);
     if (lock && !lock.allowDelete) throw new AdminRuleError(lock.reason);
-    // One statement: a label saved between a check and a delete cannot be stripped by the cascade.
-    const deleted = await db
-      .delete(ingredients)
-      .where(
-        and(
-          eq(ingredients.id, id),
-          eq(ingredients.ownerId, ownerId),
-          notExists(db.select({ one: sql`1` }).from(expressionIngredients).where(eq(expressionIngredients.ingredientId, id))),
-        ),
-      )
-      .returning({ id: ingredients.id });
+    // Lock the row first. A label save links an ingredient with a key-share lock on it, which this
+    // FOR UPDATE waits out (or blocks until it commits). The delete below is a new statement, so its
+    // NOT EXISTS then sees that link; without the lock the cascade would strip a just-committed link.
+    const deleted = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ id: ingredients.id })
+        .from(ingredients)
+        .where(and(eq(ingredients.id, id), eq(ingredients.ownerId, ownerId)))
+        .for("update");
+      if (!locked) return [];
+      return tx
+        .delete(ingredients)
+        .where(
+          and(
+            eq(ingredients.id, id),
+            notExists(tx.select({ one: sql`1` }).from(expressionIngredients).where(eq(expressionIngredients.ingredientId, id))),
+          ),
+        )
+        .returning({ id: ingredients.id });
+    });
     if (deleted.length === 0) {
       const n = Math.max(row.uses, 1);
       throw new AdminRuleError(`${n} label${n === 1 ? " uses" : "s use"} this ingredient`);

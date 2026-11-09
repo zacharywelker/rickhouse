@@ -111,4 +111,47 @@ describe.skipIf(!url)("the Ingredients resource against a real database", () => 
     await res().remove(id, owner);
     expect((await res().list(owner)).some((r) => r.id === id)).toBe(false);
   });
+  it("refuses a family change while a label uses the ingredient, and allows it once unlinked", async () => {
+    await add("distillate", "Folle Blanche", "grape");
+    const id = await idOf("Folle Blanche");
+    expect((await res().save({ kind: "distillate", name: "Folle Blanche 2", family: "grape" }, id, owner)).ok).toBe(true);
+    const label = await link(id);
+    expect(await res().save({ kind: "distillate", name: "Folle Blanche 2", family: "apple" }, id, owner)).toMatchObject({
+      ok: false,
+      fieldErrors: { family: "1 label uses this ingredient, so its family can't change." },
+    });
+    expect((await res().list(owner)).find((r) => r.id === id)!.values.family).toBe("grape");
+    await m.sql(`DELETE FROM expression_ingredients WHERE expression_id = $1`, label);
+    expect((await res().save({ kind: "distillate", name: "Folle Blanche 2", family: "apple" }, id, owner)).ok).toBe(true);
+  });
+
+  it("does not delete an ingredient whose label link commits while the delete is waiting", async () => {
+    await add("rum_base", "Date Syrup");
+    const id = await idOf("Date Syrup");
+    const label = await fx.mkLabel(owner, cat.rum, "Racing label");
+    const postgres = (await import("postgres")).default;
+    const other = postgres(url!, { max: 1, onnotice: () => {} });
+    try {
+      let release!: () => void;
+      const hold = new Promise<void>((resolve) => (release = resolve));
+      let linked!: () => void;
+      const inserted = new Promise<void>((resolve) => (linked = resolve));
+      // A second connection inserts the link and keeps the transaction open, as a label save would.
+      const saver = other.begin(async (tx) => {
+        await tx.unsafe(`INSERT INTO expression_ingredients (expression_id, ingredient_id, position, is_manual) VALUES ($1, $2, 0, true)`, [label, id]);
+        linked();
+        await hold;
+      });
+      await inserted;
+      const removal = res().remove(id, owner).then(() => "removed", (e: unknown) => e);
+      expect(await Promise.race([removal, new Promise((r) => setTimeout(() => r("waiting"), 400))])).toBe("waiting");
+      release();
+      await saver;
+      expect(await removal).toBeInstanceOf(AdminRuleError);
+      const [still] = await m.sql<{ n: number }>(`SELECT count(*)::int AS n FROM expression_ingredients WHERE ingredient_id = $1`, id);
+      expect(still!.n).toBe(1);
+    } finally {
+      await other.end();
+    }
+  });
 });
