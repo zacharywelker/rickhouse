@@ -608,6 +608,10 @@ enum LookupKind: String {
     /// A store is its name and its place: "Total Wine" in Austin and in Dallas are two stores, so the picker asks for
     /// the place instead of making one from the name alone.
     var needsPlace: Bool { self == .stores }
+
+    /// "Add as new" opens a page of details instead of making one from the name: a store's place (#203), a
+    /// distillery's place, Scotch region and numbers (#223).
+    var opensDetailsForm: Bool { needsPlace || self == .distilleries }
 }
 
 struct LookupItem: Decodable, Identifiable, Hashable {
