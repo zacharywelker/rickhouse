@@ -61,18 +61,34 @@ export async function listLookup(kind: LookupKind, ownerId: number, q: string | 
       return rows.map((r) => ({ id: r.id, name: r.name, detail: [r.city, r.state].filter(Boolean).join(", ") || null }));
     }
     case "mashbills": {
-      // Shown the way the label page shows them: the recipe, or the name of a secret or generic one.
-      const rows = await db.select({
-          id: mashbills.id,
-          name: mashbills.name,
-          isSecret: mashbills.isSecret,
-          isGeneric: mashbills.isGeneric,
-          recipe: sql<string | null>`(select string_agg(g.grain || ':' || g.percent, '|' order by g.position) from mashbill_grains g where g.mashbill_id = mashbills.id)`, // written out: drizzle drops the table name from a column in a one-table select,
-        }).from(mashbills).where(eq(mashbills.ownerId, ownerId)).orderBy(asc(mashbills.id));
-      const items = rows.map((r) => ({ id: r.id, name: mashbillTitle(r, describeRecipe(r.recipe)), detail: null }));
+      const items = await mashbillItems(ownerId);
       return (term ? items.filter((i) => i.name.toLowerCase().includes(term.toLowerCase())) : items).slice(0, LIMIT);
     }
   }
+}
+
+/** The caller's mashbills (or just one), shown the way the label page shows them: the recipe, or the name of a secret or generic one. */
+async function mashbillItems(ownerId: number, id?: number): Promise<LookupItem[]> {
+  const rows = await db.select({
+      id: mashbills.id,
+      name: mashbills.name,
+      isSecret: mashbills.isSecret,
+      isGeneric: mashbills.isGeneric,
+      recipe: sql<string | null>`(select string_agg(g.grain || ':' || g.percent, '|' order by g.position) from mashbill_grains g where g.mashbill_id = mashbills.id)`, // written out: drizzle drops the table name from a column in a one-table select,
+    }).from(mashbills).where(and(eq(mashbills.ownerId, ownerId), id === undefined ? undefined : eq(mashbills.id, id))).orderBy(asc(mashbills.id));
+  return rows.map((r) => ({ id: r.id, name: mashbillTitle(r, describeRecipe(r.recipe)), detail: null }));
+}
+
+/** One of the caller's mashbills as the picker lists it, or null when it isn't theirs. */
+export async function getMashbillItem(ownerId: number, id: number): Promise<LookupItem | null> {
+  return (await mashbillItems(ownerId, id))[0] ?? null;
+}
+
+/** The caller's distillery with this name (any case), if there is one. */
+export async function findDistilleryByName(ownerId: number, name: string): Promise<{ id: number; name: string } | null> {
+  const [had] = await db.select({ id: distilleries.id, name: distilleries.name }).from(distilleries)
+    .where(and(eq(distilleries.ownerId, ownerId), eq(distilleries.name, name))).limit(1);
+  return had ?? null;
 }
 
 /**
