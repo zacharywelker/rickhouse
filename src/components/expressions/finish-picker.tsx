@@ -39,6 +39,8 @@ export function FinishPicker({ finishes, mashbills, onChange, ...picker }: { fin
     const several = ids.length >= 2;
     const multi = lines.length > 1;
     const shareShown = showShares || multi;
+    const addLine = () => setLines(row, [...lines, { id: ids.find((id) => !lines.some((line) => line.id === id))!, share: "" }]);
+    const canAdd = several && lines.length < ids.length;
     const setLine = (index: number, patch: Partial<PairLineState>) => setLines(row, lines.map((line, i) => (i === index ? { ...line, ...patch } : line)));
     if (ids.length === 0) return null;
     if (lines.length === 0) {
@@ -74,12 +76,12 @@ export function FinishPicker({ finishes, mashbills, onChange, ...picker }: { fin
                 <span className="text-muted-foreground">%</span>
               </>
             ) : null}
+            {!multi && canAdd ? <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-xs text-muted-foreground underline underline-offset-2" onClick={addLine}>+ Add mashbill</Button> : null}
             {multi ? <Button type="button" variant="ghost" size="sm" aria-label={`Remove ${nameOf(line.id)} from ${row.label}`} onClick={() => setLines(row, lines.filter((_, i) => i !== index))}><X className="size-4" /></Button> : null}
           </div>
         ))}
-        {several && lines.length < ids.length ? (
-          <Button type="button" variant="outline" size="sm" className="h-7 w-fit px-2 text-xs"
-            onClick={() => setLines(row, [...lines, { id: ids.find((id) => !lines.some((line) => line.id === id))!, share: "" }])}>
+        {multi && canAdd ? (
+          <Button type="button" variant="outline" size="sm" className="h-7 w-fit px-2 text-xs" onClick={addLine}>
             + Add mashbill
           </Button>
         ) : null}
