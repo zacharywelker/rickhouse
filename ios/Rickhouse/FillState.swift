@@ -364,7 +364,7 @@ private enum DialShape {
 }
 
 private struct PointsShape: Shape {
-    let points: (CGRect) -> [CGPoint]
+    let points: @Sendable (CGRect) -> [CGPoint]
 
     func path(in rect: CGRect) -> Path {
         let pts = points(rect)
