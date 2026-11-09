@@ -68,4 +68,57 @@ final class ScotchRegionsTests: XCTestCase {
         XCTAssertEqual(draft.patch()["regions"] as? [String], ["Lowland"])
         XCTAssertTrue(draft.undoPatch()["regions"] is NSNull)
     }
+
+    // MARK: A distillery's region flows onto the label
+
+    func testAddingKeepsWhatIsThereAndAppendsTheRestOnceInTheServersSpelling() {
+        XCTAssertEqual(ScotchRegions.adding(["islay", "Speyside"], to: "Islay"), "Islay, Speyside")
+        XCTAssertEqual(ScotchRegions.adding(["Highland"], to: ""), "Highland")
+        XCTAssertEqual(ScotchRegions.adding([], to: "Islay"), "Islay")
+    }
+
+    func testALookupItemReadsItsRegionAndAnOlderServerHasNone() throws {
+        let with = try JSONDecoder().decode(LookupItem.self, from: Data(#"{"id":1,"name":"Ardbeg","detail":"Scotland","region":"Islay"}"#.utf8))
+        XCTAssertEqual(with.region, "Islay")
+        let without = try JSONDecoder().decode(LookupItem.self, from: Data(#"{"id":2,"name":"Maker's Mark","detail":null}"#.utf8))
+        XCTAssertNil(without.region)
+    }
+
+    private func ardbeg(_ id: Int = 1) -> LookupItem { LookupItem(id: id, name: "Ardbeg", region: "Islay") }
+    private func glenfiddich(_ id: Int = 2) -> LookupItem { LookupItem(id: id, name: "Glenfiddich", region: "Speyside") }
+
+    func testLinkingADistilleryToAScotchLabelAddsItsRegionAfterTheOnesThere() throws {
+        var draft = LabelDraft(try label(["regions": ["Islay"]]))
+        draft.setList(.distilleries, to: [ardbeg(), glenfiddich(), LookupItem(id: 3, name: "Maker's Mark")], bringingRegions: true)
+        XCTAssertEqual(draft[.regions].text, "Islay, Speyside", "Islay was already there, a distillery with no region adds nothing")
+        XCTAssertEqual(draft.patch()["regions"] as? [String], ["Islay", "Speyside"])
+    }
+
+    func testAnyOtherKindOfLabelKeepsItsRegionsAsTheyWere() throws {
+        var draft = LabelDraft(try label())
+        draft.setList(.distilleries, to: [ardbeg()], bringingRegions: false)
+        XCTAssertEqual(draft[.regions].text, "")
+        XCTAssertNil(draft.patch()["regions"])
+    }
+
+    func testOnlyADistilleryJustAddedBringsItsRegion() throws {
+        var draft = LabelDraft(try label())
+        draft.setList(.distilleries, to: [ardbeg()], bringingRegions: false)
+        draft[.regions].text = ""                                   // a region taken off by hand
+        draft.setList(.distilleries, to: [ardbeg()], bringingRegions: true)   // the same distillery picked again
+        XCTAssertEqual(draft[.regions].text, "", "it was already on the label, so it stays off")
+    }
+
+    func testTakingADistilleryOffLeavesTheRegions() throws {
+        var draft = LabelDraft(try label(["regions": ["Speyside"]]))
+        draft.setList(.distilleries, to: [glenfiddich()], bringingRegions: true)
+        draft.remove(.distilleries, id: 2)
+        XCTAssertEqual(draft[.regions].text, "Speyside")
+    }
+
+    func testOtherListsNeverTouchRegions() throws {
+        var draft = LabelDraft(try label())
+        draft.setList(.finishes, to: [LookupItem(id: 9, name: "Port", region: "Islay")], bringingRegions: true)
+        XCTAssertEqual(draft[.regions].text, "")
+    }
 }

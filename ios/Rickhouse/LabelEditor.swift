@@ -322,7 +322,7 @@ struct LabelEditor: View {
                     kind: Self.kind(list), title: Self.listTitle(list), multiple: true,
                     initial: draft.rows(list).map { LookupItem(id: $0.id, name: $0.name) },
                     spiritKind: list == .distilleries && ["tequila", "mezcal", "cognac", "armagnac", "calvados", "pisco"].contains(rules.kind ?? "") ? rules.kind : nil
-                ) { chosen in self.draft?.setList(list, to: chosen) }
+                ) { chosen in self.draft?.setList(list, to: chosen, bringingRegions: rules.showsRegions) }
             case .store:
                 EmptyView()
             }

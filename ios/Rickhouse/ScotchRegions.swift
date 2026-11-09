@@ -21,6 +21,11 @@ enum ScotchRegions {
 
     static func text(_ regions: [String]) -> String { regions.joined(separator: ", ") }
 
+    /// The text with these regions added after those already there, each once and in the server's spelling.
+    static func adding(_ more: [String], to text: String) -> String {
+        Self.text(list((list(text) + more).joined(separator: ", ")))
+    }
+
     /// The text with `region` added at the end, or taken out if it was there.
     static func toggled(_ region: String, in text: String) -> String {
         var regions = list(text)

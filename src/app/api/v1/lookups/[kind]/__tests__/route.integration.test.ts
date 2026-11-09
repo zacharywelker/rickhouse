@@ -20,11 +20,11 @@ describe.skipIf(!url)("creating a distillery or mashbill with details, against a
     route.POST(new NextRequest(`https://rickhouse.example.com/api/v1/lookups/${kind}`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
     }), ctx(kind));
-  const list = async (kind: string, as: number) => {
+  const list = async (kind: string, as: number): Promise<{ id: number; name: string; region?: string | null }[]> => {
     session.id = as;
     const res = await route.GET(new NextRequest(`https://rickhouse.example.com/api/v1/lookups/${kind}`), ctx(kind));
     session.id = owner;
-    return ((await res.json()) as { items: { id: number; name: string }[] }).items;
+    return ((await res.json()) as { items: { id: number; name: string; region?: string | null }[] }).items;
   };
 
   beforeAll(async () => {
@@ -52,6 +52,14 @@ describe.skipIf(!url)("creating a distillery or mashbill with details, against a
       `SELECT owner_id, region, country, city, disclosure, slug FROM distilleries WHERE id = $1`, id);
     expect(row).toMatchObject({ owner_id: owner, region: "Islay", country: "Scotland", city: "Bowmore", disclosure: "named", slug: "bowmore" });
     expect((await list("distilleries", stranger)).map((i) => i.name)).not.toContain("Bowmore");
+  });
+
+  it("lists a distillery with its Scotch region, so a phone can add it to a Scotch label", async () => {
+    const islay = ((await (await post("distilleries", { name: "Ardbeg", country: "Scotland", region: "Islay" })).json()) as { id: number }).id;
+    const plain = ((await (await post("distilleries", { name: "Maker's Mark", country: "USA", state: "Kentucky" })).json()) as { id: number }).id;
+    const items = await list("distilleries", owner);
+    expect(items.find((i) => i.id === islay)?.region).toBe("Islay");
+    expect(items.find((i) => i.id === plain)?.region).toBeNull();
   });
 
   it("hands back the one it has, in any case, and keeps what it holds", async () => {

@@ -621,8 +621,13 @@ struct LookupItem: Decodable, Identifiable, Hashable {
     let name: String
     /// A place, where there is one.
     let detail: String?
+    /// A distillery's Scotch region, so linking it to a Scotch label can add that region to the label. Absent from an
+    /// older server, and for everything but distilleries.
+    var region: String? = nil
 
-    init(id: Int, name: String, detail: String? = nil) { self.id = id; self.name = name; self.detail = detail }
+    init(id: Int, name: String, detail: String? = nil, region: String? = nil) {
+        self.id = id; self.name = name; self.detail = detail; self.region = region
+    }
 }
 
 struct LookupsResponse: Decodable { let items: [LookupItem] }

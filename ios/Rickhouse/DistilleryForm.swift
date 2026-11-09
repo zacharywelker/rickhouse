@@ -50,7 +50,7 @@ struct DistilleryForm: View {
                         }
                     Toggle("Defunct", isOn: $draft.isDefunct)
                 } header: { SectionLabel("Details") } footer: {
-                    Text("Which Scotch region it is in, if any. Set a Scotch label's regions on the label itself.")
+                    Text("Which Scotch region it is in, if any. Linking it to a Scotch label adds that region to the label.")
                 }
                 Section {
                     TextField("Notes", text: $draft.notes, axis: .vertical).lineLimit(3...6)
@@ -88,7 +88,7 @@ struct DistilleryForm: View {
             do {
                 let made = try await api.createDistillery(draft)
                 // The one you already had keeps its own place, which isn't what was just typed.
-                if made.created { onMade(LookupItem(id: made.id, name: made.name, detail: draft.detail)) } else { existing = LookupItem(id: made.id, name: made.name) }
+                if made.created { onMade(LookupItem(id: made.id, name: made.name, detail: draft.detail, region: draft.region.isEmpty ? nil : draft.region)) } else { existing = LookupItem(id: made.id, name: made.name) }
             } catch APIError.unauthorized {
                 session.signOut()
             } catch {
