@@ -83,6 +83,18 @@ export function linksPayload(rows: ReadonlyArray<LinkedRow>): string {
       inferred: row.inferred === true,
       // An undisclosed place not yet saved as a row; the save resolves it.
       ...(row.place ? { place: row.place } : {}),
+      // Finishes only: which mashbills each went on, and the shares.
+      ...(row.share !== undefined ? { share: row.share } : {}),
+      ...(row.mashbills ? { mashbills: row.mashbills.map((line) => ({ id: line.id, share: line.share })) } : {}),
+      ...(row.unfinished ? { unfinished: true } : {}),
     })),
   );
+}
+
+/**
+ * A finish list as a place that cannot edit pairs (the bulk grid) should send it: ids, names and months
+ * only, and no unfinished row. The save then carries the pairs already on the label over unchanged.
+ */
+export function finishesWithoutPairs(rows: ReadonlyArray<LinkedRow>): LinkedRow[] {
+  return rows.filter((row) => !row.unfinished).map(({ id, label, amount }) => ({ id, label, amount }));
 }

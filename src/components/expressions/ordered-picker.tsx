@@ -30,6 +30,12 @@ export type LinkedRow = {
   undisclosed?: boolean;
   /** An undisclosed place typed into the tick box, not yet a row: the save resolves it. */
   place?: { city: string; state: string; country: string };
+  /** Finishes only: this finish's share of the label, a whole percentage as text. */
+  share?: string;
+  /** Finishes only: one line per mashbill it went on. Absent means the label's first mashbill. */
+  mashbills?: { id: number; share: string }[];
+  /** Finishes only: the part of the blend that was not finished (id 0). */
+  unfinished?: boolean;
 };
 
 /**
@@ -61,6 +67,10 @@ export function OrderedPicker({
   undisclosable = false,
   onOptionCreated,
   defaultCountry,
+  renderRowExtra,
+  footer,
+  hiddenValue,
+  lockedAmounts,
 }: {
   name: string;
   label: string;
@@ -104,6 +114,14 @@ export function OrderedPicker({
    * need it in their pickers too. Kept here as well, for callers that don't.
    */
   onOptionCreated?: (option: Option) => void;
+  /** Extra content under a row's controls, for a caller that knows more about its rows (a finish's mashbills). */
+  renderRowExtra?: (row: LinkedRow) => React.ReactNode;
+  /** Content under the add box, inside the fieldset. */
+  footer?: React.ReactNode;
+  /** What the hidden input submits, when the caller holds more than the rows shown (the unfinished portion). */
+  hiddenValue?: string;
+  /** Rows whose amount is computed elsewhere: shown read-only instead of as a box. */
+  lockedAmounts?: Record<number, string>;
 }) {
   const [created, setCreated] = React.useState<Option[]>([]);
   const [editing, setEditing] = React.useState<LinkedRow | null>(null);
@@ -251,7 +269,13 @@ export function OrderedPicker({
                 </label>
               ) : null}
 
-              {showAmount ? <div className="flex items-center gap-1">
+              {/* A share box only means something when there is more than one row to share between. */}
+              {showAmount && (amountSuffix !== "%" || value.length >= 2) ? (lockedAmounts?.[row.id] !== undefined ? (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span className="border border-dashed border-border bg-muted px-2 py-1 tabular-nums text-foreground">{lockedAmounts[row.id]}{amountSuffix}</span>
+                  from finishes
+                </div>
+              ) : <div className="flex items-center gap-1">
                 <Label htmlFor={`${name}-amount-${row.id}`} className="text-xs">
                   {amountLabel}
                 </Label>
@@ -275,7 +299,7 @@ export function OrderedPicker({
                   className="h-8 w-[calc(3ch_+_0.75rem_+_2px)] px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
                 <span className="text-xs text-muted-foreground">{amountSuffix}</span>
-              </div> : null}
+              </div>) : null}
 
               <div className="flex items-center gap-0.5">
                 {showOrder ? <Button
@@ -328,6 +352,7 @@ export function OrderedPicker({
                   ))}
                 </div>
               ) : null}
+              {renderRowExtra ? <div className="basis-full pl-7">{renderRowExtra(row)}</div> : null}
             </li>
           ))}
         </ol>
@@ -360,6 +385,7 @@ export function OrderedPicker({
       <span id={`${name}-add-label`} className="sr-only">
         Add {label.toLowerCase()}
       </span>
+      {footer}
       {editing && resource !== null && ["distilleries", "mashbills", "finishes"].includes(resource) ? (
         <CreateWithDetailsDialog
           resource={resource as "distilleries" | "mashbills" | "finishes"}
@@ -387,7 +413,7 @@ export function OrderedPicker({
       <input
         type="hidden"
         name={name}
-        value={serializeLinks(allRows)}
+        value={hiddenValue ?? serializeLinks(allRows)}
       />
     </fieldset>
   );

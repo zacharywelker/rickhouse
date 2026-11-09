@@ -8,6 +8,7 @@ import { findOrCreateBrand } from "./brand";
 import { writableFields } from "./fields";
 import { categoryFieldGroups, categoryKindsById } from "./queries";
 import { nameContextFor, nameRuleColumns, withBondProof } from "./rules";
+import { FinishPairsInvalid } from "./finish-pairs";
 import { replaceIngredients, replaceLinks, writableValues, type Links } from "./save";
 import type { IngredientChoice } from "./spirit-details";
 import { expressionSchema } from "./schema";
@@ -201,6 +202,7 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       return { ok: true };
     });
   } catch (error: unknown) {
+    if (error instanceof FinishPairsInvalid) return { ok: false, kind: "invalid", field: "finishes", message: error.message };
     // Two phones (or the web) renamed to the same name at once: the database has the last word.
     const code = pgCode(error);
     // A link to a row that is not the caller's (a trigger) or does not exist (a foreign key).

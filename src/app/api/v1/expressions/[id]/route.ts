@@ -104,7 +104,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     links: {
       distilleries: links.distilleries.map((d) => ({ id: d.id, name: d.name, amount: d.amount === null ? null : Number(d.amount), inferred: d.inferred === true })),
       mashbills: links.mashbills.map((m) => ({ id: m.id, name: m.name, amount: m.amount === null ? null : Number(m.amount), distilleryId: m.distilleryId ?? null })),
-      finishes: links.finishes.map((f) => ({ id: f.id, name: f.name, amount: f.amount === null ? null : Number(f.amount) })),
+      finishes: links.finishes.map((f) => ({
+        id: f.id, name: f.name, amount: f.amount === null ? null : Number(f.amount),
+        share: f.share === null ? null : Math.round(Number(f.share)),
+        mashbills: f.mashbills.map((line) => ({ id: line.mashbillId, share: line.share === null ? null : Math.round(Number(line.share)) })),
+      })),
+      // The part of the blend that was not finished: send it back inside `finishes` as { id: 0, unfinished: true, mashbills }.
+      unfinished: links.unfinished.map((line) => ({ mashbillId: line.mashbillId, share: line.share === null ? null : Math.round(Number(line.share)) })),
       ingredients: links.ingredients.map((i) => ({ name: i.name, family: i.family, kind: i.kind })),
     },
     distilleries: links.distilleries.map((d) => d.name),

@@ -1,4 +1,5 @@
 import type { ActionResult } from "./admin/types";
+import { FinishPairsInvalid } from "./expressions/finish-pairs";
 
 /**
  * Postgres tells us precisely what went wrong; the UI should say it in words.
@@ -39,6 +40,7 @@ function columnFromDetail(detail: string | undefined): string | null {
 }
 
 export function mapDbError(error: unknown, context: { singular: string }): ActionResult {
+  if (error instanceof FinishPairsInvalid) return { ok: false, error: error.message, fieldErrors: { finishLinks: error.message } };
   const pg = asPgError(error);
 
   switch (pg?.code) {

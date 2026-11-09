@@ -181,12 +181,20 @@ const undisclosedPlaceSchema = z.object({
  * row with a negative id and a `place` stands for an undisclosed place that has
  * no row yet; the save resolves it, so the form never has to wait on the server.
  */
+const wholeShare = z
+  .union([z.literal(""), z.coerce.number().min(0).max(100)])
+  .transform((v) => (v === "" ? null : Math.round(v)));
+
 export const linkRowSchema = z
   .object({
-  id: z.coerce
-    .number()
-    .int()
-    .refine((n) => n !== 0, "Choose a real row."),
+  /** The unfinished portion of the blend (`unfinished: true`) is the one row whose id is 0. */
+  id: z.coerce.number().int(),
+  /** Finishes only: this finish's share of the label. With `mashbills` it is replaced by their total. */
+  share: wholeShare.optional(),
+  /** Finishes only: one line per mashbill the finish went on, each with its own share. */
+  mashbills: z.array(z.object({ id: z.coerce.number().int().positive(), share: wholeShare.optional() })).max(50).optional(),
+  /** Finishes only: this row is the part of the blend that was not finished. */
+  unfinished: z.boolean().optional(),
   /** Share percentage for distilleries and mashbills; months for finishes. */
   amount: z
     .union([z.literal(""), z.coerce.number().min(0).max(100000)])
@@ -203,7 +211,8 @@ export const linkRowSchema = z
   /** Distilleries only: with a negative id, the place the label names and no distillery. */
   place: undisclosedPlaceSchema.optional(),
 })
-  .refine((row) => row.id > 0 || row.place !== undefined, "A place needs its details.");
+  .refine((row) => (row.unfinished ? row.id === 0 : row.id !== 0), "Choose a real row.")
+  .refine((row) => row.unfinished || row.id > 0 || row.place !== undefined, "A place needs its details.");
 
 export type LinkRow = z.infer<typeof linkRowSchema>;
 
