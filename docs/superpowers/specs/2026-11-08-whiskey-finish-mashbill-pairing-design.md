@@ -34,9 +34,9 @@ Expected roll-ups, computed and never typed: mashbills 84/8/8 = 6, 70/22/8 = 3, 
 
 ## What the owner sees (all inside the Finishes field)
 
-- Each finish row, when the label has two or more mashbills, gets an **Applied to** chip row listing the label's mashbills, all selected by default. Deselect to narrow it.
+- Each finish row, when the label has two or more mashbills, gets a **Mashbill** dropdown listing the label's mashbills, defaulting to the first. (The word is "Mashbill", not "Applied to"; chips were tried and read as confusing once a finish touches more than one.)
 - When the label has two or more finishes (or an unfinished remainder), each finish row gets a **Share %**.
-- When a finish is applied to two or more mashbills, its single Share box is replaced by one share box per selected mashbill, plus a read-only total.
+- When a finish went on two or more mashbills, the row grows one line per mashbill, each with its own Mashbill dropdown and share, plus a "+ Add mashbill" link. The finish's own share becomes a read-only total of those lines. A finish on one mashbill stays a single dropdown and a single share box.
 - An **Unfinished portion** row can be added; it also takes "Applied to" and share, because 70/21/9 may be 100% of the label but only part finished.
 - The Mashbills field shows each mashbill's share read-only, computed from its pairs, with a note "from finishes". Mashbill shares are typed only when the label has no finishes at all.
 - A running total shows next to the field; saving with a total other than 100% (when any share is entered) is refused with the difference named. Leaving every share blank is allowed: shares are optional, never required.
