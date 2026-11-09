@@ -89,6 +89,39 @@ enum FillNudge {
     }
 }
 
+/// How the dial moves between two looks. Opening a sealed bottle plays as a quick click, in order: the lock presses in,
+/// the shackle snaps up and the lock hops away, the hatching lifts, the needle swings out from Empty. Each part waits its
+/// turn on the way open; resealing, and every ordinary move of the needle, starts at once. Mirrors the web's `after()`
+/// delays in src/components/bottles/fill-gauge.tsx.
+enum FillDialMotion: Equatable {
+    case opening, resealing, moving
+
+    enum Part { case shackle, seal, hatch, needle, hub }
+
+    static func between(wasSealed: Bool, isSealed: Bool) -> FillDialMotion {
+        switch (wasSealed, isSealed) {
+        case (true, false): .opening
+        case (false, true): .resealing
+        default: .moving
+        }
+    }
+
+    /// Seconds a part waits before it starts moving. Only an opening dial makes anything wait.
+    func delay(_ part: Part) -> Double {
+        guard self == .opening else { return 0 }
+        switch part {
+        case .shackle: return 0
+        case .seal: return 0.28
+        case .hatch: return 0.4
+        case .needle: return 0.45
+        case .hub: return 0.7
+        }
+    }
+
+    /// How long the lock's press (dip, then rebound a little past where it started) takes, just before it hops away.
+    static let press = 0.28
+}
+
 /// A fuel dial for the fill level: Empty at the left, Full at the right, the needle straight up at half.
 /// Tap or drag anywhere on it; the needle detents onto the nearest 5% tick with a haptic click, and the level is
 /// committed when the finger lifts. Same drawing as the web's FillGauge (src/components/bottles/fill-gauge.tsx),
@@ -105,7 +138,20 @@ struct FillPicker: View {
     @GestureState private var dragPercent: Int?
     /// The picked level for the moment between lifting the finger and the caller's own copy updating.
     @State private var pending: Int?
+    /// The level the needle and the sweep are drawn at. It follows `shown` except across a seal: sealed parks it at Empty,
+    /// so opening swings the needle out from there rather than from Full.
+    @State private var drawn: Int
+    /// Counts opens, to replay the lock's press.
+    @State private var unlocks = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(percent: Int, disabled: Bool = false, sealed: Bool = false, onPick: @escaping (Int) -> Void) {
+        self.percent = percent
+        self.disabled = disabled
+        self.sealed = sealed
+        self.onPick = onPick
+        _drawn = State(initialValue: sealed && percent >= 100 ? 0 : percent)
+    }
 
     private var shown: Int { dragPercent ?? pending ?? percent }
     /// Sealed until the dial is moved, so it un-hatches under the finger.
@@ -141,19 +187,28 @@ struct FillPicker: View {
         }
     }
 
+    /// `nil` under Reduce Motion: every part goes straight to its end state.
+    private func motion(_ animation: Animation) -> Animation? { reduceMotion ? nil : animation }
+
     private func dial(width: CGFloat) -> some View {
         let low = shown < 18
         let line = width * 0.085
+        // How `isSealed` just got its value: a dial that is no longer sealed was opened, so its parts wait their turn.
+        let reached = isSealed ? FillDialMotion.resealing : FillDialMotion.opening
+        let lockSize = width * 0.17
+        let hop = lockSize * 10 / 22
+        // Sealed and open are the same drawing with different settings, never different views: every part stays mounted,
+        // so opening a bottle (or sealing it again) is a set of transitions, each waiting its turn.
         return ZStack {
-            if isSealed {
-                // Stripes across the band read as hatching.
-                DialShape.arc().stroke(Theme.ink.opacity(0.3), style: StrokeStyle(lineWidth: line, lineCap: .butt, dash: [width * 0.012, width * 0.014]))
-            } else {
-                DialShape.arc().stroke(Theme.ink.opacity(0.12), style: StrokeStyle(lineWidth: line, lineCap: .butt))
-                DialShape.arc()
-                    .trim(from: 0, to: CGFloat(shown) / 100)
-                    .stroke(low ? Theme.error : Theme.ink, style: StrokeStyle(lineWidth: line, lineCap: .butt))
-            }
+            DialShape.arc().stroke(Theme.ink.opacity(0.12), style: StrokeStyle(lineWidth: line, lineCap: .butt))
+            // Stripes across the band read as hatching.
+            DialShape.arc()
+                .stroke(Theme.ink.opacity(0.3), style: StrokeStyle(lineWidth: line, lineCap: .butt, dash: [width * 0.012, width * 0.014]))
+                .opacity(isSealed ? 1 : 0)
+                .animation(motion(.easeInOut(duration: 0.5).delay(reached.delay(.hatch))), value: isSealed)
+            DialShape.arc()
+                .trim(from: 0, to: CGFloat(drawn) / 100)
+                .stroke(low ? Theme.error : Theme.ink, style: StrokeStyle(lineWidth: line, lineCap: .butt))
             ForEach(Array(stride(from: 0, through: 100, by: FillTicks.step)), id: \.self) { pct in
                 let major = pct % 25 == 0
                 DialShape.tick(at: pct, major: major)
@@ -164,24 +219,56 @@ struct FillPicker: View {
             Text("¼").font(.inter(10, .semibold)).position(DialShape.point(25, radius: 0.52, width: width, dy: 0.02))
             Text("½").font(.inter(10, .semibold)).position(DialShape.point(50, radius: 0.52, width: width, dy: 0.02))
             Text("¾").font(.inter(10, .semibold)).position(DialShape.point(75, radius: 0.52, width: width, dy: 0.02))
-            if isSealed {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: width * 0.075, weight: .bold))
-                    .foregroundStyle(Theme.paper)
-                    .frame(width: width * 0.17, height: width * 0.17)
-                    .background(Theme.ink, in: Circle())
-                    .position(DialShape.point(50, radius: 0, width: width, dy: -0.125))
-            } else {
-                DialShape.needle()
-                    .stroke(Theme.ink, style: StrokeStyle(lineWidth: width * 0.022, lineCap: .round))
-                    .rotationEffect(.degrees(Double(shown - 50) * 1.8), anchor: DialShape.hubAnchor)
-                Circle().fill(Theme.ink).frame(width: width * 0.075, height: width * 0.075)
-                    .position(DialShape.point(50, radius: 0, width: width))
-            }
+            // The lock: it presses in as the bottle opens, the shackle snaps up, and it hops away.
+            LockMark(diameter: lockSize, shackleUp: !isSealed)
+                .animation(motion(.easeOut(duration: 0.1).delay(reached.delay(.shackle))), value: isSealed)
+                .keyframeAnimator(initialValue: 1.0, trigger: unlocks) { content, scale in
+                    content.scaleEffect(scale)
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        CubicKeyframe(0.84, duration: FillDialMotion.press * 0.35)
+                        CubicKeyframe(1.08, duration: FillDialMotion.press * 0.35)
+                        CubicKeyframe(1.0, duration: FillDialMotion.press * 0.30)
+                    }
+                }
+                .scaleEffect(isSealed ? 1 : 0.4)
+                .offset(y: isSealed ? 0 : -hop)
+                .opacity(isSealed ? 1 : 0)
+                .animation(motion(.spring(duration: 0.5, bounce: 0.3).delay(reached.delay(.seal))), value: isSealed)
+                .position(DialShape.point(50, radius: 0, width: width, dy: -0.125))
+            // The needle waits parked at Empty while sealed, then swings out.
+            DialShape.needle()
+                .stroke(Theme.ink, style: StrokeStyle(lineWidth: width * 0.022, lineCap: .round))
+                .rotationEffect(.degrees(Double(drawn - 50) * 1.8), anchor: DialShape.hubAnchor)
+                .opacity(isSealed ? 0 : 1)
+                .animation(motion(.easeInOut(duration: 0.5).delay(reached.delay(.needle))), value: isSealed)
+            Circle().fill(Theme.ink).frame(width: width * 0.075, height: width * 0.075)
+                .position(DialShape.point(50, radius: 0, width: width))
+                .opacity(isSealed ? 0 : 1)
+                .animation(motion(.easeInOut(duration: 0.5).delay(reached.delay(.hub))), value: isSealed)
         }
         .font(.inter(12, .semibold))
         .foregroundStyle(Theme.muted)
-        .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.55), value: shown)
+        .onChange(of: Look(sealed: isSealed, level: shown)) { old, new in
+            let way = FillDialMotion.between(wasSealed: old.sealed, isSealed: new.sealed)
+            let spring = Animation.spring(response: 0.45, dampingFraction: 0.55)
+            switch way {
+            case .opening:
+                if !reduceMotion { unlocks += 1 }
+                withAnimation(motion(spring.delay(way.delay(.needle)))) { drawn = new.level }
+            case .resealing:
+                withAnimation(motion(spring)) { drawn = 0 }
+            case .moving:
+                // A sealed dial stays parked; an open one follows the finger.
+                if !new.sealed { withAnimation(motion(spring)) { drawn = new.level } }
+            }
+        }
+    }
+
+    /// What the drawing depends on, so one change handler sees a seal and a level change together and in order.
+    private struct Look: Equatable {
+        var sealed: Bool
+        var level: Int
     }
 
     private func drag(width: CGFloat) -> some Gesture {
@@ -202,6 +289,36 @@ struct FillPicker: View {
                 // After onPick's task has had its turn, so the needle doesn't jump back for a frame.
                 DispatchQueue.main.async { pending = nil }
             }
+    }
+}
+
+/// The seal: an ink disc with a small padlock. Drawn in pieces, in the web's units (a disc of 22), so the shackle can
+/// snap up on its own as the bottle opens.
+private struct LockMark: View {
+    let diameter: CGFloat
+    let shackleUp: Bool
+
+    var body: some View {
+        let s = diameter / 22
+        ZStack {
+            Circle().fill(Theme.ink)
+            RoundedRectangle(cornerRadius: s).fill(Theme.paper)
+                .frame(width: 7.6 * s, height: 6 * s)
+                .offset(y: 2.2 * s)
+            // The shackle: a half circle with legs, 2.1 wide each side, standing on the body.
+            PointsShape { rect in
+                let k = rect.width / 4.2
+                let arc = (0...12).map { i -> CGPoint in
+                    let a = Double.pi - Double(i) / 12 * Double.pi
+                    return CGPoint(x: (2.1 + cos(a) * 2.1) * k, y: (2.1 - sin(a) * 2.1) * k)
+                }
+                return [CGPoint(x: 0, y: 4.2 * k)] + arc + [CGPoint(x: 4.2 * k, y: 4.2 * k)]
+            }
+            .stroke(Theme.paper, style: StrokeStyle(lineWidth: 1.2 * s, lineCap: .butt, lineJoin: .round))
+            .frame(width: 4.2 * s, height: 4.2 * s)
+            .offset(y: (-2.9 - (shackleUp ? 2.6 : 0)) * s)
+        }
+        .frame(width: diameter, height: diameter)
     }
 }
 
