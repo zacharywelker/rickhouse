@@ -9,6 +9,7 @@ import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage, duplicateBottleImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import type { BulkSaveResult } from "@/lib/bulk/types";
+import { settleNewBottleOpen } from "@/lib/bottles/opened-rules";
 import { addTastingNote, deleteTastingNote, ownedBottle, ownsBottle, setFill, updateBottle, updateTastingNote } from "@/lib/bottles/state";
 import { movesHistory } from "@/lib/bottles/relabel";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
@@ -59,7 +60,7 @@ export async function saveBottleAction(
   const duplicateRaw = formData.get("duplicateSourceId");
   const duplicateId = typeof duplicateRaw === "string" && /^\d+$/.test(duplicateRaw) ? Number(duplicateRaw) : null;
   if (duplicateRaw !== null && duplicateId === null) return { ok: false, error: "That source bottle is not available." };
-  const copiedState = duplicateId !== null ? bottleStateSchema.safeParse(Object.fromEntries(formData.entries())) : null;
+  const copiedState = id === null ? bottleStateSchema.safeParse(Object.fromEntries(formData.entries())) : null;
   if (copiedState && !copiedState.success) return invalid(copiedState.error.issues);
   let copiedTagIds: number[] | null = null;
   if (duplicateId !== null && formData.has("duplicateTagIds")) {
@@ -88,12 +89,11 @@ export async function saveBottleAction(
             return copy;
           })() : {};
           const values = { ...sourceValues, ...input, ...(copiedState?.success ? copiedState.data : {}) };
-          if (values.status === "open" || (values.fillPct !== undefined && values.fillPct < 100)) values.isOpen = true;
-          if (values.isOpen) {
-            if (values.status === "owned") values.status = "open";
-            values.dateOpened ??= new Date().toISOString().slice(0, 10);
-          }
-          const [row] = await tx.insert(bottles).values({ ...values, ownerId: user.id }).returning({ id: bottles.id });
+          const settled = settleNewBottleOpen(
+            { ...values, isOpen: values.isOpen ?? false, fillPct: values.fillPct ?? 100 },
+            new Date().toISOString().slice(0, 10),
+          );
+          const [row] = await tx.insert(bottles).values({ ...settled, ownerId: user.id }).returning({ id: bottles.id });
           if (source) {
             const tagIds = copiedTagIds ?? (await tx.select({ tagId: bottleTags.tagId }).from(bottleTags).where(eq(bottleTags.bottleId, source.id))).map((item) => item.tagId);
             if (tagIds.length > 0) await tx.insert(bottleTags).values(tagIds.map((tagId) => ({ bottleId: row!.id, tagId })));

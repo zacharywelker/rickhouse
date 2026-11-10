@@ -68,3 +68,21 @@ export function openedUpdate(current: OpenedState, dateOpened: string | null, ch
     set: { dateOpened: null, isOpen: false, fillPct: 100, ...(current.status === "open" ? { status: "owned" } : {}) },
   };
 }
+
+/**
+ * A bottle being created. Below full means it has been poured from, the same rule as the dial, so it is open
+ * whatever the tick says; open stops it being merely owned and stamps a date unless one was given.
+ */
+export function settleNewBottleOpen<T extends { isOpen: boolean; fillPct: number; status: string; dateOpened?: string | null }>(
+  values: T,
+  today: string,
+): T {
+  const isOpen = values.isOpen || values.status === "open" || values.fillPct < 100;
+  if (!isOpen) return values;
+  return {
+    ...values,
+    isOpen: true,
+    status: values.status === "owned" ? "open" : values.status,
+    dateOpened: values.dateOpened ?? today,
+  };
+}
