@@ -104,10 +104,12 @@ function RegionPicker({
   idPrefix,
   value,
   onChange,
+  error,
 }: {
   idPrefix: string;
   value: string[];
   onChange: (regions: string[]) => void;
+  error?: string;
 }) {
   return (
     <fieldset className="col-span-full flex flex-col gap-2 border border-border p-4">
@@ -134,6 +136,11 @@ function RegionPicker({
         })}
       </div>
       <input type="hidden" name="regions" value={value.join(", ")} />
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
     </fieldset>
   );
 }
@@ -434,7 +441,7 @@ export function ExpressionFields({
         </SectionHeader>
         <SectionContent className="grid grid-cols-1 gap-4">
           {showsRegions(context) ? (
-            <RegionPicker idPrefix={idPrefix} value={regions} onChange={(next) => onChange("regions", next.join(", "))} />
+            <RegionPicker idPrefix={idPrefix} value={regions} error={errors.regions} onChange={(next) => onChange("regions", next.join(", "))} />
           ) : null}
           <OrderedPicker
             name="distilleryLinks"

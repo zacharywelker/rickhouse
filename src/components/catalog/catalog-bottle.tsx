@@ -25,6 +25,7 @@ import { OpenedLevel, SEALED } from "@/components/bottles/opened-level";
 import { PendingColas } from "@/components/expressions/cola-approvals";
 import { serializeLinks } from "@/components/expressions/ordered-picker";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
+import { unshownErrors, type FieldError } from "@/lib/forms/unshown-errors";
 import { guessNewLabel } from "@/lib/expressions/label-search";
 import { withOption } from "@/lib/forms/values";
 import { nameContextFor, type CategoryKind, type LabelDates } from "@/lib/expressions/rules";
@@ -50,7 +51,13 @@ type Phase =
 
 type Staged = { file: File; url: string };
 
-const NO_ERRORS = { label: {} as Record<string, string>, bottle: {} as Record<string, string>, message: null as string | null };
+const NO_ERRORS = {
+  label: {} as Record<string, string>,
+  bottle: {} as Record<string, string>,
+  message: null as string | null,
+  /** Whether the message has been checked against what the page drew (see the effect in the form). */
+  checked: true,
+};
 
 /**
  * The search-first Add bottle page (switched on per account in
@@ -91,6 +98,17 @@ export function CatalogBottle({
   );
 
   const [errors, setErrors] = React.useState(NO_ERRORS);
+
+  // A failed save points at highlighted fields; any error the page did not draw (a field hidden for this
+  // category, or one with no error slot) is named in the message instead of leaving it pointing at nothing.
+  React.useEffect(() => {
+    if (errors.checked || !errors.message) return;
+    const drawn = [...(formRef.current?.querySelectorAll<HTMLElement>("[role=alert]") ?? [])].map((el) => el.textContent?.trim() ?? "");
+    const named = (errs: Record<string, string>, fields: { name: string; label?: string }[]): FieldError[] =>
+      Object.entries(errs).map(([key, message]) => ({ key, message, label: fields.find((f) => f.name === key)?.label ?? key }));
+    const unshown = unshownErrors([...named(errors.label, LABEL_FIELDS), ...named(errors.bottle, BOTTLE_FIELDS)], drawn);
+    setErrors({ ...errors, checked: true, message: unshown.length > 0 ? `${errors.message} Also check: ${unshown.join("; ")}` : errors.message });
+  }, [errors]);
 
   // --- Search -------------------------------------------------------------
   const [query, setQuery] = React.useState("");
@@ -259,9 +277,10 @@ export function CatalogBottle({
     if (!result || !result.ok) {
       focusLater("error");
       setSaving(false);
+      if (result) console.warn("[rickhouse] save failed", { labelErrors: result.labelErrors, bottleErrors: result.bottleErrors });
       setErrors(
         result
-          ? { label: result.labelErrors, bottle: result.bottleErrors, message: result.error }
+          ? { label: result.labelErrors, bottle: result.bottleErrors, message: result.error, checked: false }
           : { ...NO_ERRORS, message: "Could not reach Rickhouse. Try again." },
       );
       return;

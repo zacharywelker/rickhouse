@@ -107,6 +107,8 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
     ...(state.success ? {} : fieldErrorsOf(state.error.issues)),
   };
   if ((label && !label.success) || !bottle.success || !state.success) {
+    // A normal return value, so nothing else records which field failed.
+    console.warn("[rickhouse] add bottle rejected", { labelErrors, bottleErrors });
     const first = label && !label.success ? "the label" : "the bottle";
     return { ok: false, error: `Check the highlighted fields on ${first}.`, labelErrors, bottleErrors };
   }
