@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openedUpdate, type OpenedState, untickOpened } from "../opened-rules";
+import { openedUpdate, type OpenedState, settleNewBottleOpen, untickOpened } from "../opened-rules";
 
 const TODAY = "2026-10-08";
 const open: OpenedState = { isOpen: true, dateOpened: "2026-09-14", dateKilled: null, status: "open", fillPct: 60 };
@@ -108,5 +108,28 @@ describe("clearing Opened on a bottle that reads as open without the flag", () =
   it("still only drops the date of a finished bottle", () => {
     const killed: OpenedState = { ...sealed, status: "killed", fillPct: 0, dateOpened: "2026-09-14" };
     expect(openedUpdate(killed, null, undefined, TODAY)).toEqual({ ok: true, set: { dateOpened: null } });
+  });
+});
+
+describe("settleNewBottleOpen", () => {
+  const base = { isOpen: false, fillPct: 100, status: "owned", dateOpened: null as string | null };
+
+  it("leaves a full, unticked bottle sealed", () => {
+    expect(settleNewBottleOpen(base, TODAY)).toEqual(base);
+  });
+
+  it("opens a ticked bottle: stamps today and promotes owned to open", () => {
+    expect(settleNewBottleOpen({ ...base, isOpen: true }, TODAY)).toEqual({ isOpen: true, fillPct: 100, status: "open", dateOpened: TODAY });
+  });
+
+  it("opens a bottle under full even if the tick is off", () => {
+    expect(settleNewBottleOpen({ ...base, fillPct: 40 }, TODAY)).toMatchObject({ isOpen: true, status: "open", dateOpened: TODAY });
+  });
+
+  it("keeps an opened date that was given, and a status that is not owned", () => {
+    expect(settleNewBottleOpen({ ...base, isOpen: true, status: "sampled", dateOpened: "2026-06-01" }, TODAY)).toMatchObject({
+      status: "sampled",
+      dateOpened: "2026-06-01",
+    });
   });
 });

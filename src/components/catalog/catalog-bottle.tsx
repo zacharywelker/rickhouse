@@ -21,6 +21,7 @@ import {
   type LabelLinks,
 } from "@/components/expressions/expression-form";
 import { BottleFields } from "@/components/expressions/bottle-form";
+import { OpenedLevel, SEALED } from "@/components/bottles/opened-level";
 import { PendingColas } from "@/components/expressions/cola-approvals";
 import { serializeLinks } from "@/components/expressions/ordered-picker";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
@@ -209,6 +210,7 @@ export function CatalogBottle({
   // --- The bottle -------------------------------------------------------------
   const [bottleOptionsState, setBottleOptions] = React.useState(bottleOptions);
   const [bottleValues, setBottleValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, null));
+  const [life, setLife] = React.useState(SEALED);
   const [photos, setPhotos] = React.useState<Staged[]>([]);
   const [photoLink, setPhotoLink] = React.useState("");
   // Previews are object URLs; let them go when the page does.
@@ -251,7 +253,7 @@ export function CatalogBottle({
           }
         : null,
       ttbIds: String(form ? (new FormData(form).get("ttbIds") ?? "") : ""),
-      bottle: bottleValues,
+      bottle: { ...bottleValues, isOpen: life.isOpen, fillPct: String(life.fillPct), dateOpened: life.isOpen ? life.dateOpened : "" },
     }).catch((): null => null);
 
     if (!result || !result.ok) {
@@ -403,6 +405,12 @@ export function CatalogBottle({
               inheritedTequilaClass={String(labelValues.tequilaClass || (phase.kind === "existing" ? phase.label.values.tequilaClass : "") || "")}
               inheritedGinAged={Boolean(labelValues.isAgedGin ?? (phase.kind === "existing" ? phase.label.values.isAgedGin : false))}
               inheritedGinNas={Boolean(labelValues.isNas ?? (phase.kind === "existing" ? phase.label.values.isNas : false))}
+            />
+            <OpenedLevel
+              value={life}
+              onChange={setLife}
+              fieldGroup={categoryGroups[Number(phase.kind === "existing" ? phase.label.values.categoryId : labelValues.categoryId)] ?? "whiskey"}
+              error={errors.bottle.dateOpened ?? errors.bottle.fillPct}
             />
           </div>
 

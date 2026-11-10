@@ -43,6 +43,22 @@ struct BottleFormView: View {
                 }
                 PhotosPicker("Choose from library", selection: $pickerItems, maxSelectionCount: 6, matching: .images)
             } header: { SectionLabel("Photos") }
+            Section {
+                FillPicker(percent: draft.fill, disabled: createdId != nil, sealed: !draft.isOpen) { draft.setFill($0) }
+                    .padding(.vertical, 4)
+                Toggle("Opened", isOn: Binding(get: { draft.isOpen }, set: { draft.setOpened($0) }))
+                    .tint(Theme.ink).frame(minHeight: 44).tightRow()
+                if draft.isOpen {
+                    DateRow(
+                        title: "Opened on",
+                        field: Binding(get: { draft[.opened] }, set: { draft[.opened] = $0 }),
+                        error: fieldErrors[BottleFact.opened.rawValue], tracksChanges: false
+                    )
+                }
+            } header: { SectionLabel("Fill level") } footer: {
+                if draft.isOpen { Text("Leave the date out for today.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted) }
+            }
+            .disabled(createdId != nil)
             BottleFormSections(draft: $draft, errors: fieldErrors)
                 .disabled(createdId != nil)
             if let error { Section { ErrorText(error) } }

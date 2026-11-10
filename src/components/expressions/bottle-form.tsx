@@ -17,6 +17,7 @@ import type { CategoryKind, LabelDates } from "@/lib/expressions/rules";
 import { IDLE_RESULT, type ActionResult, type Option } from "@/lib/admin/types";
 import { ageBetween, ageFilled, describeAge } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
+import { OpenedLevel, SEALED } from "@/components/bottles/opened-level";
 import { withOption } from "@/lib/forms/values";
 import { AgeFields } from "./age-fields";
 import { releaseUnit } from "@/lib/bottles/terminology";
@@ -321,6 +322,7 @@ export function BottleForm({
   const router = useRouter();
   const [values, setValues] = React.useState<Record<string, FieldValue>>(() => ({ ...initialFieldValues(BOTTLE_FIELDS, initialValues), ageYearsSource: initialValues?.ageYearsSource === "derived" ? "derived" : "entered" }));
   const [copyState, setCopyState] = React.useState(() => initialFieldValues(BOTTLE_STATE_SECTION.fields, initialValues));
+  const [life, setLife] = React.useState(SEALED);
   const [copyPhotos, setCopyPhotos] = React.useState(true);
   const [copiedTagIds, setCopiedTagIds] = React.useState(initialTagIds);
   const [optionsByField, setOptionsByField] = React.useState(options);
@@ -369,6 +371,26 @@ export function BottleForm({
         categoryKind={categoryKinds[options.expressionId?.find((option) => option.value === Number(values.expressionId))?.categoryId ?? -1] ?? "other"}
         inheritedTequilaClass={options.expressionId?.find((option) => option.value === Number(values.expressionId))?.tequilaClass ?? null}
       />
+
+      {bottleId === null && duplicateSourceId === null ? (
+        <Section>
+          <SectionHeader>
+            <SectionTitle>Opened and level</SectionTitle>
+            <SectionDescription>Already poured from? Tick Opened and set how much is left, the same dial as the bottle page.</SectionDescription>
+          </SectionHeader>
+          <SectionContent>
+            <input type="hidden" name="isOpen" value={life.isOpen ? "true" : ""} />
+            <input type="hidden" name="fillPct" value={life.fillPct} />
+            <input type="hidden" name="dateOpened" value={life.isOpen ? life.dateOpened : ""} />
+            <OpenedLevel
+              value={life}
+              onChange={setLife}
+              fieldGroup={categoryGroups[options.expressionId?.find((option) => option.value === Number(values.expressionId))?.categoryId ?? -1] ?? "other"}
+              error={fieldErrors.dateOpened ?? fieldErrors.fillPct}
+            />
+          </SectionContent>
+        </Section>
+      ) : null}
 
       {duplicateSourceId !== null ? <Section>
         <SectionHeader><SectionTitle>Copied bottle state</SectionTitle><SectionDescription>Adjust the original bottle&apos;s opened state, fill level, dates, and favorite status for this new bottle.</SectionDescription></SectionHeader>

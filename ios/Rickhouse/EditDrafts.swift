@@ -134,6 +134,9 @@ struct BottleDraft {
     let isNew: Bool
     let wasOpen: Bool
     let originalFill: Int
+    /// A new bottle's level and whether it has been opened; the bottle page's own controls handle these on an existing one.
+    var fill = 100
+    var isOpen = false
     /// The store's name for display; the field holds its id.
     var storeName: String?
     /// The label this bottle is, for display; the field holds its id.
@@ -253,6 +256,21 @@ struct BottleDraft {
     var changedFacts: [BottleFact] { BottleFact.allCases.filter { !locked($0) && self[$0].changed } }
     var isDirty: Bool { !changedFacts.isEmpty }
 
+    /// Moving the dial below full opens the bottle, as the server does for any level under full.
+    mutating func setFill(_ percent: Int) {
+        fill = percent
+        if percent < 100 { isOpen = true }
+    }
+
+    /// Unticking Opened seals the bottle: full again, and no opened date.
+    mutating func setOpened(_ on: Bool) {
+        isOpen = on
+        if !on {
+            fill = 100
+            self[.opened].text = ""
+        }
+    }
+
     /// The Opened date was removed from a bottle that is open: the server needs to be told what to do with it.
     var clearsOpened: Bool { self[.opened].changed && self[.opened].isEmpty && wasOpen }
 
@@ -300,6 +318,10 @@ struct BottleDraft {
         var body: [String: Any] = [:]
         for fact in changedFacts { body[fact.rawValue] = sent(fact, self[fact].trimmed) }
         if clearsOpened, let choice { body["ifOpenedCleared"] = choice.rawValue }
+        if isNew, isOpen || fill < 100 {
+            body["isOpen"] = true
+            body["fillPct"] = fill
+        }
         return body
     }
 

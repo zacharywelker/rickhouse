@@ -7,7 +7,8 @@ import { apiError, paramsRecord, readJsonObject } from "@/lib/api/v1";
 import { mapDbError } from "@/lib/db-errors";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { parseFilters } from "@/lib/bottles/filters";
-import { bottleSchema } from "@/lib/expressions/schema";
+import { bottleSchema, bottleStateSchema } from "@/lib/expressions/schema";
+import { settleNewBottleOpen } from "@/lib/bottles/opened-rules";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { bottleSpiritForExpression } from "@/lib/expressions/queries";
 import { withBottleSpiritFacts } from "@/lib/expressions/spirit-details";
@@ -73,13 +74,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const input = { acquisition: "purchase", status: "owned", ...read.body };
 
   const parsed = bottleSchema.safeParse(input);
-  if (!parsed.success) {
+  // Opened, level and date opened, as the web's add forms send them; absent means sealed and full.
+  const state = bottleStateSchema.safeParse(input);
+  if (!parsed.success || !state.success) {
     const fields: Record<string, string> = {};
-    for (const issue of parsed.error.issues) {
+    for (const issue of [...(parsed.success ? [] : parsed.error.issues), ...(state.success ? [] : state.error.issues)]) {
       const key = issue.path[0];
       if (typeof key === "string" && !(key in fields)) fields[key] = issue.message;
     }
-    return apiError(422, "invalid", parsed.error.issues[0]?.message ?? "Check the fields.", fields);
+    const first = (parsed.success ? state.error?.issues[0] : parsed.error.issues[0])?.message;
+    return apiError(422, "invalid", first ?? "Check the fields.", fields);
   }
 
   const data = parsed.data;
@@ -91,7 +95,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const spirit = await bottleSpiritForExpression(data.expressionId);
     const [row] = await db
       .insert(bottles)
-      .values({ ...withBottleSpiritFacts(data, spirit.kind, spirit.ginAged), ownerId: user.id })
+      .values({
+        ...settleNewBottleOpen(
+          { ...withBottleSpiritFacts(data, spirit.kind, spirit.ginAged), isOpen: state.data.isOpen, fillPct: state.data.fillPct, dateOpened: state.data.dateOpened },
+          new Date().toISOString().slice(0, 10),
+        ),
+        ownerId: user.id,
+      })
       .returning({ id: bottles.id });
     revalidatePath("/bottles");
     revalidatePath("/");

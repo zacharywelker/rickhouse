@@ -6,7 +6,8 @@ import { db } from "@/db";
 import { bottles, expressions } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
-import { bottleSchema, expressionSchema } from "@/lib/expressions/schema";
+import { bottleSchema, bottleStateSchema, expressionSchema } from "@/lib/expressions/schema";
+import { settleNewBottleOpen } from "@/lib/bottles/opened-rules";
 import { searchLabels, type CategoryFacet, type HitGroup, type TypedCode } from "@/lib/expressions/label-search";
 import { loadLabelDocs } from "@/lib/expressions/label-search-docs";
 import { loadCatalogLabel, type CatalogLabel } from "@/lib/expressions/catalog";
@@ -97,10 +98,15 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
   // The label's id is not known yet for a new one; any positive id passes the
   // check, and the real one is set below.
   const bottle = bottleSchema.safeParse({ ...input.bottle, expressionId: chosenId ?? 1 });
+  // Opened, level and the date opened ride in the bottle's values; bottleSchema drops them.
+  const state = bottleStateSchema.safeParse(input.bottle);
 
   const labelErrors = label && !label.success ? fieldErrorsOf(label.error.issues) : {};
-  const bottleErrors = bottle.success ? {} : fieldErrorsOf(bottle.error.issues);
-  if ((label && !label.success) || !bottle.success) {
+  const bottleErrors = {
+    ...(bottle.success ? {} : fieldErrorsOf(bottle.error.issues)),
+    ...(state.success ? {} : fieldErrorsOf(state.error.issues)),
+  };
+  if ((label && !label.success) || !bottle.success || !state.success) {
     const first = label && !label.success ? "the label" : "the bottle";
     return { ok: false, error: `Check the highlighted fields on ${first}.`, labelErrors, bottleErrors };
   }
@@ -137,7 +143,14 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
       progress.stage = "bottle";
       const [row] = await tx
         .insert(bottles)
-        .values({ ...bottleData, expressionId, ownerId: user.id })
+        .values({
+          ...settleNewBottleOpen(
+            { ...bottleData, isOpen: state.data.isOpen, fillPct: state.data.fillPct, dateOpened: state.data.dateOpened },
+            new Date().toISOString().slice(0, 10),
+          ),
+          expressionId,
+          ownerId: user.id,
+        })
         .returning({ id: bottles.id });
       return { expressionId, bottleId: row!.id };
     });
