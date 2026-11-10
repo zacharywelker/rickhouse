@@ -6,7 +6,7 @@ import { resolveSlug } from "@/lib/slug";
 import { attachCola, colaLookupEnabled, refreshCola } from "@/lib/cola/store";
 import { writableFields } from "./fields";
 import { fieldGroupForCategory } from "./queries";
-import { AGING_FIELDS, BOND_PROOF, hiddenFields, isSingleMaltCategory } from "./rules";
+import { AGING_FIELDS, BOND_PROOF, hiddenFields, isSingleMaltCategory, type CategoryKind } from "./rules";
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 import { FinishPairsInvalid, resolveFinishPairs, type FinishRowInput } from "./finish-pairs";
@@ -238,9 +238,21 @@ async function writeFinishPairs(tx: Tx, expressionId: number, mashbillIds: numbe
   }
 }
 
+/** Categories whose flavor is part of what they are, so it is saved without being picked. */
+const AUTOMATIC_FLAVORS: Record<string, string> = { absinthe: "Anise" };
+
+const FLAVOR_REQUIRED = new Set<CategoryKind>(["flavored-vodka", "liqueur", "chocolate-liqueur", "cream-liqueur"]);
+
+/** True when a flavored spirit's label is submitted with no flavor and the category does not supply one itself. */
+export async function flavorMissing(categoryId: number, kind: CategoryKind, submitted: IngredientChoice[] | undefined): Promise<boolean> {
+  if (!FLAVOR_REQUIRED.has(kind) || submitted?.some((choice) => choice.kind === "flavor")) return false;
+  const [category] = await db.select({ slug: categories.slug }).from(categories).where(eq(categories.id, categoryId)).limit(1);
+  return !(submitted !== undefined && category !== undefined && category.slug in AUTOMATIC_FLAVORS);
+}
+
 /** Create reusable ingredient rows and link them in the chosen order. */
 async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, submitted: IngredientChoice[] | undefined) {
-  const [label] = await tx.select({ categoryId: expressions.categoryId, group: categories.fieldGroup, style: expressions.amaroStyle })
+  const [label] = await tx.select({ categoryId: expressions.categoryId, group: categories.fieldGroup, slug: categories.slug, style: expressions.amaroStyle })
     .from(expressions).innerJoin(categories, eq(expressions.categoryId, categories.id))
     .where(eq(expressions.id, expressionId)).limit(1);
   if (!label) return;
@@ -267,8 +279,12 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
       ...(submitted ?? existing.map((row) => ({ name: row.name, kind: row.kind, family: row.family, isManual: row.isManual }))).filter((choice) => choice.kind === "botanical" && choice.isManual !== false),
       ...(automaticBotanical ? [{ name: automaticBotanical, kind: "botanical" as const, isManual: false }] : []),
     ] : (submitted ?? []).filter((choice) => choice.kind !== undefined && accepted.includes(choice.kind));
+  const automaticFlavor = AUTOMATIC_FLAVORS[label.slug];
+  if (automaticFlavor && label.group === "liqueur" && !chosen.some((choice) => choice.kind === "flavor" && choice.name.trim().toLocaleLowerCase() === automaticFlavor.toLocaleLowerCase())) {
+    chosen.unshift({ name: automaticFlavor, kind: "flavor", isManual: false });
+  }
   if ((kind === "flavored-vodka" || label.group === "liqueur") && !chosen.some((choice) => choice.kind === "flavor")) {
-    throw new Error("Add at least one flavor to this label.");
+    throw new LabelRejected("Add at least one flavor to this label.");
   }
   const seen = new Set<string>();
   for (const [position, choice] of chosen.entries()) {
@@ -280,13 +296,13 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
       continue;
     }
     seen.add(key);
-    if (!ingredientAllowed(kind, choice)) throw new Error(`${choice.name} is not allowed for this category.`);
+    if (!ingredientAllowed(kind, choice)) throw new LabelRejected(`${choice.name} is not allowed for this category.`);
     await tx.insert(ingredients).values({ ownerId, kind: choiceKind, name: choice.name.trim(), family: choice.family ?? null })
       .onConflictDoNothing();
     const [row] = await tx.select({ id: ingredients.id, family: ingredients.family }).from(ingredients)
       .where(and(eq(ingredients.ownerId, ownerId), eq(ingredients.kind, choiceKind), eq(ingredients.name, choice.name.trim())))
       .limit(1);
-    if (!row || !ingredientAllowed(kind, { name: choice.name, family: row.family })) throw new Error(`${choice.name} is not allowed for this category.`);
+    if (!row || !ingredientAllowed(kind, { name: choice.name, family: row.family })) throw new LabelRejected(`${choice.name} is not allowed for this category.`);
     await tx.insert(expressionIngredients).values({ expressionId, ingredientId: row.id, position, isManual: choice.isManual !== false }).onConflictDoNothing();
   }
 }
@@ -315,6 +331,12 @@ async function singleMaltMashbillId(tx: Tx, ownerId: number): Promise<number> {
 
 /** Thrown inside a transaction to roll it back when the label isn't the caller's. */
 export class NotOwned extends Error {}
+
+/**
+ * Thrown inside a transaction when the label's lists break a rule the person can fix (a liqueur with no
+ * flavor, an ingredient its category does not allow). The message is shown as is, on the ingredients field.
+ */
+export class LabelRejected extends Error {}
 
 /** A validated label's columns: only its category's sections, and a slug. */
 export async function labelValues(input: ExpressionInput, ownerId: number, id: number | null) {

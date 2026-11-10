@@ -16,7 +16,9 @@ import { expressionGridEditSchema, expressionSchema } from "@/lib/expressions/sc
 import { categoryKindsById, fieldGroupForCategory } from "@/lib/expressions/queries";
 import { BRANDY_MINIMUM_YEARS, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "@/lib/expressions/spirit-details";
 import {
+  LabelRejected,
   NotOwned,
+  flavorMissing,
   attachPendingColas,
   fieldErrorsOf,
   insertLinks,
@@ -133,8 +135,7 @@ export async function saveExpressionAction(
     ingredientLinks: formData.get("ingredientLinks"),
   });
   const category = (await categoryKindsById())[input.categoryId] ?? "other";
-  if ((category === "flavored-vodka" || category === "liqueur" || category === "chocolate-liqueur" || category === "cream-liqueur") &&
-    !links.ingredients?.some((choice) => choice.kind === "flavor")) {
+  if (await flavorMissing(input.categoryId, category, links.ingredients)) {
     return { ok: false, error: "Add at least one flavor.", fieldErrors: { ingredientLinks: "Add at least one flavor." } };
   }
 
@@ -192,6 +193,7 @@ export async function saveExpressionAction(
     };
   } catch (error: unknown) {
     if (error instanceof NotOwned) return { ok: false, error: "That label is gone." };
+    if (error instanceof LabelRejected) return { ok: false, error: error.message, fieldErrors: { ingredientLinks: error.message } };
     return mapDbError(error, { singular: "Label" });
   }
 }
@@ -226,8 +228,7 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
     const input = parsed.data;
     const category = (await categoryKindsById())[input.categoryId] ?? "other";
     const links = linksFrom(row);
-    if ((category === "flavored-vodka" || category === "liqueur" || category === "chocolate-liqueur" || category === "cream-liqueur") &&
-      !links.ingredients?.some((choice) => choice.kind === "flavor")) {
+    if (await flavorMissing(input.categoryId, category, links.ingredients)) {
       results.push({ index, ok: false, error: "Add at least one flavor.", fieldErrors: { ingredientLinks: "Add at least one flavor." } });
       continue;
     }
@@ -248,6 +249,10 @@ export async function saveExpressionsBulkAction(rows: Record<string, unknown>[])
       });
       results.push({ index, ok: true, id });
     } catch (error: unknown) {
+      if (error instanceof LabelRejected) {
+        results.push({ index, ok: false, error: error.message, fieldErrors: { ingredientLinks: error.message } });
+        continue;
+      }
       const shaped = mapDbError(error, { singular: "Label" });
       results.push({
         index,
@@ -360,6 +365,10 @@ export async function updateExpressionsBulkAction(
       });
       results.push({ index, ok: true, id });
     } catch (error: unknown) {
+      if (error instanceof LabelRejected) {
+        results.push({ index, ok: false, error: error.message, fieldErrors: { ingredientLinks: error.message } });
+        continue;
+      }
       const shaped = mapDbError(error, { singular: "Label" });
       results.push({
         index,

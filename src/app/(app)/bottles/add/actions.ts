@@ -11,7 +11,7 @@ import { settleNewBottleOpen } from "@/lib/bottles/opened-rules";
 import { searchLabels, type CategoryFacet, type HitGroup, type TypedCode } from "@/lib/expressions/label-search";
 import { loadLabelDocs } from "@/lib/expressions/label-search-docs";
 import { loadCatalogLabel, type CatalogLabel } from "@/lib/expressions/catalog";
-import { NotOwned, attachPendingColas, fieldErrorsOf, labelValues, linksFrom, writeLabel } from "@/lib/expressions/save";
+import { LabelRejected, NotOwned, attachPendingColas, fieldErrorsOf, labelValues, linksFrom, writeLabel } from "@/lib/expressions/save";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { pendingTtbIds } from "@/lib/cola/ids";
 import type { FieldValue } from "@/lib/forms/values";
@@ -171,6 +171,9 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
   } catch (error: unknown) {
     if (error instanceof NotOwned) {
       return { ok: false, error: "That label is gone. Search for it again.", labelErrors: {}, bottleErrors: {} };
+    }
+    if (error instanceof LabelRejected) {
+      return { ok: false, error: error.message, labelErrors: { ingredientLinks: error.message }, bottleErrors: {} };
     }
     const { stage } = progress;
     const shaped = mapDbError(error, { singular: stage === "label" ? "Label" : "Bottle" });
