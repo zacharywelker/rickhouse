@@ -330,9 +330,15 @@ struct APIClient {
     }
 
     /// Adds a known release to a label. `fields` are the form's columns as typed (name, year, proof, ageYears, ageMonths,
-    /// ageDays, msrp); a release is never removed from the phone.
+    /// ageDays, msrp).
     func addRelease(labelId: Int, _ fields: [String: String]) async throws {
         _ = try await sendObject("POST", "api/v1/expressions/\(labelId)/releases", json: fields, as: SavedRelease.self)
+    }
+
+    /// Removes a known release, with its photo and notes. Its bottles and their tastings stay but lose the release. It
+    /// cannot be undone, so the page confirms first (`ReleaseRemoval`).
+    func deleteRelease(labelId: Int, releaseId: Int) async throws {
+        try await delete("api/v1/expressions/\(labelId)/releases/\(releaseId)")
     }
 
     /// Changes a known release; only the fields sent change, and a blank clears one.

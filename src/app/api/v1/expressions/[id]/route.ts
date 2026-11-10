@@ -14,7 +14,7 @@ import { labelFactsSchema, patchLabel } from "@/lib/expressions/label-patch";
 import { linkRowSchema } from "@/lib/expressions/schema";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
 import { bottlesOfLabel, categoryKindForExpression, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
-import { expressionReleaseList } from "@/lib/releases-store";
+import { expressionReleaseList, releaseRemovalImpact } from "@/lib/releases-store";
 import { expressionNames } from "@/db/schema";
 import { asc } from "drizzle-orm";
 import { otherNamesText, parseOtherNames } from "@/lib/other-names";
@@ -37,9 +37,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const row = id === null ? null : await getExpression(id, user.id);
   if (!row) return apiError(404, "not_found", "That label is gone.");
 
-  const [links, releases, owned, tastings, names] = await Promise.all([
+  const [links, releases, removals, owned, tastings, names] = await Promise.all([
     expressionLinks(row.expression.id),
     expressionReleaseList(row.expression.id),
+    releaseRemovalImpact(row.expression.id),
     bottlesOfLabel(row.expression.id, user.id),
     tastingNotesForLabel(row.expression.id, user.id),
     db
@@ -132,6 +133,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       ageStatement: r.ageStatement,
       msrp: r.msrp,
       photoThumbPath: r.photoThumbPath,
+      // What removing it would take with it (photo, notes, bottles), or null when there is nothing to lose.
+      removal: removals[String(r.id)] ?? null,
     })),
     bottles: owned.map((b) => ({
       id: b.id,

@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Adds a known release to a label, or changes one: the batch or yearly edition a bottle can say it is, with the proof,
-/// age and MSRP it takes unless the bottle says otherwise. It saves on its own, apart from the label's Save. Releases
-/// are never removed here, since each carries a photo, notes and bottles: that stays on the web.
+/// age and MSRP it takes unless the bottle says otherwise. It saves on its own, apart from the label's Save. An existing
+/// release can be removed, after the server has said what that takes with it (a photo, notes, bottles that lose it). Its
+/// photo and notes are only edited on the web.
 struct ReleaseEditor: View {
     @Environment(Session.self) private var session
     @Environment(\.dismiss) private var dismiss
@@ -20,6 +21,7 @@ struct ReleaseEditor: View {
     @State private var ageDays: Field
     @State private var msrp: Field
     @State private var saving = false
+    @State private var confirmingRemoval = false
     @State private var error: String?
 
     init(labelId: Int, release: LabelRelease?, onSaved: @escaping () -> Void) {
@@ -54,6 +56,16 @@ struct ReleaseEditor: View {
                 } footer: {
                     Text("A bottle of this release takes its proof, age and MSRP unless the bottle says otherwise. Leave a box blank to use the label's.")
                 }
+                if let release {
+                    Section {
+                        Button("Remove this release", role: .destructive) { confirmingRemoval = true }
+                            .foregroundStyle(Theme.error)
+                            .disabled(saving)
+                            .frame(minHeight: 44)
+                    } footer: {
+                        Text(release.removal == nil ? "Nothing else is attached to it." : "You will see what it takes with it before anything is removed.")
+                    }
+                }
                 if let error { Section { ErrorText(error) } }
             }
             .scrollContentBackground(.hidden)
@@ -71,6 +83,25 @@ struct ReleaseEditor: View {
             }
         }
         .interactiveDismissDisabled(columns.contains { $0.field.changed })
+        .confirmSheet(ReleaseRemoval.title(release?.name ?? name.trimmed), message: ReleaseRemoval.message(removal: release?.removal), confirm: "Remove release", isPresented: $confirmingRemoval) { remove() }
+    }
+
+    private func remove() {
+        guard let api = session.api, let release, !saving else { return }
+        saving = true
+        error = nil
+        Task {
+            defer { saving = false }
+            do {
+                try await api.deleteRelease(labelId: labelId, releaseId: release.id)
+                onSaved()
+                dismiss()
+            } catch APIError.unauthorized {
+                session.signOut()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
     }
 
     private func save() {
@@ -96,5 +127,16 @@ struct ReleaseEditor: View {
                 self.error = error.localizedDescription
             }
         }
+    }
+}
+
+/// What the page says before a release is removed. The server already wrote what it takes with it ("Kentucky Tea has a
+/// photo and 2 bottles. Removing it: its photo will be deleted; the bottles stay but lose this release."); this frames
+/// it, since nothing can bring the photo or notes back.
+enum ReleaseRemoval {
+    static func title(_ name: String) -> String { "Remove “\(name)”?" }
+
+    static func message(removal: String?) -> String {
+        "\(removal ?? "Nothing else is attached to it.") This can't be undone."
     }
 }

@@ -356,6 +356,9 @@ struct LabelRelease: Decodable, Identifiable {
     let ageStatement: String?
     let msrp: String?
     let photoThumbPath: String?
+    /// What removing it would take with it (its photo, notes, bottles), in the server's words; nil when there is nothing to
+    /// lose, and for an older server.
+    var removal: String? = nil
 }
 
 /// What the server answers when a known release is added or changed.

@@ -3,13 +3,17 @@ import { NextRequest } from "next/server";
 
 const getCurrentUser = vi.fn();
 const saveRelease = vi.fn();
+const removeRelease = vi.fn();
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/releases-store", () => ({ saveRelease: (...args: unknown[]) => saveRelease(...args) }));
+vi.mock("@/lib/releases-store", () => ({
+  saveRelease: (...args: unknown[]) => saveRelease(...args),
+  removeRelease: (...args: unknown[]) => removeRelease(...args),
+}));
 
 import { POST } from "../route";
-import { PATCH } from "../[releaseId]/route";
+import { DELETE, PATCH } from "../[releaseId]/route";
 
 const request = (method: string, body: unknown) =>
   new NextRequest("https://rickhouse.example.com/api/v1/expressions/10/releases", {
@@ -27,6 +31,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   getCurrentUser.mockResolvedValue({ id: 7 });
   saveRelease.mockResolvedValue({ ok: true, release: saved });
+  removeRelease.mockResolvedValue({ ok: true, bottles: 2 });
 });
 
 describe("POST /api/v1/expressions/:id/releases", () => {
@@ -74,5 +79,38 @@ describe("PATCH /api/v1/expressions/:id/releases/:releaseId", () => {
   it("a release that is not the caller's is not found", async () => {
     saveRelease.mockResolvedValue({ ok: false, status: 404, code: "not_found", message: "That release is gone." });
     expect((await change({ name: "y" })).status).toBe(404);
+  });
+});
+
+describe("DELETE /api/v1/expressions/:id/releases/:releaseId", () => {
+  const remove = (id = "10", releaseId = "3") =>
+    DELETE(new NextRequest(`https://rickhouse.example.com/api/v1/expressions/${id}/releases/${releaseId}`, { method: "DELETE" }), {
+      params: Promise.resolve({ id, releaseId }),
+    });
+
+  it("removes the caller's release and says how many bottles lost it", async () => {
+    const res = await remove();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: 3, bottles: 2 });
+    expect(removeRelease).toHaveBeenCalledWith(7, 10, 3);
+  });
+
+  it("answers 404 when the label or release is not the caller's", async () => {
+    removeRelease.mockResolvedValue({ ok: false, status: 404, code: "not_found", message: "That release is gone." });
+    const res = await remove();
+    expect(res.status).toBe(404);
+    expect((await res.json()).error.code).toBe("not_found");
+  });
+
+  it("404s a malformed id without touching anything", async () => {
+    expect((await remove("10", "abc")).status).toBe(404);
+    expect((await remove("x", "3")).status).toBe(404);
+    expect(removeRelease).not.toHaveBeenCalled();
+  });
+
+  it("needs a signed-in user", async () => {
+    getCurrentUser.mockResolvedValue(null);
+    expect((await remove()).status).toBe(401);
+    expect(removeRelease).not.toHaveBeenCalled();
   });
 });

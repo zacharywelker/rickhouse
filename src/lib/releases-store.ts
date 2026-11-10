@@ -190,9 +190,8 @@ export type ReleaseSaved =
   | { ok: false; status: 404 | 409 | 422; code: string; message: string };
 
 /**
- * Adds a known release to a label (`releaseId` null), or changes one, for the phone. Only what is sent changes, and
- * nothing is ever removed here: a release carries a photo, notes and bottles, so removing one stays on the web. A
- * label or release that is not the caller's is simply not found.
+ * Adds a known release to a label (`releaseId` null), or changes one, for the phone. Only what is sent changes; a
+ * release is removed by `removeRelease`. A label or release that is not the caller's is simply not found.
  */
 export async function saveRelease(
   ownerId: number,
@@ -247,4 +246,43 @@ export async function saveRelease(
     .values({ ...values, expressionId, position: (last?.position ?? -1) + 1 })
     .returning(columns);
   return { ok: true, release: releaseRow(row!) };
+}
+
+export type ReleaseRemoved = { ok: true; bottles: number } | { ok: false; status: 404; code: "not_found"; message: string };
+
+/**
+ * Removes one known release of the caller's label, as the web's label form does by dropping it from the list: its
+ * photo and notes go with it, and its bottles (and their tastings) stay but lose the release (`bottles.release_id` is
+ * set null by the database). `bottles` is how many that was. A label or release that is not the caller's is simply
+ * not found, and nothing is touched. The photo files are deleted after the row is gone; if that fails the release is
+ * still removed and the files are logged, not retried, since an answer of "failed" would send the person back to a
+ * release that no longer exists.
+ */
+export async function removeRelease(ownerId: number, expressionId: number, releaseId: number): Promise<ReleaseRemoved> {
+  const gone: ReleaseRemoved = { ok: false, status: 404, code: "not_found", message: "That release is gone." };
+  const removed = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({
+        id: expressionReleases.id,
+        photoPath: expressionReleases.photoPath,
+        photoThumbPath: expressionReleases.photoThumbPath,
+        bottles: sql<number>`(select count(*)::int from bottles b where b.release_id = expression_releases.id)`,
+      })
+      .from(expressionReleases)
+      .innerJoin(expressions, eq(expressions.id, expressionReleases.expressionId))
+      .where(and(eq(expressionReleases.id, releaseId), eq(expressionReleases.expressionId, expressionId), eq(expressions.ownerId, ownerId)))
+      .for("update", { of: expressionReleases });
+    if (!row) return null;
+    await tx.delete(expressionReleases).where(eq(expressionReleases.id, releaseId));
+    return row;
+  });
+  if (!removed) return gone;
+  if (removed.photoPath) {
+    try {
+      await deleteStoredPhotos([{ filePath: removed.photoPath, thumbPath: removed.photoThumbPath }]);
+    } catch (error) {
+      console.error(`Release ${releaseId} was removed but its photo files could not be deleted:`, error);
+    }
+  }
+  return { ok: true, bottles: removed.bottles };
 }
