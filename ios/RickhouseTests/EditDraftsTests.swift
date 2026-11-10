@@ -266,6 +266,29 @@ final class EditDraftsTests: XCTestCase {
         XCTAssertTrue(draft.showsBarrelDetail)
     }
 
+    func testANewBottleIsSealedUntilTickedOrPouredFrom() throws {
+        var draft = BottleDraft.new(label: try option(), today: "2026-10-13")
+        XCTAssertNil(draft.patch()["isOpen"])
+        XCTAssertNil(draft.patch()["fillPct"])
+
+        // Moving the dial below full opens it, like the server's own rule.
+        draft.setFill(40)
+        XCTAssertTrue(draft.isOpen)
+        same(draft.patch(), ["expressionId": 12, "dateAcquired": "2026-10-13", "isOpen": true, "fillPct": 40])
+
+        // Unticking Opened seals it: full again and no opened date.
+        draft[.opened].text = "2026-06-01"
+        draft.setOpened(false)
+        XCTAssertEqual(draft.fill, 100)
+        XCTAssertTrue(draft[.opened].isEmpty)
+        XCTAssertNil(draft.patch()["isOpen"])
+
+        // Ticked at full, with a date it was opened on.
+        draft.setOpened(true)
+        draft[.opened].text = "2026-06-01"
+        same(draft.patch(), ["expressionId": 12, "dateAcquired": "2026-10-13", "isOpen": true, "fillPct": 100, "dateOpened": "2026-06-01"])
+    }
+
     func testAChosenReleaseTakesOverTheBatchAndYear() throws {
         var draft = BottleDraft(try bottle(["batch": "B1", "releaseYear": 2020]))
         draft[.batch].text = "B2"

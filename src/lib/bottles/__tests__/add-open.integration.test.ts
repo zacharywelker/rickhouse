@@ -4,7 +4,7 @@ import { connect, fixtures, url, type Db, type Fixtures } from "@/lib/tournament
 const session = vi.hoisted(() => ({ id: 0 }));
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
-vi.mock("@/lib/auth", () => ({ requireSession: async () => ({ id: session.id }) }));
+vi.mock("@/lib/auth", () => ({ requireSession: async () => ({ id: session.id }), getCurrentUser: async () => ({ id: session.id }) }));
 
 /** Opt-in, like the tournament integration tests: needs TOURNAMENT_TEST_DATABASE_URL naming a throwaway migrated database. */
 describe.skipIf(!url)("adding a bottle opened, against a real database", () => {
@@ -14,6 +14,7 @@ describe.skipIf(!url)("adding a bottle opened, against a real database", () => {
   let label: number;
   let form: typeof import("@/app/(app)/bottles/actions");
   let catalog: typeof import("@/app/(app)/bottles/add/actions");
+  let api: typeof import("@/app/api/v1/bottles/route");
 
   beforeAll(async () => {
     m = await connect();
@@ -24,6 +25,7 @@ describe.skipIf(!url)("adding a bottle opened, against a real database", () => {
     session.id = owner;
     form = await import("@/app/(app)/bottles/actions");
     catalog = await import("@/app/(app)/bottles/add/actions");
+    api = await import("@/app/api/v1/bottles/route");
   });
 
   afterAll(async () => {
@@ -71,5 +73,21 @@ describe.skipIf(!url)("adding a bottle opened, against a real database", () => {
   it("catalog: a date in the future is refused on the bottle", async () => {
     const result = await catalog.catalogBottleAction({ expressionId: label, label: null, links: null, ttbIds: "", bottle: { status: "owned", acquisition: "purchase", isOpen: true, fillPct: "100", dateOpened: "2999-01-01" } });
     expect(result).toMatchObject({ ok: false, bottleErrors: { dateOpened: expect.any(String) } });
+  });
+
+  const post = (body: Record<string, unknown>) =>
+    api.POST(new Request("http://localhost/api/v1/bottles", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expressionId: label, ...body }) }) as never);
+
+  it("phone API: an opened bottle at 30% is open and dated; a bare post stays sealed", async () => {
+    const opened = await post({ isOpen: true, fillPct: 30, dateOpened: "2026-05-02" });
+    expect(opened.status).toBe(201);
+    expect(await row(((await opened.json()) as { id: number }).id)).toMatchObject({ is_open: true, fill_pct: 30, status: "open", date_opened: "2026-05-02" });
+    const bare = await post({});
+    expect(await row(((await bare.json()) as { id: number }).id)).toMatchObject({ is_open: false, fill_pct: 100, status: "owned", date_opened: null });
+  });
+
+  it("phone API: a future opened date is a 422 on dateOpened", async () => {
+    const res = await post({ isOpen: true, dateOpened: "2999-01-01" });
+    expect(res.status).toBe(422);
   });
 });
