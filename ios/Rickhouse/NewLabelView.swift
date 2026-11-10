@@ -150,7 +150,10 @@ struct NewLabelView: View {
                     initial: draft.rows(list).map { LookupItem(id: $0.id, name: $0.name) },
                     spiritKind: list == .distilleries && ["tequila", "mezcal", "cognac", "armagnac", "calvados", "pisco"].contains(categories.first { $0.id == categoryId }?.kind ?? "")
                         ? categories.first { $0.id == categoryId }?.kind : nil
-                ) { chosen in draft.setList(list, to: chosen) }
+                ) { chosen in
+                    let scotch = LabelRules(category: categories.first { $0.id == categoryId }).showsRegions
+                    draft.setList(list, to: chosen, bringingRegions: scotch)
+                }
             }
         }
         .fullScreenCover(isPresented: $showCamera) {

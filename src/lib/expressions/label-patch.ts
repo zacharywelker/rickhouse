@@ -46,6 +46,7 @@ export const labelFactsSchema = expressionSchema.pick({
   barrelFilledOn: true,
   bottledOn: true,
   isStillProof: true,
+  regions: true,
 });
 
 export type LabelFacts = Partial<ReturnType<typeof labelFactsSchema.parse>>;
@@ -169,6 +170,8 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
         allowed.delete("barrelFilledOn"); allowed.delete("bottledOn"); allowed.delete("isNas");
       }
       if (kind === "tequila") allowed.delete("ageStatement");
+      // Regions belong to Scotch (the web form only shows them there); anything sent for another kind is ignored.
+      if (kind !== "scotch") allowed.delete("regions");
       const columns = withBondProof(writableValues({ ...byName, ...sent }, allowed), current.isBottledInBond);
       if (isAgaveKind(kind)) {
         delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.isNas;

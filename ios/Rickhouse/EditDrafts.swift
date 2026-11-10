@@ -364,6 +364,8 @@ enum LabelFact: String, CaseIterable {
     case distilled = "barrelFilledOn"
     case bottled = "bottledOn"
     case isStillProof
+    /// Held as comma text ("Islay, Speyside"), sent as a list.
+    case regions
 
     /// The ticks, held as "true" or "false".
     static let ticks: [LabelFact] = [.isCaskStrength, .isBottledInBond, .isStraight, .isNas, .isStillProof, .isAgedGin]
@@ -424,6 +426,7 @@ struct LabelDraft {
             .distilled: Field(label.barrelFilledOn),
             .bottled: Field(label.bottledOn),
             .isStillProof: Field(String(label.isStillProof ?? false)),
+            .regions: Field(ScotchRegions.text(label.regions ?? [])),
             .otherNames: Field(label.otherNames),
             .size: Field(String(label.sizeMl)),
             .msrp: Field(label.msrp),
@@ -450,9 +453,18 @@ struct LabelDraft {
 
     /// Makes a list exactly `items`, in that order. A row already on the label keeps its share and the rest of what it
     /// carries; one just ticked starts with none, and the server fills in what follows from the label.
-    mutating func setList(_ list: LinkList, to items: [LookupItem]) {
+    ///
+    /// On a Scotch label (`bringingRegions`) a distillery just added brings its region onto the label, as the web form
+    /// does: the label's regions gain it if they lack it. Taking a distillery off, or one already on, changes nothing, so
+    /// a region taken off by hand stays off.
+    mutating func setList(_ list: LinkList, to items: [LookupItem], bringingRegions: Bool = false) {
         let current = rows(list)
         let next = items.map { item in current.first { $0.id == item.id } ?? LinkRow(id: item.id, name: item.name) }
+        if list == .distilleries, bringingRegions {
+            let known = Set(current.map(\.id))
+            let brought = items.filter { !known.contains($0.id) }.compactMap(\.region)
+            if !brought.isEmpty { self[.regions].text = ScotchRegions.adding(brought, to: self[.regions].text) }
+        }
         switch list {
         case .distilleries: links.distilleries = next
         case .mashbills: links.mashbills = next
@@ -561,6 +573,7 @@ struct LabelDraft {
         case .size, .category, .brand, .ageMonths, .ageDays: Int(field.trimmed) ?? field.json
         case .isNas, .isStraight, .isCaskStrength, .isBottledInBond, .isStillProof, .isAgedGin: field.trimmed == "true"
         case .barcode: field.isEmpty ? NSNull() : Self.digits(field.trimmed)
+        case .regions: ScotchRegions.list(field.trimmed).isEmpty ? NSNull() : ScotchRegions.list(field.trimmed)
         default: field.json
         }
     }

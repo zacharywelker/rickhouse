@@ -18,7 +18,8 @@ export const LOOKUP_KINDS = ["brands", "distilleries", "mashbills", "finishes", 
 export const CREATABLE_KINDS = ["brands", "distilleries", "finishes"] as const;
 export type LookupKind = (typeof LOOKUP_KINDS)[number];
 export type CreatableKind = (typeof CREATABLE_KINDS)[number];
-export type LookupItem = { id: number; name: string; detail: string | null };
+/** `region` is a distillery's Scotch region, so a phone can add it to a Scotch label as the web form does. Only distilleries carry it. */
+export type LookupItem = { id: number; name: string; detail: string | null; region?: string | null };
 
 const LIMIT = 200;
 
@@ -38,7 +39,7 @@ export async function listLookup(kind: LookupKind, ownerId: number, q: string | 
       const countries = spiritKind === "tequila" || spiritKind === "mezcal" ? ["mx", "mexico", "méxico"]
         : spiritKind === "cognac" || spiritKind === "armagnac" || spiritKind === "calvados" ? ["fr", "france"]
         : spiritKind === "pisco" ? ["pe", "peru", "perú", "cl", "chile"] : null;
-      const rows = await db.select({ id: distilleries.id, name: distilleries.name, state: distilleries.state, country: distilleries.country, nom: distilleries.nomNumber }).from(distilleries)
+      const rows = await db.select({ id: distilleries.id, name: distilleries.name, state: distilleries.state, country: distilleries.country, nom: distilleries.nomNumber, region: distilleries.region }).from(distilleries)
         .where(and(eq(distilleries.ownerId, ownerId), term ? ilike(distilleries.name, contains(term)) : undefined,
           countries ? sql`lower(trim(${distilleries.country})) in (${sql.join(countries.map((country) => sql`${country}`), sql`, `)})` : undefined))
         .orderBy(asc(distilleries.name)).limit(LIMIT);
@@ -46,6 +47,7 @@ export async function listLookup(kind: LookupKind, ownerId: number, q: string | 
         id: r.id,
         name: r.nom && ["mx", "mexico", "méxico"].includes((r.country ?? "").trim().toLocaleLowerCase()) ? `NOM-${r.nom.replace(/^NOM-?/i, "")}: ${r.name}` : r.name,
         detail: [r.state, r.country].filter(Boolean).join(", ") || null,
+        region: r.region,
       }));
     }
     case "finishes": {
