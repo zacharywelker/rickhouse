@@ -1,6 +1,7 @@
 import type { FieldGroup } from "@/db/schema";
 import type { Edits } from "./editors";
 import type { DraftMeta, SheetBottle, SheetLabel, SheetRow, SheetView } from "./sheet";
+import { nextDraftKey } from "./save";
 import type { Candidate, Suggestion } from "./suggest";
 
 /**
@@ -57,10 +58,10 @@ export const countNewRows = (drafts: ReadonlyArray<DraftRow>, edits: Edits): num
 
 /**
  * The rows to show: the drafts, then always one empty one, so there is a row to type into. The empty one is not kept in
- * state; it is made from the next key, and becomes a real draft the moment something is chosen or typed in it.
+ * state; it is made from the next unused key (earlier drafts are removed once saved), and becomes a real draft the moment something is chosen or typed in it.
  */
 export function withBlankRow(drafts: ReadonlyArray<DraftRow>): DraftRow[] {
-  return [...drafts, emptyDraft(`d${drafts.length}`)];
+  return [...drafts, emptyDraft(nextDraftKey(drafts))];
 }
 
 // ---------------------------------------------------------------------------
