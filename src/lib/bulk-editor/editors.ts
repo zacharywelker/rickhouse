@@ -14,8 +14,13 @@ import type { Cell, SheetColumn, SheetContext, SheetRow, SheetView } from "./she
  * several fields behind one. Those come in later steps, and until they do those cells are simply not editable.
  */
 
+/** The cells that pick from a list instead of taking a value: a brand, a label under it, a category. */
+export type ComboKind = "brand" | "label" | "category";
+
 export type CellEditor = {
   column: string;
+  /** Set for a cell that picks from a list. Its `spec` is then unused, and what is chosen is kept with the row, not in the edits. */
+  combo?: ComboKind;
   /** The field's name on the form, and so on the server's patch. */
   field: string;
   /** A label column changes the label and every bottle on it; a bottle column changes that bottle only. */
@@ -46,11 +51,17 @@ const labelSpec = (name: string): FieldSpec => {
   if (!spec) throw new Error(`The label form has no field "${name}".`);
   return spec;
 };
+/** What a picking cell's `spec` holds: it is never shown. */
+const NO_SPEC: FieldSpec = { kind: "text", name: "combo", label: "" };
 const text = (value: string): Cell => (value === "" ? DASH : { text: value });
 const money = (value: string, ctx: SheetContext): Cell => (value === "" ? DASH : { text: formatMoney(value, ctx.currency) });
 const mL = (value: string): Cell => (value === "" ? DASH : { text: `${value} mL` });
 
 export const EDITORS: Readonly<Record<string, CellEditor>> = {
+  // The picking cells, on a new row only for now. On a saved row they come with the rules for moving a bottle and renaming a label.
+  brand: { column: "brand", field: "brand", scope: "label", combo: "brand", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.brand, display: (v) => text(v) },
+  name: { column: "name", field: "label", scope: "label", combo: "label", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.name, display: (v) => text(v) },
+  category: { column: "category", field: "categoryId", scope: "label", combo: "category", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.category, display: (v) => text(v) },
   // The bottle's own.
   pricePaid: { column: "pricePaid", field: "pricePaid", scope: "bottle", spec: bottleSpec("pricePaid"), typeToReplace: true, initial: (r) => r.bottle?.pricePaid ?? "", display: (v, c) => money(v, c) },
   dateAcquired: { column: "dateAcquired", field: "dateAcquired", scope: "bottle", spec: bottleSpec("dateAcquired"), pastOnly: true, typeToReplace: false, initial: (r) => r.bottle?.dateAcquired ?? "", display: (v) => (v === "" ? DASH : { text: formatDate(v) }) },
@@ -77,15 +88,28 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
 };
 
 /**
- * The editor for a cell, or null when it cannot be edited here. A bottle's own cells can be edited on a bottle row. A
- * label's cells can be edited only where the row is the label (Labels without Bottles): on a bottle row they belong to
- * every bottle on the label, and how that is unlocked is its own step.
+ * The editor for a cell, or null when it cannot be edited here.
+ *
+ * - A bottle's own plain cells: on a bottle row.
+ * - A label's plain facts: where the row is the label (Labels without Bottles), or is a new label being made. On a
+ *   bottle row for a label that exists they belong to every bottle on it, and how that is unlocked is its own step.
+ * - Brand, Label and Category: on a new row only. Label waits for a brand; Category is for a new label, since an
+ *   existing label has one already and it is not the row's to change.
  */
 export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow): CellEditor | null {
   const editor = EDITORS[column.id];
   if (!editor || editor.applies?.(row) === false) return null;
+  const draft = row.draft;
+  if (editor.combo) {
+    if (!draft) return null;
+    if (editor.combo === "brand") return editor;
+    if (editor.combo === "label") return draft.brandChosen ? editor : null;
+    return draft.labelChosen && draft.labelIsNew ? editor : null;
+  }
   if (editor.scope === "bottle") return row.bottle ? editor : null;
-  return view.bottles ? null : editor;
+  // A new row that names a label that exists is that label's, not a new one to fill in.
+  if (draft?.labelChosen && !draft.labelIsNew) return null;
+  return !view.bottles || draft?.labelChosen ? editor : null;
 }
 
 export type Parsed = { ok: true; value: string } | { ok: false; message: string };
