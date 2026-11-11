@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { and, eq, isNull } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/db";
 import { expressions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
@@ -10,14 +9,14 @@ import { attachBarcodeSchema, upcCandidates } from "@/lib/api/labels";
 import { labelTastingJson } from "@/lib/expressions/tasting-json";
 import { pickerLabel } from "@/lib/expressions/picker";
 import { proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
-import { labelFactsSchema, patchLabel } from "@/lib/expressions/label-patch";
-import { linkRowSchema } from "@/lib/expressions/schema";
+import { patchLabel } from "@/lib/expressions/label-patch";
+import { labelPatchBody as patchBody } from "@/lib/expressions/label-patch-body";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
 import { bottlesOfLabel, categoryKindForExpression, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
 import { expressionReleaseList, releaseRemovalImpact } from "@/lib/releases-store";
 import { expressionNames } from "@/db/schema";
 import { asc } from "drizzle-orm";
-import { otherNamesText, parseOtherNames } from "@/lib/other-names";
+import { otherNamesText } from "@/lib/other-names";
 import { labelRank } from "@/lib/tournaments/label-rank-query";
 import { tournamentRankField } from "@/lib/tournaments/label-rank";
 
@@ -154,49 +153,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     tastings: tastings.map(labelTastingJson),
   });
 }
-
-/** A share the app read as null comes back as null; the web form's rule wants it blank. */
-const linkRow = z.preprocess(
-  (row) => (typeof row === "object" && row !== null && (row as { amount?: unknown }).amount === null ? { ...row, amount: "" } : row),
-  linkRowSchema,
-);
-/** Duplicates would break the join table's key, and an order is what was sent. */
-const linkList = z.array(linkRow).max(50).refine((rows) => new Set(rows.map((r) => r.id)).size === rows.length, "A row appears twice.");
-const ingredientList = z.array(z.object({ name: z.string().trim().min(1).max(120), family: z.enum(["grape", "apple", "pear", "other"]).nullable().optional(), kind: z.enum(["maguey", "distillate", "rum_base", "botanical", "gin_base"]).optional() })).max(100);
-
-const patchBody = labelFactsSchema
-  .partial()
-  .extend({
-    // A list of Scotch regions, as GET gives it (the web form's comma text also passes). Its rules are the form's: only
-    // the six regions, once each, and null or [] clears them.
-    regions: z.preprocess((value) => (Array.isArray(value) && value.every((r) => typeof r === "string") ? value.join(", ") : value), labelFactsSchema.shape.regions),
-    brand: z.string().trim().min(1, "Enter a brand.").max(120, "Keep this under 120 characters."),
-    distilleries: linkList,
-    mashbills: linkList,
-    finishes: linkList,
-    ingredients: ingredientList,
-    otherNames: z
-      .string()
-      .max(10_000)
-      .nullable()
-      .transform((text, ctx) => {
-        const parsed = parseOtherNames(text);
-        if (parsed.error) {
-          ctx.addIssue({ code: "custom", message: parsed.error });
-          return z.NEVER;
-        }
-        return parsed.names;
-      }),
-  })
-  .partial()
-  .strict()
-  .superRefine((value, ctx) => {
-    if (Object.keys(value).length === 0) ctx.addIssue({ code: "custom", message: "Send at least one field to change." });
-    if (value.brandId !== undefined && value.brand !== undefined) ctx.addIssue({ code: "custom", path: ["brand"], message: "Send brandId or brand, not both." });
-    // Which distillery made each mashbill depends on the distillery list, so the three are rewritten together.
-    const lists = [value.distilleries, value.mashbills, value.finishes].filter((list) => list !== undefined).length;
-    if (lists !== 0 && lists !== 3) ctx.addIssue({ code: "custom", path: ["distilleries"], message: "Send distilleries, mashbills and finishes together." });
-  });
 
 /**
  * Changes a label. A body of only `upc` is the scanner's: it saves a barcode onto a label that has none and
