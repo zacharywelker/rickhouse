@@ -163,7 +163,8 @@ test("Brand and Label stay put while the sheet scrolls sideways", async ({ page 
 // New rows: the Brand, Label and Category autocompletes (nothing is saved yet)
 // ---------------------------------------------------------------------------
 
-const combo = (page: Page) => page.getByRole("combobox");
+/** The open autocomplete's box (the page also has the Sort select, which is a combobox too). */
+const combo = (page: Page) => sheet(page).getByRole("combobox");
 const lastRow = async (page: Page) => (await sheet(page).locator("tbody tr").count()) - 1;
 
 test("the empty row at the bottom is live: Tab takes an existing brand and moves to its Label", async ({ page }) => {
@@ -174,7 +175,7 @@ test("the empty row at the bottom is live: Tab takes an existing brand and moves
 
   await cell(page, row, brand).click();
   await page.keyboard.type(existing.slice(0, 4));
-  await expect(page.getByRole("option").first()).toContainText(existing);
+  await expect(page.getByRole("listbox").getByRole("option").first()).toContainText(existing);
   await page.keyboard.press("Tab");
   await expect(cell(page, row, brand)).toContainText(existing);
   expect(await active(page)).toEqual({ row, col: label });
@@ -188,7 +189,7 @@ test("a typo never makes a brand: Tab is blocked, Enter on Create makes it, and 
 
   await cell(page, row, brand).click();
   await page.keyboard.type("Zzyzx Distilling");
-  await expect(page.getByRole("option", { name: /Create/ })).toBeVisible();
+  await expect(page.getByRole("listbox").getByRole("option", { name: /Create/ })).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(combo(page)).toHaveCount(1); // still open
   await expect(page.getByRole("alert").filter({ hasText: "Press Enter to create" })).toBeVisible();
@@ -219,7 +220,7 @@ test("a new label under a new brand takes its category from the closed list, and
   await page.keyboard.press("Enter");
   expect(await active(page)).toEqual({ row, col: category });
   await page.keyboard.type("bou");
-  await expect(page.getByRole("option").first()).toContainText("Bourbon");
+  await expect(page.getByRole("listbox").getByRole("option").first()).toContainText("Bourbon");
   await page.keyboard.press("Tab");
   await expect(cell(page, row, category)).toContainText("Bourbon");
 
@@ -255,7 +256,7 @@ test("Bottles only shows no label facts, and Brand moves a bottle to a label tha
   await cell(page, 0, 0).click();
   await page.keyboard.press("Enter");
   await page.keyboard.type("zzzzzz");
-  await expect(page.getByRole("option", { name: /Create/ })).toHaveCount(0);
+  await expect(page.getByRole("listbox").getByRole("option", { name: /Create/ })).toHaveCount(0);
   await page.keyboard.press("Escape");
   // Move it to the label on the last saved row (the one after it is the empty row for a new bottle).
   const last = (await lastRow(page)) - 1;
@@ -380,4 +381,142 @@ test("the view follows a saved row to where it sorts, but never while the next r
   await page.keyboard.press("Escape");
   // Once the typing stops the view goes to the saved row.
   await expect(sheet(page).locator("tbody tr", { hasText: "Found Again" })).toBeInViewport({ timeout: 15_000 });
+});
+
+// ---------------------------------------------------------------------------
+// Finding rows: search, filters, sort
+// ---------------------------------------------------------------------------
+
+const searchBox = (page: Page) => page.getByRole("searchbox", { name: "Search the sheet" });
+const countLine = (page: Page) => page.getByText(/^(Showing \d+ of \d+ |\d+ )(bottles|labels)$/).first();
+/** The saved rows' Label cells (not the empty row at the bottom). */
+const labelNames = async (page: Page) => (await sheet(page).locator("tbody tr td:nth-child(2)").allTextContents()).map((t) => t.trim()).slice(0, -1);
+
+test("search narrows the sheet and the count says how many of how many; the empty row stays", async ({ page }) => {
+  const all = (await countLine(page).innerText()).match(/^(\d+) /)![1]!;
+  const word = (await cell(page, 0, 0).locator(".truncate").first().innerText()).trim().split(" ")[0]!;
+  await searchBox(page).fill(word);
+  const shown = (await sheet(page).locator("tbody tr").count()) - 1;
+  expect(shown).toBeGreaterThan(0);
+  await expect(countLine(page)).toHaveText(`Showing ${shown} of ${all} bottles`);
+  await expect(sheet(page).locator("tbody tr").last().locator("td").first()).toContainText("Add a bottle");
+  await searchBox(page).fill("qqqqqqqq");
+  await expect(page.getByText(/match\. Clear the filters/)).toBeVisible();
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(countLine(page)).toHaveText(`${all} bottles`);
+});
+
+test("a row typed while the sheet is filtered stays on screen, and clearing the filter places it normally", async ({ page }) => {
+  const word = (await cell(page, 0, 0).locator(".truncate").first().innerText()).trim().split(" ")[0]!;
+  await searchBox(page).fill(word);
+  const brand = await col(page, "Brand");
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zebra Hollow");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Doesnt Match The Search");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, row + 1, brand).click(); // leave the row: it saves and joins the saved rows
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await page.waitForTimeout(1500); // read back: the saved row is now in the data, and must not be filtered out
+  expect((await labelNames(page)).filter((n) => n === "Doesnt Match The Search")).toHaveLength(1);
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  const names = await labelNames(page);
+  expect(names.filter((n) => n === "Doesnt Match The Search")).toHaveLength(1);
+  expect(names.length).toBeGreaterThan(2);
+});
+
+test("sort by a column, an edited row does not jump, and the header flips it", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await page.getByLabel("Sort by").selectOption("pricePaid");
+  await expect(sheet(page).locator("th[aria-sort]")).toHaveAttribute("aria-sort", "ascending");
+  const values = async () => (await sheet(page).locator(`tbody tr td:nth-child(${price + 1})`).allTextContents()).slice(0, -1).map((t) => Number(t.replace(/[^0-9.]/g, "")) || null);
+  const asc = (await values()).filter((v): v is number => v !== null);
+  expect(asc).toEqual([...asc].sort((a, b) => a - b));
+  // Giving a bottle a price of $1 would put it first in this order, but the row stays where it is, even once saved and read back.
+  const before = await labelNames(page);
+  await cell(page, 1, price).click();
+  await page.keyboard.type("1");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  expect(await labelNames(page)).toEqual(before);
+  await expect(cell(page, 1, price)).toHaveText("$1.00");
+  // Asking for the other direction sorts by what the rows hold now.
+  await sheet(page).locator("thead th button", { hasText: "Price paid" }).click();
+  await expect(sheet(page).locator("th[aria-sort]")).toHaveAttribute("aria-sort", "descending");
+  const desc = (await values()).filter((v): v is number => v !== null);
+  expect(desc).toEqual([...desc].sort((a, b) => b - a));
+  await page.getByLabel("Sort by").selectOption("");
+  await expect(sheet(page).locator("th[aria-sort]")).toHaveCount(0);
+});
+
+test("a range filter narrows the sheet, the panel says how many are set, and Clear empties the boxes", async ({ page }) => {
+  await page.getByRole("button", { name: "Labels", exact: true }).click(); // bottles alone: where Price paid is offered
+  const price = await col(page, "Price paid");
+  const total = Number((await countLine(page).innerText()).match(/^(\d+) /)![1]);
+  await page.getByRole("button", { name: /^More filters/ }).click();
+  await page.getByLabel("Price paid, at least").fill("50");
+  const shown = (await sheet(page).locator("tbody tr").count()) - 1;
+  expect(shown).toBeGreaterThan(0);
+  expect(shown).toBeLessThan(total);
+  const prices = (await sheet(page).locator(`tbody tr td:nth-child(${price + 1})`).allTextContents()).slice(0, -1).map((t) => Number(t.replace(/[^0-9.]/g, "")));
+  expect(prices.every((p) => p >= 50)).toBe(true);
+  await expect(countLine(page)).toHaveText(`Showing ${shown} of ${total} bottles`);
+  await expect(page.getByRole("button", { name: /^More filters/ })).toContainText("1");
+  await page.getByLabel("Proof, at most").fill("1"); // nothing has a proof that low
+  await expect(page.getByText(/match\. Clear the filters/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.getByRole("button", { name: /^More filters/ }).click();
+  await expect(page.getByLabel("Price paid, at least")).toHaveValue("");
+  await expect(page.getByLabel("Proof, at most")).toHaveValue("");
+  await page.keyboard.press("Escape");
+  await expect(countLine(page)).toHaveText(`${total} bottles`);
+});
+
+test("age, distillery, mashbill and finish can be sorted, each starting ascending", async ({ page }) => {
+  for (const [column, header] of [["age", "Age"], ["distilleries", "Distillery"], ["mashbills", "Mashbill"], ["finishes", "Finish"]] as const) {
+    await page.getByLabel("Sort by").selectOption(column);
+    const sorted = sheet(page).locator("th[aria-sort]");
+    await expect(sorted).toHaveCount(1);
+    await expect(sorted).toHaveAttribute("aria-sort", "ascending");
+    await expect(sorted).toContainText(header);
+    // The direction button, then another column: that one starts ascending again.
+    await page.getByLabel(/Ascending: switch/).click();
+    await expect(sorted).toHaveAttribute("aria-sort", "descending");
+  }
+});
+
+test("store and price paid are offered only when looking at bottles alone; in the other views they are off", async ({ page }) => {
+  const total = Number((await countLine(page).innerText()).match(/^(\d+) /)![1]);
+  const panel = async () => {
+    await page.getByRole("button", { name: /^More filters/ }).click();
+  };
+  // Labels and Bottles together: neither is offered.
+  await expect(page.getByRole("button", { name: "Filter by store" })).toHaveCount(0);
+  await panel();
+  await expect(page.getByLabel("Price paid, at least")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Bottles alone: both are, and one narrows the sheet.
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Filter by store" })).toBeVisible();
+  await panel();
+  await page.getByLabel("Price paid, at least").fill("50");
+  await page.keyboard.press("Escape");
+  const narrowed = await countLine(page).innerText();
+  expect(narrowed).toMatch(new RegExp(`^Showing \\d+ of ${total} bottles$`));
+
+  // Back to both: it is off, not applied and not counted, and the sheet is whole again.
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  await expect(countLine(page)).toHaveText(`${total} bottles`);
+  await expect(page.getByRole("button", { name: "Clear filters" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^More filters/ })).not.toContainText("1");
+
+  // And on again: the value was kept.
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  await expect(countLine(page)).toHaveText(narrowed);
 });
