@@ -37,9 +37,17 @@ export type SheetBottle = {
 };
 
 export type SheetView = { labels: boolean; bottles: boolean };
-export type SheetRow = { key: string; label: SheetLabel; bottle: SheetBottle | null };
+/** What a new, unsaved row has chosen so far (see `drafts.ts`). */
+export type DraftMeta = { brandChosen: boolean; labelChosen: boolean; brandIsNew: boolean; labelIsNew: boolean };
+export type SheetRow = { key: string; label: SheetLabel; bottle: SheetBottle | null; /** Present on a new, unsaved row. */ draft?: DraftMeta };
 export type SheetContext = { currency: string; kinds: Record<number, CategoryKind> };
-export type Cell = { text: string; /** Grey: the value is inherited, or there is none. */ muted?: boolean };
+export type Cell = {
+  text: string;
+  /** Grey: the value is inherited, or there is none. */
+  muted?: boolean;
+  /** A small tag after the text: "new" on a brand or label that does not exist yet. */
+  badge?: string;
+};
 
 export type SheetColumn = {
   id: string;
@@ -49,6 +57,8 @@ export type SheetColumn = {
   align?: "right";
   /** Brand and Label: always shown, and held at the left while the sheet scrolls. */
   identity?: boolean;
+  /** Shown whenever its group is, and cannot be hidden in the Fields picker: a new label cannot be saved without it. */
+  always?: boolean;
   /** Hidden until switched on in the Fields picker. */
   defaultHidden?: boolean;
   /** Only when the sheet is one row per label. */
@@ -76,9 +86,16 @@ function own(value: Cell | null, inherited: Cell): Cell {
 
 /** Every column, in the order a bottle is entered at the shelf: label facts, then the bottle's own. */
 export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = [
-  { id: "brand", label: "Brand", group: "label", identity: true, cell: (r) => ({ text: r.label.brand }) },
-  { id: "name", label: "Label", group: "label", identity: true, cell: (r) => ({ text: r.label.name }) },
-  { id: "category", label: "Category", group: "label", cell: (r) => ({ text: r.label.category }) },
+  {
+    id: "brand",
+    label: "Brand",
+    group: "label",
+    identity: true,
+    // An empty new row says what it is for.
+    cell: (r) => (r.draft && r.label.brand === "" ? { text: r.bottle ? "Add a bottle" : "Add a label", muted: true } : { text: r.label.brand, ...(r.draft?.brandIsNew ? { badge: "new" } : {}) }),
+  },
+  { id: "name", label: "Label", group: "label", identity: true, cell: (r) => (r.draft && r.label.name === "" ? DASH : { text: r.label.name, ...(r.draft?.labelIsNew && r.draft.labelChosen ? { badge: "new" } : {}) }) },
+  { id: "category", label: "Category", group: "label", always: true, cell: (r) => (r.label.category === "" ? DASH : { text: r.label.category }) },
   { id: "sizeMl", label: "Size", group: "label", align: "right", cell: (r) => ({ text: `${r.label.sizeMl} mL` }) },
   { id: "proof", label: "Proof", group: "label", align: "right", cell: (r) => (r.label.proof === null ? DASH : { text: formatNumeric(r.label.proof) }) },
   {
@@ -160,6 +177,7 @@ export function normaliseView(view: Partial<SheetView> | null | undefined): Shee
 export function columnsFor(view: SheetView, hidden: ReadonlySet<string>): SheetColumn[] {
   return SHEET_COLUMNS.filter((column) => {
     if (column.identity) return true;
+    if (column.always) return column.group === "label" ? view.labels : view.bottles;
     if (hidden.has(column.id)) return false;
     if (column.group === "label") return view.labels && (!column.labelsOnly || !view.bottles);
     return view.bottles;

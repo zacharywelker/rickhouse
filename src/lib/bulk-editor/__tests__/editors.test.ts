@@ -46,6 +46,48 @@ describe("editorFor", () => {
   });
 });
 
+describe("editorFor on a new row", () => {
+  const both = { labels: true, bottles: true };
+  const labelsOnly = { labels: true, bottles: false };
+  const draftRow = (meta: Partial<NonNullable<SheetRow["draft"]>>, withBottle = true): SheetRow => ({
+    key: "d0", label, bottle: withBottle ? bottle({ id: -1 }) : null,
+    draft: { brandChosen: false, labelChosen: false, brandIsNew: false, labelIsNew: false, ...meta },
+  });
+
+  it("always offers Brand, and Label only once a brand is chosen", () => {
+    expect(editorFor(col("brand"), both, draftRow({}))?.combo).toBe("brand");
+    expect(editorFor(col("name"), both, draftRow({}))).toBeNull();
+    expect(editorFor(col("name"), both, draftRow({ brandChosen: true }))?.combo).toBe("label");
+  });
+  it("offers Category only for a new label, never for one that exists", () => {
+    expect(editorFor(col("category"), both, draftRow({ brandChosen: true }))).toBeNull();
+    expect(editorFor(col("category"), both, draftRow({ brandChosen: true, labelChosen: true, labelIsNew: true }))?.combo).toBe("category");
+    expect(editorFor(col("category"), both, draftRow({ brandChosen: true, labelChosen: true, labelIsNew: false }))).toBeNull();
+  });
+  it("does not offer the picking cells on a row that is already saved", () => {
+    for (const id of ["brand", "name", "category"]) {
+      expect(editorFor(col(id), both, bottleRow())).toBeNull();
+      expect(editorFor(col(id), labelsOnly, labelRow)).toBeNull();
+    }
+  });
+  it("lets a new label's facts be typed, but not those of a label that exists", () => {
+    const fresh = draftRow({ brandChosen: true, labelChosen: true, labelIsNew: true });
+    const existing = draftRow({ brandChosen: true, labelChosen: true, labelIsNew: false });
+    for (const id of ["proof", "sizeMl", "msrp"]) {
+      expect(editorFor(col(id), both, fresh)?.scope).toBe("label");
+      expect(editorFor(col(id), both, existing)).toBeNull();
+      expect(editorFor(col(id), labelsOnly, existing)).toBeNull();
+    }
+  });
+  it("does not offer a label's facts before a label is chosen on a bottle row", () => {
+    expect(editorFor(col("proof"), both, draftRow({ brandChosen: true }))).toBeNull();
+  });
+  it("lets the bottle's own cells be typed on a new bottle row", () => {
+    expect(editorFor(col("pricePaid"), both, draftRow({}))?.column).toBe("pricePaid");
+    expect(editorFor(col("pricePaid"), labelsOnly, draftRow({}, false))).toBeNull();
+  });
+});
+
 describe("initial and display", () => {
   it("reads a cell as the text an input holds", () => {
     expect(ed("pricePaid").initial(bottleRow())).toBe("47.00");
