@@ -1,0 +1,80 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { connect, fixtures, url, type Cat, type Db, type Fixtures } from "@/lib/tournaments/__tests__/fixtures";
+
+vi.mock("server-only", () => ({}));
+
+/** Opt-in, like the other integration tests: needs TOURNAMENT_TEST_DATABASE_URL naming a throwaway migrated database. */
+describe.skipIf(!url)("what the bulk editor loads, against a real database", () => {
+  let m: Db;
+  let fx: Fixtures;
+  let cat: Cat;
+  let owner: number;
+  let stranger: number;
+  let load: typeof import("../load");
+  let bottlesGrid: typeof import("@/lib/bottles/grid");
+  let bottleFilters: typeof import("@/lib/bottles/filters");
+  let labelQueries: typeof import("@/lib/expressions/queries");
+  let labelFilters: typeof import("@/lib/expressions/filters");
+
+  beforeAll(async () => {
+    m = await connect();
+    fx = fixtures(m);
+    cat = await fx.mkCategories();
+    owner = await fx.mkUser();
+    stranger = await fx.mkUser();
+    load = await import("../load");
+    bottlesGrid = await import("@/lib/bottles/grid");
+    bottleFilters = await import("@/lib/bottles/filters");
+    labelQueries = await import("@/lib/expressions/queries");
+    labelFilters = await import("@/lib/expressions/filters");
+  });
+
+  afterAll(async () => {
+    if (m) {
+      await fx.cleanup();
+      await m.end();
+    }
+  });
+
+  it("lists the same labels and bottles the Labels and Collection pages list, and nothing of another account's", async () => {
+    const a = await fx.mkLabel(owner, cat.whiskey, "Sheet A");
+    const b = await fx.mkLabel(owner, cat.rum, "Sheet B");
+    await fx.mkLabel(owner, cat.whiskey, "Sheet No Bottles");
+    const theirs = await fx.mkLabel(stranger, cat.whiskey, "Sheet Theirs");
+    await fx.mkBottle(stranger, theirs);
+    const shelf = [await fx.mkBottle(owner, a), await fx.mkBottle(owner, a), await fx.mkBottle(owner, b)];
+    // Off the shelf: the Collection hides these until you ask for them, so the editor does too.
+    const sold = await fx.mkBottle(owner, a);
+    const wishlist = await fx.mkBottle(owner, b);
+    await m.sql(`UPDATE bottles SET status = 'sold' WHERE id = $1`, sold);
+    await m.sql(`UPDATE bottles SET status = 'wishlist' WHERE id = $1`, wishlist);
+    await m.sql(`UPDATE bottles SET status = 'open' WHERE id = $1`, shelf[2]);
+
+    const sheet = await load.loadSheet(owner);
+
+    const collection = await bottlesGrid.queryBottles({ ...bottleFilters.parseFilters({}), pageSize: 1000 }, owner);
+    expect(sheet.bottles.map((x) => x.id).sort()).toEqual(collection.rows.map((x) => x.id).sort());
+    expect(sheet.bottles.map((x) => x.id).sort()).toEqual([...shelf].sort());
+
+    const labelsPage = await labelQueries.queryExpressions({ ...labelFilters.parseLabelFilters({}), pageSize: 1000 }, owner);
+    expect(sheet.labels.map((x) => x.id).sort()).toEqual(labelsPage.rows.map((x) => x.id).sort());
+    expect(sheet.labels.map((x) => x.name)).toEqual(expect.arrayContaining(["Sheet A", "Sheet B", "Sheet No Bottles"]));
+    expect(sheet.labels.map((x) => x.name)).not.toContain("Sheet Theirs");
+  });
+
+  it("keeps a bottle's own proof, age and size apart from its label's", async () => {
+    const label = await fx.mkLabel(owner, cat.whiskey, "Sheet Own", { proof: 100 });
+    const bottle = await fx.mkBottle(owner, label, { proof: 104.2 });
+    await m.sql(`UPDATE bottles SET size_ml = 375 WHERE id = $1`, bottle);
+    const plain = await fx.mkBottle(owner, label);
+
+    const sheet = await load.loadSheet(owner);
+    const own = sheet.bottles.find((x) => x.id === bottle)!;
+    const inherits = sheet.bottles.find((x) => x.id === plain)!;
+    expect(Number(own.proof)).toBeCloseTo(104.2);
+    expect(own.sizeMl).toBe(375);
+    expect(inherits.proof).toBeNull();
+    expect(inherits.sizeMl).toBeNull();
+    expect(Number(sheet.labels.find((x) => x.id === label)!.proof)).toBe(100);
+  });
+});

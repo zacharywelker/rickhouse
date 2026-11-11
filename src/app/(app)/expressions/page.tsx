@@ -38,6 +38,10 @@ export default async function ExpressionsPage({
               Bulk add
             </Link>
           </Button>
+          {/* Beside Bulk add until the editor can add and edit (#319 then retires Bulk add). */}
+          <Button variant="outline" asChild>
+            <Link href="/bulk-editor">Bulk editor</Link>
+          </Button>
           <Button asChild>
             <Link href="/expressions/new">
               New Label
