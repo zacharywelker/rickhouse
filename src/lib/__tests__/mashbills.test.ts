@@ -3,6 +3,7 @@ import {
   describeMashbill,
   ingredientColor,
   mashbillTitle,
+  matchesMashbillCategory,
   normalizeGrainName,
   orderGrains,
   recipeKey,
@@ -160,5 +161,23 @@ describe("recipeKey", () => {
     expect(recipeKey([{ grain: "Corn", percent: 78 }, { grain: "Rye", percent: 22 }])).not.toBe(
       recipeKey([{ grain: "Corn", percent: 80 }, { grain: "Rye", percent: 20 }]),
     );
+  });
+});
+
+describe("matchesMashbillCategory", () => {
+  it("shows only mashbills with the defining grain at 51% or higher", () => {
+    const bourbon = [{ grain: "Corn", percent: "51.00" }, { grain: "Rye", percent: 49 }];
+    const rye = [{ grain: "Rye", percent: 50 }, { grain: "Malted Rye", percent: 1 }];
+    expect(matchesMashbillCategory(bourbon, "bourbon")).toBe(true);
+    expect(matchesMashbillCategory(bourbon, "rye")).toBe(false);
+    expect(matchesMashbillCategory(rye, "rye")).toBe(true);
+    expect(matchesMashbillCategory(rye, "bourbon")).toBe(false);
+    expect(matchesMashbillCategory([{ grain: "Corn", percent: "50.99" }], "bourbon")).toBe(false);
+  });
+
+  it("keeps unknown and mixed recipes available in American Whiskey", () => {
+    expect(matchesMashbillCategory([], "american-whiskey")).toBe(true);
+    expect(matchesMashbillCategory([{ grain: "Corn", percent: 20 }], "american-whiskey")).toBe(true);
+    expect(matchesMashbillCategory([], "rye")).toBe(false);
   });
 });

@@ -102,6 +102,7 @@ export function BottleFields({
   inheritedTequilaClass = null,
   inheritedGinAged,
   inheritedGinNas,
+  openedLevel,
 }: {
   values: Record<string, FieldValue>;
   onChange: (name: string, value: FieldValue) => void;
@@ -125,12 +126,12 @@ export function BottleFields({
   inheritedTequilaClass?: string | null;
   inheritedGinAged?: boolean;
   inheritedGinNas?: boolean;
+  openedLevel?: Pick<React.ComponentProps<typeof OpenedLevel>, "value" | "onChange" | "error">;
 }) {
   // With an age filled in the statement is greyed out; triple-clicking it makes it editable again.
   const [statementOpen, setStatementOpen] = React.useState(false);
-  const [ginAgeOpen, setGinAgeOpen] = React.useState(false);
-  const [whiskeyAgeOpen, setWhiskeyAgeOpen] = React.useState(false);
-  const statementLocked = fieldGroup !== "whiskey" && ageFilled(values) && !statementOpen;
+  const [ageOpen, setAgeOpen] = React.useState(false);
+  const statementLocked = values.ageYearsSource !== "derived" && ageFilled(values) && !statementOpen;
   const unit = releaseUnit(fieldGroup, categoryKind);
   const unitTitle = unit[0]!.toUpperCase() + unit.slice(1);
   const effectiveTequilaClass = String(values.tequilaClass || inheritedTequilaClass || "");
@@ -175,6 +176,22 @@ export function BottleFields({
             // rather than the generic field; see the label form for the same
             // pattern. `field` stays in BOTTLE_FIELDS so seeding and the
             // server's allow-list still see these names.
+            if (field.name === "status" && field.kind === "select" && openedLevel) {
+              return (
+                <Field
+                  key={field.name}
+                  spec={{ ...field, options: field.options.map((option) => option.value === "owned" ? { ...option, label: "Sealed" } : option) }}
+                  idPrefix={idPrefix}
+                  value={values.status ?? "owned"}
+                  error={errors.status}
+                  onChange={(next) => {
+                    onChange("status", next);
+                    if (next === "owned") openedLevel.onChange(SEALED);
+                    if (next === "open") openedLevel.onChange({ ...openedLevel.value, isOpen: true });
+                  }}
+                />
+              );
+            }
             if (field.name === "proof") {
               return (
                 <ProofAbvFields
@@ -229,8 +246,8 @@ export function BottleFields({
                     ageDays: values.ageDays ?? "",
                   }}
                   onChange={(name, next) => onChange(name, next)}
-                  locked={(isGinKind(categoryKind) && ginNas && !ginAgeOpen) || (fieldGroup === "whiskey" && values.ageYearsSource === "derived" && !whiskeyAgeOpen)}
-                  onUnlock={() => { setGinAgeOpen(true); setWhiskeyAgeOpen(true); onChange("ageYearsSource", "entered"); }}
+                  locked={!ageOpen && ((isGinKind(categoryKind) && ginNas) || String(values.ageStatement ?? "").trim() !== "")}
+                  onUnlock={() => setAgeOpen(true)}
                   errors={{
                     ageYears: errors.ageYears,
                     ageMonths: errors.ageMonths,
@@ -279,6 +296,20 @@ export function BottleFields({
             }
             return control;
           })}
+            {section.id === "bottle" && openedLevel ? (
+              <div className="col-span-full">
+                <OpenedLevel
+                  {...openedLevel}
+                  fieldGroup={fieldGroup}
+                  onChange={(next) => {
+                    openedLevel.onChange(next);
+                    if (values.status === "owned" || values.status === "open") {
+                      onChange("status", next.isOpen ? "open" : "owned");
+                    }
+                  }}
+                />
+              </div>
+            ) : null}
             {section.id === "override" ? (
               isGinKind(categoryKind) || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur" ? null : <DeriveAge values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} />
             ) : null}
@@ -367,29 +398,20 @@ export function BottleForm({
         releases={releases}
         labelDates={labelDates}
         collapseLabelPicker={collapseLabelPicker}
+        openedLevel={bottleId === null && duplicateSourceId === null
+          ? { value: life, onChange: setLife, error: fieldErrors.dateOpened ?? fieldErrors.fillPct }
+          : undefined}
         fieldGroup={categoryGroups[options.expressionId?.find((option) => option.value === Number(values.expressionId))?.categoryId ?? -1] ?? "other"}
         categoryKind={categoryKinds[options.expressionId?.find((option) => option.value === Number(values.expressionId))?.categoryId ?? -1] ?? "other"}
         inheritedTequilaClass={options.expressionId?.find((option) => option.value === Number(values.expressionId))?.tequilaClass ?? null}
       />
 
       {bottleId === null && duplicateSourceId === null ? (
-        <Section>
-          <SectionHeader>
-            <SectionTitle>Opened and level</SectionTitle>
-            <SectionDescription>Already poured from? Tick Opened and set how much is left, the same dial as the bottle page.</SectionDescription>
-          </SectionHeader>
-          <SectionContent>
-            <input type="hidden" name="isOpen" value={life.isOpen ? "true" : ""} />
-            <input type="hidden" name="fillPct" value={life.fillPct} />
-            <input type="hidden" name="dateOpened" value={life.isOpen ? life.dateOpened : ""} />
-            <OpenedLevel
-              value={life}
-              onChange={setLife}
-              fieldGroup={categoryGroups[options.expressionId?.find((option) => option.value === Number(values.expressionId))?.categoryId ?? -1] ?? "other"}
-              error={fieldErrors.dateOpened ?? fieldErrors.fillPct}
-            />
-          </SectionContent>
-        </Section>
+        <>
+          <input type="hidden" name="isOpen" value={life.isOpen ? "true" : ""} />
+          <input type="hidden" name="fillPct" value={life.fillPct} />
+          <input type="hidden" name="dateOpened" value={life.isOpen ? life.dateOpened : ""} />
+        </>
       ) : null}
 
       {duplicateSourceId !== null ? <Section>

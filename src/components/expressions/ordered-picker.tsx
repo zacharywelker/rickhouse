@@ -10,7 +10,6 @@ import { linksPayload } from "@/lib/expressions/links";
 import { UndisclosedTick } from "./undisclosed-tick";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
 import { CreateWithDetailsDialog } from "@/components/admin/create-with-details-dialog";
-import { mashbillSuggestionsAction } from "@/app/(app)/expressions/actions";
 
 /** The JSON a list is submitted as, read back by `parseLinks` on the server. */
 export function serializeLinks(rows: LinkedRow[]): string {
@@ -62,11 +61,11 @@ export function OrderedPicker({
   emptyHint,
   distilleryChoices,
   inferable = false,
-  onSuggestMashbill,
-  chosenMashbillIds,
   undisclosable = false,
   onOptionCreated,
   defaultCountry,
+  brand,
+  matchesOption,
   renderRowExtra,
   footer,
   hiddenValue,
@@ -78,6 +77,8 @@ export function OrderedPicker({
   resource: ReferenceResource | null;
   options: Option[];
   defaultCountry?: string;
+  brand?: Option;
+  matchesOption?: (option: Option) => boolean;
   emptyHint?: string;
   amountLabel: string;
   amountSuffix: string;
@@ -96,13 +97,6 @@ export function OrderedPicker({
   distilleryChoices?: Array<{ id: number; name: string }>;
   /** Distilleries only: each row gets an "Inferred" tick, for a source the label never names. */
   inferable?: boolean;
-  /**
-   * Distilleries only: where a "Common mashbills" suggestion goes. It belongs
-   * in the label's mashbill list, not this one, so the form supplies the way in.
-   */
-  onSuggestMashbill?: (row: LinkedRow) => void;
-  /** Distilleries only: mashbills already on the label, so a suggestion is not offered twice. */
-  chosenMashbillIds?: ReadonlySet<number>;
   /**
    * Distilleries only: a "Distillery not disclosed" tick under the list, for a
    * label that names a place and no distillery. Those links live behind the
@@ -125,7 +119,7 @@ export function OrderedPicker({
 }) {
   const [created, setCreated] = React.useState<Option[]>([]);
   const [editing, setEditing] = React.useState<LinkedRow | null>(null);
-  const [suggestions, setSuggestions] = React.useState<Record<number, Option[]>>({});
+  const [optionNotice, setOptionNotice] = React.useState("");
   const available = React.useMemo(() => {
     const known = new Set(options.map((option) => option.value));
     return [...options, ...created.filter((option) => !known.has(option.value))];
@@ -137,27 +131,9 @@ export function OrderedPicker({
   const onChange = (next: LinkedRow[]) => onAllRowsChange(undisclosable ? [...next, ...undisclosedRows] : next);
   const chosen = new Set(allRows.map((row) => row.id));
   const selectable = available.filter(
-    (option) => !chosen.has(option.value) && !(undisclosable && option.undisclosed),
+    (option) => !chosen.has(option.value) && !(undisclosable && option.undisclosed) && (matchesOption?.(option) ?? true),
   );
   const soloDistillery = distilleryChoices?.length === 1 ? distilleryChoices[0]! : null;
-  const distilleryKey = resource === "distilleries" && name === "distilleryLinks"
-    ? value.map((row) => row.id).join(",")
-    : "";
-
-  React.useEffect(() => {
-    if (!distilleryKey) {
-      return;
-    }
-    let active = true;
-    const ids = distilleryKey.split(",").map(Number);
-    void Promise.all(ids.map(async (id) => [id, await mashbillSuggestionsAction(id)] as const)).then((pairs) => {
-      if (active) setSuggestions(Object.fromEntries(pairs));
-    }).catch(() => {
-      if (active) setSuggestions({});
-    });
-    return () => { active = false; };
-  }, [distilleryKey]);
-
   const move = (index: number, delta: number) => {
     const next = [...value];
     const target = index + delta;
@@ -168,22 +144,12 @@ export function OrderedPicker({
   };
 
   const addRow = (option: Option) => {
+    setOptionNotice("");
     const distilleryId = soloDistillery ? soloDistillery.id : null;
     onChange([
       ...value,
       { id: option.value, label: option.label, hint: option.hint, amount: "", distilleryId, undisclosed: option.undisclosed },
     ]);
-  };
-
-  const addSuggestedMashbill = (distillery: LinkedRow, option: Option) => {
-    // With one distillery the save attributes it automatically (issue #13).
-    onSuggestMashbill?.({
-      id: option.value,
-      label: option.label,
-      hint: option.hint,
-      amount: "",
-      distilleryId: value.length > 1 ? distillery.id : null,
-    });
   };
 
   return (
@@ -334,24 +300,6 @@ export function OrderedPicker({
                   <X className="size-4" />
                 </Button>
               </div>
-              {resource === "distilleries" && name === "distilleryLinks" && (suggestions[row.id]?.length ?? 0) > 0 ? (
-                <div className="basis-full pl-7 text-xs">
-                  <span className="mr-2 text-muted-foreground">Common mashbills:</span>
-                  {suggestions[row.id]!.map((suggestion) => (
-                    <Button
-                      key={suggestion.value}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-auto px-1 py-0 text-xs underline underline-offset-2"
-                      disabled={chosenMashbillIds?.has(suggestion.value)}
-                      onClick={() => addSuggestedMashbill(row, suggestion)}
-                    >
-                      {suggestion.label}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
               {renderRowExtra ? <div className="basis-full pl-7">{renderRowExtra(row)}</div> : null}
             </li>
           ))}
@@ -366,17 +314,22 @@ export function OrderedPicker({
         resource={resource}
         {...(resource === null && name === "mashbillLinks" ? { detailResource: "mashbills" as const } : {})}
         options={selectable}
+        brand={brand}
         {...(defaultCountry ? { defaultCountry } : {})}
         value={null}
         onChange={(next) => {
           if (next === null) return;
-          const option = available.find((o) => o.value === next);
+          const option = selectable.find((o) => o.value === next);
           if (!option) return;
           addRow(option);
         }}
         onOptionCreated={(option) => {
           setCreated((prev) => [...prev, option]);
           onOptionCreated?.(option);
+          if (matchesOption && !matchesOption(option)) {
+            setOptionNotice("Saved. This mashbill does not match the selected category.");
+            return;
+          }
           addRow(option);
         }}
         placeholder={`Add ${label.toLowerCase()}…`}
@@ -385,6 +338,7 @@ export function OrderedPicker({
       <span id={`${name}-add-label`} className="sr-only">
         Add {label.toLowerCase()}
       </span>
+      {optionNotice ? <p role="status" className="text-xs text-muted-foreground">{optionNotice}</p> : null}
       {footer}
       {editing && resource !== null && ["distilleries", "mashbills", "finishes"].includes(resource) ? (
         <CreateWithDetailsDialog

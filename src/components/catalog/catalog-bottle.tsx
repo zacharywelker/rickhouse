@@ -16,17 +16,19 @@ import {
   EMPTY_LINKS,
   ExpressionFields,
   LABEL_FIELDS,
+  PhotoBox,
   initialLabelValues,
   withLabelChange,
   type LabelLinks,
 } from "@/components/expressions/expression-form";
 import { BottleFields } from "@/components/expressions/bottle-form";
-import { OpenedLevel, SEALED } from "@/components/bottles/opened-level";
+import { SEALED } from "@/components/bottles/opened-level";
 import { PendingColas } from "@/components/expressions/cola-approvals";
 import { serializeLinks } from "@/components/expressions/ordered-picker";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { unshownErrors, type FieldError } from "@/lib/forms/unshown-errors";
 import { guessNewLabel } from "@/lib/expressions/label-search";
+import { withStatementAge } from "@/lib/expressions/whiskey-age";
 import { withOption } from "@/lib/forms/values";
 import { nameContextFor, type CategoryKind, type LabelDates } from "@/lib/expressions/rules";
 import { formatNumeric } from "@/lib/utils";
@@ -206,6 +208,8 @@ export function CatalogBottle({
     if (category !== null) values.categoryId = String(category);
     setLabelValues(values);
     setLabelLinks(EMPTY_LINKS);
+    setLabelPhotoFile(null);
+    setLabelPhotoLink("");
     setPendingTtb(code?.kind === "ttb" ? [code.value] : []);
     setColaKey((key) => key + 1);
     focusLater(values.brandId ? "expression-name" : "expression-brandId");
@@ -229,6 +233,8 @@ export function CatalogBottle({
   const [bottleOptionsState, setBottleOptions] = React.useState(bottleOptions);
   const [bottleValues, setBottleValues] = React.useState(() => initialFieldValues(BOTTLE_FIELDS, null));
   const [life, setLife] = React.useState(SEALED);
+  const [labelPhotoFile, setLabelPhotoFile] = React.useState<File | null>(null);
+  const [labelPhotoLink, setLabelPhotoLink] = React.useState("");
   const [photos, setPhotos] = React.useState<Staged[]>([]);
   const [photoLink, setPhotoLink] = React.useState("");
   // Previews are object URLs; let them go when the page does.
@@ -248,6 +254,9 @@ export function CatalogBottle({
       URL.revokeObjectURL(prev[index]!.url);
       return prev.filter((_, i) => i !== index);
     });
+
+  const bottleCategoryId = Number(phase.kind === "existing" && !phase.editing ? phase.label.values.categoryId : labelValues.categoryId);
+  const bottleGroup = categoryGroups[bottleCategoryId] ?? "whiskey";
 
   // --- Saving -----------------------------------------------------------------
   const [saving, setSaving] = React.useState(false);
@@ -300,7 +309,19 @@ export function CatalogBottle({
       photosFailed = !uploaded?.ok;
     }
 
-    router.push(`/bottles/${result.bottleId}${photosFailed ? "?photos=failed" : ""}`);
+    const params = new URLSearchParams();
+    if (photosFailed) params.set("photos", "failed");
+    if (phase.kind === "new" && (labelPhotoFile || labelPhotoLink.trim())) {
+      const body = new FormData();
+      if (labelPhotoFile) body.append("photo", labelPhotoFile);
+      else body.append("imageUrl", labelPhotoLink.trim());
+      const uploaded = await fetch(`/api/expressions/${result.expressionId}/photo`, { method: "POST", body })
+        .then((response) => response.json() as Promise<{ ok: boolean }>)
+        .catch(() => null);
+      if (!uploaded?.ok) params.set("labelPhoto", "failed");
+    }
+
+    router.push(`/bottles/${result.bottleId}${params.size ? `?${params}` : ""}`);
     router.refresh();
   };
 
@@ -383,6 +404,12 @@ export function CatalogBottle({
             categoryGroups={categoryGroups}
             categoryKinds={categoryKinds}
             errors={errors.label}
+            photoSlot={phase.kind === "new" ? <PhotoBox
+              file={labelPhotoFile}
+              link={labelPhotoLink}
+              onFile={setLabelPhotoFile}
+              onLink={setLabelPhotoLink}
+            /> : undefined}
           />
           {phase.kind === "new" ? (
             <PendingColas
@@ -413,30 +440,27 @@ export function CatalogBottle({
               values={phase.kind === "existing" ? { ...bottleValues, expressionId: String(phase.label.id) } : bottleValues}
               releases={releases}
               labelDates={labelDates}
-              onChange={(name, value) => setBottleValues((prev) => ({ ...prev, [name]: value }))}
+              onChange={(name, value) => setBottleValues((prev) => {
+                const next = { ...prev, [name]: value };
+                return bottleGroup === "whiskey" ? withStatementAge(prev, next, name) : next;
+              })}
               options={bottleOptionsState}
               onOptionCreated={(name, option) => setBottleOptions((prev) => withOption(prev, name, option))}
               errors={errors.bottle}
               suggestions={suggestions}
               omit={["expressionId"]}
-              fieldGroup={categoryGroups[Number(phase.kind === "existing" ? phase.label.values.categoryId : labelValues.categoryId)] ?? "whiskey"}
-              categoryKind={categoryKinds[Number(phase.kind === "existing" ? phase.label.values.categoryId : labelValues.categoryId)] ?? "american"}
+              fieldGroup={bottleGroup}
+              categoryKind={categoryKinds[bottleCategoryId] ?? "american"}
               inheritedTequilaClass={String(labelValues.tequilaClass || (phase.kind === "existing" ? phase.label.values.tequilaClass : "") || "")}
               inheritedGinAged={Boolean(labelValues.isAgedGin ?? (phase.kind === "existing" ? phase.label.values.isAgedGin : false))}
               inheritedGinNas={Boolean(labelValues.isNas ?? (phase.kind === "existing" ? phase.label.values.isNas : false))}
-            />
-            <OpenedLevel
-              value={life}
-              onChange={setLife}
-              fieldGroup={categoryGroups[Number(phase.kind === "existing" ? phase.label.values.categoryId : labelValues.categoryId)] ?? "whiskey"}
-              error={errors.bottle.dateOpened ?? errors.bottle.fillPct}
+              openedLevel={{ value: life, onChange: setLife, error: errors.bottle.dateOpened ?? errors.bottle.fillPct }}
             />
           </div>
 
           <Section>
             <SectionHeader>
-              <SectionTitle>Photos</SectionTitle>
-              <SectionDescription>The first is the catalog photo. More can be added from the bottle&rsquo;s page.</SectionDescription>
+              <SectionTitle>Bottle photos</SectionTitle>
             </SectionHeader>
             <SectionContent className="flex flex-wrap gap-3">
               {photos.map((photo, i) => (

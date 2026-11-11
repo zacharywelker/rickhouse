@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { withOption } from "@/lib/forms/values";
-import { saveExpressionAction } from "@/app/(app)/expressions/actions";
+import { labelLinkSuggestionsAction, saveExpressionAction } from "@/app/(app)/expressions/actions";
 import { EXPRESSION_SECTIONS, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type FieldSpec, type Option } from "@/lib/admin/types";
 import type { FieldGroup } from "@/db/schema";
 import { ageFilled, withAgeDefaults } from "@/lib/bottles/age";
+import { matchesMashbillCategory } from "@/lib/mashbills";
 import { cn } from "@/lib/utils";
 import {
   BOND_PROOF,
@@ -201,8 +202,8 @@ export function ExpressionFields({
   const [forced, setForced] = React.useState<ReadonlySet<string>>(new Set());
   const unlock = (group: string) => setForced((now) => new Set(now).add(group));
   const nas = values.isNas === true;
-  const ageGreyed = (nas || (fieldGroup === "whiskey" && values.ageYearsSource === "derived")) && !forced.has("age");
-  const statementGreyed = (nas || (fieldGroup !== "whiskey" && ageFilled(values))) && !forced.has("age");
+  const ageGreyed = (nas || String(values.ageStatement ?? "").trim() !== "") && !forced.has("age");
+  const statementGreyed = (nas || (values.ageYearsSource !== "derived" && ageFilled(values))) && !forced.has("statement");
   const proofGreyed = values.isCaskStrength === true && !hidden.has("isCaskStrength") && !forced.has("proof");
   const nameContext: NameContext = { group: fieldGroup, kind };
   const says = nameSays(values.name, nameContext);
@@ -211,7 +212,7 @@ export function ExpressionFields({
     if ((name === "originCountry" || name === "originRegion") && (fieldGroup === "amaro" || fieldGroup === "liqueur")) {
       onChange(`${name}Manual`, String(value ?? "").trim() !== "");
     }
-    if (name === "isNas") setForced((now) => (now.has("age") ? new Set([...now].filter((g) => g !== "age")) : now));
+    if (name === "isNas") setForced((now) => new Set([...now].filter((g) => g !== "age" && g !== "statement")));
     if (name === "isCaskStrength") setForced((now) => (now.has("proof") ? new Set([...now].filter((g) => g !== "proof")) : now));
     if (name === "amaroStyle") {
       // A style contributes one botanical. Only style-added choices are
@@ -223,6 +224,37 @@ export function ExpressionFields({
     }
     onChange(name, value);
   };
+
+  const categoryOptions = options.categoryId ?? [];
+  let mashbillCategory: string | null = null;
+  const ancestors = new Set<number>();
+  for (let category = categoryOptions.find((option) => option.value === categoryId);
+    category && !ancestors.has(category.value);
+    category = categoryOptions.find((option) => option.value === category?.parentId)) {
+    if (category.slug === "bourbon" || category.slug === "rye") {
+      mashbillCategory = category.slug;
+      break;
+    }
+    ancestors.add(category.value);
+  }
+  const matchesRecipe = (option: Option) => matchesMashbillCategory(option.grains ?? [], mashbillCategory);
+  const brand = options.brandId?.find((option) => option.value === Number(values.brandId));
+  const distilleryOptions = (options.distilleryLinks ?? []).filter((option) =>
+    !option.undisclosed && (!option.country || countryForDistillery(kind, option.country)),
+  );
+  const mashbillOptions = (options.mashbillLinks ?? []).filter(matchesRecipe);
+  const distilleryKey = links.distilleries.filter((row) => !row.undisclosed).map((row) => row.id).join(",");
+  const mashbillKey = links.mashbills.map((row) => row.id).join(",");
+  const [pairings, setPairings] = React.useState<Awaited<ReturnType<typeof labelLinkSuggestionsAction>>>([]);
+  React.useEffect(() => {
+    if (!distilleryKey && !mashbillKey) return;
+    let active = true;
+    const ids = (key: string) => key ? key.split(",").map(Number) : [];
+    void labelLinkSuggestionsAction(ids(distilleryKey), ids(mashbillKey))
+      .then((result) => { if (active) setPairings(result); })
+      .catch(() => { if (active) setPairings([]); });
+    return () => { active = false; };
+  }, [distilleryKey, mashbillKey]);
 
   const bonded = fieldGroup === "whiskey" && !hidden.has("isBottledInBond") && values.isBottledInBond === true;
 
@@ -259,6 +291,43 @@ export function ExpressionFields({
     if (brought.length > 0) onChange("regions", [...new Set([...regions, ...brought])].join(", "));
   };
 
+  const mashbillsForDistillery = (distillery: LinkedRow) => (
+    <LinkSuggestions
+      label="Common mashbills"
+      options={pairings.filter((pair) => pair.distilleryId === distillery.id).flatMap((pair) => {
+        const option = mashbillOptions.find((item) => item.value === pair.mashbillId);
+        return option && !links.mashbills.some((row) => row.id === option.value) ? [option] : [];
+      })}
+      onSelect={(option) => onLinksChange({
+        ...links,
+        mashbills: [...links.mashbills, {
+          id: option.value, label: option.label, hint: option.hint, amount: "", distilleryId: distillery.id,
+        }],
+      })}
+    />
+  );
+
+  const distilleriesForMashbill = (mashbill: LinkedRow) => {
+    const named = links.distilleries.filter((row) => !row.undisclosed);
+    if ((named.length === 1 && links.distilleries.length === 1) || named.some((row) => row.id === mashbill.distilleryId)) return null;
+    return (
+      <LinkSuggestions
+        label="Common distilleries"
+        options={pairings.filter((pair) => pair.mashbillId === mashbill.id).flatMap((pair) => {
+          const option = distilleryOptions.find((item) => item.value === pair.distilleryId);
+          return option ? [option] : [];
+        })}
+        onSelect={(option) => changeLinks({
+          ...links,
+          distilleries: links.distilleries.some((row) => row.id === option.value)
+            ? links.distilleries
+            : [...links.distilleries, { id: option.value, label: option.label, hint: option.hint, amount: "" }],
+          mashbills: links.mashbills.map((row) => row.id === mashbill.id ? { ...row, distilleryId: option.value } : row),
+        })}
+      />
+    );
+  };
+
   const renderField = (field: FieldSpec) => {
     // Proof/ABV and the age triplet render as linked composites
     // rather than the generic field, but stay in `fields` above
@@ -281,6 +350,17 @@ export function ExpressionFields({
     }
     if (field.name === "ageMonths" || field.name === "ageDays") return null;
     if (hidden.has(field.name)) return null;
+    if (field.name === "isNonChillFiltered") return (
+      <label key={field.name} className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          name={field.name}
+          checked={values[field.name] === true}
+          onChange={(event) => change(field.name, event.target.checked)}
+        />
+        {field.label}
+      </label>
+    );
     if (field.name === "peatStatus" && kind === "irish") return (
       <label key="peatStatus" className="flex items-center gap-2 text-sm">
         <input type="hidden" name="peatStatus" value={String(values.peatStatus ?? "unknown")} />
@@ -311,7 +391,7 @@ export function ExpressionFields({
           compact
           showDays={!hidden.has("ageDays")}
           locked={ageGreyed}
-          onUnlock={() => { unlock("age"); change("ageYearsSource", "entered"); }}
+          onUnlock={() => unlock("age")}
           values={{
             ageYears: values.ageYears ?? "",
             ageMonths: values.ageMonths ?? "",
@@ -352,7 +432,7 @@ export function ExpressionFields({
         options={options[field.name] ?? []}
         onOptionCreated={(option) => onOptionCreated(field.name, option)}
         locked={greyed}
-        onUnlock={() => unlock(entry ? "entry" : "age")}
+        onUnlock={() => unlock(entry ? "entry" : "statement")}
       />
     );
   };
@@ -448,7 +528,10 @@ export function ExpressionFields({
             label={fieldGroup === "rum" ? "Distilleries / Estates" : "Distilleries"}
             description="Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere."
             resource="distilleries"
-            options={(options.distilleryLinks ?? []).filter((option) => !option.country || countryForDistillery(kind, option.country))}
+            options={distilleryOptions}
+            onOptionCreated={(option) => onOptionCreated("distilleryLinks", option)}
+            brand={brand}
+            renderRowExtra={mashbillsForDistillery}
             {...(isAgaveKind(kind) ? { defaultCountry: "Mexico" } : kind === "cognac" || kind === "armagnac" || kind === "calvados" ? { defaultCountry: "France" } : kind === "pisco" ? { defaultCountry: "Peru" } : kind === "canadian" ? { defaultCountry: "Canada" } : kind === "irish" ? { defaultCountry: "Ireland" } : {})}
             amountLabel="Share"
             amountSuffix="%"
@@ -457,8 +540,6 @@ export function ExpressionFields({
             undisclosable
             value={links.distilleries}
             onChange={(rows) => changeLinks({ ...links, distilleries: rows })}
-            chosenMashbillIds={new Set(links.mashbills.map((m) => m.id))}
-            onSuggestMashbill={(row) => changeLinks({ ...links, mashbills: [...links.mashbills, row] })}
           />
           {fieldGroup === "gin" && isGinKind(kind) ? (
             <>
@@ -514,6 +595,9 @@ export function ExpressionFields({
               resource={null}
               emptyHint="No mashbills yet — add a new one from here."
               options={options.mashbillLinks ?? []}
+              matchesOption={matchesRecipe}
+              onOptionCreated={(option) => onOptionCreated("mashbillLinks", option)}
+              renderRowExtra={distilleriesForMashbill}
               amountLabel="Share"
               amountSuffix="%"
               amountMax={100}
@@ -549,6 +633,26 @@ export function ExpressionFields({
         </SectionContent>
       </Section>
     </>
+  );
+}
+
+function LinkSuggestions({ label, options, onSelect }: {
+  label: string;
+  options: Option[];
+  onSelect: (option: Option) => void;
+}) {
+  if (options.length === 0) return null;
+  return (
+    <div className="basis-full pl-7 text-xs">
+      <span className="mr-2 text-muted-foreground">{label}</span>
+      {options.slice(0, 3).map((option) => (
+        <Button key={option.value} type="button" variant="ghost" size="sm"
+          className="h-auto px-1 py-0 text-xs underline underline-offset-2"
+          onClick={() => onSelect(option)}>
+          {option.label}
+        </Button>
+      ))}
+    </div>
   );
 }
 
@@ -599,7 +703,7 @@ function PhotoPreview({ file, link }: { file: File | null; link: string }) {
  * New Label's photo, always on show: a box where the picture will be, with Add photo and From a link beside it.
  * Held until the label is saved, because the photo route needs the label's id.
  */
-function PhotoBox({
+export function PhotoBox({
   file,
   link,
   onFile,

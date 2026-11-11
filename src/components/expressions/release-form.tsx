@@ -4,6 +4,8 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { ageFilled } from "@/lib/bottles/age";
+import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +34,7 @@ export function ReleaseForm({ releaseId, initial, notes }: { releaseId: number; 
   const router = useRouter();
   const [values, setValues] = React.useState(initial);
   const [ageOpen, setAgeOpen] = React.useState(false);
+  const [statementOpen, setStatementOpen] = React.useState(false);
   const set = (key: keyof ReleaseRow, value: string) => setValues((prev) => withStatementAge(prev, { ...prev, [key]: value }, key));
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(
     saveReleaseAction.bind(null, releaseId),
@@ -84,13 +87,17 @@ export function ReleaseForm({ releaseId, initial, notes }: { releaseId: number; 
         onChange={(name, next) => set(name, String(next ?? ""))}
         errors={{}}
         help="Leave blank to use the label's age."
-        locked={values.ageYearsSource === "derived" && !ageOpen}
-        onUnlock={() => { setAgeOpen(true); set("ageYearsSource", "entered"); }}
+        locked={values.ageStatement.trim() !== "" && !ageOpen}
+        onUnlock={() => setAgeOpen(true)}
       />
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="release-age-statement">Age Statement</Label>
-        <Input id="release-age-statement" name="ageStatement" value={values.ageStatement} onChange={(e) => set("ageStatement", e.target.value)} placeholder="Blend of 8 to 16 year old" />
-      </div>
+      <Field
+        idPrefix="release"
+        spec={{ kind: "text", name: "ageStatement", label: "Age Statement", placeholder: "Blend of 8 to 16 year old" }}
+        value={values.ageStatement}
+        onChange={(next) => set("ageStatement", String(next))}
+        locked={values.ageYearsSource !== "derived" && ageFilled(values) && !statementOpen}
+        onUnlock={() => setStatementOpen(true)}
+      />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="release-notes">Notes</Label>
         <Textarea

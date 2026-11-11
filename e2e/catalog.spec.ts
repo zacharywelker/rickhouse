@@ -105,13 +105,89 @@ test("a new label starts from the search, and both save together", async ({ page
   await page.getByLabel("Proof", { exact: true }).first().fill("117.6");
   await page.getByLabel("Price Paid").fill("89.99");
 
+  const months = page.locator("#expression-ageMonths");
+  const years = page.locator("#expression-ageYears");
+  const statement = page.locator("#expression-ageStatement");
+  await months.fill("63");
+  await months.press("Tab");
+  await expect(years).toHaveValue("5");
+  await expect(months).toHaveValue("3");
+  await expect(statement).not.toBeEditable();
+  await statement.click({ clickCount: 3 });
+  await expect(statement).toBeEditable();
+  await statement.fill("Blend of 5 to 8 years");
+  await expect(years).not.toBeEditable();
+  await years.click({ clickCount: 3 });
+  await expect(years).toBeEditable();
+
+  await page.getByLabel("Distillery not disclosed").check();
+  await page.getByLabel("States or provinces").fill("KY, IN, TN");
+  await page.getByRole("button", { name: "Add location" }).click();
+  await page.getByLabel("Country", { exact: true }).fill("Scotland");
+  await page.getByRole("button", { name: "Add location" }).click();
+  await page.getByLabel("Country", { exact: true }).fill("Canada");
+
+  await page.getByLabel("Upload label photo").setInputFiles(path.join(__dirname, "fixtures", "bottle.jpg"));
+  await expect(page.getByRole("img", { name: "Label photo preview" })).toBeVisible();
+  const fill = page.getByRole("slider", { name: "Fill level" });
+  await fill.press("ArrowLeft");
+  await expect(page.getByLabel("Status", { exact: true })).toHaveValue("open");
+
+
   await page.getByRole("button", { name: "Save label and bottle" }).click();
   await expect(page).toHaveURL(/\/bottles\/\d+$/);
+
+  await expect(page.getByRole("img", { name: `Pursuit Spirits ${name}` })).toBeVisible();
+  await expect(page.getByRole("slider", { name: "Fill level" })).toHaveAttribute("aria-valuenow", "95");
+  for (const place of ["Kentucky", "Indiana", "Tennessee", "Scotland", "Canada"]) {
+    await expect(page.getByText(`Undisclosed (${place})`, { exact: true })).toBeVisible();
+  }
 
   // The new label is on file, and the search finds it next time.
   await page.goto("/bottles/add");
   await search.fill(name);
   await expect(page.getByRole("option", { name: new RegExp(name) })).toBeVisible();
+});
+
+test("the label suggests matching recipes and distilleries and carries the brand company into creation", async ({ page }) => {
+  await page.goto("/bottles/add");
+  await page.getByRole("combobox", { name: "Find the label" }).fill("Pursuit Test Blend");
+  await page.getByRole("option", { name: "New label: Pursuit Spirits · Test Blend" }).click();
+
+  const chooseCategory = async (name: string) => {
+    await page.getByRole("combobox", { name: "Category" }).click();
+    await page.locator("[cmdk-input]").fill(name);
+    await page.getByRole("option", { name: new RegExp(`^${name} in `) }).click();
+  };
+  await chooseCategory("Rye");
+  const addMashbill = page.getByRole("combobox", { name: "Add mashbills" });
+  await addMashbill.click();
+  await expect(page.getByRole("option", { name: /78% Corn/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await chooseCategory("Bourbon");
+  await addMashbill.click();
+  await page.getByRole("option", { name: /78% Corn/ }).click();
+  await page.getByRole("button", { name: "Bardstown Bourbon Company", exact: true }).click();
+  await expect(page.getByRole("group", { name: "Distilleries", exact: true })).toContainText("Bardstown Bourbon Company");
+
+  await page.getByRole("combobox", { name: "Add distilleries" }).click();
+  await page.locator("[cmdk-input]").fill("Tennessee");
+  await page.getByRole("option", { name: /Tennessee Distilling Ltd/ }).click();
+  const suggestedMashbill = page.getByRole("button", { name: /80% Corn/ });
+  await suggestedMashbill.click();
+  await expect(page.getByRole("group", { name: "Mashbills", exact: true })).toContainText("80% Corn");
+
+  await page.getByRole("combobox", { name: "Add distilleries" }).click();
+  await page.locator("[cmdk-input]").fill("Pursuit Spirits Distillery");
+  await page.getByRole("option", { name: /Create with details Pursuit Spirits Distillery/ }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("combobox", { name: "Company" })).toContainText("Pursuit Spirits");
+  await expect(dialog.getByLabel("Scotch Region")).toBeHidden();
+  await expect(dialog.getByLabel("DSP Number")).toBeVisible();
+  await dialog.getByLabel("Country", { exact: true }).fill("Scotland");
+  await expect(dialog.getByLabel("Scotch Region")).toBeVisible();
+  await expect(dialog.getByLabel("DSP Number")).toBeHidden();
 });
 
 test("the switch in Configuration makes Add bottle search-first", async ({ page }) => {

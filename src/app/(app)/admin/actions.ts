@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { AdminRuleError } from "@/lib/admin/errors";
-import { RESOURCES, isResourceKey } from "@/lib/admin/registry";
+import { REFERENCE_OPTION_LOADERS, RESOURCES, isResourceKey } from "@/lib/admin/registry";
 import { quickCreateSchema } from "@/lib/admin/schemas";
 import {
   REFERENCE_RESOURCES,
@@ -98,7 +98,7 @@ function isReferenceResource(value: string): value is ReferenceResource {
 }
 
 /** Creates a lookup row from just a name, without leaving the form you are on. */
-export async function quickCreateAction(resource: string, name: string): Promise<QuickCreateResult> {
+export async function quickCreateAction(resource: string, name: string, defaultCompanyId?: number): Promise<QuickCreateResult> {
   const user = await requireSession();
   if (!isReferenceResource(resource)) return { ok: false, error: "That is not something this app manages." };
   if (resource === "categories" && user.role !== "admin") return { ok: false, error: SHARED_ONLY_ADMIN_EDITS };
@@ -110,7 +110,15 @@ export async function quickCreateAction(resource: string, name: string): Promise
 
   const config = RESOURCES[resource];
   try {
-    const outcome = await config.save({ name: parsed.data.name, ...QUICK_CREATE_DEFAULTS[resource] }, null, user.id);
+    const defaults = { ...QUICK_CREATE_DEFAULTS[resource] };
+    if (resource === "distilleries" && defaultCompanyId !== undefined) {
+      const { companyId } = await config.optionsFor(user.id);
+      if (!companyId?.some((option) => option.value === defaultCompanyId)) {
+        return { ok: false, error: "Choose a company from your collection." };
+      }
+      defaults.companyId = String(defaultCompanyId);
+    }
+    const outcome = await config.save({ name: parsed.data.name, ...defaults }, null, user.id);
     if (!outcome.ok) return { ok: false, error: outcome.error };
     revalidatePath(`/admin/${resource}`);
     return { ok: true, option: { value: outcome.id, label: parsed.data.name } };
@@ -139,8 +147,7 @@ export async function resourceFormSpecAction(resource: string, id?: number): Pro
 export async function createdOptionAction(resource: string, id: number): Promise<QuickCreateResult> {
   const user = await requireSession();
   if (!isDetailedResource(resource)) return { ok: false, error: "That is not something this app manages." };
-  const rows = await RESOURCES[resource].list(user.id);
-  const row = rows.find((r) => r.id === id);
-  if (!row) return { ok: false, error: "That was created but could not be found." };
-  return { ok: true, option: { value: id, label: String(row.cells.name ?? "") } };
+  const options = await REFERENCE_OPTION_LOADERS[resource](user.id);
+  const option = options.find((row) => row.value === id);
+  return option ? { ok: true, option } : { ok: false, error: "That was created but could not be found." };
 }

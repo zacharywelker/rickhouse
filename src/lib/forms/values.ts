@@ -45,5 +45,5 @@ export function initialFieldValues(
 
 /** A picker's newly created option, added to its list in name order. */
 export function withOption(prev: Record<string, Option[]>, name: string, option: Option): Record<string, Option[]> {
-  return { ...prev, [name]: [...(prev[name] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)) };
+  return { ...prev, [name]: [...(prev[name] ?? []).filter((existing) => existing.value !== option.value), option].sort((a, b) => a.label.localeCompare(b.label)) };
 }

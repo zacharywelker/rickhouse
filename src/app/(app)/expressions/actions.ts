@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { deleteStoredImage } from "@/lib/images";
 import { db } from "@/db";
-import { bottles, distilleries, expressions, expressionDistilleries, expressionMashbills, ingredients, mashbillGrains, mashbills, type IngredientKind } from "@/db/schema";
+import { bottles, distilleries, expressions, expressionDistilleries, expressionMashbills, ingredients, mashbills, type IngredientKind } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { resolveSlug } from "@/lib/slug";
@@ -35,8 +35,6 @@ import { parseOtherNames } from "@/lib/other-names";
 import { syncExpressionNames } from "@/lib/other-names-store";
 import { pendingTtbIds } from "@/lib/cola/ids";
 import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
-import { describeMashbill, mashbillTitle } from "@/lib/mashbills";
-import type { Option } from "@/lib/admin/types";
 import type { IngredientChoice } from "@/lib/expressions/spirit-details";
 import { isGinKind } from "@/lib/expressions/gin-details";
 
@@ -48,62 +46,43 @@ export async function ingredientOptionsAction(kind: IngredientKind): Promise<Ing
     .orderBy(ingredients.name);
 }
 
-/** The most common recipes linked to labels from this distillery in this account. */
-export async function mashbillSuggestionsAction(distilleryId: number): Promise<Option[]> {
+/** Rank known distillery and recipe pairings by how many of the account's labels use them. */
+export async function labelLinkSuggestionsAction(distilleryIds: number[], mashbillIds: number[]) {
   const user = await requireSession();
-  if (!Number.isInteger(distilleryId) || distilleryId <= 0) return [];
-  const rows = await db
-    .select({
-      value: mashbills.id,
-      name: mashbills.name,
-      isSecret: mashbills.isSecret,
-      isGeneric: mashbills.isGeneric,
-      recipe: sql<string | null>`(
-        select string_agg(g.grain || ':' || g.percent, '|' order by g.position)
-        from ${mashbillGrains} g where g.mashbill_id = ${mashbills.id}
-      )`,
-      uses: sql<number>`count(distinct ${expressionMashbills.expressionId})::int`,
-    })
+  const distilleryChoices = distilleryIds.filter((id) => Number.isInteger(id) && id > 0).slice(0, 100);
+  const mashbillChoices = mashbillIds.filter((id) => Number.isInteger(id) && id > 0).slice(0, 100);
+  if (!distilleryChoices.length && !mashbillChoices.length) return [];
+
+  const uses = sql<number>`count(distinct ${expressionMashbills.expressionId})::int`;
+  return db
+    .select({ distilleryId: distilleries.id, mashbillId: mashbills.id, uses })
     .from(expressionDistilleries)
     .innerJoin(distilleries, eq(distilleries.id, expressionDistilleries.distilleryId))
     .innerJoin(expressions, eq(expressions.id, expressionDistilleries.expressionId))
-    .innerJoin(
-      expressionMashbills,
-      and(
-        eq(expressionMashbills.expressionId, expressions.id),
-        or(
-          eq(expressionMashbills.distilleryId, distilleryId),
-          and(
-            isNull(expressionMashbills.distilleryId),
-            sql`not exists (
-              select 1 from expression_distilleries other
-              where other.expression_id = ${expressions.id}
-                and other.distillery_id <> ${distilleryId}
-            )`,
-          ),
-        ),
+    .innerJoin(expressionMashbills, and(
+      eq(expressionMashbills.expressionId, expressions.id),
+      or(
+        eq(expressionMashbills.distilleryId, distilleries.id),
+        and(isNull(expressionMashbills.distilleryId), sql`not exists (
+          select 1 from expression_distilleries other
+          where other.expression_id = ${expressions.id}
+            and other.distillery_id <> ${distilleries.id}
+        )`),
       ),
-    )
+    ))
     .innerJoin(mashbills, eq(mashbills.id, expressionMashbills.mashbillId))
     .where(and(
-      eq(expressionDistilleries.distilleryId, distilleryId),
-      eq(distilleries.ownerId, user.id),
       eq(expressions.ownerId, user.id),
+      eq(distilleries.ownerId, user.id),
+      eq(distilleries.disclosure, "named"),
+      eq(mashbills.ownerId, user.id),
+      or(
+        distilleryChoices.length ? inArray(distilleries.id, distilleryChoices) : undefined,
+        mashbillChoices.length ? inArray(mashbills.id, mashbillChoices) : undefined,
+      ),
     ))
-    .groupBy(mashbills.id)
-    .orderBy(sql`count(distinct ${expressionMashbills.expressionId}) desc`, sql`min(${mashbills.id})`)
-    .limit(3);
-  return rows.map((row) => {
-    const recipe = describeMashbill(
-      row.recipe ? row.recipe.split("|").map((entry) => {
-        const [grain, percent] = entry.split(":");
-        return { grain: grain ?? "", percent: percent ?? "" };
-      }) : [],
-    );
-    const label = mashbillTitle(row, recipe || "No recipe");
-    const hint = `Used on ${row.uses} label${row.uses === 1 ? "" : "s"}`;
-    return { value: row.value, label, hint };
-  });
+    .groupBy(distilleries.id, mashbills.id)
+    .orderBy(sql`${uses} desc`, distilleries.id, mashbills.id);
 }
 
 /**
