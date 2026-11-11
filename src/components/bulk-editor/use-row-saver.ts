@@ -23,6 +23,8 @@ type Input = {
   setEdits: React.Dispatch<React.SetStateAction<Edits>>;
   setMoves: React.Dispatch<React.SetStateAction<Moves>>;
   setDrafts: React.Dispatch<React.SetStateAction<DraftRow[]>>;
+  /** A new row has saved: the key its saved row will have, so the sheet can keep it on screen whatever is filtered. */
+  onLanded?: (savedKey: string) => void;
 };
 
 /** The quiet time after the last save before the sheet is reloaded, so a run of saves is one reload. */
@@ -127,6 +129,7 @@ export function useRowSaver(input: Input) {
             const bottleId = "bottleId" in outcome ? outcome.bottleId : null;
             const savedKey = bottleId != null && view.bottles ? `b${bottleId}` : `l${"labelId" in outcome ? outcome.labelId : 0}`;
             landed.current.set(key, savedKey);
+            latest.current.onLanded?.(savedKey);
             setCreatedAs((prev) => ({ ...prev, [key]: savedKey }));
           }
           mark(key, { kind: "saved" });

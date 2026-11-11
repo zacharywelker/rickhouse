@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Check, Circle, CircleAlert, Lock, LoaderCircle } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { ColumnPicker, type PickerGroup } from "@/components/bulk/column-picker";
 import { GridCell } from "@/components/bulk/grid-cell";
 import { useHiddenColumns } from "@/components/bulk/use-hidden-columns";
@@ -30,7 +31,9 @@ import {
 } from "@/lib/bulk-editor/sheet";
 import { cn } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
+import { filterRows, isFiltered, isSortable, NO_FIND, nextSort, sortRows, type Find } from "@/lib/bulk-editor/find";
 import { ComboEditor } from "./combo-editor";
+import { FindBar } from "./find-bar";
 import type { ComboData, Editing, Finish } from "./types";
 import { useRowSaver } from "./use-row-saver";
 
@@ -350,13 +353,46 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const [edits, setEdits] = React.useState<Edits>({});
   const rawRows = React.useMemo(() => sheetRows(view, labels, bottles), [view, labels, bottles]);
   // Rows are in their sorted place as soon as a move or a rename is made, not once it has been saved and read back.
-  const savedRows = React.useMemo(() => arrange(rawRows, moves, edits, labels), [rawRows, moves, edits, labels]);
-  const noun = view.bottles ? (savedRows.length === 1 ? "bottle" : "bottles") : savedRows.length === 1 ? "label" : "labels";
+  const arranged = React.useMemo(() => arrange(rawRows, moves, edits, labels), [rawRows, moves, edits, labels]);
+
+  // Search, filters and sort change what is shown, never what is saved. A row that has been worked on this session
+  // (edited, moved, or just saved) is kept on screen whatever the filter says, and in place whatever the sort says,
+  // until the filters are cleared or the page is reloaded.
+  const [find, setFind] = React.useState<Find>(NO_FIND);
+  const [touched, setTouched] = React.useState<ReadonlySet<string>>(new Set());
+  const touch = (key: string) => setTouched((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+  // The values a row had when the sheet loaded, which the sort places it by. Kept across the reloads that follow a save,
+  // so an edited row stays where it is; renewed only when the sort is changed or the filters are cleared.
+  const [frozen, setFrozen] = React.useState<ReadonlyMap<string, SheetRow>>(() => new Map(rawRows.map((r) => [r.key, r])));
+  const unseen = rawRows.filter((r) => !frozen.has(r.key));
+  if (unseen.length > 0) setFrozen(new Map([...frozen, ...unseen.map((r): [string, SheetRow] => [r.key, r])]));
+  const refreeze = () => setFrozen(new Map(rawRows.map((r) => [r.key, r])));
+  const changeFind = (next: Find) => {
+    // Asking for a different sort, or the other direction, sorts by what the rows hold now.
+    if (next.sort?.column !== find.sort?.column || next.sort?.desc !== find.sort?.desc) refreeze();
+    setFind(next);
+  };
+  const activeSort = find.sort && columns.some((c) => c.id === find.sort!.column) ? find.sort : null;
+  const ordered = React.useMemo(() => sortRows(arranged, activeSort, frozen), [arranged, activeSort, frozen]);
+  const pinned = React.useCallback((row: SheetRow) => touched.has(row.key) || (!row.draft && touched.has(`l${row.label.id}`)), [touched]);
+  const savedRows = React.useMemo(() => filterRows(ordered, find, pinned), [ordered, find, pinned]);
+  const total = ordered.length;
+  const noun = view.bottles ? (total === 1 ? "bottle" : "bottles") : total === 1 ? "label" : "labels";
+  const filtered = isFiltered(find);
+  const findOptions = React.useMemo(
+    () => ({
+      categories: categories.map((c) => ({ key: c.id, label: c.name })),
+      brands: brands.map((b) => ({ key: b.id, label: b.name })),
+      stores: [...new Set(bottles.map((b) => b.storeName).filter((n): n is string => Boolean(n)))].sort((a, b) => a.localeCompare(b)).map((n) => ({ key: n, label: n })),
+    }),
+    [categories, brands, bottles],
+  );
+  const sortable = React.useMemo(() => columns.filter((c) => isSortable(c.id)).map((c) => ({ id: c.id, label: c.label })), [columns]);
 
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
   // one is made fresh each time (see `withBlankRow`).
   const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
-  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts });
+  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch });
   const createdAs = saver.createdAs;
   /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
   const [keyFloor, setKeyFloor] = React.useState(0);
@@ -447,6 +483,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     // back to what the sheet shows: the earlier value may already be saved, and the sheet has not read it back yet.
     const had = edits[key]?.[column.id] !== undefined;
     if (!had && value === editor.initial(row)) return;
+    touch(key);
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], [column.id]: value } }));
     saver.request(key);
   }
@@ -500,6 +537,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         const target = result.pick.kind === "existing" ? result.pick.id : null;
         if (target !== null) {
           setMoves((prev) => setMove(prev, row.key, target, row.bottle!.expressionId));
+          touch(row.key);
           saver.request(row.key);
         }
       } else if (columnId === "brand") stage(current, result.pick.name);
@@ -792,6 +830,19 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
           onChange={(next) => setHidden(new Set(SHEET_COLUMNS.filter((c) => !c.identity && !c.always && !next.has(c.id)).map((c) => c.id)))}
           presets={PICKER_PRESETS}
         />
+        <FindBar
+          find={find}
+          onFind={changeFind}
+          categories={findOptions.categories}
+          brands={findOptions.brands}
+          stores={view.bottles ? findOptions.stores : null}
+          sortable={sortable}
+          onClear={() => {
+            setFind((f) => ({ ...NO_FIND, sort: f.sort }));
+            setTouched(new Set());
+            refreeze();
+          }}
+        />
         {saving || unsaved > 0 ? (
           <p role="status" className="flex items-center gap-2 text-sm">
             {saving ? "Saving…" : `${unsaved} ${unsaved === 1 ? "row" : "rows"} not saved yet`}
@@ -815,7 +866,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
           </p>
         ) : null}
         <p className="ml-auto text-sm text-muted-foreground" aria-live="off">
-          {savedRows.length} {noun}
+          {filtered ? `Showing ${savedRows.length} of ${total} ${noun}` : `${total} ${noun}`}
         </p>
       </div>
 
@@ -840,10 +891,24 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                   key={column.id}
                   id={`bulk-editor-col-${column.id}`}
                   scope="col"
+                  aria-sort={activeSort?.column === column.id ? (activeSort.desc ? "descending" : "ascending") : undefined}
                   className={cn(HEAD_CELL, "top-7 font-medium", column.align === "right" && "text-right", ruleClass(index, column, columns[index - 1]), frozen.className)}
                   style={{ ...frozen.style }}
                 >
-                  {column.label}
+                  {isSortable(column.id) ? (
+                    // A click on the header sorts. It is not a tab stop: the Sort control in the toolbar is the way by keyboard.
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => changeFind({ ...find, sort: nextSort(activeSort, column.id) })}
+                      className="inline-flex items-center gap-1 uppercase hover:text-foreground"
+                    >
+                      {column.label}
+                      {activeSort?.column === column.id ? activeSort.desc ? <ArrowDown aria-hidden className="size-3" /> : <ArrowUp aria-hidden className="size-3" /> : null}
+                    </button>
+                  ) : (
+                    column.label
+                  )}
                 </TableHead>
               );
             })}
@@ -880,7 +945,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         </TableBody>
       </Table>
 
-      {savedRows.length === 0 ? (
+      {savedRows.length === 0 && total > 0 ? (
+        <p className="border-t border-border px-3 py-4 text-center text-sm text-muted-foreground">No {noun} match. Clear the filters to see them all.</p>
+      ) : null}
+      {total === 0 ? (
         <p className="border-t border-border px-3 py-4 text-center text-sm text-muted-foreground">
           {view.bottles ? <>Nothing on the shelf yet. Type in the first row to add a bottle, or switch to Labels.</> : <>No labels yet. Type in the first row to add one.</>}
         </p>
