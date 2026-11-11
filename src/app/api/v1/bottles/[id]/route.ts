@@ -1,12 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { strengthTier } from "@/lib/expressions/rules";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { updateBottle } from "@/lib/bottles/state";
 import { deleteBottleAction } from "@/app/(app)/bottles/actions";
-import { bottleBase } from "@/lib/expressions/schema";
+import { bottlePatchSchema as patchSchema } from "@/lib/bottles/patch-schema";
 import { expressionReleaseList, releaseById } from "@/lib/releases-store";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
 import { bottleImagesFor, categoryKindForExpression, expressionLinks, getBottle, tastingNotesFor } from "@/lib/expressions/queries";
@@ -141,27 +140,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     })),
   });
 }
-
-/**
- * What can change here. A field that is not listed is refused rather than quietly ignored, and a field sent
- * as `null` clears it. Status is never set directly: it follows the level and the Opened date.
- */
-const patchSchema = bottleBase
-  .pick({
-    pricePaid: true, storeId: true, dateAcquired: true, location: true, notes: true, batch: true, releaseYear: true, barrelNumber: true,
-    pickName: true, barrelFilledOn: true, bottledOn: true,
-    expressionId: true, releaseId: true, acquisition: true, isSingleBarrel: true, isSingleBarrelPick: true, pickedBy: true,
-    warehouse: true, rickFloor: true, bottleCount: true, sizeMl: true, proof: true, ageYears: true, ageMonths: true, ageDays: true,
-    ageStatement: true, tequilaClass: true, brandyGrade: true, ginIsNas: true,
-  })
-  .extend({
-    fillPct: z.number().int().min(0).max(100),
-    dateOpened: z.string().nullable(),
-    ifOpenedCleared: z.enum(["keep_open", "seal"]),
-  })
-  .partial()
-  .strict()
-  .refine((value) => Object.keys(value).length > 0, "Send at least one field to change.");
 
 /**
  * Changes a bottle: its level (with the web app's rules: below full opens a sealed bottle), its Opened date
