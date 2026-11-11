@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Check, Circle, CircleAlert, Lock, LoaderCircle } from "lucide-react";
 import { ArrowDown, ArrowUp, PanelRightClose, PanelRightOpen } from "lucide-react";
@@ -32,12 +33,15 @@ import {
 } from "@/lib/bulk-editor/sheet";
 import { cn } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
+import { idsOfKeys, keyOf } from "@/lib/bulk-editor/delete";
+import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 import { railFor } from "@/lib/bulk-editor/rail";
 import { shelfFor } from "@/lib/bulk-editor/shelf";
 import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND, nextSort, sortRows, type Find } from "@/lib/bulk-editor/find";
 import { ComboEditor } from "./combo-editor";
 import { FindBar } from "./find-bar";
 import { RailContent } from "./rail-panel";
+import { DeleteBar } from "./delete-bar";
 import type { ComboData, Editing, Finish } from "./types";
 import { useRowSaver } from "./use-row-saver";
 
@@ -48,7 +52,7 @@ const RAIL_KEY = "bulk-editor:rail";
 const RAIL_AUTO_OPEN = "(min-width: 1280px)";
 
 /** Brand and Label are held at the left while the rest of the sheet scrolls. Widths are fixed so the second can sit against the first. */
-const FROZEN: Record<string, { left: number; width: number }> = { brand: { left: 0, width: 130 }, name: { left: 130, width: 180 } };
+const FROZEN: Record<string, { left: number; width: number }> = { brand: { left: 0, width: 156 }, name: { left: 156, width: 180 } };
 
 /** Whether the cell is in the sheet's scroll box and clear of the headers held at its top (64px: the box's scroll padding). */
 function withinView(el: HTMLElement): boolean {
@@ -279,6 +283,9 @@ type RowProps = {
   status: RowStatus | undefined;
   /** The row has just landed in its sorted place: shown for a moment. */
   flash: boolean;
+  /** Ticked for deleting. A new row cannot be ticked: it is not saved. */
+  selected: boolean;
+  onSelect: (key: string) => void;
   blockedColumn: string | undefined;
   blockedShort: string | undefined;
   blockedMessage: string | undefined;
@@ -294,7 +301,7 @@ type RowProps = {
 };
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, onFinish, onInvalid }: RowProps) {
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, onFinish, onInvalid }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -336,6 +343,20 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
             style={frozen.style}
           >
             <span className={cn("flex items-center gap-1.5", isEditing && "invisible")} title={isBlocked ? blockedMessage : locked ? "Triple-click to edit" : reach !== null ? changesText(reach) : cell.text}>
+              {column.id === "brand" ? (
+                row.draft ? (
+                  <span aria-hidden className="size-3.5 shrink-0" />
+                ) : (
+                  <input
+                    type="checkbox"
+                    tabIndex={-1}
+                    checked={selected}
+                    onChange={() => onSelect(row.key)}
+                    aria-label={`Select ${row.label.brand} ${row.label.name}`}
+                    className="size-3.5 shrink-0 cursor-pointer accent-foreground"
+                  />
+                )
+              ) : null}
               {column.id === "brand" && status ? <StatusGlyph status={status} /> : null}
               {isBlocked && (cell.text === "—" || cell.text === "") ? (
                 <span className="flex items-center gap-1 text-destructive"><CircleAlert aria-hidden className="size-3.5 shrink-0" />{blockedShort}</span>
@@ -381,6 +402,11 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
 }) {
   const [view, setView] = useView();
   const [railChoice, toggleRail] = useRail();
+  // A row is a bottle in one view and a label in another, so what was ticked means something else: start again.
+  const changeView = (next: SheetView) => {
+    setSelected(new Set());
+    setView(next);
+  };
   const [hidden, setHidden] = useHiddenColumns(HIDDEN_KEY, DEFAULT_HIDDEN);
   const context = React.useMemo<SheetContext>(() => ({ currency, kinds }), [currency, kinds]);
 
@@ -396,6 +422,11 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // Search, filters and sort change what is shown, never what is saved. A row that has been worked on this session
   // (edited, moved, or just saved) is kept on screen whatever the filter says, and in place whatever the sort says,
   // until the filters are cleared or the page is reloaded.
+  const router = useRouter();
+  /** Rows ticked for deleting, and rows deleted that the page has not yet been reloaded without. */
+  const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set());
+  const [deletedKeys, setDeletedKeys] = React.useState<ReadonlySet<string>>(new Set());
+  const toggleSelected = React.useCallback((key: string) => setSelected((prev) => { const next = new Set(prev); if (!next.delete(key)) next.add(key); return next; }), []);
   const [find, setFind] = React.useState<Find>(NO_FIND);
   const [touched, setTouched] = React.useState<ReadonlySet<string>>(new Set());
   const touch = (key: string) => setTouched((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
@@ -411,7 +442,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setFind(next);
   };
   const activeSort = find.sort && columns.some((c) => c.id === find.sort!.column) ? find.sort : null;
-  const ordered = React.useMemo(() => sortRows(arranged, activeSort, frozen, context), [arranged, activeSort, frozen, context]);
+  const ordered = React.useMemo(() => sortRows(arranged, activeSort, frozen, context).filter((r) => !deletedKeys.has(r.key)), [arranged, activeSort, frozen, context, deletedKeys]);
   const pinned = React.useCallback((row: SheetRow) => touched.has(row.key) || (!row.draft && touched.has(`l${row.label.id}`)), [touched]);
   // What is in force for this view: store and price paid belong to bottles alone, and are off elsewhere.
   const inForce = React.useMemo(() => effectiveFind(find, view), [find, view]);
@@ -669,6 +700,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         event.preventDefault();
         stage(pos, "");
       }
+    } else if (key === " " && event.shiftKey && columns[pos.col]?.id === "brand" && rows[pos.row] && !rows[pos.row]!.draft) {
+      // Shift+Space ticks the row, as in a spreadsheet.
+      event.preventDefault();
+      toggleSelected(rows[pos.row]!.key);
     } else if (key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
       const editor = editorAt(pos);
       if (editor) {
@@ -820,8 +855,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   React.useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
-      // Inside the sheet, in the rail or the autocomplete, or in any popover opened from the toolbar (they are drawn outside the sheet): not a click away.
-      if (sheetRef.current?.contains(target) || target?.closest?.("[data-bulk-editor-panel], [data-radix-popper-content-wrapper]")) return;
+      // Inside the sheet, in the rail or the autocomplete, or in a popover or dialog opened from it (they are drawn outside the sheet): not a click away.
+      if (sheetRef.current?.contains(target) || target?.closest?.("[data-bulk-editor-panel], [data-radix-popper-content-wrapper], [role=dialog]")) return;
       // After the click has been handled: a cell being edited commits first.
       setTimeout(() => saver.saveDrafts(), 50);
     };
@@ -867,6 +902,19 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     [allDrafts, view.bottles, indexByKey, saver.rowState],
   );
   const shelf = React.useMemo(() => (railRow ? shelfFor({ row: railRow, labels, bottles, moves, newBottles, view }) : null), [railRow, labels, bottles, moves, newBottles, view]);
+  // Only rows that can be seen are ever deleted: a row ticked and then filtered out is left alone, and not counted.
+  const ticked = savedRows.filter((r) => selected.has(r.key)).map((r) => r.key);
+  const allTicked = savedRows.length > 0 && ticked.length === savedRows.length;
+  function afterDelete(outcome: DeleteOutcome) {
+    const failed = new Set(outcome.failed.map((f) => keyOf(f.kind, f.id)));
+    const gone = ticked.filter((key) => !failed.has(key));
+    setDeletedKeys((prev) => new Set([...prev, ...gone]));
+    setSelected(new Set(ticked.filter((key) => failed.has(key))));
+    // Anything typed into a row that is gone goes with it.
+    setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.includes(key))));
+    setMoves((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.includes(key))));
+    React.startTransition(() => router.refresh());
+  }
   // Editing a cell that belongs to the label changes every bottle on it; the rail says so as well as the cell.
   const railEditor = current && editing ? editorAt(current) : null;
   const railReach = railRow && railEditor && railEditor.scope === "label" && !railEditor.combo && !railRow.draft && railRow.bottle ? railRow.label.bottleCount : null;
@@ -882,12 +930,12 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       ref={sheetRef}
       // From md up the sheet scrolls inside a box that fits the screen, so the headers stay put and the keyboard's
       // scroll-into-view keeps the active cell clear of them and of the frozen columns.
-      className="min-w-0 border border-border bg-card md:[&>.overflow-x-auto]:max-h-[calc(100dvh-19.5rem)] md:[&>.overflow-x-auto]:min-h-80 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[310px] md:[&>.overflow-x-auto]:scroll-pt-16"
+      className="min-w-0 border border-border bg-card md:[&>.overflow-x-auto]:max-h-[calc(100dvh-19.5rem)] md:[&>.overflow-x-auto]:min-h-80 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[336px] md:[&>.overflow-x-auto]:scroll-pt-16"
     >
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2.5">
         <div role="group" aria-label="What the sheet shows" className="inline-flex divide-x divide-border border border-border">
-          <ViewToggle label="Labels" on={view.labels} onlyOne={!view.bottles} onClick={() => setView({ ...view, labels: !view.labels })} />
-          <ViewToggle label="Bottles" on={view.bottles} onlyOne={!view.labels} onClick={() => setView({ ...view, bottles: !view.bottles })} />
+          <ViewToggle label="Labels" on={view.labels} onlyOne={!view.bottles} onClick={() => changeView({ ...view, labels: !view.labels })} />
+          <ViewToggle label="Bottles" on={view.bottles} onlyOne={!view.labels} onClick={() => changeView({ ...view, bottles: !view.bottles })} />
         </div>
         <ColumnPicker
           label="Fields"
@@ -942,7 +990,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       <Table role="grid" aria-label="Bulk editor" aria-rowcount={rows.length + 1} className="border-separate border-spacing-0 whitespace-nowrap tabular-nums">
         <TableHeader>
           <TableRow className="border-b-0 hover:bg-transparent">
-            <TableHead colSpan={frozenCount} className="sticky top-0 z-30 h-7 bg-card text-[11px] tracking-wider md:left-0" style={{ minWidth: 310 }}>
+            <TableHead colSpan={frozenCount} className="sticky top-0 z-30 h-7 bg-card text-[11px] tracking-wider md:left-0" style={{ minWidth: 336 }}>
               Label
             </TableHead>
             {labelRest > 0 ? <TableHead colSpan={labelRest} className="sticky top-0 z-20 h-7 border-l border-l-border/40 bg-card" /> : null}
@@ -964,6 +1012,19 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                   className={cn(HEAD_CELL, "top-7 font-medium", column.align === "right" && "text-right", ruleClass(index, column, columns[index - 1]), frozen.className)}
                   style={{ ...frozen.style }}
                 >
+                  {column.id === "brand" ? (
+                    <input
+                      type="checkbox"
+                      tabIndex={-1}
+                      checked={allTicked}
+                      ref={(el) => {
+                        if (el) el.indeterminate = ticked.length > 0 && !allTicked;
+                      }}
+                      onChange={() => setSelected(allTicked ? new Set() : new Set(savedRows.map((r) => r.key)))}
+                      aria-label="Select every row shown"
+                      className="mr-2 size-3.5 cursor-pointer align-middle accent-foreground"
+                    />
+                  ) : null}
                   {isSortable(column.id) ? (
                     // A click on the header sorts. It is not a tab stop: the Sort control in the toolbar is the way by keyboard.
                     <button
@@ -999,6 +1060,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                 unlocked={unlocked}
                 status={statusOf(row)}
                 flash={flashKey === row.key}
+                selected={selected.has(row.key)}
+                onSelect={toggleSelected}
                 blockedColumn={blockedFor(row)?.column}
                 blockedShort={blockedFor(row)?.short}
                 blockedMessage={blockedFor(row) ? blockedLine(blockedFor(row)!) : undefined}
@@ -1027,8 +1090,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels.
         Rows save as you go: a saved row as soon as a cell is finished, a new row when you leave it.
       </p>
+      <DeleteBar count={ticked.length} noun={view.bottles ? "bottle" : "label"} ids={idsOfKeys(ticked)} onClear={() => setSelected(new Set())} onDone={afterDelete} />
       {/* Present before anything is in it, so a screen reader announces the text when it appears. It never takes focus. */}
-      <div aria-live="polite" aria-atomic="true" className="pointer-events-none fixed bottom-4 right-4 z-40 w-[min(24rem,calc(100vw-2rem))]">
+      <div aria-live="polite" aria-atomic="true" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
         {blockedRows.length > 0 ? (
           <div className="pointer-events-auto flex flex-col gap-2 border border-destructive bg-card p-3 text-sm shadow-md">
             <p className="flex items-start gap-2">

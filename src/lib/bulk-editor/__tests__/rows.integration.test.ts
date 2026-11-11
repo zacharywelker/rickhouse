@@ -244,4 +244,72 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(await rows.deleteImpact(owner, { labelIds: [], bottleIds: [lone] })).toEqual({ labels: 0, bottlesOnLabels: 0, bottles: 1 });
     });
   });
+
+  describe("deleteRows", () => {
+    it("deletes a label with every bottle on it, whatever the bottle's status, and nothing else", async () => {
+      const a = await fx.mkLabel(owner, cat.whiskey, "Del A");
+      const keep = await fx.mkLabel(owner, cat.whiskey, "Del Keep");
+      const shelf = await fx.mkBottle(owner, a);
+      const sold = await fx.mkBottle(owner, a);
+      await m.sql(`UPDATE bottles SET status = 'sold' WHERE id = $1`, sold);
+      const kept = await fx.mkBottle(owner, keep);
+      const out = await rows.deleteRows(owner, { labelIds: [a], bottleIds: [] });
+      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 2, failed: [] });
+      expect(await count("expressions", "id = $1", a)).toBe(0);
+      expect(await count("bottles", "id = ANY($1)", [shelf, sold])).toBe(0);
+      expect(await count("expressions", "id = $1", keep)).toBe(1);
+      expect(await count("bottles", "id = $1", kept)).toBe(1);
+    });
+
+    it("deletes a bottle alone and leaves its label, even when it was the label's last bottle", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Del Last");
+      const only = await fx.mkBottle(owner, label);
+      expect(await rows.deleteRows(owner, { labelIds: [], bottleIds: [only] })).toEqual({ deletedLabels: 0, deletedBottles: 1, failed: [] });
+      expect(await count("bottles", "id = $1", only)).toBe(0);
+      expect(await count("expressions", "id = $1", label)).toBe(1);
+    });
+
+    it("counts a bottle on a label that is also being deleted once, with the label", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Del Both");
+      const b1 = await fx.mkBottle(owner, label);
+      const b2 = await fx.mkBottle(owner, label);
+      const out = await rows.deleteRows(owner, { labelIds: [label], bottleIds: [b1, b2] });
+      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 2, failed: [] });
+    });
+
+    it("touches nothing of another account's, and says it is gone", async () => {
+      const theirs = await fx.mkLabel(stranger, cat.whiskey, "Del Theirs");
+      const theirBottle = await fx.mkBottle(stranger, theirs);
+      const out = await rows.deleteRows(owner, { labelIds: [theirs], bottleIds: [theirBottle] });
+      expect(out.deletedLabels + out.deletedBottles).toBe(0);
+      expect(out.failed.map((f) => [f.kind, f.error])).toEqual([["label", "That label is gone."], ["bottle", "That bottle is gone."]]);
+      expect(await count("expressions", "id = $1", theirs)).toBe(1);
+      expect(await count("bottles", "id = $1", theirBottle)).toBe(1);
+    });
+
+    it("carries on past a row that cannot be deleted", async () => {
+      const ok = await fx.mkLabel(owner, cat.whiskey, "Del Fine");
+      const out = await rows.deleteRows(owner, { labelIds: [999_999_999, ok], bottleIds: [999_999_998] });
+      expect(out.deletedLabels).toBe(1);
+      expect(out.failed.map((f) => f.id).sort()).toEqual([999_999_998, 999_999_999]);
+      expect(await count("expressions", "id = $1", ok)).toBe(0);
+    });
+
+    it("ignores ids that are not positive whole numbers, and repeats", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Del Repeat");
+      const out = await rows.deleteRows(owner, { labelIds: [label, label, -1, 0, 1.5], bottleIds: [NaN] });
+      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 0, failed: [] });
+    });
+
+    it("agrees with deleteImpact about what it takes", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Del Impact");
+      await fx.mkBottle(owner, label);
+      await fx.mkBottle(owner, label);
+      const lone = await fx.mkBottle(owner, await fx.mkLabel(owner, cat.whiskey, "Del Impact Lone"));
+      const impact = await rows.deleteImpact(owner, { labelIds: [label], bottleIds: [lone] });
+      const out = await rows.deleteRows(owner, { labelIds: [label], bottleIds: [lone] });
+      expect(out.deletedLabels).toBe(impact.labels);
+      expect(out.deletedBottles).toBe(impact.bottlesOnLabels + impact.bottles);
+    });
+  });
 });

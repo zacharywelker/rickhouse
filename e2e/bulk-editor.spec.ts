@@ -19,7 +19,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 const sheet = (page: Page) => page.getByRole("grid", { name: "Bulk editor" });
-const editors = (page: Page) => sheet(page).locator("input");
+/** The open cell editors (the row checkboxes are inputs too). */
+const editors = (page: Page) => sheet(page).locator("input:not([type=checkbox])");
 
 /** The column's position in the sheet, from its header, so the specs do not depend on the default column order. */
 async function col(page: Page, header: string): Promise<number> {
@@ -647,4 +648,93 @@ test("On your shelf: a label that is new, and a brand that is new, say so and wh
   expect(await shelfText(page)).toContain("Saving creates the brand and its first label");
   expect(await shelfText(page)).toContain("Your first Brand Nobody Has bottle");
   void label;
+});
+
+// ---------------------------------------------------------------------------
+// Deleting (these remove rows, so they come last)
+// ---------------------------------------------------------------------------
+
+const tick = (page: Page, row: number) => cell(page, row, 0).locator('input[type="checkbox"]');
+const deleteBar = (page: Page) => page.getByRole("button", { name: "Delete selected" });
+const totalOf = async (page: Page) => Number((await countLine(page).innerText()).match(/(\d+) (bottles|labels)$/)![1]);
+
+test("a ticked row shows a bar with the count; only the bottle is deleted, and its label stays", async ({ page }) => {
+  const last = (await lastRow(page)) - 1;
+  const label = (await cell(page, last, 1).locator(".truncate").first().innerText()).trim();
+  const before = await totalOf(page);
+  await expect(deleteBar(page)).toHaveCount(0);
+  await tick(page, last).check();
+  await expect(page.getByText("1 bottle selected")).toBeVisible();
+  await deleteBar(page).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Delete 1 bottle?");
+  await expect(dialog).toContainText(/Its label stays, even if this was the last bottle on it\./);
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(countLine(page)).toHaveText(`${before - 1} bottles`);
+  // The label is still there: look at the labels.
+  await page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name: "Bottles", exact: true }).click();
+  await expect(sheet(page).locator("tbody tr td:nth-child(2)", { hasText: label }).first()).toBeVisible();
+});
+
+test("in the Labels-only view the confirmation names the bottles that go with a label, and they are deleted", async ({ page }) => {
+  await page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name: "Bottles", exact: true }).click();
+  const countCol = await col(page, "Bottles");
+  const labels = await totalOf(page);
+  // A label that has bottles.
+  let target = -1;
+  let bottlesOn = 0;
+  for (let r = 0; r < (await lastRow(page)); r++) {
+    const n = Number((await cell(page, r, countCol).innerText()).trim());
+    if (n > 0) { target = r; bottlesOn = n; break; }
+  }
+  expect(target).toBeGreaterThanOrEqual(0);
+  await tick(page, target).check();
+  await expect(page.getByText("1 label selected")).toBeVisible();
+  await deleteBar(page).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText(`Delete 1 label and the ${bottlesOn} ${bottlesOn === 1 ? "bottle" : "bottles"} on it.`);
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(countLine(page)).toHaveText(`${labels - 1} labels`);
+});
+
+test("only rows that can be seen are counted or deleted: a ticked row that is filtered out is left alone", async ({ page }) => {
+  await tick(page, 0).check();
+  await expect(page.getByText("1 bottle selected")).toBeVisible();
+  await searchBox(page).fill("qqqqqqqq");
+  await expect(deleteBar(page)).toHaveCount(0); // nothing visible is ticked
+  await searchBox(page).fill("");
+  await expect(page.getByText("1 bottle selected")).toBeVisible(); // still ticked when it is back
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(deleteBar(page)).toHaveCount(0);
+});
+
+test("the header box ticks every row shown, and Shift+Space ticks the row the cursor is on", async ({ page }) => {
+  const total = await totalOf(page);
+  await page.getByLabel("Select every row shown").check();
+  await expect(page.getByText(`${total} bottles selected`)).toBeVisible();
+  await page.getByLabel("Select every row shown").uncheck();
+  await expect(deleteBar(page)).toHaveCount(0);
+  await cell(page, 1, 0).click();
+  await page.keyboard.press("Shift+Space");
+  await expect(page.getByText("1 bottle selected")).toBeVisible();
+  await expect(tick(page, 1)).toBeChecked();
+  expect(await sheet(page).locator("input:not([type=checkbox])").count()).toBe(0); // it did not start typing into a cell
+});
+
+test("the confirmation does not count as clicking away: a finished new row is not saved by it", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  const [b, l] = [(await cell(page, 0, brand).locator(".truncate").first().innerText()).trim(), (await cell(page, 0, label).locator(".truncate").first().innerText()).trim()];
+  await cell(page, row, brand).click();
+  await page.keyboard.type(b);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type(l);
+  await page.keyboard.press("Tab"); // a finished row, waiting for the cursor to leave it
+  await tick(page, 0).check();
+  await deleteBar(page).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await page.waitForTimeout(1500);
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
 });
