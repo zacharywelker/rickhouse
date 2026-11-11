@@ -29,6 +29,11 @@ function asPgError(error: unknown): PgError | null {
   return null;
 }
 
+/** Postgres's error code for an error thrown by a query, found through drizzle's wrapper; null when there is none. */
+export function pgCode(error: unknown): string | null {
+  return asPgError(error)?.code ?? null;
+}
+
 /** "Key (name)=(Bourbon) already exists." -> "name" */
 function columnFromDetail(detail: string | undefined): string | null {
   const match = detail?.match(/^Key \(([^)]+)\)=/);
