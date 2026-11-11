@@ -22,6 +22,8 @@ const WORKBENCH_LINKS = [
   { href: "/api/bottles/export", label: "Export", download: true },
   { href: "/bottles/import", label: "Import", download: false },
   { href: "/bottles/bulk", label: "Bulk add", download: false },
+  // Beside Bulk add until the editor can add and edit (#319 then retires Bulk add).
+  { href: "/bulk-editor", label: "Bulk editor", download: false },
 ] as const;
 
 export const metadata: Metadata = { title: "Collection" };

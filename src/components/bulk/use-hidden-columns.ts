@@ -2,8 +2,11 @@
 
 import * as React from "react";
 
+const NONE: ReadonlySet<string> = new Set();
+
 /**
- * The columns a bulk grid is hiding, remembered in this browser.
+ * The columns a bulk grid is hiding, remembered in this browser. `initial` is what is hidden until the person has
+ * chosen (nothing, by default).
  *
  * Unlike the tables, a bulk grid has no URL state to put this in — you always
  * arrive at a fresh, empty sheet — and which fields you fill in is a habit,
@@ -14,13 +17,15 @@ import * as React from "react";
  * Storage can be unavailable (private windows, blocked site data); the grid
  * then simply starts with everything shown.
  */
-export function useHiddenColumns(storageKey: string) {
-  const [hidden, setHidden] = React.useState<ReadonlySet<string>>(() => new Set());
+export function useHiddenColumns(storageKey: string, initial: ReadonlySet<string> = NONE) {
+  const [hidden, setHidden] = React.useState<ReadonlySet<string>>(initial);
 
   React.useEffect(() => {
     try {
       const raw = window.localStorage.getItem(storageKey);
-      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      // Nothing remembered yet: keep the columns that start hidden.
+      if (raw === null) return;
+      const parsed: unknown = JSON.parse(raw);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
       if (Array.isArray(parsed)) setHidden(new Set(parsed.filter((id): id is string => typeof id === "string")));
     } catch {
