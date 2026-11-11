@@ -1,0 +1,157 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { signIn } from "./support/auth";
+import { resetDatabase } from "./support/db";
+import { assertThrowawayDatabase, seedTournamentField } from "./support/tournament-field";
+
+test.beforeAll(async () => {
+  // Before resetDatabase(), which wipes whatever DATABASE_URL names.
+  assertThrowawayDatabase();
+  await resetDatabase();
+  await seedTournamentField();
+});
+
+test.beforeEach(async ({ page }) => {
+  await signIn(page);
+  await page.goto("/bulk-editor");
+  await expect(page.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
+  // Which cells can be edited depends on the view, and it is remembered in the browser; start from both on.
+  await page.evaluate(() => window.localStorage.removeItem("bulk-editor:view"));
+});
+
+const sheet = (page: Page) => page.getByRole("grid", { name: "Bulk editor" });
+const editors = (page: Page) => sheet(page).locator("input");
+
+/** The column's position in the sheet, from its header, so the specs do not depend on the default column order. */
+async function col(page: Page, header: string): Promise<number> {
+  const names = await sheet(page).locator("thead tr:last-child th").allTextContents(); // textContent: innerText would be the uppercased text the headers are drawn in
+  const index = names.findIndex((name) => name.trim() === header);
+  expect(index, `no "${header}" column`).toBeGreaterThanOrEqual(0);
+  return index;
+}
+const cell = (page: Page, row: number, column: number): Locator => sheet(page).locator(`td[data-r="${row}"][data-c="${column}"]`);
+async function active(page: Page): Promise<{ row: number; col: number } | null> {
+  return page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    return el?.matches("td[data-r]") ? { row: Number(el.dataset.r), col: Number(el.dataset.c) } : null;
+  });
+}
+
+test("shows the bottles as text, and mounts an editor only when one is wanted", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await expect(editors(page)).toHaveCount(0);
+  await cell(page, 1, price).click();
+  await expect(cell(page, 1, price)).toHaveAttribute("aria-selected", "true");
+  await expect(editors(page)).toHaveCount(0);
+  await page.keyboard.type("5");
+  await expect(editors(page)).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(editors(page)).toHaveCount(0);
+});
+
+test("typing replaces a value, Enter keeps it and drops to the next row in the same column", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await cell(page, 1, price).click();
+  await page.keyboard.type("52");
+  await expect(editors(page)).toHaveValue("52");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 1, price)).toHaveText("$52.00");
+  expect(await active(page)).toEqual({ row: 2, col: price });
+  await expect(page.getByRole("status")).toContainText("1 change not saved yet");
+});
+
+test("Tab skips what cannot be edited, and Enter returns to the column the run started in", async ({ page }) => {
+  const [price, store, purchased] = [await col(page, "Price paid"), await col(page, "Store"), await col(page, "Purchased")];
+  expect(store).toBe(price + 1);
+  await cell(page, 3, price).click();
+  await page.keyboard.type("30");
+  await page.keyboard.press("Tab");
+  // Store is a pick-list for a later step, so the run goes straight to Purchased.
+  expect(await active(page)).toEqual({ row: 3, col: purchased });
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1);
+  await page.keyboard.type("11012025");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 3, purchased)).toHaveText("Nov 1, 2025");
+  // Enter after a run of Tabs goes back to where the run began.
+  expect(await active(page)).toEqual({ row: 4, col: price });
+});
+
+test("Escape cancels, a bad value stays open and says why, and a leading decimal point is kept", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  const before = await cell(page, 5, price).innerText();
+  await cell(page, 5, price).click();
+  await page.keyboard.type("999");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 5, price)).toHaveText(before);
+  expect(await active(page)).toEqual({ row: 5, col: price });
+
+  await page.keyboard.type("-5");
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1);
+  // Inside the sheet: Next has an alert of its own for route changes.
+  await expect(sheet(page).getByRole("alert")).toContainText("At least 0");
+  await page.keyboard.press("Escape");
+
+  await cell(page, 6, price).click();
+  await page.keyboard.type(".5");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 6, price)).toHaveText("$0.50");
+});
+
+test("Delete clears a cell, an edit put back to what it was is forgotten, and Discard puts every edit back", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await cell(page, 2, price).click();
+  await page.keyboard.type("44");
+  await page.keyboard.press("Enter");
+  await cell(page, 4, price).click();
+  await page.keyboard.type("10");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toContainText("2 changes not saved yet");
+
+  // Clearing a cell that started empty puts it back to what it was, so it is no longer a change.
+  await cell(page, 4, price).click();
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 4, price)).toHaveText("—");
+  await expect(page.getByRole("status")).toContainText("1 change not saved yet");
+
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(cell(page, 2, price)).not.toHaveText("$44.00");
+});
+
+test("a label's own facts are read-only on a bottle row, and editable when the row is the label", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  await cell(page, 1, proof).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("123");
+  await expect(editors(page)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Bottles", exact: true }).click();
+  const msrp = await col(page, "MSRP");
+  await cell(page, 1, msrp).click();
+  await page.keyboard.type("59.99");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 1, msrp)).toHaveText("$59.99");
+});
+
+test("the arrow keys move, and Tab off the last cell leaves the sheet", async ({ page }) => {
+  await cell(page, 2, 3).click();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowRight");
+  expect(await active(page)).toEqual({ row: 3, col: 4 });
+  await page.keyboard.press("Control+End");
+  const last = await active(page);
+  expect(last?.col).toBe((await sheet(page).locator("thead tr:last-child th").count()) - 1);
+  await page.keyboard.press("Tab");
+  expect(await active(page)).toBeNull();
+});
+
+test("Brand and Label stay put while the sheet scrolls sideways", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 800 });
+  const left = (n: number) => sheet(page).locator("thead tr:last-child th").nth(n).evaluate((el) => Math.round(el.getBoundingClientRect().left - (el.closest("div")?.getBoundingClientRect().left ?? 0)));
+  const [brand, name] = [await left(0), await left(1)];
+  await sheet(page).evaluate((table) => {
+    (table.parentElement as HTMLElement).scrollLeft = 400;
+  });
+  expect([await left(0), await left(1)]).toEqual([brand, name]);
+});
