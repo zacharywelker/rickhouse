@@ -91,7 +91,7 @@ Label fields and bottle fields are **separate columns**, as they are in the sing
 - **Find-or-create on the server.** Two rows for the same new brand and label (typed or saved at nearly the same time) resolve to one label; a unique-constraint collision must not surface as an error.
 - Failed saves (server error, a row deleted elsewhere) mark the row and keep what was typed.
 - **The server decides, not the sheet.** Every save and delete is scoped to the signed-in account: ids sent from the browser are checked against that account's own rows, and a request for someone else's row fails. Locks are enforced server-side too: a crafted request must not change a locked label field from a bottle row. Every cell is validated on the server with the same rules as the single forms. *(Settled by the spec writer; not negotiable.)*
-- **Changing the category of an existing row can hide fields that hold values** (today's bulk grid saves non-applicable cells blank). That must ask first, naming what would be cleared, never clear silently. *(Spec writer's default; confirm.)*
+- **Changing a label's category never clears stored facts.** The fields the new category does not use are left as they were and are simply not shown, exactly as the phone app's label edit behaves (`patchLabel` writes only the columns the category uses). Only a **new** row saves its non-applicable cells blank. *(An earlier draft of this spec asked for a confirmation before clearing; checking the code showed nothing is cleared on an edit, so the rule was dropped.)*
 
 ### Deleting
 
@@ -185,6 +185,6 @@ Route and entry-point placement; which existing grid pieces to keep or rewrite; 
 - The exact "On your shelf" wording and the five-label truncation.
 - Compact 36px rows as the default; the Bottle group's own proof, age and size columns are hidden by default in the Fields picker (most bottles inherit).
 - Bottles-only view has no unlock; changing a shared label from a bottle row needs Both.- Brand and Label are always visible regardless of the toggles.
-- Server-side ownership checks and lock enforcement; a confirmation before a category change clears filled fields; deleting a bottle keeps its label; the editor lists the same rows the collection table does.
+- Server-side ownership checks and lock enforcement; deleting a bottle keeps its label; the editor lists the same rows the collection table does.
 - Leaving the page warns instead of persisting drafts.
 - Tab accepts existing matches only; creating needs Enter.
