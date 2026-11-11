@@ -78,9 +78,10 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
     } else if (key === "Enter" || key === "Tab") {
       event.preventDefault();
       event.stopPropagation();
-      // Enter here confirms a choice, it does not finish the row: the next cell (Label after Brand, Category after
-      // Label) has just opened in the same row, so both keys go on to it. Enter differs from Tab only in being able to create.
-      const move: Move = event.shiftKey ? "prev" : "next";
+      // On a new row Enter confirms a choice and does not finish the row: the next cell (Label after Brand, Category after
+      // Label) has just opened, so both keys go on to it, and Enter differs from Tab only in being able to create. On a
+      // saved row the pick is the whole change, so Enter drops down a row and Tab goes along the row.
+      const move: Move = key === "Enter" && data.enterDropsDown ? (event.shiftKey ? "up" : "down") : event.shiftKey ? "prev" : "next";
       // Nothing typed and nothing picked from the list: no choice has been made.
       if (text.trim() === "" && !moved.current) {
         if (initial.value === "") onFinish({ keep: true, move, focus: true });

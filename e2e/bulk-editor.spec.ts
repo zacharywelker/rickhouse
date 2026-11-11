@@ -260,16 +260,54 @@ test("Bottles only shows no label facts, and Brand moves a bottle to a label tha
   // Move it to the label on the last saved row (the one after it is the empty row for a new bottle).
   const last = (await lastRow(page)) - 1;
   const target = `${(await cell(page, last, 0).innerText()).trim()} ${(await cell(page, last, 1).innerText()).trim()}`;
-  await page.keyboard.press("Enter");
-  await page.keyboard.type(target);
-  await page.keyboard.press("Enter");
   const moved = (await cell(page, last, 1).innerText()).trim();
   const countOf = async () => (await sheet(page).locator("tbody tr td:nth-child(2)").allTextContents()).filter((t) => t.trim() === moved).length;
   const before = await countOf();
-  await expect(cell(page, 0, 1)).toHaveText(moved);
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(target);
+  await page.keyboard.press("Enter");
+  // The bottle goes to its label's place at once, and is still there after a reload.
+  expect(await countOf()).toBe(before + 1);
   await reloaded(page);
-  // The bottle now sorts in with its new label, so the row is no longer the first.
-  expect(await countOf()).toBe(before);
+  expect(await countOf()).toBe(before + 1);
+});
+
+/** Brand and Label text of a row, for telling rows apart. */
+const rowName = async (page: Page, row: number) =>
+  `${(await cell(page, row, 0).locator(".truncate").first().innerText()).trim()} ${(await cell(page, row, 1).locator(".truncate").first().innerText()).trim()}`;
+const scrollTop = (page: Page) => sheet(page).evaluate((table) => (table.parentElement as HTMLElement).scrollTop);
+
+test("Enter after moving a bottle drops to the row that was below it, and the view stays where it was", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 560 });
+  const below = await rowName(page, 1);
+  const target = await rowName(page, (await lastRow(page)) - 1);
+  expect(target).not.toBe(await rowName(page, 0));
+  await cell(page, 0, 0).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(target);
+  await page.keyboard.press("Enter");
+  const at = await active(page);
+  expect(at?.col).toBe(0);
+  // The cursor is on what was the second row, now first; the moved bottle is down in its label's place.
+  expect(await rowName(page, at!.row)).toBe(below);
+  expect(await rowName(page, 0)).toBe(below); // the moved bottle has left the top
+  expect(await scrollTop(page)).toBe(0);
+});
+
+test("Tab after moving a bottle stays with its row, and the view goes with it", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 560 });
+  const label = await col(page, "Label");
+  const target = await rowName(page, (await lastRow(page)) - 1);
+  expect(target).not.toBe(await rowName(page, 0));
+  await cell(page, 0, 0).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(target);
+  await page.keyboard.press("Tab");
+  const at = await active(page);
+  expect(at?.col).toBe(label);
+  expect(await rowName(page, at!.row)).toBe(target); // the same bottle, in its new place
+  expect(at!.row).toBeGreaterThan(3); // and that place is a long way down
+  await expect(cell(page, at!.row, label)).toBeInViewport();
 });
 
 // ---------------------------------------------------------------------------
