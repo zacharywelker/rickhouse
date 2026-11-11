@@ -229,6 +229,8 @@ type RowProps = {
   unlocked: Unlocked;
   /** Where this row's save is, and the cell (with its words) that stops it, once the cursor has left the row. */
   status: RowStatus | undefined;
+  /** The row has just landed in its sorted place: shown for a moment. */
+  flash: boolean;
   blockedColumn: string | undefined;
   blockedShort: string | undefined;
   blockedMessage: string | undefined;
@@ -244,7 +246,7 @@ type RowProps = {
 };
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, onFinish, onInvalid }: RowProps) {
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, onFinish, onInvalid }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -276,6 +278,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               cell.muted && "text-muted-foreground",
               column.identity && !cell.muted && "font-medium",
               (edited !== undefined || moved) && "bg-muted",
+              flash && "bg-muted",
               locked && "cursor-not-allowed bg-muted/50 text-muted-foreground",
               editor && "cursor-cell",
               isBlocked ? "outline outline-2 -outline-offset-2 outline-destructive" : isActive && !isEditing && "outline outline-2 -outline-offset-2 outline-ring",
@@ -341,19 +344,26 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
   // one is made fresh each time (see `withBlankRow`).
   const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
-  const allDrafts = React.useMemo(() => withBlankRow(drafts), [drafts]);
+  const [edits, setEdits] = React.useState<Edits>({});
+  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts });
+  const createdAs = saver.createdAs;
+  /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
+  const [keyFloor, setKeyFloor] = React.useState(0);
+  const allDrafts = React.useMemo(() => withBlankRow(drafts, keyFloor), [drafts, keyFloor]);
+  const keepKeys = (key: string) => setKeyFloor((floor) => Math.max(floor, Number(key.slice(1)) + 1));
   const draftContext = React.useMemo(() => ({ view, labels, categories, groups }), [view, labels, categories, groups]);
+  // A new row that has saved is hidden in the very render in which its saved row arrives in the data, not in an effect
+  // after it: for a moment both would be there, and a cursor on the row below would land on the wrong one.
+  const savedKeys = React.useMemo(() => new Set(savedRows.map((r) => r.key)), [savedRows]);
   const rowsFor = React.useCallback(
-    (list: DraftRow[]) => [...savedRows, ...list.map((draft) => draftSheetRow(draft, draftContext))],
-    [savedRows, draftContext],
+    (list: DraftRow[]) => [...savedRows, ...list.filter((d) => !(createdAs[d.key] && savedKeys.has(createdAs[d.key]!))).map((draft) => draftSheetRow(draft, draftContext))],
+    [savedRows, savedKeys, createdAs, draftContext],
   );
   const rows = React.useMemo(() => rowsFor(allDrafts), [rowsFor, allDrafts]);
 
   const [active, setActive] = React.useState<Pos | null>(null);
   const [editing, setEditing] = React.useState<Editing | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [edits, setEdits] = React.useState<Edits>({});
-  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts });
   /** The column a run of Tabs started in, which Enter returns to on the next row. */
   const anchorCol = React.useRef(0);
   const focusAfter = React.useRef(true);
@@ -396,6 +406,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (row.draft) setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
     const key = editKey(row, editor);
     if (row.draft) {
+      keepKeys(row.key);
       // A new row's cells are forgotten when put back to empty: there is nothing to send.
       setEdits((prev) => setEdit(prev, key, column.id, value, editor.initial(row)));
       return;
@@ -410,6 +421,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
 
   /** `list` with the draft of this key changed, making it a real draft first if it is still the empty row. */
   function updatedDrafts(key: string, change: (draft: DraftRow) => DraftRow): DraftRow[] {
+    keepKeys(key);
     const base = drafts.some((d) => d.key === key) ? drafts : [...drafts, emptyDraft(key)];
     return base.map((d) => (d.key === key ? change(d) : d));
   }
@@ -464,7 +476,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         return withLabel(draft, result.pick, chosen?.categoryId ?? null);
       });
       setDrafts(nextDrafts);
-      nextRows = rowsFor(withBlankRow(nextDrafts));
+      nextRows = rowsFor(withBlankRow(nextDrafts, Math.max(keyFloor, Number(row.key.slice(1)) + 1)));
     }
 
     const landsOn = (pos: Pos) => editorIn(nextRows, pos) !== null;
@@ -602,6 +614,36 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     return () => clearTimeout(timer);
   }, [activity]);
   const idle = idleToken === activity && editing === null;
+
+  // A row that has landed in its sorted place (a new row, a moved bottle, a renamed label) is followed to: scrolled into
+  // view and marked for a moment. Not while a cell is open or the person is mid-entry: it waits for about a second of calm,
+  // so typing the next row is never taken out from under them.
+  const [flashKey, setFlashKey] = React.useState<string | null>(null);
+  const [calmToken, setCalmToken] = React.useState<object | null>(null);
+  React.useEffect(() => {
+    const timer = setTimeout(() => setCalmToken(activity), 1000);
+    return () => clearTimeout(timer);
+  }, [activity]);
+  const calm = calmToken === activity && editing === null;
+  const { reveal, clearReveal, revealFor } = saver;
+  React.useEffect(() => {
+    if (!calm || reveal.length === 0) return;
+    const fresh = reveal.filter((r) => Date.now() - r.at < revealFor);
+    const found = [...fresh].reverse().map((r) => rows.findIndex((row) => row.key === r.key || (r.key.startsWith("l") && !row.draft && `l${row.label.id}` === r.key))).find((i) => i >= 0);
+    if (found === undefined) {
+      if (fresh.length < reveal.length) clearReveal();
+      return;
+    }
+    const target = rows[found]!;
+    const timer = setTimeout(() => {
+      const el = sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${found}"]`);
+      el?.scrollIntoView({ block: "center", inline: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      setFlashKey(target.key);
+      clearReveal();
+      setTimeout(() => setFlashKey((now) => (now === target.key ? null : now)), 2000);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [calm, reveal, rows, clearReveal, revealFor]);
 
   type BlockedRow = Blocked & { column: string; short: string };
   const blockedRows: BlockedRow[] = [];
@@ -782,6 +824,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                 labelEdits={labelEditsOf(edits, row)}
                 unlocked={unlocked}
                 status={statusOf(row)}
+                flash={flashKey === row.key}
                 blockedColumn={blockedFor(row)?.column}
                 blockedShort={blockedFor(row)?.short}
                 blockedMessage={blockedFor(row) ? blockedLine(blockedFor(row)!) : undefined}

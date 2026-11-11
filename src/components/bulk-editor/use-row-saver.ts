@@ -27,6 +27,8 @@ type Input = {
 
 /** The quiet time after the last save before the sheet is reloaded, so a run of saves is one reload. */
 const REFRESH_AFTER_MS = 500;
+/** A row that has landed in its sorted place is followed to only for so long: after that it is old news. */
+const REVEAL_FOR_MS = 15_000;
 /** How long "just saved" is shown once the reloaded sheet has the change. */
 const SAVED_SHOWN_MS = 2500;
 
@@ -51,6 +53,11 @@ export function useRowSaver(input: Input) {
   const sent = React.useRef(new Map<string, Sent>());
   const created = React.useRef(new Set<string>());
   const requested = React.useRef(new Set<string>());
+  /** Rows a save will have moved to a new place in the sort (a new row, a moved bottle, a renamed label), by the key to look for. */
+  const landed = React.useRef(new Map<string, string>());
+  const [reveal, setReveal] = React.useState<Array<{ key: string; at: number }>>([]);
+  /** A saved new row's key, and the key its saved row will have: the sheet hides the new row once that one is in its data. */
+  const [createdAs, setCreatedAs] = React.useState<Record<string, string>>({});
   const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tick, setTick] = React.useState(0);
   /** `save` calling itself for a change made while it was on its way, through a ref so the callback does not refer to itself. */
@@ -83,7 +90,7 @@ export function useRowSaver(input: Input) {
       }
       const { edits, moves, drafts, view } = latest.current;
       const cells = edits[key];
-      let call: () => Promise<{ ok: true } | { ok: false; error: string; fieldErrors: Record<string, string> }>;
+      let call: () => Promise<{ ok: true; bottleId?: number | null; labelId?: number } | { ok: false; error: string; fieldErrors: Record<string, string> }>;
       let snapshot: Sent;
       let scope: "label" | "bottle" = "label";
       let fallback = Object.keys(cells ?? {})[0] ?? "brand";
@@ -115,7 +122,15 @@ export function useRowSaver(input: Input) {
         const outcome = await call();
         if (outcome.ok) {
           sent.current.set(key, snapshot);
-          if (!key.startsWith("b") && !key.startsWith("l")) created.current.add(key);
+          if (!key.startsWith("b") && !key.startsWith("l")) {
+            created.current.add(key);
+            const bottleId = "bottleId" in outcome ? outcome.bottleId : null;
+            const savedKey = bottleId != null && view.bottles ? `b${bottleId}` : `l${"labelId" in outcome ? outcome.labelId : 0}`;
+            landed.current.set(key, savedKey);
+            setCreatedAs((prev) => ({ ...prev, [key]: savedKey }));
+          } else if (snapshot.move !== undefined || "name" in snapshot.cells || "brand" in snapshot.cells) {
+            landed.current.set(key, key);
+          }
           mark(key, { kind: "saved" });
           refreshSoon();
         } else {
@@ -167,6 +182,9 @@ export function useRowSaver(input: Input) {
       return;
     }
     if (sent.current.size === 0) return;
+    const arrived = [...landed.current.values()];
+    landed.current = new Map();
+    if (arrived.length > 0) setReveal((prev) => [...prev, ...arrived.map((key) => ({ key, at: Date.now() }))]);
     const done = sent.current;
     const madeRows = created.current;
     sent.current = new Map();
@@ -179,7 +197,10 @@ export function useRowSaver(input: Input) {
       }, settled);
     });
     setMoves((moves) => settleMoves(moves, done));
-    if (madeRows.size > 0) setDrafts((drafts) => drafts.filter((d) => !madeRows.has(d.key)));
+    if (madeRows.size > 0) {
+      setDrafts((drafts) => drafts.filter((d) => !madeRows.has(d.key)));
+      setCreatedAs((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !madeRows.has(key))));
+    }
     const keys = [...done.keys()];
     // Not cancelled by a later reload: the glyph would then stay on.
     setTimeout(() => {
@@ -192,5 +213,7 @@ export function useRowSaver(input: Input) {
     setRowState((prev) => Object.fromEntries(Object.entries(prev).filter(([, state]) => state.kind === "saving" || state.kind === "saved")));
   }, []);
 
-  return { rowState, request, save, saveDrafts, reset };
+  const clearReveal = React.useCallback(() => setReveal([]), []);
+
+  return { rowState, request, save, saveDrafts, reset, reveal, clearReveal, revealFor: REVEAL_FOR_MS, createdAs };
 }
