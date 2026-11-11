@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Check, Circle, CircleAlert, Lock, LoaderCircle } from "lucide-react";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { ColumnPicker, type PickerGroup } from "@/components/bulk/column-picker";
 import { GridCell } from "@/components/bulk/grid-cell";
 import { useHiddenColumns } from "@/components/bulk/use-hidden-columns";
@@ -26,19 +26,25 @@ import {
   type SheetColumn,
   type SheetContext,
   type SheetLabel,
+  type SheetPhoto,
   type SheetRow,
   type SheetView,
 } from "@/lib/bulk-editor/sheet";
 import { cn } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
+import { railFor } from "@/lib/bulk-editor/rail";
 import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND, nextSort, sortRows, type Find } from "@/lib/bulk-editor/find";
 import { ComboEditor } from "./combo-editor";
 import { FindBar } from "./find-bar";
+import { RailContent } from "./rail-panel";
 import type { ComboData, Editing, Finish } from "./types";
 import { useRowSaver } from "./use-row-saver";
 
 const VIEW_KEY = "bulk-editor:view";
 const HIDDEN_KEY = "bulk-editor:hidden";
+const RAIL_KEY = "bulk-editor:rail";
+/** The width from which the rail is open until the person chooses: with it open the sheet still has about 900px at this width. */
+const RAIL_AUTO_OPEN = "(min-width: 1280px)";
 
 /** Brand and Label are held at the left while the rest of the sheet scrolls. Widths are fixed so the second can sit against the first. */
 const FROZEN: Record<string, { left: number; width: number }> = { brand: { left: 0, width: 130 }, name: { left: 130, width: 180 } };
@@ -76,6 +82,34 @@ function useView() {
     }
   }, []);
   return [view, update] as const;
+}
+
+/**
+ * Whether the rail is open. Until the person chooses (remembered in this browser) the width decides, in CSS (`xl`: 1280px
+ * and up is open), so the page is the same from the server as in the browser and nothing jumps.
+ */
+function useRail() {
+  const [choice, setChoice] = React.useState<"open" | "closed" | null>(null);
+  React.useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(RAIL_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- storage is only readable after hydration
+      if (saved === "open" || saved === "closed") setChoice(saved);
+    } catch {
+      // Unreadable: the width decides.
+    }
+  }, []);
+  const toggle = React.useCallback(() => {
+    const openNow = choice === null ? window.matchMedia(RAIL_AUTO_OPEN).matches : choice === "open";
+    const next = openNow ? "closed" : "open";
+    setChoice(next);
+    try {
+      window.localStorage.setItem(RAIL_KEY, next);
+    } catch {
+      // Not remembered this time.
+    }
+  }, [choice]);
+  return [choice, toggle] as const;
 }
 
 function ViewToggle({ label, on, onlyOne, onClick }: { label: string; on: boolean; onlyOne: boolean; onClick: () => void }) {
@@ -333,16 +367,19 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
  * left. You can move around it and edit the plain cells from the keyboard: arrows, Tab and Enter, F2 or a keystroke to
  * edit, Escape to cancel. Edits are kept here, in the browser, and marked; saving them arrives in a later step.
  */
-export function BulkEditor({ labels, bottles, brands, categories, groups, kinds, currency }: {
+export function BulkEditor({ labels, bottles, brands, categories, groups, kinds, photos, currency }: {
   labels: SheetLabel[];
   bottles: SheetBottle[];
   brands: Array<{ id: number; name: string }>;
   categories: CategoryChoice[];
   groups: Record<number, FieldGroup>;
   kinds: SheetContext["kinds"];
+  /** Thumbnails for the rail, by bottle and by label. */
+  photos: { bottles: Record<number, SheetPhoto>; labels: Record<number, SheetPhoto> };
   currency: string;
 }) {
   const [view, setView] = useView();
+  const [railChoice, toggleRail] = useRail();
   const [hidden, setHidden] = useHiddenColumns(HIDDEN_KEY, DEFAULT_HIDDEN);
   const context = React.useMemo<SheetContext>(() => ({ currency, kinds }), [currency, kinds]);
 
@@ -817,12 +854,21 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
 
   const comboData = comboFor();
 
+  // The rail follows the cursor's row. Display only.
+  const railRow = current ? (rows[current.row] ?? null) : null;
+  const railPhoto = railRow ? ((railRow.bottle && railRow.bottle.id > 0 ? photos.bottles[railRow.bottle.id] : undefined) ?? (railRow.label.id > 0 ? photos.labels[railRow.label.id] : undefined) ?? null) : null;
+  const rail = React.useMemo(() => (railRow ? railFor(railRow, context, view, edits, railPhoto) : null), [railRow, context, view, edits, railPhoto]);
+  // Editing a cell that belongs to the label changes every bottle on it; the rail says so as well as the cell.
+  const railEditor = current && editing ? editorAt(current) : null;
+  const railReach = railRow && railEditor && railEditor.scope === "label" && !railEditor.combo && !railRow.draft && railRow.bottle ? railRow.label.bottleCount : null;
+
   // Brand and Label sit under one "Label" caption; the Bottle group has its own, after a dark rule.
   const frozenCount = columns.filter((c) => FROZEN[c.id]).length;
   const labelRest = columns.filter((c) => c.group === "label" && !FROZEN[c.id]).length;
   const bottleCount = columns.filter((c) => c.group === "bottle").length;
 
   return (
+    <div className="flex items-start gap-4">
     <div
       ref={sheetRef}
       // From md up the sheet scrolls inside a box that fits the screen, so the headers stay put and the keyboard's
@@ -986,6 +1032,28 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
           </div>
         ) : null}
       </div>
+    </div>
+    {/* The rail: display only, and not a live region (it changes on every cell move). Clicks in it are not clicks away from the sheet. */}
+    <aside
+      data-bulk-editor-panel=""
+      aria-label="Row details"
+      className={cn("sticky top-4 hidden shrink-0 self-start md:block", railChoice === null ? "w-9 xl:w-72" : railChoice === "open" ? "w-72" : "w-9")}
+    >
+      <div className={cn("border border-border bg-card", railChoice === null ? "hidden xl:block" : railChoice === "open" ? "block" : "hidden")}>
+          <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+            <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Details</h2>
+            <button type="button" onClick={toggleRail} aria-label="Hide the details panel" className="p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <PanelRightClose aria-hidden className="size-4" />
+            </button>
+          </div>
+          <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto p-3">
+            <RailContent rail={rail} reach={railReach} />
+          </div>
+      </div>
+      <button type="button" onClick={toggleRail} aria-label="Show the details panel" aria-expanded={false} className={cn("h-24 w-9 items-start justify-center border border-border bg-card pt-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", railChoice === null ? "flex xl:hidden" : railChoice === "closed" ? "flex" : "hidden")}>
+        <PanelRightOpen aria-hidden className="size-4" />
+      </button>
+    </aside>
     </div>
   );
 }
