@@ -452,3 +452,39 @@ test("sort by a column, an edited row does not jump, and the header flips it", a
   await page.getByLabel("Sort by").selectOption("");
   await expect(sheet(page).locator("th[aria-sort]")).toHaveCount(0);
 });
+
+test("a range filter narrows the sheet, the panel says how many are set, and Clear empties the boxes", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  const total = Number((await countLine(page).innerText()).match(/^(\d+) /)![1]);
+  await page.getByRole("button", { name: /^More filters/ }).click();
+  await page.getByLabel("Price paid, at least").fill("50");
+  const shown = (await sheet(page).locator("tbody tr").count()) - 1;
+  expect(shown).toBeGreaterThan(0);
+  expect(shown).toBeLessThan(total);
+  const prices = (await sheet(page).locator(`tbody tr td:nth-child(${price + 1})`).allTextContents()).slice(0, -1).map((t) => Number(t.replace(/[^0-9.]/g, "")));
+  expect(prices.every((p) => p >= 50)).toBe(true);
+  await expect(countLine(page)).toHaveText(`Showing ${shown} of ${total} bottles`);
+  await expect(page.getByRole("button", { name: /^More filters/ })).toContainText("1");
+  await page.getByLabel("Proof, at most").fill("1"); // nothing has a proof that low
+  await expect(page.getByText(/match\. Clear the filters/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.getByRole("button", { name: /^More filters/ }).click();
+  await expect(page.getByLabel("Price paid, at least")).toHaveValue("");
+  await expect(page.getByLabel("Proof, at most")).toHaveValue("");
+  await page.keyboard.press("Escape");
+  await expect(countLine(page)).toHaveText(`${total} bottles`);
+});
+
+test("age, distillery, mashbill and finish can be sorted, each starting ascending", async ({ page }) => {
+  for (const [column, header] of [["age", "Age"], ["distilleries", "Distillery"], ["mashbills", "Mashbill"], ["finishes", "Finish"]] as const) {
+    await page.getByLabel("Sort by").selectOption(column);
+    const sorted = sheet(page).locator("th[aria-sort]");
+    await expect(sorted).toHaveCount(1);
+    await expect(sorted).toHaveAttribute("aria-sort", "ascending");
+    await expect(sorted).toContainText(header);
+    // The direction button, then another column: that one starts ascending again.
+    await page.getByLabel(/Ascending: switch/).click();
+    await expect(sorted).toHaveAttribute("aria-sort", "descending");
+  }
+});

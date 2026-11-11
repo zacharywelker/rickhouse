@@ -373,20 +373,28 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setFind(next);
   };
   const activeSort = find.sort && columns.some((c) => c.id === find.sort!.column) ? find.sort : null;
-  const ordered = React.useMemo(() => sortRows(arranged, activeSort, frozen), [arranged, activeSort, frozen]);
+  const ordered = React.useMemo(() => sortRows(arranged, activeSort, frozen, context), [arranged, activeSort, frozen, context]);
   const pinned = React.useCallback((row: SheetRow) => touched.has(row.key) || (!row.draft && touched.has(`l${row.label.id}`)), [touched]);
-  const savedRows = React.useMemo(() => filterRows(ordered, find, pinned), [ordered, find, pinned]);
+  const savedRows = React.useMemo(() => filterRows(ordered, find, pinned, context), [ordered, find, pinned, context]);
   const total = ordered.length;
   const noun = view.bottles ? (total === 1 ? "bottle" : "bottles") : total === 1 ? "label" : "labels";
   const filtered = isFiltered(find);
-  const findOptions = React.useMemo(
-    () => ({
+  const findOptions = React.useMemo(() => {
+    const byName = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
+    // What the labels are linked to, as choices: only what is actually in use here, since the rest would find nothing.
+    const used = (pick: (l: SheetLabel) => ReadonlyArray<{ id: number; label: string }>) => [...new Map(labels.flatMap((l) => pick(l).map((x) => [x.id, { key: x.id, label: x.label }] as const))).values()].sort(byName);
+    return {
       categories: categories.map((c) => ({ key: c.id, label: c.name })),
       brands: brands.map((b) => ({ key: b.id, label: b.name })),
       stores: [...new Set(bottles.map((b) => b.storeName).filter((n): n is string => Boolean(n)))].sort((a, b) => a.localeCompare(b)).map((n) => ({ key: n, label: n })),
-    }),
-    [categories, brands, bottles],
-  );
+      more: {
+        distilleries: used((l) => l.links.distilleries),
+        mashbills: used((l) => l.links.mashbills),
+        finishes: used((l) => l.links.finishes),
+        ingredients: [...new Set(labels.flatMap((l) => (l.links.ingredients ?? []).map((i) => i.name)))].sort((a, b) => a.localeCompare(b)).map((n) => ({ key: n, label: n })),
+      },
+    };
+  }, [categories, brands, bottles, labels]);
   const sortable = React.useMemo(() => columns.filter((c) => isSortable(c.id)).map((c) => ({ id: c.id, label: c.label })), [columns]);
 
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
@@ -836,6 +844,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
           categories={findOptions.categories}
           brands={findOptions.brands}
           stores={view.bottles ? findOptions.stores : null}
+          more={findOptions.more}
+          bottlesShown={view.bottles}
           sortable={sortable}
           onClear={() => {
             setFind((f) => ({ ...NO_FIND, sort: f.sort }));
