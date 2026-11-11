@@ -19,8 +19,9 @@ name or to the Rickhouse logo and brand artwork. That means:
     use your own logo, so that nobody mistakes it for the official Rickhouse.
   - Nothing in the AGPL changes any of this.
 
-Screenshots and photographs published on getrickhouse.com show the author's own
-collection and are not licensed for reuse.
+The website (www.getrickhouse.com) lives in its own repository, rickhouse-website,
+and is not covered by this license. Its text, brand artwork, and the screenshots
+and photographs it shows (the author's own collection) are not licensed for reuse.
 
 THIRD-PARTY MATERIAL
 --------------------
