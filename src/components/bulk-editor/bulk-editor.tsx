@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
 import { railFor } from "@/lib/bulk-editor/rail";
+import { shelfFor } from "@/lib/bulk-editor/shelf";
 import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND, nextSort, sortRows, type Find } from "@/lib/bulk-editor/find";
 import { ComboEditor } from "./combo-editor";
 import { FindBar } from "./find-bar";
@@ -819,7 +820,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   React.useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
-      if (sheetRef.current?.contains(target) || target?.closest?.("[data-bulk-editor-panel]")) return;
+      // Inside the sheet, in the rail or the autocomplete, or in any popover opened from the toolbar (they are drawn outside the sheet): not a click away.
+      if (sheetRef.current?.contains(target) || target?.closest?.("[data-bulk-editor-panel], [data-radix-popper-content-wrapper]")) return;
       // After the click has been handled: a cell being edited commits first.
       setTimeout(() => saver.saveDrafts(), 50);
     };
@@ -858,6 +860,13 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const railRow = current ? (rows[current.row] ?? null) : null;
   const railPhoto = railRow ? ((railRow.bottle && railRow.bottle.id > 0 ? photos.bottles[railRow.bottle.id] : undefined) ?? (railRow.label.id > 0 ? photos.labels[railRow.label.id] : undefined) ?? null) : null;
   const rail = React.useMemo(() => (railRow ? railFor(railRow, context, view, edits, railPhoto) : null), [railRow, context, view, edits, railPhoto]);
+  // "On your shelf": what is owned from this row's brand and label. From every label and every shelf bottle that is loaded,
+  // never the filtered rows, plus the new rows in this sheet that will be bottles.
+  const newBottles = React.useMemo(
+    () => allDrafts.filter((d) => view.bottles && d.brand !== null && d.label !== null && indexByKey.has(d.key)).map((d) => ({ key: d.key, brand: d.brand, label: d.label, saved: saver.rowState[d.key]?.kind === "saved" })),
+    [allDrafts, view.bottles, indexByKey, saver.rowState],
+  );
+  const shelf = React.useMemo(() => (railRow ? shelfFor({ row: railRow, labels, bottles, moves, newBottles, view }) : null), [railRow, labels, bottles, moves, newBottles, view]);
   // Editing a cell that belongs to the label changes every bottle on it; the rail says so as well as the cell.
   const railEditor = current && editing ? editorAt(current) : null;
   const railReach = railRow && railEditor && railEditor.scope === "label" && !railEditor.combo && !railRow.draft && railRow.bottle ? railRow.label.bottleCount : null;
@@ -1047,7 +1056,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
             </button>
           </div>
           <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto p-3">
-            <RailContent rail={rail} reach={railReach} />
+            <RailContent rail={rail} shelf={shelf} reach={railReach} />
           </div>
       </div>
       <button type="button" onClick={toggleRail} aria-label="Show the details panel" aria-expanded={false} className={cn("h-24 w-9 items-start justify-center border border-border bg-card pt-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", railChoice === null ? "flex xl:hidden" : railChoice === "closed" ? "flex" : "hidden")}>

@@ -567,3 +567,84 @@ test("the rail starts hidden on a narrower window, until it is chosen", async ({
   await rail(page).getByRole("button", { name: "Show the details panel" }).click();
   await expect(rail(page).getByRole("button", { name: "Hide the details panel" })).toBeVisible();
 });
+
+test("using a filter does not count as clicking away: a finished new row is saved by leaving it, not by that", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  const total = await countLine(page).innerText();
+  const [b, l] = [(await cell(page, 0, brand).locator(".truncate").first().innerText()).trim(), (await cell(page, 0, label).locator(".truncate").first().innerText()).trim()];
+  await cell(page, row, brand).click();
+  await page.keyboard.type(b);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type(l);
+  await page.keyboard.press("Tab"); // an existing label: the row is complete and would save when the cursor leaves it
+  await page.getByRole("button", { name: "Filter by category" }).click();
+  await page.locator("[data-radix-popper-content-wrapper]").first().getByRole("button").first().click(); // pressing inside the popover
+  await page.waitForTimeout(1500);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet"); // still the new row being entered
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(countLine(page)).toHaveText(total); // nothing was added to the shelf
+});
+
+// ---------------------------------------------------------------------------
+// On your shelf (in the rail)
+// ---------------------------------------------------------------------------
+
+const shelfText = async (page: Page) => ((await rail(page).locator("section", { has: page.getByRole("heading", { name: "On your shelf" }) }).textContent()) ?? "").replace(/\s+/g, " ").trim();
+const ORDINALS = ["zeroth", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth"];
+
+test("On your shelf: counts from the sheet's own rows, the next bottle's place, and no filter changes a count", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const rows = (await lastRow(page)) ;
+  const pairs: Array<[string, string]> = [];
+  for (let r = 0; r < rows; r++) pairs.push([(await cell(page, r, brand).locator(".truncate").first().innerText()).trim(), (await cell(page, r, label).locator(".truncate").first().innerText()).trim()]);
+  const [b, l] = pairs[0]!;
+  const ofBrand = pairs.filter(([x]) => x === b).length;
+  const ofLabel = pairs.filter(([x, y]) => x === b && y === l).length;
+  const labelCount = new Set(pairs.filter(([x]) => x === b).map(([, y]) => y)).size;
+
+  await cell(page, rows, brand).click();
+  await expect.poll(() => shelfText(page)).toContain("Choose a brand");
+  await page.keyboard.type(b);
+  await page.keyboard.press("Tab");
+  await expect.poll(() => shelfText(page)).toContain(`${ofBrand} ${ofBrand === 1 ? "bottle" : "bottles"} from ${labelCount} ${b} ${labelCount === 1 ? "label" : "labels"}`);
+  await page.keyboard.type(l);
+  await page.keyboard.press("Tab");
+  const chosen = await shelfText(page);
+  expect(chosen).toContain(`Your ${ORDINALS[ofBrand + 1]} ${b} bottle`);
+  expect(chosen).toContain(`${ORDINALS[ofLabel + 1]![0]!.toUpperCase()}${ORDINALS[ofLabel + 1]!.slice(1)} ${l}`);
+  expect(chosen).toMatch(/labels? · 1 not saved/); // the summary counts it, as does the label's own row
+  expect(chosen).toContain("+ 1 not saved");
+
+  // A filter that hides rows changes no count: the rail says just what it said.
+  await page.getByLabel("Sort by").selectOption(""); // (no sort: keep the sheet as it is)
+  await searchBox(page).fill("qqqqqqqq");
+  expect(await shelfText(page)).toBe(chosen);
+  await searchBox(page).fill("");
+});
+
+test("On your shelf: a label that is new, and a brand that is new, say so and what saving does", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  const b = (await cell(page, 0, brand).locator(".truncate").first().innerText()).trim();
+  await cell(page, row, brand).click();
+  await page.keyboard.type(b);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("A Label Nobody Has");
+  await page.keyboard.press("Enter"); // create it
+  await expect.poll(() => shelfText(page)).toContain("New label");
+  expect(await shelfText(page)).toContain(`Saving adds it under ${b}`);
+  expect(await shelfText(page)).toContain("First A Label Nobody Has");
+  await page.keyboard.press("Escape");
+
+  await cell(page, row + 1, brand).click();
+  await page.keyboard.type("Brand Nobody Has");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Its First Label");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => shelfText(page)).toContain("New brand");
+  expect(await shelfText(page)).toContain("Saving creates the brand and its first label");
+  expect(await shelfText(page)).toContain("Your first Brand Nobody Has bottle");
+  void label;
+});

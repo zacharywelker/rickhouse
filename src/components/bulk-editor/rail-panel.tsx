@@ -4,6 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import { categoryColor } from "@/lib/bottles/category-palette";
 import type { Rail, RailFact } from "@/lib/bulk-editor/rail";
+import type { Shelf } from "@/lib/bulk-editor/shelf";
 import { cn } from "@/lib/utils";
 
 /** The photo frame's flat offset shadow and the darker floor a cutout stands on (DESIGN.md §4.2), as the Collection's gallery draws them. */
@@ -62,11 +63,52 @@ function Facts({ title, facts }: { title: string; facts: RailFact[] }) {
 }
 
 /**
+ * What the person already has from the brand and label: counts, ordinals and the brand's labels. Plain words; the
+ * numbers being true is the point. Worked out from the whole collection, never from what the sheet is filtered to.
+ */
+function OnYourShelf({ shelf }: { shelf: Shelf }) {
+  return (
+    <section>
+      <h3 className="border-b border-border pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">On your shelf</h3>
+      {shelf.badge ? (
+        <div className="mt-1.5">
+          <span className="inline-block border border-foreground px-1.5 text-[11px] font-semibold uppercase leading-5 tracking-wide">{shelf.badge.text}</span>
+          <p className="mt-1 text-sm">{shelf.badge.note}</p>
+        </div>
+      ) : null}
+      {shelf.summary ? <p className={cn("text-sm", shelf.badge ? "mt-2 text-muted-foreground" : "mt-1.5")}>{shelf.summary}</p> : null}
+      {shelf.lines.map((line) => (
+        <p key={line} className="mt-1 text-sm font-medium">
+          {line}
+        </p>
+      ))}
+      {shelf.labels.length > 0 ? (
+        <ul className="mt-2 text-sm">
+          {shelf.labels.map((l) => (
+            <li key={`${l.isNew ? "new:" : ""}${l.name}`} className={cn("flex items-baseline justify-between gap-3 px-1.5 py-0.5", l.chosen && "bg-muted font-medium")} aria-current={l.chosen || undefined}>
+              <span className="min-w-0 truncate">
+                {l.name}
+                {l.isNew ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">new</span> : null}
+              </span>
+              <span className="shrink-0 tabular-nums">
+                {l.owned}
+                {l.unsaved > 0 ? <span className="ml-1 text-xs font-normal text-muted-foreground">+ {l.unsaved} not saved</span> : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {shelf.more > 0 ? <p className="mt-1 px-1.5 text-sm text-muted-foreground">+{shelf.more} more {shelf.more === 1 ? "label" : "labels"}</p> : null}
+    </section>
+  );
+}
+
+/**
  * The rail's contents: display only, nothing in it can be typed into. It follows the row the cursor is in. It is not a
  * live region: it changes on every cell move, so a screen reader is not told of it. The sheet carries each row's
  * information for anyone who is not looking at the rail.
  */
-export const RailContent = React.memo(function RailContent({ rail, reach }: { rail: Rail | null; reach: number | null }) {
+export const RailContent = React.memo(function RailContent({ rail, shelf, reach }: { rail: Rail | null; shelf: Shelf | null; reach: number | null }) {
   if (rail === null) return <p className="text-sm text-muted-foreground">Click a cell to see its row here.</p>;
   const name = rail.label || rail.brand;
   const kindText = rail.kind === "new" ? "New row" : rail.kind === "label" ? `Label · ${rail.bottleCount ?? 0} ${rail.bottleCount === 1 ? "bottle" : "bottles"}` : "Bottle";
@@ -86,6 +128,7 @@ export const RailContent = React.memo(function RailContent({ rail, reach }: { ra
           Editing this changes {reach} {reach === 1 ? "bottle" : "bottles"}: it belongs to the label.
         </p>
       ) : null}
+      {shelf ? <OnYourShelf shelf={shelf} /> : null}
       <Facts title="From the label" facts={rail.facts.filter((f) => f.source !== "bottle")} />
       <Facts title="This bottle" facts={rail.facts.filter((f) => f.source === "bottle")} />
       {rail.blank.length > 0 ? (
