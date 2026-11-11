@@ -36,6 +36,9 @@ export type SheetBottle = {
   ageStatement: string | null;
 };
 
+/** A thumbnail on the uploads volume. `isCutout` is whether the photo is a cutout (null: not yet known, drawn as one). */
+export type SheetPhoto = { path: string; isCutout: boolean | null };
+
 export type SheetView = { labels: boolean; bottles: boolean };
 /** What a new, unsaved row has chosen so far (see `drafts.ts`). */
 export type DraftMeta = { brandChosen: boolean; labelChosen: boolean; brandIsNew: boolean; labelIsNew: boolean };

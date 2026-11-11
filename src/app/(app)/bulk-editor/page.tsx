@@ -9,12 +9,12 @@ export const dynamic = "force-dynamic";
 
 export default async function BulkEditorPage() {
   const user = await requireSession();
-  const [{ labels, bottles, brands, categories, groups, kinds }, currency] = await Promise.all([loadSheet(user.id), getCurrency()]);
+  const [{ labels, bottles, brands, categories, groups, kinds, photos }, currency] = await Promise.all([loadSheet(user.id), getCurrency()]);
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <h1 className="text-3xl text-accent">Bulk editor</h1>
-      <BulkEditor labels={labels} bottles={bottles} brands={brands} categories={categories} groups={groups} kinds={kinds} currency={currency} />
+      <BulkEditor labels={labels} bottles={bottles} brands={brands} categories={categories} groups={groups} kinds={kinds} photos={photos} currency={currency} />
     </div>
   );
 }

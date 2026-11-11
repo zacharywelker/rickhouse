@@ -88,4 +88,22 @@ describe.skipIf(!url)("what the bulk editor loads, against a real database", () 
     expect(inherits.sizeMl).toBeNull();
     expect(Number(sheet.labels.find((x) => x.id === label)!.proof)).toBe(100);
   });
+
+  it("loads the thumbnails the rail shows: a label's own, and a bottle's (its own, else its label's), and only for those that have one", async () => {
+    const withPhoto = await fx.mkLabel(owner, cat.whiskey, "Sheet Photo");
+    const without = await fx.mkLabel(owner, cat.whiskey, "Sheet No Photo");
+    const theirs = await fx.mkLabel(stranger, cat.whiskey, "Sheet Photo Theirs");
+    await m.sql(`UPDATE expressions SET photo_thumb_path = 'labels/t.jpg', photo_path = 'labels/f.jpg', photo_is_cutout = true WHERE id = $1`, withPhoto);
+    await m.sql(`UPDATE expressions SET photo_path = 'labels/theirs.jpg' WHERE id = $1`, theirs);
+    const onPhoto = await fx.mkBottle(owner, withPhoto);
+    const onNone = await fx.mkBottle(owner, without);
+
+    const { photos } = await load.loadSheet(owner);
+    expect(photos.labels[withPhoto]).toEqual({ path: "labels/t.jpg", isCutout: true });
+    expect(photos.labels[without]).toBeUndefined();
+    expect(photos.labels[theirs]).toBeUndefined();
+    // The Collection's own rule: a bottle with no photo of its own shows its label's.
+    expect(photos.bottles[onPhoto]).toMatchObject({ path: "labels/t.jpg" });
+    expect(photos.bottles[onNone]).toBeUndefined();
+  });
 });
