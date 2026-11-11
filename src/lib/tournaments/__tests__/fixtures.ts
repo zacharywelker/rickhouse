@@ -1,4 +1,5 @@
 import { expect } from "vitest";
+import { isThrowawayName } from "@/lib/throwaway-database";
 import type { TournamentSettings } from "../lifecycle";
 import type { TournamentView } from "../view";
 
@@ -24,8 +25,8 @@ export type Db = {
 /** Connects, with the app's own database module pointed at the test database before it is first imported. */
 export async function connect(): Promise<Db> {
   const dbName = new URL(url!).pathname.slice(1);
-  if (!/(test|proto|scratch|tourney)/.test(dbName)) {
-    throw new Error(`Refusing to run the tournament tests against "${dbName}": the database name must contain test, proto, scratch or tourney.`);
+  if (!isThrowawayName(dbName)) {
+    throw new Error(`Refusing to run the integration tests against "${dbName}": the database name must have a test, tourney, scratch, proto, e2e or audit segment.`);
   }
   process.env.DATABASE_URL = url!;
   process.env.SESSION_SECRET ??= "x".repeat(40);

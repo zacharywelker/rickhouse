@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { assertThrowawayDatabase } from "../../src/lib/throwaway-database";
+
 const run = promisify(execFile);
 
 /**
@@ -15,12 +17,8 @@ const run = promisify(execFile);
  * other while tests within a file can still build on one another.
  */
 export async function resetDatabase(): Promise<void> {
-  await run("npm", ["run", "db:reset"], {
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      DATABASE_URL:
-        process.env.DATABASE_URL ?? "postgres://rickhouse:rickhouse@127.0.0.1:5432/rickhouse",
-    },
-  });
+  // This empties every table, so it will only run against a database that is plainly a throwaway one. There is no
+  // fallback URL: the one this used to fall back to was the real database's name.
+  assertThrowawayDatabase();
+  await run("npm", ["run", "db:reset"], { cwd: process.cwd(), env: process.env });
 }
