@@ -155,3 +155,71 @@ test("Brand and Label stay put while the sheet scrolls sideways", async ({ page 
   });
   expect([await left(0), await left(1)]).toEqual([brand, name]);
 });
+
+// ---------------------------------------------------------------------------
+// New rows: the Brand, Label and Category autocompletes (nothing is saved yet)
+// ---------------------------------------------------------------------------
+
+const combo = (page: Page) => page.getByRole("combobox");
+const lastRow = async (page: Page) => (await sheet(page).locator("tbody tr").count()) - 1;
+
+test("the empty row at the bottom is live: Tab takes an existing brand and moves to its Label", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  await expect(cell(page, row, brand)).toContainText("Add a bottle");
+  const existing = (await cell(page, 0, brand).innerText()).trim();
+
+  await cell(page, row, brand).click();
+  await page.keyboard.type(existing.slice(0, 4));
+  await expect(page.getByRole("option").first()).toContainText(existing);
+  await page.keyboard.press("Tab");
+  await expect(cell(page, row, brand)).toContainText(existing);
+  expect(await active(page)).toEqual({ row, col: label });
+  // A fresh empty row appears below, so there is always one to type into.
+  await expect(sheet(page).locator("tbody tr")).toHaveCount(row + 2);
+});
+
+test("a typo never makes a brand: Tab is blocked, Enter on Create makes it, and clicking away makes nothing", async ({ page }) => {
+  const brand = await col(page, "Brand");
+  const row = await lastRow(page);
+
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await expect(page.getByRole("option", { name: /Create/ })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(combo(page)).toHaveCount(1); // still open
+  await expect(page.getByRole("alert").filter({ hasText: "Press Enter to create" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await sheet(page).locator("th").first().click(); // click away
+  await expect(combo(page)).toHaveCount(0);
+  await expect(cell(page, row, brand)).toContainText("Add a bottle");
+
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, row, brand)).toContainText("Zzyzx Distilling");
+  await expect(cell(page, row, brand)).toContainText("new");
+  await expect(page.getByRole("status")).toContainText("1 new row");
+});
+
+test("a new label under a new brand takes its category from the closed list, and Discard removes the row", async ({ page }) => {
+  const [brand, label, category] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Category")];
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await page.keyboard.press("Enter");
+  expect(await active(page)).toEqual({ row, col: label });
+  await page.keyboard.type("Cask One");
+  await page.keyboard.press("Enter");
+  expect(await active(page)).toEqual({ row, col: category });
+  await page.keyboard.type("bou");
+  await expect(page.getByRole("option").first()).toContainText("Bourbon");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, row, category)).toContainText("Bourbon");
+
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(cell(page, row, brand)).toContainText("Add a bottle");
+});

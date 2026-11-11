@@ -1,13 +1,17 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { ColumnPicker, type PickerGroup } from "@/components/bulk/column-picker";
 import { GridCell } from "@/components/bulk/grid-cell";
 import { useHiddenColumns } from "@/components/bulk/use-hidden-columns";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { countEdits, editorFor, parseCell, setEdit, type CellEditor, type Edits } from "@/lib/bulk-editor/editors";
+import type { FieldGroup } from "@/db/schema";
+import {
+  brandCandidates, categoryCandidates, countNewRows, draftSheetRow, emptyDraft, labelCandidates, withBlankRow, withBrand, withCategory, withLabel,
+  type CategoryChoice, type DraftRow,
+} from "@/lib/bulk-editor/drafts";
+import { editorFor, parseCell, setEdit, type CellEditor, type Edits } from "@/lib/bulk-editor/editors";
 import { arrowMove, enterMove, tabMove, type ArrowKey, type Moved, type Pos } from "@/lib/bulk-editor/nav";
 import {
   columnsFor,
@@ -23,6 +27,8 @@ import {
   type SheetView,
 } from "@/lib/bulk-editor/sheet";
 import { cn } from "@/lib/utils";
+import { ComboEditor } from "./combo-editor";
+import type { ComboData, Editing, Finish } from "./types";
 
 const VIEW_KEY = "bulk-editor:view";
 const HIDDEN_KEY = "bulk-editor:hidden";
@@ -77,7 +83,7 @@ function ViewToggle({ label, on, onlyOne, onClick }: { label: string; on: boolea
 }
 
 const PICKER_GROUPS: ReadonlyArray<PickerGroup> = [
-  { id: "label", title: "Label", columns: SHEET_COLUMNS.filter((c) => c.group === "label").map((c) => ({ id: c.id, label: c.label, locked: c.identity === true })) },
+  { id: "label", title: "Label", columns: SHEET_COLUMNS.filter((c) => c.group === "label").map((c) => ({ id: c.id, label: c.label, locked: c.identity === true || c.always === true })) },
   { id: "bottle", title: "Bottle", columns: SHEET_COLUMNS.filter((c) => c.group === "bottle").map((c) => ({ id: c.id, label: c.label })) },
 ];
 const PICKER_PRESETS = [
@@ -88,7 +94,7 @@ const PICKER_PRESETS = [
 /** The rule on a cell's left edge: none for the first, a faint one between columns, a dark one between the Label and Bottle groups. */
 function ruleClass(index: number, column: SheetColumn, previous: SheetColumn | undefined) {
   if (index === 0) return "";
-  return previous && previous.group !== column.group ? "border-l border-foreground" : "border-l border-border/40";
+  return previous && previous.group !== column.group ? "border-l border-l-foreground" : "border-l border-l-border/40";
 }
 
 function frozenProps(column: SheetColumn, header: boolean) {
@@ -106,9 +112,6 @@ function frozenProps(column: SheetColumn, header: boolean) {
 
 /** Header cells stay at the top of the sheet while its rows scroll (the sheet scrolls inside its own box from `md` up). */
 const HEAD_CELL = "sticky z-20 bg-card shadow-[0_1px_0_var(--border)]";
-
-type Editing = { value: string; /** Typing started it, so the caret goes after the character instead of selecting the old value. */ replace: boolean };
-type Finish = { cancel: true; focus: boolean } | { value: string; move: "stay" | "down" | "up" | "next" | "prev"; focus: boolean };
 
 /**
  * The one live editor: the form's own field control for the cell, mounted over the active cell only. It is positioned
@@ -132,7 +135,7 @@ function ActiveEditor({ editor, initial, error, onFinish, onInvalid }: { editor:
     }
   }, [initial.replace]);
 
-  function commit(move: Extract<Finish, { move: unknown }>["move"], focus: boolean) {
+  function commit(move: "stay" | "down" | "up" | "next" | "prev", focus: boolean) {
     const parsed = parseCell(editor, draft);
     if (!parsed.ok) {
       onInvalid(parsed.message);
@@ -203,12 +206,14 @@ type RowProps = {
   /** Only passed to the active row, so no other row re-renders when the cursor moves. */
   editing: Editing | null;
   error: string | null;
+  /** What a picking cell offers; only for the active row, and only while a Brand, Label or Category cell is open. */
+  combo: ComboData | null;
   onFinish: ((finish: Finish) => void) | undefined;
   onInvalid: ((message: string) => void) | undefined;
 };
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, activeCol, editing, error, onFinish, onInvalid }: RowProps) {
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, activeCol, editing, error, combo, onFinish, onInvalid }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -240,11 +245,16 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
             )}
             style={frozen.style}
           >
-            <span className={cn("block truncate", !column.identity && "max-w-56", isEditing && "invisible")} title={cell.text}>
-              {cell.text}
+            <span className={cn("flex items-center gap-1.5", isEditing && "invisible")} title={cell.text}>
+              <span className={cn("block truncate", !column.identity && "max-w-56")}>{cell.text}</span>
+              {cell.badge ? <span className="shrink-0 border border-border px-1 text-[10px] uppercase leading-4 tracking-wide text-muted-foreground">{cell.badge}</span> : null}
             </span>
             {isEditing && editing && editor && onFinish && onInvalid ? (
-              <ActiveEditor editor={editor} initial={editing} error={error} onFinish={onFinish} onInvalid={onInvalid} />
+              editor.combo && combo ? (
+                <ComboEditor kind={editor.combo} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} />
+              ) : (
+                <ActiveEditor editor={editor} initial={editing} error={error} onFinish={onFinish} onInvalid={onInvalid} />
+              )
             ) : null}
           </TableCell>
         );
@@ -258,14 +268,33 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
  * left. You can move around it and edit the plain cells from the keyboard: arrows, Tab and Enter, F2 or a keystroke to
  * edit, Escape to cancel. Edits are kept here, in the browser, and marked; saving them arrives in a later step.
  */
-export function BulkEditor({ labels, bottles, kinds, currency }: { labels: SheetLabel[]; bottles: SheetBottle[]; kinds: SheetContext["kinds"]; currency: string }) {
+export function BulkEditor({ labels, bottles, brands, categories, groups, kinds, currency }: {
+  labels: SheetLabel[];
+  bottles: SheetBottle[];
+  brands: Array<{ id: number; name: string }>;
+  categories: CategoryChoice[];
+  groups: Record<number, FieldGroup>;
+  kinds: SheetContext["kinds"];
+  currency: string;
+}) {
   const [view, setView] = useView();
   const [hidden, setHidden] = useHiddenColumns(HIDDEN_KEY, DEFAULT_HIDDEN);
   const context = React.useMemo<SheetContext>(() => ({ currency, kinds }), [currency, kinds]);
 
   const columns = React.useMemo(() => columnsFor(view, hidden), [view, hidden]);
-  const rows = React.useMemo(() => sheetRows(view, labels, bottles), [view, labels, bottles]);
-  const noun = view.bottles ? (rows.length === 1 ? "bottle" : "bottles") : rows.length === 1 ? "label" : "labels";
+  const savedRows = React.useMemo(() => sheetRows(view, labels, bottles), [view, labels, bottles]);
+  const noun = view.bottles ? (savedRows.length === 1 ? "bottle" : "bottles") : savedRows.length === 1 ? "label" : "labels";
+
+  // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
+  // one is made fresh each time (see `withBlankRow`).
+  const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
+  const allDrafts = React.useMemo(() => withBlankRow(drafts), [drafts]);
+  const draftContext = React.useMemo(() => ({ view, labels, categories, groups }), [view, labels, categories, groups]);
+  const rowsFor = React.useCallback(
+    (list: DraftRow[]) => [...savedRows, ...list.map((draft) => draftSheetRow(draft, draftContext))],
+    [savedRows, draftContext],
+  );
+  const rows = React.useMemo(() => rowsFor(allDrafts), [rowsFor, allDrafts]);
 
   const [active, setActive] = React.useState<Pos | null>(null);
   const [editing, setEditing] = React.useState<Editing | null>(null);
@@ -280,11 +309,12 @@ export function BulkEditor({ labels, bottles, kinds, currency }: { labels: Sheet
   // The view or the columns can change under the cursor; keep it on the sheet.
   const current: Pos | null = active && dims.rows > 0 && dims.cols > 0 ? { row: Math.min(active.row, dims.rows - 1), col: Math.min(active.col, dims.cols - 1) } : null;
 
-  const editorAt = (pos: Pos): CellEditor | null => {
-    const row = rows[pos.row];
+  const editorIn = (list: SheetRow[], pos: Pos): CellEditor | null => {
+    const row = list[pos.row];
     const column = columns[pos.col];
     return row && column ? editorFor(column, view, row) : null;
   };
+  const editorAt = (pos: Pos): CellEditor | null => editorIn(rows, pos);
   const valueAt = (pos: Pos): string => {
     const row = rows[pos.row]!;
     const editor = editorAt(pos);
@@ -309,19 +339,65 @@ export function BulkEditor({ labels, bottles, kinds, currency }: { labels: Sheet
     const column = columns[pos.col];
     const editor = editorAt(pos);
     if (!row || !column || !editor) return;
+    if (row.draft) setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
     setEdits((prev) => setEdit(prev, row.key, column.id, value, editor.initial(row)));
+  }
+
+  /** `list` with the draft of this key changed, making it a real draft first if it is still the empty row. */
+  function updatedDrafts(key: string, change: (draft: DraftRow) => DraftRow): DraftRow[] {
+    const base = drafts.some((d) => d.key === key) ? drafts : [...drafts, emptyDraft(key)];
+    return base.map((d) => (d.key === key ? change(d) : d));
   }
 
   function finish(result: Finish) {
     if (!current) return;
+    const row = rows[current.row];
+    const columnId = columns[current.col]?.id;
+    if (!row || !columnId) return;
+
+    // A choice the sheet will not take is refused in the open editor, with the reason, rather than dropped.
+    if ("pick" in result && columnId === "name" && result.pick.kind === "existing" && !view.bottles) {
+      focusAfter.current = result.focus;
+      setError("That label already exists. Switch Bottles on to add a bottle of it.");
+      return;
+    }
+
     focusAfter.current = result.focus;
     setEditing(null);
     setError(null);
     if ("cancel" in result) return;
-    stage(current, result.value);
-    const canLand = (pos: Pos) => editorAt(pos) !== null;
-    if (result.move === "down" || result.move === "up") go(enterMove(current, anchorCol.current, result.move === "up", dims));
-    else if (result.move === "next" || result.move === "prev") go(tabMove(current, result.move === "prev", dims, canLand, anchorCol.current));
+
+    // The rows as they will be once this is applied: the next cell to land on can depend on what was just chosen
+    // (a brand opens the Label cell), so the move is judged against them, not against the rows as they are now.
+    let nextRows = rows;
+    if ("value" in result) stage(current, result.value);
+    else if ("pick" in result || "categoryId" in result) {
+      const nextDrafts = updatedDrafts(row.key, (draft) => {
+        if ("categoryId" in result) return withCategory(draft, result.categoryId);
+        if (columnId === "brand") return withBrand(draft, result.pick);
+        const chosen = result.pick.kind === "existing" ? labels.find((l) => l.id === (result.pick as { id: number }).id) : undefined;
+        return withLabel(draft, result.pick, chosen?.categoryId ?? null);
+      });
+      setDrafts(nextDrafts);
+      nextRows = rowsFor(withBlankRow(nextDrafts));
+    }
+
+    const landsOn = (pos: Pos) => editorIn(nextRows, pos) !== null;
+    if (result.move === "down" || result.move === "up") go(enterMove(current, anchorCol.current, result.move === "up", { rows: nextRows.length, cols: dims.cols }));
+    else if (result.move === "next" || result.move === "prev") go(tabMove(current, result.move === "prev", { rows: nextRows.length, cols: dims.cols }, landsOn, anchorCol.current));
+  }
+
+  /** What the open Brand, Label or Category cell offers. Worked out for the active cell only. */
+  function comboFor(): ComboData | null {
+    if (!current || !editing) return null;
+    const row = rows[current.row];
+    const editor = editorAt(current);
+    const draft = row?.draft ? allDrafts.find((d) => d.key === row.key) : undefined;
+    if (!row || !editor?.combo || !draft) return null;
+    const noCreateReason = view.labels ? undefined : "Labels are off, so a new brand or label cannot be made here. Switch Labels on.";
+    if (editor.combo === "brand") return { candidates: brandCandidates(brands, allDrafts, draft.key), allowCreate: view.labels, what: "brand", ...(noCreateReason ? { noCreateReason } : {}) };
+    if (editor.combo === "label") return { candidates: labelCandidates(draft, labels, allDrafts), allowCreate: view.labels, what: "label", ...(noCreateReason ? { noCreateReason } : {}) };
+    return { candidates: categoryCandidates(categories), allowCreate: false, what: "category" };
   }
 
   function cellOf(target: EventTarget): { pos: Pos; direct: boolean } | null {
@@ -355,7 +431,8 @@ export function BulkEditor({ labels, bottles, kinds, currency }: { labels: Sheet
       }
     } else if (key === "Delete" || key === "Backspace") {
       const editor = editorAt(pos);
-      if (editor && !editor.required) {
+      // A brand, label or category is changed by choosing another, not by emptying the cell.
+      if (editor && !editor.required && !editor.combo) {
         event.preventDefault();
         stage(pos, "");
       }
@@ -399,7 +476,11 @@ export function BulkEditor({ labels, bottles, kinds, currency }: { labels: Sheet
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.row, current?.col, editing]);
 
-  const unsaved = countEdits(edits);
+  // Changes to rows that exist, and new rows that have been started. A new row's typed values belong to the row.
+  const changes = Object.entries(edits).reduce((n, [key, cells]) => (key.startsWith("d") ? n : n + Object.keys(cells).length), 0);
+  const newRows = countNewRows(drafts, edits);
+  const unsaved = changes + newRows;
+  const comboData = comboFor();
 
   // Brand and Label sit under one "Label" caption; the Bottle group has its own, after a dark rule.
   const frozenCount = columns.filter((c) => FROZEN[c.id]).length;
@@ -422,19 +503,27 @@ export function BulkEditor({ labels, bottles, kinds, currency }: { labels: Sheet
           label="Fields"
           groups={PICKER_GROUPS}
           visible={new Set(SHEET_COLUMNS.filter((c) => !hidden.has(c.id)).map((c) => c.id))}
-          onChange={(next) => setHidden(new Set(SHEET_COLUMNS.filter((c) => !c.identity && !next.has(c.id)).map((c) => c.id)))}
+          onChange={(next) => setHidden(new Set(SHEET_COLUMNS.filter((c) => !c.identity && !c.always && !next.has(c.id)).map((c) => c.id)))}
           presets={PICKER_PRESETS}
         />
         {unsaved > 0 ? (
           <p role="status" className="flex items-center gap-2 text-sm">
-            {unsaved} {unsaved === 1 ? "change" : "changes"} not saved yet (saving comes in a later step)
-            <Button type="button" variant="outline" size="sm" onClick={() => setEdits({})}>
+            {[changes > 0 ? `${changes} ${changes === 1 ? "change" : "changes"}` : null, newRows > 0 ? `${newRows} new ${newRows === 1 ? "row" : "rows"}` : null].filter(Boolean).join(" and ")} not saved yet (saving comes in a later step)
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEdits({});
+                setDrafts([]);
+              }}
+            >
               Discard
             </Button>
           </p>
         ) : null}
         <p className="ml-auto text-sm text-muted-foreground" aria-live="off">
-          {rows.length} {noun}
+          {savedRows.length} {noun}
         </p>
       </div>
 
@@ -444,9 +533,9 @@ export function BulkEditor({ labels, bottles, kinds, currency }: { labels: Sheet
             <TableHead colSpan={frozenCount} className="sticky top-0 z-30 h-7 bg-card text-[11px] tracking-wider md:left-0" style={{ minWidth: 310 }}>
               Label
             </TableHead>
-            {labelRest > 0 ? <TableHead colSpan={labelRest} className="sticky top-0 z-20 h-7 border-l border-border/40 bg-card" /> : null}
+            {labelRest > 0 ? <TableHead colSpan={labelRest} className="sticky top-0 z-20 h-7 border-l border-l-border/40 bg-card" /> : null}
             {bottleCount > 0 ? (
-              <TableHead colSpan={bottleCount} className="sticky top-0 z-20 h-7 border-l border-foreground bg-card text-[11px] tracking-wider">
+              <TableHead colSpan={bottleCount} className="sticky top-0 z-20 h-7 border-l border-l-foreground bg-card text-[11px] tracking-wider">
                 Bottle
               </TableHead>
             ) : null}
@@ -483,37 +572,24 @@ export function BulkEditor({ labels, bottles, kinds, currency }: { labels: Sheet
                 activeCol={isActiveRow ? current.col : -1}
                 editing={isActiveRow ? editing : null}
                 error={isActiveRow ? error : null}
+                combo={isActiveRow ? comboData : null}
                 onFinish={isActiveRow ? finish : undefined}
                 onInvalid={isActiveRow ? setError : undefined}
               />
             );
           })}
-          {/* The next step makes this row live: it needs the Brand and Label cells first. */}
-          <TableRow className="hover:bg-transparent">
-            <TableCell colSpan={columns.length} className="h-9 py-0 text-muted-foreground">
-              {view.bottles ? "Add a bottle" : "Add a label"} (comes with the Brand and Label cells, in the next step)
-            </TableCell>
-          </TableRow>
         </TableBody>
       </Table>
 
-      {rows.length === 0 ? (
-        <p className="border-t border-border px-3 py-6 text-center text-sm text-muted-foreground">
-          {view.bottles ? (
-            <>
-              No bottles on the shelf yet. <Link href="/bottles/new" className="underline">Add one</Link>, or switch to Labels.
-            </>
-          ) : (
-            <>
-              No labels yet. <Link href="/expressions/new" className="underline">Create one</Link>.
-            </>
-          )}
+      {savedRows.length === 0 ? (
+        <p className="border-t border-border px-3 py-4 text-center text-sm text-muted-foreground">
+          {view.bottles ? <>Nothing on the shelf yet. Type in the first row to add a bottle, or switch to Labels.</> : <>No labels yet. Type in the first row to add one.</>}
         </p>
-      ) : (
-        <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-          Arrow keys move. Type or press Enter to edit. Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels.
-        </p>
-      )}
+      ) : null}
+      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+        Arrow keys move. Type or press Enter to edit. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only.
+        Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels.
+      </p>
     </div>
   );
 }

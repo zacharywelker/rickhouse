@@ -1,10 +1,12 @@
 import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { bottles, stores } from "@/db/schema";
+import { bottles, stores, type FieldGroup } from "@/db/schema";
+import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { DEFAULT_STATUSES } from "@/lib/bottles/filters";
 import { parseLabelFilters } from "@/lib/expressions/filters";
-import { categoryKindsById, queryExpressions } from "@/lib/expressions/queries";
+import { categoryFieldGroups, categoryKindsById, queryExpressions } from "@/lib/expressions/queries";
+import type { CategoryChoice } from "./drafts";
 import type { SheetBottle, SheetLabel } from "./sheet";
 
 /** More rows than anyone owns: the editor is one scroll, not pages. */
@@ -20,8 +22,12 @@ export async function loadSheet(ownerId: number): Promise<{
   labels: SheetLabel[];
   bottles: SheetBottle[];
   kinds: Awaited<ReturnType<typeof categoryKindsById>>;
+  /** The account's brands and the categories, the same lists the label form picks from. */
+  brands: Array<{ id: number; name: string }>;
+  categories: CategoryChoice[];
+  groups: Record<number, FieldGroup>;
 }> {
-  const [{ rows: labels }, bottleRows, kinds] = await Promise.all([
+  const [{ rows: labels }, bottleRows, kinds, brandOptions, categoryOptions, groups] = await Promise.all([
     queryExpressions({ ...parseLabelFilters({}), pageSize: EVERYTHING }, ownerId),
     db
       .select({
@@ -49,6 +55,16 @@ export async function loadSheet(ownerId: number): Promise<{
       .where(and(eq(bottles.ownerId, ownerId), inArray(bottles.status, DEFAULT_STATUSES)))
       .orderBy(asc(bottles.id)),
     categoryKindsById(),
+    REFERENCE_OPTION_LOADERS.brands(ownerId),
+    REFERENCE_OPTION_LOADERS.categories(ownerId),
+    categoryFieldGroups(),
   ]);
-  return { labels, bottles: bottleRows, kinds };
+  return {
+    labels,
+    bottles: bottleRows,
+    kinds,
+    brands: brandOptions.map((o) => ({ id: o.value, name: o.label })),
+    categories: categoryOptions.map((o) => ({ id: o.value, name: o.label, ...(o.hint ? { hint: o.hint } : {}) })),
+    groups,
+  };
 }
