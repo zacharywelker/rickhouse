@@ -58,6 +58,15 @@ export function filterCount(find: Find): number {
 
 export const isFiltered = (find: Find): boolean => filterCount(find) > 0;
 
+/**
+ * The filters that are in force for a view. Store and price paid are a bottle's, and are offered only when looking at
+ * bottles alone: in any other view they are off (not applied, not counted) and their values are kept for when the
+ * person comes back to bottles alone.
+ */
+export function effectiveFind(find: Find, view: { labels: boolean; bottles: boolean }): Find {
+  return view.bottles && !view.labels ? find : { ...find, stores: [], price: NO_RANGE };
+}
+
 // ---------------------------------------------------------------------------
 // Search
 // ---------------------------------------------------------------------------
@@ -127,10 +136,7 @@ const inRange = (value: number | null, range: Range): boolean => !hasBound(range
 // Filters
 // ---------------------------------------------------------------------------
 
-/**
- * Whether a row passes every filter that is set, all of which must hold. A bottle's filters (store, price paid) say
- * nothing about a row that is only a label, so in a Labels-only view they let it through.
- */
+/** Whether a row passes every filter that is set, all of which must hold. (See `effectiveFind` for which are in force.) */
 export function matchesFilters(row: SheetRow, find: Find, ctx: FindContext): boolean {
   const { label, bottle } = row;
   if (find.categoryIds.length > 0 && !find.categoryIds.includes(label.categoryId)) return false;
@@ -140,10 +146,8 @@ export function matchesFilters(row: SheetRow, find: Find, ctx: FindContext): boo
   if (find.finishIds.length > 0 && !label.links.finishes.some((f) => find.finishIds.includes(f.id))) return false;
   if (find.ingredients.length > 0 && !(label.links.ingredients ?? []).some((i) => find.ingredients.includes(i.name))) return false;
   if (!inRange(proofOf(row), find.proof) || !inRange(ageOf(row, ctx), find.age) || !inRange(num(label.msrp), find.msrp)) return false;
-  if (bottle) {
-    if (find.stores.length > 0 && !(bottle.storeName && find.stores.includes(bottle.storeName))) return false;
-    if (!inRange(num(bottle.pricePaid), find.price)) return false;
-  }
+  if (find.stores.length > 0 && !(bottle?.storeName && find.stores.includes(bottle.storeName))) return false;
+  if (!inRange(num(bottle?.pricePaid), find.price)) return false;
   return find.q.trim() === "" || matchesSearch(row, find.q);
 }
 
