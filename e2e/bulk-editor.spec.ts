@@ -125,6 +125,7 @@ test("a label's own facts are read-only on a bottle row, and editable when the r
   await page.keyboard.press("Enter");
   await page.keyboard.type("123");
   await expect(editors(page)).toHaveCount(0);
+  await expect(cell(page, 1, proof).locator("span[title]").first()).toHaveAttribute("title", "Triple-click to edit");
 
   await page.getByRole("button", { name: "Bottles", exact: true }).click();
   const msrp = await col(page, "MSRP");
@@ -222,4 +223,43 @@ test("a new label under a new brand takes its category from the closed list, and
 
   await page.getByRole("button", { name: "Discard" }).click();
   await expect(cell(page, row, brand)).toContainText("Add a bottle");
+});
+
+// ---------------------------------------------------------------------------
+// Label fields and bottle fields: locks, and moving a bottle
+// ---------------------------------------------------------------------------
+
+test("a label's fact is locked on a bottle row; triple-click opens it and says how many bottles it changes", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  await expect(cell(page, 1, proof).locator("svg")).toHaveCount(1);
+  await page.keyboard.type("5"); // nothing is focused on the sheet yet
+  await cell(page, 1, proof).click({ clickCount: 3 });
+  await expect(cell(page, 1, proof)).toContainText(/all \d+/);
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/^Changes \d+ bottles?$/)).toBeVisible();
+  await page.keyboard.type("101");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 1, proof)).toContainText("101");
+  await expect(page.getByRole("status")).toContainText("1 change not saved yet");
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(cell(page, 1, proof).locator("span[title]").first()).toHaveAttribute("title", "Triple-click to edit");
+});
+
+test("Bottles only shows no label facts, and Brand moves a bottle to a label that exists, never a new one", async ({ page }) => {
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  const names = await sheet(page).locator("thead tr:last-child th").allTextContents();
+  expect(names.map((n) => n.trim())).not.toContain("Proof");
+  await cell(page, 0, 0).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("zzzzzz");
+  await expect(page.getByRole("option", { name: /Create/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  // Move it to the label on the last saved row (the one after it is the empty row for a new bottle).
+  const last = (await lastRow(page)) - 1;
+  const target = `${(await cell(page, last, 0).innerText()).trim()} ${(await cell(page, last, 1).innerText()).trim()}`;
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(target);
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, 1)).toHaveText((await cell(page, last, 1).innerText()).trim());
+  await expect(page.getByRole("status")).toContainText("1 change not saved yet");
 });
