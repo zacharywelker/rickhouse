@@ -1,13 +1,13 @@
 import "server-only";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { bottles, stores, type FieldGroup } from "@/db/schema";
+import { bottleList, bottles, expressions, stores, type FieldGroup } from "@/db/schema";
 import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { DEFAULT_STATUSES } from "@/lib/bottles/filters";
 import { parseLabelFilters } from "@/lib/expressions/filters";
 import { categoryFieldGroups, categoryKindsById, queryExpressions } from "@/lib/expressions/queries";
 import type { CategoryChoice } from "./drafts";
-import type { SheetBottle, SheetLabel } from "./sheet";
+import type { SheetBottle, SheetLabel, SheetPhoto } from "./sheet";
 
 /** More rows than anyone owns: the editor is one scroll, not pages. */
 const EVERYTHING = 100_000;
@@ -26,8 +26,10 @@ export async function loadSheet(ownerId: number): Promise<{
   brands: Array<{ id: number; name: string }>;
   categories: CategoryChoice[];
   groups: Record<number, FieldGroup>;
+  /** Thumbnails for the rail: a bottle's (its own, else its release's, else its label's, as the Collection shows) and a label's own. Only those that have one. */
+  photos: { bottles: Record<number, SheetPhoto>; labels: Record<number, SheetPhoto> };
 }> {
-  const [{ rows: labels }, bottleRows, kinds, brandOptions, categoryOptions, groups] = await Promise.all([
+  const [{ rows: labels }, bottleRows, kinds, brandOptions, categoryOptions, groups, bottlePhotos, labelPhotos] = await Promise.all([
     queryExpressions({ ...parseLabelFilters({}), pageSize: EVERYTHING }, ownerId),
     db
       .select({
@@ -58,7 +60,17 @@ export async function loadSheet(ownerId: number): Promise<{
     REFERENCE_OPTION_LOADERS.brands(ownerId),
     REFERENCE_OPTION_LOADERS.categories(ownerId),
     categoryFieldGroups(),
+    db
+      .select({ id: bottleList.id, path: bottleList.thumbPath, isCutout: bottleList.thumbIsCutout })
+      .from(bottleList)
+      .where(and(eq(bottleList.ownerId, ownerId), isNotNull(bottleList.thumbPath))),
+    db
+      .select({ id: expressions.id, path: sql<string | null>`coalesce(${expressions.photoThumbPath}, ${expressions.photoPath})`, isCutout: expressions.photoIsCutout })
+      .from(expressions)
+      .where(and(eq(expressions.ownerId, ownerId), or(isNotNull(expressions.photoThumbPath), isNotNull(expressions.photoPath)))),
   ]);
+  const photoMap = (rows: Array<{ id: number; path: string | null; isCutout: boolean | null }>): Record<number, SheetPhoto> =>
+    Object.fromEntries(rows.filter((r) => r.path !== null).map((r) => [r.id, { path: r.path!, isCutout: r.isCutout }]));
   return {
     labels,
     bottles: bottleRows,
@@ -66,5 +78,6 @@ export async function loadSheet(ownerId: number): Promise<{
     brands: brandOptions.map((o) => ({ id: o.value, name: o.label })),
     categories: categoryOptions.map((o) => ({ id: o.value, name: o.label, ...(o.hint ? { hint: o.hint } : {}) })),
     groups,
+    photos: { bottles: photoMap(bottlePhotos), labels: photoMap(labelPhotos) },
   };
 }

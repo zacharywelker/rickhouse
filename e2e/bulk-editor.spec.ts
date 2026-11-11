@@ -520,3 +520,50 @@ test("store and price paid are offered only when looking at bottles alone; in th
   await page.getByRole("button", { name: "Labels", exact: true }).click();
   await expect(countLine(page)).toHaveText(narrowed);
 });
+
+// ---------------------------------------------------------------------------
+// The rail
+// ---------------------------------------------------------------------------
+
+const rail = (page: Page) => page.getByRole("complementary", { name: "Row details" });
+
+test("the rail follows the cursor, says where facts come from, and is not a live region", async ({ page }) => {
+  await expect(rail(page)).toContainText("Click a cell");
+  const last = (await lastRow(page)) - 1;
+  const [first, second] = [(await cell(page, 0, 1).locator(".truncate").first().innerText()).trim(), (await cell(page, last, 1).locator(".truncate").first().innerText()).trim()];
+  expect(first).not.toBe(second);
+  await cell(page, 0, 1).click();
+  await expect(rail(page)).toContainText(first);
+  await expect(rail(page)).toContainText(/from the label/i);
+  await expect(rail(page)).toContainText(/this bottle/i);
+  await cell(page, last, 1).click();
+  await expect(rail(page)).toContainText(second);
+  // By keyboard too.
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowUp");
+  // Display only, and never announced: nothing in it can be typed into or is a live region.
+  await expect(rail(page).locator("input, textarea, select, [contenteditable]")).toHaveCount(0);
+  await expect(rail(page).locator("[aria-live], [role=status], [role=alert], [role=log]")).toHaveCount(0);
+  expect(await rail(page).getAttribute("aria-live")).toBeNull();
+});
+
+test("the rail can be hidden to a slim tab and shown again, and the choice is remembered", async ({ page }) => {
+  await expect(rail(page).getByRole("button", { name: "Hide the details panel" })).toBeVisible(); // open at this width
+  await rail(page).getByRole("button", { name: "Hide the details panel" }).click();
+  await expect(rail(page).getByRole("button", { name: "Show the details panel" })).toBeVisible();
+  expect((await rail(page).boundingBox())!.width).toBeLessThan(50);
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  await expect(rail(page).getByRole("button", { name: "Show the details panel" })).toBeVisible();
+  await rail(page).getByRole("button", { name: "Show the details panel" }).click();
+  await page.reload();
+  await expect(rail(page).getByRole("button", { name: "Hide the details panel" })).toBeVisible();
+});
+
+test("the rail starts hidden on a narrower window, until it is chosen", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await expect(rail(page).getByRole("button", { name: "Show the details panel" })).toBeVisible();
+  await expect(rail(page).getByRole("button", { name: "Hide the details panel" })).toBeHidden();
+  await rail(page).getByRole("button", { name: "Show the details panel" }).click();
+  await expect(rail(page).getByRole("button", { name: "Hide the details panel" })).toBeVisible();
+});
