@@ -78,9 +78,10 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
     } else if (key === "Enter" || key === "Tab") {
       event.preventDefault();
       event.stopPropagation();
-      // Enter here confirms a choice, it does not finish the row: the next cell (Label after Brand, Category after
-      // Label) has just opened in the same row, so both keys go on to it. Enter differs from Tab only in being able to create.
-      const move: Move = event.shiftKey ? "prev" : "next";
+      // On a new row Enter confirms a choice and does not finish the row: the next cell (Label after Brand, Category after
+      // Label) has just opened, so both keys go on to it, and Enter differs from Tab only in being able to create. On a
+      // saved row the pick is the whole change, so Enter drops down a row and Tab goes along the row.
+      const move: Move = key === "Enter" && data.enterDropsDown ? (event.shiftKey ? "up" : "down") : event.shiftKey ? "prev" : "next";
       // Nothing typed and nothing picked from the list: no choice has been made.
       if (text.trim() === "" && !moved.current) {
         if (initial.value === "") onFinish({ keep: true, move, focus: true });
@@ -109,6 +110,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
       ? null
       : createPortal(
           <div
+            data-bulk-editor-panel=""
             // Mouse presses must not take focus from the box, or clicking an option would count as clicking away.
             onMouseDown={(event) => event.preventDefault()}
             className="fixed z-50 flex max-h-72 min-w-56 max-w-80 flex-col overflow-hidden border border-border bg-card text-sm shadow-md"

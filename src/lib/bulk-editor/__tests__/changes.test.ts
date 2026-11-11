@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyMoves, buildChanges, editKey, labelEditsOf, moveCandidates, setMove } from "../changes";
+import { applyMoves, arrange, buildChanges, editKey, labelEditsOf, moveCandidates, setMove } from "../changes";
 import { EDITORS, setEdit, type Edits } from "../editors";
 import type { SheetBottle, SheetLabel, SheetRow } from "../sheet";
 
@@ -72,5 +72,36 @@ describe("moving a bottle", () => {
     expect(moveCandidates("brand", r, labels).map((c) => c.name)).toEqual(["Four Roses Single Barrel", "Four Roses Small Batch", "Buffalo Trace Eagle Rare"]);
     expect(moveCandidates("name", r, labels).map((c) => [c.id, c.name])).toEqual([[1, "Single Barrel"], [2, "Small Batch"]]);
     expect(moveCandidates("brand", r, labels).every((c) => c.id !== null)).toBe(true);
+  });
+});
+
+describe("arranging the rows as the person left them", () => {
+  const lab = (id: number, brand: string, name: string) => ({ id, brandId: id, brand, name, category: "Bourbon", bottleCount: 1 }) as unknown as SheetLabel;
+  const all = [lab(1, "Buffalo Trace", "Eagle Rare"), lab(2, "Four Roses", "Small Batch"), lab(3, "Weller", "12 Antique")];
+  const bs = [bottle(1, 1), bottle(2, 2), bottle(3, 3)];
+  const rowsOf = (): SheetRow[] => bs.map((b) => ({ key: `b${b.id}`, label: all.find((l) => l.id === b.expressionId)!, bottle: b }));
+  const order = (rs: SheetRow[]) => rs.map((r) => r.key);
+
+  it("leaves the rows alone, and the same, when nothing changes the order", () => {
+    expect(order(arrange(rowsOf(), {}, { b1: { pricePaid: "5" }, l2: { proof: "9" } }, all))).toEqual(["b1", "b2", "b3"]);
+  });
+  it("puts a moved bottle in its new label's place at once", () => {
+    expect(order(arrange(rowsOf(), { b1: 3 }, {}, all))).toEqual(["b2", "b1", "b3"]);
+    expect(arrange(rowsOf(), { b1: 3 }, {}, all).find((r) => r.key === "b1")).toMatchObject({ moved: true, label: { id: 3 } });
+  });
+  it("puts a renamed label, and a label under a new brand, in their new places", () => {
+    expect(order(arrange(rowsOf(), {}, { l1: { name: "Zzz" } }, all))).toEqual(["b1", "b2", "b3"]); // Buffalo Trace still first
+    expect(order(arrange(rowsOf(), {}, { l1: { brand: "Zebra" } }, all))).toEqual(["b2", "b3", "b1"]);
+    expect(arrange(rowsOf(), {}, { l1: { brand: "Zebra" } }, all).find((r) => r.key === "b1")!.label).toMatchObject({ brand: "Zebra", name: "Eagle Rare", id: 1 });
+  });
+  it("keeps the rows that did not change as the same objects", () => {
+    const rs = rowsOf();
+    const out = arrange(rs, { b1: 3 }, {}, all);
+    expect(out.find((r) => r.key === "b2")).toBe(rs[1]);
+  });
+  it("orders a label's bottles together, oldest first, wherever they are moved", () => {
+    const more = [...bs, bottle(9, 2)];
+    const rs = more.map((b): SheetRow => ({ key: `b${b.id}`, label: all.find((l) => l.id === b.expressionId)!, bottle: b }));
+    expect(order(arrange(rs, { b1: 2 }, {}, all))).toEqual(["b1", "b2", "b9", "b3"]);
   });
 });

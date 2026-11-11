@@ -23,6 +23,11 @@ export type ComboData = {
   allowCreate: boolean;
   /** "brand", "label" or "category": for the messages. */
   what: string;
+  /**
+   * On a saved row the pick is the whole change (a bottle moves, a label takes a brand), so Enter finishes it and drops
+   * to the next row, as it does in any cell. On a new row it goes on to the next cell of the row (Brand, Label, Category).
+   */
+  enterDropsDown?: boolean;
   /** Why Create is not offered, when it is not allowed. */
   noCreateReason?: string;
 };
