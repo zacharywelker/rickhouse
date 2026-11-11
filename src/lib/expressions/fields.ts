@@ -159,7 +159,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         help: "Scotch regions, comma separated. Drawn with the distilleries.",
       },
       { kind: "number", name: "entryProof", label: "Entry Proof", min: 0, max: 200, step: 0.01, span: "half" },
-      { kind: "checkbox", name: "isNonChillFiltered", label: "Non-chill filtered", span: "half", help: "Checked records a positive claim; unchecked means unknown." },
+      { kind: "checkbox", name: "isNonChillFiltered", label: "Non-chill filtered", span: "half" },
       { kind: "select", name: "isChillFiltered", label: "Chill Filtered", options: TRISTATE, span: "half" },
       { kind: "checkbox", name: "isAdditiveFree", label: "Additive Free", span: "half", help: "Checked records a positive claim; unchecked means unknown." },
       { kind: "select", name: "peatStatus", label: "Peat", options: PEAT_STATUSES.map((value) => ({ value, label: titleCase(value) })), span: "half" },

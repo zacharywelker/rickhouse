@@ -174,3 +174,15 @@ export function recipeKey(grains: readonly Grain[]): string {
     .sort()
     .join("|");
 }
+
+/** Bourbon and rye pickers require at least 51% of their defining grain. */
+export function matchesMashbillCategory(grains: readonly Grain[], category: string | null): boolean {
+  if (category !== "bourbon" && category !== "rye") return true;
+  const grainName = category === "bourbon" ? "corn" : "rye";
+  const share = grains.reduce((total, { grain, percent }) => {
+    const name = grain.trim().toLowerCase();
+    const matches = name === grainName || name.endsWith(` ${grainName}`);
+    return matches ? total + Number(percent) : total;
+  }, 0);
+  return share >= 51;
+}

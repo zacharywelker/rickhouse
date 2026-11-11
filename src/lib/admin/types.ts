@@ -17,6 +17,8 @@ export type Option = {
   /** Distilleries only: the Scotch region it sits in, copied onto a label that links it. */
   region?: string;
   country?: string;
+  companyId?: number;
+  grains?: Array<{ grain: string; percent: string }>;
   categoryId?: number;
   tequilaClass?: string | null;
   brandyGrade?: string | null;

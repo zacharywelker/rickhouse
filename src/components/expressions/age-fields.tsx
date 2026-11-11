@@ -60,6 +60,17 @@ export function AgeFields({
               step={unit.step}
               value={String(values[unit.name] ?? "")}
               onChange={(e) => onChange(unit.name, e.target.value)}
+              onBlur={unit.name === "ageMonths" && !locked ? (event) => {
+                const months = event.currentTarget.valueAsNumber;
+                if (!Number.isInteger(months) || months < 13 || months > unit.max) return;
+                const years = Number(values.ageYears || 0) + Math.floor(months / 12);
+                if (years > 100) return;
+                onChange("ageYears", String(years));
+                onChange("ageMonths", String(months % 12));
+              } : undefined}
+              onKeyDown={unit.name === "ageMonths" && !locked ? (event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+              } : undefined}
               readOnly={locked}
               aria-readonly={locked || undefined}
               title={locked ? "Triple-click to edit" : undefined}

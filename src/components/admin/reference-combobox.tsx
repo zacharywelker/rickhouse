@@ -39,6 +39,7 @@ type Props = {
   placeholder?: string;
   /** A country-bound picker uses the full create form so its country is recorded. */
   defaultCountry?: string;
+  brand?: Option;
 };
 
 /**
@@ -63,6 +64,7 @@ export function ReferenceCombobox({
   emptyHint,
   placeholder,
   defaultCountry,
+  brand,
 }: Props) {
   const searchPlaceholder = placeholder ?? (resource === null ? "Search…" : "Search or create…");
   const [open, setOpen] = React.useState(false);
@@ -81,6 +83,9 @@ export function ReferenceCombobox({
   const selected = React.useMemo(() => options.find((o) => o.value === value) ?? null, [options, value]);
 
   const needle = query.trim().toLowerCase();
+  const brandName = brand?.label.trim().toLowerCase();
+  const defaultCompanyId = brandName && (needle === brandName || needle === `${brandName} distillery`)
+    ? brand?.companyId : undefined;
   // Each typed word on its own, anywhere in the option: "Pursuit Double Oak"
   // finds "Pursuit Spirits Double Oak", which a whole-phrase match misses.
   const matches = React.useMemo(() => {
@@ -102,7 +107,7 @@ export function ReferenceCombobox({
     if (resource === null || name === "" || creating) return;
     setCreating(true);
     setError(null);
-    const result = await quickCreateAction(resource, name);
+    const result = await quickCreateAction(resource, name, defaultCompanyId);
     setCreating(false);
     if (!result.ok) {
       setError(result.error);
@@ -239,6 +244,7 @@ export function ReferenceCombobox({
           open={detailing}
           onOpenChange={setDetailing}
           initialName={query}
+          defaultCompanyId={defaultCompanyId}
           {...(defaultCountry ? { defaultCountry } : {})}
           onCreated={(option) => {
             onOptionCreated(option);

@@ -1,5 +1,6 @@
 "use client";
 
+import { isScotchCountry } from "@/lib/places";
 import * as React from "react";
 import { useActionState } from "react";
 import { Loader2 } from "lucide-react";
@@ -78,6 +79,7 @@ export function ResourceForm({
           .filter((field) => {
             if (resourceKey !== "distilleries") return true;
             const country = String(values.country ?? "").trim().toLocaleLowerCase();
+            if (field.name === "region") return isScotchCountry(country);
             if (field.name === "dspNumber") return ["us", "usa", "united states", "united states of america"].includes(country);
             if (field.name === "nomNumber") return ["mx", "mexico", "méxico"].includes(country);
             return true;
