@@ -547,7 +547,7 @@ however you normally do and set `DATABASE_URL` to match.
 | `npm run db:generate` | Generate a migration after editing `src/db/schema.ts`. |
 | `npm run db:migrate` | Apply migrations. |
 | `npm run db:seed` | Seed the category tree (and the example, if empty). |
-| `npm run db:reset` | Empty every table and re-seed. Refuses to run against a remote host. |
+| `npm run db:reset` | Empty every table and re-seed. Refuses to run unless `DATABASE_URL` is a local throwaway database (a name with a `test`, `tourney`, `scratch`, `proto`, `e2e` or `audit` segment). |
 | `npm run db:studio` | Drizzle Studio against the configured database. |
 
 ### Changing the data model
