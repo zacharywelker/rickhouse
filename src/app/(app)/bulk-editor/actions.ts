@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
-import { createRow, deleteImpact, patchBottleRow, patchLabelRow, type CreateOutcome, type PatchOutcome } from "@/lib/bulk-editor/rows";
+import { createRow, deleteImpact, deleteRows, patchBottleRow, patchLabelRow, type CreateOutcome, type DeleteOutcome, type PatchOutcome } from "@/lib/bulk-editor/rows";
 
 /**
  * The bulk editor's saves, one row at a time, in the signed-in account. The work and its rules are in
@@ -43,4 +43,14 @@ export async function patchLabelRowAction(labelId: number, raw: unknown): Promis
 export async function deleteImpactAction(input: { labelIds: number[]; bottleIds: number[] }) {
   const user = await requireSession();
   return deleteImpact(user.id, input);
+}
+
+/** Deletes the chosen rows: a label with all its bottles, a bottle alone (see `deleteRows`). */
+export async function deleteRowsAction(input: { labelIds: number[]; bottleIds: number[] }): Promise<DeleteOutcome> {
+  const user = await requireSession();
+  // Bounded, and ids only: nothing else from the browser is read.
+  const ids = (list: unknown) => (Array.isArray(list) ? list.filter((id): id is number => typeof id === "number").slice(0, 5000) : []);
+  const outcome = await deleteRows(user.id, { labelIds: ids(input?.labelIds), bottleIds: ids(input?.bottleIds) });
+  if (outcome.deletedLabels + outcome.deletedBottles > 0) refresh();
+  return outcome;
 }

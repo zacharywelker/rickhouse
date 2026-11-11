@@ -2,11 +2,14 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { bottles, brands, categories, expressions, stores } from "@/db/schema";
+import { bottleImages, bottles, brands, categories, expressions, stores } from "@/db/schema";
 import { newBottleValues } from "@/lib/bottles/new-bottle";
 import { bottlePatchSchema } from "@/lib/bottles/patch-schema";
 import { updateBottle } from "@/lib/bottles/state";
+import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
 import { mapDbError, pgCode } from "@/lib/db-errors";
+import { deleteStoredImage } from "@/lib/images";
+import { deleteStoredPhotos, releasePhotosOfLabel } from "@/lib/releases-store";
 import { ensureBrand } from "@/lib/expressions/brand";
 import { patchLabel } from "@/lib/expressions/label-patch";
 import { labelPatchBody } from "@/lib/expressions/label-patch-body";
@@ -303,4 +306,81 @@ export async function deleteImpact(ownerId: number, input: { labelIds: number[];
     bottlesOnLabels,
     bottles: chosen.filter((b) => !onChosenLabels.has(b.expressionId)).length,
   };
+}
+
+/**
+ * What deleting did. A label goes with every bottle on it (all statuses, not only the ones on the shelf), a bottle on its
+ * own leaves its label. Each label and each bottle is deleted on its own, so one that cannot be (something still holds
+ * it) is reported and the rest still go.
+ */
+export type DeleteOutcome = {
+  deletedLabels: number;
+  /** Every bottle removed: those that went with a label, and those deleted alone. */
+  deletedBottles: number;
+  failed: Array<{ kind: "label" | "bottle"; id: number; error: string }>;
+};
+
+/**
+ * Deletes rows, in the signed-in account only. Photos on disk are removed once the rows are gone from the database, so
+ * a row that fails to delete keeps its photos. Another account's id is "gone", and nothing of it is touched.
+ */
+export async function deleteRows(ownerId: number, input: { labelIds: number[]; bottleIds: number[] }): Promise<DeleteOutcome> {
+  const unique = (ids: number[]) => [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
+  const labelIds = unique(input.labelIds);
+  const outcome: DeleteOutcome = { deletedLabels: 0, deletedBottles: 0, failed: [] };
+
+  const owned = labelIds.length ? new Set((await db.select({ id: expressions.id }).from(expressions).where(and(eq(expressions.ownerId, ownerId), inArray(expressions.id, labelIds)))).map((r) => r.id)) : new Set<number>();
+  for (const id of labelIds) if (!owned.has(id)) outcome.failed.push({ kind: "label", id, error: "That label is gone." });
+
+  // A label with its bottles. The bottles must go first: a label still holding one cannot be deleted.
+  const wentWithLabel = new Set<number>();
+  for (const id of owned) {
+    try {
+      const onLabel = await db.select({ id: bottles.id }).from(bottles).where(and(eq(bottles.expressionId, id), eq(bottles.ownerId, ownerId)));
+      const bottleIds = onLabel.map((b) => b.id);
+      const images = bottleIds.length ? await db.select({ filePath: bottleImages.filePath, thumbPath: bottleImages.thumbPath }).from(bottleImages).where(inArray(bottleImages.bottleId, bottleIds)) : [];
+      const colaFiles = await colaFilesForExpression(id);
+      const releasePhotos = await releasePhotosOfLabel(id);
+      const gone = await db.transaction(async (tx) => {
+        await tx.delete(bottles).where(and(eq(bottles.expressionId, id), eq(bottles.ownerId, ownerId)));
+        return tx.delete(expressions).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId))).returning({ photoPath: expressions.photoPath, photoThumbPath: expressions.photoThumbPath });
+      });
+      if (gone.length === 0) {
+        outcome.failed.push({ kind: "label", id, error: "That label is gone." });
+        continue;
+      }
+      outcome.deletedLabels += 1;
+      outcome.deletedBottles += bottleIds.length;
+      for (const b of bottleIds) wentWithLabel.add(b);
+      await Promise.all([
+        ...images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)),
+        gone[0]?.photoPath ? deleteStoredImage(gone[0].photoPath, gone[0].photoThumbPath) : Promise.resolve(),
+        deleteColaFiles(colaFiles),
+        deleteStoredPhotos(releasePhotos),
+      ]);
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Label" });
+      outcome.failed.push({ kind: "label", id, error: shaped.ok ? "Could not delete this label." : shaped.error });
+    }
+  }
+
+  // Bottles on their own. One that sat on a label deleted above went with it, and is not counted twice or called gone.
+  for (const id of unique(input.bottleIds)) {
+    if (wentWithLabel.has(id)) continue;
+    try {
+      const [row] = await db.select({ expressionId: bottles.expressionId }).from(bottles).where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId))).limit(1);
+      if (!row) {
+        outcome.failed.push({ kind: "bottle", id, error: "That bottle is gone." });
+        continue;
+      }
+      const images = await db.select({ filePath: bottleImages.filePath, thumbPath: bottleImages.thumbPath }).from(bottleImages).where(eq(bottleImages.bottleId, id));
+      await db.delete(bottles).where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId)));
+      outcome.deletedBottles += 1;
+      await Promise.all(images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)));
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Bottle" });
+      outcome.failed.push({ kind: "bottle", id, error: shaped.ok ? "Could not delete this bottle." : shaped.error });
+    }
+  }
+  return outcome;
 }
