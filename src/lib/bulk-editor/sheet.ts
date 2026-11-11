@@ -195,6 +195,11 @@ export function columnsFor(view: SheetView, hidden: ReadonlySet<string>): SheetC
 const byName = (a: SheetLabel, b: SheetLabel) =>
   a.brand.localeCompare(b.brand, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) || a.id - b.id;
 
+/** The order rows are in: by brand and label, and a label's bottles together, oldest first. */
+export function compareRows(a: SheetRow, b: SheetRow): number {
+  return byName(a.label, b.label) || (a.bottle?.id ?? 0) - (b.bottle?.id ?? 0);
+}
+
 /**
  * The rows for a view: one per bottle when Bottles is on (a bottle is the thing you hold), one per label when only
  * Labels is. Both are in brand and label order, so a label's bottles sit together.
@@ -203,9 +208,8 @@ export function sheetRows(view: SheetView, labels: ReadonlyArray<SheetLabel>, bo
   const sorted = [...labels].sort(byName);
   if (!view.bottles) return sorted.map((label) => ({ key: `l${label.id}`, label, bottle: null }));
   const labelById = new Map(sorted.map((label) => [label.id, label]));
-  const rank = new Map(sorted.map((label, index) => [label.id, index]));
   return bottles
     .filter((bottle) => labelById.has(bottle.expressionId))
-    .sort((a, b) => rank.get(a.expressionId)! - rank.get(b.expressionId)! || a.id - b.id)
-    .map((bottle) => ({ key: `b${bottle.id}`, label: labelById.get(bottle.expressionId)!, bottle }));
+    .map((bottle): SheetRow => ({ key: `b${bottle.id}`, label: labelById.get(bottle.expressionId)!, bottle }))
+    .sort(compareRows);
 }

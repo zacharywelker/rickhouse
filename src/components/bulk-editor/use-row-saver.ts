@@ -53,7 +53,7 @@ export function useRowSaver(input: Input) {
   const sent = React.useRef(new Map<string, Sent>());
   const created = React.useRef(new Set<string>());
   const requested = React.useRef(new Set<string>());
-  /** Rows a save will have moved to a new place in the sort (a new row, a moved bottle, a renamed label), by the key to look for. */
+  /** New rows, by the key their saved row will have, once the data arrives. (A move or a rename re-sorts at once, so the sheet has already followed it.) */
   const landed = React.useRef(new Map<string, string>());
   const [reveal, setReveal] = React.useState<Array<{ key: string; at: number }>>([]);
   /** A saved new row's key, and the key its saved row will have: the sheet hides the new row once that one is in its data. */
@@ -128,8 +128,6 @@ export function useRowSaver(input: Input) {
             const savedKey = bottleId != null && view.bottles ? `b${bottleId}` : `l${"labelId" in outcome ? outcome.labelId : 0}`;
             landed.current.set(key, savedKey);
             setCreatedAs((prev) => ({ ...prev, [key]: savedKey }));
-          } else if (snapshot.move !== undefined || "name" in snapshot.cells || "brand" in snapshot.cells) {
-            landed.current.set(key, key);
           }
           mark(key, { kind: "saved" });
           refreshSoon();

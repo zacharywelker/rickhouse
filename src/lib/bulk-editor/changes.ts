@@ -1,6 +1,6 @@
 import { EDITORS, type CellEditor, type Edits } from "./editors";
 import type { Candidate } from "./suggest";
-import type { SheetBottle, SheetLabel, SheetRow } from "./sheet";
+import { compareRows, type SheetBottle, type SheetLabel, type SheetRow } from "./sheet";
 
 /**
  * Where an edit is kept, which decides who it changes. A bottle's own cell is kept under the bottle's row, so it
@@ -40,6 +40,29 @@ export function applyMoves(rows: ReadonlyArray<SheetRow>, moves: Moves, labels: 
     const target = moves[row.key] === undefined ? undefined : byId.get(moves[row.key]!);
     return target ? { ...row, label: target, moved: true } : row;
   });
+}
+
+/**
+ * A rename or a change of brand typed into a label (kept under the label, see `editKey`), shown on every row of that
+ * label. Rows of other labels are returned as they are, so they are not drawn again.
+ */
+export function applyLabelEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRow[] {
+  return rows.map((row) => {
+    const own = row.draft ? undefined : edits[`l${row.label.id}`];
+    if (!own || (own.name === undefined && own.brand === undefined)) return row;
+    return { ...row, label: { ...row.label, ...(own.name !== undefined ? { name: own.name } : {}), ...(own.brand !== undefined ? { brand: own.brand } : {}) } };
+  });
+}
+
+/**
+ * The saved rows as the person has just left them: a moved bottle on its new label, a renamed label under its new name,
+ * and every row in the place that puts it in. A row goes to its sorted place the moment it is changed, not when the
+ * save has been read back, so the cursor and the view can follow it (or stay behind) right away.
+ */
+export function arrange(rows: ReadonlyArray<SheetRow>, moves: Moves, edits: Edits, labels: ReadonlyArray<SheetLabel>): SheetRow[] {
+  const touched = Object.keys(moves).length > 0 || Object.values(edits).some((cells) => "name" in cells || "brand" in cells);
+  if (!touched) return [...rows];
+  return applyLabelEdits(applyMoves(rows, moves, labels), edits).sort(compareRows);
 }
 
 /**

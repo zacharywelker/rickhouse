@@ -12,7 +12,7 @@ import {
   brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, isBlank, labelCandidates, withBlankRow, withBrand, withCategory, withLabel,
   type CategoryChoice, type DraftRow,
 } from "@/lib/bulk-editor/drafts";
-import { applyMoves, editKey, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
+import { arrange, editKey, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
 import { EDITORS, editorFor, isLocked, parseCell, setEdit, unlockKey, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
 import { arrowMove, enterMove, tabMove, type ArrowKey, type Moved, type Pos } from "@/lib/bulk-editor/nav";
 import {
@@ -39,6 +39,16 @@ const HIDDEN_KEY = "bulk-editor:hidden";
 
 /** Brand and Label are held at the left while the rest of the sheet scrolls. Widths are fixed so the second can sit against the first. */
 const FROZEN: Record<string, { left: number; width: number }> = { brand: { left: 0, width: 130 }, name: { left: 130, width: 180 } };
+
+/** Whether the cell is in the sheet's scroll box and clear of the headers held at its top (64px: the box's scroll padding). */
+function withinView(el: HTMLElement): boolean {
+  const box = el.closest("table")?.parentElement;
+  if (!box) return true;
+  const cell = el.getBoundingClientRect();
+  const frame = box.getBoundingClientRect();
+  return cell.top >= frame.top + 64 && cell.bottom <= frame.bottom;
+}
+const motionOk = () => !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const ARROWS = new Set<string>(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"]);
 
@@ -337,14 +347,15 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   /** Bottles moved to another label, and the label cells a person has triple-clicked open. Neither is saved yet. */
   const [moves, setMoves] = React.useState<Moves>({});
   const [unlocked, setUnlocked] = React.useState<Unlocked>(new Set());
+  const [edits, setEdits] = React.useState<Edits>({});
   const rawRows = React.useMemo(() => sheetRows(view, labels, bottles), [view, labels, bottles]);
-  const savedRows = React.useMemo(() => applyMoves(rawRows, moves, labels), [rawRows, moves, labels]);
+  // Rows are in their sorted place as soon as a move or a rename is made, not once it has been saved and read back.
+  const savedRows = React.useMemo(() => arrange(rawRows, moves, edits, labels), [rawRows, moves, edits, labels]);
   const noun = view.bottles ? (savedRows.length === 1 ? "bottle" : "bottles") : savedRows.length === 1 ? "label" : "labels";
 
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
   // one is made fresh each time (see `withBlankRow`).
   const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
-  const [edits, setEdits] = React.useState<Edits>({});
   const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts });
   const createdAs = saver.createdAs;
   /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
@@ -361,17 +372,38 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   );
   const rows = React.useMemo(() => rowsFor(allDrafts), [rowsFor, allDrafts]);
 
-  const [active, setActive] = React.useState<Pos | null>(null);
+  /**
+   * The cursor is on a row, not at a row number: a row can move to its sorted place under it. `row` is only where it
+   * last was, kept for when the row is gone.
+   */
+  /** The row marked for a moment: one that has just moved, or just landed. */
+  const [flashKey, setFlashKey] = React.useState<string | null>(null);
+  const flashRow = (key: string) => {
+    setFlashKey(key);
+    setTimeout(() => setFlashKey((now) => (now === key ? null : now)), 2000);
+  };
+  const [active, setActive] = React.useState<{ key: string; col: number; row: number } | null>(null);
   const [editing, setEditing] = React.useState<Editing | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   /** The column a run of Tabs started in, which Enter returns to on the next row. */
   const anchorCol = React.useRef(0);
   const focusAfter = React.useRef(true);
+  /** Set when Tab follows a row that has just moved to its sorted place: the view then goes with it. */
+  const followRow = React.useRef(false);
   const sheetRef = React.useRef<HTMLDivElement>(null);
 
   const dims = { rows: rows.length, cols: columns.length };
   // The view or the columns can change under the cursor; keep it on the sheet.
-  const current: Pos | null = active && dims.rows > 0 && dims.cols > 0 ? { row: Math.min(active.row, dims.rows - 1), col: Math.min(active.col, dims.cols - 1) } : null;
+  const indexByKey = React.useMemo(() => new Map(rows.map((r, i) => [r.key, i])), [rows]);
+  const current: Pos | null = (() => {
+    if (!active || dims.rows === 0 || dims.cols === 0) return null;
+    // A new row that has saved is now the saved row, which is where its cursor goes.
+    const saved = createdAs[active.key];
+    const key = saved && indexByKey.has(saved) ? saved : active.key;
+    return { row: Math.min(indexByKey.get(key) ?? active.row, dims.rows - 1), col: Math.min(active.col, dims.cols - 1) };
+  })();
+  /** Puts the cursor on the cell at `pos` of `list` (the rows as they are, unless the next position is worked out on others). */
+  const place = (pos: Pos, list: SheetRow[] = rows) => setActive({ key: list[pos.row]?.key ?? "", col: pos.col, row: pos.row });
 
   const editorIn = (list: SheetRow[], pos: Pos): CellEditor | null => {
     const row = list[pos.row];
@@ -385,15 +417,15 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     return editor ? (edits[editKey(row, editor)]?.[columns[pos.col]!.id] ?? editor.initial(row)) : "";
   };
 
-  function go(moved: Moved) {
+  function go(moved: Moved, list: SheetRow[] = rows) {
     if ("leave" in moved) return;
     focusAfter.current = true;
-    setActive(moved.pos);
+    place(moved.pos, list);
     anchorCol.current = moved.anchorCol;
   }
 
   function startEdit(pos: Pos, replace: boolean, typed?: string) {
-    setActive(pos);
+    place(pos);
     setError(null);
     setEditing({ value: replace ? (typed ?? "") : valueAt(pos), replace });
   }
@@ -457,6 +489,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     // The rows as they will be once this is applied: the next cell to land on can depend on what was just chosen
     // (a brand opens the Label cell), so the move is judged against them, not against the rows as they are now.
     let nextRows = rows;
+    // Brand or Label on a saved row moves the bottle, or renames the label: the row goes to its sorted place at once.
+    const reordered = !row.draft && (columnId === "brand" || columnId === "name") && ("pick" in result || "value" in result);
+    if (reordered) flashRow(row.key);
     if ("value" in result) stage(current, result.value);
     else if ("pick" in result && !row.draft) {
       // A saved row's Brand or Label. On a bottle it moves the bottle to the label picked, which already exists; with
@@ -480,8 +515,13 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     }
 
     const landsOn = (pos: Pos) => editorIn(nextRows, pos) !== null;
-    if (result.move === "down" || result.move === "up") go(enterMove(current, anchorCol.current, result.move === "up", { rows: nextRows.length, cols: dims.cols }));
-    else if (result.move === "next" || result.move === "prev") go(tabMove(current, result.move === "prev", { rows: nextRows.length, cols: dims.cols }, landsOn, anchorCol.current));
+    // Worked out on the rows as they were, so Enter goes to the row that was below the one just changed (even if that
+    // row has since moved to its sorted place) and Tab stays on this row wherever it goes.
+    if (result.move === "down" || result.move === "up") go(enterMove(current, anchorCol.current, result.move === "up", { rows: nextRows.length, cols: dims.cols }), nextRows);
+    else if (result.move === "next" || result.move === "prev") {
+      go(tabMove(current, result.move === "prev", { rows: nextRows.length, cols: dims.cols }, landsOn, anchorCol.current), nextRows);
+      if (reordered) followRow.current = true;
+    }
   }
 
   /** What the open Brand, Label or Category cell offers. Worked out for the active cell only. */
@@ -494,9 +534,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (!row.draft) {
       if (row.bottle) {
         const column = editor.combo === "brand" ? "brand" : "name";
-        return { candidates: moveCandidates(column, row, labels), allowCreate: false, what: "label", noCreateReason: "A bottle can only move to a label that exists. Add the label in the bottom row first." };
+        return { candidates: moveCandidates(column, row, labels), allowCreate: false, what: "label", enterDropsDown: true, noCreateReason: "A bottle can only move to a label that exists. Add the label in the bottom row first." };
       }
-      return { candidates: brandCandidates(brands, [], ""), allowCreate: true, what: "brand" };
+      return { candidates: brandCandidates(brands, [], ""), allowCreate: true, what: "brand", enterDropsDown: true };
     }
     const draft = allDrafts.find((d) => d.key === row.key);
     if (!draft) return null;
@@ -556,7 +596,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (!hit?.direct) return;
     // Focus arriving by a click, or by Tab from outside, picks the cell and starts a new run from its column.
     if (!current || current.row !== hit.pos.row || current.col !== hit.pos.col) {
-      setActive(hit.pos);
+      place(hit.pos);
       anchorCol.current = hit.pos.col;
     }
   }
@@ -571,7 +611,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const open = new Set(unlocked);
     open.add(unlockKey(row.label.id, column.id));
     setUnlocked(open);
-    setActive(hit.pos);
+    place(hit.pos);
     anchorCol.current = hit.pos.col;
   }
 
@@ -590,8 +630,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const el = sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${current.row}"][data-c="${current.col}"]`);
     if (el && document.activeElement !== el) {
       el.focus({ preventScroll: true });
-      el.scrollIntoView({ block: "nearest", inline: "nearest" });
+      if (followRow.current && !withinView(el)) el.scrollIntoView({ block: "center", inline: "nearest", behavior: motionOk() ? "smooth" : "auto" });
+      else el.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
+    followRow.current = false;
     // The cursor's position is what matters, not the object that holds it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.row, current?.col, editing]);
@@ -618,7 +660,6 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // A row that has landed in its sorted place (a new row, a moved bottle, a renamed label) is followed to: scrolled into
   // view and marked for a moment. Not while a cell is open or the person is mid-entry: it waits for about a second of calm,
   // so typing the next row is never taken out from under them.
-  const [flashKey, setFlashKey] = React.useState<string | null>(null);
   const [calmToken, setCalmToken] = React.useState<object | null>(null);
   React.useEffect(() => {
     const timer = setTimeout(() => setCalmToken(activity), 1000);
@@ -637,10 +678,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const target = rows[found]!;
     const timer = setTimeout(() => {
       const el = sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${found}"]`);
-      el?.scrollIntoView({ block: "center", inline: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-      setFlashKey(target.key);
+      el?.scrollIntoView({ block: "center", inline: "nearest", behavior: motionOk() ? "smooth" : "auto" });
+      flashRow(target.key);
       clearReveal();
-      setTimeout(() => setFlashKey((now) => (now === target.key ? null : now)), 2000);
     }, 0);
     return () => clearTimeout(timer);
   }, [calm, reveal, rows, clearReveal, revealFor]);
@@ -679,7 +719,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (row < 0) return;
     const col = Math.max(0, columns.findIndex((c) => c.id === first.column));
     focusAfter.current = true;
-    setActive({ row, col });
+    place({ row, col });
     anchorCol.current = col;
   }
 
