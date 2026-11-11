@@ -160,7 +160,11 @@ export function settleMoves(moves: Moves, sent: ReadonlyMap<string, Sent>): Move
   return next;
 }
 
-/** A key for the empty row that is never one a draft still has, even after earlier drafts were saved and removed. */
-export function nextDraftKey(drafts: ReadonlyArray<{ key: string }>): string {
-  return `d${drafts.reduce((max, d) => Math.max(max, Number(d.key.slice(1)) + 1), 0)}`;
+/**
+ * A key for the empty row that is never one a draft has, and never one an earlier draft had: `floor` is one past the
+ * highest key the sheet has handed out. A saved draft is removed, and if the empty row then took its key, React would
+ * treat the row being typed into as a different row and close its editor.
+ */
+export function nextDraftKey(drafts: ReadonlyArray<{ key: string }>, floor = 0): string {
+  return `d${drafts.reduce((max, d) => Math.max(max, Number(d.key.slice(1)) + 1), floor)}`;
 }

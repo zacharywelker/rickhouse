@@ -60,8 +60,8 @@ export const countNewRows = (drafts: ReadonlyArray<DraftRow>, edits: Edits): num
  * The rows to show: the drafts, then always one empty one, so there is a row to type into. The empty one is not kept in
  * state; it is made from the next unused key (earlier drafts are removed once saved), and becomes a real draft the moment something is chosen or typed in it.
  */
-export function withBlankRow(drafts: ReadonlyArray<DraftRow>): DraftRow[] {
-  return [...drafts, emptyDraft(nextDraftKey(drafts))];
+export function withBlankRow(drafts: ReadonlyArray<DraftRow>, floor = 0): DraftRow[] {
+  return [...drafts, emptyDraft(nextDraftKey(drafts, floor))];
 }
 
 // ---------------------------------------------------------------------------

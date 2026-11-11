@@ -320,3 +320,26 @@ test("a complete new row saves when the cursor leaves it, and is a saved row aft
   await expect(sheet(page).locator("tbody tr").last().locator("td").first()).toContainText("Add a bottle");
   void price;
 });
+
+test("the view follows a saved row to where it sorts, but never while the next row is being typed", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 560 }); // short enough that the sorted place is off screen
+  const brand = await col(page, "Brand");
+  const row = await lastRow(page);
+  await cell(page, row, brand).scrollIntoViewIfNeeded();
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Aaa Follows Me");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Found Again");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, row + 1, brand).click(); // leave the row: it saves, and sorts to the top
+  await page.keyboard.type("Zed"); // and start the next one
+  await page.waitForTimeout(3000); // long enough for the save to be read back
+  // The editor for the next row is still open, in view, with what was typed: nothing was taken from under it.
+  await expect(combo(page)).toHaveValue("Zed");
+  await expect(combo(page)).toBeInViewport();
+  await page.keyboard.press("Escape");
+  // Once the typing stops the view goes to the saved row.
+  await expect(sheet(page).locator("tbody tr", { hasText: "Found Again" })).toBeInViewport({ timeout: 15_000 });
+});

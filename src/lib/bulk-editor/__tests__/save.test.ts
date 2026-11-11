@@ -97,4 +97,10 @@ describe("keys for new rows", () => {
     expect(nextDraftKey([{ key: "d1" }])).toBe("d2");
     expect(withBlankRow([draft({ key: "d1" }), draft({ key: "d2" })]).map((d) => d.key)).toEqual(["d1", "d2", "d3"]);
   });
+  it("keeps the empty row's key when the drafts before it are saved and removed", () => {
+    // d0 was handed out and then saved away; the empty row that was d1 must stay d1.
+    expect(nextDraftKey([], 1)).toBe("d1");
+    expect(withBlankRow([], 1).map((d) => d.key)).toEqual(["d1"]);
+    expect(withBlankRow([draft({ key: "d1" })], 1).map((d) => d.key)).toEqual(["d1", "d2"]);
+  });
 });
