@@ -454,6 +454,7 @@ test("sort by a column, an edited row does not jump, and the header flips it", a
 });
 
 test("a range filter narrows the sheet, the panel says how many are set, and Clear empties the boxes", async ({ page }) => {
+  await page.getByRole("button", { name: "Labels", exact: true }).click(); // bottles alone: where Price paid is offered
   const price = await col(page, "Price paid");
   const total = Number((await countLine(page).innerText()).match(/^(\d+) /)![1]);
   await page.getByRole("button", { name: /^More filters/ }).click();
@@ -487,4 +488,35 @@ test("age, distillery, mashbill and finish can be sorted, each starting ascendin
     await page.getByLabel(/Ascending: switch/).click();
     await expect(sorted).toHaveAttribute("aria-sort", "descending");
   }
+});
+
+test("store and price paid are offered only when looking at bottles alone; in the other views they are off", async ({ page }) => {
+  const total = Number((await countLine(page).innerText()).match(/^(\d+) /)![1]);
+  const panel = async () => {
+    await page.getByRole("button", { name: /^More filters/ }).click();
+  };
+  // Labels and Bottles together: neither is offered.
+  await expect(page.getByRole("button", { name: "Filter by store" })).toHaveCount(0);
+  await panel();
+  await expect(page.getByLabel("Price paid, at least")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Bottles alone: both are, and one narrows the sheet.
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Filter by store" })).toBeVisible();
+  await panel();
+  await page.getByLabel("Price paid, at least").fill("50");
+  await page.keyboard.press("Escape");
+  const narrowed = await countLine(page).innerText();
+  expect(narrowed).toMatch(new RegExp(`^Showing \\d+ of ${total} bottles$`));
+
+  // Back to both: it is off, not applied and not counted, and the sheet is whole again.
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  await expect(countLine(page)).toHaveText(`${total} bottles`);
+  await expect(page.getByRole("button", { name: "Clear filters" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^More filters/ })).not.toContainText("1");
+
+  // And on again: the value was kept.
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  await expect(countLine(page)).toHaveText(narrowed);
 });

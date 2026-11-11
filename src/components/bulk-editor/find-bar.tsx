@@ -6,7 +6,7 @@ import { SEARCH_INPUT_ID } from "@/components/keyboard-shortcuts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { filterCount, type Find, type Range } from "@/lib/bulk-editor/find";
+import type { Find, Range } from "@/lib/bulk-editor/find";
 import { cn } from "@/lib/utils";
 
 type Item<K extends string | number> = { key: K; label: string };
@@ -116,23 +116,25 @@ const hasBound = (range: Range) => range.min !== null || range.max !== null;
  * Search, filters and sort for the sheet. They change what is shown and nothing else. The sort is a control here as well
  * as on the column headers, so it can be reached from the keyboard without a tab stop on every header.
  */
-export function FindBar({ find, onFind, categories, brands, stores, more, bottlesShown, sortable, onClear }: {
+export function FindBar({ find, onFind, categories, brands, stores, more, bottlesAlone, active, sortable, onClear }: {
   find: Find;
   onFind: (next: Find) => void;
   categories: Item<number>[];
   brands: Item<number>[];
-  /** Store names: only offered while bottles are shown. */
+  /** Store names: a bottle's filter, offered only when looking at bottles alone. */
   stores: Item<string>[] | null;
   /** The rest of the filters, in one panel: what the labels in the sheet are linked to. */
   more: { distilleries: Item<number>[]; mashbills: Item<number>[]; finishes: Item<number>[]; ingredients: Item<string>[] };
-  /** Price paid is a bottle's: only offered while bottles are shown. */
-  bottlesShown: boolean;
+  /** Price paid is a bottle's too. */
+  bottlesAlone: boolean;
+  /** How many filters are in force in this view (a bottle's, outside bottles alone, are not). */
+  active: number;
   sortable: Array<{ id: string; label: string }>;
   onClear: () => void;
 }) {
-  const active = filterCount(find);
   const moreActive =
-    [find.distilleryIds, find.mashbillIds, find.finishIds, find.ingredients].filter((l) => l.length > 0).length + [find.proof, find.age, find.price, find.msrp].filter(hasBound).length;
+    [find.distilleryIds, find.mashbillIds, find.finishIds, find.ingredients].filter((l) => l.length > 0).length +
+    [find.proof, find.age, ...(bottlesAlone ? [find.price] : []), find.msrp].filter(hasBound).length;
   return (
     <>
       <div className="relative">
@@ -168,7 +170,7 @@ export function FindBar({ find, onFind, categories, brands, stores, more, bottle
           <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
             <RangeField label="Proof" value={find.proof} onChange={(proof) => onFind({ ...find, proof })} />
             <RangeField label="Age" hint="years" value={find.age} onChange={(age) => onFind({ ...find, age })} />
-            {bottlesShown ? <RangeField label="Price paid" value={find.price} onChange={(price) => onFind({ ...find, price })} /> : null}
+            {bottlesAlone ? <RangeField label="Price paid" value={find.price} onChange={(price) => onFind({ ...find, price })} /> : null}
             <RangeField label="MSRP" value={find.msrp} onChange={(msrp) => onFind({ ...find, msrp })} />
           </div>
         </PopoverContent>

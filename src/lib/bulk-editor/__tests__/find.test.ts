@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageInYears, ageOf, filterCount, labelAgeYears, type FindContext, filterRows, haystack, isSortable, matchesSearch, nextSort, NO_FIND, NO_RANGE, proofOf, sortRows, type Find } from "../find";
+import { ageInYears, ageOf, effectiveFind, filterCount, labelAgeYears, type FindContext, filterRows, haystack, isSortable, matchesSearch, nextSort, NO_FIND, NO_RANGE, proofOf, sortRows, type Find } from "../find";
 import type { SheetBottle, SheetLabel, SheetRow } from "../sheet";
 
 type LabelOver = { msrp?: string | null; ageYears?: string | null; ageStatement?: string | null; links?: Partial<SheetLabel["links"]> };
@@ -55,10 +55,23 @@ describe("filters", () => {
     expect(filterCount(find({ q: "x", categoryIds: [1], stores: ["a"] }))).toBe(3);
     expect(filterCount(find({ sort: { column: "brand", desc: false } }))).toBe(0); // a sort hides nothing
   });
-  it("a bottle's filters (store, price paid) say nothing about a row that is only a label", () => {
-    const only: SheetRow = { key: "l1", label: gin, bottle: null };
-    expect(filterRows([only], find({ stores: ["Binny's"] }), none, ctx)).toHaveLength(1);
-    expect(filterRows([only], find({ price: { min: 100, max: null } }), none, ctx)).toHaveLength(1);
+  it("store and price paid are in force only when looking at bottles alone, and off (not applied, not counted) elsewhere", () => {
+    const f = find({ stores: ["Binny's"], price: { min: 100, max: null }, categoryIds: [10] });
+    const bottlesAlone = { labels: false, bottles: true };
+    expect(effectiveFind(f, bottlesAlone)).toBe(f);
+    for (const view of [{ labels: true, bottles: true }, { labels: true, bottles: false }]) {
+      const off = effectiveFind(f, view);
+      expect(off.stores).toEqual([]);
+      expect(off.price).toEqual(NO_RANGE);
+      expect(off.categoryIds).toEqual([10]); // everything else stays
+      expect(filterCount(off)).toBe(1);
+    }
+    expect(filterCount(effectiveFind(f, bottlesAlone))).toBe(3);
+  });
+  it("does not change the values, so they are there again on coming back to bottles alone", () => {
+    const f = find({ stores: ["Binny's"] });
+    effectiveFind(f, { labels: true, bottles: true });
+    expect(f.stores).toEqual(["Binny's"]);
   });
   it("keeps a row that has been worked on whatever the filter says", () => {
     const worked = (row: SheetRow) => row.key === "b2";

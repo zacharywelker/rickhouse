@@ -31,7 +31,7 @@ import {
 } from "@/lib/bulk-editor/sheet";
 import { cn } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
-import { filterRows, isFiltered, isSortable, NO_FIND, nextSort, sortRows, type Find } from "@/lib/bulk-editor/find";
+import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND, nextSort, sortRows, type Find } from "@/lib/bulk-editor/find";
 import { ComboEditor } from "./combo-editor";
 import { FindBar } from "./find-bar";
 import type { ComboData, Editing, Finish } from "./types";
@@ -375,10 +375,12 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const activeSort = find.sort && columns.some((c) => c.id === find.sort!.column) ? find.sort : null;
   const ordered = React.useMemo(() => sortRows(arranged, activeSort, frozen, context), [arranged, activeSort, frozen, context]);
   const pinned = React.useCallback((row: SheetRow) => touched.has(row.key) || (!row.draft && touched.has(`l${row.label.id}`)), [touched]);
-  const savedRows = React.useMemo(() => filterRows(ordered, find, pinned, context), [ordered, find, pinned, context]);
+  // What is in force for this view: store and price paid belong to bottles alone, and are off elsewhere.
+  const inForce = React.useMemo(() => effectiveFind(find, view), [find, view]);
+  const savedRows = React.useMemo(() => filterRows(ordered, inForce, pinned, context), [ordered, inForce, pinned, context]);
   const total = ordered.length;
   const noun = view.bottles ? (total === 1 ? "bottle" : "bottles") : total === 1 ? "label" : "labels";
-  const filtered = isFiltered(find);
+  const filtered = isFiltered(inForce);
   const findOptions = React.useMemo(() => {
     const byName = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
     // What the labels are linked to, as choices: only what is actually in use here, since the rest would find nothing.
@@ -395,6 +397,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       },
     };
   }, [categories, brands, bottles, labels]);
+  const bottlesAlone = view.bottles && !view.labels;
   const sortable = React.useMemo(() => columns.filter((c) => isSortable(c.id)).map((c) => ({ id: c.id, label: c.label })), [columns]);
 
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
@@ -843,9 +846,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
           onFind={changeFind}
           categories={findOptions.categories}
           brands={findOptions.brands}
-          stores={view.bottles ? findOptions.stores : null}
+          stores={bottlesAlone ? findOptions.stores : null}
           more={findOptions.more}
-          bottlesShown={view.bottles}
+          bottlesAlone={bottlesAlone}
+          active={filterCount(inForce)}
           sortable={sortable}
           onClear={() => {
             setFind((f) => ({ ...NO_FIND, sort: f.sort }));
