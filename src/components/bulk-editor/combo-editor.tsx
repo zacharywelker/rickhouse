@@ -109,6 +109,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
       ? null
       : createPortal(
           <div
+            data-bulk-editor-panel=""
             // Mouse presses must not take focus from the box, or clicking an option would count as clicking away.
             onMouseDown={(event) => event.preventDefault()}
             className="fixed z-50 flex max-h-72 min-w-56 max-w-80 flex-col overflow-hidden border border-border bg-card text-sm shadow-md"
