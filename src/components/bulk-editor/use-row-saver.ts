@@ -23,6 +23,8 @@ type Input = {
   setEdits: React.Dispatch<React.SetStateAction<Edits>>;
   setMoves: React.Dispatch<React.SetStateAction<Moves>>;
   setDrafts: React.Dispatch<React.SetStateAction<DraftRow[]>>;
+  /** A new row has saved: the key its saved row will have, so the sheet can keep it on screen whatever is filtered. */
+  onLanded?: (savedKey: string) => void;
   /** Allows a draft's open editor to finish before creation starts. */
   editingDraft: React.RefObject<string | null>;
 };
@@ -135,6 +137,7 @@ export function useRowSaver(input: Input) {
             const offShelf = savedKey.startsWith("b") && Boolean(newStatus && newStatus !== "owned" && newStatus !== "open");
             landed.current.set(key, { key: savedKey, waitForRow: !offShelf });
             if (!offShelf) setReveal((prev) => [...prev, { key: savedKey, at: Date.now() }]);
+            latest.current.onLanded?.(savedKey);
             setCreatedAs((prev) => ({ ...prev, [key]: savedKey }));
           }
           mark(key, { kind: "saved" });
