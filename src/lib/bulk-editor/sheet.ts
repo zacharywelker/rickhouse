@@ -39,7 +39,15 @@ export type SheetBottle = {
 export type SheetView = { labels: boolean; bottles: boolean };
 /** What a new, unsaved row has chosen so far (see `drafts.ts`). */
 export type DraftMeta = { brandChosen: boolean; labelChosen: boolean; brandIsNew: boolean; labelIsNew: boolean };
-export type SheetRow = { key: string; label: SheetLabel; bottle: SheetBottle | null; /** Present on a new, unsaved row. */ draft?: DraftMeta };
+export type SheetRow = {
+  key: string;
+  label: SheetLabel;
+  bottle: SheetBottle | null;
+  /** Present on a new, unsaved row. */
+  draft?: DraftMeta;
+  /** The bottle is moving to this label (`label` is the one it is moving to), not saved yet. */
+  moved?: boolean;
+};
 export type SheetContext = { currency: string; kinds: Record<number, CategoryKind> };
 export type Cell = {
   text: string;
