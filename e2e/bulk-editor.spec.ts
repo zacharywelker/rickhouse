@@ -1170,3 +1170,135 @@ test("a list that the spirit does not have says so and does not open", async ({ 
   await expect(popover(page)).toHaveCount(0); // bourbon has no ingredient list
   await expect(cell(page, 0, ingredients)).toHaveAttribute("aria-readonly", "true");
 });
+
+// ---------------------------------------------------------------------------
+// Copy and paste
+// ---------------------------------------------------------------------------
+
+/** What the sheet puts on the clipboard for the cursor's cell or the selected block. */
+const copied = (page: Page): Promise<string> =>
+  page.evaluate(() => {
+    const data = new DataTransfer();
+    document.activeElement!.dispatchEvent(new ClipboardEvent("copy", { clipboardData: data, bubbles: true, cancelable: true }));
+    return data.getData("text/plain");
+  });
+/** Pastes text at the cursor, as the browser delivers a Ctrl+V. */
+const paste = (page: Page, text: string) =>
+  page.evaluate((t) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", t);
+    document.activeElement!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, text);
+const pasteNotice = (page: Page) => page.locator("[aria-live=polite]").filter({ hasText: /Pasted|Cleared/ });
+
+test("Ctrl+C copies the cell, or the selected block, as tab-separated text that pastes back", async ({ page }) => {
+  const [price, purchased] = [await col(page, "Price paid"), await col(page, "Purchased")];
+  await type(page, 0, price, "12.50");
+  await type(page, 1, price, "7");
+  await expect(cell(page, 1, price)).toHaveText("$7.00");
+  await select(page, 0, price);
+  expect(await copied(page)).toBe("12.50");
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Shift+ArrowRight");
+  const text = await copied(page);
+  expect(text.split("\n")).toHaveLength(2);
+  expect(text.split("\n")[0]!.split("\t")).toHaveLength(3);
+  // "7" while the save is on its way, "7.00" once it is read back: the same number.
+  expect(text.split("\n").map((line) => Number(line.split("\t")[0]))).toEqual([12.5, 7]);
+  // The browser does the real thing too: Ctrl+C reaches the sheet from the keyboard.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await select(page, 0, price);
+  await page.keyboard.press("Control+C");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("12.50");
+  void purchased;
+});
+
+test("Ctrl+V pastes a block at the cursor through the same rules as typing, and fills a selected block with one value", async ({ page }) => {
+  const [price, purchased] = [await col(page, "Price paid"), await col(page, "Purchased")];
+  await select(page, 2, price);
+  // Store sits between the two, so a blank goes there: columns line up by position, as in a spreadsheet.
+  await paste(page, "$12.50\t\tNov 1, 2025\n7\t\t11/2/2025");
+  await expect(cell(page, 2, price)).toHaveText("$12.50");
+  await expect(cell(page, 2, purchased)).toHaveText("Nov 1, 2025");
+  await expect(cell(page, 3, price)).toHaveText("$7.00");
+  await expect(cell(page, 3, purchased)).toHaveText("Nov 2, 2025");
+  await expect(pasteNotice(page)).toContainText("Pasted 6 cells");
+  await reloaded(page);
+  await expect(cell(page, 2, price)).toHaveText("$12.50");
+  await expect(cell(page, 3, purchased)).toHaveText("Nov 2, 2025");
+  // One value over a selected block fills all of it.
+  await select(page, 4, price);
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+ArrowDown");
+  await paste(page, "9");
+  for (const r of [4, 5, 6]) await expect(cell(page, r, price)).toHaveText("$9.00");
+});
+
+test("a pasted value that breaks a rule is left out and the notice says which and why", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await type(page, 7, price, "3");
+  await select(page, 7, price);
+  await paste(page, "lots\n5\n-4");
+  await expect(cell(page, 7, price)).toHaveText("$3.00"); // not a number: left as it was
+  await expect(cell(page, 8, price)).toHaveText("$5.00");
+  await expect(pasteNotice(page)).toContainText("Pasted 1 cell");
+  await expect(pasteNotice(page)).toContainText("Not pasted:");
+  await expect(pasteNotice(page)).toContainText("Price paid");
+});
+
+test("a pasted name that is a complete store name is taken; a part of one waits to be chosen from what matches", async ({ page }) => {
+  const store = await col(page, "Store");
+  // A store to paste: made by typing, as the form would.
+  await select(page, 0, store);
+  await page.keyboard.type("Astor Wines");
+  await page.keyboard.press("Enter"); // on Create
+  await expect(cell(page, 0, store)).toContainText("Astor Wines");
+  await reloaded(page);
+
+  await select(page, 1, store);
+  await paste(page, "astor wines\nAstor\nNowhere Wines");
+  await expect(cell(page, 1, store)).toHaveText("Astor Wines"); // complete: taken without asking
+  // The others wait, marked, with what was pasted, and are not saved.
+  await expect(cell(page, 2, store)).toContainText("Astor");
+  await expect(cell(page, 2, store)).toContainText("Choose");
+  await expect(cell(page, 3, store)).toContainText("Nowhere Wines");
+  await expect(pasteNotice(page)).toContainText("2 to choose");
+  await reloaded(page);
+  await expect(cell(page, 2, store)).not.toContainText("Choose"); // never saved
+  await expect(cell(page, 1, store)).toHaveText("Astor Wines");
+
+  // Enter on a waiting cell opens the picker already searching what was pasted.
+  await select(page, 2, store);
+  await paste(page, "Astor");
+  await select(page, 2, store);
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveValue("Astor");
+  await expect(page.getByRole("listbox").getByRole("option", { name: /Astor Wines/ })).toBeVisible();
+  await page.keyboard.press("Enter"); // the highlighted match
+  await expect(cell(page, 2, store)).toHaveText("Astor Wines");
+  await reloaded(page);
+  await expect(cell(page, 2, store)).toHaveText("Astor Wines");
+});
+
+test("a waiting choice is dropped with Delete, and lines past the last row are said, not guessed at", async ({ page }) => {
+  const store = await col(page, "Store");
+  await select(page, 4, store);
+  await paste(page, "Mystery Shop");
+  await expect(cell(page, 4, store)).toContainText("Choose");
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 4, store)).not.toContainText("Choose");
+
+  const price = await col(page, "Price paid");
+  await select(page, 0, price);
+  await paste(page, Array.from({ length: 40 }, () => "1").join("\n"));
+  await expect(pasteNotice(page)).toContainText("past the last row");
+});
+
+test("a locked cell and a list are skipped with the reason", async ({ page }) => {
+  // On a bottle row the label's proof is locked until triple-clicked.
+  const proof = await col(page, "Proof");
+  await select(page, 0, proof);
+  await paste(page, "90");
+  await expect(pasteNotice(page)).toContainText("locked");
+});
