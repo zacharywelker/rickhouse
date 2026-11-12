@@ -2,6 +2,7 @@ import type { FieldSpec } from "@/lib/admin/types";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import { formatDate, formatMoney, formatNumeric } from "@/lib/utils";
+import { designationEditor, GENERATED, singleBarrelEditor, type Kinds } from "./fields";
 import type { Cell, SheetColumn, SheetContext, SheetRow, SheetView } from "./sheet";
 
 /**
@@ -30,8 +31,12 @@ export type CellEditor = {
   required?: boolean;
   /** A date that has to have already happened. */
   pastOnly?: boolean;
-  /** Whether the cell means anything on this row, by the form's own rule. Where it does not, it is not editable. */
-  applies?: (row: SheetRow) => boolean;
+  /** Whether the cell means anything on this row, by the form's own rule (for the spirit, and what the row has already said). Where it does not, it is not editable. */
+  applies?: (row: SheetRow, kinds: Kinds) => boolean;
+  /** For one cell that sets several form fields from one choice (Cask / Bonded): the fields a value stands for. Otherwise `field` is the one it sets. */
+  fieldsOf?: (value: string) => Record<string, boolean | string | null>;
+  /** A message when a value is not allowed on this row, which the choice or the form's list alone cannot say. */
+  check?: (value: string, row: SheetRow, kinds: Kinds) => string | null;
   /** Typing a character on the selected cell starts an edit that replaces the value. Not for dates: those are typed segment by segment. */
   typeToReplace: boolean;
   /** The cell's value as the text an input holds. */
@@ -57,7 +62,7 @@ const text = (value: string): Cell => (value === "" ? DASH : { text: value });
 const money = (value: string, ctx: SheetContext): Cell => (value === "" ? DASH : { text: formatMoney(value, ctx.currency) });
 const mL = (value: string): Cell => (value === "" ? DASH : { text: `${value} mL` });
 
-export const EDITORS: Readonly<Record<string, CellEditor>> = {
+const BY_HAND: Readonly<Record<string, CellEditor>> = {
   // The picking cells, on a new row only for now. On a saved row they come with the rules for moving a bottle and renaming a label.
   brand: { column: "brand", field: "brand", scope: "label", combo: "brand", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.brand, display: (v) => text(v) },
   name: { column: "name", field: "label", scope: "label", combo: "label", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.name, display: (v) => text(v) },
@@ -87,6 +92,14 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
   msrp: { column: "msrp", field: "msrp", scope: "label", spec: labelSpec("msrp"), typeToReplace: true, initial: (r) => r.label.msrp ?? "", display: (v, c) => money(v, c) },
 };
 
+/** Every cell that can be edited, by its column's id: the ones made by hand, the two composites, and one for each simple form field. */
+export const EDITORS: Readonly<Record<string, CellEditor>> = {
+  ...BY_HAND,
+  ...Object.fromEntries(GENERATED.map((g) => [g.column.id, g.editor])),
+  designation: designationEditor(),
+  singleBarrel: singleBarrelEditor(),
+};
+
 /** The label cells a person has triple-clicked open, as `labelId:columnId`. Unlocking is per label and per column. */
 export type Unlocked = ReadonlySet<string>;
 export const unlockKey = (labelId: number, column: string): string => `${labelId}:${column}`;
@@ -100,9 +113,11 @@ const NAME_TEXT: CellEditor = { column: "name", field: "name", scope: "label", s
  * It changes every bottle on the label, so it is locked until it is triple-clicked, as on the single forms. With
  * Labels off it is not shown, and with Bottles off the row is the label itself and needs no lock.
  */
-export function isLocked(column: SheetColumn, view: SheetView, row: SheetRow, unlocked: Unlocked = NOTHING_UNLOCKED): boolean {
+export function isLocked(column: SheetColumn, view: SheetView, row: SheetRow, unlocked: Unlocked = NOTHING_UNLOCKED, kinds: Kinds = {}): boolean {
   const editor = EDITORS[column.id];
   if (!editor || editor.combo || editor.scope !== "label" || row.draft || !row.bottle) return false;
+  // A cell that is not used for this spirit has nothing to unlock.
+  if (editor.applies?.(row, kinds) === false) return false;
   return view.labels && view.bottles && !unlocked.has(unlockKey(row.label.id, column.id));
 }
 
@@ -117,9 +132,9 @@ export function isLocked(column: SheetColumn, view: SheetView, row: SheetRow, un
  *   (never renaming the label); with only Labels on, Brand is a choice that may create and Label is typed, which is how a
  *   label is renamed or fixed. Category is for a new label, since an existing label has one already.
  */
-export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow, unlocked: Unlocked = NOTHING_UNLOCKED): CellEditor | null {
+export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow, unlocked: Unlocked = NOTHING_UNLOCKED, kinds: Kinds = {}): CellEditor | null {
   const editor = EDITORS[column.id];
-  if (!editor || editor.applies?.(row) === false) return null;
+  if (!editor || editor.applies?.(row, kinds) === false) return null;
   const draft = row.draft;
   if (editor.combo) {
     if (!draft) {
@@ -146,10 +161,12 @@ const fail = (message: string): Parsed => ({ ok: false, message });
  * Checks what was typed before it is kept. The server checks again when it saves; this only stops an obvious slip
  * from sitting in a cell. A blank is kept as blank (it clears the value) unless the field is required.
  */
-export function parseCell(editor: CellEditor, raw: string, today: string = new Date().toISOString().slice(0, 10)): Parsed {
+export function parseCell(editor: CellEditor, raw: string, today: string = new Date().toISOString().slice(0, 10), row?: SheetRow, kinds: Kinds = {}): Parsed {
   let value = raw.trim();
-  if (value === "") return editor.required ? fail("Enter a value.") : { ok: true, value: "" };
+  if (value === "") return editor.required ? fail(editor.spec.kind === "select" ? "Choose one." : "Enter a value.") : { ok: true, value: "" };
   const { spec } = editor;
+  if ((spec.kind === "select" || spec.kind === "slider") && !spec.options.some((o) => o.value === value)) return fail("Choose one of the options.");
+  if (spec.kind === "checkbox" && value !== "true" && value !== "false") return fail("Choose yes or no.");
   if (spec.kind === "number") {
     // Typed freehand: ".5" means 0.5 and "5." means 5.
     value = value.replace(/^(-?)\./, (_, sign: string) => `${sign}0.`).replace(/\.$/, "");
@@ -164,6 +181,8 @@ export function parseCell(editor: CellEditor, raw: string, today: string = new D
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) return fail("Use a date.");
     if (editor.pastOnly && value > today) return fail("That date is in the future.");
   }
+  const message = row ? editor.check?.(value, row, kinds) : null;
+  if (message) return fail(message);
   return { ok: true, value };
 }
 

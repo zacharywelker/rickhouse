@@ -1,5 +1,6 @@
 import type { DraftRow } from "./drafts";
-import { EDITORS, type Edits } from "./editors";
+import { EDITORS, type CellEditor, type Edits } from "./editors";
+import { isYesNoChoice } from "./fields";
 import type { Moves } from "./changes";
 
 /**
@@ -40,10 +41,24 @@ export const draftTitle = (draft: DraftRow): string => [draft.brand?.name, draft
 
 const valueOrNull = (value: string): string | null => (value === "" ? null : value);
 
-/** A field and its text, under the server's field name. A blank clears the value (null). */
-function patchFields(cells: Readonly<Record<string, string>>): Record<string, string | null> {
+/**
+ * What a cell's text is, to the server. A checkbox is a boolean, a yes/no choice is true, false or nothing, a cell that
+ * stands for two fields (Cask / Bonded) is both, and the rest is its text, with nothing for a blank.
+ */
+export function serverFields(editor: CellEditor | undefined, column: string, value: string): Record<string, unknown> {
   // The Label column is a pick on a new row (its field is "label") but a typed rename on a saved label ("name").
-  return Object.fromEntries(Object.entries(cells).map(([column, value]) => [column === "name" ? "name" : (EDITORS[column]?.field ?? column), valueOrNull(value)]));
+  if (column === "name") return { name: valueOrNull(value) };
+  if (!editor) return { [column]: valueOrNull(value) };
+  if (editor.fieldsOf) return editor.fieldsOf(value);
+  if (editor.spec.kind === "checkbox") return { [editor.field]: value === "true" };
+  // A yes/no choice goes as the form sends it: "true", "false", or "" for unknown.
+  if (isYesNoChoice(editor.spec)) return { [editor.field]: value };
+  return { [editor.field]: valueOrNull(value) };
+}
+
+/** A field and its text, under the server's field name. A blank clears the value (null). */
+function patchFields(cells: Readonly<Record<string, string>>): Record<string, unknown> {
+  return Object.assign({}, ...Object.entries(cells).map(([column, value]) => serverFields(EDITORS[column], column, value)));
 }
 
 /** The body for a saved bottle: its own cells, and the label it moves to. */
@@ -61,12 +76,12 @@ export const labelPatchBody = (cells: Readonly<Record<string, string>> | undefin
  * view is of bottles, or when anything was typed into a bottle cell, so typed values are never dropped.
  */
 export function createBody(draft: DraftRow, cells: Readonly<Record<string, string>> | undefined, bottleView: boolean): Record<string, unknown> {
-  const facts: Record<string, string> = {};
-  const bottle: Record<string, string> = {};
+  const facts: Record<string, unknown> = {};
+  const bottle: Record<string, unknown> = {};
   for (const [column, value] of Object.entries(cells ?? {})) {
     const editor = EDITORS[column];
     if (!editor || editor.combo || value === "") continue;
-    (editor.scope === "label" ? facts : bottle)[editor.field] = value;
+    Object.assign(editor.scope === "label" ? facts : bottle, serverFields(editor, column, value));
   }
   const brand = draft.brand!;
   const label = draft.label!;

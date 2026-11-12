@@ -4,6 +4,7 @@ import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
+import { designationEditor, GENERATED_BOTTLE, GENERATED_LABEL, singleBarrelEditor } from "./fields";
 
 /**
  * The bulk editor's sheet as plain data: which rows it has in each view, which columns, and what each cell says.
@@ -34,6 +35,20 @@ export type SheetBottle = {
   ageMonths: number | null;
   ageDays: number | null;
   ageStatement: string | null;
+  /** The rest of what a bottle can say that the sheet edits: where it came from, which release, the barrel. */
+  acquisition: string;
+  batch: string | null;
+  pickedBy: string | null;
+  barrelNumber: string | null;
+  /** How many bottles there are in the release. */
+  bottleCount: number | null;
+  warehouse: string | null;
+  rickFloor: string | null;
+  barrelFilledOn: string | null;
+  bottledOn: string | null;
+  ginIsNas: boolean | null;
+  tequilaClass: string | null;
+  brandyGrade: string | null;
 };
 
 /** A thumbnail on the uploads volume. `isCutout` is whether the photo is a cutout (null: not yet known, drawn as one). */
@@ -54,6 +69,8 @@ export type SheetRow = {
 export type SheetContext = { currency: string; kinds: Record<number, CategoryKind> };
 export type Cell = {
   text: string;
+  /** Said on hover, and to a screen reader: why a cell is empty or cannot be edited ("Not used for this spirit"). */
+  note?: string;
   /** Grey: the value is inherited, or there is none. */
   muted?: boolean;
   /** A small tag after the text: "new" on a brand or label that does not exist yet. */
@@ -70,6 +87,8 @@ export type SheetColumn = {
   identity?: boolean;
   /** Shown whenever its group is, and cannot be hidden in the Fields picker: a new label cannot be saved without it. */
   always?: boolean;
+  /** The form section it belongs to ("Rum detail", "Release"…): the Fields picker groups by it. */
+  section?: string;
   /** Hidden until switched on in the Fields picker. */
   defaultHidden?: boolean;
   /** Only when the sheet is one row per label. */
@@ -95,8 +114,11 @@ function own(value: Cell | null, inherited: Cell): Cell {
   return value ? value : { ...inherited, muted: true };
 }
 
-/** Every column, in the order a bottle is entered at the shelf: label facts, then the bottle's own. */
-export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = [
+const DESIGNATION = designationEditor();
+const SINGLE_BARREL = singleBarrelEditor();
+
+/** The columns made by hand, in the order a bottle is entered at the shelf: label facts, then the bottle's own. */
+const BY_HAND: ReadonlyArray<SheetColumn> = [
   {
     id: "brand",
     label: "Brand",
@@ -113,7 +135,7 @@ export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = [
     id: "designation",
     label: "Cask / BiB",
     group: "label",
-    cell: (r) => text([r.label.isCaskStrength ? "Cask Strength" : null, r.label.isBottledInBond ? "Bottled in Bond" : null].filter(Boolean).join(" · ")),
+    cell: (r, c) => (DESIGNATION.applies?.(r, c.kinds) === false ? { text: "—", muted: true, note: "Not used for this spirit" } : DESIGNATION.display(DESIGNATION.initial(r), c, r)),
   },
   { id: "age", label: "Age", group: "label", cell: (r, c) => labelAge(r.label, c.kinds) },
   { id: "distilleries", label: "Distillery", group: "label", cell: (r) => text(describeLinks("distilleries", r.label.links.distilleries)) },
@@ -131,7 +153,7 @@ export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = [
     id: "singleBarrel",
     label: "Single barrel / pick",
     group: "bottle",
-    cell: (r) => text([r.bottle?.isSingleBarrel ? "Single barrel" : null, r.bottle?.isSingleBarrelPick ? "Private pick" : null].filter(Boolean).join(" · ")),
+    cell: (r, c) => (SINGLE_BARREL.applies?.(r, c.kinds) === false ? { text: "—", muted: true, note: "Only for aged gin" } : SINGLE_BARREL.display(SINGLE_BARREL.initial(r), c, r)),
   },
   { id: "pricePaid", label: "Price paid", group: "bottle", align: "right", cell: (r, c) => (r.bottle?.pricePaid == null ? DASH : { text: formatMoney(r.bottle.pricePaid, c.currency) }) },
   { id: "store", label: "Store", group: "bottle", cell: (r) => text(r.bottle?.storeName) },
@@ -168,6 +190,17 @@ export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = [
     defaultHidden: true,
     cell: (r) => own(r.bottle?.sizeMl == null ? null : { text: `${r.bottle.sizeMl} mL` }, { text: `${r.label.sizeMl} mL` }),
   },
+];
+
+/**
+ * Every column. The label's, then the bottle's own, since the sheet draws each group together under its own caption.
+ * Past the hand-made ones come the columns made from the forms' fields (`fields.ts`), all of them hidden until switched on.
+ */
+export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = [
+  ...BY_HAND.filter((c) => c.group === "label"),
+  ...GENERATED_LABEL.map((g) => g.column),
+  ...BY_HAND.filter((c) => c.group === "bottle"),
+  ...GENERATED_BOTTLE.map((g) => g.column),
 ];
 
 /** The ids the Fields picker starts with switched off. */

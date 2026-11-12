@@ -5,7 +5,6 @@ import { brands, categories, expressions } from "@/db/schema";
 import { syncExpressionNames } from "@/lib/other-names-store";
 import type { OtherName } from "@/lib/other-names";
 import { findOrCreateBrand } from "./brand";
-import { writableFields } from "./fields";
 import { categoryFieldGroups, categoryKindsById } from "./queries";
 import { nameContextFor, nameRuleColumns, withBondProof } from "./rules";
 import { FinishPairsInvalid } from "./finish-pairs";
@@ -14,6 +13,7 @@ import type { IngredientChoice } from "./spirit-details";
 import { expressionSchema } from "./schema";
 import { BRANDY_MINIMUM_YEARS, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "./spirit-details";
 import { isGinKind } from "./gin-details";
+import { writableLabelFacts } from "./writable-facts";
 
 /**
  * Editing a label from the phone (spec 2026-10-08-edit-facts-design.md, sections 1 and 2): any of the facts
@@ -162,16 +162,7 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
               await categoryKindsById(),
             ))
           : {};
-      const allowed = writableFields(category?.fieldGroup ?? "other");
-      if (kind !== "tequila") allowed.delete("tequilaClass");
-      if (!BRANDY_MINIMUM_YEARS[kind]) allowed.delete("brandyGrade");
-      if (kind !== "gin") allowed.delete("ginStyle");
-      if (isAgaveKind(kind)) {
-        allowed.delete("barrelFilledOn"); allowed.delete("bottledOn"); allowed.delete("isNas");
-      }
-      if (kind === "tequila") allowed.delete("ageStatement");
-      // Regions belong to Scotch (the web form only shows them there); anything sent for another kind is ignored.
-      if (kind !== "scotch") allowed.delete("regions");
+      const allowed = writableLabelFacts(category?.fieldGroup ?? "other", kind);
       const columns = withBondProof(writableValues({ ...byName, ...sent }, allowed), current.isBottledInBond);
       if (isAgaveKind(kind)) {
         delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.isNas;

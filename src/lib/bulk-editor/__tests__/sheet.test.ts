@@ -13,6 +13,7 @@ const label = (over: Partial<SheetLabel> & Pick<SheetLabel, "id" | "brand" | "na
 const bottle = (over: Partial<SheetBottle> & Pick<SheetBottle, "id" | "expressionId">): SheetBottle => ({
   status: "owned", pricePaid: null, storeName: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
   pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null,
+  acquisition: "purchase", batch: null, pickedBy: null, barrelNumber: null, bottleCount: null, warehouse: null, rickFloor: null, barrelFilledOn: null, bottledOn: null, ginIsNas: null, tequilaClass: null, brandyGrade: null,
   ...over,
 });
 
@@ -116,6 +117,9 @@ describe("cells", () => {
     expect(cell("store", { label: l, bottle: b })).toEqual({ text: "Binny's" });
     expect(cell("dateAcquired", { label: l, bottle: b })).toEqual({ text: "Sep 20, 2025" });
     expect(cell("singleBarrel", { label: l, bottle: b })).toEqual({ text: "Single barrel · Private pick" });
+    // They are separate: a pick can be a blend of barrels, and a single barrel need not be a pick.
+    expect(cell("singleBarrel", { label: l, bottle: bottle({ id: 2, expressionId: 1, isSingleBarrelPick: true }) })).toEqual({ text: "Private pick" });
+    expect(cell("singleBarrel", { label: l, bottle: bottle({ id: 3, expressionId: 1, isSingleBarrel: true }) })).toEqual({ text: "Single barrel" });
   });
 
   it("shows no mashbill for a spirit that has none", () => {

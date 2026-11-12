@@ -1,4 +1,5 @@
 import { EDITORS, type CellEditor, type Edits } from "./editors";
+import { isYesNoChoice } from "./fields";
 import type { Candidate } from "./suggest";
 import { compareRows, type SheetBottle, type SheetLabel, type SheetRow } from "./sheet";
 
@@ -54,15 +55,52 @@ export function applyLabelEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): Sh
   });
 }
 
+/** What an edited value stands for on the row's own data: the fields it sets, as the row holds them. */
+function rawOf(editor: CellEditor, value: string): Record<string, unknown> {
+  if (editor.fieldsOf) return editor.fieldsOf(value);
+  const { spec } = editor;
+  if (spec.kind === "checkbox") return { [editor.field]: value === "true" };
+  // A choice keeps its text (a yes/no choice reads "true" or "false" back into the form's own value); the rest is blank when blank.
+  if (spec.kind === "select" || spec.kind === "slider" || isYesNoChoice(spec)) return { [editor.field]: value };
+  return { [editor.field]: value === "" ? null : value };
+}
+
+/**
+ * What has been typed into a row's cells, put onto the row's own label and bottle data, so that everything that reads a
+ * row (its cells, which cells apply to it, the rail) sees it. A cell that gates others, like Private pick, then opens
+ * them at once instead of once the save has been read back. Rows with nothing typed are returned as they are.
+ */
+export function applyEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRow[] {
+  return rows.map((row) => {
+    const labelCells = row.draft ? edits[row.key] : edits[`l${row.label.id}`];
+    const bottleCells = row.bottle ? edits[row.key] : undefined;
+    if (!labelCells && !bottleCells) return row;
+    let label: unknown = row.label;
+    let bottle: unknown = row.bottle;
+    const put = (cells: Readonly<Record<string, string>> | undefined, scope: "label" | "bottle") => {
+      for (const [column, value] of Object.entries(cells ?? {})) {
+        const editor = EDITORS[column];
+        if (!editor || editor.combo || editor.scope !== scope) continue;
+        if (scope === "label") label = { ...(label as object), ...rawOf(editor, value) };
+        else bottle = { ...(bottle as object), ...rawOf(editor, value) };
+      }
+    };
+    put(labelCells, "label");
+    put(bottleCells, "bottle");
+    return { ...row, label: label as SheetLabel, bottle: bottle as SheetBottle | null };
+  });
+}
+
 /**
  * The saved rows as the person has just left them: a moved bottle on its new label, a renamed label under its new name,
  * and every row in the place that puts it in. A row goes to its sorted place the moment it is changed, not when the
  * save has been read back, so the cursor and the view can follow it (or stay behind) right away.
  */
 export function arrange(rows: ReadonlyArray<SheetRow>, moves: Moves, edits: Edits, labels: ReadonlyArray<SheetLabel>): SheetRow[] {
-  const touched = Object.keys(moves).length > 0 || Object.values(edits).some((cells) => "name" in cells || "brand" in cells);
-  if (!touched) return [...rows];
-  return applyLabelEdits(applyMoves(rows, moves, labels), edits).sort(compareRows);
+  const renamed = Object.keys(moves).length > 0 || Object.values(edits).some((cells) => "name" in cells || "brand" in cells);
+  const typed = applyEdits(rows, edits);
+  if (!renamed) return typed;
+  return applyLabelEdits(applyMoves(typed, moves, labels), edits).sort(compareRows);
 }
 
 /**
