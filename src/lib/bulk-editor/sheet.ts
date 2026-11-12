@@ -53,6 +53,12 @@ export type SheetBottle = {
   ginIsNas: boolean | null;
   tequilaClass: string | null;
   brandyGrade: string | null;
+  /** Where the bottle is in its life: the level, whether it is open and since when, when it was killed, and whether it is a favourite. */
+  fillPct: number;
+  isOpen: boolean;
+  dateOpened: string | null;
+  dateKilled: string | null;
+  isFavorite: boolean;
 };
 
 /** A thumbnail on the uploads volume. `isCutout` is whether the photo is a cutout (null: not yet known, drawn as one). */

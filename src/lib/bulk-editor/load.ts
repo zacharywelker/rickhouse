@@ -69,6 +69,11 @@ export async function loadSheet(ownerId: number): Promise<{
         ginIsNas: bottles.ginIsNas,
         tequilaClass: bottles.tequilaClass,
         brandyGrade: bottles.brandyGrade,
+        fillPct: bottles.fillPct,
+        isOpen: bottles.isOpen,
+        dateOpened: bottles.dateOpened,
+        dateKilled: bottles.dateKilled,
+        isFavorite: bottles.isFavorite,
       })
       .from(bottles)
       .leftJoin(stores, eq(stores.id, bottles.storeId))

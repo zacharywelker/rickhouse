@@ -25,6 +25,8 @@ type Input = {
   setDrafts: React.Dispatch<React.SetStateAction<DraftRow[]>>;
   /** A new row has saved: the key its saved row will have, so the sheet can keep it on screen whatever is filtered. */
   onLanded?: (savedKey: string) => void;
+  /** A saved bottle has been given a status that takes it off the shelf, so the sheet (which lists only owned and open bottles) will stop showing it. */
+  onLeftShelf?: (key: string, status: string) => void;
 };
 
 /** The quiet time after the last save before the sheet is reloaded, so a run of saves is one reload. */
@@ -124,6 +126,8 @@ export function useRowSaver(input: Input) {
         const outcome = await call();
         if (outcome.ok) {
           sent.current.set(key, snapshot);
+          const status = key.startsWith("b") ? snapshot.cells.status : undefined;
+          if (status !== undefined && status !== "owned" && status !== "open") latest.current.onLeftShelf?.(key, status);
           if (!key.startsWith("b") && !key.startsWith("l")) {
             created.current.add(key);
             const bottleId = "bottleId" in outcome ? outcome.bottleId : null;

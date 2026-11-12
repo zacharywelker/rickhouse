@@ -1,7 +1,7 @@
 import type { FieldSpec } from "@/lib/admin/types";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
-import { formatDate, formatMoney, formatNumeric } from "@/lib/utils";
+import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 import { designationEditor, GENERATED, singleBarrelEditor, storeEditor, type Kinds } from "./fields";
 import type { RefKind } from "./references";
 import type { Cell, SheetColumn, SheetContext, SheetRow, SheetView } from "./sheet";
@@ -70,6 +70,8 @@ const BY_HAND: Readonly<Record<string, CellEditor>> = {
   brand: { column: "brand", field: "brand", scope: "label", combo: "brand", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.brand, display: (v) => text(v) },
   name: { column: "name", field: "label", scope: "label", combo: "label", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.name, display: (v) => text(v) },
   category: { column: "category", field: "categoryId", scope: "label", combo: "category", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.category, display: (v) => text(v) },
+  // Where the bottle is in its life: held to the same rules as the bottle page (see `status-rules.ts`).
+  status: { column: "status", field: "status", scope: "bottle", spec: bottleSpec("status"), required: true, typeToReplace: false, initial: (r) => r.bottle?.status ?? "", display: (v) => ({ text: humanise(v) }) },
   // The bottle's own.
   pricePaid: { column: "pricePaid", field: "pricePaid", scope: "bottle", spec: bottleSpec("pricePaid"), typeToReplace: true, initial: (r) => r.bottle?.pricePaid ?? "", display: (v, c) => money(v, c) },
   dateAcquired: { column: "dateAcquired", field: "dateAcquired", scope: "bottle", spec: bottleSpec("dateAcquired"), pastOnly: true, typeToReplace: false, initial: (r) => r.bottle?.dateAcquired ?? "", display: (v) => (v === "" ? DASH : { text: formatDate(v) }) },

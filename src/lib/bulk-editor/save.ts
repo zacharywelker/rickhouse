@@ -52,6 +52,8 @@ export function serverFields(editor: CellEditor | undefined, column: string, val
   if (!editor) return { [column]: valueOrNull(value) };
   if (editor.fieldsOf) return editor.fieldsOf(value);
   if (editor.reference) return refServerFields(editor.field, value);
+  // The level is a whole number on the server; the cell holds the option's value as text.
+  if (editor.field === "fillPct") return { fillPct: Number(value) };
   if (editor.spec.kind === "checkbox") return { [editor.field]: value === "true" };
   // A yes/no choice goes as the form sends it: "true", "false", or "" for unknown.
   if (isYesNoChoice(editor.spec)) return { [editor.field]: value };
@@ -63,9 +65,14 @@ function patchFields(cells: Readonly<Record<string, string>>): Record<string, un
   return Object.assign({}, ...Object.entries(cells).map(([column, value]) => serverFields(EDITORS[column], column, value)));
 }
 
-/** The body for a saved bottle: its own cells, and the label it moves to. */
+/**
+ * The body for a saved bottle: its own cells, and the label it moves to. Clearing the date opened of a bottle that is
+ * open would ask whether to keep it open or seal it; a cell cannot ask, so it keeps it open (nothing is lost, and
+ * sealing is the Opened tick's job, which refuses to reset a level that is not full).
+ */
 export const bottlePatchBody = (cells: Readonly<Record<string, string>> | undefined, moveTo: number | undefined): Record<string, unknown> => ({
   ...patchFields(cells ?? {}),
+  ...(cells?.dateOpened === "" ? { ifOpenedCleared: "keep_open" } : {}),
   ...(moveTo !== undefined ? { expressionId: moveTo } : {}),
 });
 
@@ -120,6 +127,11 @@ const COLUMN_OF_FIELD: Record<string, { label: string; bottle: string }> = {
   pickName: { label: "pickName", bottle: "pickName" },
   location: { label: "location", bottle: "location" },
   notes: { label: "notes", bottle: "notes" },
+  status: { label: "status", bottle: "status" },
+  fillPct: { label: "fillPct", bottle: "fillPct" },
+  isOpen: { label: "isOpen", bottle: "isOpen" },
+  dateOpened: { label: "dateOpened", bottle: "dateOpened" },
+  dateKilled: { label: "dateKilled", bottle: "dateKilled" },
 };
 
 /** The cell a failed save is shown on: the first failing field that has a column, else `fallback`. */
