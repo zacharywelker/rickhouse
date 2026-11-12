@@ -1000,3 +1000,70 @@ test("Opened is ticked with Space, Favorite likewise, and a date killed before i
   await page.keyboard.press("Enter");
   await expect(page.getByText(/Killed before it was opened/).first()).toBeVisible();
 });
+
+// ---------------------------------------------------------------------------
+// Age: one cell for years, months, days and the statement
+// ---------------------------------------------------------------------------
+
+test("a label's Age is typed as 12, 12y 6m, NAS or the statement as printed, saves, and each replaces the one before", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click(); // the label itself
+  const age = await col(page, "Age");
+  const set = async (text: string) => {
+    // After a reload the page is not interactive until it has hydrated: a cell is selected once it has.
+    await expect(async () => {
+      await cell(page, 0, age).click();
+      await expect(cell(page, 0, age)).toHaveAttribute("aria-selected", "true", { timeout: 500 });
+    }).toPass();
+    await page.keyboard.type(text);
+    await page.keyboard.press("Enter");
+  };
+  await set("12y 6m");
+  await expect(cell(page, 0, age)).toHaveText("12y 6m");
+  await reloaded(page);
+  await expect(cell(page, 0, age)).toHaveText("12y 6m");
+  await set("8 to 12 years");
+  await expect(cell(page, 0, age)).toContainText("8"); // shown at once; the save is on its way
+  await reloaded(page);
+  await expect(cell(page, 0, age)).toContainText("8"); // the statement, as the Age column writes it
+  await expect(cell(page, 0, age)).not.toContainText("12y");
+  await set("NAS");
+  await expect(cell(page, 0, age)).toHaveText("NAS");
+  await reloaded(page);
+  await expect(cell(page, 0, age)).toContainText("NAS");
+});
+
+test("a bad age stays open and says why; the cell is cleared with Delete", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const age = await col(page, "Age");
+  await cell(page, 1, age).click();
+  await page.keyboard.type("150");
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1);
+  await expect(page.getByText("At most 100 years.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await cell(page, 1, age).click();
+  await page.keyboard.type("6");
+  await page.keyboard.press("Enter");
+  await cell(page, 1, age).click();
+  await page.keyboard.press("Delete");
+  await reloaded(page);
+  await expect(cell(page, 1, age)).not.toContainText("6y");
+});
+
+test("a bottle's own age shows the label's in grey until it says its own, and blank goes back", async ({ page }) => {
+  await showColumns(page, "This bottle's age");
+  const own = await col(page, "This bottle's age");
+  const label = await col(page, "Age");
+  const labelText = (await cell(page, 2, label).innerText()).trim();
+  await cell(page, 2, own).click();
+  await page.keyboard.type("9y 3m");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 2, own)).toHaveText("9y 3m");
+  await reloaded(page);
+  await expect(cell(page, 2, own)).toHaveText("9y 3m");
+  await expect(cell(page, 2, label)).toHaveText(labelText); // the label's is untouched
+  await cell(page, 2, own).click();
+  await page.keyboard.press("Delete");
+  await reloaded(page);
+  await expect(cell(page, 2, own)).not.toHaveText("9y 3m");
+});

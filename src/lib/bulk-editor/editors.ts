@@ -2,6 +2,7 @@ import type { FieldSpec } from "@/lib/admin/types";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
+import { bottleAgeEditor, labelAgeEditor } from "./age";
 import { designationEditor, GENERATED, singleBarrelEditor, storeEditor, type Kinds } from "./fields";
 import type { RefKind } from "./references";
 import type { Cell, SheetColumn, SheetContext, SheetRow, SheetView } from "./sheet";
@@ -104,6 +105,8 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
   designation: designationEditor(),
   singleBarrel: singleBarrelEditor(),
   store: storeEditor(),
+  age: labelAgeEditor(),
+  ownAge: bottleAgeEditor(),
 };
 
 /** The label cells a person has triple-clicked open, as `labelId:columnId`. Unlocking is per label and per column. */

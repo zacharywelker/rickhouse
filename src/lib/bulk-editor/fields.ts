@@ -32,10 +32,6 @@ export const NOT_HERE: Readonly<Record<string, string>> = {
   categoryId: "Category cell (a new label's; a saved label's is parity step 6, #340)",
   expressionId: "Moving a bottle: the Brand and Label cells",
   // Later steps.
-  ageYears: "#338",
-  ageMonths: "#338",
-  ageDays: "#338",
-  ageStatement: "#338",
   regions: "#340",
   // Deliberately not in the sheet.
   slug: "A system field, made from the name",
@@ -240,7 +236,7 @@ function generatedLabelColumns(): Generated[] {
 // --- the bottle's ---
 
 /** Bottle fields made by hand elsewhere, or covered by a composite cell. */
-const HAND_MADE_BOTTLE = new Set(["status", "storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName", "isSingleBarrel", "isSingleBarrelPick"]);
+const HAND_MADE_BOTTLE = new Set(["ageYears", "ageMonths", "ageDays", "ageStatement", "status", "storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName", "isSingleBarrel", "isSingleBarrelPick"]);
 /** A bottle's field of the same name as a label's (its own value, overriding the label's) gets its own column id. */
 const BOTTLE_ID: Readonly<Record<string, string>> = {
   bottleCount: "releaseBottleCount",

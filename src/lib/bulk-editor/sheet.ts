@@ -112,10 +112,11 @@ const DASH: Cell = { text: "—", muted: true };
 const text = (value: string | null | undefined): Cell => (value ? { text: value } : DASH);
 
 /** A label's age as the Labels table shows it. */
-function labelAge(label: SheetLabel, kinds: Record<number, CategoryKind>): Cell {
+export function labelAge(label: SheetLabel, kinds: Record<number, CategoryKind>): Cell {
   const { fieldGroup } = label;
   if (fieldGroup === "vodka" || ((fieldGroup === "amaro" || fieldGroup === "liqueur") && !label.isAged)) return DASH;
-  if (fieldGroup === "whiskey") return text(whiskeyAge(label, kinds[label.categoryId] ?? "other").text);
+  // A whiskey marked NAS with nothing to infer from still says so, rather than looking as if no age was ever entered.
+  if (fieldGroup === "whiskey") return text(whiskeyAge(label, kinds[label.categoryId] ?? "other").text ?? (label.isNas ? "NAS" : null));
   return text(describeAgeParts(label.ageYears, label.ageMonths, label.ageDays) ?? label.ageStatement ?? (label.isNas ? "NAS" : label.isStraight ? "Straight" : null));
 }
 
