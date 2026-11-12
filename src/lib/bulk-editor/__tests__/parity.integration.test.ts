@@ -77,10 +77,21 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
       default: return editor.field === "upc" ? "012345678905" : "Sample";
     }
   }
+  /** A choice the picking cells can hold, made for this label: `id:N` of a real store, cooperage, release or label name. */
+  async function pick(editor: CellEditor, label: number): Promise<string> {
+    const at = async (query: string, ...params: unknown[]) => `id:${(await m.sql<{ id: number }>(query, ...params))[0]!.id}`;
+    switch (editor.reference) {
+      case "store": return at(`INSERT INTO stores (owner_id, name, slug) VALUES ($1, $2::text, $2::text) RETURNING id`, owner, `Parity Store ${label}`);
+      case "cooperage": return at(`INSERT INTO cooperages (owner_id, name, slug) VALUES ($1, $2::text, $2::text) RETURNING id`, owner, `Parity Cooperage ${label}`);
+      case "release": return at(`INSERT INTO expression_releases (expression_id, name) VALUES ($1, 'Parity Release') RETURNING id`, label);
+      default: return at(`INSERT INTO expression_names (expression_id, name) VALUES ($1, 'Parity Name') RETURNING id`, label);
+    }
+  }
+  const valueFor = async (editor: CellEditor, label: number) => (editor.reference ? pick(editor, label) : sample(editor));
   const stored = (value: unknown): string => (value === null || value === undefined ? "" : value instanceof Date ? value.toISOString().slice(0, 10) : String(value));
   const same = (got: unknown, want: string) => {
     const g = stored(got);
-    return g === want || (g !== "" && want !== "" && !Number.isNaN(Number(g)) && Number(g) === Number(want));
+    return g === want || g === want.replace(/^id:/, "") || (g !== "" && want !== "" && !Number.isNaN(Number(g)) && Number(g) === Number(want));
   };
 
   /** A label row on a spirit, as the sheet would hold it, to ask whether a cell applies. */
@@ -92,7 +103,7 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
         const spirit = SPIRITS.find((s) => g.editor.applies!(fakeLabelRow(catId[s.slug]!, s.group), kinds));
         expect(spirit, `no spirit the sheet applies ${g.column.id} to`).toBeDefined();
         const label = await fx.mkLabel(owner, catId[spirit!.slug]!, `Parity ${g.column.id}`);
-        const value = sample(g.editor);
+        const value = await valueFor(g.editor, label);
         const out = await rows.patchLabelRow(owner, label, serverFields(g.editor, g.column.id, value));
         expect(out, JSON.stringify(out)).toEqual({ ok: true });
         const row = await one(`SELECT to_jsonb(e) AS j FROM expressions e WHERE id = $1`, label);
@@ -115,7 +126,7 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
         if (spirit!.group === "gin") await m.sql(`UPDATE expressions SET is_aged_gin = true WHERE id = $1`, label);
         const bottle = await fx.mkBottle(owner, label);
         await m.sql(`UPDATE bottles SET is_single_barrel = true, is_single_barrel_pick = true WHERE id = $1`, bottle);
-        const value = sample(g.editor);
+        const value = await valueFor(g.editor, label);
         const out = await rows.patchBottleRow(owner, bottle, serverFields(g.editor, g.column.id, value));
         expect(out, JSON.stringify(out)).toEqual({ ok: true });
         const row = await one(`SELECT to_jsonb(b) AS j FROM bottles b WHERE id = $1`, bottle);
@@ -131,7 +142,7 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
       it(`${g.column.id} clears`, async () => {
         const spirit = SPIRITS.find((s) => g.editor.applies!(fakeLabelRow(catId[s.slug]!, s.group), kinds))!;
         const label = await fx.mkLabel(owner, catId[spirit.slug]!, `Parity clear ${g.column.id}`);
-        expect(await rows.patchLabelRow(owner, label, serverFields(g.editor, g.column.id, sample(g.editor)))).toEqual({ ok: true });
+        expect(await rows.patchLabelRow(owner, label, serverFields(g.editor, g.column.id, await valueFor(g.editor, label)))).toEqual({ ok: true });
         const blank = g.editor.spec.kind === "checkbox" ? "false" : "";
         const out = await rows.patchLabelRow(owner, label, serverFields(g.editor, g.column.id, blank));
         expect(out, JSON.stringify(out)).toEqual({ ok: true });
@@ -146,7 +157,7 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
         if (spirit.group === "gin") await m.sql(`UPDATE expressions SET is_aged_gin = true WHERE id = $1`, label);
         const bottle = await fx.mkBottle(owner, label);
         await m.sql(`UPDATE bottles SET is_single_barrel = true, is_single_barrel_pick = true WHERE id = $1`, bottle);
-        expect(await rows.patchBottleRow(owner, bottle, serverFields(g.editor, g.column.id, sample(g.editor)))).toEqual({ ok: true });
+        expect(await rows.patchBottleRow(owner, bottle, serverFields(g.editor, g.column.id, await valueFor(g.editor, label)))).toEqual({ ok: true });
         const blank = g.editor.spec.kind === "checkbox" ? "false" : "";
         const out = await rows.patchBottleRow(owner, bottle, serverFields(g.editor, g.column.id, blank));
         expect(out, JSON.stringify(out)).toEqual({ ok: true });

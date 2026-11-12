@@ -7,6 +7,7 @@ import { writableLabelFacts } from "@/lib/expressions/writable-facts";
 import { initialFieldValues } from "@/lib/forms/values";
 import { formatDate } from "@/lib/utils";
 import type { CellEditor } from "./editors";
+import { encodeRef, decodeRef, type RefKind } from "./references";
 import type { Cell, SheetColumn, SheetContext, SheetRow } from "./sheet";
 
 /**
@@ -31,10 +32,6 @@ export const NOT_HERE: Readonly<Record<string, string>> = {
   categoryId: "Category cell (a new label's; a saved label's is parity step 6, #340)",
   expressionId: "Moving a bottle: the Brand and Label cells",
   // Later steps.
-  storeId: "#336",
-  releaseId: "#336",
-  expressionNameId: "#336",
-  cooperageId: "#336",
   status: "#337",
   fillPct: "#337",
   isOpen: "#337",
@@ -152,6 +149,60 @@ function columnFrom(spec: Simple, id: string, label: string, group: "label" | "b
   };
 }
 
+// --- the pickers: store, release, label name, cooperage ---
+
+const REFERENCE_KIND: Readonly<Record<string, RefKind>> = { storeId: "store", releaseId: "release", expressionNameId: "version", cooperageId: "cooperage" };
+
+/** A cell that picks from a list. It keeps `id:12` or `new:Name` while edited (see `references.ts`), and shows the name. */
+function referenceEditor(spec: FieldSpec, id: string, kind: RefKind, scope: "label" | "bottle", read: (row: SheetRow) => number | null | undefined, applies: (row: SheetRow, kinds: Kinds) => boolean): CellEditor {
+  return {
+    column: id,
+    field: spec.name,
+    scope,
+    spec,
+    reference: kind,
+    applies,
+    typeToReplace: true,
+    initial: (row) => encodeRef(read(row)),
+    display: (value, ctx) => {
+      const ref = decodeRef(value);
+      if (ref === null) return DASH;
+      if ("name" in ref) return { text: ref.name, badge: "new" };
+      return { text: ctx.refs?.[kind][ref.id] ?? "—" };
+    },
+  };
+}
+
+function bottleSpecAndSection(name: string): { spec: FieldSpec; section: FormSection } {
+  for (const section of BOTTLE_SECTIONS) {
+    const spec = section.fields.find((f) => f.name === name);
+    if (spec) return { spec, section };
+  }
+  throw new Error(`The bottle form has no field "${name}".`);
+}
+
+const releasedTo = (row: SheetRow) => row.bottle !== null && !row.moved;
+
+/** The bottle's Store cell: one of the account's stores, or a new one. The column itself is made by hand (it is on the shelf-order). */
+export function storeEditor(): CellEditor {
+  const { spec, section } = bottleSpecAndSection("storeId");
+  return referenceEditor(spec, "store", "store", "bottle", (row) => row.bottle?.storeId, (row, kinds) => bottleFieldReason(spec, section, row, kinds) === null);
+}
+
+function referenceColumn(spec: FieldSpec, id: string, label: string, group: "label" | "bottle", sectionTitle: string, editor: CellEditor, reason: (row: SheetRow, kinds: Kinds) => string | null): SheetColumn {
+  return {
+    id,
+    label,
+    group,
+    defaultHidden: true,
+    section: sectionTitle,
+    cell: (row: SheetRow, ctx: SheetContext) => {
+      const why = reason(row, ctx.kinds);
+      return why === null ? editor.display(editor.initial(row), ctx, row) : { ...DASH, note: why };
+    },
+  };
+}
+
 // --- the label's ---
 
 /** Columns that are made by hand elsewhere, or are not a single simple field. */
@@ -164,7 +215,16 @@ function generatedLabelColumns(): Generated[] {
   for (const group of LABEL_COLUMN_GROUPS) {
     for (const col of group.columns) {
       const spec = col.specs[0];
-      if (col.specs.length !== 1 || !spec || !isSimple(spec) || HAND_MADE_LABEL.has(col.id) || spec.name in NOT_HERE || IN_DESIGNATION.has(spec.name)) continue;
+      if (col.specs.length !== 1 || !spec || HAND_MADE_LABEL.has(col.id) || spec.name in NOT_HERE || IN_DESIGNATION.has(spec.name)) continue;
+      if (spec.kind === "reference") {
+        const kind = REFERENCE_KIND[spec.name];
+        if (!kind) continue;
+        const applies = (row: SheetRow, kinds: Kinds) => labelFactApplies(spec, group.section, row, kinds);
+        const editor = referenceEditor(spec, col.id, kind, "label", (row) => row.label.cooperageId, applies);
+        out.push({ column: referenceColumn(spec, col.id, col.label, "label", group.title, editor, (row, kinds) => (applies(row, kinds) ? null : "Not used for this spirit")), editor });
+        continue;
+      }
+      if (!isSimple(spec)) continue;
       const applies = (row: SheetRow, kinds: Kinds) => labelFactApplies(spec, group.section, row, kinds);
       const editor = editorFrom(spec, col.id, "label", (row) => row.label, applies);
       out.push({ column: columnFrom(spec, col.id, col.label, "label", group.title, editor, (row, kinds) => (applies(row, kinds) ? null : "Not used for this spirit")), editor });
@@ -184,7 +244,7 @@ function generatedLabelColumns(): Generated[] {
 // --- the bottle's ---
 
 /** Bottle fields made by hand elsewhere, or covered by a composite cell. */
-const HAND_MADE_BOTTLE = new Set(["pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName", "isSingleBarrel", "isSingleBarrelPick"]);
+const HAND_MADE_BOTTLE = new Set(["storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName", "isSingleBarrel", "isSingleBarrelPick"]);
 /** A bottle's field of the same name as a label's (its own value, overriding the label's) gets its own column id. */
 const BOTTLE_ID: Readonly<Record<string, string>> = {
   bottleCount: "releaseBottleCount",
@@ -204,9 +264,19 @@ function generatedBottleColumns(): Generated[] {
   const out: Generated[] = [];
   for (const section of BOTTLE_SECTIONS) {
     for (const spec of section.fields) {
-      if (!isSimple(spec) || HAND_MADE_BOTTLE.has(spec.name) || spec.name in NOT_HERE) continue;
+      if (HAND_MADE_BOTTLE.has(spec.name) || spec.name in NOT_HERE) continue;
       const id = BOTTLE_ID[spec.name] ?? spec.name;
       const reason = (row: SheetRow, kinds: Kinds) => bottleFieldReason(spec, section, row, kinds);
+      // The release and the label name are selects on the form whose choices come from the label, so they are matched by name.
+      const kind = REFERENCE_KIND[spec.name];
+      if (kind) {
+        // On a bottle moved to another label, neither a release nor a label name carries over: the server clears them.
+        const read = spec.name === "releaseId" ? (row: SheetRow) => (row.moved ? null : row.bottle?.releaseId) : (row: SheetRow) => (row.moved ? null : row.bottle?.expressionNameId);
+        const editor = referenceEditor(spec, id, kind, "bottle", read, (row, kinds) => releasedTo(row) !== false && reason(row, kinds) === null);
+        out.push({ column: referenceColumn(spec, id, spec.label, "bottle", section.title, editor, reason), editor });
+        continue;
+      }
+      if (!isSimple(spec)) continue;
       const editor = editorFrom(spec, id, "bottle", (row) => row.bottle, (row, kinds) => reason(row, kinds) === null);
       out.push({ column: columnFrom(spec, id, BOTTLE_HEADER[spec.name] ?? spec.label, "bottle", section.title, editor, reason), editor });
     }

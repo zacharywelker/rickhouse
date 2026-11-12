@@ -10,7 +10,7 @@ const label = (id: number, brandId: number, brand: string, name: string, categor
     links: { distilleries: [{ id: 1, label: "Four Roses Distillery", amount: "" }], mashbills: [], finishes: [], ingredients: [], ...over.links },
   }) as unknown as SheetLabel;
 const bottle = (id: number, over: Partial<SheetBottle> = {}) =>
-  ({ id, status: "owned", pricePaid: null, storeName: null, pickName: null, notes: null, location: null, dateAcquired: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ...over }) as unknown as SheetBottle;
+  ({ id, status: "owned", pricePaid: null, storeName: null, storeId: null, releaseId: null, expressionNameId: null, pickName: null, notes: null, location: null, dateAcquired: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ...over }) as unknown as SheetBottle;
 
 const gin = label(1, 1, "Hendrick's", "Gin", 10, "Gin", "88");
 const bourbon = label(2, 2, "Four Roses", "Single Barrel", 20, "Bourbon", "100");

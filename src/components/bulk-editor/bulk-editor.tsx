@@ -38,6 +38,7 @@ import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 import { railFor } from "@/lib/bulk-editor/rail";
 import { shelfFor } from "@/lib/bulk-editor/shelf";
 import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND, nextSort, sortRows, type Find } from "@/lib/bulk-editor/find";
+import { decodeRef, encodePick, REF_CAN_CREATE, REF_NO_CREATE, REF_WHAT, refCandidates, refNames, type RefData } from "@/lib/bulk-editor/references";
 import { ComboEditor } from "./combo-editor";
 import { FindBar } from "./find-bar";
 import { RailContent } from "./rail-panel";
@@ -381,8 +382,8 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               {cell.badge ? <span className="shrink-0 border border-border px-1 text-[10px] uppercase leading-4 tracking-wide text-muted-foreground">{cell.badge}</span> : null}
             </span>
             {isEditing && editing && editor && onFinish && onInvalid ? (
-              editor.combo && combo ? (
-                <ComboEditor kind={editor.combo} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} />
+              (editor.combo || editor.reference) && combo ? (
+                <ComboEditor kind={editor.combo ?? "reference"} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} />
               ) : (
                 <ActiveEditor editor={editor} row={row} kinds={context.kinds} initial={editing} error={error} reach={reach} onFinish={onFinish} onInvalid={onInvalid} />
               )
@@ -399,7 +400,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
  * left. You can move around it and edit the plain cells from the keyboard: arrows, Tab and Enter, F2 or a keystroke to
  * edit, Escape to cancel. Edits are kept here, in the browser, and marked; saving them arrives in a later step.
  */
-export function BulkEditor({ labels, bottles, brands, categories, groups, kinds, photos, currency }: {
+export function BulkEditor({ labels, bottles, brands, categories, groups, kinds, photos, refs, currency }: {
   labels: SheetLabel[];
   bottles: SheetBottle[];
   brands: Array<{ id: number; name: string }>;
@@ -408,6 +409,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   kinds: SheetContext["kinds"];
   /** Thumbnails for the rail, by bottle and by label. */
   photos: { bottles: Record<number, SheetPhoto>; labels: Record<number, SheetPhoto> };
+  /** What the store, cooperage, release and label-name cells choose from. */
+  refs: RefData;
   currency: string;
 }) {
   const [view, setView] = useView();
@@ -418,7 +421,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setView(next);
   };
   const [hidden, setHidden] = useHiddenColumns(HIDDEN_KEY, DEFAULT_HIDDEN);
-  const context = React.useMemo<SheetContext>(() => ({ currency, kinds }), [currency, kinds]);
+  const context = React.useMemo<SheetContext>(() => ({ currency, kinds, refs: refNames(refs) }), [currency, kinds, refs]);
 
   const columns = React.useMemo(() => columnsFor(view, hidden), [view, hidden]);
   /** Bottles moved to another label, and the label cells a person has triple-clicked open. Neither is saved yet. */
@@ -556,7 +559,13 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     // A letter typed on a choice picks the first option that starts with it, as typing into a list does.
     const spec = editorAt(pos)?.spec;
     const chosen = typed && spec && (spec.kind === "select" || spec.kind === "slider") ? spec.options.find((o) => o.value !== "" && o.label.toLowerCase().startsWith(typed.toLowerCase())) : undefined;
-    setEditing({ value: chosen ? chosen.value : replace ? (typed ?? "") : valueAt(pos), replace });
+    // A store, cooperage, release or label name is edited by its name; what it holds is its id.
+    const refName = (value: string) => {
+      const ref = decodeRef(value);
+      return ref === null ? "" : "name" in ref ? ref.name : (context.refs?.[editorAt(pos)!.reference!][ref.id] ?? "");
+    };
+    const held = editorAt(pos)?.reference ? refName(valueAt(pos)) : valueAt(pos);
+    setEditing({ value: chosen ? chosen.value : replace ? (typed ?? "") : held, replace });
   }
 
   /** A yes/no cell is flipped, not opened: Space, Enter or a double click. */
@@ -628,6 +637,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const reordered = !row.draft && (columnId === "brand" || columnId === "name") && ("pick" in result || "value" in result);
     if (reordered) flashRow(row.key);
     if ("value" in result) stage(current, result.value);
+    else if ("pick" in result && editorAt(current)?.reference) stage(current, encodePick(result.pick));
     else if ("pick" in result && !row.draft) {
       // A saved row's Brand or Label. On a bottle it moves the bottle to the label picked, which already exists; with
       // only Labels on, a brand is picked (or created with Enter) for the label.
@@ -635,6 +645,14 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         const target = result.pick.kind === "existing" ? result.pick.id : null;
         if (target !== null) {
           setMoves((prev) => setMove(prev, row.key, target, row.bottle!.expressionId));
+          // A release and a label name belong to the label the bottle was on: what was picked for it is no longer one of the new label's.
+          setEdits((prev) => {
+            const cells = prev[row.key];
+            if (!cells || !("releaseId" in cells || "expressionNameId" in cells)) return prev;
+            const { releaseId: _release, expressionNameId: _name, ...rest } = cells;
+            const { [row.key]: _row, ...others } = prev;
+            return Object.keys(rest).length > 0 ? { ...others, [row.key]: rest } : others;
+          });
           touch(row.key);
           saver.request(row.key);
         }
@@ -665,6 +683,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (!current || !editing) return null;
     const row = rows[current.row];
     const editor = editorAt(current);
+    if (row && editor?.reference) {
+      const kind = editor.reference;
+      return { candidates: refCandidates(kind, row.label.id, refs), allowCreate: REF_CAN_CREATE[kind], what: REF_WHAT[kind], enterDropsDown: true, ...(REF_NO_CREATE[kind] ? { noCreateReason: REF_NO_CREATE[kind] } : {}) };
+    }
     if (!row || !editor?.combo) return null;
     // A saved row: a bottle picks a label that exists to move to; a label (Labels only) picks a brand, or makes one.
     if (!row.draft) {

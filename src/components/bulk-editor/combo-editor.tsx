@@ -21,7 +21,7 @@ const LIST_HEIGHT = 280;
  * drops what was typed: leaving a cell never creates anything.
  */
 export function ComboEditor({ kind, column, initial, data, error, onFinish, onInvalid }: {
-  kind: ComboKind;
+  kind: ComboKind | "reference";
   column: string;
   initial: Editing;
   data: ComboData;

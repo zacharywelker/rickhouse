@@ -2,7 +2,8 @@ import type { FieldSpec } from "@/lib/admin/types";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import { formatDate, formatMoney, formatNumeric } from "@/lib/utils";
-import { designationEditor, GENERATED, singleBarrelEditor, type Kinds } from "./fields";
+import { designationEditor, GENERATED, singleBarrelEditor, storeEditor, type Kinds } from "./fields";
+import type { RefKind } from "./references";
 import type { Cell, SheetColumn, SheetContext, SheetRow, SheetView } from "./sheet";
 
 /**
@@ -22,6 +23,8 @@ export type CellEditor = {
   column: string;
   /** Set for a cell that picks from a list. Its `spec` is then unused, and what is chosen is kept with the row, not in the edits. */
   combo?: ComboKind;
+  /** Set for a cell that picks a store, a cooperage, or one of the label's releases or names. What is chosen is kept in the edits as `id:12` or `new:Name` (see `references.ts`). */
+  reference?: RefKind;
   /** The field's name on the form, and so on the server's patch. */
   field: string;
   /** A label column changes the label and every bottle on it; a bottle column changes that bottle only. */
@@ -98,6 +101,7 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
   ...Object.fromEntries(GENERATED.map((g) => [g.column.id, g.editor])),
   designation: designationEditor(),
   singleBarrel: singleBarrelEditor(),
+  store: storeEditor(),
 };
 
 /** The label cells a person has triple-clicked open, as `labelId:columnId`. Unlocking is per label and per column. */

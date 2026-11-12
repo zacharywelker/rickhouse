@@ -141,7 +141,7 @@ function placeholderLabel(draft: DraftRow, ctx: DraftContext): SheetLabel {
 
 /** A bottle that does not exist yet: every value empty, for the row's typed-in edits to fill. */
 const placeholderBottle = (expressionId: number): SheetBottle => ({
-  id: -1, expressionId, status: "owned", pricePaid: null, storeName: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
+  id: -1, expressionId, status: "owned", pricePaid: null, storeName: null, storeId: null, releaseId: null, expressionNameId: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
   pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null,
   acquisition: "purchase", batch: null, pickedBy: null, barrelNumber: null, bottleCount: null, warehouse: null, rickFloor: null, barrelFilledOn: null, bottledOn: null, ginIsNas: null, tequilaClass: null, brandyGrade: null,
 });
