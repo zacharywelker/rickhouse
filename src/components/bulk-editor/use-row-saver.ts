@@ -117,7 +117,9 @@ export function useRowSaver(input: Input) {
         call = () => patchLabelRowAction(id, labelPatchBody(cells, label ? { label, loaded: latest.current.linkCache?.current.get(id) } : undefined));
       } else {
         const draft = drafts.find((d) => d.key === key);
-        if (!draft || isBlank(draft, edits) || draftNeeds(draft) !== null) return;
+        // A new row that has been made is not made again: it stays in the list until the reloaded data has it, and a second
+        // request for it (the cursor leaving it as well as the run of Tab and Enter that finished it) would add a duplicate.
+        if (!draft || created.current.has(key) || isBlank(draft, edits) || draftNeeds(draft) !== null) return;
         snapshot = { cells: cells ?? {} };
         const body = createBody(draft, cells, view.bottles);
         call = () => createRowAction(body);

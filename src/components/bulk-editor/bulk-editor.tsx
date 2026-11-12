@@ -42,6 +42,7 @@ import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND
 import { decodeRef, encodePick, REF_CAN_CREATE, REF_NO_CREATE, REF_WHAT, refCandidates, refNames, type RefData } from "@/lib/bulk-editor/references";
 import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
 import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-editor/clipboard";
+import { settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
 import { ComboEditor } from "./combo-editor";
 import { LinksEditor, type LinkOptions } from "./links-editor";
 import { FindBar } from "./find-bar";
@@ -783,8 +784,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         const chosen = result.pick.kind === "existing" ? labels.find((l) => l.id === (result.pick as { id: number }).id) : undefined;
         return withLabel(draft, result.pick, chosen?.categoryId ?? null);
       });
-      setDrafts(nextDrafts);
-      nextRows = rowsFor(withBlankRow(nextDrafts, Math.max(keyFloor, Number(row.key.slice(1)) + 1)));
+      const settledDrafts = settleRow(nextDrafts, row.key, columnId);
+      setDrafts(settledDrafts);
+      nextRows = rowsFor(withBlankRow(settledDrafts, Math.max(keyFloor, Number(row.key.slice(1)) + 1)));
     }
 
     // Others still waiting to be chosen: the cursor goes to the next of them rather than along the row.
@@ -870,6 +872,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         event.preventDefault();
         if (editor.spec.kind === "checkbox") flip(pos);
         else startEdit(pos, false);
+      } else if (rows[pos.row] && columns[pos.col] && pending[pendKey(rows[pos.row]!.key, columns[pos.col]!.id)] !== undefined) {
+        // A label waits for its brand, and a category for its label.
+        event.preventDefault();
+        setGone((prev) => [...prev.filter((g) => g.key !== "choose-first"), { key: "choose-first", text: "Choose the brand first, then the label, then the category: each opens once the one before it is chosen." }]);
       }
     } else if (key === " " && !event.shiftKey && editorAt(pos)?.spec.kind === "checkbox") {
       event.preventDefault();
@@ -1034,9 +1040,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         beyondColumns += 1;
         continue;
       }
-      // A new row is not a row to paste into yet: lines past the last saved row are said, not guessed at.
+      // Lines that land on a new row, or past the last row, make new rows (below); a block filled with one value does not.
       if (!row || row.draft) {
-        beyondRows.add(line);
+        if (range && single) beyondRows.add(line);
         continue;
       }
       const where = `${row.label.brand} ${row.label.name} · ${column.band ? `${column.band} ${column.label}` : column.label}`;
@@ -1093,13 +1099,110 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       pasted += 1;
     }
 
+    // Lines that land on a new row, or past the last row, become new rows.
+    let added = 0;
+    if (!(range && single)) {
+      const newStart = Math.max(0, rows.findIndex((r) => r.draft));
+      const lines = grid.map((cells, i) => ({ cells, rowIndex: at.row + i })).filter((l) => l.rowIndex >= newStart).map((l) => l.cells);
+      if (lines.length > 0) {
+        const made = makeNewRows(lines.slice(0, MAX_NEW_ROWS), at.col, today, skipped);
+        added = made.rows;
+        toChoose += made.waiting;
+        beyondColumns += made.beyondColumns;
+        if (lines.length > MAX_NEW_ROWS) skipped.push(`only the first ${MAX_NEW_ROWS} new rows were added`);
+      }
+    }
+
     setRange(null);
     const parts = [`Pasted ${pasted} ${pasted === 1 ? "cell" : "cells"}.`];
-    if (toChoose > 0) parts.push(`${toChoose} to choose: press Enter on a marked cell to pick from what matches.`);
-    if (beyondRows.size > 0) parts.push(`${beyondRows.size} ${beyondRows.size === 1 ? "line" : "lines"} past the last row ${beyondRows.size === 1 ? "was" : "were"} not pasted (adding rows from a paste comes next).`);
+    if (added > 0) parts.push(`Added ${added} new ${added === 1 ? "row" : "rows"}.`);
+    if (toChoose > 0) parts.push(`${toChoose} to choose: press Enter on a marked cell to pick from what matches. A new row saves once its brand, label and category are chosen.`);
+    if (beyondRows.size > 0) parts.push(`${beyondRows.size} ${beyondRows.size === 1 ? "line" : "lines"} past the last row ${beyondRows.size === 1 ? "was" : "were"} not pasted.`);
     if (beyondColumns > 0) parts.push(`${beyondColumns} ${beyondColumns === 1 ? "cell" : "cells"} past the last column ${beyondColumns === 1 ? "was" : "were"} not pasted.`);
     if (skipped.length > 0) parts.push(`Not pasted: ${skipped.slice(0, 4).join("; ")}${skipped.length > 4 ? `; and ${skipped.length - 4} more` : ""}.`);
     setGone((prev) => [...prev.filter((g) => g.key !== "paste"), { key: "paste", text: parts.join(" "), jump: toChoose > 0 }]);
+  }
+
+  const MAX_NEW_ROWS = 300;
+
+  /**
+   * New rows from the lines a paste has below the last saved row. Each is a new row as if typed: a brand, label and
+   * category that are complete names that exist are chosen, the rest wait to be picked, and every other value is kept
+   * in the row (a label's facts are sent only if the label turns out to be a new one).
+   */
+  function makeNewRows(lines: string[][], startCol: number, today: string, skipped: string[]): { rows: number; waiting: number; beyondColumns: number } {
+    let floor = keyFloor;
+    let waiting = 0;
+    let beyondColumns = 0;
+    const made: DraftRow[] = [];
+    const newEdits: Record<string, Record<string, string>> = {};
+    const newPending: Record<string, string> = {};
+    lines.forEach((cells, n) => {
+      const key = `d${floor}`;
+      floor += 1;
+      const texts: RowTexts = {};
+      const typed: Record<string, string> = {};
+      cells.forEach((text, j) => {
+        const column = columns[startCol + j];
+        if (!column) {
+          beyondColumns += 1;
+          return;
+        }
+        const where = `New row ${n + 1} · ${column.band ? `${column.band} ${column.label}` : column.label}`;
+        const blank = matchName(text, []).kind === "blank";
+        if (column.id === "brand" || column.id === "name" || column.id === "category") {
+          if (!blank) texts[column.id === "name" ? "name" : (column.id as "brand" | "category")] = text.trim();
+          return;
+        }
+        if (blank) return;
+        const editor = EDITORS[column.id];
+        if (!editor) return void skipped.push(`${where}: cannot be edited here`);
+        if (editor.links) return void skipped.push(`${where}: a list is changed in its picker`);
+        if (editor.reference) {
+          if (editor.reference === "release" || editor.reference === "version") return void skipped.push(`${where}: choose the label first`);
+          const found = matchName(text, refCandidates(editor.reference, -1, refs));
+          if (found.kind === "exact") typed[column.id] = `id:${found.match.id}`;
+          else {
+            newPending[pendKey(key, column.id)] = text.trim();
+            waiting += 1;
+          }
+          return;
+        }
+        if (editor.combo) return;
+        const read = readPasted(editor, text);
+        if (!read.ok) return void skipped.push(`${where}: ${read.message}`);
+        const checked = parseCell(editor, read.value, today);
+        if (!checked.ok) return void skipped.push(`${where}: ${checked.message}`);
+        if (checked.value !== "") typed[column.id] = checked.value;
+      });
+      const settled = settleDraft(emptyDraft(key), texts, { brands, labels, categories, drafts: [...drafts, ...made] });
+      made.push(settled.draft);
+      for (const [name, text] of Object.entries(settled.left)) {
+        newPending[pendKey(key, name)] = text;
+        waiting += 1;
+      }
+      if (Object.keys(typed).length > 0) newEdits[key] = typed;
+    });
+    setDrafts((prev) => [...prev, ...made]);
+    setKeyFloor((prev) => Math.max(prev, floor));
+    setEdits((prev) => ({ ...prev, ...newEdits }));
+    setPending((prev) => ({ ...prev, ...newPending }));
+    return { rows: made.length, waiting, beyondColumns };
+  }
+
+  /** After a choice on a new row: what it was waiting for that the choice now allows (a label for its brand, a category for its label). */
+  function settleRow(list: DraftRow[], key: string, except: string): DraftRow[] {
+    const draft = list.find((d) => d.key === key);
+    if (!draft) return list;
+    const texts: RowTexts = {};
+    for (const name of ["brand", "name", "category"] as const) {
+      const waitingText = pending[pendKey(key, name)];
+      if (name !== except && waitingText !== undefined) texts[name] = waitingText;
+    }
+    if (Object.keys(texts).length === 0) return list;
+    const settled = settleDraft(draft, texts, { brands, labels, categories, drafts: list });
+    for (const name of Object.keys(texts)) if (!(name in settled.left)) dropPending(key, name);
+    return list.map((d) => (d.key === key ? settled.draft : d));
   }
 
   /** Puts the cursor on the first cell a paste left to be chosen. */
