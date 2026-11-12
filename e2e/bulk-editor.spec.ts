@@ -1281,7 +1281,7 @@ test("a pasted name that is a complete store name is taken; a part of one waits 
   await expect(cell(page, 2, store)).toHaveText("Astor Wines");
 });
 
-test("a waiting choice is dropped with Delete, and lines past the last row are said, not guessed at", async ({ page }) => {
+test("a waiting choice is dropped with Delete", async ({ page }) => {
   const store = await col(page, "Store");
   await select(page, 4, store);
   await paste(page, "Mystery Shop");
@@ -1289,10 +1289,6 @@ test("a waiting choice is dropped with Delete, and lines past the last row are s
   await page.keyboard.press("Delete");
   await expect(cell(page, 4, store)).not.toContainText("Choose");
 
-  const price = await col(page, "Price paid");
-  await select(page, 0, price);
-  await paste(page, Array.from({ length: 40 }, () => "1").join("\n"));
-  await expect(pasteNotice(page)).toContainText("past the last row");
 });
 
 test("a locked cell and a list are skipped with the reason", async ({ page }) => {
@@ -1301,4 +1297,58 @@ test("a locked cell and a list are skipped with the reason", async ({ page }) =>
   await select(page, 0, proof);
   await paste(page, "90");
   await expect(pasteNotice(page)).toContainText("locked");
+});
+
+// Lines past the last saved row become new rows
+
+const blankRow = async (page: Page) => (await sheet(page).locator('td[data-c="0"]').count()) - 1;
+
+test("lines pasted at the empty row become new rows: complete names are taken, the rest wait, and nothing is created by a paste", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click(); // new rows are labels
+  const [brand, name, category] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Category")];
+  const at = await blankRow(page);
+  await select(page, at, brand);
+  await paste(page, "pursuit spirits\tPaste Made Label\tbourbon\nNobody Distilling\tAnother One\tRye");
+  await expect(pasteNotice(page)).toContainText("Added 2 new rows");
+  // The first brand is a complete name: taken. The label does not exist, so it waits, and so does its category.
+  await expect(cell(page, at, brand)).toContainText("Pursuit Spirits");
+  await expect(cell(page, at, brand)).not.toContainText("Choose");
+  await expect(cell(page, at, name)).toContainText("Paste Made Label");
+  await expect(cell(page, at, name)).toContainText("Choose");
+  await expect(cell(page, at, category)).toContainText("Choose");
+  // The second brand does not exist: it waits too, and nothing is made.
+  await expect(cell(page, at + 1, brand)).toContainText("Choose");
+  await expect(cell(page, at + 1, brand)).toContainText("Nobody Distilling");
+
+  // The label waits for Enter on Create, deliberately; its category, a complete name, is then taken by itself.
+  await select(page, at, name);
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveValue("Paste Made Label");
+  await expect(page.getByRole("option", { name: /Create .Paste Made Label./ })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(cell(page, at, name)).toContainText("Paste Made Label");
+  await expect(cell(page, at, name)).not.toContainText("Choose");
+  await expect(cell(page, at, category)).toHaveText("Bourbon");
+
+  // Leaving the finished row saves it; the other row is not made.
+  await select(page, 0, brand);
+  await reloaded(page);
+  await expect(sheet(page).getByRole("gridcell", { name: "Paste Made Label", exact: true })).toBeVisible();
+  await expect(sheet(page).getByText("Nobody Distilling")).toHaveCount(0);
+});
+
+test("a pasted line naming a brand and label that exist adds a bottle of it, with its values", async ({ page }) => {
+  const [brand, name, price] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Price paid")];
+  const before = await blankRow(page);
+  const bottlesOf = () => sheet(page).locator(`td[data-c="${name}"]`).filter({ hasText: "Double Oak Spirit" }).count();
+  const had = await bottlesOf();
+  await select(page, before, brand);
+  await paste(page, "Pursuit Spirits\tDouble Oak Spirit");
+  await expect(pasteNotice(page)).toContainText("Added 1 new row");
+  await expect(cell(page, before, name)).toContainText("Double Oak Spirit");
+  await expect(cell(page, before, name)).not.toContainText("Choose");
+  await type(page, before, price, "44");
+  await select(page, 0, brand); // leave the row: it saves
+  await reloaded(page);
+  expect(await bottlesOf()).toBe(had + 1);
 });
