@@ -143,6 +143,7 @@ function placeholderLabel(draft: DraftRow, ctx: DraftContext): SheetLabel {
 const placeholderBottle = (expressionId: number): SheetBottle => ({
   id: -1, expressionId, status: "owned", pricePaid: null, storeName: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
   pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null,
+  acquisition: "purchase", batch: null, pickedBy: null, barrelNumber: null, bottleCount: null, warehouse: null, rickFloor: null, barrelFilledOn: null, bottledOn: null, ginIsNas: null, tequilaClass: null, brandyGrade: null,
 });
 
 /** The sheet row for a draft. An existing label is shown as it is (and is read-only here); a new one starts empty and editable. */

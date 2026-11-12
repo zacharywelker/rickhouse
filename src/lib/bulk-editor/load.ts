@@ -51,6 +51,18 @@ export async function loadSheet(ownerId: number): Promise<{
         ageMonths: bottles.ageMonths,
         ageDays: bottles.ageDays,
         ageStatement: bottles.ageStatement,
+        acquisition: bottles.acquisition,
+        batch: bottles.batch,
+        pickedBy: bottles.pickedBy,
+        barrelNumber: bottles.barrelNumber,
+        bottleCount: bottles.bottleCount,
+        warehouse: bottles.warehouse,
+        rickFloor: bottles.rickFloor,
+        barrelFilledOn: bottles.barrelFilledOn,
+        bottledOn: bottles.bottledOn,
+        ginIsNas: bottles.ginIsNas,
+        tequilaClass: bottles.tequilaClass,
+        brandyGrade: bottles.brandyGrade,
       })
       .from(bottles)
       .leftJoin(stores, eq(stores.id, bottles.storeId))

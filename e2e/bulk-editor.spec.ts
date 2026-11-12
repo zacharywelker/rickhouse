@@ -651,6 +651,96 @@ test("On your shelf: a label that is new, and a brand that is new, say so and wh
 });
 
 // ---------------------------------------------------------------------------
+// The form's other fields (parity with the old Bulk add)
+// ---------------------------------------------------------------------------
+
+const fieldsButton = (page: Page) => page.getByRole("button", { name: /^Fields/ });
+/** Switch columns on in the Fields picker, by the name the picker lists them under. */
+async function showColumns(page: Page, ...names: Array<string | RegExp>) {
+  await fieldsButton(page).click();
+  for (const name of names) await page.getByLabel(name, { exact: typeof name === "string" }).check();
+  await page.keyboard.press("Escape");
+}
+const bothSwitch = (page: Page, name: "Labels" | "Bottles") => page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name, exact: true });
+
+test("the form's other fields are columns, grouped by section and hidden until switched on", async ({ page }) => {
+  await fieldsButton(page).click();
+  for (const group of ["Label: Process", "Label: Rum detail", "Label: Strength and age", "Bottle: Release", "Bottle: Single-barrel detail"]) {
+    await expect(page.getByRole("group", { name: group })).toBeVisible();
+  }
+  await expect(page.getByLabel("Batch", { exact: true })).not.toBeChecked();
+  await page.getByLabel("Batch", { exact: true }).check();
+  await page.keyboard.press("Escape");
+  expect(await sheet(page).locator("thead tr:last-child th").allTextContents().then((t) => t.map((x) => x.trim()))).toContain("Batch");
+  await fieldsButton(page).click();
+  await page.getByRole("button", { name: "Defaults" }).click(); // back to the shelf columns
+  await page.keyboard.press("Escape");
+  expect(await sheet(page).locator("thead tr:last-child th").allTextContents().then((t) => t.map((x) => x.trim()))).not.toContain("Batch");
+});
+
+test("Cask / Bonded is one cell: a letter picks, it saves, and it is there after a reload", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click(); // the label itself: nothing is locked
+  const designation = await col(page, "Cask / BiB");
+  await cell(page, 0, designation).click();
+  await page.keyboard.type("b"); // the first choice starting with B: Bottled in Bond
+  await expect(editors(page)).toHaveCount(0); // a choice is a list, not a typed box
+  await expect(sheet(page).locator("select")).toHaveCount(1);
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, designation)).toContainText("Bottled in Bond");
+  await reloaded(page);
+  await expect(cell(page, 0, designation)).toContainText("Bottled in Bond");
+});
+
+test("Single barrel / pick: a private pick opens its pick details before it has saved", async ({ page }) => {
+  await showColumns(page, "Pick name", "Picked By");
+  const [pick, pickName] = [await col(page, "Single barrel / pick"), await col(page, "Pick name")];
+  await cell(page, 0, pickName).click();
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(0); // not a private pick yet: nothing to type into
+  await cell(page, 0, pick).click();
+  await page.keyboard.type("p"); // Private pick
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, pick)).toContainText("Private pick");
+  await cell(page, 0, pickName).click();
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1); // opened at once, before the save was read back
+  await page.keyboard.type("Binnys Pick");
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+  await expect(cell(page, 0, pick)).toContainText("Private pick");
+  await expect(cell(page, 0, pickName)).toContainText("Binnys Pick");
+});
+
+test("a yes/no cell is flipped with Space, saves, and is cleared with Delete", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, "Straight");
+  const straight = await col(page, "Straight");
+  await cell(page, 0, straight).click();
+  await page.keyboard.press("Space");
+  await expect(cell(page, 0, straight)).toHaveText("Yes");
+  await expect(editors(page)).toHaveCount(0); // flipped, not opened
+  await reloaded(page);
+  await expect(cell(page, 0, straight)).toHaveText("Yes");
+  await cell(page, 0, straight).click();
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 0, straight)).toHaveText("—");
+  await reloaded(page);
+  await expect(cell(page, 0, straight)).toHaveText("—");
+});
+
+test("a field that is not used for this spirit says so and cannot be edited", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, /^Esters/i);
+  const esters = (await sheet(page).locator("thead tr:last-child th").allTextContents()).findIndex((t) => /^esters/i.test(t.trim()));
+  expect(esters).toBeGreaterThanOrEqual(0);
+  await expect(cell(page, 0, esters).locator("span[title]").first()).toHaveAttribute("title", "Not used for this spirit"); // a bourbon has no esters
+  await cell(page, 0, esters).click();
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(0);
+  await expect(sheet(page).locator("select")).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------------------
 // Deleting (these remove rows, so they come last)
 // ---------------------------------------------------------------------------
 

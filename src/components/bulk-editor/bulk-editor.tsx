@@ -138,10 +138,16 @@ function ViewToggle({ label, on, onlyOne, onClick }: { label: string; on: boolea
   );
 }
 
-const PICKER_GROUPS: ReadonlyArray<PickerGroup> = [
-  { id: "label", title: "Label", columns: SHEET_COLUMNS.filter((c) => c.group === "label").map((c) => ({ id: c.id, label: c.label, locked: c.identity === true || c.always === true })) },
-  { id: "bottle", title: "Bottle", columns: SHEET_COLUMNS.filter((c) => c.group === "bottle").map((c) => ({ id: c.id, label: c.label })) },
-];
+/** The Fields picker, by form section: the shelf-order columns first under Label and Bottle, then a group for each section of each form. */
+const PICKER_GROUPS: ReadonlyArray<PickerGroup> = (["label", "bottle"] as const).flatMap((group) => {
+  const title = group === "label" ? "Label" : "Bottle";
+  const columns = SHEET_COLUMNS.filter((c) => c.group === group);
+  const sections = [...new Set(columns.flatMap((c) => (c.section ? [c.section] : [])))];
+  return [
+    { id: group, title, columns: columns.filter((c) => !c.section).map((c) => ({ id: c.id, label: c.label, locked: c.identity === true || c.always === true })) },
+    ...sections.map((section) => ({ id: `${group}-${section.replace(/\W+/g, "-").toLowerCase()}`, title: `${title}: ${section}`, columns: columns.filter((c) => c.section === section).map((c) => ({ id: c.id, label: c.label })) })),
+  ];
+});
 const PICKER_PRESETS = [
   { label: "Show all", ids: SHEET_COLUMNS.map((c) => c.id) },
   { label: "Defaults", ids: SHEET_COLUMNS.filter((c) => !c.defaultHidden).map((c) => c.id) },
@@ -187,12 +193,16 @@ function StatusGlyph({ status }: { status: RowStatus }) {
  * The one live editor: the form's own field control for the cell, mounted over the active cell only. It is positioned
  * over the cell instead of inside it, so opening it never changes a column's width or moves a row.
  */
-function ActiveEditor({ editor, initial, error, reach, onFinish, onInvalid }: { editor: CellEditor; initial: Editing; error: string | null; reach: number | null; onFinish: (finish: Finish) => void; onInvalid: (message: string) => void }) {
+function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onInvalid }: { editor: CellEditor; row: SheetRow; kinds: SheetContext["kinds"]; initial: Editing; error: string | null; reach: number | null; onFinish: (finish: Finish) => void; onInvalid: (message: string) => void }) {
   const [draft, setDraft] = React.useState(initial.value);
   const input = React.useRef<HTMLElement | null>(null);
 
   React.useEffect(() => {
     const el = input.current;
+    if (el instanceof HTMLSelectElement) {
+      el.focus();
+      return;
+    }
     if (!(el instanceof HTMLInputElement)) return;
     el.focus();
     if (!initial.replace) el.select();
@@ -206,7 +216,7 @@ function ActiveEditor({ editor, initial, error, reach, onFinish, onInvalid }: { 
   }, [initial.replace]);
 
   function commit(move: "stay" | "down" | "up" | "next" | "prev", focus: boolean) {
-    const parsed = parseCell(editor, draft);
+    const parsed = parseCell(editor, draft, undefined, row, kinds);
     if (!parsed.ok) {
       onInvalid(parsed.message);
       return;
@@ -236,7 +246,7 @@ function ActiveEditor({ editor, initial, error, reach, onFinish, onInvalid }: { 
       onBlur={(event) => {
         // Clicking away keeps what was typed, if it is valid; a slip is dropped rather than left stuck open.
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-        const parsed = parseCell(editor, draft);
+        const parsed = parseCell(editor, draft, undefined, row, kinds);
         if (parsed.ok) onFinish({ value: parsed.value, move: "stay", focus: false });
         else onFinish({ cancel: true, focus: false });
       }}
@@ -305,8 +315,8 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
-        const editor = editorFor(column, view, row, unlocked);
-        const locked = isLocked(column, view, row, unlocked);
+        const editor = editorFor(column, view, row, unlocked, context.kinds);
+        const locked = isLocked(column, view, row, unlocked, context.kinds);
         const spec = EDITORS[column.id];
         // A label's cell keeps its edit under the label; it still shows if the view has since changed and the cell cannot be edited.
         const edited = (spec?.scope === "label" && !row.draft ? labelEdits : rowEdits)?.[column.id];
@@ -342,7 +352,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
             )}
             style={frozen.style}
           >
-            <span className={cn("flex items-center gap-1.5", isEditing && "invisible")} title={isBlocked ? blockedMessage : locked ? "Triple-click to edit" : reach !== null ? changesText(reach) : cell.text}>
+            <span className={cn("flex items-center gap-1.5", isEditing && "invisible")} title={isBlocked ? blockedMessage : locked ? "Triple-click to edit" : reach !== null ? changesText(reach) : (cell.note ?? cell.text)}>
               {column.id === "brand" ? (
                 row.draft ? (
                   <span aria-hidden className="size-3.5 shrink-0" />
@@ -374,7 +384,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               editor.combo && combo ? (
                 <ComboEditor kind={editor.combo} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} />
               ) : (
-                <ActiveEditor editor={editor} initial={editing} error={error} reach={reach} onFinish={onFinish} onInvalid={onInvalid} />
+                <ActiveEditor editor={editor} row={row} kinds={context.kinds} initial={editing} error={error} reach={reach} onFinish={onFinish} onInvalid={onInvalid} />
               )
             ) : null}
           </TableCell>
@@ -524,7 +534,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const editorIn = (list: SheetRow[], pos: Pos): CellEditor | null => {
     const row = list[pos.row];
     const column = columns[pos.col];
-    return row && column ? editorFor(column, view, row, unlocked) : null;
+    return row && column ? editorFor(column, view, row, unlocked, context.kinds) : null;
   };
   const editorAt = (pos: Pos): CellEditor | null => editorIn(rows, pos);
   const valueAt = (pos: Pos): string => {
@@ -543,7 +553,15 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   function startEdit(pos: Pos, replace: boolean, typed?: string) {
     place(pos);
     setError(null);
-    setEditing({ value: replace ? (typed ?? "") : valueAt(pos), replace });
+    // A letter typed on a choice picks the first option that starts with it, as typing into a list does.
+    const spec = editorAt(pos)?.spec;
+    const chosen = typed && spec && (spec.kind === "select" || spec.kind === "slider") ? spec.options.find((o) => o.value !== "" && o.label.toLowerCase().startsWith(typed.toLowerCase())) : undefined;
+    setEditing({ value: chosen ? chosen.value : replace ? (typed ?? "") : valueAt(pos), replace });
+  }
+
+  /** A yes/no cell is flipped, not opened: Space, Enter or a double click. */
+  function flip(pos: Pos) {
+    stage(pos, valueAt(pos) === "true" ? "false" : "true");
   }
 
   function stage(pos: Pos, value: string) {
@@ -689,16 +707,21 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         go(moved);
       }
     } else if (key === "Enter" || key === "F2") {
-      if (editorAt(pos)) {
+      const editor = editorAt(pos);
+      if (editor) {
         event.preventDefault();
-        startEdit(pos, false);
+        if (editor.spec.kind === "checkbox") flip(pos);
+        else startEdit(pos, false);
       }
+    } else if (key === " " && !event.shiftKey && editorAt(pos)?.spec.kind === "checkbox") {
+      event.preventDefault();
+      flip(pos);
     } else if (key === "Delete" || key === "Backspace") {
       const editor = editorAt(pos);
       // A brand, label or category is changed by choosing another, not by emptying the cell.
       if (editor && !editor.required && !editor.combo) {
         event.preventDefault();
-        stage(pos, "");
+        stage(pos, editor.spec.kind === "checkbox" ? "false" : "");
       }
     } else if (key === " " && event.shiftKey && columns[pos.col]?.id === "brand" && rows[pos.row] && !rows[pos.row]!.draft) {
       // Shift+Space ticks the row, as in a spreadsheet.
@@ -708,7 +731,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       const editor = editorAt(pos);
       if (editor) {
         event.preventDefault();
-        startEdit(pos, editor.typeToReplace, editor.typeToReplace ? key : undefined);
+        // A choice is told which letter was typed, to pick the option that starts with it; a typed box takes it as text.
+        const isChoice = editor.spec.kind === "select" || editor.spec.kind === "slider";
+        startEdit(pos, editor.typeToReplace, editor.typeToReplace || isChoice ? key : undefined);
       }
     }
   }
@@ -729,7 +754,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const hit = cellOf(event.target);
     const row = hit ? rows[hit.pos.row] : undefined;
     const column = hit ? columns[hit.pos.col] : undefined;
-    if (!hit || !row || !column || !isLocked(column, view, row, unlocked)) return;
+    if (!hit || !row || !column || !isLocked(column, view, row, unlocked, context.kinds)) return;
     const open = new Set(unlocked);
     open.add(unlockKey(row.label.id, column.id));
     setUnlocked(open);
@@ -739,7 +764,11 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
 
   function onDoubleClick(event: React.MouseEvent<HTMLTableSectionElement>) {
     const hit = cellOf(event.target);
-    if (hit && editorAt(hit.pos)) startEdit(hit.pos, false);
+    const editor = hit ? editorAt(hit.pos) : null;
+    if (hit && editor) {
+      if (editor.spec.kind === "checkbox") flip(hit.pos);
+      else startEdit(hit.pos, false);
+    }
   }
 
   // Put the browser's focus on the active cell after a move, and keep it in view.

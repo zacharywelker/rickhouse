@@ -12,7 +12,7 @@ import { deleteStoredImage } from "@/lib/images";
 import { deleteStoredPhotos, releasePhotosOfLabel } from "@/lib/releases-store";
 import { ensureBrand } from "@/lib/expressions/brand";
 import { patchLabel } from "@/lib/expressions/label-patch";
-import { labelPatchBody } from "@/lib/expressions/label-patch-body";
+import { bulkLabelPatchBody } from "@/lib/expressions/label-patch-body";
 import { categoryKindsById } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { expressionSchema } from "@/lib/expressions/schema";
@@ -261,7 +261,7 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
  */
 export async function patchLabelRow(ownerId: number, labelId: number, raw: unknown): Promise<PatchOutcome> {
   if (!Number.isInteger(labelId) || labelId <= 0) return failure("gone", "That label is gone.");
-  const parsed = labelPatchBody.safeParse(raw);
+  const parsed = bulkLabelPatchBody.safeParse(raw);
   if (!parsed.success) return invalidFrom(parsed.error.issues);
   const { brand, distilleries, mashbills, finishes, ingredients, otherNames, ...facts } = parsed.data;
   const outcome = await patchLabel(ownerId, labelId, {

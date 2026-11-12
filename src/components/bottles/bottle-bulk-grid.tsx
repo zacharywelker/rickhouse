@@ -6,8 +6,7 @@ import { BOTTLE_SECTIONS, BOTTLE_STATE_SECTION } from "@/lib/expressions/bottle-
 import type { Option } from "@/lib/admin/types";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import type { FieldGroup } from "@/db/schema";
-import { BRANDY_MINIMUM_YEARS, hidesWarehouse, isAgaveKind } from "@/lib/expressions/spirit-details";
-import { isGinKind } from "@/lib/expressions/gin-details";
+import { bottleFieldNotUsed } from "@/lib/expressions/bottle-applicability";
 
 /**
  * Every field on the bottle form, plus where each bottle is in its life (fill,
@@ -56,15 +55,7 @@ export function BottleBulkGrid({
       applicabilityFor={(name, values) => {
         const { label, group, kind } = detailsFor(values);
         if (!label) return null;
-        if ((name === "barrelFilledOn" || name === "bottledOn") && (isAgaveKind(kind) || isGinKind(kind))) return "Not used for this spirit";
-        if ((name === "warehouse" || name === "rickFloor") && hidesWarehouse(group ?? "", kind)) return "Not used for this spirit";
-        if (isGinKind(kind) && !label.isAgedGin && ["isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "bottleCount", "ageYears", "ageMonths", "ageDays", "ginIsNas"].includes(name)) return "Only for aged gin";
-        if (name === "ginIsNas" && !isGinKind(kind)) return "Only for gin";
-        if (name === "tequilaClass" && kind !== "tequila") return "Only for tequila";
-        if (name === "brandyGrade" && !BRANDY_MINIMUM_YEARS[kind]) return "No defined grade for this category";
-        if (name === "ageStatement" && (kind === "tequila" || isGinKind(kind))) return "No age statement field for this spirit";
-        if (["ageYears", "ageMonths", "ageDays"].includes(name) && kind === "tequila" && (values.tequilaClass || label.tequilaClass) === "blanco") return "Blanco has no age field";
-        return null;
+        return bottleFieldNotUsed(name, { group, kind, isAgedGin: label.isAgedGin === true, tequilaClass: label.tequilaClass ?? null }, { tequilaClass: typeof values.tequilaClass === "string" ? values.tequilaClass : null });
       }}
       // A release belongs to its label: offer the row's label's, and drop one when the label changes.
       selectOptionsFor={(name, values) => (name === "releaseId" ? (releases[Number(values.expressionId)] ?? []) : [])}
