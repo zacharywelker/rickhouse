@@ -42,7 +42,7 @@ describe("the rail for a bottle", () => {
     expect(byLabel(edited, "MSRP")?.value).toBe("$55.00");
   });
   it("lists what is still blank, short, in the order worth filling", () => {
-    const bare = railFor(row(bottle({ pricePaid: null, storeName: null, dateAcquired: null }), label({ proof: null, msrp: null, links: { distilleries: [], mashbills: [], finishes: [] } })), ctx, both, {}, null);
+    const bare = railFor(row(bottle({ pricePaid: null, storeName: null, storeId: null, releaseId: null, expressionNameId: null, dateAcquired: null }), label({ proof: null, msrp: null, links: { distilleries: [], mashbills: [], finishes: [] } })), ctx, both, {}, null);
     expect(bare.blank).toEqual(["Proof", "Distillery", "MSRP", "Price paid"]); // four at most
     expect(rail.blank).toEqual([]);
   });

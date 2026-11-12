@@ -1,6 +1,7 @@
 import type { DraftRow } from "./drafts";
 import { EDITORS, type CellEditor, type Edits } from "./editors";
 import { isYesNoChoice } from "./fields";
+import { refServerFields } from "./references";
 import type { Moves } from "./changes";
 
 /**
@@ -50,6 +51,7 @@ export function serverFields(editor: CellEditor | undefined, column: string, val
   if (column === "name") return { name: valueOrNull(value) };
   if (!editor) return { [column]: valueOrNull(value) };
   if (editor.fieldsOf) return editor.fieldsOf(value);
+  if (editor.reference) return refServerFields(editor.field, value);
   if (editor.spec.kind === "checkbox") return { [editor.field]: value === "true" };
   // A yes/no choice goes as the form sends it: "true", "false", or "" for unknown.
   if (isYesNoChoice(editor.spec)) return { [editor.field]: value };
@@ -108,6 +110,11 @@ const COLUMN_OF_FIELD: Record<string, { label: string; bottle: string }> = {
   msrp: { label: "msrp", bottle: "msrp" },
   pricePaid: { label: "pricePaid", bottle: "pricePaid" },
   storeId: { label: "store", bottle: "store" },
+  storeName: { label: "store", bottle: "store" },
+  releaseId: { label: "releaseId", bottle: "releaseId" },
+  expressionNameId: { label: "expressionNameId", bottle: "expressionNameId" },
+  cooperageId: { label: "cooperageId", bottle: "cooperageId" },
+  cooperageName: { label: "cooperageId", bottle: "cooperageId" },
   dateAcquired: { label: "dateAcquired", bottle: "dateAcquired" },
   releaseYear: { label: "releaseYear", bottle: "releaseYear" },
   pickName: { label: "pickName", bottle: "pickName" },

@@ -80,7 +80,7 @@ export function applyEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRo
     const put = (cells: Readonly<Record<string, string>> | undefined, scope: "label" | "bottle") => {
       for (const [column, value] of Object.entries(cells ?? {})) {
         const editor = EDITORS[column];
-        if (!editor || editor.combo || editor.scope !== scope) continue;
+        if (!editor || editor.combo || editor.reference || editor.scope !== scope) continue;
         if (scope === "label") label = { ...(label as object), ...rawOf(editor, value) };
         else bottle = { ...(bottle as object), ...rawOf(editor, value) };
       }

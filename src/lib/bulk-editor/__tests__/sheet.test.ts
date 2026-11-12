@@ -11,7 +11,7 @@ const label = (over: Partial<SheetLabel> & Pick<SheetLabel, "id" | "brand" | "na
   }) as unknown as SheetLabel;
 
 const bottle = (over: Partial<SheetBottle> & Pick<SheetBottle, "id" | "expressionId">): SheetBottle => ({
-  status: "owned", pricePaid: null, storeName: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
+  status: "owned", pricePaid: null, storeName: null, storeId: null, releaseId: null, expressionNameId: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
   pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null,
   acquisition: "purchase", batch: null, pickedBy: null, barrelNumber: null, bottleCount: null, warehouse: null, rickFloor: null, barrelFilledOn: null, bottledOn: null, ginIsNas: null, tequilaClass: null, brandyGrade: null,
   ...over,

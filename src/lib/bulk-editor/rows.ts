@@ -17,6 +17,7 @@ import { categoryKindsById } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { expressionSchema } from "@/lib/expressions/schema";
 import { fieldErrorsOf, flavorMissing, labelValues, LabelRejected, linksFrom, writeLabel, type Tx } from "@/lib/expressions/save";
+import { ensureCooperage, ensureStore, takeBack } from "./reference-rows";
 
 /**
  * The server half of the bulk editor, one row at a time, in the signed-in account (`ownerId`). A row is a label, a
@@ -56,6 +57,24 @@ export type PatchOutcome = { ok: true } | RowFailure;
 
 const failure = (kind: RowFailure["kind"], error: string, fieldErrors: Record<string, string> = {}): RowFailure => ({ ok: false, kind, error, fieldErrors });
 const invalidField = (field: string, message: string) => failure("invalid", message, { [field]: message });
+
+/**
+ * A store or cooperage can be named in a cell instead of picked (`storeName`, `cooperageName`): it is found, or made if
+ * it is new. A name next to the id it would replace is a mistake in the request, not a choice to make for it.
+ */
+const newName = z.string().trim().min(1, "Enter a name.").max(120, "Keep this under 120 characters.");
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Takes `key` (a name) out of `body` and returns the cleaned name, or a failure. Undefined when it was not sent. */
+function takeName(body: Record<string, unknown>, key: string, idKey: string): { name?: string; failure?: RowFailure } {
+  if (!(key in body)) return {};
+  const raw = body[key];
+  delete body[key];
+  const parsed = newName.safeParse(raw);
+  if (!parsed.success) return { failure: invalidField(key, parsed.error.issues[0]?.message ?? "Enter a name.") };
+  if (body[idKey] !== undefined) return { failure: invalidField(key, `Send ${idKey} or ${key}, not both.`) };
+  return { name: parsed.data };
+}
 
 /** Thrown inside a transaction to roll it back with a failure the person can fix. */
 class Rejected extends Error {
@@ -116,12 +135,19 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
   const parsed = newRowSchema.safeParse(raw);
   if (!parsed.success) return invalidFrom(parsed.error.issues);
   const { brand, label, bottle } = parsed.data;
+  // A new store or cooperage is named in the row; it is made inside the transaction below, with the label and bottle.
+  const bottleBody = bottle ? { ...bottle } : undefined;
+  const storeNamed = bottleBody ? takeName(bottleBody, "storeName", "storeId") : {};
+  if (storeNamed.failure) return storeNamed.failure;
+  const labelFacts = "name" in label && label.facts ? { ...label.facts } : undefined;
+  const cooperageNamed = labelFacts ? takeName(labelFacts, "cooperageName", "cooperageId") : {};
+  if (cooperageNamed.failure) return cooperageNamed.failure;
 
   // Everything that can be checked without writing is checked first.
   let links: ReturnType<typeof linksFrom> | null = null;
   if ("name" in label) {
     if ((await db.$count(categories, eq(categories.id, label.categoryId))) === 0) return invalidField("categoryId", "Choose a category.");
-    const facts = label.facts ?? {};
+    const facts: Record<string, unknown> = { ...(labelFacts ?? {}), ...(cooperageNamed.name !== undefined ? { cooperageId: 1 } : {}) };
     // The brand is not known until it is found or created; its id is not what is being checked here.
     const checked = expressionSchema.safeParse({ ...facts, brandId: 1, categoryId: label.categoryId, name: label.name });
     if (!checked.success) return failure("invalid", checked.error.issues[0]?.message ?? "Please check the highlighted fields.", fieldErrorsOf(checked.error.issues));
@@ -162,17 +188,20 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
         labelId = row.id;
         spirit = { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin };
       } else {
-        const made = await ensureLabel(tx, ownerId, brandId, label.name, label.categoryId, label.facts ?? {}, links!);
+        const facts = { ...(labelFacts ?? {}) };
+        if (cooperageNamed.name !== undefined) facts.cooperageId = (await ensureCooperage(tx, ownerId, cooperageNamed.name)).id;
+        const made = await ensureLabel(tx, ownerId, brandId, label.name, label.categoryId, facts, links!);
         labelId = made.id;
         createdLabel = made.created;
-        labelFactsIgnored = !made.created && Object.keys(label.facts ?? {}).length > 0;
+        labelFactsIgnored = !made.created && Object.keys(labelFacts ?? {}).length + (cooperageNamed.name !== undefined ? 1 : 0) > 0;
         spirit = { kind: (await categoryKindsById())[made.categoryId] ?? "other", ginAged: made.isAgedGin };
       }
 
       // The bottle.
       let bottleId: number | null = null;
-      if (bottle) {
-        const made = await newBottleValues(bottle, labelId, spirit);
+      if (bottleBody) {
+        if (storeNamed.name !== undefined) bottleBody.storeId = (await ensureStore(tx, ownerId, storeNamed.name)).id;
+        const made = await newBottleValues(bottleBody, labelId, spirit);
         if (!made.ok) throw new Rejected(failure("invalid", made.error, made.fieldErrors));
         if (made.values.storeId != null && (await tx.$count(stores, and(eq(stores.id, made.values.storeId), eq(stores.ownerId, ownerId)))) === 0) {
           throw new Rejected(invalidField("storeId", "Choose one of your stores."));
@@ -242,15 +271,49 @@ async function ensureLabel(
  */
 export async function patchBottleRow(ownerId: number, bottleId: number, raw: unknown): Promise<PatchOutcome> {
   if (!Number.isInteger(bottleId) || bottleId <= 0) return failure("gone", "That bottle is gone.");
-  const parsed = bottlePatchSchema.safeParse(raw);
-  if (!parsed.success) return invalidFrom(parsed.error.issues);
-  const { fillPct, dateOpened, ifOpenedCleared, ...columns } = parsed.data;
-  const outcome = await updateBottle(bottleId, ownerId, { fillPct, dateOpened, ifOpenedCleared, columns });
-  if (!outcome) return failure("gone", "That bottle is gone.");
-  if (!outcome.ok) {
-    return failure("invalid", outcome.message, outcome.field ? { [outcome.field]: outcome.message } : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : {});
+  // Two things the phone's request does not take: a store named instead of picked, and which of the label's names the bottle shows.
+  const body = isRecord(raw) ? { ...raw } : raw;
+  let named: string | undefined;
+  let version: number | null | undefined;
+  if (isRecord(body)) {
+    const store = takeName(body, "storeName", "storeId");
+    if (store.failure) return store.failure;
+    named = store.name;
+    if ("expressionNameId" in body) {
+      const parsedVersion = posInt.nullable().safeParse(body.expressionNameId);
+      if (!parsedVersion.success) return invalidField("expressionNameId", "Choose one of this label's names.");
+      version = parsedVersion.data;
+      delete body.expressionNameId;
+    }
   }
-  return { ok: true };
+  const made: { store?: number } = {};
+  try {
+    if (named !== undefined && isRecord(body)) {
+      const store = await db.transaction((tx) => ensureStore(tx, ownerId, named!));
+      body.storeId = store.id;
+      if (store.created) made.store = store.id;
+    }
+    // A request that only names a label version has nothing else for the phone's schema to check.
+    const onlyVersion = isRecord(body) && Object.keys(body).length === 0 && version !== undefined;
+    const parsed = onlyVersion ? { success: true as const, data: {} as z.infer<typeof bottlePatchSchema> } : bottlePatchSchema.safeParse(body);
+    if (!parsed.success) return await undo(made, invalidFrom(parsed.error.issues));
+    const { fillPct, dateOpened, ifOpenedCleared, ...columns } = parsed.data;
+    const outcome = await updateBottle(bottleId, ownerId, { fillPct, dateOpened, ifOpenedCleared, columns: { ...columns, ...(version !== undefined ? { expressionNameId: version } : {}) } });
+    if (!outcome) return await undo(made, failure("gone", "That bottle is gone."));
+    if (!outcome.ok) {
+      return await undo(made, failure("invalid", outcome.message, outcome.field ? { [outcome.field]: outcome.message } : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : {}));
+    }
+    return { ok: true };
+  } catch (error: unknown) {
+    await undo(made, null);
+    throw error;
+  }
+}
+
+/** A failed patch gives back the store or cooperage it made for itself, then returns its failure. */
+async function undo<T extends RowFailure | null>(made: { store?: number; cooperage?: number }, outcome: T): Promise<T> {
+  if (made.store !== undefined || made.cooperage !== undefined) await db.transaction((tx) => takeBack(tx, made));
+  return outcome;
 }
 
 /**
@@ -261,8 +324,30 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
  */
 export async function patchLabelRow(ownerId: number, labelId: number, raw: unknown): Promise<PatchOutcome> {
   if (!Number.isInteger(labelId) || labelId <= 0) return failure("gone", "That label is gone.");
-  const parsed = bulkLabelPatchBody.safeParse(raw);
-  if (!parsed.success) return invalidFrom(parsed.error.issues);
+  const body = isRecord(raw) ? { ...raw } : raw;
+  let named: string | undefined;
+  if (isRecord(body)) {
+    const cooperage = takeName(body, "cooperageName", "cooperageId");
+    if (cooperage.failure) return cooperage.failure;
+    named = cooperage.name;
+  }
+  const made: { cooperage?: number } = {};
+  if (named !== undefined && isRecord(body)) {
+    const cooperage = await db.transaction((tx) => ensureCooperage(tx, ownerId, named!));
+    body.cooperageId = cooperage.id;
+    if (cooperage.created) made.cooperage = cooperage.id;
+  }
+  try {
+    return await patchLabelWith(ownerId, labelId, body, made);
+  } catch (error: unknown) {
+    await undo(made, null);
+    throw error;
+  }
+}
+
+async function patchLabelWith(ownerId: number, labelId: number, body: unknown, made: { cooperage?: number }): Promise<PatchOutcome> {
+  const parsed = bulkLabelPatchBody.safeParse(body);
+  if (!parsed.success) return undo(made, invalidFrom(parsed.error.issues));
   const { brand, distilleries, mashbills, finishes, ingredients, otherNames, ...facts } = parsed.data;
   const outcome = await patchLabel(ownerId, labelId, {
     facts,
@@ -272,9 +357,9 @@ export async function patchLabelRow(ownerId: number, labelId: number, raw: unkno
     ...(otherNames !== undefined ? { otherNames } : {}),
   });
   if (outcome.ok) return { ok: true };
-  if (outcome.kind === "gone") return failure("gone", "That label is gone.");
-  if (outcome.kind === "invalid") return invalidField(outcome.field, outcome.message);
-  return { ...failure("name_taken", `You already have ${outcome.existing.title}.`, { name: "Already taken." }), existing: outcome.existing };
+  if (outcome.kind === "gone") return undo(made, failure("gone", "That label is gone."));
+  if (outcome.kind === "invalid") return undo(made, invalidField(outcome.field, outcome.message));
+  return undo(made, { ...failure("name_taken", `You already have ${outcome.existing.title}.`, { name: "Already taken." }), existing: outcome.existing });
 }
 
 // ---------------------------------------------------------------------------

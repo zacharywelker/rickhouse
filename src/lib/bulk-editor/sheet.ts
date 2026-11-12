@@ -18,6 +18,10 @@ export type SheetLabel = ExpressionRow;
 export type SheetBottle = {
   id: number;
   expressionId: number;
+  /** Which store, release and label name (version) the bottle has, by id. */
+  storeId: number | null;
+  releaseId: number | null;
+  expressionNameId: number | null;
   status: string;
   pricePaid: string | null;
   storeName: string | null;
@@ -66,7 +70,9 @@ export type SheetRow = {
   /** The bottle is moving to this label (`label` is the one it is moving to), not saved yet. */
   moved?: boolean;
 };
-export type SheetContext = { currency: string; kinds: Record<number, CategoryKind> };
+/** What the picking cells name their choices by: id to name, for the stores, cooperages, releases and label names. */
+export type RefNames = { store: Record<number, string>; cooperage: Record<number, string>; release: Record<number, string>; version: Record<number, string> };
+export type SheetContext = { currency: string; kinds: Record<number, CategoryKind>; refs?: RefNames };
 export type Cell = {
   text: string;
   /** Said on hover, and to a screen reader: why a cell is empty or cannot be edited ("Not used for this spirit"). */

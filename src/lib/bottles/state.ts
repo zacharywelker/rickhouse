@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bottles, expressionReleases, expressions, stores, tastingNotes } from "@/db/schema";
+import { bottles, expressionNames, expressionReleases, expressions, stores, tastingNotes } from "@/db/schema";
 import type { z } from "zod";
 import { fillUpdate } from "./fill-rules";
 import { openedUpdate, type OpenedChoice } from "./opened-rules";
@@ -93,8 +93,12 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
     Object.assign(columns, withBottleSpiritFacts(columns, spirit.kind, spirit.ginAged));
     if (labelId !== current.expressionId) {
       // A version name and a release belong to a label: a bottle moved to another has neither unless the patch says one.
-      columns.expressionNameId = null;
+      columns.expressionNameId ??= null;
       columns.releaseId ??= null;
+    }
+    // A label name is one of the label the bottle is on (the form picks it from that label's own).
+    if (columns.expressionNameId != null && (await tx.$count(expressionNames, and(eq(expressionNames.id, columns.expressionNameId), eq(expressionNames.expressionId, labelId)))) === 0) {
+      return { ok: false, code: "invalid", message: "That name is not one of this label's.", field: "expressionNameId" };
     }
     if (columns.releaseId != null) {
       if ((await tx.$count(expressionReleases, and(eq(expressionReleases.id, columns.releaseId), eq(expressionReleases.expressionId, labelId)))) === 0) {

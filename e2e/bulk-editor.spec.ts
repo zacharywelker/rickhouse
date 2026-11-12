@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import postgres from "postgres";
 import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
 import { assertThrowawayDatabase, seedTournamentField } from "./support/tournament-field";
@@ -76,7 +77,9 @@ test("Tab skips what cannot be edited, and Enter returns to the column the run s
   await cell(page, 3, price).click();
   await page.keyboard.type("30");
   await page.keyboard.press("Tab");
-  // Store is a pick-list for a later step, so the run goes straight to Purchased.
+  // The Store cell is a pick-list now, so the run goes on to it, and past it to Purchased.
+  expect(await active(page)).toEqual({ row: 3, col: store });
+  await page.keyboard.press("Tab");
   expect(await active(page)).toEqual({ row: 3, col: purchased });
   await page.keyboard.press("Enter");
   await expect(editors(page)).toHaveCount(1);
@@ -828,4 +831,101 @@ test("the confirmation does not count as clicking away: a finished new row is no
   await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
   await page.waitForTimeout(1500);
   await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+});
+
+// ---------------------------------------------------------------------------
+// The picking cells: store, release, label name
+// ---------------------------------------------------------------------------
+
+const listbox = (page: Page) => page.getByRole("listbox");
+
+test("a store is picked from the list or made with Enter on Create, never by a typo, and is there after a reload", async ({ page }) => {
+  const store = await col(page, "Store");
+  await cell(page, 0, store).click();
+  await page.keyboard.type("Binnys Beverage");
+  // Nothing by that name: the list offers to make it, and says so.
+  await expect(listbox(page).getByRole("option", { name: /Create .Binnys Beverage./ })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, store)).toContainText("Binnys Beverage");
+  await expect(cell(page, 0, store)).toContainText("new");
+  expect(await active(page)).toEqual({ row: 1, col: store }); // Enter drops down, as in any cell
+  await reloaded(page);
+  await expect(cell(page, 0, store)).toHaveText("Binnys Beverage");
+
+  // The next rows pick the store that now exists. A slip is only a hint, and Tab takes the close match it names instead of making a store.
+  await cell(page, 1, store).click();
+  await page.keyboard.type("Binnys Beverag");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, 1, store)).toHaveText("Binnys Beverage");
+  await cell(page, 2, store).click();
+  await page.keyboard.type("Binnyz Beverage");
+  await expect(listbox(page)).toContainText("close match");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, 2, store)).toHaveText("Binnys Beverage");
+  // Nothing close: Tab neither takes nor makes anything, it says so and stays.
+  await cell(page, 3, store).click();
+  await page.keyboard.type("Zzzqqq");
+  await page.keyboard.press("Tab");
+  await expect(editors(page)).toHaveCount(1);
+  await expect(listbox(page).locator("xpath=..").getByRole("alert")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 3, store)).toHaveText("—");
+  await reloaded(page);
+  await expect(cell(page, 1, store)).toHaveText("Binnys Beverage");
+  await expect(cell(page, 2, store)).toHaveText("Binnys Beverage");
+  await expect(cell(page, 3, store)).toHaveText("—");
+  // One store, however many bottles are in it.
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    expect(Number((await db`select count(*)::int as n from stores where name = 'Binnys Beverage'`)[0]!.n)).toBe(1);
+  } finally {
+    await db.end();
+  }
+
+  // Delete empties it.
+  await cell(page, 0, store).click();
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 0, store)).toHaveText("—");
+  await reloaded(page);
+  await expect(cell(page, 0, store)).toHaveText("—");
+});
+
+test("a release and a label name are picked from the bottle's own label, and cannot be made here", async ({ page }) => {
+  await showColumns(page, "Release", "Label Version");
+  const [release, version, name] = [await col(page, "Release"), await col(page, "Label Version"), await col(page, "Label")];
+  const labelName = (await cell(page, 0, name).innerText()).split("\n")[0]!.trim();
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [label] = await db`select id from expressions where name = ${labelName} limit 1`;
+    await db`insert into expression_releases (expression_id, name) values (${label!.id}, 'Spring 2024 Release')`;
+    await db`insert into expression_names (expression_id, name) values (${label!.id}, 'Old Label Name')`;
+  } finally {
+    await db.end();
+  }
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+
+  await cell(page, 0, release).click();
+  await page.keyboard.press("Enter");
+  await expect(listbox(page).getByRole("option")).toHaveCount(1);
+  await expect(listbox(page).getByRole("option", { name: /Create/ })).toHaveCount(0);
+  await page.keyboard.type("Spring");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
+  await cell(page, 0, version).click();
+  await page.keyboard.type("Old");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, 0, version)).toHaveText("Old Label Name");
+  await reloaded(page);
+  await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
+  await expect(cell(page, 0, version)).toHaveText("Old Label Name");
+
+  // A name that is not one of this label's cannot be made here: the list says where it is added.
+  await cell(page, 0, release).click();
+  await page.keyboard.type("Brand new release");
+  await page.keyboard.press("Enter");
+  await expect(listbox(page).locator("xpath=..").getByRole("alert")).toBeVisible();
+  await expect(listbox(page).locator("xpath=..")).toContainText("added on the label's page");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
 });
