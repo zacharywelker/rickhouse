@@ -25,6 +25,7 @@ import {
   sheetRows,
   type SheetBottle,
   type SheetColumn,
+  type Cell,
   type SheetContext,
   type SheetLabel,
   type SheetPhoto,
@@ -40,6 +41,7 @@ import { shelfFor } from "@/lib/bulk-editor/shelf";
 import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND, nextSort, sortRows, type Find } from "@/lib/bulk-editor/find";
 import { decodeRef, encodePick, REF_CAN_CREATE, REF_NO_CREATE, REF_WHAT, refCandidates, refNames, type RefData } from "@/lib/bulk-editor/references";
 import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
+import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-editor/clipboard";
 import { ComboEditor } from "./combo-editor";
 import { LinksEditor, type LinkOptions } from "./links-editor";
 import { FindBar } from "./find-bar";
@@ -312,6 +314,8 @@ type RowProps = {
   error: string | null;
   /** What a picking cell offers; only for the active row, and only while a Brand, Label or Category cell is open. */
   combo: ComboData | null;
+  /** Cells of this row that a paste left to be chosen, by column, with the text pasted. */
+  pendingCols: Readonly<Record<string, string>> | undefined;
   /** The open editor of a distillery, mashbill, finish or ingredients cell (the label form's own picker); only for the active row. */
   linksNode: React.ReactNode;
   onFinish: ((finish: Finish) => void) | undefined;
@@ -319,7 +323,7 @@ type RowProps = {
 };
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, onFinish, onInvalid }: RowProps) {
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, pendingCols, onFinish, onInvalid }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -328,7 +332,8 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
         const spec = EDITORS[column.id];
         // A label's cell keeps its edit under the label; it still shows if the view has since changed and the cell cannot be edited.
         const edited = (spec?.scope === "label" && !row.draft ? labelEdits : rowEdits)?.[column.id];
-        const cell = edited !== undefined && spec ? spec.display(edited, context, row) : column.cell(row, context);
+        const waiting = pendingCols?.[column.id];
+        const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec ? spec.display(edited, context, row) : column.cell(row, context);
         // An unlocked label cell on a bottle row reaches every bottle on the label.
         const reach = editor && editor.scope === "label" && !editor.combo && !row.draft && row.bottle ? row.label.bottleCount : null;
         const isBlocked = blockedColumn === column.id;
@@ -502,7 +507,25 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   /** Each label's lists as they were last read in full (with finish pairs), so a save sends what was not edited unchanged. */
   const linkCache = React.useRef(new Map<number, LinkLists>());
   /** Bottles that have just been given a status that takes them off the shelf: said once, so the row going is not a surprise. */
-  const [gone, setGone] = React.useState<Array<{ key: string; text: string }>>([]);
+  const [gone, setGone] = React.useState<Array<{ key: string; text: string; jump?: boolean }>>([]);
+  /** Choice cells a paste left for the person to pick (what was pasted was only part of a name): by row and column, with the text pasted. Not saved. */
+  const [pending, setPending] = React.useState<Record<string, string>>({});
+  const pendKey = (rowKey: string, columnId: string) => `${rowKey}\u0000${columnId}`;
+  const dropPending = (rowKey: string, columnId: string) =>
+    setPending((prev) => {
+      const key = pendKey(rowKey, columnId);
+      if (!(key in prev)) return prev;
+      const { [key]: _gone, ...rest } = prev;
+      return rest;
+    });
+  const pendingByRow = React.useMemo(() => {
+    const out = new Map<string, Record<string, string>>();
+    for (const [key, text] of Object.entries(pending)) {
+      const [rowKey, columnId] = key.split("\u0000") as [string, string];
+      out.set(rowKey, { ...out.get(rowKey), [columnId]: text });
+    }
+    return out;
+  }, [pending]);
   function leftShelf(key: string, status: string) {
     const bottle = bottles.find((b) => `b${b.id}` === key);
     const label = bottle ? labels.find((l) => l.id === bottle.expressionId) : undefined;
@@ -597,6 +620,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       return ref === null ? "" : "name" in ref ? ref.name : (context.refs?.[editorAt(pos)!.reference!][ref.id] ?? "");
     };
     const held = editorAt(pos)?.reference ? refName(valueAt(pos)) : valueAt(pos);
+    // A cell a paste left to be chosen opens searching what was pasted.
+    const waiting = rows[pos.row] && columns[pos.col] ? pending[pendKey(rows[pos.row]!.key, columns[pos.col]!.id)] : undefined;
+    if (waiting !== undefined) return setEditing({ value: waiting, replace: true });
     setEditing({ value: chosen ? chosen.value : replace ? (typed ?? "") : held, replace });
   }
 
@@ -679,6 +705,31 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     return base.map((d) => (d.key === key ? change(d) : d));
   }
 
+  /** A saved bottle is moved to another label that exists, and saved. */
+  function moveBottleTo(row: SheetRow, target: number) {
+    setMoves((prev) => setMove(prev, row.key, target, row.bottle!.expressionId));
+    // A release and a label name belong to the label the bottle was on: what was picked for it is no longer one of the new label's.
+    setEdits((prev) => {
+      const cells = prev[row.key];
+      if (!cells || !("releaseId" in cells || "expressionNameId" in cells)) return prev;
+      const { releaseId: _release, expressionNameId: _name, ...rest } = cells;
+      const { [row.key]: _row, ...others } = prev;
+      return Object.keys(rest).length > 0 ? { ...others, [row.key]: rest } : others;
+    });
+    touch(row.key);
+    saver.request(row.key);
+  }
+
+  /** The cells a paste left to be chosen, in sheet order, except `except` (the one just dealt with). */
+  function pendingCells(except?: string): Pos[] {
+    const out: Pos[] = [];
+    rows.forEach((row, r) => columns.forEach((column, c) => {
+      const key = pendKey(row.key, column.id);
+      if (key !== except && pending[key] !== undefined) out.push({ row: r, col: c });
+    }));
+    return out;
+  }
+
   function finish(result: Finish) {
     if (!current) return;
     const row = rows[current.row];
@@ -705,6 +756,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     focusAfter.current = result.focus;
     setEditing(null);
     setError(null);
+    // A cell a paste left to be chosen is dealt with either way: chosen, or, when the editor is cancelled, dropped.
+    const wasPending = pending[pendKey(row.key, columnId)] !== undefined;
+    if (wasPending) dropPending(row.key, columnId);
     if ("cancel" in result) return;
 
     // The rows as they will be once this is applied: the next cell to land on can depend on what was just chosen
@@ -720,19 +774,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       // only Labels on, a brand is picked (or created with Enter) for the label.
       if (row.bottle) {
         const target = result.pick.kind === "existing" ? result.pick.id : null;
-        if (target !== null) {
-          setMoves((prev) => setMove(prev, row.key, target, row.bottle!.expressionId));
-          // A release and a label name belong to the label the bottle was on: what was picked for it is no longer one of the new label's.
-          setEdits((prev) => {
-            const cells = prev[row.key];
-            if (!cells || !("releaseId" in cells || "expressionNameId" in cells)) return prev;
-            const { releaseId: _release, expressionNameId: _name, ...rest } = cells;
-            const { [row.key]: _row, ...others } = prev;
-            return Object.keys(rest).length > 0 ? { ...others, [row.key]: rest } : others;
-          });
-          touch(row.key);
-          saver.request(row.key);
-        }
+        if (target !== null) moveBottleTo(row, target);
       } else if (columnId === "brand") stage(current, result.pick.name);
     } else if ("pick" in result || "categoryId" in result) {
       const nextDrafts = updatedDrafts(row.key, (draft) => {
@@ -745,6 +787,12 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       nextRows = rowsFor(withBlankRow(nextDrafts, Math.max(keyFloor, Number(row.key.slice(1)) + 1)));
     }
 
+    // Others still waiting to be chosen: the cursor goes to the next of them rather than along the row.
+    if (wasPending) {
+      const waiting = pendingCells(pendKey(row.key, columnId));
+      const next = waiting.find((p) => p.row > current.row || (p.row === current.row && p.col > current.col)) ?? waiting[0];
+      if (next) return go({ pos: next, anchorCol: next.col }, nextRows);
+    }
     const landsOn = (pos: Pos) => editorIn(nextRows, pos) !== null;
     // Worked out on the rows as they were, so Enter goes to the row that was below the one just changed (even if that
     // row has since moved to its sorted place) and Tab stays on this row wherever it goes.
@@ -829,6 +877,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     } else if ((key === "Delete" || key === "Backspace") && range) {
       event.preventDefault();
       clearRange();
+    } else if ((key === "Delete" || key === "Backspace") && rows[pos.row] && columns[pos.col] && pending[pendKey(rows[pos.row]!.key, columns[pos.col]!.id)] !== undefined) {
+      // Drops what a paste left waiting.
+      event.preventDefault();
+      dropPending(rows[pos.row]!.key, columns[pos.col]!.id);
     } else if (key === "Delete" || key === "Backspace") {
       const editor = editorAt(pos);
       // A brand, label or category is changed by choosing another, not by emptying the cell.
@@ -878,7 +930,12 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
 
   /** Shift-click extends a block from the cursor's cell to the one clicked (the click must not move the cursor). */
   function onMouseDown(event: React.MouseEvent<HTMLTableSectionElement>) {
-    if (!event.shiftKey || !current) return;
+    // A plain click puts a selected block away, even on the cell the block started from (which takes no new focus).
+    if (!event.shiftKey) {
+      if (range) setRange(null);
+      return;
+    }
+    if (!current) return;
     const hit = cellOf(event.target);
     if (!hit) return;
     event.preventDefault();
@@ -904,6 +961,154 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     }
     setRange(null);
     setGone((prev) => [...prev.filter((g) => g.key !== "clear"), { key: "clear", text: cleared === 0 ? "Nothing in the selected cells could be cleared." : `Cleared ${cleared} ${cleared === 1 ? "cell" : "cells"}.` }]);
+  }
+
+  /** The block the cursor or the selection covers. */
+  function blockOf(): { r1: number; r2: number; c1: number; c2: number } | null {
+    if (range) return { r1: Math.min(range.anchor.row, range.end.row), r2: Math.max(range.anchor.row, range.end.row), c1: Math.min(range.anchor.col, range.end.col), c2: Math.max(range.anchor.col, range.end.col) };
+    return current ? { r1: current.row, r2: current.row, c1: current.col, c2: current.col } : null;
+  }
+
+  /** A cell as it is drawn: what has been typed into it, else what the row holds. */
+  function shownCell(row: SheetRow, column: SheetColumn): { shown: Cell; editor: CellEditor | null; value: string } {
+    const editor = EDITORS[column.id] ?? null;
+    const edited = editor ? edits[editKey(row, editor)]?.[column.id] : undefined;
+    const shown = edited !== undefined && editor ? editor.display(edited, context, row) : column.cell(row, context);
+    return { shown, editor, value: edited ?? (editor ? editor.initial(row) : "") };
+  }
+
+  /** Ctrl+C: the cell, or the selected block, as tab-separated text (what Excel and Sheets copy, so it pastes there). */
+  function onCopy(event: React.ClipboardEvent<HTMLTableSectionElement>) {
+    if (editing) return;
+    const block = blockOf();
+    if (!block) return;
+    const lines: string[][] = [];
+    for (let r = block.r1; r <= block.r2; r += 1) {
+      const row = rows[r];
+      if (!row) continue;
+      lines.push(columns.slice(block.c1, block.c2 + 1).map((column) => {
+        const { shown, editor, value } = shownCell(row, column);
+        return copyText(editor, value, shown);
+      }));
+    }
+    event.clipboardData.setData("text/plain", toTsv(lines));
+    event.preventDefault();
+  }
+
+  /** Ctrl+V: tab-separated text pasted at the cursor, or one value over a selected block. */
+  function onPaste(event: React.ClipboardEvent<HTMLTableSectionElement>) {
+    if (editing || !current) return;
+    const grid = parseTsv(event.clipboardData.getData("text/plain"));
+    if (grid.length === 0) return;
+    event.preventDefault();
+    pasteGrid(grid);
+  }
+
+  function pasteGrid(grid: string[][]) {
+    if (!current) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const block = blockOf()!;
+    const single = grid.length === 1 && grid[0]!.length === 1;
+    const at = range ? { row: block.r1, col: block.c1 } : current;
+    const targets: Array<{ pos: Pos; text: string; line: number }> = [];
+    if (range && single) {
+      for (let r = block.r1; r <= block.r2; r += 1) for (let c = block.c1; c <= block.c2; c += 1) targets.push({ pos: { row: r, col: c }, text: grid[0]![0]!, line: r - block.r1 });
+    } else {
+      grid.forEach((line, i) => line.forEach((text, j) => targets.push({ pos: { row: at.row + i, col: at.col + j }, text, line: i })));
+    }
+
+    let pasted = 0;
+    let toChoose = 0;
+    let beyondColumns = 0;
+    const beyondRows = new Set<number>();
+    const skipped: string[] = [];
+    const wait = (row: SheetRow, column: SheetColumn, text: string) => {
+      setPending((prev) => ({ ...prev, [pendKey(row.key, column.id)]: text.trim() }));
+      toChoose += 1;
+    };
+
+    for (const { pos, text, line } of targets) {
+      const row = rows[pos.row];
+      const column = columns[pos.col];
+      if (!column) {
+        beyondColumns += 1;
+        continue;
+      }
+      // A new row is not a row to paste into yet: lines past the last saved row are said, not guessed at.
+      if (!row || row.draft) {
+        beyondRows.add(line);
+        continue;
+      }
+      const where = `${row.label.brand} ${row.label.name} · ${column.band ? `${column.band} ${column.label}` : column.label}`;
+      const skip = (why: string) => skipped.push(`${where}: ${why}`);
+      const editor = editorAt(pos);
+      if (!editor) {
+        skip(isLocked(column, view, row, unlocked, context.kinds) ? "locked (triple-click it to open it)" : EDITORS[column.id]?.applies?.(row, context.kinds) === false ? "not used for this spirit" : "cannot be edited here");
+        continue;
+      }
+      if (editor.links) {
+        skip("a list is changed in its picker");
+        continue;
+      }
+      // A cell that picks from a list: a complete name is taken, and a part of one is only something to search for.
+      if (editor.reference || editor.combo) {
+        const named = editor.reference
+          ? refCandidates(editor.reference, row.label.id, refs)
+          : row.bottle
+            ? moveCandidates(editor.combo === "brand" ? "brand" : "name", row, labels)
+            : brandCandidates(brands, [], "");
+        const found = matchName(text, named);
+        if (found.kind === "blank") {
+          if (editor.reference) {
+            stage(pos, "");
+            pasted += 1;
+          } else skip("a brand or label is changed by choosing another");
+        } else if (found.kind === "exact") {
+          if (editor.reference) stage(pos, `id:${found.match.id}`);
+          else if (row.bottle) moveBottleTo(row, found.match.id!);
+          else stage(pos, found.match.name);
+          pasted += 1;
+        } else wait(row, column, text);
+        continue;
+      }
+      const read = readPasted(editor, text);
+      if (!read.ok) {
+        skip(read.message);
+        continue;
+      }
+      const checked = parseCell(editor, read.value, today, row, context.kinds);
+      if (!checked.ok) {
+        skip(checked.message);
+        continue;
+      }
+      // A label renamed to a name its brand already has is refused, as when typed.
+      if (column.id === "name" && !row.bottle && checked.value !== "") {
+        const clash = labels.find((l) => l.id !== row.label.id && l.brandId === row.label.brandId && l.name.trim().toLowerCase() === checked.value.trim().toLowerCase());
+        if (clash) {
+          skip(`you already have ${clash.brand} ${clash.name}`);
+          continue;
+        }
+      }
+      stage(pos, checked.value);
+      pasted += 1;
+    }
+
+    setRange(null);
+    const parts = [`Pasted ${pasted} ${pasted === 1 ? "cell" : "cells"}.`];
+    if (toChoose > 0) parts.push(`${toChoose} to choose: press Enter on a marked cell to pick from what matches.`);
+    if (beyondRows.size > 0) parts.push(`${beyondRows.size} ${beyondRows.size === 1 ? "line" : "lines"} past the last row ${beyondRows.size === 1 ? "was" : "were"} not pasted (adding rows from a paste comes next).`);
+    if (beyondColumns > 0) parts.push(`${beyondColumns} ${beyondColumns === 1 ? "cell" : "cells"} past the last column ${beyondColumns === 1 ? "was" : "were"} not pasted.`);
+    if (skipped.length > 0) parts.push(`Not pasted: ${skipped.slice(0, 4).join("; ")}${skipped.length > 4 ? `; and ${skipped.length - 4} more` : ""}.`);
+    setGone((prev) => [...prev.filter((g) => g.key !== "paste"), { key: "paste", text: parts.join(" "), jump: toChoose > 0 }]);
+  }
+
+  /** Puts the cursor on the first cell a paste left to be chosen. */
+  function jumpToPending() {
+    const first = pendingCells()[0];
+    if (!first) return;
+    focusAfter.current = true;
+    place(first);
+    anchorCol.current = first.col;
   }
 
   function onDoubleClick(event: React.MouseEvent<HTMLTableSectionElement>) {
@@ -1266,7 +1471,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
             })}
           </TableRow>
         </TableHeader>
-        <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onMouseDown={onMouseDown} onClick={onClick} onDoubleClick={onDoubleClick}>
+        <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onCopy={onCopy} onPaste={onPaste} onMouseDown={onMouseDown} onClick={onClick} onDoubleClick={onDoubleClick}>
           {rows.map((row, rowIndex) => {
             const isActiveRow = current?.row === rowIndex;
             return (
@@ -1294,6 +1499,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                 error={isActiveRow ? error : null}
                 combo={isActiveRow ? comboData : null}
                 linksNode={isActiveRow ? linksNode : null}
+                pendingCols={pendingByRow.get(row.key)}
                 onFinish={isActiveRow ? finish : undefined}
                 onInvalid={isActiveRow ? setError : undefined}
               />
@@ -1334,6 +1540,11 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
             {gone.map((g) => (
               <p key={g.key}>{g.text}</p>
             ))}
+            {gone.some((g) => g.jump) && pendingCells().length > 0 ? (
+              <Button type="button" variant="outline" size="sm" className="self-start" onClick={jumpToPending}>
+                Go to the first one
+              </Button>
+            ) : null}
             <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setGone([])}>
               Dismiss
             </Button>
