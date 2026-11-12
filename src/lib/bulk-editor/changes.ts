@@ -83,7 +83,7 @@ export function applyEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRo
       const changed: Record<string, unknown> = {};
       for (const [column, value] of Object.entries(cells ?? {})) {
         const editor = EDITORS[column];
-        if (!editor || editor.combo || editor.reference || editor.scope !== scope) continue;
+        if (!editor || editor.combo || editor.reference || editor.links || editor.scope !== scope) continue;
         Object.assign(changed, rawOf(editor, value));
       }
       if (Object.keys(changed).length === 0) return;

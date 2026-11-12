@@ -3,6 +3,7 @@ import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 import { BOTTLE_AGE, LABEL_AGE } from "./age";
+import { INGREDIENTS_COLUMN } from "./links";
 import { designationEditor, GENERATED_BOTTLE, GENERATED_LABEL, singleBarrelEditor } from "./fields";
 
 /**
@@ -205,7 +206,7 @@ export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = (() => {
     list.splice(at + 1, 0, ...add);
     return list;
   };
-  const label = after(BY_HAND.filter((c) => c.group === "label"), "designation", LABEL_AGE.map((g) => g.column));
+  const label = after(after(BY_HAND.filter((c) => c.group === "label"), "designation", LABEL_AGE.map((g) => g.column)), "finishes", [INGREDIENTS_COLUMN]);
   const bottle = after(BY_HAND.filter((c) => c.group === "bottle"), "ownProof", BOTTLE_AGE.map((g) => g.column));
   return [...label, ...GENERATED_LABEL.map((g) => g.column), ...bottle, ...GENERATED_BOTTLE.map((g) => g.column)];
 })();

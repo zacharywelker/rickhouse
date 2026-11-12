@@ -37,16 +37,11 @@ import {
   type ProofSpread,
 } from "@/lib/expressions/rules";
 import { SCOTCH_REGIONS } from "@/db/schema";
-import type { IngredientChoice } from "@/lib/expressions/spirit-details";
-import { BRANDY_MINIMUM_YEARS, countryForDistillery, isAgaveKind } from "@/lib/expressions/spirit-details";
-import { isGinKind } from "@/lib/expressions/gin-details";
-import { IngredientPicker } from "./ingredient-picker";
-import { FinishPicker } from "./finish-picker";
-import { effectiveRows, totalsOf } from "@/lib/expressions/finish-picker-model";
+import { BRANDY_MINIMUM_YEARS } from "@/lib/expressions/spirit-details";
+import { DistilleryPicker, FinishPickers, IngredientPickers, MashbillPicker, type LabelLinks } from "./label-link-pickers";
 import { DeriveAge } from "./bottle-form";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
-import { OrderedPicker, serializeLinks, type LinkedRow } from "./ordered-picker";
 import { DeleteExpressionButton } from "./delete-expression-button";
 import { PendingColas } from "./cola-approvals";
 import { RowListEditor } from "./row-list-editor";
@@ -72,7 +67,7 @@ const SECTION_OF: ReadonlyMap<string, (typeof EXPRESSION_SECTIONS)[number]> = ne
   EXPRESSION_SECTIONS.flatMap((section) => section.fields.map((field) => [field.name, section] as const)),
 );
 
-export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[]; ingredients?: IngredientChoice[] };
+export type { LabelLinks };
 
 export const EMPTY_LINKS: LabelLinks = { distilleries: [], mashbills: [], finishes: [], ingredients: [] };
 
@@ -225,12 +220,6 @@ export function ExpressionFields({
   };
 
   const bonded = fieldGroup === "whiskey" && !hidden.has("isBottledInBond") && values.isBottledInBond === true;
-
-  // Once every finish share is filled and adds to 100, each mashbill's share is their sum and is not typed.
-  const pairTotals = totalsOf(links.finishes, links.mashbills.map((row) => row.id));
-  const lockedMashbillShares = pairTotals.started && !pairTotals.error && Object.keys(pairTotals.mashbillShares).length > 0
-    ? Object.fromEntries(Object.entries(pairTotals.mashbillShares).map(([id, share]) => [id, String(share)]))
-    : undefined;
 
   /** A linked distillery brings its Scotch region along. */
   const changeLinks = (next: LabelLinks) => {
@@ -443,109 +432,10 @@ export function ExpressionFields({
           {showsRegions(context) ? (
             <RegionPicker idPrefix={idPrefix} value={regions} error={errors.regions} onChange={(next) => onChange("regions", next.join(", "))} />
           ) : null}
-          <OrderedPicker
-            name="distilleryLinks"
-            label={fieldGroup === "rum" ? "Distilleries / Estates" : "Distilleries"}
-            description="Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere."
-            resource="distilleries"
-            options={(options.distilleryLinks ?? []).filter((option) => !option.country || countryForDistillery(kind, option.country))}
-            {...(isAgaveKind(kind) ? { defaultCountry: "Mexico" } : kind === "cognac" || kind === "armagnac" || kind === "calvados" ? { defaultCountry: "France" } : kind === "pisco" ? { defaultCountry: "Peru" } : kind === "canadian" ? { defaultCountry: "Canada" } : kind === "irish" ? { defaultCountry: "Ireland" } : {})}
-            amountLabel="Share"
-            amountSuffix="%"
-            amountMax={100}
-            inferable
-            undisclosable
-            value={links.distilleries}
-            onChange={(rows) => changeLinks({ ...links, distilleries: rows })}
-            chosenMashbillIds={new Set(links.mashbills.map((m) => m.id))}
-            onSuggestMashbill={(row) => changeLinks({ ...links, mashbills: [...links.mashbills, row] })}
-          />
-          {fieldGroup === "gin" && isGinKind(kind) ? (
-            <>
-              <IngredientPicker kind="botanical" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
-                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "botanical"), ...selected] })} />
-              <IngredientPicker kind="gin_base" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
-                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "gin_base"), ...selected] })} />
-              <input type="hidden" name="ingredientLinks" value={JSON.stringify(links.ingredients ?? [])} />
-              <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
-            </>
-          ) : fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur" ? (
-            <>
-              {fieldGroup === "vodka" ? <IngredientPicker kind="vodka_base" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
-                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "vodka_base"), ...selected] })} /> : null}
-              {fieldGroup === "amaro" ? <IngredientPicker kind="botanical" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
-                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "botanical"), ...selected] })} /> : null}
-              {fieldGroup === "liqueur" ? <IngredientPicker kind="liqueur_base" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
-                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "liqueur_base"), ...selected] })} /> : null}
-              {fieldGroup === "liqueur" || kind === "flavored-vodka" ? <IngredientPicker kind="flavor" categoryKind={kind} value={links.ingredients ?? []} hiddenName={null}
-                onChange={(selected) => onLinksChange({ ...links, ingredients: [...(links.ingredients ?? []).filter((item) => item.kind !== "flavor"), ...selected] })} /> : null}
-              <input type="hidden" name="ingredientLinks" value={JSON.stringify(links.ingredients ?? [])} />
-            </>
-          ) : (fieldGroup === "agave" || fieldGroup === "rum" || fieldGroup === "brandy") ? (
-            <IngredientPicker
-              kind={fieldGroup === "agave" ? "maguey" : fieldGroup === "rum" ? "rum_base" : "distillate"}
-              categoryKind={kind}
-              value={links.ingredients ?? []}
-              onChange={(ingredients) => onLinksChange({ ...links, ingredients })}
-            />
-          ) : null}
-          {fieldGroup === "gin" ? null : fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur" ? (
-            <>
-              {/* Older mashbill links remain stored while the relevant spirit uses ingredients. */}
-              <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
-            </>
-          ) : singleMalt ? (
-            <>
-              <div className="border border-border p-4">
-                <p className="text-sm font-medium">Mashbill</p>
-                <p className="mt-1 text-sm text-muted-foreground">100% Malted Barley</p>
-              </div>
-              <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
-            </>
-          ) : (
-            <>{(() => {
-              const categoryName = options.categoryId?.find((option) => option.value === categoryId)?.label;
-              return categoryName === "Pot Still Irish Whiskey" ? <p className="text-sm text-muted-foreground">Category grains: malted and unmalted barley, at least 30% each. Link a recipe only for disclosed details; its undisclosed share can stay unknown.</p> :
-                categoryName === "Malt Irish Whiskey" || categoryName === "Single Malt Scotch Whisky" ? <p className="text-sm text-muted-foreground">Category grains: 100% malted barley. A linked recipe is optional.</p> : null;
-            })()}<OrderedPicker
-              name="mashbillLinks"
-              label="Mashbills"
-              description="One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
-              resource={null}
-              emptyHint="No mashbills yet — add a new one from here."
-              options={options.mashbillLinks ?? []}
-              amountLabel="Share"
-              amountSuffix="%"
-              amountMax={100}
-              value={links.mashbills}
-              onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
-              distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
-              {...(lockedMashbillShares ? { lockedAmounts: lockedMashbillShares } : {})}
-            /></>
-          )}
-          {showsFinishes(context) ? (
-            <FinishPicker
-              mashbills={links.mashbills}
-              finishes={links.finishes}
-              name="finishLinks"
-              label={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "") ? "Cask Types" : "Finishes"}
-              description={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "") ? "Known casks, without assuming a finishing order or duration." : "In sequence, for a double or triple finish."}
-              resource="finishes"
-              options={options.finishLinks ?? []}
-              amountLabel="Months"
-              amountSuffix="mo"
-              showOrder={!(["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? ""))}
-              showAmount={!["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "")}
-              onChange={(rows) => onLinksChange({ ...links, finishes: rows })}
-            />
-          ) : (
-            // A hidden picker is not an instruction to erase previously saved casks.
-            <input
-              type="hidden"
-              name="finishLinks"
-              value={serializeLinks(effectiveRows(links.finishes, links.mashbills.map((row) => row.id)))}
-            />
-          )}
+          <DistilleryPicker fieldGroup={fieldGroup} kind={kind} options={options.distilleryLinks ?? []} links={links} changeLinks={changeLinks} />
+          <IngredientPickers fieldGroup={fieldGroup} kind={kind} links={links} onLinksChange={onLinksChange} />
+          <MashbillPicker fieldGroup={fieldGroup} kind={kind} singleMalt={singleMalt} categoryName={options.categoryId?.find((option) => option.value === categoryId)?.label} options={options.mashbillLinks ?? []} links={links} onLinksChange={onLinksChange} />
+          <FinishPickers kind={kind} shown={showsFinishes(context)} options={options.finishLinks ?? []} links={links} onLinksChange={onLinksChange} fieldGroup={fieldGroup} />
         </SectionContent>
       </Section>
     </>

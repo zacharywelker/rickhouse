@@ -183,6 +183,12 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       // The sheet's derived-age flag (the forms' `ageYearsSource`): only a whiskey keeps one.
       const source = (facts as { ageYearsSource?: "entered" | "derived" }).ageYearsSource;
       if (source !== undefined && (category?.fieldGroup ?? "other") === "whiskey") columns.ageYearsSource = source;
+      // The origin of an amaro or liqueur is remembered as typed (or not), so a linked distillery's place does not overwrite it.
+      if (category?.fieldGroup === "amaro" || category?.fieldGroup === "liqueur") {
+        const manual = facts as { originCountryManual?: boolean; originRegionManual?: boolean };
+        if (manual.originCountryManual !== undefined) columns.originCountryManual = manual.originCountryManual;
+        if (manual.originRegionManual !== undefined) columns.originRegionManual = manual.originRegionManual;
+      }
       const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) } as Partial<typeof expressions.$inferInsert>;
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));

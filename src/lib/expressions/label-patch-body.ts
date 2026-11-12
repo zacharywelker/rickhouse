@@ -12,6 +12,13 @@ const linkRow = z.preprocess(
 /** Duplicates would break the join table's key, and an order is what was sent. */
 const linkList = z.array(linkRow).max(50).refine((rows) => new Set(rows.map((r) => r.id)).size === rows.length, "A row appears twice.");
 const ingredientList = z.array(z.object({ name: z.string().trim().min(1).max(120), family: z.enum(["grape", "apple", "pear", "other"]).nullable().optional(), kind: z.enum(["maguey", "distillate", "rum_base", "botanical", "gin_base"]).optional() })).max(100);
+/** The bulk editor's ingredients are the form's: every kind it has, and whether each was chosen by hand or came with the amaro's style. */
+const formIngredientList = z.array(z.object({
+  name: z.string().trim().min(1).max(120),
+  family: z.enum(["grape", "apple", "pear", "other"]).nullable().optional(),
+  kind: z.enum(["maguey", "distillate", "rum_base", "botanical", "gin_base", "vodka_base", "flavor", "liqueur_base"]).optional(),
+  isManual: z.boolean().optional(),
+})).max(100);
 
 /**
  * Every fact the label form has, as a schema: the phone API's (`labelFactsSchema`) is a chosen subset of it; this is all
@@ -20,7 +27,7 @@ const ingredientList = z.array(z.object({ name: z.string().trim().min(1).max(120
  */
 const FORM_FACT_NAMES = [...new Set(EXPRESSION_SECTIONS.flatMap((section) => section.fields.map((field) => field.name)))].filter(
   (name) => name !== "slug" && name in expressionSchema.shape,
-).concat(["ageYearsSource"]);
+).concat(["ageYearsSource", "originCountryManual", "originRegionManual"]);
 // The names are only known when this runs, so the mask cannot be checked by the compiler: `in expressionSchema.shape` above does it.
 export const bulkLabelFactsSchema = (expressionSchema as unknown as { pick: (mask: Record<string, true>) => unknown }).pick(Object.fromEntries(FORM_FACT_NAMES.map((name) => [name, true]))) as typeof labelFactsSchema;
 
@@ -28,7 +35,7 @@ export const bulkLabelFactsSchema = (expressionSchema as unknown as { pick: (mas
  * The body of a label change, built over a set of facts: any of them, partially, a brand by name, and the three ordered
  * lists together. Strict, so a field that is not listed is refused.
  */
-function patchBody(facts: typeof labelFactsSchema) {
+function patchBody(facts: typeof labelFactsSchema, ingredientRows: typeof ingredientList | typeof formIngredientList = ingredientList) {
   return facts
   .partial()
   .extend({
@@ -39,7 +46,7 @@ function patchBody(facts: typeof labelFactsSchema) {
     distilleries: linkList,
     mashbills: linkList,
     finishes: linkList,
-    ingredients: ingredientList,
+    ingredients: ingredientRows,
     otherNames: z
       .string()
       .max(10_000)
@@ -71,4 +78,4 @@ function patchBody(facts: typeof labelFactsSchema) {
 export const labelPatchBody = patchBody(labelFactsSchema);
 
 /** What the bulk editor can change on a label: every fact on the label form, and the same brand and lists. */
-export const bulkLabelPatchBody = patchBody(bulkLabelFactsSchema);
+export const bulkLabelPatchBody = patchBody(bulkLabelFactsSchema, formIngredientList);

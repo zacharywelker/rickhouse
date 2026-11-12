@@ -14,7 +14,7 @@ import type { Candidate, Suggestion } from "./suggest";
 
 export type Pick = { kind: "existing"; id: number; name: string } | { kind: "new"; name: string };
 export type DraftRow = { key: string; brand: Pick | null; label: Pick | null; categoryId: number | null };
-export type CategoryChoice = { id: number; name: string; hint?: string };
+export type CategoryChoice = { id: number; name: string; hint?: string; slug?: string };
 
 export const emptyDraft = (key: string): DraftRow => ({ key, brand: null, label: null, categoryId: null });
 

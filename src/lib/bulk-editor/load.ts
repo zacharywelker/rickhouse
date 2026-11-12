@@ -8,6 +8,7 @@ import { parseLabelFilters } from "@/lib/expressions/filters";
 import { categoryFieldGroups, categoryKindsById, queryExpressions } from "@/lib/expressions/queries";
 import type { CategoryChoice } from "./drafts";
 import type { SheetBottle, SheetLabel, SheetPhoto } from "./sheet";
+import type { Option } from "@/lib/admin/types";
 import type { RefData } from "./references";
 
 /** More rows than anyone owns: the editor is one scroll, not pages. */
@@ -29,10 +30,12 @@ export async function loadSheet(ownerId: number): Promise<{
   groups: Record<number, FieldGroup>;
   /** Thumbnails for the rail: a bottle's (its own, else its release's, else its label's, as the Collection shows) and a label's own. Only those that have one. */
   photos: { bottles: Record<number, SheetPhoto>; labels: Record<number, SheetPhoto> };
+  /** What the distillery, mashbill and finish cells choose from: the same lists as the label form. */
+  linkOptions: { distilleryLinks: Option[]; mashbillLinks: Option[]; finishLinks: Option[] };
   /** What the picking cells choose from: the account's stores and cooperages, and each label's own releases and older names. */
   refs: RefData;
 }> {
-  const [{ rows: labels }, bottleRows, kinds, brandOptions, categoryOptions, groups, bottlePhotos, labelPhotos, storeOptions, cooperageOptions, releaseRows, nameRows] = await Promise.all([
+  const [{ rows: labels }, bottleRows, kinds, brandOptions, categoryOptions, groups, bottlePhotos, labelPhotos, storeOptions, cooperageOptions, releaseRows, nameRows, distilleryOptions, mashbillOptions, finishOptions] = await Promise.all([
     queryExpressions({ ...parseLabelFilters({}), pageSize: EVERYTHING }, ownerId),
     db
       .select({
@@ -106,6 +109,9 @@ export async function loadSheet(ownerId: number): Promise<{
       .innerJoin(expressions, eq(expressions.id, expressionNames.expressionId))
       .where(eq(expressions.ownerId, ownerId))
       .orderBy(asc(expressionNames.position), asc(expressionNames.name)),
+    REFERENCE_OPTION_LOADERS.distilleries(ownerId),
+    REFERENCE_OPTION_LOADERS.mashbills(ownerId),
+    REFERENCE_OPTION_LOADERS.finishes(ownerId),
   ]);
   const byLabel = (rows: Array<{ id: number; labelId: number; name: string }>): Record<number, Array<{ id: number; name: string }>> => {
     const out: Record<number, Array<{ id: number; name: string }>> = {};
@@ -119,9 +125,10 @@ export async function loadSheet(ownerId: number): Promise<{
     bottles: bottleRows,
     kinds,
     brands: brandOptions.map((o) => ({ id: o.value, name: o.label })),
-    categories: categoryOptions.map((o) => ({ id: o.value, name: o.label, ...(o.hint ? { hint: o.hint } : {}) })),
+    categories: categoryOptions.map((o) => ({ id: o.value, name: o.label, ...(o.hint ? { hint: o.hint } : {}), ...(o.slug ? { slug: o.slug } : {}) })),
     groups,
     photos: { bottles: photoMap(bottlePhotos), labels: photoMap(labelPhotos) },
+    linkOptions: { distilleryLinks: distilleryOptions, mashbillLinks: mashbillOptions, finishLinks: finishOptions },
     refs: {
       stores: storeOptions.map((o) => ({ id: o.value, name: o.label, ...(o.hint ? { hint: o.hint } : {}) })),
       cooperages: cooperageOptions.map((o) => ({ id: o.value, name: o.label })),

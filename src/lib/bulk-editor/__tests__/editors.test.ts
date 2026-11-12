@@ -66,7 +66,7 @@ describe("editorFor", () => {
     expect(rename).toMatchObject({ field: "name", scope: "label", required: true });
   });
   it("has no editor yet for the cells that need a picker, a list, or a bottle's life of their own (the next parity steps)", () => {
-    for (const id of ["category", "distilleries", "mashbills", "finishes"]) {
+    for (const id of ["category"]) {
       expect(editorFor(col(id), both, bottleRow())).toBeNull();
       expect(editorFor(col(id), labelsOnly, labelRow)).toBeNull();
     }

@@ -3,7 +3,9 @@ import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 import { BOTTLE_AGE, LABEL_AGE } from "./age";
+import { LINK_KEYS, linkEditor } from "./links";
 import { designationEditor, GENERATED, singleBarrelEditor, storeEditor, type Kinds } from "./fields";
+import type { LinkKey } from "./links";
 import type { RefKind } from "./references";
 import type { Cell, SheetColumn, SheetContext, SheetRow, SheetView } from "./sheet";
 
@@ -24,6 +26,8 @@ export type CellEditor = {
   column: string;
   /** Set for a cell that picks from a list. Its `spec` is then unused, and what is chosen is kept with the row, not in the edits. */
   combo?: ComboKind;
+  /** Set for a cell that opens the label form's own picker for one of its lists (distilleries, mashbills, finishes, ingredients). What is kept in the edits is that list as JSON (see `links.ts`). */
+  links?: LinkKey;
   /** Set for a cell that picks a store, a cooperage, or one of the label's releases or names. What is chosen is kept in the edits as `id:12` or `new:Name` (see `references.ts`). */
   reference?: RefKind;
   /** The field's name on the form, and so on the server's patch. */
@@ -107,6 +111,7 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
   designation: designationEditor(),
   singleBarrel: singleBarrelEditor(),
   store: storeEditor(),
+  ...Object.fromEntries(LINK_KEYS.map((key) => [key, linkEditor(key)])),
 };
 
 /** The label cells a person has triple-clicked open, as `labelId:columnId`. Unlocking is per label and per column. */
