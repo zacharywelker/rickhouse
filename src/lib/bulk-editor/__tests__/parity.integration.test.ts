@@ -166,12 +166,17 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
       row = (await one(`SELECT is_cask_strength AS cask, is_bottled_in_bond AS bib FROM expressions WHERE id = $1`, label)) as { cask: boolean; bib: boolean };
       expect([row.cask, row.bib]).toEqual([false, false]);
     });
-    it("Single barrel / pick sets both of the bottle's flags", async () => {
+    it("Single barrel / pick sets the bottle's two flags independently: a pick need not be a single barrel", async () => {
       const label = await fx.mkLabel(owner, catId["american-whiskey"]!, "Parity pick");
       const bottle = await fx.mkBottle(owner, label);
-      expect(await rows.patchBottleRow(owner, bottle, serverFields(EDITORS.singleBarrel, "singleBarrel", "pick"))).toEqual({ ok: true });
-      const row = (await one(`SELECT is_single_barrel AS one, is_single_barrel_pick AS pick FROM bottles WHERE id = $1`, bottle)) as { one: boolean; pick: boolean };
-      expect([row.one, row.pick]).toEqual([true, true]);
+      const flags = async () => {
+        const row = (await one(`SELECT is_single_barrel AS one, is_single_barrel_pick AS pick FROM bottles WHERE id = $1`, bottle)) as { one: boolean; pick: boolean };
+        return [row.one, row.pick];
+      };
+      for (const [choice, expected] of [["pick", [false, true]], ["single", [true, false]], ["both", [true, true]], ["", [false, false]]] as const) {
+        expect(await rows.patchBottleRow(owner, bottle, serverFields(EDITORS.singleBarrel, "singleBarrel", choice))).toEqual({ ok: true });
+        expect(await flags(), `choice "${choice}"`).toEqual(expected);
+      }
     });
   });
 

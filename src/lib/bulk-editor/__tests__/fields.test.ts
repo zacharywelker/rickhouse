@@ -140,8 +140,10 @@ describe("what a cell's text is, to the server", () => {
   });
   it("is both flags for the two composite cells", () => {
     expect(serverFields(EDITORS.designation, "designation", "bib")).toEqual({ isCaskStrength: false, isBottledInBond: true });
-    expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "pick")).toEqual({ isSingleBarrel: true, isSingleBarrelPick: true });
+    // A private pick is not a single barrel (it can be a blend of barrels), and a single barrel is not a pick.
+    expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "pick")).toEqual({ isSingleBarrel: false, isSingleBarrelPick: true });
     expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "single")).toEqual({ isSingleBarrel: true, isSingleBarrelPick: false });
+    expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "both")).toEqual({ isSingleBarrel: true, isSingleBarrelPick: true });
     expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "")).toEqual({ isSingleBarrel: false, isSingleBarrelPick: false });
   });
 });

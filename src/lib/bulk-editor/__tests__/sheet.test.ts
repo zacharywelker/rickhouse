@@ -116,7 +116,10 @@ describe("cells", () => {
     expect(cell("pricePaid", { label: l, bottle: b })).toEqual({ text: "$47.00" });
     expect(cell("store", { label: l, bottle: b })).toEqual({ text: "Binny's" });
     expect(cell("dateAcquired", { label: l, bottle: b })).toEqual({ text: "Sep 20, 2025" });
-    expect(cell("singleBarrel", { label: l, bottle: b })).toEqual({ text: "Private pick" }); // a private pick is a single barrel, so it says the one
+    expect(cell("singleBarrel", { label: l, bottle: b })).toEqual({ text: "Single barrel · Private pick" });
+    // They are separate: a pick can be a blend of barrels, and a single barrel need not be a pick.
+    expect(cell("singleBarrel", { label: l, bottle: bottle({ id: 2, expressionId: 1, isSingleBarrelPick: true }) })).toEqual({ text: "Private pick" });
+    expect(cell("singleBarrel", { label: l, bottle: bottle({ id: 3, expressionId: 1, isSingleBarrel: true }) })).toEqual({ text: "Single barrel" });
   });
 
   it("shows no mashbill for a spirit that has none", () => {

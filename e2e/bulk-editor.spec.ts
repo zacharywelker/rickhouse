@@ -700,14 +700,15 @@ test("Single barrel / pick: a private pick opens its pick details before it has 
   await cell(page, 0, pick).click();
   await page.keyboard.type("p"); // Private pick
   await page.keyboard.press("Enter");
-  await expect(cell(page, 0, pick)).toContainText("Private pick");
+  // A private pick is not a single barrel (it can be a blend of barrels): the cell says only what was chosen.
+  await expect(cell(page, 0, pick)).toHaveText("Private pick");
   await cell(page, 0, pickName).click();
   await page.keyboard.press("Enter");
   await expect(editors(page)).toHaveCount(1); // opened at once, before the save was read back
   await page.keyboard.type("Binnys Pick");
   await page.keyboard.press("Enter");
   await reloaded(page);
-  await expect(cell(page, 0, pick)).toContainText("Private pick");
+  await expect(cell(page, 0, pick)).toHaveText("Private pick");
   await expect(cell(page, 0, pickName)).toContainText("Binnys Pick");
 });
 

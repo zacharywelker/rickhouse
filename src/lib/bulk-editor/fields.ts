@@ -223,10 +223,12 @@ const DESIGNATIONS = [
   { value: "both", label: "Cask Strength · Bottled in Bond" },
 ] as const;
 
+/** The four ways the two flags can stand: a private pick need not be a single barrel (it can be a blend of barrels), and a single barrel need not be a pick. */
 const PICKS = [
   { value: "", label: "—" },
   { value: "single", label: "Single barrel" },
   { value: "pick", label: "Private pick" },
+  { value: "both", label: "Single barrel · Private pick" },
 ] as const;
 
 /** Cask Strength and Bottled in Bond, as one choice: how the shelf is entered. Both are the label's flags. */
@@ -258,7 +260,7 @@ export function designationEditor(): CellEditor {
   };
 }
 
-/** Single barrel, or a private pick (which is a single barrel), as one choice. Both are the bottle's flags. */
+/** Single barrel and Private pick, as one choice. They are two separate flags of the bottle, so all four combinations are choices. */
 export function singleBarrelEditor(): CellEditor {
   const spec: FieldSpec = { kind: "select", name: "singleBarrel", label: "Single barrel / pick", options: PICKS };
   return {
@@ -268,8 +270,12 @@ export function singleBarrelEditor(): CellEditor {
     spec,
     applies: (row, kinds) => row.bottle !== null && bottleFieldNotUsed("isSingleBarrel", labelFacts(row, kinds)) === null,
     typeToReplace: false,
-    fieldsOf: (value) => ({ isSingleBarrel: value !== "", isSingleBarrelPick: value === "pick" }),
-    initial: (row) => (row.bottle?.isSingleBarrelPick ? "pick" : row.bottle?.isSingleBarrel ? "single" : ""),
+    fieldsOf: (value) => ({ isSingleBarrel: value === "single" || value === "both", isSingleBarrelPick: value === "pick" || value === "both" }),
+    initial: (row) => {
+      const single = row.bottle?.isSingleBarrel === true;
+      const pick = row.bottle?.isSingleBarrelPick === true;
+      return single && pick ? "both" : pick ? "pick" : single ? "single" : "";
+    },
     display: (value) => (value === "" ? DASH : { text: PICKS.find((p) => p.value === value)?.label ?? value }),
   };
 }
