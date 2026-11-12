@@ -1,7 +1,10 @@
 import type { DraftRow } from "./drafts";
 import { EDITORS, type CellEditor, type Edits } from "./editors";
 import { isYesNoChoice } from "./fields";
+import { linksPayload } from "@/lib/expressions/links";
+import { linksBody, labelLists, type LinkLists } from "./links";
 import { refServerFields } from "./references";
+import type { SheetLabel } from "./sheet";
 import type { Moves } from "./changes";
 
 /**
@@ -51,6 +54,8 @@ export function serverFields(editor: CellEditor | undefined, column: string, val
   if (column === "name") return { name: valueOrNull(value) };
   if (!editor) return { [column]: valueOrNull(value) };
   if (editor.fieldsOf) return editor.fieldsOf(value);
+  // The origin of an amaro or liqueur typed in is remembered as the owner's own, as the form does.
+  if (editor.field === "originCountry" || editor.field === "originRegion") return { [editor.field]: valueOrNull(value), [`${editor.field}Manual`]: value.trim() !== "" };
   if (editor.reference) return refServerFields(editor.field, value);
   // The level is a whole number on the server; the cell holds the option's value as text.
   if (editor.field === "fillPct") return { fillPct: Number(value) };
@@ -60,9 +65,24 @@ export function serverFields(editor: CellEditor | undefined, column: string, val
   return { [editor.field]: valueOrNull(value) };
 }
 
-/** A field and its text, under the server's field name. A blank clears the value (null). */
+/**
+ * What linking a distillery brings along (the form's `changeLinks`): the Scotch regions, and an amaro's or liqueur's origin.
+ * They are edits under these names, not the Region and Origin cells', so they are not mistaken for being typed (typing an
+ * origin marks it as the owner's own, and a later link then leaves it alone).
+ */
+const LINKED_FACTS: Readonly<Record<string, string>> = { regions: "regions", originCountryLinked: "originCountry", originRegionLinked: "originRegion" };
+export const LINKED_COLUMNS = Object.keys(LINKED_FACTS);
+
+/** A field and its text, under the server's field name. A blank clears the value (null). The lists are sent by `linksBody`. */
 function patchFields(cells: Readonly<Record<string, string>>): Record<string, unknown> {
-  return Object.assign({}, ...Object.entries(cells).map(([column, value]) => serverFields(EDITORS[column], column, value)));
+  return Object.assign(
+    {},
+    ...Object.entries(cells).map(([column, value]) => {
+      if (EDITORS[column]?.links) return {};
+      if (column in LINKED_FACTS) return { [LINKED_FACTS[column]!]: valueOrNull(value) };
+      return serverFields(EDITORS[column], column, value);
+    }),
+  );
 }
 
 /**
@@ -77,7 +97,10 @@ export const bottlePatchBody = (cells: Readonly<Record<string, string>> | undefi
 });
 
 /** The body for a saved label: only its own facts. One request reaches every bottle on it. */
-export const labelPatchBody = (cells: Readonly<Record<string, string>> | undefined): Record<string, unknown> => patchFields(cells ?? {});
+export const labelPatchBody = (cells: Readonly<Record<string, string>> | undefined, links?: { label: SheetLabel; loaded: LinkLists | undefined }): Record<string, unknown> => ({
+  ...patchFields(cells ?? {}),
+  ...(links ? linksBody(cells ?? {}, links.loaded, labelLists(links.label)) : {}),
+});
 
 /**
  * The body for a new row. An existing brand or label goes by id (and an existing label takes no facts: they are not the
@@ -89,6 +112,15 @@ export function createBody(draft: DraftRow, cells: Readonly<Record<string, strin
   const bottle: Record<string, unknown> = {};
   for (const [column, value] of Object.entries(cells ?? {})) {
     const editor = EDITORS[column];
+    if (column in LINKED_FACTS) {
+      if (value !== "") facts[LINKED_FACTS[column]!] = value;
+      continue;
+    }
+    if (editor?.links) {
+      const rows: unknown = JSON.parse(value);
+      if (Array.isArray(rows) && rows.length > 0) facts[{ distilleries: "distilleryLinks", mashbills: "mashbillLinks", finishes: "finishLinks", ingredients: "ingredientLinks" }[editor.links]] = editor.links === "ingredients" ? JSON.stringify(rows) : linksPayload(rows as never);
+      continue;
+    }
     if (!editor || editor.combo || value === "") continue;
     Object.assign(editor.scope === "label" ? facts : bottle, serverFields(editor, column, value));
   }
@@ -122,6 +154,14 @@ const COLUMN_OF_FIELD: Record<string, { label: string; bottle: string }> = {
   expressionNameId: { label: "expressionNameId", bottle: "expressionNameId" },
   cooperageId: { label: "cooperageId", bottle: "cooperageId" },
   cooperageName: { label: "cooperageId", bottle: "cooperageId" },
+  distilleries: { label: "distilleries", bottle: "distilleries" },
+  mashbills: { label: "mashbills", bottle: "mashbills" },
+  finishes: { label: "finishes", bottle: "finishes" },
+  ingredients: { label: "ingredients", bottle: "ingredients" },
+  finishLinks: { label: "finishes", bottle: "finishes" },
+  distilleryLinks: { label: "distilleries", bottle: "distilleries" },
+  mashbillLinks: { label: "mashbills", bottle: "mashbills" },
+  ingredientLinks: { label: "ingredients", bottle: "ingredients" },
   dateAcquired: { label: "dateAcquired", bottle: "dateAcquired" },
   releaseYear: { label: "releaseYear", bottle: "releaseYear" },
   pickName: { label: "pickName", bottle: "pickName" },

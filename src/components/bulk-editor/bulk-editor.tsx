@@ -39,7 +39,9 @@ import { railFor } from "@/lib/bulk-editor/rail";
 import { shelfFor } from "@/lib/bulk-editor/shelf";
 import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND, nextSort, sortRows, type Find } from "@/lib/bulk-editor/find";
 import { decodeRef, encodePick, REF_CAN_CREATE, REF_NO_CREATE, REF_WHAT, refCandidates, refNames, type RefData } from "@/lib/bulk-editor/references";
+import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
 import { ComboEditor } from "./combo-editor";
+import { LinksEditor, type LinkOptions } from "./links-editor";
 import { FindBar } from "./find-bar";
 import { RailContent } from "./rail-panel";
 import { DeleteBar } from "./delete-bar";
@@ -310,12 +312,14 @@ type RowProps = {
   error: string | null;
   /** What a picking cell offers; only for the active row, and only while a Brand, Label or Category cell is open. */
   combo: ComboData | null;
+  /** The open editor of a distillery, mashbill, finish or ingredients cell (the label form's own picker); only for the active row. */
+  linksNode: React.ReactNode;
   onFinish: ((finish: Finish) => void) | undefined;
   onInvalid: ((message: string) => void) | undefined;
 };
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, onFinish, onInvalid }: RowProps) {
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, onFinish, onInvalid }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -388,7 +392,9 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               {cell.badge ? <span className="shrink-0 border border-border px-1 text-[10px] uppercase leading-4 tracking-wide text-muted-foreground">{cell.badge}</span> : null}
             </span>
             {isEditing && editing && editor && onFinish && onInvalid ? (
-              (editor.combo || editor.reference) && combo ? (
+              editor.links && linksNode ? (
+                linksNode
+              ) : (editor.combo || editor.reference) && combo ? (
                 <ComboEditor kind={editor.combo ?? "reference"} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} />
               ) : (
                 <ActiveEditor editor={editor} row={row} kinds={context.kinds} initial={editing} error={error} reach={reach} onFinish={onFinish} onInvalid={onInvalid} />
@@ -406,7 +412,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
  * left. You can move around it and edit the plain cells from the keyboard: arrows, Tab and Enter, F2 or a keystroke to
  * edit, Escape to cancel. Edits are kept here, in the browser, and marked; saving them arrives in a later step.
  */
-export function BulkEditor({ labels, bottles, brands, categories, groups, kinds, photos, refs, currency }: {
+export function BulkEditor({ labels, bottles, brands, categories, groups, kinds, photos, refs, linkOptions, currency }: {
   labels: SheetLabel[];
   bottles: SheetBottle[];
   brands: Array<{ id: number; name: string }>;
@@ -417,6 +423,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   photos: { bottles: Record<number, SheetPhoto>; labels: Record<number, SheetPhoto> };
   /** What the store, cooperage, release and label-name cells choose from. */
   refs: RefData;
+  /** What the distillery, mashbill and finish cells choose from: the label form's lists. */
+  linkOptions: LinkOptions;
   currency: string;
 }) {
   const [view, setView] = useView();
@@ -491,6 +499,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
   // one is made fresh each time (see `withBlankRow`).
   const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
+  /** Each label's lists as they were last read in full (with finish pairs), so a save sends what was not edited unchanged. */
+  const linkCache = React.useRef(new Map<number, LinkLists>());
   /** Bottles that have just been given a status that takes them off the shelf: said once, so the row going is not a surprise. */
   const [gone, setGone] = React.useState<Array<{ key: string; text: string }>>([]);
   function leftShelf(key: string, status: string) {
@@ -499,7 +509,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const title = label ? `${label.brand} ${label.name}` : "A bottle";
     setGone((prev) => [...prev.filter((g) => g.key !== key), { key, text: `${title} is now ${humanise(status).toLowerCase()}, so it is no longer listed here. This sheet shows the bottles you own or have open.` }]);
   }
-  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf });
+  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf, linkCache });
   const createdAs = saver.createdAs;
   /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
   const [keyFloor, setKeyFloor] = React.useState(0);
@@ -615,6 +625,51 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     touch(key);
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], [column.id]: value } }));
     saver.request(key);
+  }
+
+  /** The quiet time after a change made in a list's picker before it is saved, so typing a share is one save, not one per digit. */
+  const LINKS_SAVE_AFTER_MS = 600;
+  const linkTimers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  React.useEffect(() => () => linkTimers.current.forEach((timer) => clearTimeout(timer)), []);
+
+  /** Records an edit to a column of a row without needing the cursor to be on it (a list changed in its picker, or what a link brings along). */
+  function stageColumn(row: SheetRow, columnId: string, value: string) {
+    const editor = EDITORS[columnId];
+    const key = row.draft ? row.key : `l${row.label.id}`;
+    if (row.draft) {
+      setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
+      keepKeys(row.key);
+      setEdits((prev) => setEdit(prev, key, columnId, value, editor ? editor.initial(row) : ""));
+      return key;
+    }
+    touch(key);
+    setEdits((prev) => ({ ...prev, [key]: { ...prev[key], [columnId]: value } }));
+    return key;
+  }
+
+  /** A list was changed in its picker: kept at once, saved after a quiet moment (or when the picker closes). */
+  function changeLists(row: SheetRow, lists: LinkLists, changed: LinkKey[], brought: Record<string, string>) {
+    let key = "";
+    for (const which of changed) key = stageColumn(row, which, JSON.stringify(lists[which]));
+    for (const [column, value] of Object.entries(brought)) key = stageColumn(row, column, value);
+    if (row.draft || key === "") return;
+    const pending = linkTimers.current.get(key);
+    if (pending) clearTimeout(pending);
+    linkTimers.current.set(key, setTimeout(() => {
+      linkTimers.current.delete(key);
+      saver.request(key);
+    }, LINKS_SAVE_AFTER_MS));
+  }
+
+  /** The picker closed: anything not saved yet is saved now. */
+  function flushLists(row: SheetRow) {
+    const key = row.draft ? row.key : `l${row.label.id}`;
+    const pending = linkTimers.current.get(key);
+    if (pending) {
+      clearTimeout(pending);
+      linkTimers.current.delete(key);
+      saver.request(key);
+    }
   }
 
   /** `list` with the draft of this key changed, making it a real draft first if it is still the empty row. */
@@ -777,7 +832,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     } else if (key === "Delete" || key === "Backspace") {
       const editor = editorAt(pos);
       // A brand, label or category is changed by choosing another, not by emptying the cell.
-      if (editor && !editor.required && !editor.combo) {
+      // A list is changed in its own picker, one row at a time, not emptied from the cell.
+      if (editor && !editor.required && !editor.combo && !editor.links) {
         event.preventDefault();
         stage(pos, editor.spec.kind === "checkbox" ? "false" : "");
       }
@@ -839,7 +895,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       for (let c = c1; c <= c2; c += 1) {
         const pos = { row: r, col: c };
         const editor = editorAt(pos);
-        if (!editor || editor.required || editor.combo) continue;
+        if (!editor || editor.required || editor.combo || editor.links) continue;
         const blank = editor.spec.kind === "checkbox" ? "false" : "";
         if (valueAt(pos) === blank) continue;
         stage(pos, blank);
@@ -1007,6 +1063,33 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   }, [leaveWarning]);
 
   const comboData = comboFor();
+  const linksNode = (() => {
+    if (!current || !editing) return null;
+    const row = rows[current.row];
+    const editor = editorAt(current);
+    if (!row || !editor?.links) return null;
+    const own = edits[row.draft ? row.key : `l${row.label.id}`];
+    const edited = (["distilleries", "mashbills", "finishes", "ingredients"] as const).filter((key) => own?.[key] !== undefined);
+    return (
+      <LinksEditor
+        key={`${row.key}:${editor.links}`}
+        which={editor.links}
+        label={row.label}
+        kind={context.kinds[row.label.categoryId] ?? null}
+        labelId={row.draft ? null : row.label.id}
+        start={listsWith(row.label, own)}
+        edited={edited}
+        cached={() => (row.draft ? undefined : linkCache.current.get(row.label.id))}
+        options={linkOptions}
+        onChange={(lists, changed, brought) => changeLists(row, lists, changed, brought)}
+        onLoaded={(lists) => linkCache.current.set(row.label.id, lists)}
+        onClose={() => {
+          flushLists(row);
+          finish({ keep: true, move: "stay", focus: true });
+        }}
+      />
+    );
+  })();
 
   // The rail follows the cursor's row. Display only.
   const railRow = current ? (rows[current.row] ?? null) : null;
@@ -1210,6 +1293,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                 editing={isActiveRow ? editing : null}
                 error={isActiveRow ? error : null}
                 combo={isActiveRow ? comboData : null}
+                linksNode={isActiveRow ? linksNode : null}
                 onFinish={isActiveRow ? finish : undefined}
                 onInvalid={isActiveRow ? setError : undefined}
               />

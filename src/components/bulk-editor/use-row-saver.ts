@@ -6,6 +6,7 @@ import { createRowAction, patchBottleRowAction, patchLabelRowAction } from "@/ap
 import type { Moves } from "@/lib/bulk-editor/changes";
 import { isBlank, type DraftRow } from "@/lib/bulk-editor/drafts";
 import type { Edits } from "@/lib/bulk-editor/editors";
+import type { LinkLists } from "@/lib/bulk-editor/links";
 import { bottlePatchBody, createBody, draftNeeds, failureColumn, labelPatchBody, settleEdits, settleMoves, type Sent } from "@/lib/bulk-editor/save";
 import type { SheetBottle, SheetLabel, SheetView } from "@/lib/bulk-editor/sheet";
 
@@ -27,6 +28,8 @@ type Input = {
   onLanded?: (savedKey: string) => void;
   /** A saved bottle has been given a status that takes it off the shelf, so the sheet (which lists only owned and open bottles) will stop showing it. */
   onLeftShelf?: (key: string, status: string) => void;
+  /** Each label's lists as they were last read in full, so what was not edited is sent unchanged. */
+  linkCache?: React.MutableRefObject<Map<number, LinkLists>>;
 };
 
 /** The quiet time after the last save before the sheet is reloaded, so a run of saves is one reload. */
@@ -110,7 +113,8 @@ export function useRowSaver(input: Input) {
       } else if (key.startsWith("l")) {
         if (!cells) return;
         snapshot = { cells };
-        call = () => patchLabelRowAction(id, labelPatchBody(cells));
+        const label = latest.current.labels.find((l) => l.id === id);
+        call = () => patchLabelRowAction(id, labelPatchBody(cells, label ? { label, loaded: latest.current.linkCache?.current.get(id) } : undefined));
       } else {
         const draft = drafts.find((d) => d.key === key);
         if (!draft || isBlank(draft, edits) || draftNeeds(draft) !== null) return;

@@ -1112,3 +1112,61 @@ test("a bottle's own age is three boxes that show the label's in grey, and blank
   await reloaded(page);
   await expect(cell(page, 5, own)).not.toHaveText("7");
 });
+
+// ---------------------------------------------------------------------------
+// The lists: distilleries, mashbills, finishes and ingredients open the label form's own pickers
+// ---------------------------------------------------------------------------
+
+const popover = (page: Page) => page.getByRole("dialog", { name: /as on the label form/ });
+async function addTo(page: Page, combobox: string, search: string) {
+  await popover(page).getByRole("combobox", { name: combobox }).click();
+  await page.locator("[cmdk-input]").fill(search);
+  await page.locator("[cmdk-item]").filter({ hasText: search }).first().click();
+}
+
+test("a label's distilleries open in the form's own picker, save as they are changed, and are there after a reload", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const distillery = await col(page, "Distillery");
+  await select(page, 3, distillery);
+  await page.keyboard.press("Enter");
+  await expect(popover(page)).toBeVisible();
+  await expect(popover(page).getByRole("group", { name: "Distilleries" })).toBeVisible();
+  await addTo(page, "Add distilleries", "Bardstown Bourbon Company");
+  await addTo(page, "Add distilleries", "Tennessee Distilling");
+  await expect(popover(page).getByRole("group", { name: "Distilleries" }).getByRole("listitem")).toHaveCount(2);
+  // Order is meaningful, as on the form: it can be changed here.
+  await popover(page).getByRole("button", { name: "Move Tennessee Distilling Ltd. up" }).click();
+  await page.keyboard.press("Escape");
+  await expect(popover(page)).toHaveCount(0);
+  await expect(cell(page, 3, distillery)).toContainText("Tennessee Distilling Ltd.");
+  await reloaded(page);
+  await expect(cell(page, 3, distillery)).toContainText("Tennessee Distilling Ltd., Bardstown Bourbon Company");
+});
+
+test("a label's finishes open in the form's own picker, and Delete does not empty a list", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const finish = await col(page, "Finish");
+  await select(page, 4, finish);
+  await page.keyboard.press("Enter");
+  await expect(popover(page)).toBeVisible();
+  await addTo(page, "Add finishes", "French Oak");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 4, finish)).toContainText("French Oak");
+  await reloaded(page);
+  await expect(cell(page, 4, finish)).toContainText("French Oak");
+  // A list is changed one row at a time in its picker, not cleared from the cell.
+  await select(page, 4, finish);
+  await page.keyboard.press("Delete");
+  await reloaded(page);
+  await expect(cell(page, 4, finish)).toContainText("French Oak");
+});
+
+test("a list that the spirit does not have says so and does not open", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, "Ingredients");
+  const ingredients = await col(page, "Ingredients");
+  await select(page, 0, ingredients);
+  await page.keyboard.press("Enter");
+  await expect(popover(page)).toHaveCount(0); // bourbon has no ingredient list
+  await expect(cell(page, 0, ingredients)).toHaveAttribute("aria-readonly", "true");
+});

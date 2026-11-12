@@ -1,7 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { db } from "@/db";
+import { expressions } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import { and, eq } from "drizzle-orm";
+import { loadLinks } from "@/lib/expressions/form-data";
 import { createRow, deleteImpact, deleteRows, patchBottleRow, patchLabelRow, type CreateOutcome, type DeleteOutcome, type PatchOutcome } from "@/lib/bulk-editor/rows";
 
 /**
@@ -13,6 +17,17 @@ function refresh() {
   revalidatePath("/bottles");
   revalidatePath("/expressions");
   revalidatePath("/");
+}
+
+/**
+ * A label's distilleries, mashbills, finishes (with their pairs) and ingredients, exactly as the label form's edit page
+ * loads them, for the cell that opens the form's own pickers. Null when the label is not the caller's.
+ */
+export async function labelLinksAction(labelId: number) {
+  const user = await requireSession();
+  if (!Number.isInteger(labelId) || labelId <= 0) return null;
+  if ((await db.$count(expressions, and(eq(expressions.id, labelId), eq(expressions.ownerId, user.id)))) === 0) return null;
+  return loadLinks(labelId);
 }
 
 /** A new label and/or bottle (see `createRow`). The brand and label are created if they are new. */
