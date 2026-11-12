@@ -2,8 +2,9 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { bottleImages, bottles, brands, categories, expressions, stores } from "@/db/schema";
+import { BOTTLE_STATUSES, bottleImages, bottles, brands, categories, expressions, stores } from "@/db/schema";
 import { newBottleValues } from "@/lib/bottles/new-bottle";
+import { statusUpdate } from "@/lib/bottles/status-rules";
 import { bottlePatchSchema } from "@/lib/bottles/patch-schema";
 import { updateBottle } from "@/lib/bottles/state";
 import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
@@ -206,7 +207,15 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
         if (made.values.storeId != null && (await tx.$count(stores, and(eq(stores.id, made.values.storeId), eq(stores.ownerId, ownerId)))) === 0) {
           throw new Rejected(invalidField("storeId", "Choose one of your stores."));
         }
-        const [inserted] = await tx.insert(bottles).values({ ...made.values, ownerId }).returning({ id: bottles.id });
+        // A status that is not simply owned or open is held to what it means (killed is empty, a wishlist bottle is sealed).
+        const values = { ...made.values } as Record<string, unknown> & typeof made.values;
+        if (values.status && values.status !== "owned" && values.status !== "open") {
+          const asOwned = { isOpen: values.isOpen ?? false, dateOpened: values.dateOpened ?? null, dateKilled: values.dateKilled ?? null, fillPct: values.fillPct ?? 100, status: "owned" };
+          const next = statusUpdate(asOwned, values.status, new Date().toISOString().slice(0, 10));
+          if (!next.ok) throw new Rejected(invalidField("status", next.message));
+          Object.assign(values, next.set);
+        }
+        const [inserted] = await tx.insert(bottles).values({ ...values, ownerId }).returning({ id: bottles.id });
         bottleId = inserted!.id;
       }
 
@@ -264,6 +273,17 @@ async function ensureLabel(
 // Patch
 // ---------------------------------------------------------------------------
 
+/** Where a bottle is in its life, which the phone's request cannot send: the bulk editor's own part of a bottle patch. */
+const lifeSchema = z
+  .object({
+    status: z.enum(BOTTLE_STATUSES),
+    isOpen: z.boolean(),
+    dateKilled: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date.").nullable(),
+    isFavorite: z.boolean(),
+  })
+  .partial()
+  .strict();
+
 /**
  * Changes a bottle: only the columns sent, nothing else touched, so a sheet that is out of date cannot undo what was
  * changed elsewhere. A label's own facts are refused. `expressionId` moves the bottle to another of the caller's labels,
@@ -275,7 +295,21 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
   const body = isRecord(raw) ? { ...raw } : raw;
   let named: string | undefined;
   let version: number | null | undefined;
+  let life: z.infer<typeof lifeSchema> = {};
   if (isRecord(body)) {
+    const taken: Record<string, unknown> = {};
+    for (const key of ["status", "isOpen", "dateKilled", "isFavorite"]) {
+      if (key in body) {
+        taken[key] = body[key];
+        delete body[key];
+      }
+    }
+    const parsedLife = lifeSchema.safeParse(taken);
+    if (!parsedLife.success) {
+      const issue = parsedLife.error.issues[0]!;
+      return invalidField(String(issue.path[0] ?? "status"), issue.message);
+    }
+    life = parsedLife.data;
     const store = takeName(body, "storeName", "storeId");
     if (store.failure) return store.failure;
     named = store.name;
@@ -294,11 +328,17 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
       if (store.created) made.store = store.id;
     }
     // A request that only names a label version has nothing else for the phone's schema to check.
-    const onlyVersion = isRecord(body) && Object.keys(body).length === 0 && version !== undefined;
+    const onlyVersion = isRecord(body) && Object.keys(body).length === 0 && (version !== undefined || Object.keys(life).length > 0);
     const parsed = onlyVersion ? { success: true as const, data: {} as z.infer<typeof bottlePatchSchema> } : bottlePatchSchema.safeParse(body);
     if (!parsed.success) return await undo(made, invalidFrom(parsed.error.issues));
     const { fillPct, dateOpened, ifOpenedCleared, ...columns } = parsed.data;
-    const outcome = await updateBottle(bottleId, ownerId, { fillPct, dateOpened, ifOpenedCleared, columns: { ...columns, ...(version !== undefined ? { expressionNameId: version } : {}) } });
+    const { status, isOpen, ...own } = life;
+    const outcome = await updateBottle(bottleId, ownerId, {
+      fillPct, dateOpened, ifOpenedCleared,
+      ...(status !== undefined ? { status } : {}),
+      ...(isOpen !== undefined ? { isOpen } : {}),
+      columns: { ...columns, ...own, ...(version !== undefined ? { expressionNameId: version } : {}) },
+    });
     if (!outcome) return await undo(made, failure("gone", "That bottle is gone."));
     if (!outcome.ok) {
       return await undo(made, failure("invalid", outcome.message, outcome.field ? { [outcome.field]: outcome.message } : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : {}));

@@ -5,7 +5,7 @@ import { SHEET_COLUMNS, type SheetBottle, type SheetColumn, type SheetContext, t
 const label = { id: 1, brand: "Four Roses", name: "Single Barrel", proof: "100.0", sizeMl: 750, msrp: "49.99" } as unknown as SheetLabel;
 const bottle = (over: Partial<SheetBottle> = {}): SheetBottle => ({
   id: 7, expressionId: 1, status: "owned", pricePaid: "47.00", storeName: null, storeId: null, releaseId: null, expressionNameId: null, dateAcquired: "2025-09-20", isSingleBarrel: false, isSingleBarrelPick: false,
-  pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, acquisition: "purchase", batch: null, pickedBy: null, barrelNumber: null, bottleCount: null, warehouse: null, rickFloor: null, barrelFilledOn: null, bottledOn: null, ginIsNas: null, tequilaClass: null, brandyGrade: null, ...over,
+  pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, acquisition: "purchase", batch: null, pickedBy: null, barrelNumber: null, bottleCount: null, warehouse: null, rickFloor: null, barrelFilledOn: null, bottledOn: null, ginIsNas: null, tequilaClass: null, brandyGrade: null, fillPct: 100, isOpen: false, dateOpened: null, dateKilled: null, isFavorite: false, ...over,
 });
 const bottleRow = (b = bottle()): SheetRow => ({ key: `b${b.id}`, label, bottle: b });
 const labelRow: SheetRow = { key: "l1", label, bottle: null };
@@ -66,7 +66,7 @@ describe("editorFor", () => {
     expect(rename).toMatchObject({ field: "name", scope: "label", required: true });
   });
   it("has no editor yet for the cells that need a picker, a list, or a bottle's life of their own (the next parity steps)", () => {
-    for (const id of ["category", "distilleries", "mashbills", "finishes", "age", "status"]) {
+    for (const id of ["category", "distilleries", "mashbills", "finishes", "age"]) {
       expect(editorFor(col(id), both, bottleRow())).toBeNull();
       expect(editorFor(col(id), labelsOnly, labelRow)).toBeNull();
     }

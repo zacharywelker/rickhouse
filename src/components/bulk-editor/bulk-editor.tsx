@@ -31,7 +31,7 @@ import {
   type SheetRow,
   type SheetView,
 } from "@/lib/bulk-editor/sheet";
-import { cn } from "@/lib/utils";
+import { cn, humanise } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
 import { idsOfKeys, keyOf } from "@/lib/bulk-editor/delete";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
@@ -485,7 +485,15 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
   // one is made fresh each time (see `withBlankRow`).
   const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
-  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch });
+  /** Bottles that have just been given a status that takes them off the shelf: said once, so the row going is not a surprise. */
+  const [gone, setGone] = React.useState<Array<{ key: string; text: string }>>([]);
+  function leftShelf(key: string, status: string) {
+    const bottle = bottles.find((b) => `b${b.id}` === key);
+    const label = bottle ? labels.find((l) => l.id === bottle.expressionId) : undefined;
+    const title = label ? `${label.brand} ${label.name}` : "A bottle";
+    setGone((prev) => [...prev.filter((g) => g.key !== key), { key, text: `${title} is now ${humanise(status).toLowerCase()}, so it is no longer listed here. This sheet shows the bottles you own or have open.` }]);
+  }
+  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf });
   const createdAs = saver.createdAs;
   /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
   const [keyFloor, setKeyFloor] = React.useState(0);
@@ -1152,6 +1160,16 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
             </p>
             <Button type="button" variant="outline" size="sm" className="self-start" onClick={jumpToFirst}>
               {blockedRows.length > 1 ? "Go to the first one" : "Go to it"}
+            </Button>
+          </div>
+        ) : null}
+        {gone.length > 0 ? (
+          <div className={cn("pointer-events-auto flex flex-col gap-2 border border-border bg-card p-3 text-sm shadow-md", blockedRows.length > 0 && "mt-2")}>
+            {gone.map((g) => (
+              <p key={g.key}>{g.text}</p>
+            ))}
+            <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setGone([])}>
+              Dismiss
             </Button>
           </div>
         ) : null}

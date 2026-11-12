@@ -22,7 +22,7 @@ function isRealDate(value: string): boolean {
 /** Statuses of a bottle that is gone from the shelf; there is nothing to seal. */
 const FINISHED = new Set(["killed", "sold", "traded", "sampled"]);
 
-function isEffectivelyOpen(current: OpenedState): boolean {
+export function isEffectivelyOpen(current: OpenedState): boolean {
   return current.isOpen || (!FINISHED.has(current.status) && (current.status === "open" || current.fillPct < 100));
 }
 

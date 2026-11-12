@@ -661,7 +661,13 @@ const fieldsButton = (page: Page) => page.getByRole("button", { name: /^Fields/ 
 /** Switch columns on in the Fields picker, by the name the picker lists them under. */
 async function showColumns(page: Page, ...names: Array<string | RegExp>) {
   await fieldsButton(page).click();
-  for (const name of names) await page.getByLabel(name, { exact: typeof name === "string" }).check();
+  // Space on the focused box rather than a click: with the State fields the list is long enough that the dev-mode badge sits over the last boxes.
+  for (const name of names) {
+    const box = page.getByLabel(name, { exact: typeof name === "string" });
+    await box.focus();
+    await page.keyboard.press("Space");
+    await expect(box).toBeChecked();
+  }
   await page.keyboard.press("Escape");
 }
 const bothSwitch = (page: Page, name: "Labels" | "Bottles") => page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name, exact: true });
@@ -928,4 +934,69 @@ test("a release and a label name are picked from the bottle's own label, and can
   await expect(listbox(page).locator("xpath=..")).toContainText("added on the label's page");
   await page.keyboard.press("Escape");
   await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
+});
+
+// ---------------------------------------------------------------------------
+// Where a bottle is in its life: level, Opened, status
+// ---------------------------------------------------------------------------
+
+test("a level opens the bottle, a status the bottle contradicts is refused with the reason, and a sold bottle leaves with a notice", async ({ page }) => {
+  await showColumns(page, "Fill", "Opened");
+  const [fill, status, opened] = [await col(page, "Fill"), await col(page, "Status"), await col(page, "Opened")];
+  const rowsShown = () => sheet(page).locator('td[data-c="0"]').count();
+  const row = 5;
+
+  // A level under full means it has been poured from: the bottle is opened, as on the bottle page.
+  await cell(page, row, fill).click();
+  await page.keyboard.type("a"); // Almost gone
+  await page.keyboard.press("Enter");
+  await expect(cell(page, row, fill)).toHaveText("Almost gone");
+  await reloaded(page);
+  await expect(cell(page, row, fill)).toHaveText("Almost gone");
+  await expect(cell(page, row, status)).toHaveText("Open");
+  await expect(cell(page, row, opened)).toHaveText("Yes");
+
+  // Owned means sealed: a bottle that has been opened is refused, and the reason is said.
+  await cell(page, row, status).click();
+  await page.keyboard.press("Enter");
+  await sheet(page).locator("select").selectOption({ label: "Owned" });
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/has been opened/).first()).toBeVisible();
+
+  // Sold is allowed, and the bottle is no longer one of the sheet's rows: the notice says so.
+  const before = await rowsShown();
+  await cell(page, row, status).click();
+  await page.keyboard.press("Enter");
+  await sheet(page).locator("select").selectOption({ label: "Sold" });
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/is now sold, so it is no longer listed here/)).toBeVisible();
+  await expect.poll(rowsShown, { timeout: 10_000 }).toBe(before - 1);
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.getByText(/no longer listed here/)).toHaveCount(0);
+});
+
+test("Opened is ticked with Space, Favorite likewise, and a date killed before it was opened is refused", async ({ page }) => {
+  await showColumns(page, "Opened", "Favorite", "Date Opened", "Date Killed");
+  const [opened, fav, dateOpened, dateKilled] = [await col(page, "Opened"), await col(page, "Favorite"), await col(page, "Date Opened"), await col(page, "Date Killed")];
+  const row = 6;
+  await cell(page, row, fav).click();
+  await page.keyboard.press("Space");
+  await expect(cell(page, row, fav)).toHaveText("Yes");
+  await cell(page, row, opened).click();
+  await page.keyboard.press("Space");
+  await expect(cell(page, row, opened)).toHaveText("Yes");
+  await reloaded(page);
+  await expect(cell(page, row, fav)).toHaveText("Yes");
+  await expect(cell(page, row, opened)).toHaveText("Yes");
+  await expect(cell(page, row, dateOpened)).not.toHaveText("—"); // stamped
+
+  await cell(page, row, dateOpened).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("03012026");
+  await page.keyboard.press("Enter");
+  await cell(page, row, dateKilled).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("02012026");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/Killed before it was opened/).first()).toBeVisible();
 });

@@ -5,7 +5,7 @@ import { categoryKinds } from "@/lib/expressions/rules";
 import type { CellEditor } from "../editors";
 import { EDITORS } from "../editors";
 import { GENERATED_BOTTLE, GENERATED_LABEL, type Kinds } from "../fields";
-import { serverFields } from "../save";
+import { bottlePatchBody, serverFields } from "../save";
 import type { SheetBottle, SheetLabel, SheetRow } from "../sheet";
 
 vi.mock("server-only", () => ({}));
@@ -127,7 +127,7 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
         const bottle = await fx.mkBottle(owner, label);
         await m.sql(`UPDATE bottles SET is_single_barrel = true, is_single_barrel_pick = true WHERE id = $1`, bottle);
         const value = await valueFor(g.editor, label);
-        const out = await rows.patchBottleRow(owner, bottle, serverFields(g.editor, g.column.id, value));
+        const out = await rows.patchBottleRow(owner, bottle, bottlePatchBody({ [g.column.id]: value }, undefined));
         expect(out, JSON.stringify(out)).toEqual({ ok: true });
         const row = await one(`SELECT to_jsonb(b) AS j FROM bottles b WHERE id = $1`, bottle);
         const got = (row.j as Record<string, unknown>)[snake(g.editor.field)];
@@ -157,9 +157,9 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
         if (spirit.group === "gin") await m.sql(`UPDATE expressions SET is_aged_gin = true WHERE id = $1`, label);
         const bottle = await fx.mkBottle(owner, label);
         await m.sql(`UPDATE bottles SET is_single_barrel = true, is_single_barrel_pick = true WHERE id = $1`, bottle);
-        expect(await rows.patchBottleRow(owner, bottle, serverFields(g.editor, g.column.id, await valueFor(g.editor, label)))).toEqual({ ok: true });
+        expect(await rows.patchBottleRow(owner, bottle, bottlePatchBody({ [g.column.id]: await valueFor(g.editor, label) }, undefined))).toEqual({ ok: true });
         const blank = g.editor.spec.kind === "checkbox" ? "false" : "";
-        const out = await rows.patchBottleRow(owner, bottle, serverFields(g.editor, g.column.id, blank));
+        const out = await rows.patchBottleRow(owner, bottle, bottlePatchBody({ [g.column.id]: blank }, undefined));
         expect(out, JSON.stringify(out)).toEqual({ ok: true });
         const j = ((await one(`SELECT to_jsonb(b) AS j FROM bottles b WHERE id = $1`, bottle)).j as Record<string, unknown>)[snake(g.editor.field)];
         expect(j === null || j === false || j === "", `${g.editor.field} is still ${stored(j)}`).toBe(true);

@@ -1,5 +1,5 @@
 import type { FieldSpec } from "@/lib/admin/types";
-import { BOTTLE_SECTIONS } from "@/lib/expressions/bottle-fields";
+import { BOTTLE_SECTIONS, BOTTLE_STATE_SECTION } from "@/lib/expressions/bottle-fields";
 import { bottleFieldNotUsed } from "@/lib/expressions/bottle-applicability";
 import { LABEL_COLUMN_GROUPS } from "@/lib/expressions/columns";
 import { EXPRESSION_SECTIONS, fieldVisible, sectionVisible, type FormSection } from "@/lib/expressions/fields";
@@ -32,12 +32,6 @@ export const NOT_HERE: Readonly<Record<string, string>> = {
   categoryId: "Category cell (a new label's; a saved label's is parity step 6, #340)",
   expressionId: "Moving a bottle: the Brand and Label cells",
   // Later steps.
-  status: "#337",
-  fillPct: "#337",
-  isOpen: "#337",
-  dateOpened: "#337",
-  dateKilled: "#337",
-  isFavorite: "#337",
   ageYears: "#338",
   ageMonths: "#338",
   ageDays: "#338",
@@ -127,6 +121,8 @@ function editorFrom(spec: Simple, id: string, scope: "label" | "bottle", read: (
     scope,
     spec: chosen,
     ...(required ? { required: true } : {}),
+    // When it was opened or killed has already happened.
+    ...(spec.kind === "date" && (spec.name === "dateOpened" || spec.name === "dateKilled") ? { pastOnly: true } : {}),
     applies,
     typeToReplace: chosen.kind === "text" || chosen.kind === "number" || chosen.kind === "textarea",
     initial: (row) => textOf(chosen, read(row)),
@@ -244,7 +240,7 @@ function generatedLabelColumns(): Generated[] {
 // --- the bottle's ---
 
 /** Bottle fields made by hand elsewhere, or covered by a composite cell. */
-const HAND_MADE_BOTTLE = new Set(["storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName", "isSingleBarrel", "isSingleBarrelPick"]);
+const HAND_MADE_BOTTLE = new Set(["status", "storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName", "isSingleBarrel", "isSingleBarrelPick"]);
 /** A bottle's field of the same name as a label's (its own value, overriding the label's) gets its own column id. */
 const BOTTLE_ID: Readonly<Record<string, string>> = {
   bottleCount: "releaseBottleCount",
@@ -262,7 +258,7 @@ const BOTTLE_HEADER: Readonly<Record<string, string>> = {
 
 function generatedBottleColumns(): Generated[] {
   const out: Generated[] = [];
-  for (const section of BOTTLE_SECTIONS) {
+  for (const section of [...BOTTLE_SECTIONS, BOTTLE_STATE_SECTION]) {
     for (const spec of section.fields) {
       if (HAND_MADE_BOTTLE.has(spec.name) || spec.name in NOT_HERE) continue;
       const id = BOTTLE_ID[spec.name] ?? spec.name;

@@ -4,6 +4,7 @@ import { bottles, expressionNames, expressionReleases, expressions, stores, tast
 import type { z } from "zod";
 import { fillUpdate } from "./fill-rules";
 import { openedUpdate, type OpenedChoice } from "./opened-rules";
+import { openFlagUpdate, statusUpdate } from "./status-rules";
 import { movesHistory } from "./relabel";
 import type { tastingNoteSchema } from "@/lib/expressions/schema";
 import { bottleSpiritForExpression } from "@/lib/expressions/queries";
@@ -51,10 +52,14 @@ export type BottleColumns = Partial<
     | "expressionId" | "expressionNameId" | "releaseId" | "acquisition"
     | "isSingleBarrel" | "isSingleBarrelPick" | "pickedBy" | "warehouse" | "rickFloor" | "bottleCount"
     | "sizeMl" | "proof" | "ageYears" | "ageMonths" | "ageDays" | "ageStatement" | "tequilaClass" | "brandyGrade"
-    | "ginIsNas"
+    | "ginIsNas" | "dateKilled" | "isFavorite"
   >
 >;
-export type BottlePatch = { fillPct?: number; dateOpened?: string | null; ifOpenedCleared?: OpenedChoice; columns?: BottleColumns };
+/**
+ * `status` and `isOpen` are the bulk editor's: a typed status and the Opened tick, each held to the rules in
+ * `status-rules.ts` against the bottle as the rest of this patch leaves it. The phone's request cannot send them.
+ */
+export type BottlePatch = { fillPct?: number; dateOpened?: string | null; ifOpenedCleared?: OpenedChoice; status?: string; isOpen?: boolean; columns?: BottleColumns };
 export type BottleUpdate =
   | { ok: true; result: FillResult }
   | { ok: false; code: "opened_cleared" | "invalid"; message: string; field?: string };
@@ -131,6 +136,27 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
         return { ok: false, code: "invalid", message: "Marking it sealed sets the level to full.", field: "fillPct" };
       }
       Object.assign(set, opened.set);
+    }
+    // The open flag, then a typed status, are judged against the bottle as everything above leaves it.
+    const left = () => ({ ...current, ...set }) as typeof current;
+    if (patch.isOpen !== undefined) {
+      if (patch.dateOpened !== undefined) {
+        if (patch.isOpen === false && patch.dateOpened !== null) return { ok: false, code: "invalid", message: "Opened is off, but a date opened was given.", field: "isOpen" };
+      } else {
+        const flag = openFlagUpdate(left(), patch.isOpen, today);
+        if (!flag.ok) return { ok: false, code: "invalid", message: flag.message, field: "isOpen" };
+        Object.assign(set, flag.set);
+      }
+    }
+    if (patch.status !== undefined) {
+      const next = statusUpdate(left(), patch.status, today);
+      if (!next.ok) return { ok: false, code: "invalid", message: next.message, field: "status" };
+      Object.assign(set, next.set);
+    }
+    if (columns.dateKilled) {
+      const opened = (set.dateOpened as string | null | undefined) === undefined ? current.dateOpened : (set.dateOpened as string | null);
+      if (columns.dateKilled > today) return { ok: false, code: "invalid", message: "That date is in the future.", field: "dateKilled" };
+      if (opened && columns.dateKilled < opened) return { ok: false, code: "invalid", message: "Killed before it was opened — check these dates.", field: "dateKilled" };
     }
     Object.assign(set, columns);
 
