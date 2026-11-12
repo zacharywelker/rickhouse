@@ -285,6 +285,7 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       ginStyle: expressions.ginStyle,
       isAgedGin: expressions.isAgedGin,
       cooperageId: expressions.cooperageId,
+      ageYearsSource: expressions.ageYearsSource,
       isAged: expressions.isAged,
       amaroStyle: expressions.amaroStyle,
       peatStatus: expressions.peatStatus,
@@ -447,6 +448,9 @@ export type ExpressionRow = {
   ageStatement: string | null;
   /** Who made the casks, when known. */
   cooperageId?: number | null;
+  /** Whether the age in years was typed or worked out from the age statement (whiskey). */
+  ageYearsSource?: "entered" | "derived";
+  isAgedGin?: boolean;
   isAged?: boolean;
   amaroStyle?: string | null;
   peatStatus?: string;

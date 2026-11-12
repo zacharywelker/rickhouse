@@ -1,4 +1,5 @@
-import { editKey } from "./changes";
+import { ageSummary, ownAgeSummary } from "./age";
+import { applyEdits, editKey } from "./changes";
 import { EDITORS, type Edits } from "./editors";
 import { SHEET_COLUMNS, type SheetContext, type SheetPhoto, type SheetRow, type SheetView } from "./sheet";
 
@@ -40,7 +41,7 @@ const LABEL_FACTS = [
   { id: "sizeMl", own: "ownSize" },
   { id: "proof", own: "ownProof" },
   { id: "designation" },
-  { id: "age", own: "ownAge" },
+  { id: "age", own: "ownAge" }, // not columns: the age reads as one value here (see `ageSummary`)
   { id: "distilleries" },
   { id: "mashbills" },
   { id: "finishes" },
@@ -60,12 +61,16 @@ const MAX_BLANK = 4;
 export function railFor(row: SheetRow, ctx: SheetContext, view: SheetView, edits: Edits, photo: SheetPhoto | null): Rail {
   /** A column's cell for this row, with an edit not yet read back shown in place of the saved value. */
   const cellOf = (id: string) => {
+    if (id === "age") return ageSummary(applied.label, ctx.kinds);
+    if (id === "ownAge") return ownAgeSummary(applied, ctx.kinds);
     const editor = EDITORS[id];
     const typed = editor ? edits[editKey(row, editor)]?.[id] : undefined;
     return typed !== undefined && editor ? editor.display(typed, ctx, row) : column(id).cell(row, ctx);
   };
 
   const onBottle = row.bottle !== null && view.bottles;
+  /** The row as it stands with what has been typed but not yet read back, for the age (four cells that read as one value). */
+  const applied = applyEdits([row], edits)[0]!;
   const facts: RailFact[] = [];
   const empty = new Set<string>();
 
@@ -79,7 +84,7 @@ export function railFor(row: SheetRow, ctx: SheetContext, view: SheetView, edits
       empty.add(fact.id);
       continue;
     }
-    facts.push({ label: column(fact.id).label, value: cell.text, source: useOwn ? "own" : "label", ...(useOwn && !isBlank(labelCell.text) ? { alongside: labelCell.text } : {}) });
+    facts.push({ label: fact.id === "age" ? "Age" : column(fact.id).label, value: cell.text, source: useOwn ? "own" : "label", ...(useOwn && !isBlank(labelCell.text) ? { alongside: labelCell.text } : {}) });
   }
   if (onBottle) {
     for (const id of BOTTLE_FACTS) {

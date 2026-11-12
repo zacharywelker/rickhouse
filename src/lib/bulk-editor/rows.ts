@@ -18,7 +18,9 @@ import { categoryKindsById } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { expressionSchema } from "@/lib/expressions/schema";
 import { fieldErrorsOf, flavorMissing, labelValues, LabelRejected, linksFrom, writeLabel, type Tx } from "@/lib/expressions/save";
+import { derivedAge } from "./age-derive";
 import { ensureCooperage, ensureStore, takeBack } from "./reference-rows";
+import { fieldGroupForCategory } from "@/lib/expressions/queries";
 
 /**
  * The server half of the bulk editor, one row at a time, in the signed-in account (`ownerId`). A row is a label, a
@@ -144,6 +146,9 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
   const cooperageNamed = labelFacts ? takeName(labelFacts, "cooperageName", "cooperageId") : {};
   if (cooperageNamed.failure) return cooperageNamed.failure;
 
+  // A whiskey's age statement fills the years in, as the forms do (and an entered age is never replaced).
+  if (labelFacts && "name" in label) Object.assign(labelFacts, derivedAge(null, labelFacts, (await fieldGroupForCategory(label.categoryId)) === "whiskey"));
+
   // Everything that can be checked without writing is checked first.
   let links: ReturnType<typeof linksFrom> | null = null;
   if ("name" in label) {
@@ -201,6 +206,8 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
       // The bottle.
       let bottleId: number | null = null;
       if (bottleBody) {
+        const [group] = await tx.select({ group: categories.fieldGroup }).from(expressions).innerJoin(categories, eq(categories.id, expressions.categoryId)).where(eq(expressions.id, labelId)).limit(1);
+        Object.assign(bottleBody, derivedAge(null, bottleBody, group?.group === "whiskey"));
         if (storeNamed.name !== undefined) bottleBody.storeId = (await ensureStore(tx, ownerId, storeNamed.name)).id;
         const made = await newBottleValues(bottleBody, labelId, spirit);
         if (!made.ok) throw new Rejected(failure("invalid", made.error, made.fieldErrors));
@@ -320,6 +327,21 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
       delete body.expressionNameId;
     }
   }
+  let source: "entered" | "derived" | undefined;
+  if (isRecord(body) && ["ageYears", "ageMonths", "ageDays", "ageStatement"].some((key) => key in body)) {
+    const [current] = await db
+      .select({ ageYears: bottles.ageYears, ageMonths: bottles.ageMonths, ageDays: bottles.ageDays, ageStatement: bottles.ageStatement, ageYearsSource: bottles.ageYearsSource, group: categories.fieldGroup })
+      .from(bottles)
+      .innerJoin(expressions, eq(expressions.id, bottles.expressionId))
+      .innerJoin(categories, eq(categories.id, expressions.categoryId))
+      .where(and(eq(bottles.id, bottleId), eq(bottles.ownerId, ownerId)))
+      .limit(1);
+    if (current) {
+      const { ageYearsSource, ...more } = derivedAge(current, { ...body }, current.group === "whiskey");
+      Object.assign(body, more);
+      source = ageYearsSource as typeof source;
+    }
+  }
   const made: { store?: number } = {};
   try {
     if (named !== undefined && isRecord(body)) {
@@ -337,7 +359,7 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
       fillPct, dateOpened, ifOpenedCleared,
       ...(status !== undefined ? { status } : {}),
       ...(isOpen !== undefined ? { isOpen } : {}),
-      columns: { ...columns, ...own, ...(version !== undefined ? { expressionNameId: version } : {}) },
+      columns: { ...columns, ...own, ...(version !== undefined ? { expressionNameId: version } : {}), ...(source !== undefined ? { ageYearsSource: source } : {}) },
     });
     if (!outcome) return await undo(made, failure("gone", "That bottle is gone."));
     if (!outcome.ok) {
@@ -372,6 +394,15 @@ export async function patchLabelRow(ownerId: number, labelId: number, raw: unkno
     named = cooperage.name;
   }
   const made: { cooperage?: number } = {};
+  if (isRecord(body) && ["ageYears", "ageMonths", "ageDays", "ageStatement"].some((key) => key in body)) {
+    const [current] = await db
+      .select({ ageYears: expressions.ageYears, ageMonths: expressions.ageMonths, ageDays: expressions.ageDays, ageStatement: expressions.ageStatement, ageYearsSource: expressions.ageYearsSource, group: categories.fieldGroup })
+      .from(expressions)
+      .innerJoin(categories, eq(categories.id, expressions.categoryId))
+      .where(and(eq(expressions.id, labelId), eq(expressions.ownerId, ownerId)))
+      .limit(1);
+    if (current) Object.assign(body, derivedAge(current, { ...body }, current.group === "whiskey"));
+  }
   if (named !== undefined && isRecord(body)) {
     const cooperage = await db.transaction((tx) => ensureCooperage(tx, ownerId, named!));
     body.cooperageId = cooperage.id;

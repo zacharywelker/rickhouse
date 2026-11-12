@@ -32,10 +32,6 @@ export const NOT_HERE: Readonly<Record<string, string>> = {
   categoryId: "Category cell (a new label's; a saved label's is parity step 6, #340)",
   expressionId: "Moving a bottle: the Brand and Label cells",
   // Later steps.
-  ageYears: "#338",
-  ageMonths: "#338",
-  ageDays: "#338",
-  ageStatement: "#338",
   regions: "#340",
   // Deliberately not in the sheet.
   slug: "A system field, made from the name",
@@ -43,7 +39,7 @@ export const NOT_HERE: Readonly<Record<string, string>> = {
 
 export type Kinds = Readonly<Record<number, import("@/lib/expressions/rules").CategoryKind>>;
 
-type Simple = Exclude<FieldSpec, { kind: "reference" }>;
+export type Simple = Exclude<FieldSpec, { kind: "reference" }>;
 const isSimple = (spec: FieldSpec): spec is Simple => spec.kind !== "reference";
 
 // ---------------------------------------------------------------------------
@@ -112,7 +108,7 @@ function bottleFieldReason(spec: FieldSpec, section: FormSection | undefined, ro
 // The editors
 // ---------------------------------------------------------------------------
 
-function editorFrom(spec: Simple, id: string, scope: "label" | "bottle", read: (row: SheetRow) => unknown, applies: (row: SheetRow, kinds: Kinds) => boolean): CellEditor {
+export function editorFrom(spec: Simple, id: string, scope: "label" | "bottle", read: (row: SheetRow) => unknown, applies: (row: SheetRow, kinds: Kinds) => boolean): CellEditor {
   const chosen = asChoice(spec);
   const required = chosen.kind === "select" && !chosen.options.some((o) => o.value === "");
   return {
@@ -202,7 +198,7 @@ function referenceColumn(spec: FieldSpec, id: string, label: string, group: "lab
 // --- the label's ---
 
 /** Columns that are made by hand elsewhere, or are not a single simple field. */
-const HAND_MADE_LABEL = new Set(["brand", "name", "category", "proof", "sizeMl", "msrp", "age", "abv", "strength", "distilleries", "mashbills", "ingredients", "finishes", "bottles"]);
+const HAND_MADE_LABEL = new Set(["brand", "name", "category", "proof", "sizeMl", "msrp", "age", "ageStatement", "abv", "strength", "distilleries", "mashbills", "ingredients", "finishes", "bottles"]);
 /** The two flags the Cask / Bonded cell sets together. */
 const IN_DESIGNATION = new Set(["isCaskStrength", "isBottledInBond"]);
 
@@ -240,7 +236,7 @@ function generatedLabelColumns(): Generated[] {
 // --- the bottle's ---
 
 /** Bottle fields made by hand elsewhere, or covered by a composite cell. */
-const HAND_MADE_BOTTLE = new Set(["status", "storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName", "isSingleBarrel", "isSingleBarrelPick"]);
+const HAND_MADE_BOTTLE = new Set(["ageYears", "ageMonths", "ageDays", "ageStatement", "status", "storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName", "isSingleBarrel", "isSingleBarrelPick"]);
 /** A bottle's field of the same name as a label's (its own value, overriding the label's) gets its own column id. */
 const BOTTLE_ID: Readonly<Record<string, string>> = {
   bottleCount: "releaseBottleCount",

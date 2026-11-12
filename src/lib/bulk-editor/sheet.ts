@@ -1,9 +1,8 @@
-import { describeAgeParts } from "@/lib/expressions/display";
 import { describeLinks } from "@/lib/expressions/links";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
-import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
+import { BOTTLE_AGE, LABEL_AGE } from "./age";
 import { designationEditor, GENERATED_BOTTLE, GENERATED_LABEL, singleBarrelEditor } from "./fields";
 
 /**
@@ -39,6 +38,7 @@ export type SheetBottle = {
   ageMonths: number | null;
   ageDays: number | null;
   ageStatement: string | null;
+  ageYearsSource: "entered" | "derived";
   /** The rest of what a bottle can say that the sheet edits: where it came from, which release, the barrel. */
   acquisition: string;
   batch: string | null;
@@ -87,6 +87,8 @@ export type Cell = {
   muted?: boolean;
   /** A small tag after the text: "new" on a brand or label that does not exist yet. */
   badge?: string;
+  /** Worked out, not stored (an age a designation implies): drawn in italics, with `note` as its reason. */
+  inferred?: boolean;
 };
 
 export type SheetColumn = {
@@ -101,6 +103,14 @@ export type SheetColumn = {
   always?: boolean;
   /** The form section it belongs to ("Rum detail", "Release"…): the Fields picker groups by it. */
   section?: string;
+  /** A caption over this column and its neighbours that share it (the three age boxes under "Age"). */
+  band?: string;
+  /** A narrow column, in pixels. */
+  width?: number;
+  /** Shown and hidden with this other column, and not offered in the Fields picker on its own. */
+  with?: string;
+  /** What the Sort control calls it, when its own label is only a letter. */
+  sortLabel?: string;
   /** Hidden until switched on in the Fields picker. */
   defaultHidden?: boolean;
   /** Only when the sheet is one row per label. */
@@ -110,14 +120,6 @@ export type SheetColumn = {
 
 const DASH: Cell = { text: "—", muted: true };
 const text = (value: string | null | undefined): Cell => (value ? { text: value } : DASH);
-
-/** A label's age as the Labels table shows it. */
-function labelAge(label: SheetLabel, kinds: Record<number, CategoryKind>): Cell {
-  const { fieldGroup } = label;
-  if (fieldGroup === "vodka" || ((fieldGroup === "amaro" || fieldGroup === "liqueur") && !label.isAged)) return DASH;
-  if (fieldGroup === "whiskey") return text(whiskeyAge(label, kinds[label.categoryId] ?? "other").text);
-  return text(describeAgeParts(label.ageYears, label.ageMonths, label.ageDays) ?? label.ageStatement ?? (label.isNas ? "NAS" : label.isStraight ? "Straight" : null));
-}
 
 const NO_MASHBILL = new Set(["rum", "agave", "brandy", "gin", "vodka", "amaro", "liqueur"]);
 
@@ -149,7 +151,6 @@ const BY_HAND: ReadonlyArray<SheetColumn> = [
     group: "label",
     cell: (r, c) => (DESIGNATION.applies?.(r, c.kinds) === false ? { text: "—", muted: true, note: "Not used for this spirit" } : DESIGNATION.display(DESIGNATION.initial(r), c, r)),
   },
-  { id: "age", label: "Age", group: "label", cell: (r, c) => labelAge(r.label, c.kinds) },
   { id: "distilleries", label: "Distillery", group: "label", cell: (r) => text(describeLinks("distilleries", r.label.links.distilleries)) },
   {
     id: "mashbills",
@@ -184,17 +185,6 @@ const BY_HAND: ReadonlyArray<SheetColumn> = [
     cell: (r) => own(r.bottle?.proof == null ? null : { text: formatNumeric(r.bottle.proof) }, r.label.proof === null ? DASH : { text: formatNumeric(r.label.proof) }),
   },
   {
-    id: "ownAge",
-    label: "This bottle's age",
-    group: "bottle",
-    defaultHidden: true,
-    cell: (r, c) => {
-      const b = r.bottle;
-      const mine = b ? (describeAgeParts(b.ageYears, b.ageMonths, b.ageDays) ?? b.ageStatement) : null;
-      return own(mine ? { text: mine } : null, labelAge(r.label, c.kinds));
-    },
-  },
-  {
     id: "ownSize",
     label: "This bottle's size",
     group: "bottle",
@@ -208,12 +198,17 @@ const BY_HAND: ReadonlyArray<SheetColumn> = [
  * Every column. The label's, then the bottle's own, since the sheet draws each group together under its own caption.
  * Past the hand-made ones come the columns made from the forms' fields (`fields.ts`), all of them hidden until switched on.
  */
-export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = [
-  ...BY_HAND.filter((c) => c.group === "label"),
-  ...GENERATED_LABEL.map((g) => g.column),
-  ...BY_HAND.filter((c) => c.group === "bottle"),
-  ...GENERATED_BOTTLE.map((g) => g.column),
-];
+export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = (() => {
+  // The age boxes sit where the Age column was: after Cask / BiB, and after the bottle's own proof.
+  const after = (list: SheetColumn[], id: string, add: ReadonlyArray<SheetColumn>) => {
+    const at = list.findIndex((c) => c.id === id);
+    list.splice(at + 1, 0, ...add);
+    return list;
+  };
+  const label = after(BY_HAND.filter((c) => c.group === "label"), "designation", LABEL_AGE.map((g) => g.column));
+  const bottle = after(BY_HAND.filter((c) => c.group === "bottle"), "ownProof", BOTTLE_AGE.map((g) => g.column));
+  return [...label, ...GENERATED_LABEL.map((g) => g.column), ...bottle, ...GENERATED_BOTTLE.map((g) => g.column)];
+})();
 
 /** The ids the Fields picker starts with switched off. */
 export const DEFAULT_HIDDEN: ReadonlySet<string> = new Set(SHEET_COLUMNS.filter((c) => c.defaultHidden).map((c) => c.id));
@@ -234,7 +229,7 @@ export function columnsFor(view: SheetView, hidden: ReadonlySet<string>): SheetC
   return SHEET_COLUMNS.filter((column) => {
     if (column.identity) return true;
     if (column.always) return column.group === "label" ? view.labels : view.bottles;
-    if (hidden.has(column.id)) return false;
+    if (hidden.has(column.with ?? column.id)) return false;
     if (column.group === "label") return view.labels && (!column.labelsOnly || !view.bottles);
     return view.bottles;
   });

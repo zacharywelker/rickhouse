@@ -482,7 +482,7 @@ test("a range filter narrows the sheet, the panel says how many are set, and Cle
 });
 
 test("age, distillery, mashbill and finish can be sorted, each starting ascending", async ({ page }) => {
-  for (const [column, header] of [["age", "Age"], ["distilleries", "Distillery"], ["mashbills", "Mashbill"], ["finishes", "Finish"]] as const) {
+  for (const [column, header] of [["ageYears", "Y"], ["distilleries", "Distillery"], ["mashbills", "Mashbill"], ["finishes", "Finish"]] as const) {
     await page.getByLabel("Sort by").selectOption(column);
     const sorted = sheet(page).locator("th[aria-sort]");
     await expect(sorted).toHaveCount(1);
@@ -999,4 +999,116 @@ test("Opened is ticked with Space, Favorite likewise, and a date killed before i
   await page.keyboard.type("02012026");
   await page.keyboard.press("Enter");
   await expect(page.getByText(/Killed before it was opened/).first()).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// Age: Y, M and D side by side, and the statement beside them
+// ---------------------------------------------------------------------------
+
+/** After a reload the page is not interactive until it has hydrated: a cell is selected once it has. */
+async function select(page: Page, row: number, column: number) {
+  await expect(async () => {
+    await cell(page, row, column).click();
+    await expect(cell(page, row, column)).toHaveAttribute("aria-selected", "true", { timeout: 500 });
+  }).toPass();
+}
+async function type(page: Page, row: number, column: number, text: string) {
+  await select(page, row, column);
+  await page.keyboard.type(text);
+  await page.keyboard.press("Enter");
+}
+
+test("Y, M and D are three narrow boxes under one Age caption, with the statement as the next column", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const headers = (await sheet(page).locator("thead tr:last-child th").allTextContents()).map((t) => t.trim());
+  const y = headers.indexOf("Y");
+  expect(headers.slice(y, y + 4)).toEqual(["Y", "M", "D", "Age statement"]);
+  await expect(sheet(page).locator("thead tr").nth(1)).toContainText("Age");
+  // They cannot be taken out of the Fields picker one by one, and there is no combined Age column.
+  expect(headers).not.toContain("Age");
+  await fieldsButton(page).click();
+  await expect(page.getByRole("group", { name: "Label", exact: true }).getByLabel("Age", { exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+});
+
+test("years, months and days are typed in their own boxes, save, and clear with Delete", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const [y, m, d] = [await col(page, "Y"), await col(page, "M"), await col(page, "D")];
+  await type(page, 0, y, "12");
+  await expect(cell(page, 0, y)).toHaveText("12");
+  await type(page, 0, m, "6");
+  await expect(cell(page, 0, m)).toHaveText("6");
+  await reloaded(page);
+  await expect(cell(page, 0, y)).toHaveText("12");
+  await expect(cell(page, 0, m)).toHaveText("6");
+  await expect(cell(page, 0, d)).toHaveText("—");
+  // A box that is not a number stays open and says why.
+  await select(page, 0, y);
+  await page.keyboard.type("12.55");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Use at most one decimal.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await select(page, 0, m);
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 0, m)).toHaveText("—");
+});
+
+test("an entered age locks the statement until it is triple-clicked; a statement fills the years in without locking them", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const [y, statement] = [await col(page, "Y"), await col(page, "Age statement")];
+  // Row 1: an age is entered, so the statement is locked.
+  await type(page, 1, y, "9");
+  await expect(cell(page, 1, statement)).toHaveAttribute("aria-readonly", "true");
+  await select(page, 1, statement);
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(0);
+  await cell(page, 1, statement).click({ clickCount: 3 });
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1);
+  await page.keyboard.type("Old Number Nine");
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+  await expect(cell(page, 1, statement)).toHaveText("Old Number Nine");
+  await expect(cell(page, 1, y)).toHaveText("9"); // the entered age is not replaced
+
+  // Row 2: a statement alone fills the years in, and they stay editable.
+  await type(page, 2, statement, "8 to 12 years");
+  await expect(cell(page, 2, y)).toHaveText("8");
+  await reloaded(page);
+  await expect(cell(page, 2, y)).toHaveText("8");
+  await expect(cell(page, 2, statement)).toHaveText("8 to 12 years");
+  await type(page, 2, y, "10");
+  await expect(cell(page, 2, y)).toHaveText("10");
+});
+
+test("a block of cells is selected with Shift and the arrows and cleared with Delete", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const [y, m, d] = [await col(page, "Y"), await col(page, "M"), await col(page, "D")];
+  for (const [r, c, v] of [[3, y, "5"], [3, m, "2"], [4, y, "6"], [4, d, "9"]] as const) await type(page, r, c, v);
+  await reloaded(page);
+  await select(page, 3, y);
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(cell(page, 4, d)).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Delete");
+  await expect(page.getByText(/Cleared 4 cells/)).toBeVisible();
+  for (const [r, c] of [[3, y], [3, m], [4, y], [4, d]] as const) await expect(cell(page, r, c)).toHaveText("—");
+  await reloaded(page);
+  for (const [r, c] of [[3, y], [3, m], [4, y], [4, d]] as const) await expect(cell(page, r, c)).toHaveText("—");
+});
+
+test("a bottle's own age is three boxes that show the label's in grey, and blank goes back to it", async ({ page }) => {
+  await showColumns(page, "This bottle's age");
+  const headers = (await sheet(page).locator("thead tr:last-child th").allTextContents()).map((t) => t.trim());
+  const own = headers.lastIndexOf("Y");
+  expect(headers.slice(own, own + 3)).toEqual(["Y", "M", "D"]);
+  await type(page, 5, own, "7");
+  await expect(cell(page, 5, own)).toHaveText("7");
+  await reloaded(page);
+  await expect(cell(page, 5, own)).toHaveText("7");
+  await select(page, 5, own);
+  await page.keyboard.press("Delete");
+  await reloaded(page);
+  await expect(cell(page, 5, own)).not.toHaveText("7");
 });

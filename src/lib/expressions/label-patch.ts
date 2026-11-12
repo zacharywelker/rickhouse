@@ -180,6 +180,9 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
         if (facts.tequilaClass === "blanco") { columns.ageYears = null; columns.ageMonths = null; columns.ageDays = null; }
       }
       if (BRANDY_MINIMUM_YEARS[kind] && facts.brandyGrade !== undefined) columns.ageStatement = facts.brandyGrade;
+      // The sheet's derived-age flag (the forms' `ageYearsSource`): only a whiskey keeps one.
+      const source = (facts as { ageYearsSource?: "entered" | "derived" }).ageYearsSource;
+      if (source !== undefined && (category?.fieldGroup ?? "other") === "whiskey") columns.ageYearsSource = source;
       const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) } as Partial<typeof expressions.$inferInsert>;
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));

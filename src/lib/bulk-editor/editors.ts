@@ -2,6 +2,7 @@ import type { FieldSpec } from "@/lib/admin/types";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
+import { BOTTLE_AGE, LABEL_AGE } from "./age";
 import { designationEditor, GENERATED, singleBarrelEditor, storeEditor, type Kinds } from "./fields";
 import type { RefKind } from "./references";
 import type { Cell, SheetColumn, SheetContext, SheetRow, SheetView } from "./sheet";
@@ -38,6 +39,8 @@ export type CellEditor = {
   applies?: (row: SheetRow, kinds: Kinds) => boolean;
   /** For one cell that sets several form fields from one choice (Cask / Bonded): the fields a value stands for. Otherwise `field` is the one it sets. */
   fieldsOf?: (value: string) => Record<string, boolean | string | null>;
+  /** Why the cell is locked on this row, or null: another cell it excludes is filled in. A locked cell opens with a triple-click, like a label's facts on a bottle row. */
+  lock?: (row: SheetRow, kinds: Kinds) => string | null;
   /** A message when a value is not allowed on this row, which the choice or the form's list alone cannot say. */
   check?: (value: string, row: SheetRow, kinds: Kinds) => string | null;
   /** Typing a character on the selected cell starts an edit that replaces the value. Not for dates: those are typed segment by segment. */
@@ -100,7 +103,7 @@ const BY_HAND: Readonly<Record<string, CellEditor>> = {
 /** Every cell that can be edited, by its column's id: the ones made by hand, the two composites, and one for each simple form field. */
 export const EDITORS: Readonly<Record<string, CellEditor>> = {
   ...BY_HAND,
-  ...Object.fromEntries(GENERATED.map((g) => [g.column.id, g.editor])),
+  ...Object.fromEntries([...GENERATED, ...LABEL_AGE, ...BOTTLE_AGE].map((g) => [g.column.id, g.editor])),
   designation: designationEditor(),
   singleBarrel: singleBarrelEditor(),
   store: storeEditor(),
@@ -110,6 +113,9 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
 export type Unlocked = ReadonlySet<string>;
 export const unlockKey = (labelId: number, column: string): string => `${labelId}:${column}`;
 const NOTHING_UNLOCKED: Unlocked = new Set();
+
+/** What opens a locked cell: the bottle for a bottle's own cell (its own age), otherwise the label. */
+export const lockKeyOf = (editor: CellEditor, row: SheetRow, column: string): string => unlockKey(editor.scope === "bottle" ? -(row.bottle?.id ?? 0) : row.label.id, column);
 
 /** Renaming a label, in the Labels-only view: typed text, since it is the label's own name and not a choice among others. */
 const NAME_TEXT: CellEditor = { column: "name", field: "name", scope: "label", spec: labelSpec("name"), required: true, typeToReplace: true, initial: (r) => r.label.name, display: (v) => text(v) };
@@ -121,10 +127,14 @@ const NAME_TEXT: CellEditor = { column: "name", field: "name", scope: "label", s
  */
 export function isLocked(column: SheetColumn, view: SheetView, row: SheetRow, unlocked: Unlocked = NOTHING_UNLOCKED, kinds: Kinds = {}): boolean {
   const editor = EDITORS[column.id];
-  if (!editor || editor.combo || editor.scope !== "label" || row.draft || !row.bottle) return false;
+  if (!editor || editor.combo) return false;
   // A cell that is not used for this spirit has nothing to unlock.
   if (editor.applies?.(row, kinds) === false) return false;
-  return view.labels && view.bottles && !unlocked.has(unlockKey(row.label.id, column.id));
+  if (unlocked.has(lockKeyOf(editor, row, column.id))) return false;
+  // Another cell it excludes is filled in (the age and its statement).
+  if (editor.lock?.(row, kinds) != null) return true;
+  if (editor.scope !== "label" || row.draft || !row.bottle) return false;
+  return view.labels && view.bottles;
 }
 
 /**
@@ -141,6 +151,7 @@ export function isLocked(column: SheetColumn, view: SheetView, row: SheetRow, un
 export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow, unlocked: Unlocked = NOTHING_UNLOCKED, kinds: Kinds = {}): CellEditor | null {
   const editor = EDITORS[column.id];
   if (!editor || editor.applies?.(row, kinds) === false) return null;
+  if (editor.lock?.(row, kinds) != null && !unlocked.has(lockKeyOf(editor, row, column.id))) return null;
   const draft = row.draft;
   if (editor.combo) {
     if (!draft) {
@@ -157,7 +168,7 @@ export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow, u
   if (draft?.labelChosen && !draft.labelIsNew) return null;
   if (!view.bottles) return editor;
   if (draft) return draft.labelChosen ? editor : null;
-  return view.labels && unlocked.has(unlockKey(row.label.id, column.id)) ? editor : null;
+  return view.labels && unlocked.has(lockKeyOf(editor, row, column.id)) ? editor : null;
 }
 
 export type Parsed = { ok: true; value: string } | { ok: false; message: string };

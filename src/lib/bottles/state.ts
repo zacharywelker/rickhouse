@@ -52,7 +52,7 @@ export type BottleColumns = Partial<
     | "expressionId" | "expressionNameId" | "releaseId" | "acquisition"
     | "isSingleBarrel" | "isSingleBarrelPick" | "pickedBy" | "warehouse" | "rickFloor" | "bottleCount"
     | "sizeMl" | "proof" | "ageYears" | "ageMonths" | "ageDays" | "ageStatement" | "tequilaClass" | "brandyGrade"
-    | "ginIsNas" | "dateKilled" | "isFavorite"
+    | "ginIsNas" | "dateKilled" | "isFavorite" | "ageYearsSource"
   >
 >;
 /**
