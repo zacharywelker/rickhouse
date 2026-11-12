@@ -57,6 +57,7 @@ export async function loadSheet(ownerId: number): Promise<{
         ageMonths: bottles.ageMonths,
         ageDays: bottles.ageDays,
         ageStatement: bottles.ageStatement,
+        ageYearsSource: bottles.ageYearsSource,
         acquisition: bottles.acquisition,
         batch: bottles.batch,
         pickedBy: bottles.pickedBy,

@@ -1,3 +1,4 @@
+import { derivedAge, type AgeState } from "./age-derive";
 import { EDITORS, type CellEditor, type Edits } from "./editors";
 import { isYesNoChoice } from "./fields";
 import type { Candidate } from "./suggest";
@@ -77,13 +78,19 @@ export function applyEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRo
     if (!labelCells && !bottleCells) return row;
     let label: unknown = row.label;
     let bottle: unknown = row.bottle;
+    const whiskey = row.label.fieldGroup === "whiskey";
     const put = (cells: Readonly<Record<string, string>> | undefined, scope: "label" | "bottle") => {
+      const changed: Record<string, unknown> = {};
       for (const [column, value] of Object.entries(cells ?? {})) {
         const editor = EDITORS[column];
         if (!editor || editor.combo || editor.reference || editor.scope !== scope) continue;
-        if (scope === "label") label = { ...(label as object), ...rawOf(editor, value) };
-        else bottle = { ...(bottle as object), ...rawOf(editor, value) };
+        Object.assign(changed, rawOf(editor, value));
       }
+      if (Object.keys(changed).length === 0) return;
+      // A whiskey's statement fills the years in, and typed years mark the age entered: what the server will do, shown now.
+      const extra = derivedAge(scope === "label" ? (row.label as AgeState) : (row.bottle as unknown as AgeState), changed, whiskey);
+      if (scope === "label") label = { ...(label as object), ...changed, ...extra };
+      else bottle = { ...(bottle as object), ...changed, ...extra };
     };
     put(labelCells, "label");
     put(bottleCells, "bottle");

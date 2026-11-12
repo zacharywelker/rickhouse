@@ -10,7 +10,7 @@ const label = (id: number, brandId: number, brand: string, name: string, categor
     links: { distilleries: [{ id: 1, label: "Four Roses Distillery", amount: "" }], mashbills: [], finishes: [], ingredients: [], ...over.links },
   }) as unknown as SheetLabel;
 const bottle = (id: number, over: Partial<SheetBottle> = {}) =>
-  ({ id, status: "owned", pricePaid: null, storeName: null, storeId: null, releaseId: null, expressionNameId: null, pickName: null, notes: null, location: null, dateAcquired: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ...over }) as unknown as SheetBottle;
+  ({ id, status: "owned", pricePaid: null, storeName: null, storeId: null, releaseId: null, expressionNameId: null, pickName: null, notes: null, location: null, dateAcquired: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ageYearsSource: "entered", ...over }) as unknown as SheetBottle;
 
 const gin = label(1, 1, "Hendrick's", "Gin", 10, "Gin", "88");
 const bourbon = label(2, 2, "Four Roses", "Single Barrel", 20, "Bourbon", "100");
@@ -189,8 +189,8 @@ describe("sorting the age and link columns", () => {
   const rs: SheetRow[] = [l1, l2, l3].map((l, i) => ({ key: `b${i + 1}`, label: l, bottle: bottle(i + 1) }));
   const base = new Map(rs.map((r) => [r.key, r]));
   it("sorts by age as a number, labels with none last either way", () => {
-    expect(keys(sortRows(rs, { column: "age", desc: false }, base, ctx))).toEqual(["b2", "b1", "b3"]);
-    expect(keys(sortRows(rs, { column: "age", desc: true }, base, ctx))).toEqual(["b1", "b2", "b3"]);
+    expect(keys(sortRows(rs, { column: "ageYears", desc: false }, base, ctx))).toEqual(["b2", "b1", "b3"]);
+    expect(keys(sortRows(rs, { column: "ageYears", desc: true }, base, ctx))).toEqual(["b1", "b2", "b3"]);
   });
   it("sorts by distillery and by finish, by their names, empty last", () => {
     expect(keys(sortRows(rs, { column: "distilleries", desc: false }, base, ctx))).toEqual(["b2", "b1", "b3"]);
@@ -198,7 +198,7 @@ describe("sorting the age and link columns", () => {
     expect(keys(sortRows(rs, { column: "finishes", desc: true }, base, ctx))).toEqual(["b3", "b1", "b2"]);
   });
   it("says these columns can be sorted", () => {
-    for (const id of ["age", "ownAge", "distilleries", "mashbills", "finishes"]) expect(isSortable(id)).toBe(true);
+    for (const id of ["ageYears", "ownAgeYears", "distilleries", "mashbills", "finishes"]) expect(isSortable(id)).toBe(true);
     expect(isSortable("designation")).toBe(false);
   });
 });

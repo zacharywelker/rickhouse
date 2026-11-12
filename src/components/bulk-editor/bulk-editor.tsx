@@ -15,7 +15,7 @@ import {
   type CategoryChoice, type DraftRow,
 } from "@/lib/bulk-editor/drafts";
 import { arrange, editKey, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
-import { EDITORS, editorFor, isLocked, parseCell, setEdit, unlockKey, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
+import { EDITORS, editorFor, isLocked, lockKeyOf, parseCell, setEdit, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
 import { arrowMove, enterMove, tabMove, type ArrowKey, type Moved, type Pos } from "@/lib/bulk-editor/nav";
 import {
   columnsFor,
@@ -145,8 +145,8 @@ const PICKER_GROUPS: ReadonlyArray<PickerGroup> = (["label", "bottle"] as const)
   const columns = SHEET_COLUMNS.filter((c) => c.group === group);
   const sections = [...new Set(columns.flatMap((c) => (c.section ? [c.section] : [])))];
   return [
-    { id: group, title, columns: columns.filter((c) => !c.section).map((c) => ({ id: c.id, label: c.label, locked: c.identity === true || c.always === true })) },
-    ...sections.map((section) => ({ id: `${group}-${section.replace(/\W+/g, "-").toLowerCase()}`, title: `${title}: ${section}`, columns: columns.filter((c) => c.section === section).map((c) => ({ id: c.id, label: c.label })) })),
+    { id: group, title, columns: columns.filter((c) => !c.section && !c.with).map((c) => ({ id: c.id, label: c.band ?? c.label, locked: c.identity === true || c.always === true })) },
+    ...sections.map((section) => ({ id: `${group}-${section.replace(/\W+/g, "-").toLowerCase()}`, title: `${title}: ${section}`, columns: columns.filter((c) => c.section === section && !c.with).map((c) => ({ id: c.id, label: c.band ?? c.label })) })),
   ];
 });
 const PICKER_PRESETS = [
@@ -294,6 +294,9 @@ type RowProps = {
   status: RowStatus | undefined;
   /** The row has just landed in its sorted place: shown for a moment. */
   flash: boolean;
+  /** The columns of this row that are in the selected block (from, to), or -1 when none. */
+  rangeFrom: number;
+  rangeTo: number;
   /** Ticked for deleting. A new row cannot be ticked: it is not saved. */
   selected: boolean;
   onSelect: (key: string) => void;
@@ -312,7 +315,7 @@ type RowProps = {
 };
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, onFinish, onInvalid }: RowProps) {
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, onFinish, onInvalid }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -334,7 +337,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
             key={column.id}
             role="gridcell"
             tabIndex={isActive || (activeCol === -1 && rowIndex === 0 && index === 0) ? 0 : -1}
-            aria-selected={isActive || undefined}
+            aria-selected={isActive || (index >= rangeFrom && index <= rangeTo) || undefined}
             aria-readonly={editor ? undefined : true}
             data-r={rowIndex}
             data-c={index}
@@ -342,18 +345,21 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               "relative h-9 border-b border-border py-0 focus:outline-none",
               column.align === "right" && "text-right",
               cell.muted && "text-muted-foreground",
+              cell.inferred && "italic",
+              column.width && "px-2",
               column.identity && !cell.muted && "font-medium",
               (edited !== undefined || moved) && "bg-muted",
               flash && "bg-muted",
+              index >= rangeFrom && index <= rangeTo && "bg-primary/15",
               locked && "cursor-not-allowed bg-muted/50 text-muted-foreground",
               editor && "cursor-cell",
               isBlocked ? "outline outline-2 -outline-offset-2 outline-destructive" : isActive && !isEditing && "outline outline-2 -outline-offset-2 outline-ring",
               ruleClass(index, column, columns[index - 1]),
               frozen.className,
             )}
-            style={frozen.style}
+            style={column.width ? { ...frozen.style, width: column.width, minWidth: column.width, maxWidth: column.width } : frozen.style}
           >
-            <span className={cn("flex items-center gap-1.5", isEditing && "invisible")} title={isBlocked ? blockedMessage : locked ? "Triple-click to edit" : reach !== null ? changesText(reach) : (cell.note ?? cell.text)}>
+            <span className={cn("flex items-center gap-1.5", column.align === "right" && "justify-end", isEditing && "invisible")} title={isBlocked ? blockedMessage : locked ? (spec?.lock?.(row, context.kinds) ?? "Triple-click to edit") : reach !== null ? changesText(reach) : (cell.note ?? cell.text)}>
               {column.id === "brand" ? (
                 row.draft ? (
                   <span aria-hidden className="size-3.5 shrink-0" />
@@ -480,7 +486,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     };
   }, [categories, brands, bottles, labels]);
   const bottlesAlone = view.bottles && !view.labels;
-  const sortable = React.useMemo(() => columns.filter((c) => isSortable(c.id)).map((c) => ({ id: c.id, label: c.label })), [columns]);
+  const sortable = React.useMemo(() => columns.filter((c) => isSortable(c.id)).map((c) => ({ id: c.id, label: c.sortLabel ?? c.label })), [columns]);
 
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
   // one is made fresh each time (see `withBlankRow`).
@@ -540,7 +546,15 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     return { row: Math.min(indexByKey.get(key) ?? active.row, dims.rows - 1), col: Math.min(active.col, dims.cols - 1) };
   })();
   /** Puts the cursor on the cell at `pos` of `list` (the rows as they are, unless the next position is worked out on others). */
-  const place = (pos: Pos, list: SheetRow[] = rows) => setActive({ key: list[pos.row]?.key ?? "", col: pos.col, row: pos.row });
+  /**
+   * A block of cells selected with Shift and the arrows or a Shift-click, from the cursor's cell (`anchor`) to `end`. Delete
+   * clears every cell in it that can be cleared. Moving the cursor or editing a cell puts it away.
+   */
+  const [range, setRange] = React.useState<{ anchor: Pos; end: Pos } | null>(null);
+  const place = (pos: Pos, list: SheetRow[] = rows) => {
+    setRange(null);
+    setActive({ key: list[pos.row]?.key ?? "", col: pos.col, row: pos.row });
+  };
 
   const editorIn = (list: SheetRow[], pos: Pos): CellEditor | null => {
     const row = list[pos.row];
@@ -726,7 +740,18 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const { pos } = hit;
     const { key } = event;
 
-    if (ARROWS.has(key)) {
+    if (key === "Escape" && range) {
+      event.preventDefault();
+      setRange(null);
+    } else if (ARROWS.has(key) && event.shiftKey) {
+      // Shift extends a block from the cursor's cell, which stays where it is.
+      event.preventDefault();
+      const moved = arrowMove(range?.end ?? pos, key as ArrowKey, dims, event.ctrlKey || event.metaKey);
+      if ("leave" in moved) return;
+      const end = moved.pos;
+      setRange({ anchor: range?.anchor ?? pos, end });
+      sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${end.row}"][data-c="${end.col}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    } else if (ARROWS.has(key)) {
       event.preventDefault();
       go(arrowMove(pos, key as ArrowKey, dims, event.ctrlKey || event.metaKey));
     } else if (key === "Tab") {
@@ -746,6 +771,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     } else if (key === " " && !event.shiftKey && editorAt(pos)?.spec.kind === "checkbox") {
       event.preventDefault();
       flip(pos);
+    } else if ((key === "Delete" || key === "Backspace") && range) {
+      event.preventDefault();
+      clearRange();
     } else if (key === "Delete" || key === "Backspace") {
       const editor = editorAt(pos);
       // A brand, label or category is changed by choosing another, not by emptying the cell.
@@ -786,10 +814,40 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const column = hit ? columns[hit.pos.col] : undefined;
     if (!hit || !row || !column || !isLocked(column, view, row, unlocked, context.kinds)) return;
     const open = new Set(unlocked);
-    open.add(unlockKey(row.label.id, column.id));
+    open.add(lockKeyOf(EDITORS[column.id]!, row, column.id));
     setUnlocked(open);
     place(hit.pos);
     anchorCol.current = hit.pos.col;
+  }
+
+  /** Shift-click extends a block from the cursor's cell to the one clicked (the click must not move the cursor). */
+  function onMouseDown(event: React.MouseEvent<HTMLTableSectionElement>) {
+    if (!event.shiftKey || !current) return;
+    const hit = cellOf(event.target);
+    if (!hit) return;
+    event.preventDefault();
+    setRange({ anchor: range?.anchor ?? current, end: hit.pos });
+  }
+
+  /** Clears every cell in the block that has something to clear and can be cleared (not a required cell, a pick of a brand or label, or a locked one). */
+  function clearRange() {
+    if (!range) return;
+    const [r1, r2] = [Math.min(range.anchor.row, range.end.row), Math.max(range.anchor.row, range.end.row)];
+    const [c1, c2] = [Math.min(range.anchor.col, range.end.col), Math.max(range.anchor.col, range.end.col)];
+    let cleared = 0;
+    for (let r = r1; r <= r2; r += 1) {
+      for (let c = c1; c <= c2; c += 1) {
+        const pos = { row: r, col: c };
+        const editor = editorAt(pos);
+        if (!editor || editor.required || editor.combo) continue;
+        const blank = editor.spec.kind === "checkbox" ? "false" : "";
+        if (valueAt(pos) === blank) continue;
+        stage(pos, blank);
+        cleared += 1;
+      }
+    }
+    setRange(null);
+    setGone((prev) => [...prev.filter((g) => g.key !== "clear"), { key: "clear", text: cleared === 0 ? "Nothing in the selected cells could be cleared." : `Cleared ${cleared} ${cleared === 1 ? "cell" : "cells"}.` }]);
   }
 
   function onDoubleClick(event: React.MouseEvent<HTMLTableSectionElement>) {
@@ -982,6 +1040,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const frozenCount = columns.filter((c) => FROZEN[c.id]).length;
   const labelRest = columns.filter((c) => c.group === "label" && !FROZEN[c.id]).length;
   const bottleCount = columns.filter((c) => c.group === "bottle").length;
+  const hasBand = columns.some((c) => c.band !== undefined);
 
   return (
     <div className="flex items-start gap-4">
@@ -1059,6 +1118,27 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
               </TableHead>
             ) : null}
           </TableRow>
+          {/* A caption over columns that belong together (the three age boxes). Only here when one is shown, so the last row is always the column headers. */}
+          {hasBand ? (
+            <TableRow className="hover:bg-transparent">
+              {columns.map((column, index) => {
+                if (column.band && columns[index - 1]?.band === column.band) return null;
+                let span = 1;
+                while (column.band && columns[index + span]?.band === column.band) span += 1;
+                const frozen = frozenProps(column, true);
+                return (
+                  <TableHead
+                    key={column.id}
+                    colSpan={span}
+                    className={cn(HEAD_CELL, "h-6 text-center text-[10px] tracking-wider", ruleClass(index, column, columns[index - 1]), frozen.className)}
+                    style={{ ...frozen.style, top: 28 }}
+                  >
+                    {column.band ?? null}
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          ) : null}
           <TableRow className="hover:bg-transparent">
             {columns.map((column, index) => {
               const frozen = frozenProps(column, true);
@@ -1068,8 +1148,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                   id={`bulk-editor-col-${column.id}`}
                   scope="col"
                   aria-sort={activeSort?.column === column.id ? (activeSort.desc ? "descending" : "ascending") : undefined}
-                  className={cn(HEAD_CELL, "top-7 font-medium", column.align === "right" && "text-right", ruleClass(index, column, columns[index - 1]), frozen.className)}
-                  style={{ ...frozen.style }}
+                  className={cn(HEAD_CELL, "font-medium", column.align === "right" && "text-right", column.width && "px-2", ruleClass(index, column, columns[index - 1]), frozen.className)}
+                  style={{ ...frozen.style, top: hasBand ? 52 : 28, ...(column.width ? { width: column.width, minWidth: column.width, maxWidth: column.width } : {}) }}
                 >
                   {column.id === "brand" ? (
                     <input
@@ -1103,7 +1183,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
             })}
           </TableRow>
         </TableHeader>
-        <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onClick={onClick} onDoubleClick={onDoubleClick}>
+        <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onMouseDown={onMouseDown} onClick={onClick} onDoubleClick={onDoubleClick}>
           {rows.map((row, rowIndex) => {
             const isActiveRow = current?.row === rowIndex;
             return (
@@ -1119,6 +1199,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                 unlocked={unlocked}
                 status={statusOf(row)}
                 flash={flashKey === row.key}
+                rangeFrom={range && rowIndex >= Math.min(range.anchor.row, range.end.row) && rowIndex <= Math.max(range.anchor.row, range.end.row) ? Math.min(range.anchor.col, range.end.col) : -1}
+                rangeTo={range && rowIndex >= Math.min(range.anchor.row, range.end.row) && rowIndex <= Math.max(range.anchor.row, range.end.row) ? Math.max(range.anchor.col, range.end.col) : -1}
                 selected={selected.has(row.key)}
                 onSelect={toggleSelected}
                 blockedColumn={blockedFor(row)?.column}
