@@ -1352,3 +1352,66 @@ test("a pasted line naming a brand and label that exist adds a bottle of it, wit
   await reloaded(page);
   expect(await bottlesOf()).toBe(had + 1);
 });
+
+// ---------------------------------------------------------------------------
+// What was left: a saved label's category, regions, older names and known releases
+// ---------------------------------------------------------------------------
+
+test("a saved label's category is picked from the existing ones, never made, and the cells that no longer apply say so", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click(); // labels
+  await showColumns(page, "Regions");
+  const [category, regions] = [await col(page, "Category"), await col(page, "Regions")];
+  await expect(cell(page, 3, regions)).toContainText("—"); // a bourbon has no regions
+  await select(page, 3, category);
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1);
+  await page.keyboard.type("Scotch Whisky");
+  await expect(page.getByRole("listbox").getByRole("option", { name: /Scotch Whisky/ }).first()).toBeVisible();
+  await expect(page.getByRole("option", { name: /Create/ })).toHaveCount(0); // a category is never made here
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 3, category)).toHaveText("Scotch Whisky");
+  await reloaded(page);
+  await expect(cell(page, 3, category)).toHaveText("Scotch Whisky");
+
+  // Now a Scotch: its regions open the form's own six buttons.
+  await select(page, 3, regions);
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("dialog", { name: /Regions, as on the label form/ });
+  await expect(panel).toBeVisible();
+  await panel.getByRole("button", { name: "Islay" }).click();
+  await panel.getByRole("button", { name: "Speyside" }).click();
+  await expect(panel.getByRole("button", { name: "Islay" })).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 3, regions)).toContainText("Islay, Speyside");
+  await reloaded(page);
+  await expect(cell(page, 3, regions)).toContainText("Islay, Speyside");
+});
+
+test("a label's older names open the form's own list, save as they are changed, and a label can be given known releases", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, "Other names", "Known releases");
+  const [names, releases] = [await col(page, "Other names"), await col(page, "Known releases")];
+
+  await select(page, 4, names);
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("dialog", { name: /Other \/ old names, as on the label form/ });
+  await expect(panel).toBeVisible();
+  await panel.getByRole("button", { name: "Add an older name" }).click();
+  await panel.getByLabel("Name").first().fill("Old Sheet Name");
+  await panel.getByLabel("From").first().fill("1980");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 4, names)).toContainText("Old Sheet Name");
+  await reloaded(page);
+  await expect(cell(page, 4, names)).toContainText("Old Sheet Name");
+
+  await select(page, 4, releases);
+  await page.keyboard.press("Enter");
+  const list = page.getByRole("dialog", { name: /Known releases, as on the label form/ });
+  await expect(list).toBeVisible();
+  await list.getByRole("button", { name: "Add a release" }).click();
+  await list.getByLabel("Name").first().fill("Sheet Batch One");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 4, releases)).toContainText("Sheet Batch One");
+  await reloaded(page);
+  await expect(cell(page, 4, releases)).toContainText("Sheet Batch One");
+});

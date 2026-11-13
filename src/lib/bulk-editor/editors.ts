@@ -6,6 +6,7 @@ import { BOTTLE_AGE, LABEL_AGE } from "./age";
 import { LINK_KEYS, linkEditor } from "./links";
 import { designationEditor, GENERATED, singleBarrelEditor, storeEditor, type Kinds } from "./fields";
 import type { LinkKey } from "./links";
+import { PANEL_KEYS, panelEditor, type PanelKey } from "./panels";
 import type { RefKind } from "./references";
 import type { Cell, SheetColumn, SheetContext, SheetRow, SheetView } from "./sheet";
 
@@ -26,6 +27,8 @@ export type CellEditor = {
   column: string;
   /** Set for a cell that picks from a list. Its `spec` is then unused, and what is chosen is kept with the row, not in the edits. */
   combo?: ComboKind;
+  /** Set for a cell that opens the label form's own control for regions, older names or known releases (see `panels.ts`). */
+  panel?: PanelKey;
   /** Set for a cell that opens the label form's own picker for one of its lists (distilleries, mashbills, finishes, ingredients). What is kept in the edits is that list as JSON (see `links.ts`). */
   links?: LinkKey;
   /** Set for a cell that picks a store, a cooperage, or one of the label's releases or names. What is chosen is kept in the edits as `id:12` or `new:Name` (see `references.ts`). */
@@ -76,7 +79,8 @@ const BY_HAND: Readonly<Record<string, CellEditor>> = {
   // The picking cells, on a new row only for now. On a saved row they come with the rules for moving a bottle and renaming a label.
   brand: { column: "brand", field: "brand", scope: "label", combo: "brand", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.brand, display: (v) => text(v) },
   name: { column: "name", field: "label", scope: "label", combo: "label", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.name, display: (v) => text(v) },
-  category: { column: "category", field: "categoryId", scope: "label", combo: "category", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.category, display: (v) => text(v) },
+  // A saved label's category is kept in an edit as `id:N` and shown by name (`ctx.categories`).
+  category: { column: "category", field: "categoryId", scope: "label", combo: "category", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.category, display: (v, c) => text(v.startsWith("id:") ? (c.categories?.[Number(v.slice(3))] ?? "") : v) },
   // Where the bottle is in its life: held to the same rules as the bottle page (see `status-rules.ts`).
   status: { column: "status", field: "status", scope: "bottle", spec: bottleSpec("status"), required: true, typeToReplace: false, initial: (r) => r.bottle?.status ?? "", display: (v) => ({ text: humanise(v) }) },
   // The bottle's own.
@@ -112,6 +116,7 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
   singleBarrel: singleBarrelEditor(),
   store: storeEditor(),
   ...Object.fromEntries(LINK_KEYS.map((key) => [key, linkEditor(key)])),
+  ...Object.fromEntries(PANEL_KEYS.map((key) => [key, panelEditor(key)])),
 };
 
 /** The label cells a person has triple-clicked open, as `labelId:columnId`. Unlocking is per label and per column. */
@@ -132,7 +137,8 @@ const NAME_TEXT: CellEditor = { column: "name", field: "name", scope: "label", s
  */
 export function isLocked(column: SheetColumn, view: SheetView, row: SheetRow, unlocked: Unlocked = NOTHING_UNLOCKED, kinds: Kinds = {}): boolean {
   const editor = EDITORS[column.id];
-  if (!editor || editor.combo) return false;
+  // A saved label's category is one of the label's facts, locked on a bottle row like the rest; the other picking cells are not locked.
+  if (!editor || (editor.combo && editor.combo !== "category")) return false;
   // A cell that is not used for this spirit has nothing to unlock.
   if (editor.applies?.(row, kinds) === false) return false;
   if (unlocked.has(lockKeyOf(editor, row, column.id))) return false;
@@ -160,7 +166,8 @@ export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow, u
   const draft = row.draft;
   if (editor.combo) {
     if (!draft) {
-      if (editor.combo === "category") return null;
+      // A saved label's category: with only Labels on it is the label's to change; on a bottle row it is locked until triple-clicked.
+      if (editor.combo === "category") return !view.bottles || (view.labels && unlocked.has(lockKeyOf(editor, row, column.id))) ? editor : null;
       if (row.bottle) return editor;
       return editor.combo === "label" ? NAME_TEXT : editor;
     }

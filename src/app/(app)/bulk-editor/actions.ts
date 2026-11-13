@@ -6,6 +6,9 @@ import { expressions } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { and, eq } from "drizzle-orm";
 import { loadLinks } from "@/lib/expressions/form-data";
+import { expressionOtherNames } from "@/lib/other-names-store";
+import { releaseRow } from "@/lib/releases";
+import { expressionReleaseList, releaseRemovalImpact } from "@/lib/releases-store";
 import { createRow, deleteImpact, deleteRows, patchBottleRow, patchLabelRow, type CreateOutcome, type DeleteOutcome, type PatchOutcome } from "@/lib/bulk-editor/rows";
 
 /**
@@ -28,6 +31,24 @@ export async function labelLinksAction(labelId: number) {
   if (!Number.isInteger(labelId) || labelId <= 0) return null;
   if ((await db.$count(expressions, and(eq(expressions.id, labelId), eq(expressions.ownerId, user.id)))) === 0) return null;
   return loadLinks(labelId);
+}
+
+async function ownedLabel(labelId: number): Promise<boolean> {
+  const user = await requireSession();
+  return Number.isInteger(labelId) && labelId > 0 && (await db.$count(expressions, and(eq(expressions.id, labelId), eq(expressions.ownerId, user.id)))) > 0;
+}
+
+/** A label's older names, as the label form's edit page reads them (name and the years it was used). Null when the label is not the caller's. */
+export async function labelOtherNamesAction(labelId: number) {
+  if (!(await ownedLabel(labelId))) return null;
+  return (await expressionOtherNames(labelId)).map((n) => ({ name: n.name, yearFrom: n.yearFrom, yearTo: n.yearTo }));
+}
+
+/** A label's known releases as the form's list holds them, and what removing each would lose (the form asks first). */
+export async function labelReleasesAction(labelId: number) {
+  if (!(await ownedLabel(labelId))) return null;
+  const [rows, impact] = await Promise.all([expressionReleaseList(labelId), releaseRemovalImpact(labelId)]);
+  return { rows: rows.map(releaseRow), impact };
 }
 
 /** A new label and/or bottle (see `createRow`). The brand and label are created if they are new. */

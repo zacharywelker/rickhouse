@@ -1,3 +1,4 @@
+import type { FieldGroup } from "@/db/schema";
 import { derivedAge, type AgeState } from "./age-derive";
 import { EDITORS, type CellEditor, type Edits } from "./editors";
 import { isYesNoChoice } from "./fields";
@@ -48,11 +49,24 @@ export function applyMoves(rows: ReadonlyArray<SheetRow>, moves: Moves, labels: 
  * A rename or a change of brand typed into a label (kept under the label, see `editKey`), shown on every row of that
  * label. Rows of other labels are returned as they are, so they are not drawn again.
  */
-export function applyLabelEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRow[] {
+export type CategoryInfo = Readonly<Record<number, { name: string; group: FieldGroup; slug?: string }>>;
+
+export function applyLabelEdits(rows: ReadonlyArray<SheetRow>, edits: Edits, categories: CategoryInfo = {}): SheetRow[] {
   return rows.map((row) => {
     const own = row.draft ? undefined : edits[`l${row.label.id}`];
-    if (!own || (own.name === undefined && own.brand === undefined)) return row;
-    return { ...row, label: { ...row.label, ...(own.name !== undefined ? { name: own.name } : {}), ...(own.brand !== undefined ? { brand: own.brand } : {}) } };
+    if (!own || (own.name === undefined && own.brand === undefined && own.category === undefined)) return row;
+    // A new category changes which of the label's cells apply, at once; what is stored for the others is kept.
+    const id = own.category !== undefined && own.category.startsWith("id:") ? Number(own.category.slice(3)) : null;
+    const chosen = id === null ? undefined : categories[id];
+    return {
+      ...row,
+      label: {
+        ...row.label,
+        ...(own.name !== undefined ? { name: own.name } : {}),
+        ...(own.brand !== undefined ? { brand: own.brand } : {}),
+        ...(chosen && id !== null ? { categoryId: id, category: chosen.name, fieldGroup: chosen.group, ...(chosen.slug ? { categorySlug: chosen.slug } : {}) } : {}),
+      },
+    };
   });
 }
 
@@ -83,7 +97,7 @@ export function applyEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRo
       const changed: Record<string, unknown> = {};
       for (const [column, value] of Object.entries(cells ?? {})) {
         const editor = EDITORS[column];
-        if (!editor || editor.combo || editor.reference || editor.links || editor.scope !== scope) continue;
+        if (!editor || editor.combo || editor.reference || editor.links || editor.panel || editor.scope !== scope) continue;
         Object.assign(changed, rawOf(editor, value));
       }
       if (Object.keys(changed).length === 0) return;
@@ -103,11 +117,11 @@ export function applyEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRo
  * and every row in the place that puts it in. A row goes to its sorted place the moment it is changed, not when the
  * save has been read back, so the cursor and the view can follow it (or stay behind) right away.
  */
-export function arrange(rows: ReadonlyArray<SheetRow>, moves: Moves, edits: Edits, labels: ReadonlyArray<SheetLabel>): SheetRow[] {
-  const renamed = Object.keys(moves).length > 0 || Object.values(edits).some((cells) => "name" in cells || "brand" in cells);
+export function arrange(rows: ReadonlyArray<SheetRow>, moves: Moves, edits: Edits, labels: ReadonlyArray<SheetLabel>, categories: CategoryInfo = {}): SheetRow[] {
+  const renamed = Object.keys(moves).length > 0 || Object.values(edits).some((cells) => "name" in cells || "brand" in cells || "category" in cells);
   const typed = applyEdits(rows, edits);
   if (!renamed) return typed;
-  return applyLabelEdits(applyMoves(typed, moves, labels), edits).sort(compareRows);
+  return applyLabelEdits(applyMoves(typed, moves, labels), edits, categories).sort(compareRows);
 }
 
 /**

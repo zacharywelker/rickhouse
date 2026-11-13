@@ -4,6 +4,7 @@ import type { CategoryKind } from "@/lib/expressions/rules";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 import { BOTTLE_AGE, LABEL_AGE } from "./age";
 import { INGREDIENTS_COLUMN } from "./links";
+import { PANEL_COLUMNS } from "./panels";
 import { designationEditor, GENERATED_BOTTLE, GENERATED_LABEL, singleBarrelEditor } from "./fields";
 
 /**
@@ -79,7 +80,9 @@ export type SheetRow = {
 };
 /** What the picking cells name their choices by: id to name, for the stores, cooperages, releases and label names. */
 export type RefNames = { store: Record<number, string>; cooperage: Record<number, string>; release: Record<number, string>; version: Record<number, string> };
-export type SheetContext = { currency: string; kinds: Record<number, CategoryKind>; refs?: RefNames };
+/** Each label's own lists, by name, for the cells that summarise them: its older names, and its known releases. */
+export type LabelLists = { versions: Record<number, string[]>; releases: Record<number, string[]> };
+export type SheetContext = { currency: string; kinds: Record<number, CategoryKind>; refs?: RefNames; lists?: LabelLists; /** Category names, for a saved label's Category cell. */ categories?: Record<number, string> };
 export type Cell = {
   text: string;
   /** Said on hover, and to a screen reader: why a cell is empty or cannot be edited ("Not used for this spirit"). */
@@ -208,7 +211,7 @@ export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = (() => {
   };
   const label = after(after(BY_HAND.filter((c) => c.group === "label"), "designation", LABEL_AGE.map((g) => g.column)), "finishes", [INGREDIENTS_COLUMN]);
   const bottle = after(BY_HAND.filter((c) => c.group === "bottle"), "ownProof", BOTTLE_AGE.map((g) => g.column));
-  return [...label, ...GENERATED_LABEL.map((g) => g.column), ...bottle, ...GENERATED_BOTTLE.map((g) => g.column)];
+  return [...label, ...GENERATED_LABEL.map((g) => g.column), ...PANEL_COLUMNS, ...bottle, ...GENERATED_BOTTLE.map((g) => g.column)];
 })();
 
 /** The ids the Fields picker starts with switched off. */

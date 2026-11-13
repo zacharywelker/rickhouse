@@ -18,6 +18,7 @@ import { categoryKindsById } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { expressionSchema } from "@/lib/expressions/schema";
 import { fieldErrorsOf, flavorMissing, labelValues, LabelRejected, linksFrom, writeLabel, type Tx } from "@/lib/expressions/save";
+import { parseReleaseRows, type ReleaseInput } from "@/lib/releases";
 import { derivedAge } from "./age-derive";
 import { ensureCooperage, ensureStore, takeBack } from "./reference-rows";
 import { fieldGroupForCategory } from "@/lib/expressions/queries";
@@ -393,6 +394,14 @@ export async function patchLabelRow(ownerId: number, labelId: number, raw: unkno
     if (cooperage.failure) return cooperage.failure;
     named = cooperage.name;
   }
+  // The label's known releases: JSON rows as the form sends them, written with the label.
+  let releases: ReleaseInput[] | undefined;
+  if (isRecord(body) && "releases" in body) {
+    const parsedReleases = parseReleaseRows(String(body.releases ?? "[]"));
+    delete body.releases;
+    if (parsedReleases.error) return invalidField("releases", parsedReleases.error);
+    releases = parsedReleases.releases;
+  }
   const made: { cooperage?: number } = {};
   if (isRecord(body) && ["ageYears", "ageMonths", "ageDays", "ageStatement"].some((key) => key in body)) {
     const [current] = await db
@@ -409,15 +418,17 @@ export async function patchLabelRow(ownerId: number, labelId: number, raw: unkno
     if (cooperage.created) made.cooperage = cooperage.id;
   }
   try {
-    return await patchLabelWith(ownerId, labelId, body, made);
+    return await patchLabelWith(ownerId, labelId, body, made, releases);
   } catch (error: unknown) {
     await undo(made, null);
     throw error;
   }
 }
 
-async function patchLabelWith(ownerId: number, labelId: number, body: unknown, made: { cooperage?: number }): Promise<PatchOutcome> {
-  const parsed = bulkLabelPatchBody.safeParse(body);
+async function patchLabelWith(ownerId: number, labelId: number, body: unknown, made: { cooperage?: number }, releases?: ReleaseInput[]): Promise<PatchOutcome> {
+  // A request that only changes the releases has nothing else for the facts' schema to check.
+  const onlyReleases = isRecord(body) && Object.keys(body).length === 0 && releases !== undefined;
+  const parsed = onlyReleases ? { success: true as const, data: {} as z.infer<typeof bulkLabelPatchBody> } : bulkLabelPatchBody.safeParse(body);
   if (!parsed.success) return undo(made, invalidFrom(parsed.error.issues));
   const { brand, distilleries, mashbills, finishes, ingredients, otherNames, ...facts } = parsed.data;
   const outcome = await patchLabel(ownerId, labelId, {
@@ -426,6 +437,7 @@ async function patchLabelWith(ownerId: number, labelId: number, body: unknown, m
     ...(distilleries && mashbills && finishes ? { links: { distilleries, mashbills, finishes, ingredients } } : {}),
     ...(ingredients !== undefined ? { ingredients } : {}),
     ...(otherNames !== undefined ? { otherNames } : {}),
+    ...(releases !== undefined ? { releases } : {}),
   });
   if (outcome.ok) return { ok: true };
   if (outcome.kind === "gone") return undo(made, failure("gone", "That label is gone."));

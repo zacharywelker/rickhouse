@@ -64,7 +64,7 @@ const isBlank = (text: string) => BLANKS.has(text.trim());
  */
 export function copyText(editor: CellEditor | null, value: string, shown: Cell): string {
   const text = isBlank(shown.text) ? "" : shown.text;
-  if (!editor || editor.combo || editor.reference || editor.links) return text;
+  if (!editor || editor.combo || editor.reference || editor.links || editor.panel) return text;
   const { spec } = editor;
   if (spec.kind === "checkbox") return value === "true" ? "Yes" : "No";
   if (spec.kind === "select" || spec.kind === "slider") return value === "" ? "" : (spec.options.find((o) => o.value === value)?.label ?? value);

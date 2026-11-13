@@ -3,6 +3,8 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { brands, categories, expressions } from "@/db/schema";
 import { syncExpressionNames } from "@/lib/other-names-store";
+import type { ReleaseInput } from "@/lib/releases";
+import { deleteStoredPhotos, syncExpressionReleases, type StoredPhoto } from "@/lib/releases-store";
 import type { OtherName } from "@/lib/other-names";
 import { findOrCreateBrand } from "./brand";
 import { categoryFieldGroups, categoryKindsById } from "./queries";
@@ -60,6 +62,8 @@ export type LabelPatch = {
   ingredients?: IngredientChoice[];
   /** The label's older names, exactly; see `syncExpressionNames`. */
   otherNames?: OtherName[];
+  /** The label's known releases, exactly (the bulk editor's; the phone does not send them): see `syncExpressionReleases`. */
+  releases?: ReleaseInput[];
 };
 
 export type LabelPatchResult =
@@ -91,7 +95,8 @@ async function labelCalled(ownerId: number, brandId: number, name: string, excep
 
 export async function patchLabel(ownerId: number, id: number, patch: LabelPatch): Promise<LabelPatchResult> {
   try {
-    return await db.transaction(async (tx): Promise<LabelPatchResult> => {
+    let removedPhotos: StoredPhoto[] = [];
+    const result = await db.transaction(async (tx): Promise<LabelPatchResult> => {
       const [current] = await tx
         .select({
           brandId: expressions.brandId,
@@ -202,8 +207,12 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
         await replaceIngredients(tx, ownerId, id, [{ name: "Juniper", kind: "botanical" }]);
       }
       if (patch.otherNames) await syncExpressionNames(tx, id, patch.otherNames);
+      if (patch.releases) removedPhotos = await syncExpressionReleases(tx, id, patch.releases);
       return { ok: true };
     });
+    // Files only once the rows are gone for good.
+    if (result.ok) await deleteStoredPhotos(removedPhotos);
+    return result;
   } catch (error: unknown) {
     if (error instanceof FinishPairsInvalid) return { ok: false, kind: "invalid", field: "finishes", message: error.message };
     // Two phones (or the web) renamed to the same name at once: the database has the last word.
