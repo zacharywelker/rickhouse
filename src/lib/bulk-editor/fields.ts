@@ -31,11 +31,22 @@ export const NOT_HERE: Readonly<Record<string, string>> = {
   name: "Label cell",
   categoryId: "Category cell (a new label's; a saved label's is parity step 6, #340)",
   expressionId: "Moving a bottle: the Brand and Label cells",
-  // Later steps.
-  regions: "#340",
   // Deliberately not in the sheet.
   slug: "A system field, made from the name",
 };
+
+/**
+ * What the single pages do that is not a field of a form, and that the bulk editor deliberately leaves to them. Neither the
+ * old Bulk add pages nor the tables' Edit modes had any of it (agreed with the owner, 2026-11-13, in #340).
+ */
+export const LEFT_TO_THE_SINGLE_PAGES: ReadonlyArray<string> = [
+  "A label's photo and its releases' photos",
+  "TTB / COLA approvals",
+  "Tasting notes",
+  "A bottle's photos and its primary photo",
+  "Tags, and duplicating a bottle",
+  "Adding a bottle by searching the catalog",
+];
 
 export type Kinds = Readonly<Record<number, import("@/lib/expressions/rules").CategoryKind>>;
 
@@ -198,7 +209,7 @@ function referenceColumn(spec: FieldSpec, id: string, label: string, group: "lab
 // --- the label's ---
 
 /** Columns that are made by hand elsewhere, or are not a single simple field. */
-const HAND_MADE_LABEL = new Set(["brand", "name", "category", "proof", "sizeMl", "msrp", "age", "ageStatement", "abv", "strength", "distilleries", "mashbills", "ingredients", "finishes", "bottles"]);
+const HAND_MADE_LABEL = new Set(["brand", "name", "category", "proof", "sizeMl", "msrp", "age", "ageStatement", "regions", "abv", "strength", "distilleries", "mashbills", "ingredients", "finishes", "bottles"]);
 /** The two flags the Cask / Bonded cell sets together. */
 const IN_DESIGNATION = new Set(["isCaskStrength", "isBottledInBond"]);
 

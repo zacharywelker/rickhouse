@@ -64,8 +64,7 @@ describe("the list of what is not here yet", () => {
     const editedBoth = later.filter(([name]) => (LABEL_FIELDS.includes(name) ? label.has(name) : true) && (BOTTLE_FIELDS.includes(name) ? bottle.has(name) : true));
     expect(editedBoth.map(([name]) => name)).toEqual([]);
   });
-  it("says what the sheet is still missing, for the steps that follow", () => {
-    const stillMissing = Object.entries(NOT_HERE).filter(([, why]) => why.startsWith("#")).map(([name, why]) => `${name} ${why}`);
-    expect(stillMissing.length).toBeGreaterThan(0); // goes to zero when #340 is done, and this test is then removed with the list
+  it("has nothing left for a later step: what is not a cell of its own is a reviewed reason", () => {
+    expect(Object.entries(NOT_HERE).filter(([, why]) => why.startsWith("#"))).toEqual([]);
   });
 });

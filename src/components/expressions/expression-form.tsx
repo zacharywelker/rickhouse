@@ -38,6 +38,8 @@ import {
 } from "@/lib/expressions/rules";
 import { SCOTCH_REGIONS } from "@/db/schema";
 import { BRANDY_MINIMUM_YEARS } from "@/lib/expressions/spirit-details";
+import { RegionPicker } from "./region-picker";
+import { OTHER_NAME_COLUMNS, otherNameRows, RELEASE_COLUMNS } from "./label-list-columns";
 import { DistilleryPicker, FinishPickers, IngredientPickers, MashbillPicker, type LabelLinks } from "./label-link-pickers";
 import { DeriveAge } from "./bottle-form";
 import { ProofAbvFields } from "./proof-abv-field";
@@ -94,51 +96,6 @@ export function withLabelChange(
   return resolve ? withNameRules(prev, next, resolve) : next;
 }
 
-/** The Scotch regions, as buttons: a blend comes from several. */
-function RegionPicker({
-  idPrefix,
-  value,
-  onChange,
-  error,
-}: {
-  idPrefix: string;
-  value: string[];
-  onChange: (regions: string[]) => void;
-  error?: string;
-}) {
-  return (
-    <fieldset className="col-span-full flex flex-col gap-2 border border-border p-4">
-      <legend className="px-1 text-sm font-medium">Regions</legend>
-      <p className="-mt-1 text-xs text-muted-foreground">
-        Where the whisky comes from; pick several for a blend. Linking a distillery that has a region adds it here.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {SCOTCH_REGIONS.map((region) => {
-          const on = value.includes(region);
-          return (
-            <Button
-              key={region}
-              id={`${idPrefix}-region-${region}`}
-              type="button"
-              size="sm"
-              variant={on ? "default" : "outline"}
-              aria-pressed={on}
-              onClick={() => onChange(on ? value.filter((r) => r !== region) : [...value, region])}
-            >
-              {region}
-            </Button>
-          );
-        })}
-      </div>
-      <input type="hidden" name="regions" value={value.join(", ")} />
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-    </fieldset>
-  );
-}
 
 /**
  * The label's fields and its three ordered lists, without a form around
@@ -693,16 +650,8 @@ export function ExpressionForm({
             name="otherNames"
             idPrefix="expression-otherName"
             addLabel="Add an older name"
-            columns={[
-              { key: "name", label: "Name", placeholder: "Old Grand-Dad Bonded" },
-              { key: "yearFrom", label: "From", placeholder: "1980", inputMode: "numeric", pattern: "\\d{4}", title: "A four-digit year", className: "sm:w-24" },
-              { key: "yearTo", label: "Until", placeholder: "1995", inputMode: "numeric", pattern: "\\d{4}", title: "A four-digit year", className: "sm:w-24" },
-            ]}
-            initialRows={parseOtherNames(initialOtherNames).names.map((n) => ({
-              name: n.name,
-              yearFrom: n.yearFrom === null ? "" : String(n.yearFrom),
-              yearTo: n.yearTo === null ? "" : String(n.yearTo),
-            }))}
+            columns={OTHER_NAME_COLUMNS}
+            initialRows={otherNameRows(parseOtherNames(initialOtherNames).names)}
             toText={otherNamesRowsText}
             error={fieldErrors.otherNames}
           />
@@ -724,16 +673,7 @@ export function ExpressionForm({
             name="releases"
             idPrefix="expression-release"
             addLabel="Add a release"
-            columns={[
-              { key: "name", label: "Name", placeholder: "2024-01 Springfield" },
-              { key: "year", label: "Year", placeholder: "2024", inputMode: "numeric", pattern: "\\d{4}", title: "A four-digit year", className: "sm:w-20" },
-              { key: "proof", label: "Proof", kind: "proofAbv", className: "sm:w-24" },
-              { key: "ageYears", label: "Years", placeholder: "7", inputMode: "decimal", pattern: "\\d+(\\.\\d)?", title: "Years, like 7 or 7.5", className: "sm:w-16" },
-              { key: "ageMonths", label: "Months", placeholder: "2", inputMode: "numeric", pattern: "\\d+", title: "Whole months", className: "sm:w-16" },
-              { key: "ageDays", label: "Days", placeholder: "3", inputMode: "numeric", pattern: "\\d+", title: "Whole days", className: "sm:w-16" },
-              { key: "ageStatement", label: "Age Statement", placeholder: "8–16 years", className: "sm:w-36" },
-              { key: "msrp", label: "MSRP", placeholder: "99.99", inputMode: "decimal", pattern: "\\$?\\d+(\\.\\d{1,2})?", title: "A price, like 99.99", className: "sm:w-24" },
-            ]}
+            columns={RELEASE_COLUMNS}
             initialRows={initialReleases}
             toText={(rows) => JSON.stringify(rows)}
             removeWarning={(row) => releaseImpact[row.id ?? ""] ?? null}

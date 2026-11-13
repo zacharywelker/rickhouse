@@ -54,6 +54,11 @@ export function serverFields(editor: CellEditor | undefined, column: string, val
   if (column === "name") return { name: valueOrNull(value) };
   if (!editor) return { [column]: valueOrNull(value) };
   if (editor.fieldsOf) return editor.fieldsOf(value);
+  // A saved label's category, kept as `id:N`.
+  if (editor.combo === "category") {
+    const id = /^id:(\d+)$/.exec(value);
+    return { categoryId: id ? Number(id[1]) : null };
+  }
   // The origin of an amaro or liqueur typed in is remembered as the owner's own, as the form does.
   if (editor.field === "originCountry" || editor.field === "originRegion") return { [editor.field]: valueOrNull(value), [`${editor.field}Manual`]: value.trim() !== "" };
   if (editor.reference) return refServerFields(editor.field, value);
@@ -155,6 +160,8 @@ const COLUMN_OF_FIELD: Record<string, { label: string; bottle: string }> = {
   cooperageId: { label: "cooperageId", bottle: "cooperageId" },
   cooperageName: { label: "cooperageId", bottle: "cooperageId" },
   distilleries: { label: "distilleries", bottle: "distilleries" },
+  releases: { label: "releases", bottle: "releases" },
+  otherNames: { label: "otherNames", bottle: "otherNames" },
   mashbills: { label: "mashbills", bottle: "mashbills" },
   finishes: { label: "finishes", bottle: "finishes" },
   ingredients: { label: "ingredients", bottle: "ingredients" },

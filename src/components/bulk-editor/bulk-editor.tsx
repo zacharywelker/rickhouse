@@ -45,6 +45,7 @@ import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-edi
 import { settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
 import { ComboEditor } from "./combo-editor";
 import { LinksEditor, type LinkOptions } from "./links-editor";
+import { PanelEditor } from "./panel-editor";
 import { FindBar } from "./find-bar";
 import { RailContent } from "./rail-panel";
 import { DeleteBar } from "./delete-bar";
@@ -319,12 +320,14 @@ type RowProps = {
   pendingCols: Readonly<Record<string, string>> | undefined;
   /** The open editor of a distillery, mashbill, finish or ingredients cell (the label form's own picker); only for the active row. */
   linksNode: React.ReactNode;
+  /** The open editor of a regions, older names or known releases cell (the label form's own control); only for the active row. */
+  panelNode: React.ReactNode;
   onFinish: ((finish: Finish) => void) | undefined;
   onInvalid: ((message: string) => void) | undefined;
 };
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, pendingCols, onFinish, onInvalid }: RowProps) {
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, panelNode, pendingCols, onFinish, onInvalid }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -398,7 +401,9 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               {cell.badge ? <span className="shrink-0 border border-border px-1 text-[10px] uppercase leading-4 tracking-wide text-muted-foreground">{cell.badge}</span> : null}
             </span>
             {isEditing && editing && editor && onFinish && onInvalid ? (
-              editor.links && linksNode ? (
+              editor.panel && panelNode ? (
+                panelNode
+              ) : editor.links && linksNode ? (
                 linksNode
               ) : (editor.combo || editor.reference) && combo ? (
                 <ComboEditor kind={editor.combo ?? "reference"} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} />
@@ -441,7 +446,20 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setView(next);
   };
   const [hidden, setHidden] = useHiddenColumns(HIDDEN_KEY, DEFAULT_HIDDEN);
-  const context = React.useMemo<SheetContext>(() => ({ currency, kinds, refs: refNames(refs) }), [currency, kinds, refs]);
+  const context = React.useMemo<SheetContext>(
+    () => ({
+      currency,
+      kinds,
+      refs: refNames(refs),
+      categories: Object.fromEntries(categories.map((c) => [c.id, c.name])),
+      lists: {
+        versions: Object.fromEntries(Object.entries(refs.versions).map(([id, rows]) => [id, rows.map((r) => r.name)])),
+        releases: Object.fromEntries(Object.entries(refs.releases).map(([id, rows]) => [id, rows.map((r) => r.name)])),
+      },
+    }),
+    [currency, kinds, refs, categories],
+  );
+  const categoryInfo = React.useMemo(() => Object.fromEntries(categories.map((c) => [c.id, { name: c.name, group: groups[c.id] ?? "other", ...(c.slug ? { slug: c.slug } : {}) }])), [categories, groups]);
 
   const columns = React.useMemo(() => columnsFor(view, hidden), [view, hidden]);
   /** Bottles moved to another label, and the label cells a person has triple-clicked open. Neither is saved yet. */
@@ -450,7 +468,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const [edits, setEdits] = React.useState<Edits>({});
   const rawRows = React.useMemo(() => sheetRows(view, labels, bottles), [view, labels, bottles]);
   // Rows are in their sorted place as soon as a move or a rename is made, not once it has been saved and read back.
-  const arranged = React.useMemo(() => arrange(rawRows, moves, edits, labels), [rawRows, moves, edits, labels]);
+  const arranged = React.useMemo(() => arrange(rawRows, moves, edits, labels, categoryInfo), [rawRows, moves, edits, labels, categoryInfo]);
 
   // Search, filters and sort change what is shown, never what is saved. A row that has been worked on this session
   // (edited, moved, or just saved) is kept on screen whatever the filter says, and in place whatever the sort says,
@@ -620,7 +638,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       const ref = decodeRef(value);
       return ref === null ? "" : "name" in ref ? ref.name : (context.refs?.[editorAt(pos)!.reference!][ref.id] ?? "");
     };
-    const held = editorAt(pos)?.reference ? refName(valueAt(pos)) : valueAt(pos);
+    const categoryName = (value: string) => (value.startsWith("id:") ? (context.categories?.[Number(value.slice(3))] ?? "") : value);
+    const held = editorAt(pos)?.reference ? refName(valueAt(pos)) : editorAt(pos)?.combo === "category" ? categoryName(valueAt(pos)) : valueAt(pos);
     // A cell a paste left to be chosen opens searching what was pasted.
     const waiting = rows[pos.row] && columns[pos.col] ? pending[pendKey(rows[pos.row]!.key, columns[pos.col]!.id)] : undefined;
     if (waiting !== undefined) return setEditing({ value: waiting, replace: true });
@@ -679,6 +698,18 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     let key = "";
     for (const which of changed) key = stageColumn(row, which, JSON.stringify(lists[which]));
     for (const [column, value] of Object.entries(brought)) key = stageColumn(row, column, value);
+    if (row.draft || key === "") return;
+    const pending = linkTimers.current.get(key);
+    if (pending) clearTimeout(pending);
+    linkTimers.current.set(key, setTimeout(() => {
+      linkTimers.current.delete(key);
+      saver.request(key);
+    }, LINKS_SAVE_AFTER_MS));
+  }
+
+  /** A regions, older names or releases cell was changed in its control: kept at once, saved after a quiet moment (or when it closes). */
+  function changePanel(row: SheetRow, columnId: string, value: string) {
+    const key = stageColumn(row, columnId, value);
     if (row.draft || key === "") return;
     const pending = linkTimers.current.get(key);
     if (pending) clearTimeout(pending);
@@ -770,6 +801,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (reordered) flashRow(row.key);
     if ("value" in result) stage(current, result.value);
     else if ("pick" in result && editorAt(current)?.reference) stage(current, encodePick(result.pick));
+    else if ("categoryId" in result && !row.draft) stage(current, `id:${result.categoryId}`);
     else if ("pick" in result && !row.draft) {
       // A saved row's Brand or Label. On a bottle it moves the bottle to the label picked, which already exists; with
       // only Labels on, a brand is picked (or created with Enter) for the label.
@@ -810,6 +842,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (!current || !editing) return null;
     const row = rows[current.row];
     const editor = editorAt(current);
+    // A saved label's category: an existing one, never a new one.
+    if (row && editor?.combo === "category" && !row.draft) return { candidates: categoryCandidates(categories), allowCreate: false, what: "category", enterDropsDown: true };
     if (row && editor?.reference) {
       const kind = editor.reference;
       return { candidates: refCandidates(kind, row.label.id, refs), allowCreate: REF_CAN_CREATE[kind], what: REF_WHAT[kind], enterDropsDown: true, ...(REF_NO_CREATE[kind] ? { noCreateReason: REF_NO_CREATE[kind] } : {}) };
@@ -891,7 +925,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       const editor = editorAt(pos);
       // A brand, label or category is changed by choosing another, not by emptying the cell.
       // A list is changed in its own picker, one row at a time, not emptied from the cell.
-      if (editor && !editor.required && !editor.combo && !editor.links) {
+      if (editor && !editor.required && !editor.combo && !editor.links && !editor.panel) {
         event.preventDefault();
         stage(pos, editor.spec.kind === "checkbox" ? "false" : "");
       }
@@ -958,7 +992,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       for (let c = c1; c <= c2; c += 1) {
         const pos = { row: r, col: c };
         const editor = editorAt(pos);
-        if (!editor || editor.required || editor.combo || editor.links) continue;
+        if (!editor || editor.required || editor.combo || editor.links || editor.panel) continue;
         const blank = editor.spec.kind === "checkbox" ? "false" : "";
         if (valueAt(pos) === blank) continue;
         stage(pos, blank);
@@ -1052,7 +1086,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         skip(isLocked(column, view, row, unlocked, context.kinds) ? "locked (triple-click it to open it)" : EDITORS[column.id]?.applies?.(row, context.kinds) === false ? "not used for this spirit" : "cannot be edited here");
         continue;
       }
-      if (editor.links) {
+      if (editor.links || editor.panel) {
         skip("a list is changed in its picker");
         continue;
       }
@@ -1060,7 +1094,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       if (editor.reference || editor.combo) {
         const named = editor.reference
           ? refCandidates(editor.reference, row.label.id, refs)
-          : row.bottle
+          : editor.combo === "category"
+            ? categoryCandidates(categories)
+            : row.bottle
             ? moveCandidates(editor.combo === "brand" ? "brand" : "name", row, labels)
             : brandCandidates(brands, [], "");
         const found = matchName(text, named);
@@ -1070,7 +1106,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
             pasted += 1;
           } else skip("a brand or label is changed by choosing another");
         } else if (found.kind === "exact") {
-          if (editor.reference) stage(pos, `id:${found.match.id}`);
+          if (editor.reference || editor.combo === "category") stage(pos, `id:${found.match.id}`);
           else if (row.bottle) moveBottleTo(row, found.match.id!);
           else stage(pos, found.match.name);
           pasted += 1;
@@ -1157,7 +1193,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         if (blank) return;
         const editor = EDITORS[column.id];
         if (!editor) return void skipped.push(`${where}: cannot be edited here`);
-        if (editor.links) return void skipped.push(`${where}: a list is changed in its picker`);
+        if (editor.links || editor.panel) return void skipped.push(`${where}: a list is changed in its picker`);
         if (editor.reference) {
           if (editor.reference === "release" || editor.reference === "version") return void skipped.push(`${where}: choose the label first`);
           const found = matchName(text, refCandidates(editor.reference, -1, refs));
@@ -1371,6 +1407,27 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   }, [leaveWarning]);
 
   const comboData = comboFor();
+  const panelNode = (() => {
+    if (!current || !editing) return null;
+    const row = rows[current.row];
+    const editor = editorAt(current);
+    if (!row || !editor?.panel) return null;
+    const own = edits[row.draft ? row.key : `l${row.label.id}`];
+    return (
+      <PanelEditor
+        key={`${row.key}:${editor.panel}`}
+        which={editor.panel}
+        labelId={row.draft ? null : row.label.id}
+        regions={row.label.regions ?? []}
+        edited={own?.[editor.panel]}
+        onChange={(value) => changePanel(row, editor.panel!, value)}
+        onClose={() => {
+          flushLists(row);
+          finish({ keep: true, move: "stay", focus: true });
+        }}
+      />
+    );
+  })();
   const linksNode = (() => {
     if (!current || !editing) return null;
     const row = rows[current.row];
@@ -1602,6 +1659,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                 error={isActiveRow ? error : null}
                 combo={isActiveRow ? comboData : null}
                 linksNode={isActiveRow ? linksNode : null}
+                panelNode={isActiveRow ? panelNode : null}
                 pendingCols={pendingByRow.get(row.key)}
                 onFinish={isActiveRow ? finish : undefined}
                 onInvalid={isActiveRow ? setError : undefined}
