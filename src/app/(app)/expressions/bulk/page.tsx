@@ -1,23 +1,6 @@
-import type { Metadata } from "next";
-import { ExpressionBulkGrid } from "@/components/expressions/expression-bulk-grid";
-import { requireSession } from "@/lib/auth";
-import { expressionFormData } from "@/lib/expressions/form-data";
+import { permanentRedirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Bulk add labels" };
-export const dynamic = "force-dynamic";
-
-export default async function BulkExpressionsPage() {
-  const user = await requireSession();
-  // The same pickers and category rules as the single-label form.
-  const { options, categoryGroups, categoryKinds } = await expressionFormData(null, user.id);
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="max-w-2xl">
-        <h1 className="text-3xl text-accent">Bulk add labels</h1>
-      </div>
-
-      <ExpressionBulkGrid options={options} categoryGroups={categoryGroups} categoryKinds={categoryKinds} />
-    </div>
-  );
+/** The old Bulk add page. The Bulk editor adds, edits and deletes in one sheet, so old links and bookmarks go there. */
+export default function Page() {
+  permanentRedirect("/bulk-editor");
 }

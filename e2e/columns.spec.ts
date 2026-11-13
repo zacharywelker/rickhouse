@@ -4,16 +4,6 @@ import { resetDatabase } from "./support/db";
 
 const stamp = () => Math.random().toString(36).slice(2, 8);
 
-// Brands and distilleries also offer "Create with details" (__details__).
-const EXISTING_OPTION = '[cmdk-item]:not([data-value="__create__"]):not([data-value="__details__"])';
-
-async function pick(page: Page, comboboxLabel: string | RegExp, search: string, optionLabel?: string) {
-  const target = optionLabel ?? search;
-  await page.getByRole("combobox", { name: comboboxLabel }).click();
-  await page.locator("[cmdk-input]").fill(search);
-  await page.locator(EXISTING_OPTION).filter({ has: page.getByText(target, { exact: true }) }).first().click();
-}
-
 async function noSidewaysPageScroll(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 }
@@ -54,109 +44,35 @@ test("the labels table shows six columns by default and can show any other field
   await expect(page.getByRole("columnheader", { name: /MSRP/ })).toBeVisible();
 });
 
-test("an unlocked labels table edits whichever columns are shown", async ({ page }) => {
-  await page.goto("/expressions?cols=brand,name,estate,upc,ageStatement");
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
-
-  // Rum detail does not apply to a bourbon, on the form or here.
-  await expect(page.getByRole("textbox", { name: "Estate" })).toHaveCount(0);
-
-  await page.getByRole("textbox", { name: "UPC / Barcode" }).fill("12ab");
-  await page.getByRole("button", { name: /Save changes/ }).click();
-  await expect(page.getByText("UPC / Barcode: A barcode is 6–32 digits.")).toBeVisible();
-
-  await page.getByRole("textbox", { name: "UPC / Barcode" }).fill("080686001409");
-  await page.getByRole("textbox", { name: "Age Statement" }).fill("4 Year");
-  await page.getByRole("button", { name: /Save changes \(1\)/ }).click();
-  await expect(page.getByRole("button", { name: /Save changes/ })).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Done editing" }).click();
-  await expect(page.getByRole("cell", { name: "080686001409" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "4 Year" })).toBeVisible();
-});
-
-test("bulk add labels takes every field and remembers the ones you hide", async ({ page }) => {
-  const name = `Bulk Rum ${stamp()}`;
-  await page.goto("/expressions/bulk");
-
-  // Rum cells wait until the row is a rum.
-  await expect(page.getByRole("textbox", { name: "Estate" })).toHaveCount(0);
-  await pick(page, /Brand/, "Pursuit Spirits");
-  await pick(page, /Category/, "Rum");
-  await page.getByRole("textbox", { name: "Label Name" }).fill(name);
-  await page.getByRole("textbox", { name: "Estate" }).fill("Hampden");
-  await page.getByRole("combobox", { name: "Still Type" }).selectOption("pot");
-
-  await page.getByRole("button", { name: /^Distilleries/ }).click();
-  await pick(page, "Add distilleries", "Finger Lakes", "Finger Lakes Distilling");
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: /^Distilleries/ })).toContainText("Finger Lakes Distilling");
-
-  await page.getByRole("button", { name: /Fields/ }).click();
-  await expect(page.getByRole("checkbox", { name: "Label Name", exact: true })).toBeDisabled();
-  await page.getByRole("checkbox", { name: "Description", exact: true }).click();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("columnheader", { name: "Description" })).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Save all" }).click();
-  await expect(page.getByText("Added 1 label.")).toBeVisible();
-
-  await page.goto(`/expressions?q=${encodeURIComponent(name)}&cols=name,estate,stillType,distilleries`);
-  await expect(page.getByRole("cell", { name: "Hampden" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Pot" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Finger Lakes Distilling" })).toBeVisible();
-
-  // Hidden stays hidden on the next visit.
-  await page.goto("/expressions/bulk");
-  await expect(page.getByRole("columnheader", { name: "Label Name" })).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "Description" })).toHaveCount(0);
-});
-
-test("bulk add bottles records state and single-barrel detail", async ({ page }) => {
-  await page.goto("/bottles/bulk");
-
-  // A pick name only means something on a private selection.
-  await expect(page.getByRole("textbox", { name: "Pick Name" })).toHaveCount(0);
-  await pick(page, /Label/, "Double Oak", "Pursuit Spirits Double Oak Spirit");
-  await page.getByRole("checkbox", { name: "Private Selection" }).click();
-  await page.getByRole("textbox", { name: "Pick Name" }).fill("Barrel #24 — Bulk Club");
-  await page.getByRole("combobox", { name: "Fill", exact: true }).selectOption({ label: "½" });
-  await page.getByRole("checkbox", { name: "Opened" }).click();
-
-  await page.getByRole("button", { name: "Save all" }).click();
-  await expect(page.getByText("Added 1 bottle.")).toBeVisible();
-
-  await page.goto("/bottles");
-  const row = page.getByRole("row").filter({ has: page.getByRole("img", { name: /fill: Half full/ }) });
-  await row.getByRole("link", { name: /Double Oak Spirit/ }).click();
-  await expect(page.getByText("Barrel #24 — Bulk Club")).toBeVisible();
-});
-
-test("bulk add and the labels table only ever see your own collection", async ({ browser }) => {
+test("the bulk editor and the labels table only ever see your own collection", async ({ browser }) => {
   const brand = `Member Brand ${stamp()}`;
   const member = await browser.newPage();
   await signIn(member, MEMBER.username);
-  await member.goto("/expressions/bulk");
+  await member.goto("/bulk-editor");
+  const sheet = member.getByRole("grid", { name: "Bulk editor" });
+  await expect(sheet).toBeVisible();
+  await member.evaluate(() => window.localStorage.removeItem("bulk-editor:view"));
+  await member.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name: "Bottles", exact: true }).click(); // labels
+  const first = sheet.locator('td[data-r="0"][data-c="0"]');
+  await expect(async () => {
+    await first.click();
+    await expect(first).toHaveAttribute("aria-selected", "true", { timeout: 500 });
+  }).toPass();
 
-  // The admin's brand is not offered; the member makes their own inline.
-  await member.getByRole("combobox", { name: /Brand/ }).click();
-  await member.locator("[cmdk-input]").fill("Pursuit");
-  await expect(member.locator(EXISTING_OPTION)).toHaveCount(0);
-  await member.locator("[cmdk-input]").fill(brand);
-  await member.locator('[cmdk-item][data-value="__create__"]').click();
-  await expect(member.getByRole("combobox", { name: /Brand/ })).toContainText(brand);
-
-  // Categories are shared; names only have to be unique per account.
-  await pick(member, /Category/, "Bourbon");
-  await member.getByRole("textbox", { name: "Label Name" }).fill("Double Oak Spirit");
-  await member.getByRole("button", { name: /^Distilleries/ }).click();
-  await member.getByRole("combobox", { name: "Add distilleries" }).click();
-  await member.locator("[cmdk-input]").fill("Bardstown");
-  await expect(member.locator(EXISTING_OPTION)).toHaveCount(0);
-  await member.keyboard.press("Escape");
-  await member.keyboard.press("Escape");
-  await member.getByRole("button", { name: "Save all" }).click();
-  await expect(member.getByText("Added 1 label.")).toBeVisible();
+  // The admin's brand is not offered; the member makes their own, deliberately, with Create.
+  await member.keyboard.type("Pursuit");
+  await expect(member.getByRole("listbox").getByRole("option", { name: /Pursuit Spirits/ })).toHaveCount(0);
+  await member.keyboard.press("Control+A");
+  await member.keyboard.type(brand);
+  await member.keyboard.press("Enter");
+  // Categories are shared; label names only have to be unique per account.
+  await member.keyboard.type("Double Oak Spirit");
+  await member.keyboard.press("Enter");
+  await member.keyboard.type("Bourbon");
+  await member.keyboard.press("Enter");
+  await member.getByRole("heading", { name: "Bulk editor" }).click(); // leaving the finished row saves it
+  await expect(member.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await member.waitForTimeout(800);
 
   await member.goto("/expressions?cols=brand,name,distilleries");
   await expect(member.getByText("1 label", { exact: true })).toBeVisible();
@@ -168,20 +84,39 @@ test("bulk add and the labels table only ever see your own collection", async ({
   await admin.goto("/expressions?cols=brand,name");
   await expect(admin.getByRole("cell", { name: "Pursuit Spirits" }).first()).toBeVisible();
   await expect(admin.getByRole("cell", { name: brand })).toHaveCount(0);
+  await admin.goto("/bulk-editor");
+  await expect(admin.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
+  await expect(admin.getByText(brand)).toHaveCount(0);
 });
 
 test("wide grids scroll inside themselves, not the page", async ({ page }) => {
-  for (const url of ["/expressions/bulk", "/bottles/bulk"]) {
-    await page.goto(url);
-    await expect(page.getByRole("button", { name: /Fields/ })).toBeVisible();
-    await noSidewaysPageScroll(page);
-  }
+  await page.goto("/bulk-editor");
+  await expect(page.getByRole("button", { name: /Fields/ })).toBeVisible();
+  await noSidewaysPageScroll(page);
 
   await page.goto("/expressions");
   await page.getByRole("button", { name: /Columns/ }).click();
   await page.getByRole("button", { name: "Show all" }).click();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("columnheader", { name: "Finishes" })).toBeVisible();
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await noSidewaysPageScroll(page);
+});
+
+test("the old Bulk add addresses go to the bulk editor", async ({ page }) => {
+  for (const url of ["/expressions/bulk", "/bottles/bulk"]) {
+    await page.goto(url);
+    await expect(page).toHaveURL(/\/bulk-editor$/);
+    await expect(page.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
+  }
+});
+
+test("the tables are for looking: no inline edit, and one way to the bulk editor", async ({ page }) => {
+  for (const url of ["/expressions", "/bottles"]) {
+    await page.goto(url);
+    await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Bulk add" })).toHaveCount(0);
+  }
+  await page.goto("/expressions");
+  await page.getByRole("link", { name: "Bulk editor" }).click();
+  await expect(page).toHaveURL(/\/bulk-editor$/);
 });

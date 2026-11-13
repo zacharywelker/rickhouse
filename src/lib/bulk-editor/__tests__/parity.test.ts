@@ -5,7 +5,7 @@ import { EDITORS } from "../editors";
 import { NOT_HERE } from "../fields";
 
 /**
- * The gate for retiring the old inline Edit and Bulk add (#319): every field on the bottle form and the label form either
+ * The gate that let the old inline Edit and Bulk add be retired (#319): every field on the bottle form and the label form either
  * has a cell in the sheet, or is in `NOT_HERE` with the step that will give it one (or the reason it never will).
  *
  * Fields are told apart by side: a label's proof and a bottle's own proof are two fields of one name, and each needs its

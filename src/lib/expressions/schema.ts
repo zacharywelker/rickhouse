@@ -322,41 +322,6 @@ export const bottleStateSchema = z
     }
   });
 
-/**
- * The subset of `bottleSchema` editable inline from the collection grid's
- * unlocked "edit" mode (issue: bulk delete and edit). Deliberately smaller
- * than the single-record form — just the columns already surfaced in
- * `bottle_list`, so no extra query work is needed to show current values.
- */
-export const bottleGridEditSchema = z.object({
-  expressionId: requiredRef,
-  storeId: optionalRef,
-  status: z.enum(BOTTLE_STATUSES),
-  pricePaid: optionalDecimal(0, 99_999_999),
-  dateAcquired: pastDate,
-  releaseYear: optionalInt(1700, 2200),
-});
-
-export type BottleGridEditInput = z.infer<typeof bottleGridEditSchema>;
-
-/**
- * What the labels grid's unlocked "edit" mode can change: any field on the
- * label form, each one optional so a row sends only what was edited. The
- * rest of the label is left exactly as it was — the grid never writes a
- * field you did not touch. Batch and release year are not label columns any
- * more (they moved to the bottle in M7), so they are not here either.
- *
- * Distilleries, mashbills and finishes are edited in the grid too, but as the
- * same ordered lists the form submits (`parseLinks`), not through this schema.
- */
-export const expressionGridEditSchema = expressionSchema.omit({ batch: true, releaseYear: true }).partial().extend({
-  ageYearsSource: z.enum(["entered", "derived"]).optional(),
-  peatStatus: z.enum(PEAT_STATUSES).optional(),
-  dairyStatus: z.enum(DAIRY_STATUSES).optional(),
-});
-
-export type ExpressionGridEditInput = z.infer<typeof expressionGridEditSchema>;
-
 export const tastingNoteSchema = z.object({
   tastedOn: blankIfAbsent(
     trimmed

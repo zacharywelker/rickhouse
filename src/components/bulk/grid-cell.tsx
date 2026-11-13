@@ -11,7 +11,7 @@ import type { FieldSpec, Option } from "@/lib/admin/types";
 import type { FieldValue } from "@/lib/forms/values";
 
 /** How wide a cell needs to be to hold its control, by field kind. */
-export const CELL_WIDTH: Record<FieldSpec["kind"], string> = {
+const CELL_WIDTH: Record<FieldSpec["kind"], string> = {
   reference: "min-w-48",
   text: "min-w-40",
   textarea: "min-w-56",

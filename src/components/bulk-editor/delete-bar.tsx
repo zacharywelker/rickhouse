@@ -9,7 +9,7 @@ import { deleteSentence, type DeleteIds } from "@/lib/bulk-editor/delete";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 
 /**
- * The bar that appears while rows are selected, in the app's delete-confirm convention (`GridEditBar`, DESIGN.md §38): a
+ * The bar that appears while rows are selected, in the app's delete-confirm convention (DESIGN.md §38): a
  * sticky bar with the count and a destructive button, and a dialog that names what goes. The numbers in the dialog come
  * from the server when it opens, so they are what will be deleted, not what the sheet guesses.
  */
