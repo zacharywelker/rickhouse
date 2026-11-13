@@ -70,19 +70,25 @@ function matchTier(typed: string, candidate: string): number | null {
   return null;
 }
 
-function isNear(typed: string, candidate: string): boolean {
+/** How many slips away the candidate is (0 for the same words in other spacing), or null when it is not close. */
+function nearness(typed: string, candidate: string): number | null {
   const t = squish(typed);
   const c = squish(candidate);
-  if (t === "" || c === "") return false;
+  if (t === "" || c === "") return null;
   // The same words in different spacing or punctuation: not a match for it, but certainly the same thing.
-  if (t === c) return true;
+  if (t === c) return 0;
   const allowed = slipsAllowed(t.length);
-  if (allowed === 0) return false;
+  if (allowed === 0) return null;
   // Compared with the whole name, and with the same length of its start, since the text is usually unfinished.
-  return distance(t, c) <= allowed || distance(t, c.slice(0, t.length)) <= allowed || distance(t, c.slice(0, t.length + 1)) <= allowed;
+  const slips = Math.min(distance(t, c), distance(t, c.slice(0, t.length)), distance(t, c.slice(0, t.length + 1)));
+  return slips <= allowed ? slips : null;
 }
 
-export function suggest(typed: string, candidates: ReadonlyArray<Candidate>, options: { allowCreate: boolean; limit?: number }): Suggestions {
+/**
+ * `cap` is the most the list shows once something is typed (exact and close matches together), so the Create option is
+ * never more than that many arrow presses away. Nothing typed lists up to 50, as before.
+ */
+export function suggest(typed: string, candidates: ReadonlyArray<Candidate>, options: { allowCreate: boolean; limit?: number; cap?: number }): Suggestions {
   const text = typed.trim().replace(/\s+/g, " ");
   const limit = options.limit ?? (text === "" ? 50 : 8);
   const byName = (a: Candidate, b: Candidate) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
@@ -90,24 +96,28 @@ export function suggest(typed: string, candidates: ReadonlyArray<Candidate>, opt
   const exact = text === "" ? null : (candidates.find((c) => c.name.trim().toLowerCase() === text.toLowerCase()) ?? null);
 
   const matched: Array<{ candidate: Candidate; tier: number }> = [];
-  const near: Candidate[] = [];
+  const near: Array<{ candidate: Candidate; slips: number }> = [];
   for (const candidate of candidates) {
     if (candidate === exact) continue;
     const tier = matchTier(text, candidate.name);
     if (tier !== null) matched.push({ candidate, tier });
-    else if (text !== "" && isNear(text, candidate.name)) near.push(candidate);
+    else if (text !== "") {
+      const slips = nearness(text, candidate.name);
+      if (slips !== null) near.push({ candidate, slips });
+    }
   }
   matched.sort((a, b) => a.tier - b.tier || byName(a.candidate, b.candidate));
-  near.sort(byName);
+  // The closest first, since the first is what Tab and Enter take: "Brand 33" is nearer "Brand 3" than "Brand 0".
+  near.sort((a, b) => a.slips - b.slips || byName(a.candidate, b.candidate));
 
   const exactSuggestion: Suggestion | null = exact ? { ...exact, near: false } : null;
   const items: Suggestion[] = [
     ...(exactSuggestion ? [exactSuggestion] : []),
     ...matched.slice(0, limit).map(({ candidate }) => ({ ...candidate, near: false })),
-    ...near.slice(0, 3).map((candidate) => ({ ...candidate, near: true })),
-  ];
+    ...near.slice(0, 3).map(({ candidate }) => ({ ...candidate, near: true })),
+  ].slice(0, text === "" ? undefined : options.cap);
   const create = options.allowCreate && text !== "" && !exact ? { name: text } : null;
-  const hint = !exact && matched.length === 0 && near.length > 0 ? `Did you mean ${near[0]!.name}?` : null;
+  const hint = !exact && matched.length === 0 && near.length > 0 ? `Did you mean ${near[0]!.candidate.name}?` : null;
   return { items, create, exact: exactSuggestion, hint };
 }
 
@@ -134,11 +144,17 @@ export type KeyOutcome =
   | { block: string };
 
 /**
- * What Enter and Tab do with the highlight. Enter takes the highlighted match, or creates when Create is highlighted.
+ * What Enter, Tab and Ctrl+Enter do with the highlight. Enter takes the highlighted match, or creates when Create is highlighted.
  * **Tab takes an existing match only**: with Create highlighted it blocks, so a Tab at the end of a row never makes a
  * brand or label by accident. With nothing highlighted either one blocks, and what was typed is never dropped silently.
  */
-export function resolveKey(key: "Enter" | "Tab", suggestions: Suggestions, highlight: Highlight, what: string): KeyOutcome {
+export function resolveKey(key: "Enter" | "Tab" | "CreateNow", suggestions: Suggestions, highlight: Highlight, what: string): KeyOutcome {
+  // Ctrl+Enter makes what was typed whatever is highlighted, since a close match is often not what was meant. When
+  // creating is not allowed, or something already has exactly this name, it is an ordinary Enter.
+  if (key === "CreateNow") {
+    if (suggestions.create) return { create: suggestions.create.name };
+    key = "Enter";
+  }
   if (highlight?.kind === "item") {
     const item = suggestions.items[highlight.index];
     if (item) return { accept: item };

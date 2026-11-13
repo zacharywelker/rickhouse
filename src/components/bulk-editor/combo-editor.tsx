@@ -20,6 +20,9 @@ const LIST_HEIGHT = 280;
  * a brand or label (`resolveKey` holds that rule). Escape cancels. Clicking away takes an exact match, and otherwise
  * drops what was typed: leaving a cell never creates anything.
  */
+/** The most a Brand or Label list shows once something is typed; the Create option is that many arrow presses away at most. */
+const LIST_CAP: Record<string, number> = { brand: 5, label: 12 };
+
 export function ComboEditor({ kind, column, initial, data, error, onFinish, onInvalid }: {
   kind: ComboKind | "reference";
   column: string;
@@ -29,8 +32,9 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
   onFinish: (finish: Finish) => void;
   onInvalid: (message: string) => void;
 }) {
+  const ask = React.useCallback((typed: string) => suggest(typed, data.candidates, { allowCreate: data.allowCreate, cap: LIST_CAP[data.what] }), [data.candidates, data.allowCreate, data.what]);
   const [text, setText] = React.useState(initial.value);
-  const [highlight, setHighlight] = React.useState<Highlight>(() => defaultHighlight(suggest(initial.value, data.candidates, { allowCreate: data.allowCreate })));
+  const [highlight, setHighlight] = React.useState<Highlight>(() => defaultHighlight(ask(initial.value)));
   /** Whether the arrow keys have been used, which is what makes a highlighted match the person's choice on an empty box. */
   const moved = React.useRef(false);
   const wrap = React.useRef<HTMLDivElement>(null);
@@ -38,7 +42,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
   const [rect, setRect] = React.useState<DOMRect | null>(null);
   const listId = React.useId();
 
-  const suggestions = React.useMemo(() => suggest(text, data.candidates, { allowCreate: data.allowCreate }), [text, data.candidates, data.allowCreate]);
+  const suggestions = React.useMemo(() => ask(text), [ask, text]);
 
   React.useEffect(() => {
     const el = input.current;
@@ -93,7 +97,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
         onFinish({ keep: true, move, focus: true });
         return;
       }
-      const outcome = resolveKey(key === "Tab" ? "Tab" : "Enter", suggestions, highlight, data.what);
+      const outcome = resolveKey(key === "Tab" ? "Tab" : event.ctrlKey || event.metaKey ? "CreateNow" : "Enter", suggestions, highlight, data.what);
       if ("accept" in outcome) choose(outcome.accept, move, true);
       else if ("create" in outcome) onFinish({ pick: { kind: "new", name: outcome.create }, move, focus: true });
       else onInvalid(outcome.block);
@@ -149,6 +153,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
                   className={cn("cursor-pointer border-t border-border px-3 py-1.5", highlight?.kind === "create" && "bg-muted font-medium")}
                 >
                   Create “{suggestions.create.name}”
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">Ctrl+Enter</span>
                 </li>
               ) : null}
             </ul>
@@ -191,7 +196,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
           const next = event.target.value;
           setText(next);
           moved.current = false;
-          setHighlight(defaultHighlight(suggest(next, data.candidates, { allowCreate: data.allowCreate })));
+          setHighlight(defaultHighlight(ask(next)));
         }}
         className={cn("h-9 w-full rounded-none", error !== null && "border-destructive")}
       />

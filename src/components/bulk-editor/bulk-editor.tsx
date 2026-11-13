@@ -1678,7 +1678,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         </p>
       ) : null}
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        Arrow keys move. Type or press Enter to edit. A grey cell with a lock belongs to the label and changes every bottle on it: triple-click it to edit. Brand or Label on a bottle moves it to another label. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only.
+        Arrow keys move. Type or press Enter to edit. A grey cell with a lock belongs to the label and changes every bottle on it: triple-click it to edit. Brand or Label on a bottle moves it to another label. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only, and Ctrl+Enter creates what you typed.
         Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels.
         Rows save as you go: a saved row as soon as a cell is finished, a new row when you leave it.
       </p>
