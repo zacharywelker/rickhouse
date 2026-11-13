@@ -1,41 +1,6 @@
-import type { Metadata } from "next";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Section, SectionContent } from "@/components/ui/section";
-import { BottleBulkGrid } from "@/components/bottles/bottle-bulk-grid";
-import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
-import { categoryFieldGroups, categoryKindsById, expressionOptions } from "@/lib/expressions/queries";
-import { releaseChoices } from "@/lib/releases-store";
-import { requireSession } from "@/lib/auth";
+import { permanentRedirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Bulk add bottles" };
-export const dynamic = "force-dynamic";
-
-export default async function BulkBottlesPage() {
-  const user = await requireSession();
-  const [expressions, stores, categoryGroups, categoryKinds] = await Promise.all([expressionOptions(user.id), REFERENCE_OPTION_LOADERS.stores(user.id), categoryFieldGroups(), categoryKindsById()]);
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="max-w-2xl">
-        <h1 className="text-3xl text-accent">Bulk add bottles</h1>
-      </div>
-
-      {expressions.length === 0 ? (
-        <Section>
-          <SectionContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <p className="text-lg">No labels yet</p>
-            <p className="mx-auto max-w-md text-sm text-muted-foreground">
-              A bottle has to be a bottle <em>of</em> something. Create at least one label first.
-            </p>
-            <Button asChild>
-              <Link href="/expressions/new">Create a label</Link>
-            </Button>
-          </SectionContent>
-        </Section>
-      ) : (
-        <BottleBulkGrid expressions={expressions} stores={stores} releases={await releaseChoices(user.id)} categoryGroups={categoryGroups} categoryKinds={categoryKinds} />
-      )}
-    </div>
-  );
+/** The old Bulk add page. The Bulk editor adds, edits and deletes in one sheet, so old links and bookmarks go there. */
+export default function Page() {
+  permanentRedirect("/bulk-editor");
 }

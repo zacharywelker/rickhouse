@@ -8,7 +8,7 @@ export type LabelFacts = { group: FieldGroup | null; kind: CategoryKind; isAgedG
 
 /**
  * Why a bottle field does not apply to a bottle of this label, or null when it does. The bottle form's own rules
- * (the old Bulk add applied them row by row, and so does the sheet): a gin has no barrel unless it is aged, tequila has no age
+ * (the Bulk editor applies them row by row): a gin has no barrel unless it is aged, tequila has no age
  * statement, a blanco has no age at all, and so on. `own` is what the bottle itself says (its own tequila class, say).
  */
 export function bottleFieldNotUsed(name: string, label: LabelFacts, own: { tequilaClass?: string | null } = {}): string | null {

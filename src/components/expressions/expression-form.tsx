@@ -36,7 +36,6 @@ import {
   type NameContext,
   type ProofSpread,
 } from "@/lib/expressions/rules";
-import { SCOTCH_REGIONS } from "@/db/schema";
 import { BRANDY_MINIMUM_YEARS } from "@/lib/expressions/spirit-details";
 import { RegionPicker } from "./region-picker";
 import { OTHER_NAME_COLUMNS, otherNameRows, RELEASE_COLUMNS } from "./label-list-columns";

@@ -10,16 +10,11 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
-  type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { GridEditBar } from "@/components/ui/grid-edit-bar";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { ageLabel } from "@/lib/expressions/display";
 import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { useCurrency, useMoney } from "@/components/currency-context";
@@ -30,9 +25,6 @@ import { categorySwatchClass } from "@/lib/bottles/category-color";
 import { effectiveBottleStatus, isSealedBottle } from "@/lib/bottles/terminology";
 import type { GridRow } from "@/lib/bottles/grid";
 import { describeMarkup, markup, shortMarkup } from "@/lib/bottles/markup";
-import { deleteBottlesBulkAction, updateBottlesBulkAction } from "@/app/(app)/bottles/actions";
-import { BOTTLE_STATUSES } from "@/db/schema";
-import type { Option } from "@/lib/admin/types";
 import { DistilleryNames } from "@/components/ui/inferred";
 import { BottleCards } from "./bottle-cards";
 import { categoryColor } from "@/lib/bottles/category-palette";
@@ -41,7 +33,6 @@ import { StatusMark } from "./status-mark";
 import { useGridFilters } from "./use-grid-filters";
 
 const helper = createColumnHelper<GridRow>();
-const titleCase = (value: string) => value[0]!.toUpperCase() + value.slice(1);
 
 /** Column id -> the sort key the server understands. */
 const SORT_BY_COLUMN: Partial<Record<string, SortKey>> = {
@@ -78,37 +69,6 @@ export const COLUMN_LABELS: Array<{ id: string; label: string }> = [
 ];
 
 /**
- * The fields the unlocked grid can edit inline — the subset of the bottle
- * form's fields already resolved onto `bottle_list`, so editing needs no
- * extra query beyond what the page already loads (see
- * `bottleGridEditSchema`).
- */
-type GridEdit = {
-  expressionId: number;
-  storeId: number | null;
-  status: string;
-  pricePaid: string;
-  dateAcquired: string;
-  releaseYear: string;
-};
-
-function editableFrom(row: GridRow): GridEdit {
-  return {
-    expressionId: row.expressionId,
-    storeId: row.storeId,
-    status: row.status,
-    pricePaid: row.pricePaid ?? "",
-    dateAcquired: row.dateAcquired ?? "",
-    releaseYear: row.releaseYear === null || row.releaseYear === undefined ? "" : String(row.releaseYear),
-  };
-}
-
-function isDirty(row: GridRow, edit: GridEdit): boolean {
-  const original = editableFrom(row);
-  return (Object.keys(edit) as Array<keyof GridEdit>).some((key) => edit[key] !== original[key]);
-}
-
-/**
  * Hitting the expression link exactly is fiddly, so the whole row opens on a
  * double click (SPEC M8). The link stays — it is what makes middle-click and
  * "open in new tab" work, and it is the keyboard path.
@@ -128,102 +88,17 @@ function openOnDoubleClick(event: React.MouseEvent, router: ReturnType<typeof us
 export function BottleTable({
   rows,
   filters,
-  stores,
 }: {
   rows: GridRow[];
   filters: BottleFilters;
-  stores: Option[];
 }) {
   const { apply } = useGridFilters(filters);
   const money = useMoney();
   const currency = useCurrency();
   const router = useRouter();
 
-  const [unlocked, setUnlocked] = React.useState(false);
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
-  const [edits, setEdits] = React.useState<Record<number, GridEdit>>({});
-
-  // Off-screen rows shouldn't stay silently selected or dirty once the page
-  // or filters change under them.
-  React.useEffect(() => {
-    setRowSelection({});
-    setEdits({});
-  }, [rows]);
-
-  function updateEdit<K extends keyof GridEdit>(row: GridRow, field: K, value: GridEdit[K]) {
-    setEdits((prev) => ({
-      ...prev,
-      [row.id]: { ...(prev[row.id] ?? editableFrom(row)), [field]: value },
-    }));
-  }
-
-  const dirtyIds = React.useMemo(
-    () => rows.filter((row) => edits[row.id] && isDirty(row, edits[row.id]!)).map((row) => row.id),
-    [rows, edits],
-  );
-
-  async function handleSaveChanges() {
-    const payload = dirtyIds.map((id) => {
-      const edit = edits[id]!;
-      return {
-        id,
-        expressionId: edit.expressionId,
-        storeId: edit.storeId === null ? "" : String(edit.storeId),
-        status: edit.status,
-        pricePaid: edit.pricePaid,
-        dateAcquired: edit.dateAcquired,
-        releaseYear: edit.releaseYear,
-      };
-    });
-    const result = await updateBottlesBulkAction(payload);
-    const savedIds = new Set(result.results.filter((r) => r.ok).map((r) => r.id));
-    setEdits((prev) => {
-      const next = { ...prev };
-      for (const id of savedIds) delete next[id];
-      return next;
-    });
-    if (savedIds.size > 0) router.refresh();
-    return result;
-  }
-
-  async function handleDeleteSelected() {
-    const ids = Object.keys(rowSelection)
-      .filter((key) => rowSelection[key])
-      .map(Number);
-    const result = await deleteBottlesBulkAction(ids);
-    const deletedIds = new Set(result.results.filter((r) => r.ok).map((r) => r.id));
-    setRowSelection((prev) => {
-      const next = { ...prev };
-      for (const id of deletedIds) delete next[String(id)];
-      return next;
-    });
-    if (deletedIds.size > 0) router.refresh();
-    return result;
-  }
-
   const columns = React.useMemo(
     () => [
-      ...(unlocked
-        ? [
-            helper.display({
-              id: "select",
-              header: ({ table }) => (
-                <Checkbox
-                  checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
-                  onCheckedChange={(value) => table.toggleAllPageRowsSelected(Boolean(value))}
-                  aria-label="Select all rows on this page"
-                />
-              ),
-              cell: ({ row }) => (
-                <Checkbox
-                  checked={row.getIsSelected()}
-                  onCheckedChange={(value) => row.toggleSelected(Boolean(value))}
-                  aria-label={`Select ${row.original.expressionName}`}
-                />
-              ),
-            }),
-          ]
-        : []),
       helper.display({
         id: "photo",
         header: "",
@@ -296,22 +171,7 @@ export function BottleTable({
       helper.accessor("status", {
         id: "status",
         header: "Status",
-        cell: ({ row }) =>
-          unlocked ? (
-            <select
-              value={edits[row.original.id]?.status ?? effectiveBottleStatus(row.original)}
-              onChange={(e) => updateEdit(row.original, "status", e.target.value)}
-              className="h-8 w-full border border-input bg-card px-2 text-sm text-foreground"
-            >
-              {BOTTLE_STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {titleCase(value)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <StatusMark status={effectiveBottleStatus(row.original)} />
-          ),
+        cell: ({ row }) => <StatusMark status={effectiveBottleStatus(row.original)} />,
       }),
       helper.accessor("category", {
         id: "category",
@@ -354,19 +214,7 @@ export function BottleTable({
       helper.accessor("pricePaid", {
         id: "price",
         header: "Paid",
-        cell: ({ getValue, row }) =>
-          unlocked ? (
-            <Input
-              type="number"
-              min={0}
-              step={0.01}
-              value={edits[row.original.id]?.pricePaid ?? editableFrom(row.original).pricePaid}
-              onChange={(e) => updateEdit(row.original, "pricePaid", e.target.value)}
-              className="h-8 w-24"
-            />
-          ) : (
-            <span className="tabular-nums">{money(getValue())}</span>
-          ),
+        cell: ({ getValue }) => <span className="tabular-nums">{money(getValue())}</span>,
       }),
       helper.accessor("msrp", {
         id: "msrp",
@@ -388,36 +236,12 @@ export function BottleTable({
       helper.accessor("store", {
         id: "store",
         header: "Store",
-        cell: ({ getValue, row }) =>
-          unlocked ? (
-            <ReferenceCombobox
-              id={`grid-store-${row.original.id}`}
-              labelledBy={`grid-store-${row.original.id}`}
-              resource="stores"
-              options={stores}
-              value={edits[row.original.id]?.storeId ?? editableFrom(row.original).storeId}
-              onChange={(next) => updateEdit(row.original, "storeId", next)}
-              onOptionCreated={() => undefined}
-              placeholder="Optional…"
-            />
-          ) : (
-            <span className="block min-w-20 max-w-32">{getValue() ?? "—"}</span>
-          ),
+        cell: ({ getValue }) => <span className="block min-w-20 max-w-32">{getValue() ?? "—"}</span>,
       }),
       helper.accessor("dateAcquired", {
         id: "acquired",
         header: "Acquired",
-        cell: ({ getValue, row }) =>
-          unlocked ? (
-            <Input
-              type="date"
-              value={edits[row.original.id]?.dateAcquired ?? editableFrom(row.original).dateAcquired}
-              onChange={(e) => updateEdit(row.original, "dateAcquired", e.target.value)}
-              className="h-8 w-36"
-            />
-          ) : (
-            <span className="whitespace-nowrap tabular-nums">{formatDate(getValue())}</span>
-          ),
+        cell: ({ getValue }) => <span className="whitespace-nowrap tabular-nums">{formatDate(getValue())}</span>,
       }),
       helper.accessor("avgRating", {
         id: "rating",
@@ -425,27 +249,8 @@ export function BottleTable({
         cell: ({ getValue }) =>
           getValue() ? <span className="tabular-nums text-accent">{Number(getValue())}</span> : "—",
       }),
-      ...(unlocked
-        ? [
-            helper.display({
-              id: "releaseYear",
-              header: "Release Year",
-              cell: ({ row }: { row: { original: GridRow } }) => (
-                <Input
-                  type="number"
-                  min={1700}
-                  max={2200}
-                  step={1}
-                  value={edits[row.original.id]?.releaseYear ?? editableFrom(row.original).releaseYear}
-                  onChange={(e) => updateEdit(row.original, "releaseYear", e.target.value)}
-                  className="h-8 w-24"
-                />
-              ),
-            }),
-          ]
-        : []),
     ],
-    [unlocked, edits, stores, money],
+    [money, currency],
   );
 
   const columnVisibility = React.useMemo<VisibilityState>(
@@ -456,10 +261,8 @@ export function BottleTable({
   const table = useReactTable({
     data: rows,
     columns,
-    state: { columnVisibility, rowSelection },
+    state: { columnVisibility },
     getRowId: (row) => String(row.id),
-    enableRowSelection: unlocked,
-    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     // Sorting, filtering and paging all happen in Postgres.
     manualSorting: true,
@@ -473,27 +276,8 @@ export function BottleTable({
     apply(filters.sort === key ? { desc: !filters.desc } : { sort: key, desc: true });
   }
 
-  const selectedCount = Object.values(rowSelection).filter(Boolean).length;
-
   return (
     <>
-      {/* Desktop only: the phone cards have no edit mode, so the toggle would do nothing there. */}
-      <div className="mb-3 hidden justify-end md:flex">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (unlocked && dirtyIds.length > 0 && !window.confirm("Discard unsaved changes?")) return;
-            setUnlocked((prev) => !prev);
-            setRowSelection({});
-            setEdits({});
-          }}
-        >
-          {unlocked ? "Done editing" : "Edit"}
-        </Button>
-      </div>
-
       {/*
        * Under 768px the same rows render as cards (SPEC M6). Both trees are in
        * the DOM and CSS picks one, so there is no hydration flash and no
@@ -505,7 +289,7 @@ export function BottleTable({
         <BottleCards rows={rows} />
       </div>
 
-      <div className={cn("hidden border border-border bg-card md:block", unlocked && "overflow-x-auto")}>
+      <div className="hidden border border-border bg-card md:block">
         <Table>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
@@ -551,8 +335,8 @@ export function BottleTable({
           {table.getRowModel().rows.map((row) => (
             <TableRow
               key={row.id}
-              onDoubleClick={(event) => !unlocked && openOnDoubleClick(event, router, row.original.id)}
-              className={cn(!unlocked && "cursor-pointer")}
+              onDoubleClick={(event) => openOnDoubleClick(event, router, row.original.id)}
+              className="cursor-pointer"
             >
               {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
@@ -563,16 +347,6 @@ export function BottleTable({
         </Table>
       </div>
 
-      {unlocked ? (
-        <GridEditBar
-          itemLabel="bottle"
-          selectedCount={selectedCount}
-          onClearSelection={() => setRowSelection({})}
-          onDeleteSelected={handleDeleteSelected}
-          dirtyCount={dirtyIds.length}
-          onSaveChanges={handleSaveChanges}
-        />
-      ) : null}
     </>
   );
 }
