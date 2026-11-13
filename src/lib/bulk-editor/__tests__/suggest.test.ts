@@ -68,6 +68,15 @@ describe("suggest", () => {
     it("finds a slip in the middle of a longer name", () => {
       expect(suggest("Elijha Craig", [{ id: 1, name: "Elijah Craig" }], { allowCreate: true }).items[0]).toMatchObject({ id: 1, near: true });
     });
+    it("puts the closest near match first, because that is what Tab and Enter take", () => {
+      const brands: Candidate[] = [
+        { id: 1, name: "Brand 0" },
+        { id: 2, name: "Brand 1" },
+        { id: 3, name: "Brand 3" },
+      ];
+      expect(suggest("Brand 33", brands, { allowCreate: true }).items[0]).toMatchObject({ id: 3, near: true });
+      expect(suggest("Brand 33", brands, { allowCreate: true }).hint).toBe("Did you mean Brand 3?");
+    });
     it("is not near for very short text, where nearly everything would be", () => {
       expect(suggest("Zzz", [{ id: 1, name: "Zzy" }], { allowCreate: true }).items).toEqual([]);
     });
