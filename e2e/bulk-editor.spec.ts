@@ -213,6 +213,22 @@ test("a typo never makes a brand: Tab is blocked, Enter on Create makes it, and 
   await expect(page.getByRole("status")).toContainText("1 row not saved yet");
 });
 
+test("Ctrl+Enter creates what was typed past a close match, and the brand list is five long at most", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  const existing = (await cell(page, 0, brand).innerText()).trim();
+  await cell(page, row, brand).click();
+  const typo = `${existing.slice(0, -1)}q`;
+  await page.keyboard.type(typo); // one letter off an existing brand: it is listed as a close match, and Enter would take it
+  const options = page.getByRole("listbox").getByRole("option");
+  await expect(options.first()).toContainText("close match");
+  expect(await options.count()).toBeLessThanOrEqual(6); // five matches and Create
+  await page.keyboard.press("Control+Enter");
+  await expect(cell(page, row, brand)).toContainText(typo);
+  await expect(cell(page, row, brand)).toContainText("new");
+  expect(await active(page)).toEqual({ row, col: label });
+});
+
 test("a new label under a new brand takes its category from the closed list, and Discard removes the row", async ({ page }) => {
   const [brand, label, category] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Category")];
   const row = await lastRow(page);

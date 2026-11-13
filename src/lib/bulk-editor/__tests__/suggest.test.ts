@@ -150,3 +150,28 @@ describe("resolveKey: a typo never silently creates", () => {
     }
   });
 });
+
+describe("the list cap and Ctrl+Enter", () => {
+  const many: Candidate[] = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Wyn Brand ${String(i).padStart(2, "0")}` }));
+  it("shows no more than the cap once something is typed, with Create still offered", () => {
+    const s = suggest("Wyn Brand", many, { allowCreate: true, cap: 5 });
+    expect(s.items).toHaveLength(5);
+    expect(s.create).toEqual({ name: "Wyn Brand" });
+  });
+  it("does not cap the list before anything is typed", () => {
+    expect(suggest("", many, { allowCreate: true, cap: 5 }).items).toHaveLength(30);
+  });
+  it("Ctrl+Enter creates what was typed even with a close match highlighted", () => {
+    const s = suggest("Wyn Brand 31", many, { allowCreate: true, cap: 5 });
+    expect(defaultHighlight(s)).toEqual({ kind: "item", index: 0 });
+    expect(resolveKey("CreateNow", s, defaultHighlight(s), "brand")).toEqual({ create: "Wyn Brand 31" });
+    expect(resolveKey("Enter", s, defaultHighlight(s), "brand")).toHaveProperty("accept");
+  });
+  it("Ctrl+Enter is an ordinary Enter when nothing can be created or the name exists", () => {
+    const exact = suggest("Wyn Brand 03", many, { allowCreate: true, cap: 5 });
+    expect(resolveKey("CreateNow", exact, defaultHighlight(exact), "brand")).toMatchObject({ accept: { id: 4 } });
+    const closed = suggest("Wyn Brand 31", many, { allowCreate: false, cap: 5 });
+    expect(resolveKey("CreateNow", closed, defaultHighlight(closed), "brand")).toHaveProperty("accept");
+  });
+});
+
