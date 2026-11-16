@@ -59,6 +59,8 @@ A label whose vintages disagree shows **"Varies"** at the label level instead of
 | neither | the label, and so every bottle of it | the label, or only this bottle |
 | a new row for a new label | the new label's defaults, until the row is marked a single barrel or private selection | none |
 
+**Decided by the owner:** typing into a label-level proof or age that reads "Varies" (Labels-only view) sets **the label's default** and leaves every vintage's own value alone. The label is not reachable from a bottle that is on a vintage; use the Labels-only view or a bottle with no vintage.
+
 "Only this bottle" writes the bottle's own override. Clearing a value at a level removes that level's value, so the next level down shows through.
 
 ### 3. The source marker (at rest)
@@ -120,7 +122,6 @@ For a row marked single barrel or private selection, **no new vintage is created
 
 ## Open items for the owner
 
-- **Reaching the label from a bottle that is on a vintage.** The table offers the vintage or only this bottle. Typing into a label-level "Varies" cell (Labels-only view) is the open case; see below.
 - Marker style: shapes or letter tags.
 - Whether Single barrel and Private selection are two columns or stay one combined cell.
 - Whether a row marked single barrel or private selection should create a vintage at all (the default above is no).
