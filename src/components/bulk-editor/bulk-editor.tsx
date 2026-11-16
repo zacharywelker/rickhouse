@@ -34,7 +34,7 @@ import {
 } from "@/lib/bulk-editor/sheet";
 import { cn, humanise } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
-import { idsOfKeys, keyOf } from "@/lib/bulk-editor/delete";
+import { idsOfKeys } from "@/lib/bulk-editor/delete";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 import { railFor } from "@/lib/bulk-editor/rail";
 import { shelfFor } from "@/lib/bulk-editor/shelf";
@@ -199,7 +199,7 @@ function StatusGlyph({ status }: { status: RowStatus }) {
  * The one live editor: the form's own field control for the cell, mounted over the active cell only. It is positioned
  * over the cell instead of inside it, so opening it never changes a column's width or moves a row.
  */
-function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onInvalid }: { editor: CellEditor; row: SheetRow; kinds: SheetContext["kinds"]; initial: Editing; error: string | null; reach: number | null; onFinish: (finish: Finish) => void; onInvalid: (message: string) => void }) {
+function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onInvalid, onInput }: { editor: CellEditor; row: SheetRow; kinds: SheetContext["kinds"]; initial: Editing; error: string | null; reach: number | null; onFinish: (finish: Finish) => void; onInvalid: (message: string) => void; onInput: (value: string) => void }) {
   const [draft, setDraft] = React.useState(initial.value);
   const input = React.useRef<HTMLElement | null>(null);
 
@@ -209,7 +209,7 @@ function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onI
       el.focus();
       return;
     }
-    if (!(el instanceof HTMLInputElement)) return;
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
     el.focus();
     if (!initial.replace) el.select();
     else {
@@ -235,6 +235,8 @@ function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onI
       className="absolute left-0 top-0 z-20 h-9 w-max min-w-full max-w-72 bg-card"
       style={{ minWidth: "max(100%, 7rem)" }}
       onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return;
+        if (event.key === "Enter" && event.shiftKey && editor.spec.kind === "textarea") return;
         if (event.key === "Enter") {
           event.preventDefault();
           event.stopPropagation();
@@ -264,7 +266,10 @@ function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onI
         id={`bulk-editor-edit-${editor.column}`}
         labelledBy={`bulk-editor-col-${editor.column}`}
         value={draft}
-        onChange={(value) => setDraft(String(value))}
+        onChange={(value) => {
+          setDraft(String(value));
+          onInput(String(value));
+        }}
         invalid={error !== null}
         inputRef={(el) => {
           input.current = el;
@@ -321,14 +326,15 @@ type RowProps = {
   linksNode: React.ReactNode;
   onFinish: ((finish: Finish) => void) | undefined;
   onInvalid: ((message: string) => void) | undefined;
+  onInput: ((value: string) => void) | undefined;
 };
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, pendingCols, onFinish, onInvalid }: RowProps) {
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, pendingCols, onFinish, onInvalid, onInput }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
-        const editor = editorFor(column, view, row, unlocked, context.kinds);
+        const editor = row.draft && (status === "saving" || status === "saved") ? null : editorFor(column, view, row, unlocked, context.kinds);
         const locked = isLocked(column, view, row, unlocked, context.kinds);
         const spec = EDITORS[column.id];
         // A label's cell keeps its edit under the label; it still shows if the view has since changed and the cell cannot be edited.
@@ -397,13 +403,13 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               {reach !== null ? <span className="shrink-0 border border-border px-1 text-[10px] uppercase leading-4 tracking-wide text-muted-foreground">{`all ${reach}`}</span> : null}
               {cell.badge ? <span className="shrink-0 border border-border px-1 text-[10px] uppercase leading-4 tracking-wide text-muted-foreground">{cell.badge}</span> : null}
             </span>
-            {isEditing && editing && editor && onFinish && onInvalid ? (
+            {isEditing && editing && editor && onFinish && onInvalid && onInput ? (
               editor.links && linksNode ? (
                 linksNode
               ) : (editor.combo || editor.reference) && combo ? (
-                <ComboEditor kind={editor.combo ?? "reference"} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} />
+                <ComboEditor kind={editor.combo ?? "reference"} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} onInput={onInput} />
               ) : (
-                <ActiveEditor editor={editor} row={row} kinds={context.kinds} initial={editing} error={error} reach={reach} onFinish={onFinish} onInvalid={onInvalid} />
+                <ActiveEditor editor={editor} row={row} kinds={context.kinds} initial={editing} error={error} reach={reach} onFinish={onFinish} onInvalid={onInvalid} onInput={onInput} />
               )
             ) : null}
           </TableCell>
@@ -505,8 +511,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
   // one is made fresh each time (see `withBlankRow`).
   const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
-  /** Each label's lists as they were last read in full (with finish pairs), so a save sends what was not edited unchanged. */
-  const linkCache = React.useRef(new Map<number, LinkLists>());
+  const editingDraft = React.useRef<string | null>(null);
   /** Bottles that have just been given a status that takes them off the shelf: said once, so the row going is not a surprise. */
   const [gone, setGone] = React.useState<Array<{ key: string; text: string; jump?: boolean }>>([]);
   /** Choice cells a paste left for the person to pick (what was pasted was only part of a name): by row and column, with the text pasted. Not saved. */
@@ -533,7 +538,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const title = label ? `${label.brand} ${label.name}` : "A bottle";
     setGone((prev) => [...prev.filter((g) => g.key !== key), { key, text: `${title} is now ${humanise(status).toLowerCase()}, so it is no longer listed here. This sheet shows the bottles you own or have open.` }]);
   }
-  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf, linkCache });
+  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf, editingDraft });
   const createdAs = saver.createdAs;
   /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
   const [keyFloor, setKeyFloor] = React.useState(0);
@@ -560,11 +565,12 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setTimeout(() => setFlashKey((now) => (now === key ? null : now)), 2000);
   };
   const [active, setActive] = React.useState<{ key: string; col: number; row: number } | null>(null);
-  const [editing, setEditing] = React.useState<Editing | null>(null);
+  const [openEditor, setEditing] = React.useState<(Editing & { rowKey: string; columnId: string; original: string }) | null>(null);
+  const [inputChanged, setInputChanged] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   /** The column a run of Tabs started in, which Enter returns to on the next row. */
   const anchorCol = React.useRef(0);
-  const focusAfter = React.useRef(true);
+  const focusAfter = React.useRef(false);
   /** Set when Tab follows a row that has just moved to its sorted place: the view then goes with it. */
   const followRow = React.useRef(false);
   const sheetRef = React.useRef<HTMLDivElement>(null);
@@ -579,6 +585,12 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const key = saved && indexByKey.has(saved) ? saved : active.key;
     return { row: Math.min(indexByKey.get(key) ?? active.row, dims.rows - 1), col: Math.min(active.col, dims.cols - 1) };
   })();
+  const editing = current && openEditor && openEditor.rowKey === rows[current.row]?.key && openEditor.columnId === columns[current.col]?.id
+    ? openEditor
+    : null;
+  React.useLayoutEffect(() => {
+    editingDraft.current = editing?.rowKey.startsWith("d") ? editing.rowKey : null;
+  }, [editing]);
   /** Puts the cursor on the cell at `pos` of `list` (the rows as they are, unless the next position is worked out on others). */
   /**
    * A block of cells selected with Shift and the arrows or a Shift-click, from the cursor's cell (`anchor`) to `end`. Delete
@@ -593,7 +605,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const editorIn = (list: SheetRow[], pos: Pos): CellEditor | null => {
     const row = list[pos.row];
     const column = columns[pos.col];
-    return row && column ? editorFor(column, view, row, unlocked, context.kinds) : null;
+    const savingDraft = row?.draft && (saver.rowState[row.key]?.kind === "saving" || createdAs[row.key] !== undefined);
+    return row && column && !savingDraft ? editorFor(column, view, row, unlocked, context.kinds) : null;
   };
   const editorAt = (pos: Pos): CellEditor | null => editorIn(rows, pos);
   const valueAt = (pos: Pos): string => {
@@ -610,6 +623,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   }
 
   function startEdit(pos: Pos, replace: boolean, typed?: string) {
+    const row = rows[pos.row];
+    const column = columns[pos.col];
+    if (!row || !column || (row.draft && saver.draftSaving(row.key))) return;
     place(pos);
     setError(null);
     // A letter typed on a choice picks the first option that starts with it, as typing into a list does.
@@ -622,9 +638,12 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     };
     const held = editorAt(pos)?.reference ? refName(valueAt(pos)) : valueAt(pos);
     // A cell a paste left to be chosen opens searching what was pasted.
-    const waiting = rows[pos.row] && columns[pos.col] ? pending[pendKey(rows[pos.row]!.key, columns[pos.col]!.id)] : undefined;
-    if (waiting !== undefined) return setEditing({ value: waiting, replace: true });
-    setEditing({ value: chosen ? chosen.value : replace ? (typed ?? "") : held, replace });
+    const waiting = pending[pendKey(row.key, column.id)];
+    const value = waiting ?? chosen?.value ?? (replace ? (typed ?? "") : held);
+    const original = waiting ?? held;
+    editingDraft.current = row.draft ? row.key : null;
+    setInputChanged(value !== original);
+    setEditing({ value, replace: replace || waiting !== undefined, rowKey: row.key, columnId: column.id, original });
   }
 
   /** A yes/no cell is flipped, not opened: Space, Enter or a double click. */
@@ -640,6 +659,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (row.draft) setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
     const key = editKey(row, editor);
     if (row.draft) {
+      if (saver.draftSaving(row.key)) return;
       keepKeys(row.key);
       // A new row's cells are forgotten when put back to empty: there is nothing to send.
       setEdits((prev) => setEdit(prev, key, column.id, value, editor.initial(row)));
@@ -756,6 +776,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
 
     focusAfter.current = result.focus;
     setEditing(null);
+    setInputChanged(false);
     setError(null);
     // A cell a paste left to be chosen is dealt with either way: chosen, or, when the editor is cancelled, dropped.
     const wasPending = pending[pendKey(row.key, columnId)] !== undefined;
@@ -1067,12 +1088,14 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         if (found.kind === "blank") {
           if (editor.reference) {
             stage(pos, "");
+            dropPending(row.key, column.id);
             pasted += 1;
           } else skip("a brand or label is changed by choosing another");
         } else if (found.kind === "exact") {
           if (editor.reference) stage(pos, `id:${found.match.id}`);
           else if (row.bottle) moveBottleTo(row, found.match.id!);
           else stage(pos, found.match.name);
+          dropPending(row.key, column.id);
           pasted += 1;
         } else wait(row, column, text);
         continue;
@@ -1226,10 +1249,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // Put the browser's focus on the active cell after a move, and keep it in view.
   React.useEffect(() => {
     if (!current || editing) return;
-    if (!focusAfter.current) {
-      focusAfter.current = true;
-      return;
-    }
+    const requested = focusAfter.current;
+    focusAfter.current = false;
+    const focusedCell = document.activeElement?.closest("td[data-r]");
+    if (!requested && !sheetRef.current?.contains(focusedCell ?? null)) return;
     const el = sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${current.row}"][data-c="${current.col}"]`);
     if (el && document.activeElement !== el) {
       el.focus({ preventScroll: true });
@@ -1346,7 +1369,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   }, [saver]);
 
   // Leaving the page with anything unsaved, blocked or on its way asks first. New rows do not survive a reload.
-  const leaveWarning = unsaved > 0 || saving || blockedRows.length > 0;
+  const leaveWarning = unsaved > 0 || saving || blockedRows.length > 0 || (editing !== null && inputChanged);
   React.useEffect(() => {
     if (!leaveWarning) return;
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -1357,7 +1380,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const onLinkClick = (event: MouseEvent) => {
       const link = (event.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!link || link.target === "_blank" || link.origin !== window.location.origin || link.pathname === window.location.pathname) return;
-      if (!window.confirm("This sheet has rows that are not saved. Leave anyway?")) {
+      if (!window.confirm("This sheet has unsaved changes. Leave anyway?")) {
         event.preventDefault();
         event.stopPropagation();
       }
@@ -1387,10 +1410,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         labelId={row.draft ? null : row.label.id}
         start={listsWith(row.label, own)}
         edited={edited}
-        cached={() => (row.draft ? undefined : linkCache.current.get(row.label.id))}
         options={linkOptions}
         onChange={(lists, changed, brought) => changeLists(row, lists, changed, brought)}
-        onLoaded={(lists) => linkCache.current.set(row.label.id, lists)}
         onClose={() => {
           flushLists(row);
           finish({ keep: true, move: "stay", focus: true });
@@ -1414,13 +1435,17 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const ticked = savedRows.filter((r) => selected.has(r.key)).map((r) => r.key);
   const allTicked = savedRows.length > 0 && ticked.length === savedRows.length;
   function afterDelete(outcome: DeleteOutcome) {
-    const failed = new Set(outcome.failed.map((f) => keyOf(f.kind, f.id)));
-    const gone = ticked.filter((key) => !failed.has(key));
+    const gone = new Set([...outcome.deletedLabelIds.map((id) => `l${id}`), ...outcome.deletedBottleIds.map((id) => `b${id}`)]);
     setDeletedKeys((prev) => new Set([...prev, ...gone]));
-    setSelected(new Set(ticked.filter((key) => failed.has(key))));
+    setSelected(new Set(ticked.filter((key) => !gone.has(key))));
     // Anything typed into a row that is gone goes with it.
-    setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.includes(key))));
-    setMoves((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.includes(key))));
+    for (const key of gone) {
+      clearTimeout(linkTimers.current.get(key));
+      linkTimers.current.delete(key);
+    }
+    saver.forgetDeleted(gone);
+    setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.has(key))));
+    setMoves((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.has(key))));
     React.startTransition(() => router.refresh());
   }
   // Editing a cell that belongs to the label changes every bottle on it; the rail says so as well as the cell.
@@ -1605,6 +1630,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                 pendingCols={pendingByRow.get(row.key)}
                 onFinish={isActiveRow ? finish : undefined}
                 onInvalid={isActiveRow ? setError : undefined}
+                onInput={isActiveRow && editing ? (value) => setInputChanged(value !== editing.original) : undefined}
               />
             );
           })}
