@@ -53,6 +53,7 @@ import { FindBar } from "./find-bar";
 import { RailContent } from "./rail-panel";
 import { DeleteBar } from "./delete-bar";
 import type { ComboData, Editing, Finish } from "./types";
+import { SourceTag } from "./source-tag";
 import { useRowSaver } from "./use-row-saver";
 
 const VIEW_KEY = "bulk-editor:view";
@@ -402,6 +403,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
                 <span className="flex items-center gap-1 text-destructive"><CircleAlert aria-hidden className="size-3.5 shrink-0" />{blockedShort}</span>
               ) : (
                 <>
+                  {cell.marker ? <SourceTag marker={cell.marker} /> : null}
                   <span className={cn("block truncate", !column.identity && "max-w-56")}>{cell.text}</span>
                   {isBlocked ? <CircleAlert aria-hidden className="size-3.5 shrink-0 text-destructive" /> : null}
                 </>
@@ -1630,7 +1632,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
                 colSpan={run.span}
                 className={cn("sticky top-0 z-20 h-7 bg-card text-[11px] tracking-wider", i === 0 && run.group === "label" ? "border-l border-l-border/40" : "border-l border-l-foreground")}
               >
-                {run.group === "label" ? "Label" : run.group === "bottle" ? "Bottle" : ""}
+                {/* The first label run continues the frozen Label caption, so it is not named again. */}
+                {run.group === "label" ? (i === 0 ? "" : "Label") : run.group === "bottle" ? "Bottle" : ""}
               </TableHead>
             ))}
           </TableRow>

@@ -70,6 +70,28 @@ test("the cell the cursor is on is outlined while the page has focus, with the m
   expect(await outline()).toEqual({ onCell: true, style: "solid", width: "2px" });
 });
 
+test("a vintage value wears a V tag and a label's own value wears none, and the tag is upright", async ({ page }) => {
+  const [name, proof] = [await col(page, "Label"), await col(page, "Proof")];
+  const labelName = (await cell(page, 0, name).innerText()).split("\n")[0]!.trim();
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [label] = await db`select id from expressions where name = ${labelName} limit 1`;
+    const [release] = await db`insert into expression_releases (expression_id, name, proof) values (${label!.id}, 'Tag Vintage', 112) returning id`;
+    await db`update bottles set release_id = ${release!.id} where expression_id = ${label!.id}`;
+  } finally {
+    await db.end();
+  }
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  const tag = cell(page, 0, proof).locator('[title="From the vintage"]');
+  await expect(tag).toHaveText("V");
+  await expect(cell(page, 0, proof)).toContainText("112");
+  expect(await tag.evaluate((el) => getComputedStyle(el).fontStyle)).toBe("normal");
+  // Another label's bottle takes the label's own value: no tag.
+  const last = (await lastRow(page)) - 1;
+  await expect(cell(page, last, proof).getByRole("img")).toHaveCount(0);
+});
+
 test("typing replaces a value, Enter keeps it and drops to the next row in the same column", async ({ page }) => {
   const price = await col(page, "Price paid");
   await cell(page, 1, price).click();
