@@ -256,7 +256,7 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
     .from(expressions).innerJoin(categories, eq(expressions.categoryId, categories.id))
     .where(eq(expressions.id, expressionId)).limit(1);
   if (!label) return;
-  const kind = (await categoryKindsById())[label.categoryId] ?? "other";
+  const kind = (await categoryKindsById(tx))[label.categoryId] ?? "other";
   const accepted: IngredientKind[] = label.group === "agave" ? ["maguey"] : label.group === "rum" ? ["rum_base"] :
     label.group === "brandy" ? ["distillate"] : label.group === "gin" ? ["botanical", "gin_base"] :
     label.group === "vodka" ? ["vodka_base", "flavor"] : label.group === "amaro" ? ["botanical"] :
@@ -339,9 +339,9 @@ export class NotOwned extends Error {}
 export class LabelRejected extends Error {}
 
 /** A validated label's columns: only its category's sections, and a slug. */
-export async function labelValues(input: ExpressionInput, ownerId: number, id: number | null) {
-  const group = await fieldGroupForCategory(input.categoryId);
-  const kind = (await categoryKindsById())[input.categoryId] ?? "other";
+export async function labelValues(input: ExpressionInput, ownerId: number, id: number | null, query: Pick<typeof db, "select" | "$count"> = db) {
+  const group = await fieldGroupForCategory(input.categoryId, query);
+  const kind = (await categoryKindsById(query))[input.categoryId] ?? "other";
   const allowed = writableFields(group);
   if (kind !== "tequila") allowed.delete("tequilaClass");
   if (!["cognac", "armagnac", "calvados"].includes(kind)) allowed.delete("brandyGrade");
@@ -358,7 +358,7 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
     requested: input.slug,
     fallbackFrom: `${input.name}${input.batch ? ` ${input.batch}` : ""}`,
     ...(id !== null ? { excludeId: id } : {}),
-  });
+  }, query);
   const values = valuesForGroup(input, allowed, slug);
   if (group === "whiskey") values.ageYearsSource = input.ageYearsSource;
   if (group === "amaro" || group === "liqueur") {
@@ -424,7 +424,7 @@ export async function writeLabel(
   }
   await replaceLinks(tx, ownerId, target, links);
   const [saved] = await tx.select({ categoryId: expressions.categoryId }).from(expressions).where(eq(expressions.id, target)).limit(1);
-  const kind = (await categoryKindsById())[saved?.categoryId ?? -1];
+  const kind = (await categoryKindsById(tx))[saved?.categoryId ?? -1];
   if (kind === "irish" || kind === "scotch") {
     const ids = links.mashbills.map((row) => row.id).filter((id) => id > 0);
     if (ids.length > 0) {

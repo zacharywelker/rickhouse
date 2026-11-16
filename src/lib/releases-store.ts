@@ -177,8 +177,8 @@ export async function releaseChoices(ownerId: number): Promise<Record<number, Ar
  * the label is already known to be the caller's, so this also keeps another
  * account's release ids out.
  */
-export async function releaseBelongsToExpression(releaseId: number, expressionId: number): Promise<boolean> {
-  const rows = await db
+export async function releaseBelongsToExpression(releaseId: number, expressionId: number, query: Pick<typeof db, "select"> = db): Promise<boolean> {
+  const rows = await query
     .select({ id: expressionReleases.id })
     .from(expressionReleases)
     .where(and(eq(expressionReleases.id, releaseId), eq(expressionReleases.expressionId, expressionId)));
