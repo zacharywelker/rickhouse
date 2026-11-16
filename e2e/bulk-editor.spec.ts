@@ -1308,6 +1308,25 @@ test("a waiting choice is dropped with Delete, and lines past the last row are s
   await expect(pasteNotice(page)).toContainText("past the last row");
 });
 
+test("deleting a block drops pending Store choices and preserves the saved store", async ({ page }) => {
+  await bothSwitch(page, "Labels").click();
+  const store = await col(page, "Store");
+  await select(page, 0, store);
+  await page.keyboard.type("Block Delete Test Store");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, store)).toHaveText("Block Delete Test Store");
+  await reloaded(page);
+
+  await select(page, 0, store);
+  await paste(page, "Block Delete");
+  await expect(cell(page, 0, store)).toContainText("Choose");
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 0, store)).toHaveText("Block Delete Test Store");
+  await reloaded(page);
+  await expect(cell(page, 0, store)).toHaveText("Block Delete Test Store");
+});
+
 test("a locked cell and a list are skipped with the reason", async ({ page }) => {
   // On a bottle row the label's proof is locked until triple-clicked.
   const proof = await col(page, "Proof");

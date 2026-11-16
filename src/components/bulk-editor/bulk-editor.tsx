@@ -971,6 +971,13 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     let cleared = 0;
     for (let r = r1; r <= r2; r += 1) {
       for (let c = c1; c <= c2; c += 1) {
+        const row = rows[r];
+        const column = columns[c];
+        if (row && column && pending[pendKey(row.key, column.id)] !== undefined) {
+          dropPending(row.key, column.id);
+          cleared += 1;
+          continue;
+        }
         const pos = { row: r, col: c };
         const editor = editorAt(pos);
         if (!editor || editor.required || editor.combo || editor.links) continue;
