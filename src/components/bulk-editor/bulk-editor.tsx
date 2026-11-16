@@ -33,7 +33,7 @@ import {
 } from "@/lib/bulk-editor/sheet";
 import { cn } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
-import { idsOfKeys, keyOf } from "@/lib/bulk-editor/delete";
+import { idsOfKeys } from "@/lib/bulk-editor/delete";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 import { railFor } from "@/lib/bulk-editor/rail";
 import { shelfFor } from "@/lib/bulk-editor/shelf";
@@ -930,13 +930,13 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const ticked = savedRows.filter((r) => selected.has(r.key)).map((r) => r.key);
   const allTicked = savedRows.length > 0 && ticked.length === savedRows.length;
   function afterDelete(outcome: DeleteOutcome) {
-    const failed = new Set(outcome.failed.map((f) => keyOf(f.kind, f.id)));
-    const gone = ticked.filter((key) => !failed.has(key));
+    const gone = new Set([...outcome.deletedLabelIds.map((id) => `l${id}`), ...outcome.deletedBottleIds.map((id) => `b${id}`)]);
     setDeletedKeys((prev) => new Set([...prev, ...gone]));
-    setSelected(new Set(ticked.filter((key) => failed.has(key))));
+    setSelected(new Set(ticked.filter((key) => !gone.has(key))));
     // Anything typed into a row that is gone goes with it.
-    setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.includes(key))));
-    setMoves((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.includes(key))));
+    saver.forgetDeleted(gone);
+    setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.has(key))));
+    setMoves((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.has(key))));
     React.startTransition(() => router.refresh());
   }
   // Editing a cell that belongs to the label changes every bottle on it; the rail says so as well as the cell.

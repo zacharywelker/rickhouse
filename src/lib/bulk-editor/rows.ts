@@ -318,6 +318,8 @@ export type DeleteOutcome = {
   /** Every bottle removed: those that went with a label, and those deleted alone. */
   deletedBottles: number;
   failed: Array<{ kind: "label" | "bottle"; id: number; error: string }>;
+  deletedLabelIds: number[];
+  deletedBottleIds: number[];
 };
 
 /**
@@ -327,7 +329,7 @@ export type DeleteOutcome = {
 export async function deleteRows(ownerId: number, input: { labelIds: number[]; bottleIds: number[] }): Promise<DeleteOutcome> {
   const unique = (ids: number[]) => [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
   const labelIds = unique(input.labelIds);
-  const outcome: DeleteOutcome = { deletedLabels: 0, deletedBottles: 0, failed: [] };
+  const outcome: DeleteOutcome = { deletedLabels: 0, deletedBottles: 0, failed: [], deletedLabelIds: [], deletedBottleIds: [] };
 
   const owned = labelIds.length ? new Set((await db.select({ id: expressions.id }).from(expressions).where(and(eq(expressions.ownerId, ownerId), inArray(expressions.id, labelIds)))).map((r) => r.id)) : new Set<number>();
   for (const id of labelIds) if (!owned.has(id)) outcome.failed.push({ kind: "label", id, error: "That label is gone." });
@@ -342,19 +344,24 @@ export async function deleteRows(ownerId: number, input: { labelIds: number[]; b
       const colaFiles = await colaFilesForExpression(id);
       const releasePhotos = await releasePhotosOfLabel(id);
       const gone = await db.transaction(async (tx) => {
-        await tx.delete(bottles).where(and(eq(bottles.expressionId, id), eq(bottles.ownerId, ownerId)));
-        return tx.delete(expressions).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId))).returning({ photoPath: expressions.photoPath, photoThumbPath: expressions.photoThumbPath });
+        const removedBottles = await tx.delete(bottles).where(and(eq(bottles.expressionId, id), eq(bottles.ownerId, ownerId))).returning({ id: bottles.id });
+        const removedLabels = await tx.delete(expressions).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId))).returning({ photoPath: expressions.photoPath, photoThumbPath: expressions.photoThumbPath });
+        return { removedBottles, label: removedLabels[0] };
       });
-      if (gone.length === 0) {
+      if (!gone.label) {
         outcome.failed.push({ kind: "label", id, error: "That label is gone." });
         continue;
       }
       outcome.deletedLabels += 1;
-      outcome.deletedBottles += bottleIds.length;
-      for (const b of bottleIds) wentWithLabel.add(b);
+      outcome.deletedLabelIds.push(id);
+      outcome.deletedBottles += gone.removedBottles.length;
+      for (const { id: bottleId } of gone.removedBottles) {
+        outcome.deletedBottleIds.push(bottleId);
+        wentWithLabel.add(bottleId);
+      }
       await Promise.all([
         ...images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)),
-        gone[0]?.photoPath ? deleteStoredImage(gone[0].photoPath, gone[0].photoThumbPath) : Promise.resolve(),
+        gone.label.photoPath ? deleteStoredImage(gone.label.photoPath, gone.label.photoThumbPath) : Promise.resolve(),
         deleteColaFiles(colaFiles),
         deleteStoredPhotos(releasePhotos),
       ]);
@@ -374,8 +381,13 @@ export async function deleteRows(ownerId: number, input: { labelIds: number[]; b
         continue;
       }
       const images = await db.select({ filePath: bottleImages.filePath, thumbPath: bottleImages.thumbPath }).from(bottleImages).where(eq(bottleImages.bottleId, id));
-      await db.delete(bottles).where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId)));
+      const removed = await db.delete(bottles).where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId))).returning({ id: bottles.id });
+      if (removed.length === 0) {
+        outcome.failed.push({ kind: "bottle", id, error: "That bottle is gone." });
+        continue;
+      }
       outcome.deletedBottles += 1;
+      outcome.deletedBottleIds.push(id);
       await Promise.all(images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)));
     } catch (error: unknown) {
       const shaped = mapDbError(error, { singular: "Bottle" });

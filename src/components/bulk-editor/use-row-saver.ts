@@ -57,6 +57,7 @@ export function useRowSaver(input: Input) {
   const sent = React.useRef(new Map<string, Sent>());
   const created = React.useRef(new Set<string>());
   const requested = React.useRef(new Set<string>());
+  const deleted = React.useRef(new Set<string>());
   /** Successful creates wait for readback unless the bottle's status excludes it from the sheet. */
   const landed = React.useRef(new Map<string, { key: string; waitForRow: boolean }>());
   const [reveal, setReveal] = React.useState<Array<{ key: string; at: number }>>([]);
@@ -88,6 +89,7 @@ export function useRowSaver(input: Input) {
 
   const save = React.useCallback(
     async (key: string): Promise<void> => {
+      if (deleted.current.has(key)) return;
       const isDraft = key.startsWith("d");
       if (inflight.current.has(key)) {
         if (!isDraft) again.current.add(key);
@@ -127,6 +129,7 @@ export function useRowSaver(input: Input) {
       mark(key, { kind: "saving" });
       try {
         const outcome = await call();
+        if (deleted.current.has(key)) return;
         if (outcome.ok) {
           sent.current.set(key, snapshot);
           if (isDraft) {
@@ -146,6 +149,7 @@ export function useRowSaver(input: Input) {
           mark(key, { kind: "blocked", column: failureColumn(outcome.fieldErrors, scope, fallback), message: outcome.error });
         }
       } catch {
+        if (deleted.current.has(key)) return;
         mark(key, { kind: "blocked", column: fallback, message: "Could not reach the server. Change the row again to try once more." });
       } finally {
         inflight.current.delete(key);
@@ -229,6 +233,16 @@ export function useRowSaver(input: Input) {
 
   const clearReveal = React.useCallback(() => setReveal([]), []);
 
+  const forgetDeleted = React.useCallback((keys: ReadonlySet<string>) => {
+    for (const key of keys) {
+      deleted.current.add(key);
+      requested.current.delete(key);
+      again.current.delete(key);
+      sent.current.delete(key);
+    }
+    setRowState((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !keys.has(key))));
+  }, []);
+
   const draftSaving = (key: string) => inflight.current.has(key) || created.current.has(key);
-  return { rowState, request, save, saveDrafts, reset, reveal, clearReveal, revealFor: REVEAL_FOR_MS, createdAs, draftSaving };
+  return { rowState, request, save, saveDrafts, reset, forgetDeleted, reveal, clearReveal, revealFor: REVEAL_FOR_MS, createdAs, draftSaving };
 }
