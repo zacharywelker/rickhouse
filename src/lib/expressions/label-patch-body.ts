@@ -21,8 +21,14 @@ const ingredientList = z.array(z.object({ name: z.string().trim().min(1).max(120
 const FORM_FACT_NAMES = [...new Set(EXPRESSION_SECTIONS.flatMap((section) => section.fields.map((field) => field.name)))].filter(
   (name) => name !== "slug" && name in expressionSchema.shape,
 ).concat(["ageYearsSource"]);
-// The names are only known when this runs, so the mask cannot be checked by the compiler: `in expressionSchema.shape` above does it.
-export const bulkLabelFactsSchema = (expressionSchema as unknown as { pick: (mask: Record<string, true>) => unknown }).pick(Object.fromEntries(FORM_FACT_NAMES.map((name) => [name, true]))) as typeof labelFactsSchema;
+// The field names are checked against the form shape above. Strip creation defaults before making
+// the fields optional: Zod applies defaults to omitted keys even on a partial object.
+export const bulkLabelFactsSchema = z.object(
+  Object.fromEntries(FORM_FACT_NAMES.map((name) => {
+    const field = expressionSchema.shape[name as keyof typeof expressionSchema.shape];
+    return [name, field instanceof z.ZodDefault ? field.unwrap() : field];
+  })),
+) as unknown as typeof labelFactsSchema;
 
 /**
  * The body of a label change, built over a set of facts: any of them, partially, a brand by name, and the three ordered
