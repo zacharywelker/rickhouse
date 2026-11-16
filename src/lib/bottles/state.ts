@@ -130,7 +130,10 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
       state = { ...state, ...change };
     }
     if (patch.dateOpened !== undefined) {
-      const opened = openedUpdate(state, patch.dateOpened, patch.ifOpenedCleared, today);
+      // An explicit Opened flag is the decision for a cleared date. Apply it below using the same
+      // full-bottle rule as the checkbox on its own.
+      const choice = patch.dateOpened === null && patch.isOpen !== undefined ? "keep_open" : patch.ifOpenedCleared;
+      const opened = openedUpdate(state, patch.dateOpened, choice, today);
       if (!opened.ok) return opened;
       if (opened.set.fillPct !== undefined && patch.fillPct !== undefined && patch.fillPct !== opened.set.fillPct) {
         return { ok: false, code: "invalid", message: "Marking it sealed sets the level to full.", field: "fillPct" };
@@ -140,13 +143,13 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
     // The open flag, then a typed status, are judged against the bottle as everything above leaves it.
     const left = () => ({ ...current, ...set }) as typeof current;
     if (patch.isOpen !== undefined) {
-      if (patch.dateOpened !== undefined) {
-        if (patch.isOpen === false && patch.dateOpened !== null) return { ok: false, code: "invalid", message: "Opened is off, but a date opened was given.", field: "isOpen" };
-      } else {
-        const flag = openFlagUpdate(left(), patch.isOpen, today);
-        if (!flag.ok) return { ok: false, code: "invalid", message: flag.message, field: "isOpen" };
-        Object.assign(set, flag.set);
+      if (!patch.isOpen && patch.dateOpened != null) {
+        return { ok: false, code: "invalid", message: "Opened is off, but a date opened was given.", field: "isOpen" };
       }
+      const flag = openFlagUpdate(left(), patch.isOpen, today);
+      if (!flag.ok) return { ok: false, code: "invalid", message: flag.message, field: "isOpen" };
+      Object.assign(set, flag.set);
+      if (patch.dateOpened === null) set.dateOpened = null;
     }
     if (patch.status !== undefined) {
       const next = statusUpdate(left(), patch.status, today);

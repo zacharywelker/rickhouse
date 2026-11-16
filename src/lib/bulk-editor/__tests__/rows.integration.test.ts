@@ -158,6 +158,21 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(Number(after.price_paid)).toBe(50);
     });
 
+    it("applies the Opened flag when the date is also cleared", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Clear Opened Date");
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql("UPDATE bottles SET is_open = true, status = 'open', date_opened = '2024-01-01', fill_pct = 50 WHERE id = $1", bottle);
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: null, isOpen: false })).toMatchObject({
+        ok: false, fieldErrors: { isOpen: expect.any(String) },
+      });
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: null, isOpen: true })).toMatchObject({ ok: true });
+      const opened = () => one("SELECT is_open, status, date_opened, fill_pct FROM bottles WHERE id = $1", bottle);
+      expect(await opened()).toMatchObject({ is_open: true, status: "open", date_opened: null, fill_pct: 50 });
+
+      expect(await rows.patchBottleRow(owner, bottle, { fillPct: 100, dateOpened: null, isOpen: false })).toMatchObject({ ok: true });
+      expect(await opened()).toMatchObject({ is_open: false, status: "owned", date_opened: null, fill_pct: 100 });
+    });
+
     it("refuses label fields, so a bottle request cannot change a label", async () => {
       const label = await fx.mkLabel(owner, cat.whiskey, "Locked Label");
       const bottle = await fx.mkBottle(owner, label);
