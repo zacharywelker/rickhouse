@@ -91,6 +91,10 @@ export function normalizeState(input: string | null | undefined, country: string
   return US_STATES[value.toUpperCase()] ?? STATE_BY_LOWERCASE_NAME.get(value.toLowerCase()) ?? value;
 }
 
+export function isScotchCountry(country: string): boolean {
+  return ["scotland", "uk", "u.k.", "united kingdom", "united kingdom of great britain and northern ireland"].includes(squash(country).toLowerCase());
+}
+
 export type Place = { city: string | null; state: string | null; country: string };
 
 /** A place from whatever was typed: trimmed, the state and country corrected, blanks as null. */
