@@ -9,7 +9,7 @@ import { loadLinks } from "@/lib/expressions/form-data";
 import { expressionOtherNames } from "@/lib/other-names-store";
 import { releaseRow } from "@/lib/releases";
 import { expressionReleaseList, releaseRemovalImpact } from "@/lib/releases-store";
-import { createRow, deleteImpact, deleteRows, patchBottleRow, patchLabelRow, type CreateOutcome, type DeleteOutcome, type PatchOutcome } from "@/lib/bulk-editor/rows";
+import { createRow, deleteImpact, deleteRows, patchBottleRow, patchLabelRow, patchVintageRow, type CreateOutcome, type DeleteOutcome, type PatchOutcome } from "@/lib/bulk-editor/rows";
 
 /**
  * The bulk editor's saves, one row at a time, in the signed-in account. The work and its rules are in
@@ -63,6 +63,14 @@ export async function createRowAction(raw: unknown): Promise<CreateOutcome> {
 export async function patchBottleRowAction(bottleId: number, raw: unknown): Promise<PatchOutcome> {
   const user = await requireSession();
   const outcome = await patchBottleRow(user.id, bottleId, raw);
+  if (outcome.ok) refresh();
+  return outcome;
+}
+
+/** Changes only the proof and age sent, for one vintage and so for every bottle on it (see `patchVintageRow`). */
+export async function patchVintageRowAction(releaseId: number, raw: unknown): Promise<PatchOutcome> {
+  const user = await requireSession();
+  const outcome = await patchVintageRow(user.id, releaseId, raw);
   if (outcome.ok) refresh();
   return outcome;
 }

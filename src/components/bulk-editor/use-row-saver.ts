@@ -2,12 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { createRowAction, labelLinksAction, patchBottleRowAction, patchLabelRowAction } from "@/app/(app)/bulk-editor/actions";
+import { createRowAction, labelLinksAction, patchBottleRowAction, patchLabelRowAction, patchVintageRowAction } from "@/app/(app)/bulk-editor/actions";
 import type { Moves } from "@/lib/bulk-editor/changes";
 import { isBlank, type DraftRow } from "@/lib/bulk-editor/drafts";
 import type { Edits } from "@/lib/bulk-editor/editors";
 import { LINK_KEYS, linksFromLoaded } from "@/lib/bulk-editor/links";
-import { bottlePatchBody, createBody, draftNeeds, failureColumn, labelPatchBody, settleEdits, settleMoves, type Sent } from "@/lib/bulk-editor/save";
+import { bottlePatchBody, createBody, draftNeeds, failureColumn, labelPatchBody, settleEdits, settleMoves, vintagePatchBody, type Sent } from "@/lib/bulk-editor/save";
 import type { SheetBottle, SheetLabel, SheetView } from "@/lib/bulk-editor/sheet";
 
 /** Where a row's save has got to. A row with nothing here is either untouched or waiting for what it needs. */
@@ -114,6 +114,11 @@ export function useRowSaver(input: Input) {
         call = () => patchBottleRowAction(id, bottlePatchBody(cells, move));
         scope = "bottle";
         if (!cells) fallback = "name";
+      } else if (key.startsWith("v")) {
+        // A vintage's own proof or age, for every bottle on it.
+        if (!cells) return;
+        snapshot = { cells };
+        call = () => patchVintageRowAction(id, vintagePatchBody(cells));
       } else if (key.startsWith("l")) {
         if (!cells) return;
         snapshot = { cells };

@@ -423,4 +423,46 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(out.deletedBottles).toBe(impact.bottlesOnLabels + impact.bottles);
     });
   });
+
+  describe("a vintage's own proof and age", () => {
+    const release = async (labelId: number, name: string, proof: string | null) =>
+      (await one<{ id: number }>(`INSERT INTO expression_releases (expression_id, name, proof) VALUES ($1, $2, $3) RETURNING id`, labelId, name, proof)).id;
+
+    it("patchVintageRow sets one vintage's proof and leaves its siblings and the label alone", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Patch");
+      await m.sql(`UPDATE expressions SET proof = 90 WHERE id = $1`, label);
+      const a = await release(label, "2021", "112");
+      const b = await release(label, "2022", "107.4");
+      expect(await rows.patchVintageRow(owner, a, { proof: "113", ageYears: "7" })).toEqual({ ok: true });
+      const first = await one<{ proof: string; age_years: string }>(`SELECT proof, age_years FROM expression_releases WHERE id = $1`, a);
+      expect([Number(first.proof), Number(first.age_years)]).toEqual([113, 7]);
+      expect(Number((await one<{ proof: string }>(`SELECT proof FROM expression_releases WHERE id = $1`, b)).proof)).toBe(107.4);
+      expect(Number((await one<{ proof: string }>(`SELECT proof FROM expressions WHERE id = $1`, label)).proof)).toBe(90);
+    });
+    it("a blank clears the vintage's own value, so the label's shows through", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Clear");
+      const a = await release(label, "2021", "112");
+      expect(await rows.patchVintageRow(owner, a, { proof: "" })).toEqual({ ok: true });
+      expect((await one<{ proof: string | null }>(`SELECT proof FROM expression_releases WHERE id = $1`, a)).proof).toBeNull();
+    });
+    it("refuses another account's vintage as gone, and a value that is not a proof", async () => {
+      const theirs = await fx.mkLabel(stranger, cat.whiskey, "Vintage Theirs");
+      const t = await release(theirs, "2021", "100");
+      expect(await rows.patchVintageRow(owner, t, { proof: "50" })).toMatchObject({ ok: false, kind: "gone" });
+      expect(Number((await one<{ proof: string }>(`SELECT proof FROM expression_releases WHERE id = $1`, t)).proof)).toBe(100);
+      const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Bad");
+      const a = await release(label, "2021", "112");
+      expect(await rows.patchVintageRow(owner, a, { proof: "lots" })).toMatchObject({ ok: false, kind: "invalid" });
+      expect(await rows.patchVintageRow(owner, a, { name: "Renamed" })).toMatchObject({ ok: false, kind: "invalid" });
+    });
+    it("typing a label's default (a Varies cell) sets the label and no vintage", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Default");
+      const a = await release(label, "2021", "112");
+      const b = await release(label, "2022", "107.4");
+      expect(await rows.patchLabelRow(owner, label, { proof: "100" })).toEqual({ ok: true });
+      expect(Number((await one<{ proof: string }>(`SELECT proof FROM expressions WHERE id = $1`, label)).proof)).toBe(100);
+      expect(Number((await one<{ proof: string }>(`SELECT proof FROM expression_releases WHERE id = $1`, a)).proof)).toBe(112);
+      expect(Number((await one<{ proof: string }>(`SELECT proof FROM expression_releases WHERE id = $1`, b)).proof)).toBe(107.4);
+    });
+  });
 });

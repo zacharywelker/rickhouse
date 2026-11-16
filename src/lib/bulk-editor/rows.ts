@@ -9,7 +9,7 @@ import { updateBottle } from "@/lib/bottles/state";
 import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
 import { mapDbError, pgCode } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
-import { deleteStoredPhotos, releasePhotosOfLabel } from "@/lib/releases-store";
+import { deleteStoredPhotos, releaseById, releasePhotosOfLabel, saveRelease } from "@/lib/releases-store";
 import { ensureBrand } from "@/lib/expressions/brand";
 import { patchLabel } from "@/lib/expressions/label-patch";
 import { bulkLabelPatchBody } from "@/lib/expressions/label-patch-body";
@@ -434,6 +434,31 @@ async function patchLabelWith(ownerId: number, labelId: number, body: unknown, m
   if (outcome.kind === "gone") return undo(made, failure("gone", "That label is gone."));
   if (outcome.kind === "invalid") return undo(made, invalidField(outcome.field, outcome.message));
   return undo(made, { ...failure("name_taken", `You already have ${outcome.existing.title}.`, { name: "Already taken." }), existing: outcome.existing });
+}
+
+// ---------------------------------------------------------------------------
+// A vintage's own proof and age
+// ---------------------------------------------------------------------------
+
+/** What a vintage cell can set: the proof and the age, as strings, a blank clearing it. */
+const VINTAGE_KEYS = ["proof", "ageYears", "ageMonths", "ageDays", "ageStatement"] as const;
+
+/**
+ * Changes one vintage's own proof and age: what a bottle on it shows when it has none of its own. Only these five
+ * fields can be sent (a vintage is renamed on its label's page). A vintage that is not the caller's is gone.
+ */
+export async function patchVintageRow(ownerId: number, releaseId: number, raw: unknown): Promise<PatchOutcome> {
+  if (!isRecord(raw)) return failure("invalid", "Nothing to change.");
+  const unknown = Object.keys(raw).filter((key) => !(VINTAGE_KEYS as ReadonlyArray<string>).includes(key));
+  if (unknown.length > 0) return invalidField(unknown[0]!, "A vintage's name is changed on its label's page.");
+  const release = await releaseById(releaseId, ownerId);
+  if (!release) return failure("gone", "That vintage is gone.");
+  const fields = Object.fromEntries(Object.entries(raw).map(([key, value]) => [key, value == null ? "" : String(value)]));
+  const saved = await saveRelease(ownerId, release.expressionId, releaseId, fields);
+  if (saved.ok) return { ok: true };
+  if (saved.status === 404) return failure("gone", saved.message);
+  const field = Object.keys(fields)[0] ?? "proof";
+  return invalidField(field, saved.message);
 }
 
 // ---------------------------------------------------------------------------

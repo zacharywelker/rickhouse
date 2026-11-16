@@ -111,6 +111,10 @@ export const bottlePatchBody = (cells: Readonly<Record<string, string>> | undefi
   ...(moveTo !== undefined ? { expressionId: moveTo } : {}),
 });
 
+/** The body for a saved vintage: its proof and age, as the strings typed (a blank clears the value). */
+export const vintagePatchBody = (cells: Readonly<Record<string, string>> | undefined): Record<string, string> =>
+  Object.fromEntries(Object.entries(cells ?? {}).map(([column, value]) => [EDITORS[column]?.field ?? column, value]));
+
 /** The body for a saved label: only its own facts. One request reaches every bottle on it. */
 export const labelPatchBody = (cells: Readonly<Record<string, string>> | undefined, links?: { label: SheetLabel; loaded: LinkLists | undefined }): Record<string, unknown> => ({
   ...patchFields(cells ?? {}),

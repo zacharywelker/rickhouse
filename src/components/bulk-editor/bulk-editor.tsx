@@ -14,7 +14,7 @@ import {
   brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, isBlank, labelCandidates, withBlankRow, withBrand, withCategory, withLabel,
   type CategoryChoice, type DraftRow,
 } from "@/lib/bulk-editor/drafts";
-import { arrange, editKey, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
+import { applyVintageEdits, arrange, editKey, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
 import { EDITORS, editorFor, isLocked, lockKeyOf, parseCell, setEdit, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
 import { arrowMove, enterMove, tabMove, type ArrowKey, type Moved, type Pos } from "@/lib/bulk-editor/nav";
 import {
@@ -460,19 +460,26 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     setView(next);
   };
   const [hidden, setHidden] = useHiddenColumns(HIDDEN_KEY, DEFAULT_HIDDEN);
+  const [edits, setEdits] = React.useState<Edits>({});
+  // Each vintage as it stands with what has been typed at the vintage level, so a bottle on it shows it at once. Rebuilt only when a vintage edit changes.
+  const vintageEditsKey = JSON.stringify(Object.entries(edits).filter(([key]) => key.startsWith("v")));
+  const index = React.useMemo(
+    () => indexSheet(labels, bottles, applyVintageEdits(vintages, Object.fromEntries(JSON.parse(vintageEditsKey) as Array<[string, Record<string, string>]>))),
+    [labels, bottles, vintages, vintageEditsKey],
+  );
   const context = React.useMemo<SheetContext>(
     () => ({
       currency,
       kinds,
       refs: refNames(refs),
       categories: Object.fromEntries(categories.map((c) => [c.id, c.name])),
-      index: indexSheet(labels, bottles, vintages),
+      index,
       lists: {
         versions: Object.fromEntries(Object.entries(refs.versions).map(([id, rows]) => [id, rows.map((r) => r.name)])),
         releases: Object.fromEntries(Object.entries(refs.releases).map(([id, rows]) => [id, rows.map((r) => r.name)])),
       },
     }),
-    [currency, kinds, refs, categories, labels, bottles, vintages],
+    [currency, kinds, refs, categories, index],
   );
   const categoryInfo = React.useMemo(() => Object.fromEntries(categories.map((c) => [c.id, { name: c.name, group: groups[c.id] ?? "other", ...(c.slug ? { slug: c.slug } : {}) }])), [categories, groups]);
 
@@ -480,7 +487,6 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   /** Bottles moved to another label, and the label cells a person has triple-clicked open. Neither is saved yet. */
   const [moves, setMoves] = React.useState<Moves>({});
   const [unlocked, setUnlocked] = React.useState<Unlocked>(new Set());
-  const [edits, setEdits] = React.useState<Edits>({});
   const rawRows = React.useMemo(() => sheetRows(view, labels, bottles), [view, labels, bottles]);
   // Rows are in their sorted place as soon as a move or a rename is made, not once it has been saved and read back.
   const arranged = React.useMemo(() => arrange(rawRows, moves, edits, labels, categoryInfo), [rawRows, moves, edits, labels, categoryInfo]);
@@ -1393,15 +1399,18 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   }
   for (const [key, state] of Object.entries(stateOf)) {
     if (state.kind !== "blocked" || key.startsWith("d")) continue;
-    const label = key.startsWith("l") ? labels.find((l) => `l${l.id}` === key) : rows.find((r) => r.key === key)?.label;
-    blockedRows.push({ key, title: label ? `${label.brand} ${label.name}` : "A row", message: state.message, column: state.column, short: state.message });
+    // A vintage's key is `v<releaseId>`: named by its label and its own name.
+    const vintage = key.startsWith("v") ? vintages.find((v) => v.id === Number(key.slice(1))) : undefined;
+    const label = vintage ? labels.find((l) => l.id === vintage.labelId) : key.startsWith("l") ? labels.find((l) => `l${l.id}` === key) : rows.find((r) => r.key === key)?.label;
+    blockedRows.push({ key, title: label ? `${label.brand} ${label.name}${vintage ? ` ${vintage.name}` : ""}` : "A row", message: state.message, column: state.column, short: state.message });
   }
   const blockedByKey = new Map(blockedRows.map((b) => [b.key, b]));
-  const blockedFor = (row: SheetRow) => blockedByKey.get(row.key) ?? (row.draft ? undefined : blockedByKey.get(`l${row.label.id}`));
+  const vintageKeyOf = (row: SheetRow) => (row.bottle?.releaseId == null ? undefined : `v${row.bottle.releaseId}`);
+  const blockedFor = (row: SheetRow) => blockedByKey.get(row.key) ?? (row.draft ? undefined : (blockedByKey.get(`l${row.label.id}`) ?? blockedByKey.get(vintageKeyOf(row) ?? "")));
   /** The glyph on a row: a failed or unready save, one on its way, one just done, or a new row not saved yet. */
   const statusOf = (row: SheetRow): RowStatus | undefined => {
     if (blockedFor(row)) return "blocked";
-    const stored = stateOf[row.key] ?? (row.draft ? undefined : stateOf[`l${row.label.id}`]);
+    const stored = stateOf[row.key] ?? (row.draft ? undefined : (stateOf[`l${row.label.id}`] ?? stateOf[vintageKeyOf(row) ?? ""]));
     if (stored && stored.kind !== "blocked") return stored.kind;
     return row.draft && !isBlank(allDrafts.find((d) => d.key === row.key) ?? { key: row.key, brand: null, label: null, categoryId: null }, edits, pendingByRow.has(row.key)) ? "draft" : undefined;
   };
@@ -1410,7 +1419,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   function jumpToFirst() {
     const first = blockedRows[0];
     if (!first) return;
-    const row = rows.findIndex((r) => r.key === first.key || (first.key.startsWith("l") && !r.draft && `l${r.label.id}` === first.key));
+    const row = rows.findIndex((r) => r.key === first.key || (first.key.startsWith("l") && !r.draft && `l${r.label.id}` === first.key) || (first.key.startsWith("v") && vintageKeyOf(r) === first.key));
     if (row < 0) return;
     const col = Math.max(0, columns.findIndex((c) => c.id === first.column));
     focusAfter.current = true;
