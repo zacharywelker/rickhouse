@@ -1,4 +1,5 @@
 import "server-only";
+import type { db } from "@/db";
 import { nameBelongsToExpression } from "@/lib/other-names-store";
 import { releaseBelongsToExpression } from "@/lib/releases-store";
 import type { BottleInput } from "./schema";
@@ -11,11 +12,12 @@ import type { BottleInput } from "./schema";
  */
 export async function settleLabelChoices<T extends Pick<BottleInput, "expressionId" | "expressionNameId" | "releaseId" | "batch" | "releaseYear">>(
   input: T,
+  query?: Pick<typeof db, "select">,
 ): Promise<T> {
-  if (input.expressionNameId !== null && !(await nameBelongsToExpression(input.expressionNameId, input.expressionId))) {
+  if (input.expressionNameId !== null && !(await nameBelongsToExpression(input.expressionNameId, input.expressionId, query))) {
     input.expressionNameId = null;
   }
-  if (input.releaseId !== null && !(await releaseBelongsToExpression(input.releaseId, input.expressionId))) {
+  if (input.releaseId !== null && !(await releaseBelongsToExpression(input.releaseId, input.expressionId, query))) {
     input.releaseId = null;
   }
   if (input.releaseId !== null) {
