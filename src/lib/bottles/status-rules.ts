@@ -20,26 +20,29 @@ export type StatusResult = { ok: true; set: StatusChanges } | { ok: false; messa
 const fail = (message: string): StatusResult => ({ ok: false, message });
 
 export function statusUpdate(current: StatusState, target: string, today: string): StatusResult {
-  if (target === current.status) return { ok: true, set: {} };
-  const leavingKilled = current.status === "killed" ? { dateKilled: null } : {};
+  const sameStatus = target === current.status;
+  const status = sameStatus ? {} : { status: target };
+  const leavingKilled = current.status === "killed" && !sameStatus ? { dateKilled: null } : {};
 
   switch (target) {
     case "killed":
-      return { ok: true, set: { status: "killed", fillPct: 0, isOpen: true, dateKilled: current.dateKilled ?? today } };
+      if (sameStatus && current.fillPct === 0 && current.isOpen && current.dateKilled !== null) return { ok: true, set: {} };
+      return { ok: true, set: { ...status, fillPct: 0, isOpen: true, dateKilled: current.dateKilled ?? today } };
     case "open":
-      if (current.fillPct === 0) return fail("An empty bottle cannot be open. Set the level above empty first.");
-      return { ok: true, set: { status: "open", isOpen: true, ...(current.dateOpened === null ? { dateOpened: today } : {}), ...leavingKilled } };
+      if (current.fillPct === 0) return fail("An empty bottle cannot be open. Set the level above empty or mark the bottle killed.");
+      if (sameStatus && current.isOpen) return { ok: true, set: {} };
+      return { ok: true, set: { ...status, isOpen: true, ...(current.dateOpened === null ? { dateOpened: today } : {}), ...leavingKilled } };
     case "owned":
       if (current.fillPct === 0) return fail("An empty bottle cannot be owned and sealed. Set the level to full first.");
       if (current.fillPct < 100 || current.isOpen || isEffectivelyOpen(current)) return fail("This bottle has been opened. Mark it open, or set the level to full and clear Opened to seal it.");
-      return { ok: true, set: { status: "owned", ...leavingKilled } };
+      return { ok: true, set: { ...status, ...leavingKilled } };
     case "wishlist":
       if (isEffectivelyOpen(current) || current.dateOpened !== null) return fail("A bottle you have opened cannot go on the wishlist.");
-      return { ok: true, set: { status: "wishlist", ...leavingKilled } };
+      return { ok: true, set: { ...status, ...leavingKilled } };
     case "sold":
     case "traded":
     case "sampled":
-      return { ok: true, set: { status: target, ...leavingKilled } };
+      return { ok: true, set: { ...status, ...leavingKilled } };
     default:
       return fail("Choose one of the statuses.");
   }
