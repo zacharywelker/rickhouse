@@ -63,6 +63,19 @@ export type SheetBottle = {
   isFavorite: boolean;
 };
 
+/** A vintage (a label's known release) as the sheet reads it: its own proof and age, which a bottle on it shows. Null: it has none of its own. */
+export type SheetVintage = {
+  id: number;
+  labelId: number;
+  name: string;
+  proof: string | null;
+  ageYears: string | null;
+  ageMonths: number | null;
+  ageDays: number | null;
+  ageStatement: string | null;
+  ageYearsSource: "entered" | "derived";
+};
+
 /** A thumbnail on the uploads volume. `isCutout` is whether the photo is a cutout (null: not yet known, drawn as one). */
 export type SheetPhoto = { path: string; isCutout: boolean | null };
 
