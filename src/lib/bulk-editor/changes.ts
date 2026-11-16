@@ -25,14 +25,11 @@ export const labelEditsOf = (edits: Edits, row: SheetRow): Readonly<Record<strin
 /** Bottle row key to the id of the label it is moving to. A bottle's label is never renamed; it is changed. */
 export type Moves = Readonly<Record<string, number>>;
 
-/** Records a move, or forgets it when the bottle is put back on its own label. */
+/** Keep an explicit return to the original label if an earlier move may already have saved. */
 export function setMove(moves: Moves, key: string, target: number, original: number): Moves {
-  if (target === original) {
-    if (!(key in moves)) return moves;
-    const { [key]: _gone, ...rest } = moves;
-    return rest;
-  }
-  return moves[key] === target ? moves : { ...moves, [key]: target };
+  const previous = moves[key];
+  if (previous === target || (previous === undefined && target === original)) return moves;
+  return { ...moves, [key]: target };
 }
 
 /** The saved rows with each moved bottle shown on the label it is moving to, so every label cell reads the new one. */

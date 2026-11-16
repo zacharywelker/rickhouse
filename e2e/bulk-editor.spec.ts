@@ -1320,6 +1320,25 @@ test("a waiting choice is dropped with Delete", async ({ page }) => {
 
 });
 
+test("deleting a block drops pending Store choices and preserves the saved store", async ({ page }) => {
+  await bothSwitch(page, "Labels").click();
+  const store = await col(page, "Store");
+  await select(page, 0, store);
+  await page.keyboard.type("Block Delete Test Store");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, store)).toHaveText("Block Delete Test Store");
+  await reloaded(page);
+
+  await select(page, 0, store);
+  await paste(page, "Block Delete");
+  await expect(cell(page, 0, store)).toContainText("Choose");
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 0, store)).toHaveText("Block Delete Test Store");
+  await reloaded(page);
+  await expect(cell(page, 0, store)).toHaveText("Block Delete Test Store");
+});
+
 test("a locked cell and a list are skipped with the reason", async ({ page }) => {
   // On a bottle row the label's proof is locked until triple-clicked.
   const proof = await col(page, "Proof");
@@ -1367,19 +1386,57 @@ test("lines pasted at the empty row become new rows: complete names are taken, t
 });
 
 test("a pasted line naming a brand and label that exist adds a bottle of it, with its values", async ({ page }) => {
-  const [brand, name, price] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Price paid")];
+  const [brand, name, category, price] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Category"), await col(page, "Price paid")];
   const before = await blankRow(page);
   const bottlesOf = () => sheet(page).locator(`td[data-c="${name}"]`).filter({ hasText: "Double Oak Spirit" }).count();
   const had = await bottlesOf();
   await select(page, before, brand);
-  await paste(page, "Pursuit Spirits\tDouble Oak Spirit");
+  await paste(page, "Pursuit Spirits\tDouble Oak Spirit\tBourbon");
   await expect(pasteNotice(page)).toContainText("Added 1 new row");
   await expect(cell(page, before, name)).toContainText("Double Oak Spirit");
   await expect(cell(page, before, name)).not.toContainText("Choose");
+  await expect(cell(page, before, category)).toHaveText("Bourbon");
   await type(page, before, price, "44");
   await select(page, 0, brand); // leave the row: it saves
   await reloaded(page);
   expect(await bottlesOf()).toBe(had + 1);
+});
+
+test("a mismatched pasted category keeps a draft unsaved until cleared", async ({ page }) => {
+  const [brand, category] = [await col(page, "Brand"), await col(page, "Category")];
+  const row = await blankRow(page);
+  await select(page, row, brand);
+  await paste(page, "Pursuit Spirits\tDouble Oak Spirit\tRye");
+  await select(page, 0, brand);
+
+  await expect(cell(page, row, category)).toContainText("Rye");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+  await expect(page.getByText(/The existing label uses Bourbon/)).toBeVisible();
+
+  await select(page, row, category);
+  await page.keyboard.press("Delete");
+  await expect(cell(page, row, category)).toHaveText("Bourbon");
+  await select(page, 0, brand);
+  await reloaded(page);
+  expect(await blankRow(page)).toBe(row + 1);
+});
+
+test("a pasted existing label remains unresolved when Bottles is off", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const [brand, name, msrp] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "MSRP")];
+  const row = await blankRow(page);
+  const line = Array.from({ length: msrp - brand + 1 }, () => "");
+  line[0] = "Pursuit Spirits";
+  line[name - brand] = "Double Oak Spirit";
+  line[msrp - brand] = "99";
+  await select(page, row, brand);
+  await paste(page, line.join("\t"));
+  await select(page, 0, brand);
+
+  await expect(cell(page, row, name)).toContainText("Choose");
+  await expect(cell(page, row, msrp)).toHaveText("$99.00");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+  await expect(page.getByText(/That label already exists.*Switch Bottles on/)).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------

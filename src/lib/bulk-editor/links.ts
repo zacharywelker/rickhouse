@@ -2,7 +2,7 @@ import type { FieldSpec, Option } from "@/lib/admin/types";
 import type { LinkedRow } from "@/components/expressions/ordered-picker";
 import { hasIngredientPickers, hasMashbillPicker } from "@/lib/expressions/link-rules";
 import { describeLinks, linksPayload, type LinkKind } from "@/lib/expressions/links";
-import { isSingleMaltCategory, showsFinishes, showsRegions, type CategoryKind } from "@/lib/expressions/rules";
+import { isSingleMaltCategory, parseRegions, showsFinishes, showsRegions, type CategoryKind } from "@/lib/expressions/rules";
 import type { IngredientChoice } from "@/lib/expressions/spirit-details";
 import type { CellEditor } from "./editors";
 import type { Kinds } from "./fields";
@@ -136,6 +136,7 @@ export function linkedFacts(
   options: ReadonlyArray<Option>,
   before: ReadonlyArray<LinkedRow>,
   after: ReadonlyArray<LinkedRow>,
+  staged?: Readonly<Record<string, string>>,
 ): Record<string, string> {
   const out: Record<string, string> = {};
   const chosen = after.map((row) => options.find((option) => option.value === row.id));
@@ -147,11 +148,13 @@ export function linkedFacts(
         out[name] = values.length === 1 ? values[0]! : "";
       } else out[name] = "";
     };
-    one("country", label.originCountryManual, "originCountryLinked");
-    one("region", label.originRegionManual, "originRegionLinked");
+    const manual = (field: "originCountry" | "originRegion", saved: boolean | undefined) =>
+      staged?.[field] === undefined ? saved : staged[field].trim() !== "";
+    one("country", manual("originCountry", label.originCountryManual), "originCountryLinked");
+    one("region", manual("originRegion", label.originRegionManual), "originRegionLinked");
   }
   if (showsRegions({ kind })) {
-    const regions = label.regions ?? [];
+    const regions = staged?.regions === undefined ? (label.regions ?? []) : parseRegions(staged.regions);
     const known = new Set(before.map((row) => row.id));
     const brought = after
       .filter((row) => !known.has(row.id))

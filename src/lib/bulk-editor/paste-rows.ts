@@ -10,7 +10,10 @@ import type { SheetLabel } from "./sheet";
  */
 export type RowTexts = { brand?: string; name?: string; category?: string };
 
+export const EXISTING_LABEL_REQUIRES_BOTTLES = "That label already exists. Switch Bottles on to add a bottle of it.";
+
 export type SettleData = {
+  bottles: boolean;
   brands: ReadonlyArray<{ id: number; name: string }>;
   labels: ReadonlyArray<SheetLabel>;
   categories: ReadonlyArray<CategoryChoice>;
@@ -35,7 +38,7 @@ export function settleDraft(draft: DraftRow, texts: RowTexts, data: SettleData):
   }
   if (next.brand !== null && next.label === null && left.name !== undefined) {
     const found = matchName(left.name, labelCandidates(next, data.labels, data.drafts));
-    if (found.kind === "exact") {
+    if (found.kind === "exact" && (data.bottles || found.match.id === null)) {
       const existing = found.match.id === null ? undefined : data.labels.find((l) => l.id === found.match.id);
       next = withLabel(next, pickOf(found.match), existing?.categoryId ?? null);
       delete left.name;
@@ -49,7 +52,29 @@ export function settleDraft(draft: DraftRow, texts: RowTexts, data: SettleData):
       delete left.category;
     }
   }
+  if (next.label?.kind === "existing" && left.category !== undefined) {
+    const category = data.categories.find((c) => c.id === next.categoryId);
+    if (category && matchName(left.category, [category]).kind === "exact") delete left.category;
+  }
   // A text that is blank has nothing to wait for.
   for (const key of Object.keys(left) as Array<keyof RowTexts>) if (matchName(left[key]!, []).kind === "blank") delete left[key];
   return { draft: next, left };
+}
+
+/** Explains why a pasted value needs attention when its cell cannot resolve it through the usual picker. */
+export function pastedDraftConflict(draft: DraftRow, pending: RowTexts, data: Pick<SettleData, "bottles" | "labels" | "categories">): { column: "name" | "category"; message: string } | null {
+  if (!data.bottles) {
+    const label = pending.name === undefined ? null : matchName(pending.name, labelCandidates(draft, data.labels, []));
+    if (draft.label?.kind === "existing" || label?.kind === "exact") {
+      return { column: "name", message: EXISTING_LABEL_REQUIRES_BOTTLES };
+    }
+  }
+  if (draft.label?.kind === "existing" && pending.category !== undefined) {
+    const category = data.categories.find((c) => c.id === draft.categoryId)?.name ?? "a different category";
+    return {
+      column: "category",
+      message: `The existing label uses ${category}. Clear the pasted category with Delete, or choose a different label.`,
+    };
+  }
+  return null;
 }
