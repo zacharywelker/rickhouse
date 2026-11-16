@@ -48,6 +48,9 @@ export function RowListEditor({
   toText,
   error,
   removeWarning,
+  onChange,
+  validateChange,
+  savesAtOnce,
 }: {
   name: string;
   idPrefix: string;
@@ -58,11 +61,17 @@ export function RowListEditor({
   error?: string;
   /** What removing this row would lose, asked about first; null removes it at once. */
   removeWarning?: (row: Record<string, string>) => string | null;
+  /** Called with the rows that have a name each time they change (not on the first render): for a place that saves as it goes, instead of waiting for a form to be submitted. */
+  onChange?: (rows: Array<Record<string, string>>) => void;
+  validateChange?: (rows: Array<Record<string, string>>) => string | null;
+  /** The editor is not in a form that is saved later, so what a removal says does not promise that. */
+  savesAtOnce?: boolean;
 }) {
   // Loaded rows are numbered by position, so server and client render the
   // same ids; added rows continue the count.
   const [rows, setRows] = React.useState<Row[]>(() => initialRows.map((row, i) => ({ ...row, _id: String(i) })));
   const nextId = React.useRef(initialRows.length);
+  const [namedRows, setNamedRows] = React.useState(() => new Set(initialRows.flatMap((row, i) => row[columns[0]!.key]?.trim() ? [String(i)] : [])));
   // Only a row added with the button takes focus, not the ones loaded with the page.
   const [addedId, setAddedId] = React.useState<string | null>(null);
 
@@ -102,15 +111,38 @@ export function RowListEditor({
   const [confirming, setConfirming] = React.useState<{ id: string; message: string } | null>(null);
   const remove = (id: string) => setRows((prev) => prev.filter((r) => r._id !== id));
 
-  const set = (id: string, key: string, value: string) =>
+  const nameKey = columns[0]!.key;
+  const set = (id: string, key: string, value: string) => {
+    if (savesAtOnce && key === nameKey && value.trim()) {
+      setNamedRows((prev) => prev.has(id) ? prev : new Set(prev).add(id));
+    }
     setRows((prev) => prev.map((row) => (row._id === id ? withStatementAge(row, { ...row, [key]: value }, key) as Row : row)));
+  };
 
   // Rows with no name are left out rather than failing the whole save.
-  const filled = rows.filter((row) => (row[columns[0]!.key] ?? "").trim() !== "");
+  const filled = rows.filter((row) => (row[nameKey] ?? "").trim() !== "");
+  const changeError = savesAtOnce && rows.some((row) => namedRows.has(row._id) && !row[nameKey]?.trim())
+    ? "Enter a name or use Remove to delete the row."
+    : validateChange?.(filled) ?? null;
+  const lastRows = React.useRef(rows);
+  const latestOnChange = React.useRef(onChange);
+  React.useEffect(() => {
+    latestOnChange.current = onChange;
+  });
+  React.useEffect(() => {
+    if (lastRows.current === rows) return;
+    lastRows.current = rows;
+    if (changeError === null) {
+      latestOnChange.current?.(filled.map(({ _id: _ignored, ...rest }) => rest));
+    }
+    // Only when the rows change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   return (
     <div ref={container} className="flex flex-col gap-2">
       <input type="hidden" name={name} value={toText(filled)} />
+      {changeError ? <p role="alert" className="text-xs text-destructive">{changeError}</p> : null}
       {rows.map((row, index) => (
         <div
           key={row._id}
@@ -196,7 +228,7 @@ export function RowListEditor({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Remove this?</DialogTitle>
-            <DialogDescription>{confirming?.message} Nothing changes until you save.</DialogDescription>
+            <DialogDescription>{confirming?.message} {savesAtOnce ? "This is saved as soon as you remove it." : "Nothing changes until you save."}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>

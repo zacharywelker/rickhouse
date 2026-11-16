@@ -11,8 +11,9 @@ const label = (over: Partial<SheetLabel> & Pick<SheetLabel, "id" | "brand" | "na
   }) as unknown as SheetLabel;
 
 const bottle = (over: Partial<SheetBottle> & Pick<SheetBottle, "id" | "expressionId">): SheetBottle => ({
-  status: "owned", pricePaid: null, storeName: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
-  pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null,
+  status: "owned", pricePaid: null, storeName: null, storeId: null, releaseId: null, expressionNameId: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
+  pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ageYearsSource: "entered",
+  acquisition: "purchase", batch: null, pickedBy: null, barrelNumber: null, bottleCount: null, warehouse: null, rickFloor: null, barrelFilledOn: null, bottledOn: null, ginIsNas: null, tequilaClass: null, brandyGrade: null, fillPct: 100, isOpen: false, dateOpened: null, dateKilled: null, isFavorite: false,
   ...over,
 });
 
@@ -38,14 +39,14 @@ describe("columnsFor", () => {
 
   it("follows the shelf order, label facts then the bottle's own", () => {
     expect(ids({ labels: true, bottles: true }, DEFAULT_HIDDEN)).toEqual([
-      "brand", "name", "category", "sizeMl", "proof", "designation", "age", "distilleries", "mashbills", "finishes", "msrp",
+      "brand", "name", "category", "sizeMl", "proof", "designation", "ageYears", "ageMonths", "ageDays", "ageStatement", "distilleries", "mashbills", "finishes", "msrp",
       "singleBarrel", "pricePaid", "store", "dateAcquired", "status",
     ]);
   });
 
   it("hides the bottle's own proof, age and size until they are switched on", () => {
     expect(ids({ labels: true, bottles: true }, DEFAULT_HIDDEN)).not.toContain("ownProof");
-    expect(ids({ labels: true, bottles: true })).toEqual(expect.arrayContaining(["ownProof", "ownAge", "ownSize"]));
+    expect(ids({ labels: true, bottles: true })).toEqual(expect.arrayContaining(["ownProof", "ownAgeYears", "ownAgeMonths", "ownAgeDays", "ownSize"]));
   });
 
   it("with Bottles off, shows the label's columns and a count of bottles", () => {
@@ -116,6 +117,9 @@ describe("cells", () => {
     expect(cell("store", { label: l, bottle: b })).toEqual({ text: "Binny's" });
     expect(cell("dateAcquired", { label: l, bottle: b })).toEqual({ text: "Sep 20, 2025" });
     expect(cell("singleBarrel", { label: l, bottle: b })).toEqual({ text: "Single barrel · Private pick" });
+    // They are separate: a pick can be a blend of barrels, and a single barrel need not be a pick.
+    expect(cell("singleBarrel", { label: l, bottle: bottle({ id: 2, expressionId: 1, isSingleBarrelPick: true }) })).toEqual({ text: "Private pick" });
+    expect(cell("singleBarrel", { label: l, bottle: bottle({ id: 3, expressionId: 1, isSingleBarrel: true }) })).toEqual({ text: "Single barrel" });
   });
 
   it("shows no mashbill for a spirit that has none", () => {
@@ -124,7 +128,8 @@ describe("cells", () => {
   });
 
   it("reads a label's age from its statement or parts, and nothing for vodka", () => {
-    expect(cell("age", { label: label({ id: 4, brand: "B", name: "Gin", fieldGroup: "gin", ageYears: "12.0" }), bottle: null })).toEqual({ text: "12y" });
-    expect(cell("age", { label: label({ id: 5, brand: "B", name: "Vodka", fieldGroup: "vodka" }), bottle: null })).toEqual({ text: "—", muted: true });
+    expect(cell("ageYears", { label: label({ id: 4, brand: "B", name: "Gin", fieldGroup: "gin", isAgedGin: true, ageYears: "12.0" }), bottle: null })).toEqual({ text: "12" });
+    expect(cell("ageMonths", { label: label({ id: 4, brand: "B", name: "Gin", fieldGroup: "gin", isAgedGin: true, ageYears: "12.0", ageMonths: 6 }), bottle: null })).toEqual({ text: "6" });
+    expect(cell("ageYears", { label: label({ id: 5, brand: "B", name: "Vodka", fieldGroup: "vodka" }), bottle: null })).toMatchObject({ text: "—", muted: true });
   });
 });

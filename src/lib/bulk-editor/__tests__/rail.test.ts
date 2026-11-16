@@ -9,7 +9,7 @@ const labelsOnly: SheetView = { labels: true, bottles: false };
 const label = (over: Record<string, unknown> = {}) =>
   ({
     id: 1, brand: "Four Roses", name: "Single Barrel", category: "Bourbon", categoryId: 20, fieldGroup: "whiskey", proof: "100.0", sizeMl: 750, msrp: "49.99",
-    ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, isCaskStrength: false, isBottledInBond: false, isStraight: false, isNas: false, isAged: false,
+    ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ageYearsSource: "entered", isCaskStrength: false, isBottledInBond: false, isStraight: false, isNas: false, isAged: false,
     bottleCount: 3, links: { distilleries: [{ id: 1, label: "Four Roses Distillery", amount: "" }], mashbills: [], finishes: [], ingredients: [] }, ...over,
   }) as unknown as SheetLabel;
 const bottle = (over: Partial<SheetBottle> = {}) =>
@@ -42,7 +42,7 @@ describe("the rail for a bottle", () => {
     expect(byLabel(edited, "MSRP")?.value).toBe("$55.00");
   });
   it("lists what is still blank, short, in the order worth filling", () => {
-    const bare = railFor(row(bottle({ pricePaid: null, storeName: null, dateAcquired: null }), label({ proof: null, msrp: null, links: { distilleries: [], mashbills: [], finishes: [] } })), ctx, both, {}, null);
+    const bare = railFor(row(bottle({ pricePaid: null, storeName: null, storeId: null, releaseId: null, expressionNameId: null, dateAcquired: null }), label({ proof: null, msrp: null, links: { distilleries: [], mashbills: [], finishes: [] } })), ctx, both, {}, null);
     expect(bare.blank).toEqual(["Proof", "Distillery", "MSRP", "Price paid"]); // four at most
     expect(rail.blank).toEqual([]);
   });

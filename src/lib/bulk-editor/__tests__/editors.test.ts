@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { countEdits, EDITORS, editorFor, isLocked, parseCell, setEdit, unlockKey, type CellEditor } from "../editors";
+import { countEdits, EDITORS, editorFor, isLocked, lockKeyOf, parseCell, setEdit, unlockKey, type CellEditor } from "../editors";
 import { SHEET_COLUMNS, type SheetBottle, type SheetColumn, type SheetContext, type SheetLabel, type SheetRow } from "../sheet";
 
 const label = { id: 1, brand: "Four Roses", name: "Single Barrel", proof: "100.0", sizeMl: 750, msrp: "49.99" } as unknown as SheetLabel;
 const bottle = (over: Partial<SheetBottle> = {}): SheetBottle => ({
-  id: 7, expressionId: 1, status: "owned", pricePaid: "47.00", storeName: null, dateAcquired: "2025-09-20", isSingleBarrel: false, isSingleBarrelPick: false,
-  pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ...over,
+  id: 7, expressionId: 1, status: "owned", pricePaid: "47.00", storeName: null, storeId: null, releaseId: null, expressionNameId: null, dateAcquired: "2025-09-20", isSingleBarrel: false, isSingleBarrelPick: false,
+  pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ageYearsSource: "entered", acquisition: "purchase", batch: null, pickedBy: null, barrelNumber: null, bottleCount: null, warehouse: null, rickFloor: null, barrelFilledOn: null, bottledOn: null, ginIsNas: null, tequilaClass: null, brandyGrade: null, fillPct: 100, isOpen: false, dateOpened: null, dateKilled: null, isFavorite: false, ...over,
 });
 const bottleRow = (b = bottle()): SheetRow => ({ key: `b${b.id}`, label, bottle: b });
 const labelRow: SheetRow = { key: "l1", label, bottle: null };
@@ -65,12 +65,6 @@ describe("editorFor", () => {
     expect(rename?.combo).toBeUndefined();
     expect(rename).toMatchObject({ field: "name", scope: "label", required: true });
   });
-  it("has no editor yet for the cells that need several fields or a list of their own", () => {
-    for (const id of ["category", "store", "distilleries", "mashbills", "finishes", "age", "designation", "singleBarrel", "status"]) {
-      expect(editorFor(col(id), both, bottleRow())).toBeNull();
-      expect(editorFor(col(id), labelsOnly, labelRow)).toBeNull();
-    }
-  });
   it("is keyed to the form's own field definitions", () => {
     expect(ed("pricePaid").spec).toMatchObject({ kind: "number", name: "pricePaid", money: true });
     expect(ed("dateAcquired").spec).toMatchObject({ kind: "date" });
@@ -97,9 +91,11 @@ describe("editorFor on a new row", () => {
     expect(editorFor(col("category"), both, draftRow({ brandChosen: true, labelChosen: true, labelIsNew: true }))?.combo).toBe("category");
     expect(editorFor(col("category"), both, draftRow({ brandChosen: true, labelChosen: true, labelIsNew: false }))).toBeNull();
   });
-  it("does not offer Category on a row that is already saved: its label has one", () => {
+  it("offers a saved label's Category as one of the label's facts: directly with only Labels on, and locked on a bottle row until it is triple-clicked", () => {
+    expect(editorFor(col("category"), labelsOnly, labelRow)?.combo).toBe("category");
     expect(editorFor(col("category"), both, bottleRow())).toBeNull();
-    expect(editorFor(col("category"), labelsOnly, labelRow)).toBeNull();
+    const open = new Set([lockKeyOf(EDITORS.category!, bottleRow(), "category")]);
+    expect(editorFor(col("category"), both, bottleRow(), open)?.combo).toBe("category");
   });
   it("lets a new label's facts be typed, but not those of a label that exists", () => {
     const fresh = draftRow({ brandChosen: true, labelChosen: true, labelIsNew: true });

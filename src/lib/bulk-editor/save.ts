@@ -1,5 +1,10 @@
 import type { DraftRow } from "./drafts";
-import { EDITORS, type Edits } from "./editors";
+import { EDITORS, type CellEditor, type Edits } from "./editors";
+import { isYesNoChoice } from "./fields";
+import { linksPayload } from "@/lib/expressions/links";
+import { linksBody, labelLists, type LinkLists } from "./links";
+import { refServerFields } from "./references";
+import type { SheetLabel } from "./sheet";
 import type { Moves } from "./changes";
 
 /**
@@ -40,20 +45,77 @@ export const draftTitle = (draft: DraftRow): string => [draft.brand?.name, draft
 
 const valueOrNull = (value: string): string | null => (value === "" ? null : value);
 
-/** A field and its text, under the server's field name. A blank clears the value (null). */
-function patchFields(cells: Readonly<Record<string, string>>): Record<string, string | null> {
+/**
+ * What a cell's text is, to the server. A checkbox is a boolean, a yes/no choice is true, false or nothing, a cell that
+ * stands for two fields (Cask / Bonded) is both, and the rest is its text, with nothing for a blank.
+ */
+export function serverFields(editor: CellEditor | undefined, column: string, value: string): Record<string, unknown> {
   // The Label column is a pick on a new row (its field is "label") but a typed rename on a saved label ("name").
-  return Object.fromEntries(Object.entries(cells).map(([column, value]) => [column === "name" ? "name" : (EDITORS[column]?.field ?? column), valueOrNull(value)]));
+  if (column === "name") return { name: valueOrNull(value) };
+  if (!editor) return { [column]: valueOrNull(value) };
+  if (editor.fieldsOf) return editor.fieldsOf(value);
+  // A saved label's category, kept as `id:N`.
+  if (editor.combo === "category") {
+    const id = /^id:(\d+)$/.exec(value);
+    return { categoryId: id ? Number(id[1]) : null };
+  }
+  // The origin of an amaro or liqueur typed in is remembered as the owner's own, as the form does.
+  if (editor.field === "originCountry" || editor.field === "originRegion") return { [editor.field]: valueOrNull(value), [`${editor.field}Manual`]: value.trim() !== "" };
+  if (editor.reference) return refServerFields(editor.field, value);
+  // The level is a whole number on the server; the cell holds the option's value as text.
+  if (editor.field === "fillPct") return { fillPct: Number(value) };
+  if (editor.spec.kind === "checkbox") return { [editor.field]: value === "true" };
+  // A yes/no choice goes as the form sends it: "true", "false", or "" for unknown.
+  if (isYesNoChoice(editor.spec)) return { [editor.field]: value };
+  return { [editor.field]: valueOrNull(value) };
 }
 
-/** The body for a saved bottle: its own cells, and the label it moves to. */
+/**
+ * What linking a distillery brings along (the form's `changeLinks`): the Scotch regions, and an amaro's or liqueur's origin.
+ * They are edits under these names, not the Region and Origin cells', so they are not mistaken for being typed (typing an
+ * origin marks it as the owner's own, and a later link then leaves it alone).
+ */
+const LINKED_FACTS: Readonly<Record<string, string>> = { regions: "regions", originCountryLinked: "originCountry", originRegionLinked: "originRegion" };
+export const LINKED_COLUMNS = Object.keys(LINKED_FACTS);
+
+/** A staged manual origin takes precedence over a value inferred by a link. */
+function linkedField(column: string, cells: Readonly<Record<string, string>>): string | undefined {
+  const field = LINKED_FACTS[column];
+  if ((field === "originCountry" || field === "originRegion") && cells[field]?.trim()) return undefined;
+  return field;
+}
+
+/** A field and its text, under the server's field name. A blank clears the value (null). The lists are sent by `linksBody`. */
+function patchFields(cells: Readonly<Record<string, string>>): Record<string, unknown> {
+  return Object.assign(
+    {},
+    ...Object.entries(cells).map(([column, value]) => {
+      if (EDITORS[column]?.links) return {};
+      if (column in LINKED_FACTS) {
+        const field = linkedField(column, cells);
+        return field ? { [field]: valueOrNull(value) } : {};
+      }
+      return serverFields(EDITORS[column], column, value);
+    }),
+  );
+}
+
+/**
+ * The body for a saved bottle: its own cells, and the label it moves to. Clearing the date opened of a bottle that is
+ * open would ask whether to keep it open or seal it; a cell cannot ask, so it keeps it open (nothing is lost, and
+ * sealing is the Opened tick's job, which refuses to reset a level that is not full).
+ */
 export const bottlePatchBody = (cells: Readonly<Record<string, string>> | undefined, moveTo: number | undefined): Record<string, unknown> => ({
   ...patchFields(cells ?? {}),
+  ...(cells?.dateOpened === "" ? { ifOpenedCleared: "keep_open" } : {}),
   ...(moveTo !== undefined ? { expressionId: moveTo } : {}),
 });
 
 /** The body for a saved label: only its own facts. One request reaches every bottle on it. */
-export const labelPatchBody = (cells: Readonly<Record<string, string>> | undefined): Record<string, unknown> => patchFields(cells ?? {});
+export const labelPatchBody = (cells: Readonly<Record<string, string>> | undefined, links?: { label: SheetLabel; loaded: LinkLists | undefined }): Record<string, unknown> => ({
+  ...patchFields(cells ?? {}),
+  ...(links ? linksBody(cells ?? {}, links.loaded, labelLists(links.label)) : {}),
+});
 
 /**
  * The body for a new row. An existing brand or label goes by id (and an existing label takes no facts: they are not the
@@ -61,12 +123,22 @@ export const labelPatchBody = (cells: Readonly<Record<string, string>> | undefin
  * view is of bottles, or when anything was typed into a bottle cell, so typed values are never dropped.
  */
 export function createBody(draft: DraftRow, cells: Readonly<Record<string, string>> | undefined, bottleView: boolean): Record<string, unknown> {
-  const facts: Record<string, string> = {};
-  const bottle: Record<string, string> = {};
+  const facts: Record<string, unknown> = {};
+  const bottle: Record<string, unknown> = {};
   for (const [column, value] of Object.entries(cells ?? {})) {
     const editor = EDITORS[column];
+    if (column in LINKED_FACTS) {
+      const field = linkedField(column, cells ?? {});
+      if (field && value !== "") facts[field] = value;
+      continue;
+    }
+    if (editor?.links) {
+      const rows: unknown = JSON.parse(value);
+      if (Array.isArray(rows) && rows.length > 0) facts[{ distilleries: "distilleryLinks", mashbills: "mashbillLinks", finishes: "finishLinks", ingredients: "ingredientLinks" }[editor.links]] = editor.links === "ingredients" ? JSON.stringify(rows) : linksPayload(rows as never);
+      continue;
+    }
     if (!editor || editor.combo || value === "") continue;
-    (editor.scope === "label" ? facts : bottle)[editor.field] = value;
+    Object.assign(editor.scope === "label" ? facts : bottle, serverFields(editor, column, value));
   }
   const brand = draft.brand!;
   const label = draft.label!;
@@ -93,11 +165,31 @@ const COLUMN_OF_FIELD: Record<string, { label: string; bottle: string }> = {
   msrp: { label: "msrp", bottle: "msrp" },
   pricePaid: { label: "pricePaid", bottle: "pricePaid" },
   storeId: { label: "store", bottle: "store" },
+  storeName: { label: "store", bottle: "store" },
+  releaseId: { label: "releaseId", bottle: "releaseId" },
+  expressionNameId: { label: "expressionNameId", bottle: "expressionNameId" },
+  cooperageId: { label: "cooperageId", bottle: "cooperageId" },
+  cooperageName: { label: "cooperageId", bottle: "cooperageId" },
+  distilleries: { label: "distilleries", bottle: "distilleries" },
+  releases: { label: "releases", bottle: "releases" },
+  otherNames: { label: "otherNames", bottle: "otherNames" },
+  mashbills: { label: "mashbills", bottle: "mashbills" },
+  finishes: { label: "finishes", bottle: "finishes" },
+  ingredients: { label: "ingredients", bottle: "ingredients" },
+  finishLinks: { label: "finishes", bottle: "finishes" },
+  distilleryLinks: { label: "distilleries", bottle: "distilleries" },
+  mashbillLinks: { label: "mashbills", bottle: "mashbills" },
+  ingredientLinks: { label: "ingredients", bottle: "ingredients" },
   dateAcquired: { label: "dateAcquired", bottle: "dateAcquired" },
   releaseYear: { label: "releaseYear", bottle: "releaseYear" },
   pickName: { label: "pickName", bottle: "pickName" },
   location: { label: "location", bottle: "location" },
   notes: { label: "notes", bottle: "notes" },
+  status: { label: "status", bottle: "status" },
+  fillPct: { label: "fillPct", bottle: "fillPct" },
+  isOpen: { label: "isOpen", bottle: "isOpen" },
+  dateOpened: { label: "dateOpened", bottle: "dateOpened" },
+  dateKilled: { label: "dateKilled", bottle: "dateKilled" },
 };
 
 /** The cell a failed save is shown on: the first failing field that has a column, else `fallback`. */

@@ -1,4 +1,7 @@
+import type { FieldGroup } from "@/db/schema";
+import { derivedAge, type AgeState } from "./age-derive";
 import { EDITORS, type CellEditor, type Edits } from "./editors";
+import { isYesNoChoice } from "./fields";
 import type { Candidate } from "./suggest";
 import { compareRows, type SheetBottle, type SheetLabel, type SheetRow } from "./sheet";
 
@@ -43,11 +46,66 @@ export function applyMoves(rows: ReadonlyArray<SheetRow>, moves: Moves, labels: 
  * A rename or a change of brand typed into a label (kept under the label, see `editKey`), shown on every row of that
  * label. Rows of other labels are returned as they are, so they are not drawn again.
  */
-export function applyLabelEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRow[] {
+export type CategoryInfo = Readonly<Record<number, { name: string; group: FieldGroup; slug?: string }>>;
+
+export function applyLabelEdits(rows: ReadonlyArray<SheetRow>, edits: Edits, categories: CategoryInfo = {}): SheetRow[] {
   return rows.map((row) => {
     const own = row.draft ? undefined : edits[`l${row.label.id}`];
-    if (!own || (own.name === undefined && own.brand === undefined)) return row;
-    return { ...row, label: { ...row.label, ...(own.name !== undefined ? { name: own.name } : {}), ...(own.brand !== undefined ? { brand: own.brand } : {}) } };
+    if (!own || (own.name === undefined && own.brand === undefined && own.category === undefined)) return row;
+    // A new category changes which of the label's cells apply, at once; what is stored for the others is kept.
+    const id = own.category !== undefined && own.category.startsWith("id:") ? Number(own.category.slice(3)) : null;
+    const chosen = id === null ? undefined : categories[id];
+    return {
+      ...row,
+      label: {
+        ...row.label,
+        ...(own.name !== undefined ? { name: own.name } : {}),
+        ...(own.brand !== undefined ? { brand: own.brand } : {}),
+        ...(chosen && id !== null ? { categoryId: id, category: chosen.name, fieldGroup: chosen.group, ...(chosen.slug ? { categorySlug: chosen.slug } : {}) } : {}),
+      },
+    };
+  });
+}
+
+/** What an edited value stands for on the row's own data: the fields it sets, as the row holds them. */
+function rawOf(editor: CellEditor, value: string): Record<string, unknown> {
+  if (editor.fieldsOf) return editor.fieldsOf(value);
+  const { spec } = editor;
+  if (spec.kind === "checkbox") return { [editor.field]: value === "true" };
+  // A choice keeps its text (a yes/no choice reads "true" or "false" back into the form's own value); the rest is blank when blank.
+  if (spec.kind === "select" || spec.kind === "slider" || isYesNoChoice(spec)) return { [editor.field]: value };
+  return { [editor.field]: value === "" ? null : value };
+}
+
+/**
+ * What has been typed into a row's cells, put onto the row's own label and bottle data, so that everything that reads a
+ * row (its cells, which cells apply to it, the rail) sees it. A cell that gates others, like Private pick, then opens
+ * them at once instead of once the save has been read back. Rows with nothing typed are returned as they are.
+ */
+export function applyEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRow[] {
+  return rows.map((row) => {
+    const labelCells = row.draft ? edits[row.key] : edits[`l${row.label.id}`];
+    const bottleCells = row.bottle ? edits[row.key] : undefined;
+    if (!labelCells && !bottleCells) return row;
+    let label: unknown = row.label;
+    let bottle: unknown = row.bottle;
+    const whiskey = row.label.fieldGroup === "whiskey";
+    const put = (cells: Readonly<Record<string, string>> | undefined, scope: "label" | "bottle") => {
+      const changed: Record<string, unknown> = {};
+      for (const [column, value] of Object.entries(cells ?? {})) {
+        const editor = EDITORS[column];
+        if (!editor || editor.combo || editor.reference || editor.links || editor.panel || editor.scope !== scope) continue;
+        Object.assign(changed, rawOf(editor, value));
+      }
+      if (Object.keys(changed).length === 0) return;
+      // A whiskey's statement fills the years in, and typed years mark the age entered: what the server will do, shown now.
+      const extra = derivedAge(scope === "label" ? (row.label as AgeState) : (row.bottle as unknown as AgeState), changed, whiskey);
+      if (scope === "label") label = { ...(label as object), ...changed, ...extra };
+      else bottle = { ...(bottle as object), ...changed, ...extra };
+    };
+    put(labelCells, "label");
+    put(bottleCells, "bottle");
+    return { ...row, label: label as SheetLabel, bottle: bottle as SheetBottle | null };
   });
 }
 
@@ -56,10 +114,11 @@ export function applyLabelEdits(rows: ReadonlyArray<SheetRow>, edits: Edits): Sh
  * and every row in the place that puts it in. A row goes to its sorted place the moment it is changed, not when the
  * save has been read back, so the cursor and the view can follow it (or stay behind) right away.
  */
-export function arrange(rows: ReadonlyArray<SheetRow>, moves: Moves, edits: Edits, labels: ReadonlyArray<SheetLabel>): SheetRow[] {
-  const touched = Object.keys(moves).length > 0 || Object.values(edits).some((cells) => "name" in cells || "brand" in cells);
-  if (!touched) return [...rows];
-  return applyLabelEdits(applyMoves(rows, moves, labels), edits).sort(compareRows);
+export function arrange(rows: ReadonlyArray<SheetRow>, moves: Moves, edits: Edits, labels: ReadonlyArray<SheetLabel>, categories: CategoryInfo = {}): SheetRow[] {
+  const renamed = Object.keys(moves).length > 0 || Object.values(edits).some((cells) => "name" in cells || "brand" in cells || "category" in cells);
+  const typed = applyEdits(rows, edits);
+  if (!renamed) return typed;
+  return applyLabelEdits(applyMoves(typed, moves, labels), edits, categories).sort(compareRows);
 }
 
 /**

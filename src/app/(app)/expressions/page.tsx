@@ -19,8 +19,8 @@ export default async function ExpressionsPage({
 }) {
   const user = await requireSession();
   const filters = parseLabelFilters(await searchParams);
-  // The form's own pickers and category rules, for the unlocked grid.
-  const [{ rows, total, pageCount, page }, { options, categoryGroups, categoryKinds }] = await Promise.all([
+  // The form's own category rules and the brand and category choices the filters offer.
+  const [{ rows, total, pageCount, page }, { options, categoryKinds }] = await Promise.all([
     queryExpressions(filters, user.id),
     expressionFormData(null, user.id),
   ]);
@@ -33,12 +33,6 @@ export default async function ExpressionsPage({
           <h1 className="text-3xl text-accent">Labels</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/expressions/bulk">
-              Bulk add
-            </Link>
-          </Button>
-          {/* Beside Bulk add until the editor can add and edit (#319 then retires Bulk add). */}
           <Button variant="outline" asChild>
             <Link href="/bulk-editor">Bulk editor</Link>
           </Button>
@@ -75,7 +69,7 @@ export default async function ExpressionsPage({
         </div>
       ) : (
         <>
-          <LabelTable rows={rows} filters={filters} options={options} categoryGroups={categoryGroups} categoryKinds={categoryKinds} />
+          <LabelTable rows={rows} filters={filters} categoryKinds={categoryKinds} />
           <LabelPagination filters={filters} page={page} pageCount={pageCount} total={total} />
         </>
       )}

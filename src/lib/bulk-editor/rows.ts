@@ -2,18 +2,25 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { bottles, brands, categories, expressions, stores } from "@/db/schema";
+import { BOTTLE_STATUSES, bottleImages, bottles, brands, categories, expressions, stores } from "@/db/schema";
 import { newBottleValues } from "@/lib/bottles/new-bottle";
 import { bottlePatchSchema } from "@/lib/bottles/patch-schema";
 import { updateBottle } from "@/lib/bottles/state";
+import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
 import { mapDbError, pgCode } from "@/lib/db-errors";
+import { deleteStoredImage } from "@/lib/images";
+import { deleteStoredPhotos, releasePhotosOfLabel } from "@/lib/releases-store";
 import { ensureBrand } from "@/lib/expressions/brand";
 import { patchLabel } from "@/lib/expressions/label-patch";
-import { labelPatchBody } from "@/lib/expressions/label-patch-body";
+import { bulkLabelPatchBody } from "@/lib/expressions/label-patch-body";
 import { categoryKindsById } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { expressionSchema } from "@/lib/expressions/schema";
 import { fieldErrorsOf, flavorMissing, labelValues, LabelRejected, linksFrom, writeLabel, type Tx } from "@/lib/expressions/save";
+import { parseReleaseRows, type ReleaseInput } from "@/lib/releases";
+import { derivedAge } from "./age-derive";
+import { ensureCooperage, ensureStore, takeBack } from "./reference-rows";
+import { fieldGroupForCategory } from "@/lib/expressions/queries";
 
 /**
  * The server half of the bulk editor, one row at a time, in the signed-in account (`ownerId`). A row is a label, a
@@ -53,6 +60,24 @@ export type PatchOutcome = { ok: true } | RowFailure;
 
 const failure = (kind: RowFailure["kind"], error: string, fieldErrors: Record<string, string> = {}): RowFailure => ({ ok: false, kind, error, fieldErrors });
 const invalidField = (field: string, message: string) => failure("invalid", message, { [field]: message });
+
+/**
+ * A store or cooperage can be named in a cell instead of picked (`storeName`, `cooperageName`): it is found, or made if
+ * it is new. A name next to the id it would replace is a mistake in the request, not a choice to make for it.
+ */
+const newName = z.string().trim().min(1, "Enter a name.").max(120, "Keep this under 120 characters.");
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Takes `key` (a name) out of `body` and returns the cleaned name, or a failure. Undefined when it was not sent. */
+function takeName(body: Record<string, unknown>, key: string, idKey: string): { name?: string; failure?: RowFailure } {
+  if (!(key in body)) return {};
+  const raw = body[key];
+  delete body[key];
+  const parsed = newName.safeParse(raw);
+  if (!parsed.success) return { failure: invalidField(key, parsed.error.issues[0]?.message ?? "Enter a name.") };
+  if (body[idKey] !== undefined) return { failure: invalidField(key, `Send ${idKey} or ${key}, not both.`) };
+  return { name: parsed.data };
+}
 
 /** Thrown inside a transaction to roll it back with a failure the person can fix. */
 class Rejected extends Error {
@@ -113,12 +138,22 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
   const parsed = newRowSchema.safeParse(raw);
   if (!parsed.success) return invalidFrom(parsed.error.issues);
   const { brand, label, bottle } = parsed.data;
+  // A new store or cooperage is named in the row; it is made inside the transaction below, with the label and bottle.
+  const bottleBody = bottle ? { ...bottle } : undefined;
+  const storeNamed = bottleBody ? takeName(bottleBody, "storeName", "storeId") : {};
+  if (storeNamed.failure) return storeNamed.failure;
+  const labelFacts = "name" in label && label.facts ? { ...label.facts } : undefined;
+  const cooperageNamed = labelFacts ? takeName(labelFacts, "cooperageName", "cooperageId") : {};
+  if (cooperageNamed.failure) return cooperageNamed.failure;
+
+  // A whiskey's age statement fills the years in, as the forms do (and an entered age is never replaced).
+  if (labelFacts && "name" in label) Object.assign(labelFacts, derivedAge(null, labelFacts, (await fieldGroupForCategory(label.categoryId)) === "whiskey"));
 
   // Everything that can be checked without writing is checked first.
   let links: ReturnType<typeof linksFrom> | null = null;
   if ("name" in label) {
     if ((await db.$count(categories, eq(categories.id, label.categoryId))) === 0) return invalidField("categoryId", "Choose a category.");
-    const facts = label.facts ?? {};
+    const facts: Record<string, unknown> = { ...(labelFacts ?? {}), ...(cooperageNamed.name !== undefined ? { cooperageId: 1 } : {}) };
     // The brand is not known until it is found or created; its id is not what is being checked here.
     const checked = expressionSchema.safeParse({ ...facts, brandId: 1, categoryId: label.categoryId, name: label.name });
     if (!checked.success) return failure("invalid", checked.error.issues[0]?.message ?? "Please check the highlighted fields.", fieldErrorsOf(checked.error.issues));
@@ -159,17 +194,22 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
         labelId = row.id;
         spirit = { kind: (await categoryKindsById(tx))[row.categoryId] ?? "other", ginAged: row.isAgedGin };
       } else {
-        const made = await ensureLabel(tx, ownerId, brandId, label.name, label.categoryId, label.facts ?? {}, links!);
+        const facts = { ...(labelFacts ?? {}) };
+        if (cooperageNamed.name !== undefined) facts.cooperageId = (await ensureCooperage(tx, ownerId, cooperageNamed.name)).id;
+        const made = await ensureLabel(tx, ownerId, brandId, label.name, label.categoryId, facts, links!);
         labelId = made.id;
         createdLabel = made.created;
-        labelFactsIgnored = !made.created && Object.keys(label.facts ?? {}).length > 0;
+        labelFactsIgnored = !made.created && Object.keys(labelFacts ?? {}).length + (cooperageNamed.name !== undefined ? 1 : 0) > 0;
         spirit = { kind: (await categoryKindsById(tx))[made.categoryId] ?? "other", ginAged: made.isAgedGin };
       }
 
       // The bottle.
       let bottleId: number | null = null;
-      if (bottle) {
-        const made = await newBottleValues(bottle, labelId, spirit, tx);
+      if (bottleBody) {
+        const [group] = await tx.select({ group: categories.fieldGroup }).from(expressions).innerJoin(categories, eq(categories.id, expressions.categoryId)).where(eq(expressions.id, labelId)).limit(1);
+        Object.assign(bottleBody, derivedAge(null, bottleBody, group?.group === "whiskey"));
+        if (storeNamed.name !== undefined) bottleBody.storeId = (await ensureStore(tx, ownerId, storeNamed.name)).id;
+        const made = await newBottleValues(bottleBody, labelId, spirit, tx);
         if (!made.ok) throw new Rejected(failure("invalid", made.error, made.fieldErrors));
         if (made.values.storeId != null && (await tx.$count(stores, and(eq(stores.id, made.values.storeId), eq(stores.ownerId, ownerId)))) === 0) {
           throw new Rejected(invalidField("storeId", "Choose one of your stores."));
@@ -232,6 +272,17 @@ async function ensureLabel(
 // Patch
 // ---------------------------------------------------------------------------
 
+/** Where a bottle is in its life, which the phone's request cannot send: the bulk editor's own part of a bottle patch. */
+const lifeSchema = z
+  .object({
+    status: z.enum(BOTTLE_STATUSES),
+    isOpen: z.boolean(),
+    dateKilled: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date.").nullable(),
+    isFavorite: z.boolean(),
+  })
+  .partial()
+  .strict();
+
 /**
  * Changes a bottle: only the columns sent, nothing else touched, so a sheet that is out of date cannot undo what was
  * changed elsewhere. A label's own facts are refused. `expressionId` moves the bottle to another of the caller's labels,
@@ -239,15 +290,84 @@ async function ensureLabel(
  */
 export async function patchBottleRow(ownerId: number, bottleId: number, raw: unknown): Promise<PatchOutcome> {
   if (!Number.isInteger(bottleId) || bottleId <= 0) return failure("gone", "That bottle is gone.");
-  const parsed = bottlePatchSchema.safeParse(raw);
-  if (!parsed.success) return invalidFrom(parsed.error.issues);
-  const { fillPct, dateOpened, ifOpenedCleared, ...columns } = parsed.data;
-  const outcome = await updateBottle(bottleId, ownerId, { fillPct, dateOpened, ifOpenedCleared, columns });
-  if (!outcome) return failure("gone", "That bottle is gone.");
-  if (!outcome.ok) {
-    return failure("invalid", outcome.message, outcome.field ? { [outcome.field]: outcome.message } : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : {});
+  // Two things the phone's request does not take: a store named instead of picked, and which of the label's names the bottle shows.
+  const body = isRecord(raw) ? { ...raw } : raw;
+  let named: string | undefined;
+  let version: number | null | undefined;
+  let life: z.infer<typeof lifeSchema> = {};
+  if (isRecord(body)) {
+    const taken: Record<string, unknown> = {};
+    for (const key of ["status", "isOpen", "dateKilled", "isFavorite"]) {
+      if (key in body) {
+        taken[key] = body[key];
+        delete body[key];
+      }
+    }
+    const parsedLife = lifeSchema.safeParse(taken);
+    if (!parsedLife.success) {
+      const issue = parsedLife.error.issues[0]!;
+      return invalidField(String(issue.path[0] ?? "status"), issue.message);
+    }
+    life = parsedLife.data;
+    const store = takeName(body, "storeName", "storeId");
+    if (store.failure) return store.failure;
+    named = store.name;
+    if ("expressionNameId" in body) {
+      const parsedVersion = posInt.nullable().safeParse(body.expressionNameId);
+      if (!parsedVersion.success) return invalidField("expressionNameId", "Choose one of this label's names.");
+      version = parsedVersion.data;
+      delete body.expressionNameId;
+    }
   }
-  return { ok: true };
+  let source: "entered" | "derived" | undefined;
+  if (isRecord(body) && ["ageYears", "ageMonths", "ageDays", "ageStatement"].some((key) => key in body)) {
+    const [current] = await db
+      .select({ ageYears: bottles.ageYears, ageMonths: bottles.ageMonths, ageDays: bottles.ageDays, ageStatement: bottles.ageStatement, ageYearsSource: bottles.ageYearsSource, group: categories.fieldGroup })
+      .from(bottles)
+      .innerJoin(expressions, eq(expressions.id, bottles.expressionId))
+      .innerJoin(categories, eq(categories.id, expressions.categoryId))
+      .where(and(eq(bottles.id, bottleId), eq(bottles.ownerId, ownerId)))
+      .limit(1);
+    if (current) {
+      const { ageYearsSource, ...more } = derivedAge(current, { ...body }, current.group === "whiskey");
+      Object.assign(body, more);
+      source = ageYearsSource as typeof source;
+    }
+  }
+  const made: { store?: number } = {};
+  try {
+    if (named !== undefined && isRecord(body)) {
+      const store = await db.transaction((tx) => ensureStore(tx, ownerId, named!));
+      body.storeId = store.id;
+      if (store.created) made.store = store.id;
+    }
+    // A request that only names a label version has nothing else for the phone's schema to check.
+    const onlyVersion = isRecord(body) && Object.keys(body).length === 0 && (version !== undefined || Object.keys(life).length > 0);
+    const parsed = onlyVersion ? { success: true as const, data: {} as z.infer<typeof bottlePatchSchema> } : bottlePatchSchema.safeParse(body);
+    if (!parsed.success) return await undo(made, invalidFrom(parsed.error.issues));
+    const { fillPct, dateOpened, ifOpenedCleared, ...columns } = parsed.data;
+    const { status, isOpen, ...own } = life;
+    const outcome = await updateBottle(bottleId, ownerId, {
+      fillPct, dateOpened, ifOpenedCleared, fromBulkEditor: true,
+      ...(status !== undefined ? { status } : {}),
+      ...(isOpen !== undefined ? { isOpen } : {}),
+      columns: { ...columns, ...own, ...(version !== undefined ? { expressionNameId: version } : {}), ...(source !== undefined ? { ageYearsSource: source } : {}) },
+    });
+    if (!outcome) return await undo(made, failure("gone", "That bottle is gone."));
+    if (!outcome.ok) {
+      return await undo(made, failure("invalid", outcome.message, outcome.field ? { [outcome.field]: outcome.message } : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : {}));
+    }
+    return { ok: true };
+  } catch (error: unknown) {
+    await undo(made, null);
+    throw error;
+  }
+}
+
+/** A failed patch gives back the store or cooperage it made for itself, then returns its failure. */
+async function undo<T extends RowFailure | null>(made: { store?: number; cooperage?: number }, outcome: T): Promise<T> {
+  if (made.store !== undefined || made.cooperage !== undefined) await db.transaction((tx) => takeBack(tx, made));
+  return outcome;
 }
 
 /**
@@ -258,8 +378,49 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
  */
 export async function patchLabelRow(ownerId: number, labelId: number, raw: unknown): Promise<PatchOutcome> {
   if (!Number.isInteger(labelId) || labelId <= 0) return failure("gone", "That label is gone.");
-  const parsed = labelPatchBody.safeParse(raw);
-  if (!parsed.success) return invalidFrom(parsed.error.issues);
+  const body = isRecord(raw) ? { ...raw } : raw;
+  let named: string | undefined;
+  if (isRecord(body)) {
+    const cooperage = takeName(body, "cooperageName", "cooperageId");
+    if (cooperage.failure) return cooperage.failure;
+    named = cooperage.name;
+  }
+  // The label's known releases: JSON rows as the form sends them, written with the label.
+  let releases: ReleaseInput[] | undefined;
+  if (isRecord(body) && "releases" in body) {
+    const parsedReleases = parseReleaseRows(String(body.releases ?? "[]"));
+    delete body.releases;
+    if (parsedReleases.error) return invalidField("releases", parsedReleases.error);
+    releases = parsedReleases.releases;
+  }
+  const made: { cooperage?: number } = {};
+  if (isRecord(body) && ["ageYears", "ageMonths", "ageDays", "ageStatement"].some((key) => key in body)) {
+    const [current] = await db
+      .select({ ageYears: expressions.ageYears, ageMonths: expressions.ageMonths, ageDays: expressions.ageDays, ageStatement: expressions.ageStatement, ageYearsSource: expressions.ageYearsSource, group: categories.fieldGroup })
+      .from(expressions)
+      .innerJoin(categories, eq(categories.id, expressions.categoryId))
+      .where(and(eq(expressions.id, labelId), eq(expressions.ownerId, ownerId)))
+      .limit(1);
+    if (current) Object.assign(body, derivedAge(current, { ...body }, current.group === "whiskey"));
+  }
+  if (named !== undefined && isRecord(body)) {
+    const cooperage = await db.transaction((tx) => ensureCooperage(tx, ownerId, named!));
+    body.cooperageId = cooperage.id;
+    if (cooperage.created) made.cooperage = cooperage.id;
+  }
+  try {
+    return await patchLabelWith(ownerId, labelId, body, made, releases);
+  } catch (error: unknown) {
+    await undo(made, null);
+    throw error;
+  }
+}
+
+async function patchLabelWith(ownerId: number, labelId: number, body: unknown, made: { cooperage?: number }, releases?: ReleaseInput[]): Promise<PatchOutcome> {
+  // A request that only changes the releases has nothing else for the facts' schema to check.
+  const onlyReleases = isRecord(body) && Object.keys(body).length === 0 && releases !== undefined;
+  const parsed = onlyReleases ? { success: true as const, data: {} as z.infer<typeof bulkLabelPatchBody> } : bulkLabelPatchBody.safeParse(body);
+  if (!parsed.success) return undo(made, invalidFrom(parsed.error.issues));
   const { brand, distilleries, mashbills, finishes, ingredients, otherNames, ...facts } = parsed.data;
   const outcome = await patchLabel(ownerId, labelId, {
     facts,
@@ -267,11 +428,12 @@ export async function patchLabelRow(ownerId: number, labelId: number, raw: unkno
     ...(distilleries && mashbills && finishes ? { links: { distilleries, mashbills, finishes, ingredients } } : {}),
     ...(ingredients !== undefined ? { ingredients } : {}),
     ...(otherNames !== undefined ? { otherNames } : {}),
+    ...(releases !== undefined ? { releases } : {}),
   });
   if (outcome.ok) return { ok: true };
-  if (outcome.kind === "gone") return failure("gone", "That label is gone.");
-  if (outcome.kind === "invalid") return invalidField(outcome.field, outcome.message);
-  return { ...failure("name_taken", `You already have ${outcome.existing.title}.`, { name: "Already taken." }), existing: outcome.existing };
+  if (outcome.kind === "gone") return undo(made, failure("gone", "That label is gone."));
+  if (outcome.kind === "invalid") return undo(made, invalidField(outcome.field, outcome.message));
+  return undo(made, { ...failure("name_taken", `You already have ${outcome.existing.title}.`, { name: "Already taken." }), existing: outcome.existing });
 }
 
 // ---------------------------------------------------------------------------
@@ -303,4 +465,93 @@ export async function deleteImpact(ownerId: number, input: { labelIds: number[];
     bottlesOnLabels,
     bottles: chosen.filter((b) => !onChosenLabels.has(b.expressionId)).length,
   };
+}
+
+/**
+ * What deleting did. A label goes with every bottle on it (all statuses, not only the ones on the shelf), a bottle on its
+ * own leaves its label. Each label and each bottle is deleted on its own, so one that cannot be (something still holds
+ * it) is reported and the rest still go.
+ */
+export type DeleteOutcome = {
+  deletedLabels: number;
+  /** Every bottle removed: those that went with a label, and those deleted alone. */
+  deletedBottles: number;
+  failed: Array<{ kind: "label" | "bottle"; id: number; error: string }>;
+  deletedLabelIds: number[];
+  deletedBottleIds: number[];
+};
+
+/**
+ * Deletes rows, in the signed-in account only. Photos on disk are removed once the rows are gone from the database, so
+ * a row that fails to delete keeps its photos. Another account's id is "gone", and nothing of it is touched.
+ */
+export async function deleteRows(ownerId: number, input: { labelIds: number[]; bottleIds: number[] }): Promise<DeleteOutcome> {
+  const unique = (ids: number[]) => [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
+  const labelIds = unique(input.labelIds);
+  const outcome: DeleteOutcome = { deletedLabels: 0, deletedBottles: 0, failed: [], deletedLabelIds: [], deletedBottleIds: [] };
+
+  const owned = labelIds.length ? new Set((await db.select({ id: expressions.id }).from(expressions).where(and(eq(expressions.ownerId, ownerId), inArray(expressions.id, labelIds)))).map((r) => r.id)) : new Set<number>();
+  for (const id of labelIds) if (!owned.has(id)) outcome.failed.push({ kind: "label", id, error: "That label is gone." });
+
+  // A label with its bottles. The bottles must go first: a label still holding one cannot be deleted.
+  const wentWithLabel = new Set<number>();
+  for (const id of owned) {
+    try {
+      const onLabel = await db.select({ id: bottles.id }).from(bottles).where(and(eq(bottles.expressionId, id), eq(bottles.ownerId, ownerId)));
+      const bottleIds = onLabel.map((b) => b.id);
+      const images = bottleIds.length ? await db.select({ filePath: bottleImages.filePath, thumbPath: bottleImages.thumbPath }).from(bottleImages).where(inArray(bottleImages.bottleId, bottleIds)) : [];
+      const colaFiles = await colaFilesForExpression(id);
+      const releasePhotos = await releasePhotosOfLabel(id);
+      const gone = await db.transaction(async (tx) => {
+        const removedBottles = await tx.delete(bottles).where(and(eq(bottles.expressionId, id), eq(bottles.ownerId, ownerId))).returning({ id: bottles.id });
+        const removedLabels = await tx.delete(expressions).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId))).returning({ photoPath: expressions.photoPath, photoThumbPath: expressions.photoThumbPath });
+        return { removedBottles, label: removedLabels[0] };
+      });
+      if (!gone.label) {
+        outcome.failed.push({ kind: "label", id, error: "That label is gone." });
+        continue;
+      }
+      outcome.deletedLabels += 1;
+      outcome.deletedLabelIds.push(id);
+      outcome.deletedBottles += gone.removedBottles.length;
+      for (const { id: bottleId } of gone.removedBottles) {
+        outcome.deletedBottleIds.push(bottleId);
+        wentWithLabel.add(bottleId);
+      }
+      await Promise.all([
+        ...images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)),
+        gone.label.photoPath ? deleteStoredImage(gone.label.photoPath, gone.label.photoThumbPath) : Promise.resolve(),
+        deleteColaFiles(colaFiles),
+        deleteStoredPhotos(releasePhotos),
+      ]);
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Label" });
+      outcome.failed.push({ kind: "label", id, error: shaped.ok ? "Could not delete this label." : shaped.error });
+    }
+  }
+
+  // Bottles on their own. One that sat on a label deleted above went with it, and is not counted twice or called gone.
+  for (const id of unique(input.bottleIds)) {
+    if (wentWithLabel.has(id)) continue;
+    try {
+      const [row] = await db.select({ expressionId: bottles.expressionId }).from(bottles).where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId))).limit(1);
+      if (!row) {
+        outcome.failed.push({ kind: "bottle", id, error: "That bottle is gone." });
+        continue;
+      }
+      const images = await db.select({ filePath: bottleImages.filePath, thumbPath: bottleImages.thumbPath }).from(bottleImages).where(eq(bottleImages.bottleId, id));
+      const removed = await db.delete(bottles).where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId))).returning({ id: bottles.id });
+      if (removed.length === 0) {
+        outcome.failed.push({ kind: "bottle", id, error: "That bottle is gone." });
+        continue;
+      }
+      outcome.deletedBottles += 1;
+      outcome.deletedBottleIds.push(id);
+      await Promise.all(images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)));
+    } catch (error: unknown) {
+      const shaped = mapDbError(error, { singular: "Bottle" });
+      outcome.failed.push({ kind: "bottle", id, error: shaped.ok ? "Could not delete this bottle." : shaped.error });
+    }
+  }
+  return outcome;
 }

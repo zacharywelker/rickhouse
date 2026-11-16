@@ -21,8 +21,6 @@ import { cn, formatMoney, formatNumeric } from "@/lib/utils";
 const WORKBENCH_LINKS = [
   { href: "/api/bottles/export", label: "Export", download: true },
   { href: "/bottles/import", label: "Import", download: false },
-  { href: "/bottles/bulk", label: "Bulk add", download: false },
-  // Beside Bulk add until the editor can add and edit (#319 then retires Bulk add).
   { href: "/bulk-editor", label: "Bulk editor", download: false },
 ] as const;
 
@@ -145,7 +143,7 @@ export default async function BottlesPage({
       ) : filters.view === "gallery" ? (
         <BottleGallery rows={rows} />
       ) : (
-        <BottleTable rows={rows} filters={filters} stores={stores} />
+        <BottleTable rows={rows} filters={filters} />
       )}
 
       {rows.length > 0 ? (

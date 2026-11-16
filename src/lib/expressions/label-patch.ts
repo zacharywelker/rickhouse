@@ -3,9 +3,10 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { brands, categories, expressions } from "@/db/schema";
 import { syncExpressionNames } from "@/lib/other-names-store";
+import type { ReleaseInput } from "@/lib/releases";
+import { deleteStoredPhotos, syncExpressionReleases, type StoredPhoto } from "@/lib/releases-store";
 import type { OtherName } from "@/lib/other-names";
 import { findOrCreateBrand } from "./brand";
-import { writableFields } from "./fields";
 import { categoryFieldGroups, categoryKindsById } from "./queries";
 import { nameContextFor, nameRuleColumns, withBondProof } from "./rules";
 import { FinishPairsInvalid } from "./finish-pairs";
@@ -14,6 +15,7 @@ import type { IngredientChoice } from "./spirit-details";
 import { expressionSchema } from "./schema";
 import { BRANDY_MINIMUM_YEARS, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "./spirit-details";
 import { isGinKind } from "./gin-details";
+import { writableLabelFacts } from "./writable-facts";
 
 /**
  * Editing a label from the phone (spec 2026-10-08-edit-facts-design.md, sections 1 and 2): any of the facts
@@ -60,6 +62,8 @@ export type LabelPatch = {
   ingredients?: IngredientChoice[];
   /** The label's older names, exactly; see `syncExpressionNames`. */
   otherNames?: OtherName[];
+  /** The label's known releases, exactly (the bulk editor's; the phone does not send them): see `syncExpressionReleases`. */
+  releases?: ReleaseInput[];
 };
 
 export type LabelPatchResult =
@@ -91,7 +95,8 @@ async function labelCalled(ownerId: number, brandId: number, name: string, excep
 
 export async function patchLabel(ownerId: number, id: number, patch: LabelPatch): Promise<LabelPatchResult> {
   try {
-    return await db.transaction(async (tx): Promise<LabelPatchResult> => {
+    let removedPhotos: StoredPhoto[] = [];
+    const result = await db.transaction(async (tx): Promise<LabelPatchResult> => {
       const [current] = await tx
         .select({
           brandId: expressions.brandId,
@@ -163,16 +168,7 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
               kinds,
             ))
           : {};
-      const allowed = writableFields(category?.fieldGroup ?? "other");
-      if (kind !== "tequila") allowed.delete("tequilaClass");
-      if (!BRANDY_MINIMUM_YEARS[kind]) allowed.delete("brandyGrade");
-      if (kind !== "gin") allowed.delete("ginStyle");
-      if (isAgaveKind(kind)) {
-        allowed.delete("barrelFilledOn"); allowed.delete("bottledOn"); allowed.delete("isNas");
-      }
-      if (kind === "tequila") allowed.delete("ageStatement");
-      // Regions belong to Scotch (the web form only shows them there); anything sent for another kind is ignored.
-      if (kind !== "scotch") allowed.delete("regions");
+      const allowed = writableLabelFacts(category?.fieldGroup ?? "other", kind);
       const columns = withBondProof(writableValues({ ...byName, ...sent }, allowed), current.isBottledInBond);
       if (isAgaveKind(kind)) {
         delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.isNas;
@@ -190,6 +186,15 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
         if (facts.tequilaClass === "blanco") { columns.ageYears = null; columns.ageMonths = null; columns.ageDays = null; }
       }
       if (BRANDY_MINIMUM_YEARS[kind] && facts.brandyGrade !== undefined) columns.ageStatement = facts.brandyGrade;
+      // The sheet's derived-age flag (the forms' `ageYearsSource`): only a whiskey keeps one.
+      const source = (facts as { ageYearsSource?: "entered" | "derived" }).ageYearsSource;
+      if (source !== undefined && (category?.fieldGroup ?? "other") === "whiskey") columns.ageYearsSource = source;
+      // The origin of an amaro or liqueur is remembered as typed (or not), so a linked distillery's place does not overwrite it.
+      if (category?.fieldGroup === "amaro" || category?.fieldGroup === "liqueur") {
+        const manual = facts as { originCountryManual?: boolean; originRegionManual?: boolean };
+        if (manual.originCountryManual !== undefined) columns.originCountryManual = manual.originCountryManual;
+        if (manual.originRegionManual !== undefined) columns.originRegionManual = manual.originRegionManual;
+      }
       const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) } as Partial<typeof expressions.$inferInsert>;
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));
@@ -203,8 +208,12 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
         await replaceIngredients(tx, ownerId, id, [{ name: "Juniper", kind: "botanical" }]);
       }
       if (patch.otherNames) await syncExpressionNames(tx, id, patch.otherNames);
+      if (patch.releases) removedPhotos = await syncExpressionReleases(tx, id, patch.releases);
       return { ok: true };
     });
+    // Files only once the rows are gone for good.
+    if (result.ok) await deleteStoredPhotos(removedPhotos);
+    return result;
   } catch (error: unknown) {
     if (error instanceof FinishPairsInvalid) return { ok: false, kind: "invalid", field: "finishes", message: error.message };
     // Two phones (or the web) renamed to the same name at once: the database has the last word.

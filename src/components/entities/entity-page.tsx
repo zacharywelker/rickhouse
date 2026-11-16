@@ -6,7 +6,6 @@ import { GridPagination } from "@/components/bottles/grid-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Section, SectionContent } from "@/components/ui/section";
 import { StatStrip } from "@/components/ui/stat-strip";
-import { REFERENCE_OPTION_LOADERS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
 import { getCurrency } from "@/lib/preferences";
 import { parseFilters, type BottleFilters } from "@/lib/bottles/filters";
@@ -56,10 +55,9 @@ export async function EntityPage({
   const user = await requireSession();
   const currency = await getCurrency();
 
-  const [{ rows, total, pageCount, page }, summary, stores] = await Promise.all([
+  const [{ rows, total, pageCount, page }, summary] = await Promise.all([
     queryBottles(filters, user.id),
     summariseBottles(filters, user.id),
-    REFERENCE_OPTION_LOADERS.stores(user.id),
   ]);
 
   return (
@@ -113,7 +111,7 @@ export async function EntityPage({
       ) : filters.view === "gallery" ? (
         <BottleGallery rows={rows} />
       ) : (
-        <BottleTable rows={rows} filters={filters} stores={stores} />
+        <BottleTable rows={rows} filters={filters} />
       )}
 
       {rows.length > 0 ? <GridPagination filters={filters} page={page} pageCount={pageCount} total={total} /> : null}

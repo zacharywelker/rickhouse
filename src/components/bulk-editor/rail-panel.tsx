@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 /** The photo frame's flat offset shadow and the darker floor a cutout stands on (DESIGN.md §4.2), as the Collection's gallery draws them. */
 const FRAME_SHADOW = "shadow-[2px_2px_0_rgb(20_33_61/0.18)]";
-const FLOOR_INK = "#14213D";
+const FLOOR_INK = "#14213D"; // also the text on a light frame: the frame is the same colour in both themes, so the text cannot follow the theme
 
 /**
  * The photo in a frame in the category's colour, which is the one place the rail uses colour. A cutout stands on a floor;
@@ -32,7 +32,7 @@ function Frame({ category, photo }: { category: string; photo: Rail["photo"] }) 
           <Image src={`/api/images/${photo.path}`} alt="" fill unoptimized className="object-cover" />
         </div>
       ) : (
-        <div className={cn("flex size-full items-center justify-center px-2 text-center text-[11px] font-medium", color.dark ? "text-white" : "text-foreground")}>No photo</div>
+        <div className={cn("flex size-full items-center justify-center px-2 text-center text-[11px] font-medium", color.dark ? "text-white" : "text-[#14213D]")}>No photo</div>
       )}
     </div>
   );

@@ -1,20 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { bottleImages, bottleTags, bottles, expressions, tags } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { deleteStoredImage, duplicateBottleImage } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
-import type { BulkSaveResult } from "@/lib/bulk/types";
 import { settleNewBottleOpen } from "@/lib/bottles/opened-rules";
 import { addTastingNote, deleteTastingNote, ownedBottle, ownsBottle, setFill, updateBottle, updateTastingNote } from "@/lib/bottles/state";
 import { movesHistory } from "@/lib/bottles/relabel";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { z } from "zod";
-import { bottleGridEditSchema, bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
+import { bottleSchema, bottleStateSchema, tastingNoteSchema } from "@/lib/expressions/schema";
 import { bottleSpiritForExpression } from "@/lib/expressions/queries";
 import { withBottleSpiritFacts } from "@/lib/expressions/spirit-details";
 
@@ -137,73 +136,6 @@ export async function saveBottleAction(
   }
 }
 
-/**
- * Bulk grid save (Issue #49). Each row is validated and inserted on its own —
- * not wrapped in one shared transaction — because the rows are independent
- * bottles with no cross-row constraint, and a bad row should never roll back
- * the good ones next to it.
- *
- * Rows carry everything on the bottle form plus where the bottle is in its
- * life (`bottleStateSchema`), which the grid needs for entering a collection
- * that already exists. Opening follows the bottle page's own toggle: an
- * opened bottle stops being merely owned, and gets an opened date if it has
- * none — "open, opened on no date" is not a state the rest of the app means.
- */
-export async function saveBottlesBulkAction(rows: Record<string, unknown>[]): Promise<BulkSaveResult> {
-  const user = await requireSession();
-  const results: BulkSaveResult["results"] = [];
-
-  for (const [index, row] of rows.entries()) {
-    const parsed = bottleSchema.safeParse(row);
-    const state = bottleStateSchema.safeParse(row);
-    if (!parsed.success || !state.success) {
-      const shaped = invalid([
-        ...(parsed.success ? [] : parsed.error.issues),
-        ...(state.success ? [] : state.error.issues),
-      ]);
-      results.push({
-        index,
-        ok: false,
-        error: shaped.ok ? "Could not save this row." : shaped.error,
-        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
-      });
-      continue;
-    }
-
-    const spirit = await bottleSpiritForExpression(parsed.data.expressionId);
-    const values = { ...withBottleSpiritFacts(await settleLabelChoices(parsed.data), spirit.kind, spirit.ginAged), ...state.data };
-    // Below full means it has been poured from, the same rule as the gauge.
-    if (values.status === "open" || values.fillPct < 100) values.isOpen = true;
-    if (values.isOpen) {
-      if (values.status === "owned") values.status = "open";
-      values.dateOpened ??= new Date().toISOString().slice(0, 10);
-    }
-
-    try {
-      const [inserted] = await db
-        .insert(bottles)
-        .values({ ...values, ownerId: user.id })
-        .returning({ id: bottles.id });
-      results.push({ index, ok: true, id: inserted!.id });
-    } catch (error: unknown) {
-      const shaped = mapDbError(error, { singular: "Bottle" });
-      results.push({
-        index,
-        ok: false,
-        error: shaped.ok ? "Could not save this row." : shaped.error,
-        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
-      });
-    }
-  }
-
-  if (results.some((r) => r.ok)) {
-    revalidatePath("/bottles");
-    revalidatePath("/");
-  }
-
-  return { savedCount: results.filter((r) => r.ok).length, results };
-}
-
 export async function deleteBottleAction(id: number): Promise<ActionResult> {
   const user = await requireSession();
   try {
@@ -218,103 +150,6 @@ export async function deleteBottleAction(id: number): Promise<ActionResult> {
   } catch (error: unknown) {
     return mapDbError(error, { singular: "Bottle" });
   }
-}
-
-/** Bulk delete from the collection grid's unlocked edit mode. Each bottle is
- * removed independently — one restrict-FK or already-gone id should not
- * abort the rest of the batch. */
-export async function deleteBottlesBulkAction(ids: number[]): Promise<BulkSaveResult> {
-  const user = await requireSession();
-  const results: BulkSaveResult["results"] = [];
-
-  for (const [index, id] of ids.entries()) {
-    try {
-      // Checked first so another account's photos are never touched on disk.
-      if (!(await ownsBottle(id, user.id))) {
-        results.push({ index, ok: false, error: "That bottle is gone.", fieldErrors: {} });
-        continue;
-      }
-      const images = await db.select().from(bottleImages).where(eq(bottleImages.bottleId, id));
-      await db.delete(bottles).where(ownedBottle(id, user.id));
-      await Promise.all(images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)));
-      results.push({ index, ok: true, id });
-    } catch (error: unknown) {
-      const shaped = mapDbError(error, { singular: "Bottle" });
-      results.push({
-        index,
-        ok: false,
-        error: shaped.ok ? "Could not delete this bottle." : shaped.error,
-        fieldErrors: {},
-      });
-    }
-  }
-
-  if (results.some((r) => r.ok)) {
-    revalidatePath("/bottles");
-    revalidatePath("/");
-  }
-
-  return { savedCount: results.filter((r) => r.ok).length, results };
-}
-
-/** Bulk save from the collection grid's unlocked edit mode (issue: bulk edit).
- * Each row is validated and saved on its own, same reasoning as
- * `saveBottlesBulkAction`: a bad row should not roll back the good ones. */
-export async function updateBottlesBulkAction(
-  rows: Array<{ id: number } & Record<string, unknown>>,
-): Promise<BulkSaveResult> {
-  const user = await requireSession();
-  const results: BulkSaveResult["results"] = [];
-
-  for (const [index, { id, ...fields }] of rows.entries()) {
-    const parsed = bottleGridEditSchema.safeParse(fields);
-    if (!parsed.success) {
-      const shaped = invalid(parsed.error.issues);
-      results.push({
-        index,
-        ok: false,
-        error: shaped.ok ? "Could not save this row." : shaped.error,
-        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
-      });
-      continue;
-    }
-    try {
-      if (!(await ownsLabel(parsed.data.expressionId, user.id))) {
-        results.push({ index, ok: false, error: "Choose one of your labels.", fieldErrors: { expressionId: "Choose one of your labels." } });
-        continue;
-      }
-      const updated = await db
-        // A new label takes the bottle's tastings and tournament entries with it, in the same statement.
-        .with(...movesHistory(user.id, [id], parsed.data.expressionId))
-        .update(bottles)
-        // Moving a bottle to another label drops its chosen older name and release.
-        .set({
-          ...parsed.data,
-          expressionNameId: sql`case when ${bottles.expressionId} = ${parsed.data.expressionId} then ${bottles.expressionNameId} else null end`,
-          releaseId: sql`case when ${bottles.expressionId} = ${parsed.data.expressionId} then ${bottles.releaseId} else null end`,
-        })
-        .where(ownedBottle(id, user.id))
-        .returning({ id: bottles.id });
-      results.push(
-        updated.length > 0 ? { index, ok: true, id } : { index, ok: false, error: "That bottle is gone.", fieldErrors: {} },
-      );
-    } catch (error: unknown) {
-      const shaped = mapDbError(error, { singular: "Bottle" });
-      results.push({
-        index,
-        ok: false,
-        error: shaped.ok ? "Could not save this row." : shaped.error,
-        fieldErrors: shaped.ok ? {} : (shaped.fieldErrors ?? {}),
-      });
-    }
-  }
-
-  if (results.some((r) => r.ok)) {
-    revalidatePath("/bottles");
-    revalidatePath("/");
-  }
-
-  return { savedCount: results.filter((r) => r.ok).length, results };
 }
 
 // ------------------------------------------------------------

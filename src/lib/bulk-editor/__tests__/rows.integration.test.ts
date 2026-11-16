@@ -3,6 +3,7 @@ import { connect, fixtures, url, type Cat, type Db, type Fixtures } from "@/lib/
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("@/lib/auth", () => ({ requireSession: vi.fn() }));
 
 /** Opt-in, like the tournament integration tests: needs TOURNAMENT_TEST_DATABASE_URL naming a throwaway migrated database. */
 describe.skipIf(!url)("bulk editor rows against a real database", () => {
@@ -137,6 +138,30 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(await count("brands", `owner_id = $1 AND name = 'Store Test Brand'`, owner)).toBe(0);
     });
 
+    it("opens a bottle from Date Opened alone", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Opened at Creation");
+      const picked = await one<{ brand_id: number }>("SELECT brand_id FROM expressions WHERE id = $1", label);
+      const out = await rows.createRow(owner, { brand: { id: picked.brand_id }, label: { id: label }, bottle: { dateOpened: "2024-01-01" } });
+      expect(out.ok).toBe(true);
+      if (!out.ok) return;
+      expect(await one("SELECT is_open, status, date_opened::text AS date_opened FROM bottles WHERE id = $1", out.bottleId)).toMatchObject({
+        is_open: true, status: "open", date_opened: "2024-01-01",
+      });
+    });
+
+    it("rejects empty open bottles and generated opening dates later than the killed date", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Invalid New State");
+      const picked = await one<{ brand_id: number }>("SELECT brand_id FROM expressions WHERE id = $1", label);
+      const identity = { brand: { id: picked.brand_id }, label: { id: label } };
+      expect(await rows.createRow(owner, { ...identity, bottle: { status: "open", fillPct: 0 } })).toMatchObject({
+        ok: false, fieldErrors: { status: expect.stringContaining("empty") },
+      });
+      expect(await rows.createRow(owner, { ...identity, bottle: { isOpen: true, dateKilled: "2024-01-01" } })).toMatchObject({
+        ok: false, fieldErrors: { dateKilled: expect.stringContaining("Killed before it was opened") },
+      });
+      expect(await count("bottles", "expression_id = $1", label)).toBe(0);
+    });
+
     it("reports a bad value on its own field and creates nothing", async () => {
       const bad = await rows.createRow(owner, { brand: { name: "Bad Facts Brand" }, label: { name: "Bad Facts", categoryId: cat.whiskey, facts: { proof: "abc" } } });
       expect(bad).toMatchObject({ ok: false, kind: "invalid", fieldErrors: { proof: expect.any(String) } });
@@ -155,6 +180,65 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       const after = await one<{ notes: string; price_paid: string }>(`SELECT notes, price_paid FROM bottles WHERE id = $1`, bottle);
       expect(after.notes).toBe("written on the phone");
       expect(Number(after.price_paid)).toBe(50);
+    });
+
+    it("applies the Opened flag when the date is also cleared", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Clear Opened Date");
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql("UPDATE bottles SET is_open = true, status = 'open', date_opened = '2024-01-01', fill_pct = 50 WHERE id = $1", bottle);
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: null, isOpen: false })).toMatchObject({
+        ok: false, fieldErrors: { isOpen: expect.any(String) },
+      });
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: null, isOpen: true })).toMatchObject({ ok: true });
+      const opened = () => one("SELECT is_open, status, date_opened, fill_pct FROM bottles WHERE id = $1", bottle);
+      expect(await opened()).toMatchObject({ is_open: true, status: "open", date_opened: null, fill_pct: 50 });
+
+      expect(await rows.patchBottleRow(owner, bottle, { fillPct: 100, dateOpened: null, isOpen: false })).toMatchObject({ ok: true });
+      expect(await opened()).toMatchObject({ is_open: false, status: "owned", date_opened: null, fill_pct: 100 });
+
+      expect(await rows.patchBottleRow(owner, bottle, { status: "open", dateOpened: null })).toMatchObject({ ok: true });
+      expect(await opened()).toMatchObject({ is_open: true, status: "open", date_opened: null });
+    });
+
+    it("validates final lifecycle state when the requested status is already stored", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Existing Bottle Status");
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql("UPDATE bottles SET is_open = true, status = 'open' WHERE id = $1", bottle);
+      expect(await rows.patchBottleRow(owner, bottle, { status: "open", fillPct: 0 })).toMatchObject({
+        ok: false, fieldErrors: { status: expect.stringContaining("empty") },
+      });
+      expect(await rows.patchBottleRow(owner, bottle, { fillPct: 0 })).toMatchObject({
+        ok: false, fieldErrors: { fillPct: expect.stringContaining("empty") },
+      });
+
+      expect(await rows.patchBottleRow(owner, bottle, { status: "killed" })).toMatchObject({ ok: true });
+      expect(await rows.patchBottleRow(owner, bottle, { status: "killed", fillPct: 25 })).toMatchObject({ ok: true });
+      expect(await one("SELECT status, fill_pct FROM bottles WHERE id = $1", bottle)).toMatchObject({ status: "killed", fill_pct: 0 });
+    });
+
+    it("compares an edited opening date to the replacement or cleared killed date", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Coordinated Dates");
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql("UPDATE bottles SET is_open = true, status = 'open', date_opened = '2024-01-01', date_killed = '2024-06-01' WHERE id = $1", bottle);
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: "2024-07-01", dateKilled: "2024-07-02" })).toMatchObject({ ok: true });
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: "2024-08-01", dateKilled: null })).toMatchObject({ ok: true });
+      expect(await one("SELECT date_opened::text AS date_opened, date_killed::text AS date_killed FROM bottles WHERE id = $1", bottle)).toMatchObject({
+        date_opened: "2024-08-01", date_killed: null,
+      });
+    });
+
+    it("rejects automatically opening a bottle after its stored killed date", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Previously Killed Date");
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql("UPDATE bottles SET is_open = false, status = 'owned', date_opened = NULL, date_killed = '2024-01-01' WHERE id = $1", bottle);
+      for (const edit of [{ isOpen: true }, { status: "open" }, { fillPct: 60 }]) {
+        expect(await rows.patchBottleRow(owner, bottle, edit)).toMatchObject({
+          ok: false, fieldErrors: { dateKilled: expect.stringContaining("Killed before it was opened") },
+        });
+      }
+      expect(await one("SELECT is_open, status, date_opened::text AS date_opened FROM bottles WHERE id = $1", bottle)).toMatchObject({
+        is_open: false, status: "owned", date_opened: null,
+      });
     });
 
     it("refuses label fields, so a bottle request cannot change a label", async () => {
@@ -252,6 +336,91 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(await rows.deleteImpact(owner, { labelIds: [a, b], bottleIds: [lone] })).toEqual({ labels: 2, bottlesOnLabels: 3, bottles: 0 });
       expect(await rows.deleteImpact(owner, { labelIds: [theirLabel], bottleIds: [] })).toEqual({ labels: 0, bottlesOnLabels: 0, bottles: 0 });
       expect(await rows.deleteImpact(owner, { labelIds: [], bottleIds: [lone] })).toEqual({ labels: 0, bottlesOnLabels: 0, bottles: 1 });
+    });
+  });
+
+  describe("delete actions", () => {
+    it("excludes over-limit rows from the preview and reports them without deleting them", async () => {
+      const auth = await import("@/lib/auth");
+      vi.mocked(auth.requireSession).mockResolvedValue({ id: owner } as Awaited<ReturnType<typeof auth.requireSession>>);
+      const actions = await import("@/app/(app)/bulk-editor/actions");
+      const first = await fx.mkLabel(owner, cat.whiskey, "Delete Within Limit");
+      const excluded = await fx.mkLabel(owner, cat.whiskey, "Delete Beyond Limit");
+      const missing = Array.from({ length: 4999 }, (_, i) => 1_000_000_000 + i);
+      const selection = { labelIds: [first, ...missing, excluded], bottleIds: [] };
+      await expect(actions.deleteImpactAction(selection)).resolves.toMatchObject({ labels: 1, excluded: 1 });
+      const outcome = await actions.deleteRowsAction(selection);
+      expect(outcome.deletedLabelIds).toEqual([first]);
+      expect(outcome.failed.at(-1)).toMatchObject({ kind: "label", id: excluded, error: expect.stringContaining("5,000") });
+      expect(await count("expressions", "id = $1", excluded)).toBe(1);
+    });
+  });
+
+  describe("deleteRows", () => {
+    it("deletes a label with every bottle on it, whatever the bottle's status, and nothing else", async () => {
+      const a = await fx.mkLabel(owner, cat.whiskey, "Del A");
+      const keep = await fx.mkLabel(owner, cat.whiskey, "Del Keep");
+      const shelf = await fx.mkBottle(owner, a);
+      const sold = await fx.mkBottle(owner, a);
+      await m.sql(`UPDATE bottles SET status = 'sold' WHERE id = $1`, sold);
+      const kept = await fx.mkBottle(owner, keep);
+      const out = await rows.deleteRows(owner, { labelIds: [a], bottleIds: [] });
+      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 2, failed: [], deletedLabelIds: [a], deletedBottleIds: expect.arrayContaining([shelf, sold]) });
+      expect(await count("expressions", "id = $1", a)).toBe(0);
+      expect(await count("bottles", "id = ANY($1)", [shelf, sold])).toBe(0);
+      expect(await count("expressions", "id = $1", keep)).toBe(1);
+      expect(await count("bottles", "id = $1", kept)).toBe(1);
+    });
+
+    it("deletes a bottle alone and leaves its label, even when it was the label's last bottle", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Del Last");
+      const only = await fx.mkBottle(owner, label);
+      expect(await rows.deleteRows(owner, { labelIds: [], bottleIds: [only] })).toEqual({ deletedLabels: 0, deletedBottles: 1, failed: [], deletedLabelIds: [], deletedBottleIds: [only] });
+      expect(await count("bottles", "id = $1", only)).toBe(0);
+      expect(await count("expressions", "id = $1", label)).toBe(1);
+    });
+
+    it("counts a bottle on a label that is also being deleted once, with the label", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Del Both");
+      const b1 = await fx.mkBottle(owner, label);
+      const b2 = await fx.mkBottle(owner, label);
+      const out = await rows.deleteRows(owner, { labelIds: [label], bottleIds: [b1, b2] });
+      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 2, failed: [], deletedLabelIds: [label], deletedBottleIds: expect.arrayContaining([b1, b2]) });
+    });
+
+    it("touches nothing of another account's, and says it is gone", async () => {
+      const theirs = await fx.mkLabel(stranger, cat.whiskey, "Del Theirs");
+      const theirBottle = await fx.mkBottle(stranger, theirs);
+      const out = await rows.deleteRows(owner, { labelIds: [theirs], bottleIds: [theirBottle] });
+      expect(out.deletedLabels + out.deletedBottles).toBe(0);
+      expect(out.failed.map((f) => [f.kind, f.error])).toEqual([["label", "That label is gone."], ["bottle", "That bottle is gone."]]);
+      expect(await count("expressions", "id = $1", theirs)).toBe(1);
+      expect(await count("bottles", "id = $1", theirBottle)).toBe(1);
+    });
+
+    it("carries on past a row that cannot be deleted", async () => {
+      const ok = await fx.mkLabel(owner, cat.whiskey, "Del Fine");
+      const out = await rows.deleteRows(owner, { labelIds: [999_999_999, ok], bottleIds: [999_999_998] });
+      expect(out.deletedLabels).toBe(1);
+      expect(out.failed.map((f) => f.id).sort()).toEqual([999_999_998, 999_999_999]);
+      expect(await count("expressions", "id = $1", ok)).toBe(0);
+    });
+
+    it("ignores ids that are not positive whole numbers, and repeats", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Del Repeat");
+      const out = await rows.deleteRows(owner, { labelIds: [label, label, -1, 0, 1.5], bottleIds: [NaN] });
+      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 0, failed: [], deletedLabelIds: [label], deletedBottleIds: [] });
+    });
+
+    it("agrees with deleteImpact about what it takes", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Del Impact");
+      await fx.mkBottle(owner, label);
+      await fx.mkBottle(owner, label);
+      const lone = await fx.mkBottle(owner, await fx.mkLabel(owner, cat.whiskey, "Del Impact Lone"));
+      const impact = await rows.deleteImpact(owner, { labelIds: [label], bottleIds: [lone] });
+      const out = await rows.deleteRows(owner, { labelIds: [label], bottleIds: [lone] });
+      expect(out.deletedLabels).toBe(impact.labels);
+      expect(out.deletedBottles).toBe(impact.bottlesOnLabels + impact.bottles);
     });
   });
 });

@@ -14,7 +14,7 @@ import type { Candidate, Suggestion } from "./suggest";
 
 export type Pick = { kind: "existing"; id: number; name: string } | { kind: "new"; name: string };
 export type DraftRow = { key: string; brand: Pick | null; label: Pick | null; categoryId: number | null };
-export type CategoryChoice = { id: number; name: string; hint?: string };
+export type CategoryChoice = { id: number; name: string; hint?: string; slug?: string };
 
 export const emptyDraft = (key: string): DraftRow => ({ key, brand: null, label: null, categoryId: null });
 
@@ -49,8 +49,8 @@ export function withLabel(draft: DraftRow, label: Pick, existingCategoryId: numb
 export const withCategory = (draft: DraftRow, categoryId: number): DraftRow => (draft.categoryId === categoryId ? draft : { ...draft, categoryId });
 
 /** Nothing chosen and nothing typed: the empty row at the bottom. */
-export function isBlank(draft: DraftRow, edits: Edits): boolean {
-  return draft.brand === null && draft.label === null && draft.categoryId === null && Object.keys(edits[draft.key] ?? {}).length === 0;
+export function isBlank(draft: DraftRow, edits: Edits, hasPending = false): boolean {
+  return !hasPending && draft.brand === null && draft.label === null && draft.categoryId === null && Object.keys(edits[draft.key] ?? {}).length === 0;
 }
 
 /** How many new rows have anything in them. */
@@ -141,8 +141,9 @@ function placeholderLabel(draft: DraftRow, ctx: DraftContext): SheetLabel {
 
 /** A bottle that does not exist yet: every value empty, for the row's typed-in edits to fill. */
 const placeholderBottle = (expressionId: number): SheetBottle => ({
-  id: -1, expressionId, status: "owned", pricePaid: null, storeName: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
-  pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null,
+  id: -1, expressionId, status: "owned", pricePaid: null, storeName: null, storeId: null, releaseId: null, expressionNameId: null, dateAcquired: null, isSingleBarrel: false, isSingleBarrelPick: false,
+  pickName: null, releaseYear: null, location: null, notes: null, sizeMl: null, proof: null, ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ageYearsSource: "entered",
+  acquisition: "purchase", batch: null, pickedBy: null, barrelNumber: null, bottleCount: null, warehouse: null, rickFloor: null, barrelFilledOn: null, bottledOn: null, ginIsNas: null, tequilaClass: null, brandyGrade: null, fillPct: 100, isOpen: false, dateOpened: null, dateKilled: null, isFavorite: false,
 });
 
 /** The sheet row for a draft. An existing label is shown as it is (and is read-only here); a new one starts empty and editable. */

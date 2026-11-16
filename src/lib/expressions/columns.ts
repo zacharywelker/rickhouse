@@ -1,5 +1,6 @@
 import type { FieldSpec } from "@/lib/admin/types";
-import { EXPRESSION_SECTIONS, type FormSection } from "./fields";
+import type { FieldGroup } from "@/db/schema";
+import { EXPRESSION_SECTIONS, sectionVisible, type FormSection } from "./fields";
 import type { LabelSort } from "./filters";
 
 /**
@@ -147,4 +148,9 @@ export const DEFAULT_LABEL_COLUMNS: ReadonlyArray<string> = ["brand", "name", "c
 export function normaliseLabelColumns(ids: Iterable<string>): string[] {
   const chosen = new Set(ids);
   return LABEL_COLUMNS.filter((column) => column.locked || chosen.has(column.id)).map((column) => column.id);
+}
+
+/** Whether a group's form section applies to a label of this spirit: the form's own rule. */
+export function groupApplies(group: LabelColumnGroup, fieldGroup: FieldGroup): boolean {
+  return !group.section || sectionVisible(group.section, fieldGroup, {});
 }
