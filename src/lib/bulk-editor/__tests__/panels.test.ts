@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyEdits, applyLabelEdits, arrange } from "../changes";
 import { copyText, matchName } from "../clipboard";
-import { EDITORS, editorFor, isLocked, lockKeyOf } from "../editors";
+import { EDITORS, editorFor, isLocked } from "../editors";
 import { LEFT_TO_THE_SINGLE_PAGES } from "../fields";
 import { panelApplies } from "../panels";
 import { labelPatchBody, serverFields } from "../save";
@@ -28,12 +28,10 @@ describe("which labels have regions, older names and releases (the form's own ru
     expect(panelApplies("otherNames", draft, { 5: "american" })).toBe(false);
     expect(panelApplies("releases", draft, { 5: "american" })).toBe(false);
   });
-  it("is editable on a label row, and locked on a bottle row until triple-clicked, like the label's other facts", () => {
+  it("is editable on a label row and on a bottle row, like the label's other facts", () => {
     expect(editorFor(col("otherNames"), labelsOnly, row(), undefined, ctx.kinds)?.panel).toBe("otherNames");
-    expect(editorFor(col("otherNames"), both, bottleRow(), undefined, ctx.kinds)).toBeNull();
-    expect(isLocked(col("otherNames"), both, bottleRow(), undefined, ctx.kinds)).toBe(true);
-    const open = new Set([lockKeyOf(EDITORS.otherNames!, bottleRow(), "otherNames")]);
-    expect(editorFor(col("otherNames"), both, bottleRow(), open, ctx.kinds)?.panel).toBe("otherNames");
+    expect(editorFor(col("otherNames"), both, bottleRow(), undefined, ctx.kinds)?.panel).toBe("otherNames");
+    expect(isLocked(col("otherNames"), both, bottleRow(), undefined, ctx.kinds)).toBe(false);
   });
 });
 

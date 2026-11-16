@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countEdits, EDITORS, editorFor, isLocked, lockKeyOf, parseCell, setEdit, unlockKey, type CellEditor } from "../editors";
+import { countEdits, EDITORS, editorFor, isLocked, parseCell, setEdit, unlockKey, type CellEditor } from "../editors";
 import { SHEET_COLUMNS, type SheetBottle, type SheetColumn, type SheetContext, type SheetLabel, type SheetRow } from "../sheet";
 
 const label = { id: 1, brand: "Four Roses", name: "Single Barrel", proof: "100.0", sizeMl: 750, msrp: "49.99" } as unknown as SheetLabel;
@@ -26,20 +26,11 @@ describe("editorFor", () => {
     expect(editorFor(col("pickName"), both, bottleRow())).toBeNull();
     expect(editorFor(col("pickName"), both, bottleRow(bottle({ isSingleBarrelPick: true })))?.column).toBe("pickName");
   });
-  it("locks a label's facts on a bottle row where both are shown, until the cell is unlocked", () => {
+  it("lets a label's facts be edited on a bottle row where both are shown, with no lock", () => {
     for (const id of ["proof", "sizeMl", "msrp"]) {
-      expect(editorFor(col(id), both, bottleRow())).toBeNull();
-      expect(isLocked(col(id), both, bottleRow())).toBe(true);
-      const open = new Set([unlockKey(1, id)]);
-      expect(editorFor(col(id), both, bottleRow(), open)?.scope).toBe("label");
-      expect(isLocked(col(id), both, bottleRow(), open)).toBe(false);
+      expect(isLocked(col(id), both, bottleRow())).toBe(false);
+      expect(editorFor(col(id), both, bottleRow())?.scope).toBe("label");
     }
-  });
-  it("unlocks one label's cell and column only", () => {
-    const open = new Set([unlockKey(1, "proof")]);
-    expect(editorFor(col("msrp"), both, bottleRow(), open)).toBeNull();
-    const other = { ...bottleRow(), label: { ...label, id: 2 } as SheetLabel };
-    expect(editorFor(col("proof"), both, other, open)).toBeNull();
   });
   it("lets a Bottles-only view change no label fact, and offers no unlock", () => {
     const bottlesOnly = { labels: false, bottles: true };
@@ -91,11 +82,9 @@ describe("editorFor on a new row", () => {
     expect(editorFor(col("category"), both, draftRow({ brandChosen: true, labelChosen: true, labelIsNew: true }))?.combo).toBe("category");
     expect(editorFor(col("category"), both, draftRow({ brandChosen: true, labelChosen: true, labelIsNew: false }))).toBeNull();
   });
-  it("offers a saved label's Category as one of the label's facts: directly with only Labels on, and locked on a bottle row until it is triple-clicked", () => {
+  it("offers a saved label's Category directly, on its own row and on a bottle row", () => {
     expect(editorFor(col("category"), labelsOnly, labelRow)?.combo).toBe("category");
-    expect(editorFor(col("category"), both, bottleRow())).toBeNull();
-    const open = new Set([lockKeyOf(EDITORS.category!, bottleRow(), "category")]);
-    expect(editorFor(col("category"), both, bottleRow(), open)?.combo).toBe("category");
+    expect(editorFor(col("category"), both, bottleRow())?.combo).toBe("category");
   });
   it("lets a new label's facts be typed, but not those of a label that exists", () => {
     const fresh = draftRow({ brandChosen: true, labelChosen: true, labelIsNew: true });

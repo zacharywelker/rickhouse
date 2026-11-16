@@ -361,7 +361,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
             data-r={rowIndex}
             data-c={index}
             className={cn(
-              "relative h-9 border-b border-border py-0 focus:outline-none",
+              "relative h-9 border-b border-border py-0",
               column.align === "right" && "text-right",
               cell.muted && "text-muted-foreground",
               cell.inferred && "italic",
@@ -372,7 +372,8 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               index >= rangeFrom && index <= rangeTo && "bg-primary/15",
               locked && "cursor-not-allowed bg-muted/50 text-muted-foreground",
               editor && "cursor-cell",
-              isBlocked ? "outline outline-2 -outline-offset-2 outline-destructive" : isActive && !isEditing && "outline outline-2 -outline-offset-2 outline-ring",
+              // The outline is the sheet's own: a `focus:outline-none` here would beat it whenever the cell has focus, which is always while it is the active one.
+              isBlocked ? "outline outline-2 -outline-offset-2 outline-destructive" : isActive && !isEditing ? "outline outline-2 -outline-offset-2 outline-ring" : "outline-none",
               ruleClass(index, column, columns[index - 1]),
               frozen.className,
             )}
@@ -1728,7 +1729,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         </p>
       ) : null}
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        Arrow keys move. Type or press Enter to edit. A grey cell with a lock belongs to the label and changes every bottle on it: triple-click it to edit. Brand or Label on a bottle moves it to another label. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only, and Ctrl+Enter creates what you typed.
+        Arrow keys move. Type or press Enter to edit. A label&rsquo;s own cells on a bottle row change every bottle on the label (the cell says how many). A grey cell with a lock is filled in from another cell, such as an age from its statement: triple-click it to edit. Brand or Label on a bottle moves it to another label. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only, and Ctrl+Enter creates what you typed.
         Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels.
         Rows save as you go: a saved row as soon as a cell is finished, a new row when you leave it.
       </p>

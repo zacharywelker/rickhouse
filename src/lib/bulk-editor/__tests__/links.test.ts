@@ -35,9 +35,9 @@ describe("which spirits have which list (the label form's own rule)", () => {
     expect(applies("finishes", label({ fieldGroup: "gin", isAgedGin: false }), "gin")).toBe(false);
     expect(applies("finishes", label({ fieldGroup: "gin", isAgedGin: true }), "gin")).toBe(true);
   });
-  it("is editable on a label row, and locked on a bottle row until triple-clicked, like the label's other facts", () => {
+  it("is editable on a label row and on a bottle row, like the label's other facts", () => {
     expect(editorFor(col("distilleries"), { labels: true, bottles: false }, row(), undefined, kinds)?.links).toBe("distilleries");
-    expect(editorFor(col("distilleries"), { labels: true, bottles: true }, { ...row(), bottle: { id: 7 } as never }, undefined, kinds)).toBeNull();
+    expect(editorFor(col("distilleries"), { labels: true, bottles: true }, { ...row(), bottle: { id: 7 } as never }, undefined, kinds)?.links).toBe("distilleries");
     expect(editorFor(col("ingredients"), { labels: true, bottles: false }, row(), undefined, kinds)).toBeNull(); // whiskey
   });
 });
