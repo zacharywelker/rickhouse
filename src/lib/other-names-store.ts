@@ -109,8 +109,8 @@ export async function labelVersionChoices(ownerId: number): Promise<Record<numbe
 }
 
 /** Does this older name belong to this label? Guards a bottle's chosen version. */
-export async function nameBelongsToExpression(nameId: number, expressionId: number): Promise<boolean> {
-  const rows = await db
+export async function nameBelongsToExpression(nameId: number, expressionId: number, query: Pick<typeof db, "select"> = db): Promise<boolean> {
+  const rows = await query
     .select({ id: expressionNames.id })
     .from(expressionNames)
     .where(and(eq(expressionNames.id, nameId), eq(expressionNames.expressionId, expressionId)));

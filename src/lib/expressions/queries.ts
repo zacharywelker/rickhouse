@@ -524,14 +524,14 @@ export async function expressionOptions(ownerId: number) {
 }
 
 /** categoryId -> field group, so a grid can tell which sections apply to a row without a round trip. */
-export async function categoryFieldGroups(): Promise<Record<number, FieldGroup>> {
-  const rows = await db.select({ id: categories.id, fieldGroup: categories.fieldGroup }).from(categories);
+export async function categoryFieldGroups(query: Pick<typeof db, "select"> = db): Promise<Record<number, FieldGroup>> {
+  const rows = await query.select({ id: categories.id, fieldGroup: categories.fieldGroup }).from(categories);
   return Object.fromEntries(rows.map((row) => [row.id, row.fieldGroup]));
 }
 
 /** Which whiskey each category is (American, Scotch, other), by category id. */
-export async function categoryKindsById(): Promise<Record<number, CategoryKind>> {
-  const rows = await db.select({ id: categories.id, slug: categories.slug, parentId: categories.parentId }).from(categories);
+export async function categoryKindsById(query: Pick<typeof db, "select"> = db): Promise<Record<number, CategoryKind>> {
+  const rows = await query.select({ id: categories.id, slug: categories.slug, parentId: categories.parentId }).from(categories);
   return categoryKinds(rows);
 }
 
@@ -547,8 +547,8 @@ export async function bottleSpiritForExpression(expressionId: number): Promise<{
   return row ? { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin } : { kind: "other", ginAged: false };
 }
 
-export async function fieldGroupForCategory(categoryId: number): Promise<FieldGroup> {
-  const [row] = await db
+export async function fieldGroupForCategory(categoryId: number, query: Pick<typeof db, "select"> = db): Promise<FieldGroup> {
+  const [row] = await query
     .select({ fieldGroup: categories.fieldGroup })
     .from(categories)
     .where(eq(categories.id, categoryId))
