@@ -1,0 +1,1704 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import postgres from "postgres";
+import { signIn } from "./support/auth";
+import { resetDatabase } from "./support/db";
+import { assertThrowawayDatabase, seedTournamentField } from "./support/tournament-field";
+
+test.beforeAll(async () => {
+  // Before resetDatabase(), which wipes whatever DATABASE_URL names.
+  assertThrowawayDatabase();
+  await resetDatabase();
+  await seedTournamentField();
+});
+
+test.beforeEach(async ({ page }) => {
+  await signIn(page);
+  await page.goto("/bulk-editor");
+  await expect(page.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
+  // Which cells can be edited depends on the view, and it is remembered in the browser; start from both on.
+  await page.evaluate(() => window.localStorage.removeItem("bulk-editor:view"));
+});
+
+const sheet = (page: Page) => page.getByRole("grid", { name: "Bulk editor" });
+/** The open cell editors (the row checkboxes are inputs too). */
+const editors = (page: Page) => sheet(page).locator("input:not([type=checkbox])");
+
+/** The column's position in the sheet, from its header, so the specs do not depend on the default column order. */
+async function col(page: Page, header: string): Promise<number> {
+  const names = await sheet(page).locator("thead tr:last-child th").allTextContents(); // textContent: innerText would be the uppercased text the headers are drawn in
+  const index = names.findIndex((name) => name.trim() === header);
+  expect(index, `no "${header}" column`).toBeGreaterThanOrEqual(0);
+  return index;
+}
+const cell = (page: Page, row: number, column: number): Locator => sheet(page).locator(`td[data-r="${row}"][data-c="${column}"]`);
+async function active(page: Page): Promise<{ row: number; col: number } | null> {
+  return page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    return el?.matches("td[data-r]") ? { row: Number(el.dataset.r), col: Number(el.dataset.c) } : null;
+  });
+}
+
+/** A saved row is saved once the sheet has stopped saying so; the value then survives a reload. */
+async function reloaded(page: Page) {
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await page.waitForTimeout(800); // the sheet reads the saves back
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+}
+
+test("shows the bottles as text, and mounts an editor only when one is wanted", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await expect(editors(page)).toHaveCount(0);
+  await cell(page, 1, price).click();
+  await expect(cell(page, 1, price)).toHaveAttribute("aria-selected", "true");
+  await expect(editors(page)).toHaveCount(0);
+  await page.keyboard.type("5");
+  await expect(editors(page)).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(editors(page)).toHaveCount(0);
+});
+
+test("typing replaces a value, Enter keeps it and drops to the next row in the same column", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await cell(page, 1, price).click();
+  await page.keyboard.type("52");
+  await expect(editors(page)).toHaveValue("52");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 1, price)).toHaveText("$52.00");
+  expect(await active(page)).toEqual({ row: 2, col: price });
+  // A saved row saves as soon as the cell is finished: it is still there after a reload.
+  await reloaded(page);
+  await expect(cell(page, 1, price)).toHaveText("$52.00");
+});
+
+test("Tab skips what cannot be edited, and Enter returns to the column the run started in", async ({ page }) => {
+  const [price, store, purchased] = [await col(page, "Price paid"), await col(page, "Store"), await col(page, "Purchased")];
+  expect(store).toBe(price + 1);
+  await cell(page, 3, price).click();
+  await page.keyboard.type("30");
+  await page.keyboard.press("Tab");
+  // The Store cell is a pick-list now, so the run goes on to it, and past it to Purchased.
+  expect(await active(page)).toEqual({ row: 3, col: store });
+  await page.keyboard.press("Tab");
+  expect(await active(page)).toEqual({ row: 3, col: purchased });
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1);
+  await page.keyboard.type("11012025");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 3, purchased)).toHaveText("Nov 1, 2025");
+  // Enter after a run of Tabs goes back to where the run began.
+  expect(await active(page)).toEqual({ row: 4, col: price });
+});
+
+test("Escape cancels, a bad value stays open and says why, and a leading decimal point is kept", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  const before = await cell(page, 5, price).innerText();
+  await cell(page, 5, price).click();
+  await page.keyboard.type("999");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 5, price)).toHaveText(before);
+  expect(await active(page)).toEqual({ row: 5, col: price });
+
+  await page.keyboard.type("-5");
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1);
+  // Inside the sheet: Next has an alert of its own for route changes.
+  await expect(sheet(page).getByRole("alert")).toContainText("At least 0");
+  await page.keyboard.press("Escape");
+
+  await cell(page, 6, price).click();
+  await page.keyboard.type(".5");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 6, price)).toHaveText("$0.50");
+});
+
+test("Delete clears a cell and that is saved too", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await cell(page, 2, price).click();
+  await page.keyboard.type("44");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 2, price)).toHaveText("$44.00");
+  await cell(page, 2, price).click();
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 2, price)).toHaveText("—");
+  await reloaded(page);
+  await expect(cell(page, 2, price)).toHaveText("—");
+});
+
+test("a label's own facts are read-only on a bottle row, and editable when the row is the label", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  await cell(page, 1, proof).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("123");
+  await expect(editors(page)).toHaveCount(0);
+  await expect(cell(page, 1, proof).locator("span[title]").first()).toHaveAttribute("title", "Triple-click to edit");
+
+  await page.getByRole("button", { name: "Bottles", exact: true }).click();
+  const msrp = await col(page, "MSRP");
+  await cell(page, 1, msrp).click();
+  await page.keyboard.type("59.99");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 1, msrp)).toHaveText("$59.99");
+});
+
+test("the arrow keys move, and Tab off the last cell leaves the sheet", async ({ page }) => {
+  await cell(page, 2, 3).click();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowRight");
+  expect(await active(page)).toEqual({ row: 3, col: 4 });
+  await page.keyboard.press("Control+End");
+  const last = await active(page);
+  expect(last?.col).toBe((await sheet(page).locator("thead tr:last-child th").count()) - 1);
+  await page.keyboard.press("Tab");
+  expect(await active(page)).toBeNull();
+});
+
+test("Brand and Label stay put while the sheet scrolls sideways", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 800 });
+  const left = (n: number) => sheet(page).locator("thead tr:last-child th").nth(n).evaluate((el) => Math.round(el.getBoundingClientRect().left - (el.closest("div")?.getBoundingClientRect().left ?? 0)));
+  const [brand, name] = [await left(0), await left(1)];
+  await sheet(page).evaluate((table) => {
+    (table.parentElement as HTMLElement).scrollLeft = 400;
+  });
+  expect([await left(0), await left(1)]).toEqual([brand, name]);
+});
+
+// ---------------------------------------------------------------------------
+// New rows: the Brand, Label and Category autocompletes (nothing is saved yet)
+// ---------------------------------------------------------------------------
+
+/** The open autocomplete's box (the page also has the Sort select, which is a combobox too). */
+const combo = (page: Page) => sheet(page).getByRole("combobox");
+const lastRow = async (page: Page) => (await sheet(page).locator("tbody tr").count()) - 1;
+
+test("the empty row at the bottom is live: Tab takes an existing brand and moves to its Label", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  await expect(cell(page, row, brand)).toContainText("Add a bottle");
+  const existing = (await cell(page, 0, brand).innerText()).trim();
+
+  await cell(page, row, brand).click();
+  await page.keyboard.type(existing.slice(0, 4));
+  await expect(page.getByRole("listbox").getByRole("option").first()).toContainText(existing);
+  await page.keyboard.press("Tab");
+  await expect(cell(page, row, brand)).toContainText(existing);
+  expect(await active(page)).toEqual({ row, col: label });
+  // A fresh empty row appears below, so there is always one to type into.
+  await expect(sheet(page).locator("tbody tr")).toHaveCount(row + 2);
+});
+
+test("a typo never makes a brand: Tab is blocked, Enter on Create makes it, and clicking away makes nothing", async ({ page }) => {
+  const brand = await col(page, "Brand");
+  const row = await lastRow(page);
+
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await expect(page.getByRole("listbox").getByRole("option", { name: /Create/ })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(combo(page)).toHaveCount(1); // still open
+  await expect(page.getByRole("alert").filter({ hasText: "Press Enter to create" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await sheet(page).locator("th").first().click(); // click away
+  await expect(combo(page)).toHaveCount(0);
+  await expect(cell(page, row, brand)).toContainText("Add a bottle");
+
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, row, brand)).toContainText("Zzyzx Distilling");
+  await expect(cell(page, row, brand)).toContainText("new");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+});
+
+test("Ctrl+Enter creates what was typed past a close match, and the brand list is five long at most", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  const existing = (await cell(page, 0, brand).innerText()).trim();
+  await cell(page, row, brand).click();
+  const typo = `${existing.slice(0, -1)}q`;
+  await page.keyboard.type(typo); // one letter off an existing brand: it is listed as a close match, and Enter would take it
+  const options = page.getByRole("listbox").getByRole("option");
+  await expect(options.first()).toContainText("close match");
+  expect(await options.count()).toBeLessThanOrEqual(6); // five matches and Create
+  await page.keyboard.press("Control+Enter");
+  await expect(cell(page, row, brand)).toContainText(typo);
+  await expect(cell(page, row, brand)).toContainText("new");
+  expect(await active(page)).toEqual({ row, col: label });
+});
+
+test("a new label under a new brand takes its category from the closed list, and Discard removes the row", async ({ page }) => {
+  const [brand, label, category] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Category")];
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await page.keyboard.press("Enter");
+  expect(await active(page)).toEqual({ row, col: label });
+  await page.keyboard.type("Cask One");
+  await page.keyboard.press("Enter");
+  expect(await active(page)).toEqual({ row, col: category });
+  await page.keyboard.type("bou");
+  await expect(page.getByRole("listbox").getByRole("option").first()).toContainText("Bourbon");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, row, category)).toContainText("Bourbon");
+
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(cell(page, row, brand)).toContainText("Add a bottle");
+});
+
+// ---------------------------------------------------------------------------
+// Label fields and bottle fields: locks, and moving a bottle
+// ---------------------------------------------------------------------------
+
+test("a label's fact is locked on a bottle row; triple-click opens it and says how many bottles it changes", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  await expect(cell(page, 1, proof).locator("svg")).toHaveCount(1);
+  await page.keyboard.type("5"); // nothing is focused on the sheet yet
+  await cell(page, 1, proof).click({ clickCount: 3 });
+  await expect(cell(page, 1, proof)).toContainText(/all \d+/);
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/^Changes \d+ bottles?$/)).toBeVisible();
+  await page.keyboard.type("101");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 1, proof)).toContainText("101");
+  // Saved for the label, so every bottle on it; after a reload the cell is locked again and holds the new value.
+  await reloaded(page);
+  await expect(cell(page, 1, proof)).toContainText("101");
+  await expect(cell(page, 1, proof).locator("span[title]").first()).toHaveAttribute("title", "Triple-click to edit");
+});
+
+test("Bottles only shows no label facts, and Brand moves a bottle to a label that exists, never a new one", async ({ page }) => {
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  const names = await sheet(page).locator("thead tr:last-child th").allTextContents();
+  expect(names.map((n) => n.trim())).not.toContain("Proof");
+  await cell(page, 0, 0).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("zzzzzz");
+  await expect(page.getByRole("listbox").getByRole("option", { name: /Create/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  // Move it to the label on the last saved row (the one after it is the empty row for a new bottle).
+  const last = (await lastRow(page)) - 1;
+  const target = `${(await cell(page, last, 0).innerText()).trim()} ${(await cell(page, last, 1).innerText()).trim()}`;
+  const moved = (await cell(page, last, 1).innerText()).trim();
+  const countOf = async () => (await sheet(page).locator("tbody tr td:nth-child(2)").allTextContents()).filter((t) => t.trim() === moved).length;
+  const before = await countOf();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(target);
+  await page.keyboard.press("Enter");
+  // The bottle goes to its label's place at once, and is still there after a reload.
+  expect(await countOf()).toBe(before + 1);
+  await reloaded(page);
+  expect(await countOf()).toBe(before + 1);
+});
+
+/** Brand and Label text of a row, for telling rows apart. */
+const rowName = async (page: Page, row: number) =>
+  `${(await cell(page, row, 0).locator(".truncate").first().innerText()).trim()} ${(await cell(page, row, 1).locator(".truncate").first().innerText()).trim()}`;
+const scrollTop = (page: Page) => sheet(page).evaluate((table) => (table.parentElement as HTMLElement).scrollTop);
+
+test("Enter after moving a bottle drops to the row that was below it, and the view stays where it was", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 560 });
+  const below = await rowName(page, 1);
+  const target = await rowName(page, (await lastRow(page)) - 1);
+  expect(target).not.toBe(await rowName(page, 0));
+  await cell(page, 0, 0).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(target);
+  await page.keyboard.press("Enter");
+  const at = await active(page);
+  expect(at?.col).toBe(0);
+  // The cursor is on what was the second row, now first; the moved bottle is down in its label's place.
+  expect(await rowName(page, at!.row)).toBe(below);
+  expect(await rowName(page, 0)).toBe(below); // the moved bottle has left the top
+  expect(await scrollTop(page)).toBe(0);
+});
+
+test("Tab after moving a bottle stays with its row, and the view goes with it", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 560 });
+  const label = await col(page, "Label");
+  const target = await rowName(page, (await lastRow(page)) - 1);
+  expect(target).not.toBe(await rowName(page, 0));
+  await cell(page, 0, 0).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(target);
+  await page.keyboard.press("Tab");
+  const at = await active(page);
+  expect(at?.col).toBe(label);
+  expect(await rowName(page, at!.row)).toBe(target); // the same bottle, in its new place
+  expect(at!.row).toBeGreaterThan(3); // and that place is a long way down
+  await expect(cell(page, at!.row, label)).toBeInViewport();
+});
+
+// ---------------------------------------------------------------------------
+// Saving as you go
+// ---------------------------------------------------------------------------
+
+/** The corner notice: always in the page so it is announced when text appears, and never focused. */
+const notice = (page: Page) => page.locator('[aria-live="polite"]').last();
+
+test("a new row with no category is outlined only after the cursor leaves it, and the notice names what it needs", async ({ page }) => {
+  const [brand, category] = [await col(page, "Brand"), await col(page, "Category")];
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Quincy Distilling");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Rough Draft");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape"); // on the Category cell, left empty
+  await expect(notice(page)).toHaveText(""); // still in the row: nothing is said
+  await cell(page, 0, brand).click(); // leave it
+  await expect(notice(page)).toContainText("Quincy Distilling Rough Draft cannot save until you select a category");
+  await expect(cell(page, row, category)).toContainText("Needs a category");
+  await expect(cell(page, row, brand).locator(".sr-only")).toHaveText("Cannot save");
+  expect(await page.evaluate(() => document.activeElement?.closest('[aria-live="polite"]') !== null)).toBe(false);
+  await page.getByRole("button", { name: "Go to it" }).click();
+  expect(await active(page)).toEqual({ row, col: category });
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, 0, brand).click();
+  await expect(notice(page)).toHaveText("", { timeout: 10_000 });
+});
+
+test("a complete new row saves when the cursor leaves it, and is a saved row after a reload", async ({ page }) => {
+  const [brand, price] = [await col(page, "Brand"), await col(page, "Price paid")];
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Pennywise Spirits");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Saved Straight Away");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, row + 1, brand).click(); // the empty row below: leaves this one
+  await reloaded(page);
+  const names = await sheet(page).locator("tbody tr td:nth-child(2)").allTextContents();
+  expect(names.filter((n) => n.includes("Saved Straight Away"))).toHaveLength(1);
+  await expect(sheet(page).locator("tbody tr").last().locator("td").first()).toContainText("Add a bottle");
+  void price;
+});
+
+test("the view follows a saved row to where it sorts, but never while the next row is being typed", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 560 }); // short enough that the sorted place is off screen
+  const brand = await col(page, "Brand");
+  const row = await lastRow(page);
+  await cell(page, row, brand).scrollIntoViewIfNeeded();
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Aaa Follows Me");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Found Again");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, row + 1, brand).click(); // leave the row: it saves, and sorts to the top
+  await page.keyboard.type("Zed"); // and start the next one
+  await page.waitForTimeout(3000); // long enough for the save to be read back
+  // The editor for the next row is still open, in view, with what was typed: nothing was taken from under it.
+  await expect(combo(page)).toHaveValue("Zed");
+  await expect(combo(page)).toBeInViewport();
+  await page.keyboard.press("Escape");
+  // Once the typing stops the view goes to the saved row.
+  await expect(sheet(page).locator("tbody tr", { hasText: "Found Again" })).toBeInViewport({ timeout: 15_000 });
+});
+
+// ---------------------------------------------------------------------------
+// Finding rows: search, filters, sort
+// ---------------------------------------------------------------------------
+
+const searchBox = (page: Page) => page.getByRole("searchbox", { name: "Search the sheet" });
+const countLine = (page: Page) => page.getByText(/^(Showing \d+ of \d+ |\d+ )(bottles|labels)$/).first();
+/** The saved rows' Label cells (not the empty row at the bottom). */
+const labelNames = async (page: Page) => (await sheet(page).locator("tbody tr td:nth-child(2)").allTextContents()).map((t) => t.trim()).slice(0, -1);
+
+test("search narrows the sheet and the count says how many of how many; the empty row stays", async ({ page }) => {
+  const all = (await countLine(page).innerText()).match(/^(\d+) /)![1]!;
+  const word = (await cell(page, 0, 0).locator(".truncate").first().innerText()).trim().split(" ")[0]!;
+  await searchBox(page).fill(word);
+  const shown = (await sheet(page).locator("tbody tr").count()) - 1;
+  expect(shown).toBeGreaterThan(0);
+  await expect(countLine(page)).toHaveText(`Showing ${shown} of ${all} bottles`);
+  await expect(sheet(page).locator("tbody tr").last().locator("td").first()).toContainText("Add a bottle");
+  await searchBox(page).fill("qqqqqqqq");
+  await expect(page.getByText(/match\. Clear the filters/)).toBeVisible();
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(countLine(page)).toHaveText(`${all} bottles`);
+});
+
+test("a row typed while the sheet is filtered stays on screen, and clearing the filter places it normally", async ({ page }) => {
+  const word = (await cell(page, 0, 0).locator(".truncate").first().innerText()).trim().split(" ")[0]!;
+  await searchBox(page).fill(word);
+  const brand = await col(page, "Brand");
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zebra Hollow");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Doesnt Match The Search");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, row + 1, brand).click(); // leave the row: it saves and joins the saved rows
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await page.waitForTimeout(1500); // read back: the saved row is now in the data, and must not be filtered out
+  expect((await labelNames(page)).filter((n) => n === "Doesnt Match The Search")).toHaveLength(1);
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  const names = await labelNames(page);
+  expect(names.filter((n) => n === "Doesnt Match The Search")).toHaveLength(1);
+  expect(names.length).toBeGreaterThan(2);
+});
+
+test("sort by a column, an edited row does not jump, and the header flips it", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await page.getByLabel("Sort by").selectOption("pricePaid");
+  await expect(sheet(page).locator("th[aria-sort]")).toHaveAttribute("aria-sort", "ascending");
+  const values = async () => (await sheet(page).locator(`tbody tr td:nth-child(${price + 1})`).allTextContents()).slice(0, -1).map((t) => Number(t.replace(/[^0-9.]/g, "")) || null);
+  const asc = (await values()).filter((v): v is number => v !== null);
+  expect(asc).toEqual([...asc].sort((a, b) => a - b));
+  // Giving a bottle a price of $1 would put it first in this order, but the row stays where it is, even once saved and read back.
+  const before = await labelNames(page);
+  await cell(page, 1, price).click();
+  await page.keyboard.type("1");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  expect(await labelNames(page)).toEqual(before);
+  await expect(cell(page, 1, price)).toHaveText("$1.00");
+  // Asking for the other direction sorts by what the rows hold now.
+  await sheet(page).locator("thead th button", { hasText: "Price paid" }).click();
+  await expect(sheet(page).locator("th[aria-sort]")).toHaveAttribute("aria-sort", "descending");
+  const desc = (await values()).filter((v): v is number => v !== null);
+  expect(desc).toEqual([...desc].sort((a, b) => b - a));
+  await page.getByLabel("Sort by").selectOption("");
+  await expect(sheet(page).locator("th[aria-sort]")).toHaveCount(0);
+});
+
+test("a range filter narrows the sheet, the panel says how many are set, and Clear empties the boxes", async ({ page }) => {
+  await page.getByRole("button", { name: "Labels", exact: true }).click(); // bottles alone: where Price paid is offered
+  const price = await col(page, "Price paid");
+  const total = Number((await countLine(page).innerText()).match(/^(\d+) /)![1]);
+  await page.getByRole("button", { name: /^More filters/ }).click();
+  await page.getByLabel("Price paid, at least").fill("50");
+  const shown = (await sheet(page).locator("tbody tr").count()) - 1;
+  expect(shown).toBeGreaterThan(0);
+  expect(shown).toBeLessThan(total);
+  const prices = (await sheet(page).locator(`tbody tr td:nth-child(${price + 1})`).allTextContents()).slice(0, -1).map((t) => Number(t.replace(/[^0-9.]/g, "")));
+  expect(prices.every((p) => p >= 50)).toBe(true);
+  await expect(countLine(page)).toHaveText(`Showing ${shown} of ${total} bottles`);
+  await expect(page.getByRole("button", { name: /^More filters/ })).toContainText("1");
+  await page.getByLabel("Proof, at most").fill("1"); // nothing has a proof that low
+  await expect(page.getByText(/match\. Clear the filters/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.getByRole("button", { name: /^More filters/ }).click();
+  await expect(page.getByLabel("Price paid, at least")).toHaveValue("");
+  await expect(page.getByLabel("Proof, at most")).toHaveValue("");
+  await page.keyboard.press("Escape");
+  await expect(countLine(page)).toHaveText(`${total} bottles`);
+});
+
+test("age, distillery, mashbill and finish can be sorted, each starting ascending", async ({ page }) => {
+  for (const [column, header] of [["ageYears", "Y"], ["distilleries", "Distillery"], ["mashbills", "Mashbill"], ["finishes", "Finish"]] as const) {
+    await page.getByLabel("Sort by").selectOption(column);
+    const sorted = sheet(page).locator("th[aria-sort]");
+    await expect(sorted).toHaveCount(1);
+    await expect(sorted).toHaveAttribute("aria-sort", "ascending");
+    await expect(sorted).toContainText(header);
+    // The direction button, then another column: that one starts ascending again.
+    await page.getByLabel(/Ascending: switch/).click();
+    await expect(sorted).toHaveAttribute("aria-sort", "descending");
+  }
+});
+
+test("store and price paid are offered only when looking at bottles alone; in the other views they are off", async ({ page }) => {
+  const total = Number((await countLine(page).innerText()).match(/^(\d+) /)![1]);
+  const panel = async () => {
+    await page.getByRole("button", { name: /^More filters/ }).click();
+  };
+  // Labels and Bottles together: neither is offered.
+  await expect(page.getByRole("button", { name: "Filter by store" })).toHaveCount(0);
+  await panel();
+  await expect(page.getByLabel("Price paid, at least")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Bottles alone: both are, and one narrows the sheet.
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Filter by store" })).toBeVisible();
+  await panel();
+  await page.getByLabel("Price paid, at least").fill("50");
+  await page.keyboard.press("Escape");
+  const narrowed = await countLine(page).innerText();
+  expect(narrowed).toMatch(new RegExp(`^Showing \\d+ of ${total} bottles$`));
+
+  // Back to both: it is off, not applied and not counted, and the sheet is whole again.
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  await expect(countLine(page)).toHaveText(`${total} bottles`);
+  await expect(page.getByRole("button", { name: "Clear filters" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^More filters/ })).not.toContainText("1");
+
+  // And on again: the value was kept.
+  await page.getByRole("button", { name: "Labels", exact: true }).click();
+  await expect(countLine(page)).toHaveText(narrowed);
+});
+
+// ---------------------------------------------------------------------------
+// The rail
+// ---------------------------------------------------------------------------
+
+const rail = (page: Page) => page.getByRole("complementary", { name: "Row details" });
+
+test("the rail follows the cursor, says where facts come from, and is not a live region", async ({ page }) => {
+  await expect(rail(page)).toContainText("Click a cell");
+  const last = (await lastRow(page)) - 1;
+  const [first, second] = [(await cell(page, 0, 1).locator(".truncate").first().innerText()).trim(), (await cell(page, last, 1).locator(".truncate").first().innerText()).trim()];
+  expect(first).not.toBe(second);
+  await cell(page, 0, 1).click();
+  await expect(rail(page)).toContainText(first);
+  await expect(rail(page)).toContainText(/from the label/i);
+  await expect(rail(page)).toContainText(/this bottle/i);
+  await cell(page, last, 1).click();
+  await expect(rail(page)).toContainText(second);
+  // By keyboard too.
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowUp");
+  // Display only, and never announced: nothing in it can be typed into or is a live region.
+  await expect(rail(page).locator("input, textarea, select, [contenteditable]")).toHaveCount(0);
+  await expect(rail(page).locator("[aria-live], [role=status], [role=alert], [role=log]")).toHaveCount(0);
+  expect(await rail(page).getAttribute("aria-live")).toBeNull();
+});
+
+test("the rail can be hidden to a slim tab and shown again, and the choice is remembered", async ({ page }) => {
+  await expect(rail(page).getByRole("button", { name: "Hide the details panel" })).toBeVisible(); // open at this width
+  await rail(page).getByRole("button", { name: "Hide the details panel" }).click();
+  await expect(rail(page).getByRole("button", { name: "Show the details panel" })).toBeVisible();
+  expect((await rail(page).boundingBox())!.width).toBeLessThan(50);
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  await expect(rail(page).getByRole("button", { name: "Show the details panel" })).toBeVisible();
+  await rail(page).getByRole("button", { name: "Show the details panel" }).click();
+  await page.reload();
+  await expect(rail(page).getByRole("button", { name: "Hide the details panel" })).toBeVisible();
+});
+
+test("the rail starts hidden on a narrower window, until it is chosen", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await expect(rail(page).getByRole("button", { name: "Show the details panel" })).toBeVisible();
+  await expect(rail(page).getByRole("button", { name: "Hide the details panel" })).toBeHidden();
+  await rail(page).getByRole("button", { name: "Show the details panel" }).click();
+  await expect(rail(page).getByRole("button", { name: "Hide the details panel" })).toBeVisible();
+});
+
+test("using a filter does not count as clicking away: a finished new row is saved by leaving it, not by that", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  const total = await countLine(page).innerText();
+  const [b, l] = [(await cell(page, 0, brand).locator(".truncate").first().innerText()).trim(), (await cell(page, 0, label).locator(".truncate").first().innerText()).trim()];
+  await cell(page, row, brand).click();
+  await page.keyboard.type(b);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type(l);
+  await page.keyboard.press("Tab"); // an existing label: the row is complete and would save when the cursor leaves it
+  await page.getByRole("button", { name: "Filter by category" }).click();
+  await page.locator("[data-radix-popper-content-wrapper]").first().getByRole("button").first().click(); // pressing inside the popover
+  await page.waitForTimeout(1500);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet"); // still the new row being entered
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(countLine(page)).toHaveText(total); // nothing was added to the shelf
+});
+
+// ---------------------------------------------------------------------------
+// On your shelf (in the rail)
+// ---------------------------------------------------------------------------
+
+const shelfText = async (page: Page) => ((await rail(page).locator("section", { has: page.getByRole("heading", { name: "On your shelf" }) }).textContent()) ?? "").replace(/\s+/g, " ").trim();
+const ORDINALS = ["zeroth", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth"];
+
+test("On your shelf: counts from the sheet's own rows, the next bottle's place, and no filter changes a count", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const rows = (await lastRow(page)) ;
+  const pairs: Array<[string, string]> = [];
+  for (let r = 0; r < rows; r++) pairs.push([(await cell(page, r, brand).locator(".truncate").first().innerText()).trim(), (await cell(page, r, label).locator(".truncate").first().innerText()).trim()]);
+  const [b, l] = pairs[0]!;
+  const ofBrand = pairs.filter(([x]) => x === b).length;
+  const ofLabel = pairs.filter(([x, y]) => x === b && y === l).length;
+  const labelCount = new Set(pairs.filter(([x]) => x === b).map(([, y]) => y)).size;
+
+  await cell(page, rows, brand).click();
+  await expect.poll(() => shelfText(page)).toContain("Choose a brand");
+  await page.keyboard.type(b);
+  await page.keyboard.press("Tab");
+  await expect.poll(() => shelfText(page)).toContain(`${ofBrand} ${ofBrand === 1 ? "bottle" : "bottles"} from ${labelCount} ${b} ${labelCount === 1 ? "label" : "labels"}`);
+  await page.keyboard.type(l);
+  await page.keyboard.press("Tab");
+  const chosen = await shelfText(page);
+  expect(chosen).toContain(`Your ${ORDINALS[ofBrand + 1]} ${b} bottle`);
+  expect(chosen).toContain(`${ORDINALS[ofLabel + 1]![0]!.toUpperCase()}${ORDINALS[ofLabel + 1]!.slice(1)} ${l}`);
+  expect(chosen).toMatch(/labels? · 1 not saved/); // the summary counts it, as does the label's own row
+  expect(chosen).toContain("+ 1 not saved");
+
+  // A filter that hides rows changes no count: the rail says just what it said.
+  await page.getByLabel("Sort by").selectOption(""); // (no sort: keep the sheet as it is)
+  await searchBox(page).fill("qqqqqqqq");
+  expect(await shelfText(page)).toBe(chosen);
+  await searchBox(page).fill("");
+});
+
+test("On your shelf: a label that is new, and a brand that is new, say so and what saving does", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  const b = (await cell(page, 0, brand).locator(".truncate").first().innerText()).trim();
+  await cell(page, row, brand).click();
+  await page.keyboard.type(b);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("A Label Nobody Has");
+  await page.keyboard.press("Enter"); // create it
+  await expect.poll(() => shelfText(page)).toContain("New label");
+  expect(await shelfText(page)).toContain(`Saving adds it under ${b}`);
+  expect(await shelfText(page)).toContain("First A Label Nobody Has");
+  await page.keyboard.press("Escape");
+
+  await cell(page, row + 1, brand).click();
+  await page.keyboard.type("Brand Nobody Has");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Its First Label");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => shelfText(page)).toContain("New brand");
+  expect(await shelfText(page)).toContain("Saving creates the brand and its first label");
+  expect(await shelfText(page)).toContain("Your first Brand Nobody Has bottle");
+  void label;
+});
+
+// ---------------------------------------------------------------------------
+// The form's other fields (parity with the old Bulk add)
+// ---------------------------------------------------------------------------
+
+const fieldsButton = (page: Page) => page.getByRole("button", { name: /^Fields/ });
+/** Switch columns on in the Fields picker, by the name the picker lists them under. */
+async function showColumns(page: Page, ...names: Array<string | RegExp>) {
+  await fieldsButton(page).click();
+  // Space on the focused box rather than a click: with the State fields the list is long enough that the dev-mode badge sits over the last boxes.
+  for (const name of names) {
+    const box = page.getByLabel(name, { exact: typeof name === "string" });
+    await box.focus();
+    await page.keyboard.press("Space");
+    await expect(box).toBeChecked();
+  }
+  await page.keyboard.press("Escape");
+}
+const bothSwitch = (page: Page, name: "Labels" | "Bottles") => page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name, exact: true });
+
+test("the form's other fields are columns, grouped by section and hidden until switched on", async ({ page }) => {
+  await fieldsButton(page).click();
+  for (const group of ["Label: Process", "Label: Rum detail", "Label: Strength and age", "Bottle: Release", "Bottle: Single-barrel detail"]) {
+    await expect(page.getByRole("group", { name: group })).toBeVisible();
+  }
+  await expect(page.getByLabel("Batch", { exact: true })).not.toBeChecked();
+  await page.getByLabel("Batch", { exact: true }).check();
+  await page.keyboard.press("Escape");
+  expect(await sheet(page).locator("thead tr:last-child th").allTextContents().then((t) => t.map((x) => x.trim()))).toContain("Batch");
+  await fieldsButton(page).click();
+  await page.getByRole("button", { name: "Defaults" }).click(); // back to the shelf columns
+  await page.keyboard.press("Escape");
+  expect(await sheet(page).locator("thead tr:last-child th").allTextContents().then((t) => t.map((x) => x.trim()))).not.toContain("Batch");
+});
+
+test("Cask / Bonded is one cell: a letter picks, it saves, and it is there after a reload", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click(); // the label itself: nothing is locked
+  const designation = await col(page, "Cask / BiB");
+  await cell(page, 0, designation).click();
+  await page.keyboard.type("b"); // the first choice starting with B: Bottled in Bond
+  await expect(editors(page)).toHaveCount(0); // a choice is a list, not a typed box
+  await expect(sheet(page).locator("select")).toHaveCount(1);
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, designation)).toContainText("Bottled in Bond");
+  await reloaded(page);
+  await expect(cell(page, 0, designation)).toContainText("Bottled in Bond");
+});
+
+test("Single barrel / pick: a private pick opens its pick details before it has saved", async ({ page }) => {
+  await showColumns(page, "Pick name", "Picked By");
+  const [pick, pickName] = [await col(page, "Single barrel / pick"), await col(page, "Pick name")];
+  await cell(page, 0, pickName).click();
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(0); // not a private pick yet: nothing to type into
+  await cell(page, 0, pick).click();
+  await page.keyboard.type("p"); // Private pick
+  await page.keyboard.press("Enter");
+  // A private pick is not a single barrel (it can be a blend of barrels): the cell says only what was chosen.
+  await expect(cell(page, 0, pick)).toHaveText("Private pick");
+  await cell(page, 0, pickName).click();
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1); // opened at once, before the save was read back
+  await page.keyboard.type("Binnys Pick");
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+  await expect(cell(page, 0, pick)).toHaveText("Private pick");
+  await expect(cell(page, 0, pickName)).toContainText("Binnys Pick");
+});
+
+test("a yes/no cell is flipped with Space, saves, and is cleared with Delete", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, "Straight");
+  const straight = await col(page, "Straight");
+  await cell(page, 0, straight).click();
+  await page.keyboard.press("Space");
+  await expect(cell(page, 0, straight)).toHaveText("Yes");
+  await expect(editors(page)).toHaveCount(0); // flipped, not opened
+  await reloaded(page);
+  await expect(cell(page, 0, straight)).toHaveText("Yes");
+  await cell(page, 0, straight).click();
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 0, straight)).toHaveText("—");
+  await reloaded(page);
+  await expect(cell(page, 0, straight)).toHaveText("—");
+});
+
+test("a field that is not used for this spirit says so and cannot be edited", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, /^Esters/i);
+  const esters = (await sheet(page).locator("thead tr:last-child th").allTextContents()).findIndex((t) => /^esters/i.test(t.trim()));
+  expect(esters).toBeGreaterThanOrEqual(0);
+  await expect(cell(page, 0, esters).locator("span[title]").first()).toHaveAttribute("title", "Not used for this spirit"); // a bourbon has no esters
+  await cell(page, 0, esters).click();
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(0);
+  await expect(sheet(page).locator("select")).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------------------
+// Deleting (these remove rows, so they come last)
+// ---------------------------------------------------------------------------
+
+const tick = (page: Page, row: number) => cell(page, row, 0).locator('input[type="checkbox"]');
+const deleteBar = (page: Page) => page.getByRole("button", { name: "Delete selected" });
+const totalOf = async (page: Page) => Number((await countLine(page).innerText()).match(/(\d+) (bottles|labels)$/)![1]);
+
+test("a ticked row shows a bar with the count; only the bottle is deleted, and its label stays", async ({ page }) => {
+  const last = (await lastRow(page)) - 1;
+  const label = (await cell(page, last, 1).locator(".truncate").first().innerText()).trim();
+  const before = await totalOf(page);
+  await expect(deleteBar(page)).toHaveCount(0);
+  await tick(page, last).check();
+  await expect(page.getByText("1 bottle selected")).toBeVisible();
+  await deleteBar(page).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Delete 1 bottle?");
+  await expect(dialog).toContainText(/Its label stays, even if this was the last bottle on it\./);
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(countLine(page)).toHaveText(`${before - 1} bottles`);
+  // The label is still there: look at the labels.
+  await page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name: "Bottles", exact: true }).click();
+  await expect(sheet(page).locator("tbody tr td:nth-child(2)", { hasText: label }).first()).toBeVisible();
+});
+
+test("in the Labels-only view the confirmation names the bottles that go with a label, and they are deleted", async ({ page }) => {
+  await page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name: "Bottles", exact: true }).click();
+  const countCol = await col(page, "Bottles");
+  const labels = await totalOf(page);
+  // A label that has bottles.
+  let target = -1;
+  let bottlesOn = 0;
+  for (let r = 0; r < (await lastRow(page)); r++) {
+    const n = Number((await cell(page, r, countCol).innerText()).trim());
+    if (n > 0) { target = r; bottlesOn = n; break; }
+  }
+  expect(target).toBeGreaterThanOrEqual(0);
+  await tick(page, target).check();
+  await expect(page.getByText("1 label selected")).toBeVisible();
+  await deleteBar(page).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText(`Delete 1 label and the ${bottlesOn} ${bottlesOn === 1 ? "bottle" : "bottles"} on it.`);
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(countLine(page)).toHaveText(`${labels - 1} labels`);
+});
+
+test("only rows that can be seen are counted or deleted: a ticked row that is filtered out is left alone", async ({ page }) => {
+  await tick(page, 0).check();
+  await expect(page.getByText("1 bottle selected")).toBeVisible();
+  await searchBox(page).fill("qqqqqqqq");
+  await expect(deleteBar(page)).toHaveCount(0); // nothing visible is ticked
+  await searchBox(page).fill("");
+  await expect(page.getByText("1 bottle selected")).toBeVisible(); // still ticked when it is back
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(deleteBar(page)).toHaveCount(0);
+});
+
+test("the header box ticks every row shown, and Shift+Space ticks the row the cursor is on", async ({ page }) => {
+  const total = await totalOf(page);
+  await page.getByLabel("Select every row shown").check();
+  await expect(page.getByText(`${total} bottles selected`)).toBeVisible();
+  await page.getByLabel("Select every row shown").uncheck();
+  await expect(deleteBar(page)).toHaveCount(0);
+  await cell(page, 1, 0).click();
+  await page.keyboard.press("Shift+Space");
+  await expect(page.getByText("1 bottle selected")).toBeVisible();
+  await expect(tick(page, 1)).toBeChecked();
+  expect(await sheet(page).locator("input:not([type=checkbox])").count()).toBe(0); // it did not start typing into a cell
+});
+
+test("the confirmation does not count as clicking away: a finished new row is not saved by it", async ({ page }) => {
+  const [brand, label] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await lastRow(page);
+  const [b, l] = [(await cell(page, 0, brand).locator(".truncate").first().innerText()).trim(), (await cell(page, 0, label).locator(".truncate").first().innerText()).trim()];
+  await cell(page, row, brand).click();
+  await page.keyboard.type(b);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type(l);
+  await page.keyboard.press("Tab"); // a finished row, waiting for the cursor to leave it
+  await tick(page, 0).check();
+  await deleteBar(page).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await page.waitForTimeout(1500);
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+});
+
+// ---------------------------------------------------------------------------
+// The picking cells: store, release, label name
+// ---------------------------------------------------------------------------
+
+const listbox = (page: Page) => page.getByRole("listbox");
+
+test("a store is picked from the list or made with Enter on Create, never by a typo, and is there after a reload", async ({ page }) => {
+  const store = await col(page, "Store");
+  await cell(page, 0, store).click();
+  await page.keyboard.type("Binnys Beverage");
+  // Nothing by that name: the list offers to make it, and says so.
+  await expect(listbox(page).getByRole("option", { name: /Create .Binnys Beverage./ })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, store)).toContainText("Binnys Beverage");
+  await expect(cell(page, 0, store)).toContainText("new");
+  expect(await active(page)).toEqual({ row: 1, col: store }); // Enter drops down, as in any cell
+  await reloaded(page);
+  await expect(cell(page, 0, store)).toHaveText("Binnys Beverage");
+
+  // The next rows pick the store that now exists. A slip is only a hint, and Tab takes the close match it names instead of making a store.
+  await cell(page, 1, store).click();
+  await page.keyboard.type("Binnys Beverag");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, 1, store)).toHaveText("Binnys Beverage");
+  await cell(page, 2, store).click();
+  await page.keyboard.type("Binnyz Beverage");
+  await expect(listbox(page)).toContainText("close match");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, 2, store)).toHaveText("Binnys Beverage");
+  // Nothing close: Tab neither takes nor makes anything, it says so and stays.
+  await cell(page, 3, store).click();
+  await page.keyboard.type("Zzzqqq");
+  await page.keyboard.press("Tab");
+  await expect(editors(page)).toHaveCount(1);
+  await expect(listbox(page).locator("xpath=..").getByRole("alert")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 3, store)).toHaveText("—");
+  await reloaded(page);
+  await expect(cell(page, 1, store)).toHaveText("Binnys Beverage");
+  await expect(cell(page, 2, store)).toHaveText("Binnys Beverage");
+  await expect(cell(page, 3, store)).toHaveText("—");
+  // One store, however many bottles are in it.
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    expect(Number((await db`select count(*)::int as n from stores where name = 'Binnys Beverage'`)[0]!.n)).toBe(1);
+  } finally {
+    await db.end();
+  }
+
+  // Delete empties it.
+  await cell(page, 0, store).click();
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 0, store)).toHaveText("—");
+  await reloaded(page);
+  await expect(cell(page, 0, store)).toHaveText("—");
+});
+
+test("a release and a label name are picked from the bottle's own label, and cannot be made here", async ({ page }) => {
+  await showColumns(page, "Release", "Label Version");
+  const [release, version, name] = [await col(page, "Release"), await col(page, "Label Version"), await col(page, "Label")];
+  const labelName = (await cell(page, 0, name).innerText()).split("\n")[0]!.trim();
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [label] = await db`select id from expressions where name = ${labelName} limit 1`;
+    await db`insert into expression_releases (expression_id, name) values (${label!.id}, 'Spring 2024 Release')`;
+    await db`insert into expression_names (expression_id, name) values (${label!.id}, 'Old Label Name')`;
+  } finally {
+    await db.end();
+  }
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+
+  await cell(page, 0, release).click();
+  await page.keyboard.press("Enter");
+  await expect(listbox(page).getByRole("option")).toHaveCount(1);
+  await expect(listbox(page).getByRole("option", { name: /Create/ })).toHaveCount(0);
+  await page.keyboard.type("Spring");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
+  await cell(page, 0, version).click();
+  await page.keyboard.type("Old");
+  await page.keyboard.press("Tab");
+  await expect(cell(page, 0, version)).toHaveText("Old Label Name");
+  await reloaded(page);
+  await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
+  await expect(cell(page, 0, version)).toHaveText("Old Label Name");
+
+  // A name that is not one of this label's cannot be made here: the list says where it is added.
+  await cell(page, 0, release).click();
+  await page.keyboard.type("Brand new release");
+  await page.keyboard.press("Enter");
+  await expect(listbox(page).locator("xpath=..").getByRole("alert")).toBeVisible();
+  await expect(listbox(page).locator("xpath=..")).toContainText("added on the label's page");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
+});
+
+// ---------------------------------------------------------------------------
+// Where a bottle is in its life: level, Opened, status
+// ---------------------------------------------------------------------------
+
+test("a level opens the bottle, a status the bottle contradicts is refused with the reason, and a sold bottle leaves with a notice", async ({ page }) => {
+  await showColumns(page, "Fill", "Opened");
+  const [fill, status, opened] = [await col(page, "Fill"), await col(page, "Status"), await col(page, "Opened")];
+  const rowsShown = () => sheet(page).locator('td[data-c="0"]').count();
+  const row = 5;
+
+  // A level under full means it has been poured from: the bottle is opened, as on the bottle page.
+  await cell(page, row, fill).click();
+  await page.keyboard.type("a"); // Almost gone
+  await page.keyboard.press("Enter");
+  await expect(cell(page, row, fill)).toHaveText("Almost gone");
+  await reloaded(page);
+  await expect(cell(page, row, fill)).toHaveText("Almost gone");
+  await expect(cell(page, row, status)).toHaveText("Open");
+  await expect(cell(page, row, opened)).toHaveText("Yes");
+
+  // Owned means sealed: a bottle that has been opened is refused, and the reason is said.
+  await cell(page, row, status).click();
+  await page.keyboard.press("Enter");
+  await sheet(page).locator("select").selectOption({ label: "Owned" });
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/has been opened/).first()).toBeVisible();
+
+  // Sold is allowed, and the bottle is no longer one of the sheet's rows: the notice says so.
+  const before = await rowsShown();
+  await cell(page, row, status).click();
+  await page.keyboard.press("Enter");
+  await sheet(page).locator("select").selectOption({ label: "Sold" });
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/is now sold, so it is no longer listed here/)).toBeVisible();
+  await expect.poll(rowsShown, { timeout: 10_000 }).toBe(before - 1);
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.getByText(/no longer listed here/)).toHaveCount(0);
+});
+
+test("Opened is ticked with Space, Favorite likewise, and a date killed before it was opened is refused", async ({ page }) => {
+  await showColumns(page, "Opened", "Favorite", "Date Opened", "Date Killed");
+  const [opened, fav, dateOpened, dateKilled] = [await col(page, "Opened"), await col(page, "Favorite"), await col(page, "Date Opened"), await col(page, "Date Killed")];
+  const row = 6;
+  await cell(page, row, fav).click();
+  await page.keyboard.press("Space");
+  await expect(cell(page, row, fav)).toHaveText("Yes");
+  await cell(page, row, opened).click();
+  await page.keyboard.press("Space");
+  await expect(cell(page, row, opened)).toHaveText("Yes");
+  await reloaded(page);
+  await expect(cell(page, row, fav)).toHaveText("Yes");
+  await expect(cell(page, row, opened)).toHaveText("Yes");
+  await expect(cell(page, row, dateOpened)).not.toHaveText("—"); // stamped
+
+  await cell(page, row, dateOpened).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("03012026");
+  await page.keyboard.press("Enter");
+  await cell(page, row, dateKilled).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("02012026");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/Killed before it was opened/).first()).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// Age: Y, M and D side by side, and the statement beside them
+// ---------------------------------------------------------------------------
+
+/** After a reload the page is not interactive until it has hydrated: a cell is selected once it has. */
+async function select(page: Page, row: number, column: number) {
+  await expect(async () => {
+    await cell(page, row, column).click();
+    await expect(cell(page, row, column)).toHaveAttribute("aria-selected", "true", { timeout: 500 });
+  }).toPass();
+}
+async function type(page: Page, row: number, column: number, text: string) {
+  await select(page, row, column);
+  await page.keyboard.type(text);
+  await page.keyboard.press("Enter");
+}
+
+test("Y, M and D are three narrow boxes under one Age caption, with the statement as the next column", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const headers = (await sheet(page).locator("thead tr:last-child th").allTextContents()).map((t) => t.trim());
+  const y = headers.indexOf("Y");
+  expect(headers.slice(y, y + 4)).toEqual(["Y", "M", "D", "Age statement"]);
+  await expect(sheet(page).locator("thead tr").nth(1)).toContainText("Age");
+  // They cannot be taken out of the Fields picker one by one, and there is no combined Age column.
+  expect(headers).not.toContain("Age");
+  await fieldsButton(page).click();
+  await expect(page.getByRole("group", { name: "Label", exact: true }).getByLabel("Age", { exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+});
+
+test("years, months and days are typed in their own boxes, save, and clear with Delete", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const [y, m, d] = [await col(page, "Y"), await col(page, "M"), await col(page, "D")];
+  await type(page, 0, y, "12");
+  await expect(cell(page, 0, y)).toHaveText("12");
+  await type(page, 0, m, "6");
+  await expect(cell(page, 0, m)).toHaveText("6");
+  await reloaded(page);
+  await expect(cell(page, 0, y)).toHaveText("12");
+  await expect(cell(page, 0, m)).toHaveText("6");
+  await expect(cell(page, 0, d)).toHaveText("—");
+  // A box that is not a number stays open and says why.
+  await select(page, 0, y);
+  await page.keyboard.type("12.55");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Use at most one decimal.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await select(page, 0, m);
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 0, m)).toHaveText("—");
+});
+
+test("an entered age locks the statement until it is triple-clicked; a statement fills the years in without locking them", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const [y, statement] = [await col(page, "Y"), await col(page, "Age statement")];
+  // Row 1: an age is entered, so the statement is locked.
+  await type(page, 1, y, "9");
+  await expect(cell(page, 1, statement)).toHaveAttribute("aria-readonly", "true");
+  await select(page, 1, statement);
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(0);
+  await cell(page, 1, statement).click({ clickCount: 3 });
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1);
+  await page.keyboard.type("Old Number Nine");
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+  await expect(cell(page, 1, statement)).toHaveText("Old Number Nine");
+  await expect(cell(page, 1, y)).toHaveText("9"); // the entered age is not replaced
+
+  // Row 2: a statement alone fills the years in, and they stay editable.
+  await type(page, 2, statement, "8 to 12 years");
+  await expect(cell(page, 2, y)).toHaveText("8");
+  await reloaded(page);
+  await expect(cell(page, 2, y)).toHaveText("8");
+  await expect(cell(page, 2, statement)).toHaveText("8 to 12 years");
+  await type(page, 2, y, "10");
+  await expect(cell(page, 2, y)).toHaveText("10");
+});
+
+test("a block of cells is selected with Shift and the arrows and cleared with Delete", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const [y, m, d] = [await col(page, "Y"), await col(page, "M"), await col(page, "D")];
+  for (const [r, c, v] of [[3, y, "5"], [3, m, "2"], [4, y, "6"], [4, d, "9"]] as const) await type(page, r, c, v);
+  await reloaded(page);
+  await select(page, 3, y);
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(cell(page, 4, d)).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Delete");
+  await expect(page.getByText(/Cleared 4 cells/)).toBeVisible();
+  for (const [r, c] of [[3, y], [3, m], [4, y], [4, d]] as const) await expect(cell(page, r, c)).toHaveText("—");
+  await reloaded(page);
+  for (const [r, c] of [[3, y], [3, m], [4, y], [4, d]] as const) await expect(cell(page, r, c)).toHaveText("—");
+});
+
+test("a bottle's own age is three boxes that show the label's in grey, and blank goes back to it", async ({ page }) => {
+  await showColumns(page, "This bottle's age");
+  const headers = (await sheet(page).locator("thead tr:last-child th").allTextContents()).map((t) => t.trim());
+  const own = headers.lastIndexOf("Y");
+  expect(headers.slice(own, own + 3)).toEqual(["Y", "M", "D"]);
+  await type(page, 5, own, "7");
+  await expect(cell(page, 5, own)).toHaveText("7");
+  await reloaded(page);
+  await expect(cell(page, 5, own)).toHaveText("7");
+  await select(page, 5, own);
+  await page.keyboard.press("Delete");
+  await reloaded(page);
+  await expect(cell(page, 5, own)).not.toHaveText("7");
+});
+
+// ---------------------------------------------------------------------------
+// The lists: distilleries, mashbills, finishes and ingredients open the label form's own pickers
+// ---------------------------------------------------------------------------
+
+const popover = (page: Page) => page.getByRole("dialog", { name: /as on the label form/ });
+async function addTo(page: Page, combobox: string, search: string) {
+  await popover(page).getByRole("combobox", { name: combobox }).click();
+  await page.locator("[cmdk-input]").fill(search);
+  await page.locator("[cmdk-item]").filter({ hasText: search }).first().click();
+}
+
+test("a label's distilleries open in the form's own picker, save as they are changed, and are there after a reload", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const distillery = await col(page, "Distillery");
+  await select(page, 3, distillery);
+  await page.keyboard.press("Enter");
+  await expect(popover(page)).toBeVisible();
+  await expect(popover(page).getByRole("group", { name: "Distilleries" })).toBeVisible();
+  await addTo(page, "Add distilleries", "Bardstown Bourbon Company");
+  await addTo(page, "Add distilleries", "Tennessee Distilling");
+  await expect(popover(page).getByRole("group", { name: "Distilleries" }).getByRole("listitem")).toHaveCount(2);
+  // Order is meaningful, as on the form: it can be changed here.
+  await popover(page).getByRole("button", { name: "Move Tennessee Distilling Ltd. up" }).click();
+  await page.keyboard.press("Escape");
+  await expect(popover(page)).toHaveCount(0);
+  await expect(cell(page, 3, distillery)).toContainText("Tennessee Distilling Ltd.");
+  await expect(cell(page, 3, 0).getByTitle("Saved", { exact: true })).toBeVisible();
+  await expect(cell(page, 3, 0).getByTitle("Saved", { exact: true })).toHaveCount(0, { timeout: 10000 });
+  await select(page, 3, distillery);
+  await page.keyboard.press("Enter");
+  await expect(popover(page).getByRole("group", { name: "Distilleries" }).getByRole("listitem")).toHaveCount(2);
+  await page.keyboard.press("Escape");
+
+  const finish = await col(page, "Finish");
+  await select(page, 3, finish);
+  await page.keyboard.press("Enter");
+  await addTo(page, "Add finishes", "French Oak");
+  await page.keyboard.press("Escape");
+  await reloaded(page);
+  await expect(cell(page, 3, finish)).toContainText("French Oak");
+  await expect(cell(page, 3, distillery)).toContainText("Tennessee Distilling Ltd., Bardstown Bourbon Company");
+});
+
+test("a label's finishes open in the form's own picker, and Delete does not empty a list", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const finish = await col(page, "Finish");
+  await select(page, 4, finish);
+  await page.keyboard.press("Enter");
+  await expect(popover(page)).toBeVisible();
+  await addTo(page, "Add finishes", "French Oak");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 4, finish)).toContainText("French Oak");
+  await reloaded(page);
+  await expect(cell(page, 4, finish)).toContainText("French Oak");
+  // A list is changed one row at a time in its picker, not cleared from the cell.
+  await select(page, 4, finish);
+  await page.keyboard.press("Delete");
+  await reloaded(page);
+  await expect(cell(page, 4, finish)).toContainText("French Oak");
+});
+
+test("a list that the spirit does not have says so and does not open", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, "Ingredients");
+  const ingredients = await col(page, "Ingredients");
+  await select(page, 0, ingredients);
+  await page.keyboard.press("Enter");
+  await expect(popover(page)).toHaveCount(0); // bourbon has no ingredient list
+  await expect(cell(page, 0, ingredients)).toHaveAttribute("aria-readonly", "true");
+});
+
+// ---------------------------------------------------------------------------
+// Copy and paste
+// ---------------------------------------------------------------------------
+
+/** What the sheet puts on the clipboard for the cursor's cell or the selected block. */
+const copied = (page: Page): Promise<string> =>
+  page.evaluate(() => {
+    const data = new DataTransfer();
+    document.activeElement!.dispatchEvent(new ClipboardEvent("copy", { clipboardData: data, bubbles: true, cancelable: true }));
+    return data.getData("text/plain");
+  });
+/** Pastes text at the cursor, as the browser delivers a Ctrl+V. */
+const paste = (page: Page, text: string) =>
+  page.evaluate((t) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", t);
+    document.activeElement!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, text);
+const pasteNotice = (page: Page) => page.locator("[aria-live=polite]").filter({ hasText: /Pasted|Cleared/ });
+
+test("Ctrl+C copies the cell, or the selected block, as tab-separated text that pastes back", async ({ page }) => {
+  const [price, purchased] = [await col(page, "Price paid"), await col(page, "Purchased")];
+  await type(page, 0, price, "12.50");
+  await type(page, 1, price, "7");
+  await expect(cell(page, 1, price)).toHaveText("$7.00");
+  await select(page, 0, price);
+  expect(await copied(page)).toBe("12.50");
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Shift+ArrowRight");
+  const text = await copied(page);
+  expect(text.split("\n")).toHaveLength(2);
+  expect(text.split("\n")[0]!.split("\t")).toHaveLength(3);
+  // "7" while the save is on its way, "7.00" once it is read back: the same number.
+  expect(text.split("\n").map((line) => Number(line.split("\t")[0]))).toEqual([12.5, 7]);
+  // The browser does the real thing too: Ctrl+C reaches the sheet from the keyboard.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await select(page, 0, price);
+  await page.keyboard.press("Control+C");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("12.50");
+  void purchased;
+});
+
+test("Ctrl+V pastes a block at the cursor through the same rules as typing, and fills a selected block with one value", async ({ page }) => {
+  const [price, purchased] = [await col(page, "Price paid"), await col(page, "Purchased")];
+  await select(page, 2, price);
+  // Store sits between the two, so a blank goes there: columns line up by position, as in a spreadsheet.
+  await paste(page, "$12.50\t\tNov 1, 2025\n7\t\t11/2/2025");
+  await expect(cell(page, 2, price)).toHaveText("$12.50");
+  await expect(cell(page, 2, purchased)).toHaveText("Nov 1, 2025");
+  await expect(cell(page, 3, price)).toHaveText("$7.00");
+  await expect(cell(page, 3, purchased)).toHaveText("Nov 2, 2025");
+  await expect(pasteNotice(page)).toContainText("Pasted 6 cells");
+  await reloaded(page);
+  await expect(cell(page, 2, price)).toHaveText("$12.50");
+  await expect(cell(page, 3, purchased)).toHaveText("Nov 2, 2025");
+  // One value over a selected block fills all of it.
+  await select(page, 4, price);
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+ArrowDown");
+  await paste(page, "9");
+  for (const r of [4, 5, 6]) await expect(cell(page, r, price)).toHaveText("$9.00");
+});
+
+test("a pasted value that breaks a rule is left out and the notice says which and why", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  await type(page, 7, price, "3");
+  await select(page, 7, price);
+  await paste(page, "lots\n5\n-4");
+  await expect(cell(page, 7, price)).toHaveText("$3.00"); // not a number: left as it was
+  await expect(cell(page, 8, price)).toHaveText("$5.00");
+  await expect(pasteNotice(page)).toContainText("Pasted 1 cell");
+  await expect(pasteNotice(page)).toContainText("Not pasted:");
+  await expect(pasteNotice(page)).toContainText("Price paid");
+});
+
+test("a pasted name that is a complete store name is taken; a part of one waits to be chosen from what matches", async ({ page }) => {
+  const store = await col(page, "Store");
+  // A store to paste: made by typing, as the form would.
+  await select(page, 0, store);
+  await page.keyboard.type("Astor Wines");
+  await page.keyboard.press("Enter"); // on Create
+  await expect(cell(page, 0, store)).toContainText("Astor Wines");
+  await reloaded(page);
+
+  await select(page, 1, store);
+  await paste(page, "astor wines\nAstor\nNowhere Wines");
+  await expect(cell(page, 1, store)).toHaveText("Astor Wines"); // complete: taken without asking
+  // The others wait, marked, with what was pasted, and are not saved.
+  await expect(cell(page, 2, store)).toContainText("Astor");
+  await expect(cell(page, 2, store)).toContainText("Choose");
+  await expect(cell(page, 3, store)).toContainText("Nowhere Wines");
+  await expect(pasteNotice(page)).toContainText("2 to choose");
+  await reloaded(page);
+  await expect(cell(page, 2, store)).not.toContainText("Choose"); // never saved
+  await expect(cell(page, 1, store)).toHaveText("Astor Wines");
+
+  // Enter on a waiting cell opens the picker already searching what was pasted.
+  await select(page, 2, store);
+  await paste(page, "Astor");
+  await select(page, 2, store);
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveValue("Astor");
+  await expect(page.getByRole("listbox").getByRole("option", { name: /Astor Wines/ })).toBeVisible();
+  await page.keyboard.press("Enter"); // the highlighted match
+  await expect(cell(page, 2, store)).toHaveText("Astor Wines");
+  await reloaded(page);
+  await expect(cell(page, 2, store)).toHaveText("Astor Wines");
+});
+
+test("a waiting choice is dropped with Delete", async ({ page }) => {
+  const store = await col(page, "Store");
+  await select(page, 4, store);
+  await paste(page, "Mystery Shop");
+  await expect(cell(page, 4, store)).toContainText("Choose");
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 4, store)).not.toContainText("Choose");
+
+});
+
+test("deleting a block drops pending Store choices and preserves the saved store", async ({ page }) => {
+  await bothSwitch(page, "Labels").click();
+  const store = await col(page, "Store");
+  await select(page, 0, store);
+  await page.keyboard.type("Block Delete Test Store");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, store)).toContainText("Block Delete Test Store");
+  await reloaded(page);
+
+  await select(page, 0, store);
+  await paste(page, "Block Delete");
+  await expect(cell(page, 0, store)).toContainText("Choose");
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Delete");
+  await expect(cell(page, 0, store)).toHaveText("Block Delete Test Store");
+  await reloaded(page);
+  await expect(cell(page, 0, store)).toHaveText("Block Delete Test Store");
+});
+
+test("a locked cell and a list are skipped with the reason", async ({ page }) => {
+  // On a bottle row the label's proof is locked until triple-clicked.
+  const proof = await col(page, "Proof");
+  await select(page, 0, proof);
+  await paste(page, "90");
+  await expect(pasteNotice(page)).toContainText("locked");
+});
+
+// Lines past the last saved row become new rows
+
+const blankRow = async (page: Page) => (await sheet(page).locator('td[data-c="0"]').count()) - 1;
+
+test("lines pasted at the empty row become new rows: complete names are taken, the rest wait, and nothing is created by a paste", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click(); // new rows are labels
+  const [brand, name, category] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Category")];
+  const at = await blankRow(page);
+  await select(page, at, brand);
+  await paste(page, "pursuit spirits\tPaste Made Label\tbourbon\nNobody Distilling\tAnother One\tRye");
+  await expect(pasteNotice(page)).toContainText("Added 2 new rows");
+  // The first brand is a complete name: taken. The label does not exist, so it waits, and so does its category.
+  await expect(cell(page, at, brand)).toContainText("Pursuit Spirits");
+  await expect(cell(page, at, brand)).not.toContainText("Choose");
+  await expect(cell(page, at, name)).toContainText("Paste Made Label");
+  await expect(cell(page, at, name)).toContainText("Choose");
+  await expect(cell(page, at, category)).toContainText("Choose");
+  // The second brand does not exist: it waits too, and nothing is made.
+  await expect(cell(page, at + 1, brand)).toContainText("Choose");
+  await expect(cell(page, at + 1, brand)).toContainText("Nobody Distilling");
+
+  // The label waits for Enter on Create, deliberately; its category, a complete name, is then taken by itself.
+  await select(page, at, name);
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveValue("Paste Made Label");
+  await expect(page.getByRole("option", { name: /Create .Paste Made Label./ })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(cell(page, at, name)).toContainText("Paste Made Label");
+  await expect(cell(page, at, name)).not.toContainText("Choose");
+  await expect(cell(page, at, category)).toHaveText("Bourbon");
+
+  // Leaving the finished row saves it; the other row is not made.
+  await select(page, 0, brand);
+  await reloaded(page);
+  await expect(sheet(page).getByRole("gridcell", { name: "Paste Made Label", exact: true })).toBeVisible();
+  await expect(sheet(page).getByText("Nobody Distilling")).toHaveCount(0);
+});
+
+test("a pasted line naming a brand and label that exist adds a bottle of it, with its values", async ({ page }) => {
+  const [brand, name, category, price] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Category"), await col(page, "Price paid")];
+  const before = await blankRow(page);
+  const bottlesOf = () => sheet(page).locator(`td[data-c="${name}"]`).filter({ hasText: "Double Oak Spirit" }).count();
+  const had = await bottlesOf();
+  await select(page, before, brand);
+  await paste(page, "Pursuit Spirits\tDouble Oak Spirit\tBourbon");
+  await expect(pasteNotice(page)).toContainText("Added 1 new row");
+  await expect(cell(page, before, name)).toContainText("Double Oak Spirit");
+  await expect(cell(page, before, name)).not.toContainText("Choose");
+  await expect(cell(page, before, category)).toHaveText("Bourbon");
+  await type(page, before, price, "44");
+  await select(page, 0, brand); // leave the row: it saves
+  await reloaded(page);
+  expect(await bottlesOf()).toBe(had + 1);
+});
+
+test("a mismatched pasted category keeps a draft unsaved until cleared", async ({ page }) => {
+  const [brand, category] = [await col(page, "Brand"), await col(page, "Category")];
+  const row = await blankRow(page);
+  await select(page, row, brand);
+  await paste(page, "Pursuit Spirits\tDouble Oak Spirit\tRye");
+  await select(page, 0, brand);
+
+  await expect(cell(page, row, category)).toContainText("Rye");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+  await expect(page.getByText(/The existing label uses Bourbon/)).toBeVisible();
+
+  await select(page, row, category);
+  await page.keyboard.press("Delete");
+  await expect(cell(page, row, category)).toHaveText("Bourbon");
+  await select(page, 0, brand);
+  await reloaded(page);
+  expect(await blankRow(page)).toBe(row + 1);
+});
+
+test("a pasted existing label remains unresolved when Bottles is off", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const [brand, name, msrp] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "MSRP")];
+  const row = await blankRow(page);
+  const line = Array.from({ length: msrp - brand + 1 }, () => "");
+  line[0] = "Pursuit Spirits";
+  line[name - brand] = "Double Oak Spirit";
+  line[msrp - brand] = "99";
+  await select(page, row, brand);
+  await paste(page, line.join("\t"));
+  await select(page, 0, brand);
+
+  await expect(cell(page, row, name)).toContainText("Choose");
+  await expect(cell(page, row, msrp)).toHaveText("$99.00");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+  await expect(page.getByText(/That label already exists.*Switch Bottles on/)).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// What was left: a saved label's category, regions, older names and known releases
+// ---------------------------------------------------------------------------
+
+test("a saved label's category is picked from the existing ones, never made, and the cells that no longer apply say so", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click(); // labels
+  await showColumns(page, "Regions");
+  const [category, regions] = [await col(page, "Category"), await col(page, "Regions")];
+  await expect(cell(page, 3, regions)).toContainText("—"); // a bourbon has no regions
+  await select(page, 3, category);
+  await page.keyboard.press("Enter");
+  await expect(editors(page)).toHaveCount(1);
+  await page.keyboard.type("Scotch Whisky");
+  await expect(page.getByRole("listbox").getByRole("option", { name: /Scotch Whisky/ }).first()).toBeVisible();
+  await expect(page.getByRole("option", { name: /Create/ })).toHaveCount(0); // a category is never made here
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 3, category)).toHaveText("Scotch Whisky");
+  await reloaded(page);
+  await expect(cell(page, 3, category)).toHaveText("Scotch Whisky");
+
+  // Now a Scotch: its regions open the form's own six buttons.
+  await select(page, 3, regions);
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("dialog", { name: /Regions, as on the label form/ });
+  await expect(panel).toBeVisible();
+  await panel.getByRole("button", { name: "Islay" }).click();
+  await panel.getByRole("button", { name: "Speyside" }).click();
+  await expect(panel.getByRole("button", { name: "Islay" })).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 3, regions)).toContainText("Islay, Speyside");
+  await reloaded(page);
+  await expect(cell(page, 3, regions)).toContainText("Islay, Speyside");
+});
+
+test("a label's older names open the form's own list, save as they are changed, and a label can be given known releases", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, "Other names", "Known releases");
+  const [names, releases] = [await col(page, "Other names"), await col(page, "Known releases")];
+
+  await select(page, 4, names);
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("dialog", { name: /Other \/ old names, as on the label form/ });
+  await expect(panel).toBeVisible();
+  await panel.getByRole("button", { name: "Add an older name" }).click();
+  await panel.getByLabel("Name").first().fill("Old Sheet Name");
+  await panel.getByLabel("From").first().fill("1980");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 4, names)).toContainText("Old Sheet Name");
+  await reloaded(page);
+  await expect(cell(page, 4, names)).toContainText("Old Sheet Name");
+
+  await select(page, 4, releases);
+  await page.keyboard.press("Enter");
+  const list = page.getByRole("dialog", { name: /Known releases, as on the label form/ });
+  await expect(list).toBeVisible();
+  await list.getByRole("button", { name: "Add a release" }).click();
+  await list.getByLabel("Name").first().fill("Sheet Batch One");
+  await page.keyboard.press("Escape");
+  await expect(cell(page, 4, releases)).toContainText("Sheet Batch One");
+  await reloaded(page);
+  await expect(cell(page, 4, releases)).toContainText("Sheet Batch One");
+});
+
+test("bulk review keeps search focus when it moves the selected row", async ({ page }) => {
+  await select(page, 5, await col(page, "Brand"));
+  const search = searchBox(page);
+  await search.fill("no matching bottles");
+  await expect(page.getByText(/match\. Clear the filters/)).toBeVisible();
+  await expect(search).toBeFocused();
+});
+
+test("bulk review warns about text that has not been committed", async ({ page }) => {
+  const hasLeaveWarning = () => page.evaluate(() => !window.dispatchEvent(new Event("beforeunload", { cancelable: true })));
+  await select(page, 1, await col(page, "Label"));
+  await page.keyboard.press("Enter");
+  await expect(combo(page)).toBeVisible();
+  expect(await hasLeaveWarning()).toBe(false);
+  await combo(page).fill("unfinished selection");
+  await expect.poll(hasLeaveWarning).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect.poll(hasLeaveWarning).toBe(false);
+});
+
+test("bulk review clears a pending Store choice when replaced by a full match", async ({ page }) => {
+  await bothSwitch(page, "Labels").click();
+  const store = await col(page, "Store");
+  await select(page, 0, store);
+  await page.keyboard.type("Review Test Store");
+  await page.keyboard.press("Control+Enter");
+  await reloaded(page);
+  await select(page, 1, store);
+  await paste(page, "Review Test");
+  await expect(cell(page, 1, store)).toContainText("Choose");
+  await paste(page, "Review Test Store");
+  await expect(cell(page, 1, store)).toHaveText("Review Test Store");
+  await reloaded(page);
+  await expect(cell(page, 1, store)).toHaveText("Review Test Store");
+});
+
+test("bulk review protects releases and older names while their fields are incomplete", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, "Other names", "Known releases");
+  const [names, releases] = [await col(page, "Other names"), await col(page, "Known releases")];
+
+  await select(page, 0, releases);
+  await page.keyboard.press("Enter");
+  const releaseEditor = page.getByRole("dialog", { name: "Known releases, as on the label form" });
+  await releaseEditor.getByRole("button", { name: "Add a release" }).click();
+  await releaseEditor.getByLabel("Name").last().fill("Keep This Release");
+  await page.keyboard.press("Escape");
+  await reloaded(page);
+  await select(page, 0, releases);
+  await page.keyboard.press("Enter");
+  await expect(releaseEditor.getByLabel("Name").last()).toHaveValue("Keep This Release");
+  await releaseEditor.getByLabel("Name").last().fill("");
+  await expect(releaseEditor.getByRole("alert")).toContainText("Enter a name");
+  await page.keyboard.press("Escape");
+  await reloaded(page);
+  await expect(cell(page, 0, releases)).toContainText("Keep This Release");
+
+  await select(page, 0, names);
+  await page.keyboard.press("Enter");
+  const namesEditor = page.getByRole("dialog", { name: "Other / old names, as on the label form" });
+  await namesEditor.getByRole("button", { name: "Add an older name" }).click();
+  await namesEditor.getByRole("textbox", { name: "Name", exact: true }).last().fill("Keep This Name");
+  await namesEditor.getByLabel("From").last().fill("1987");
+  await page.keyboard.press("Escape");
+  await reloaded(page);
+
+  await select(page, 0, names);
+  await page.keyboard.press("Enter");
+  await namesEditor.getByLabel("From").last().fill("19");
+  await expect(namesEditor.getByRole("alert")).toContainText("Enter a four-digit year");
+  await page.keyboard.press("Escape");
+  await reloaded(page);
+  await select(page, 0, names);
+  await page.keyboard.press("Enter");
+  await expect(namesEditor.getByRole("textbox", { name: "Name", exact: true }).last()).toHaveValue("Keep This Name");
+  await expect(namesEditor.getByLabel("From").last()).toHaveValue("1987");
+});
+
+test("bulk review creates a draft once and locks its cells until the saved row arrives", async ({ page }) => {
+  const [brand, name] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await blankRow(page);
+  const labelCells = sheet(page).locator(`td[data-c="${name}"]`).filter({ hasText: "Double Oak Spirit" });
+  const before = await labelCells.count();
+  let creates = 0;
+  let allowCreate!: () => void;
+  const createGate = new Promise<void>((resolve) => { allowCreate = resolve; });
+  await page.route("**/bulk-editor", async (route) => {
+    if (route.request().method() === "POST") {
+      creates += 1;
+      await createGate;
+    }
+    await route.continue();
+  });
+
+  try {
+    await select(page, row, brand);
+    await paste(page, "Pursuit Spirits\tDouble Oak Spirit");
+    await select(page, 0, brand);
+    await expect.poll(() => creates).toBe(1);
+    await searchBox(page).click();
+    await select(page, row, brand);
+    await expect(cell(page, row, brand)).toHaveAttribute("aria-readonly", "true");
+    await page.keyboard.press("Enter");
+    await expect(combo(page)).toHaveCount(0);
+  } finally {
+    allowCreate();
+  }
+
+  await expect(labelCells).toHaveCount(before + 1);
+  await reloaded(page);
+  await expect(labelCells).toHaveCount(before + 1);
+  expect(creates).toBe(1);
+});
+
+test("bulk review keeps multiline bottle notes through editing and saving", async ({ page }) => {
+  await showColumns(page, "Notes");
+  const notes = await col(page, "Notes");
+  await select(page, 2, notes);
+  await page.keyboard.press("F2");
+  const input = sheet(page).getByRole("textbox", { name: "Notes", exact: true });
+  await input.fill("First line");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("Second line");
+  await expect(input).toHaveValue("First line\nSecond line");
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+
+  await select(page, 2, notes);
+  await page.keyboard.press("F2");
+  await expect(input).toHaveValue("First line\nSecond line");
+  await input.press("Control+End");
+  await page.keyboard.insertText("!");
+  await input.press("Enter");
+  await reloaded(page);
+  await select(page, 2, notes);
+  await page.keyboard.press("F2");
+  await expect(input).toHaveValue("First line\nSecond line!");
+});
+
+test("bulk review keeps a pasted draft with an unresolved Store until it is cleared", async ({ page }) => {
+  const [brand, name, store] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Store")];
+  const draftRow = await blankRow(page);
+  const line = Array.from({ length: store - brand + 1 }, () => "");
+  line[0] = "Pursuit Spirits";
+  line[name - brand] = "Double Oak Spirit";
+  line[store - brand] = "Unknown shop";
+  await select(page, draftRow, brand);
+  await paste(page, line.join("\t"));
+
+  await select(page, draftRow, store);
+  await page.keyboard.press("Enter");
+  await expect(combo(page)).toHaveValue("Unknown shop");
+  await page.keyboard.press("Escape");
+  await searchBox(page).click();
+  await expect(cell(page, draftRow, store)).toContainText("Choose");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+  await expect(page.getByText(/choose or clear the pasted value/)).toBeVisible();
+
+  await select(page, draftRow, store);
+  await page.keyboard.press("Delete");
+  await select(page, 0, brand);
+  await reloaded(page);
+  await expect(sheet(page).getByText("Unknown shop")).toHaveCount(0);
+});
+
+test("bulk review counts a draft containing only pending choices as unsaved", async ({ page }) => {
+  const brand = await col(page, "Brand");
+  await select(page, await blankRow(page), brand);
+  await paste(page, "Unknown Review Brand\tUnknown Review Label");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+  expect(await page.evaluate(() => !window.dispatchEvent(new Event("beforeunload", { cancelable: true })))).toBe(true);
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(sheet(page).getByText("Unknown Review Brand")).toHaveCount(0);
+  await expect(page.getByRole("status")).toHaveCount(0);
+});
+
+test("bulk review clears a save failure when the row is deleted", async ({ page }) => {
+  const row = 2;
+  let failedSave = false;
+  await page.route("**/bulk-editor", async (route) => {
+    if (route.request().method() === "POST" && !failedSave) {
+      failedSave = true;
+      await route.abort();
+    } else {
+      await route.continue();
+    }
+  });
+
+  await type(page, row, await col(page, "Price paid"), "54");
+  const notice = page.getByRole("button", { name: "Go to it", exact: true });
+  await expect(notice).toBeVisible();
+
+  await tick(page, row).check();
+  await deleteBar(page).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Delete 1 bottle?");
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(notice).toHaveCount(0);
+});

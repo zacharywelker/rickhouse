@@ -4,6 +4,7 @@ import * as React from "react";
 import { MaybeMoney, useMoneyStep } from "@/components/currency-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { StopSlider } from "@/components/forms/stop-slider";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,7 @@ import type { FieldSpec, Option } from "@/lib/admin/types";
 import type { FieldValue } from "@/lib/forms/values";
 
 /** How wide a cell needs to be to hold its control, by field kind. */
-export const CELL_WIDTH: Record<FieldSpec["kind"], string> = {
+const CELL_WIDTH: Record<FieldSpec["kind"], string> = {
   reference: "min-w-48",
   text: "min-w-40",
   textarea: "min-w-56",
@@ -125,6 +126,21 @@ export function GridCell({
           onOptionCreated={onOptionCreated ?? (() => undefined)}
           invalid={invalid}
           placeholder={spec.resource === null ? `Pick a ${spec.label.toLowerCase()}…` : "Pick or create…"}
+        />
+      );
+
+    case "textarea":
+      return (
+        <Textarea
+          ref={inputRef}
+          id={id}
+          value={text}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={spec.placeholder}
+          aria-label={spec.label}
+          aria-invalid={invalid || undefined}
+          className={cn(CELL_WIDTH.textarea, className, "h-auto min-h-24", invalid && "border-destructive")}
         />
       );
 

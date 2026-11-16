@@ -19,10 +19,26 @@ function isRealDate(value: string): boolean {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
 }
 
+/** Validate the dates after applying the changes that can set or clear them. */
+export function bottleLifecycleDateError(
+  { dateOpened, dateKilled }: Pick<OpenedState, "dateOpened" | "dateKilled">,
+  today: string,
+): { field: "dateOpened" | "dateKilled"; message: string } | null {
+  for (const [field, date] of [["dateOpened", dateOpened], ["dateKilled", dateKilled]] as const) {
+    if (date === null) continue;
+    if (!isRealDate(date)) return { field, message: "That is not a real date." };
+    if (date > today) return { field, message: "That date is in the future." };
+  }
+  if (dateOpened && dateKilled && dateKilled < dateOpened) {
+    return { field: "dateKilled", message: "Killed before it was opened — check these dates." };
+  }
+  return null;
+}
+
 /** Statuses of a bottle that is gone from the shelf; there is nothing to seal. */
 const FINISHED = new Set(["killed", "sold", "traded", "sampled"]);
 
-function isEffectivelyOpen(current: OpenedState): boolean {
+export function isEffectivelyOpen(current: OpenedState): boolean {
   return current.isOpen || (!FINISHED.has(current.status) && (current.status === "open" || current.fillPct < 100));
 }
 
@@ -36,13 +52,8 @@ export function untickOpened(fillPct: number): "seal" | "ask" {
 
 export function openedUpdate(current: OpenedState, dateOpened: string | null, choice: OpenedChoice | undefined, today: string): OpenedResult {
   if (dateOpened !== null) {
-    if (!isRealDate(dateOpened)) {
-      return { ok: false, code: "invalid", message: "That is not a real date." };
-    }
-    if (dateOpened > today) return { ok: false, code: "invalid", message: "That date is in the future." };
-    if (current.dateKilled && current.dateKilled < dateOpened) {
-      return { ok: false, code: "invalid", message: "Killed before it was opened — check these dates." };
-    }
+    const error = bottleLifecycleDateError({ dateOpened, dateKilled: current.dateKilled }, today);
+    if (error) return { ok: false, code: "invalid", message: error.message };
     // Setting a date opens the bottle, as ticking Opened does.
     return {
       ok: true,

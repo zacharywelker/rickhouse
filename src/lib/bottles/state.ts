@@ -1,9 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bottles, expressionReleases, expressions, stores, tastingNotes } from "@/db/schema";
+import { bottles, expressionNames, expressionReleases, expressions, stores, tastingNotes } from "@/db/schema";
 import type { z } from "zod";
 import { fillUpdate } from "./fill-rules";
-import { openedUpdate, type OpenedChoice } from "./opened-rules";
+import { bottleLifecycleDateError, openedUpdate, type OpenedChoice } from "./opened-rules";
+import { openFlagUpdate, statusUpdate } from "./status-rules";
 import { movesHistory } from "./relabel";
 import type { tastingNoteSchema } from "@/lib/expressions/schema";
 import { bottleSpiritForExpression } from "@/lib/expressions/queries";
@@ -51,10 +52,23 @@ export type BottleColumns = Partial<
     | "expressionId" | "expressionNameId" | "releaseId" | "acquisition"
     | "isSingleBarrel" | "isSingleBarrelPick" | "pickedBy" | "warehouse" | "rickFloor" | "bottleCount"
     | "sizeMl" | "proof" | "ageYears" | "ageMonths" | "ageDays" | "ageStatement" | "tequilaClass" | "brandyGrade"
-    | "ginIsNas"
+    | "ginIsNas" | "dateKilled" | "isFavorite" | "ageYearsSource"
   >
 >;
-export type BottlePatch = { fillPct?: number; dateOpened?: string | null; ifOpenedCleared?: OpenedChoice; columns?: BottleColumns };
+/**
+ * `status` and `isOpen` are the bulk editor's: a typed status and the Opened tick, each held to the rules in
+ * `status-rules.ts` against the bottle as the rest of this patch leaves it. The phone's request cannot send them.
+ */
+export type BottlePatch = {
+  fillPct?: number;
+  dateOpened?: string | null;
+  ifOpenedCleared?: OpenedChoice;
+  status?: string;
+  isOpen?: boolean;
+  columns?: BottleColumns;
+  /** The sheet’s fill and Opened cells also have to agree with the bottle’s status. */
+  fromBulkEditor?: boolean;
+};
 export type BottleUpdate =
   | { ok: true; result: FillResult }
   | { ok: false; code: "opened_cleared" | "invalid"; message: string; field?: string };
@@ -93,8 +107,12 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
     Object.assign(columns, withBottleSpiritFacts(columns, spirit.kind, spirit.ginAged));
     if (labelId !== current.expressionId) {
       // A version name and a release belong to a label: a bottle moved to another has neither unless the patch says one.
-      columns.expressionNameId = null;
+      columns.expressionNameId ??= null;
       columns.releaseId ??= null;
+    }
+    // A label name is one of the label the bottle is on (the form picks it from that label's own).
+    if (columns.expressionNameId != null && (await tx.$count(expressionNames, and(eq(expressionNames.id, columns.expressionNameId), eq(expressionNames.expressionId, labelId)))) === 0) {
+      return { ok: false, code: "invalid", message: "That name is not one of this label's.", field: "expressionNameId" };
     }
     if (columns.releaseId != null) {
       if ((await tx.$count(expressionReleases, and(eq(expressionReleases.id, columns.releaseId), eq(expressionReleases.expressionId, labelId)))) === 0) {
@@ -121,14 +139,41 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
       state = { ...state, ...change };
     }
     if (patch.dateOpened !== undefined) {
-      const opened = openedUpdate(state, patch.dateOpened, patch.ifOpenedCleared, today);
+      // An explicit Opened flag is the decision for a cleared date. Apply it below using the same
+      // full-bottle rule as the checkbox on its own.
+      const choice = patch.dateOpened === null && patch.isOpen !== undefined ? "keep_open" : patch.ifOpenedCleared;
+      // A coordinated edit can replace or clear the killed date. Validate the pair after applying the whole patch.
+      const opened = openedUpdate({ ...state, dateKilled: null }, patch.dateOpened, choice, today);
       if (!opened.ok) return opened;
       if (opened.set.fillPct !== undefined && patch.fillPct !== undefined && patch.fillPct !== opened.set.fillPct) {
         return { ok: false, code: "invalid", message: "Marking it sealed sets the level to full.", field: "fillPct" };
       }
       Object.assign(set, opened.set);
     }
+    // The open flag, then a typed status, are judged against the bottle as everything above leaves it.
+    const left = () => ({ ...current, ...set }) as typeof current;
+    if (patch.isOpen !== undefined) {
+      if (!patch.isOpen && patch.dateOpened != null) {
+        return { ok: false, code: "invalid", message: "Opened is off, but a date opened was given.", field: "isOpen" };
+      }
+      const flag = openFlagUpdate(left(), patch.isOpen, today);
+      if (!flag.ok) return { ok: false, code: "invalid", message: flag.message, field: "isOpen" };
+      Object.assign(set, flag.set);
+    }
+    const lifeField = (["status", "fillPct", "isOpen", "dateOpened"] as const).find((field) => patch[field] !== undefined);
+    const checkBulkStatus = patch.fromBulkEditor && lifeField !== undefined;
+    const targetStatus = patch.status ?? (checkBulkStatus ? left().status : undefined);
+    if (targetStatus !== undefined) {
+      const next = statusUpdate(left(), targetStatus, today);
+      if (!next.ok) return { ok: false, code: "invalid", message: next.message, field: lifeField ?? "status" };
+      Object.assign(set, next.set);
+    }
+    if (patch.dateOpened === null) set.dateOpened = null;
     Object.assign(set, columns);
+    if (checkBulkStatus || set.dateOpened !== undefined || set.dateKilled !== undefined) {
+      const dates = bottleLifecycleDateError(left(), today);
+      if (dates) return { ok: false, code: "invalid", ...dates };
+    }
 
     const returning = { fillPct: bottles.fillPct, isOpen: bottles.isOpen, status: bottles.status, dateOpened: bottles.dateOpened };
     if (Object.keys(set).length === 0) {

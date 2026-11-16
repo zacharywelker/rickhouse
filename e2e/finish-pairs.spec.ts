@@ -2,7 +2,6 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import postgres from "postgres";
 import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
-import { assertThrowawayDatabase } from "./support/tournament-field";
 import { openNewLabelForm } from "./support/new-label";
 
 /**
@@ -24,7 +23,8 @@ const COMPONENTS: Array<{ finish: string; lines: Array<[typeof MASHBILLS[number]
 const stamp = () => Math.random().toString(36).slice(2, 8);
 const url = process.env.DATABASE_URL ?? "";
 function sql() {
-  assertThrowawayDatabase(url);
+  // The reset helper falls back to the real database when this is unset, so refuse anything not clearly a test database.
+  if (!/(test|scratch|proto)/.test(new URL(url).pathname)) throw new Error("finish-pairs.spec.ts needs DATABASE_URL pointing at a throwaway test database.");
   return postgres(url, { max: 1, onnotice: () => {} });
 }
 

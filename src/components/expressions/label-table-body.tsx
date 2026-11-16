@@ -7,58 +7,26 @@ import type { Route } from "next";
 import { Check, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { CELL_WIDTH, GridCell } from "@/components/bulk/grid-cell";
 import { useMoney } from "@/components/currency-context";
 import { cn, formatNumeric } from "@/lib/utils";
-import type { FieldSpec, Option } from "@/lib/admin/types";
-import { withOption, type FieldValue } from "@/lib/forms/values";
-import { LABEL_COLUMNS, type LabelColumn, type LabelColumnGroup } from "@/lib/expressions/columns";
+import { groupApplies, type LabelColumn, type LabelColumnGroup } from "@/lib/expressions/columns";
+import type { FieldSpec } from "@/lib/admin/types";
 import { describeAgeParts } from "@/lib/expressions/display";
-import { fieldGroupOf, groupApplies, type LabelEdit } from "@/lib/expressions/label-edits";
-import { describeLinks, LINK_KINDS, type LinkKind } from "@/lib/expressions/links";
+import { describeLinks } from "@/lib/expressions/links";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import { STRENGTH_TIER_LABELS, hiddenFields, strengthTier } from "@/lib/expressions/rules";
-import type { FieldGroup } from "@/db/schema";
 import type { CategoryKind } from "@/lib/expressions/rules";
-import { BRANDY_MINIMUM_YEARS, countryForDistillery, isAgaveKind } from "@/lib/expressions/spirit-details";
+import { BRANDY_MINIMUM_YEARS, isAgaveKind } from "@/lib/expressions/spirit-details";
 import { isGinKind } from "@/lib/expressions/gin-details";
 import { whiskeyAge } from "@/lib/expressions/whiskey-age";
-import type { LinkedRow } from "./ordered-picker";
-import { LinksCell } from "./links-cell";
-import type { RowErrors } from "./label-table";
 
 export type ShownColumn = { column: LabelColumn; group: LabelColumnGroup };
 
 /** What still fits on a phone. Brand folds into the label cell there. */
 export const PHONE_COLUMNS: ReadonlySet<string> = new Set(["name", "proof", "bottles"]);
 
-const LINK_COLUMNS: ReadonlySet<string> = new Set<LinkKind>(["distilleries", "mashbills", "finishes"]);
-
 const DASH = <span className="text-muted-foreground">—</span>;
-
-/** The age column's three boxes, which share one header: each says its unit. */
-const AGE_UNITS: Readonly<Record<string, string>> = {
-  ageYears: "yr",
-  ageMonths: "mo",
-  ageDays: "day",
-};
-
-/** "upc" -> "UPC / Barcode", for an error on a column that may not be shown. */
-const FIELD_LABELS = new Map(LABEL_COLUMNS.flatMap((column) => column.specs.map((spec) => [spec.name, spec.label])));
-
-/**
- * A failed save's message, on the label cell (the one column always shown):
- * the fields it names, or — for a database constraint that names no form
- * field — the row's own error.
- */
-function errorText(errors: RowErrors): string {
-  const known = Object.entries(errors.fields).filter(([name]) => FIELD_LABELS.has(name));
-  return known.length > 0
-    ? known.map(([name, message]) => `${FIELD_LABELS.get(name)}: ${message}`).join(" ")
-    : errors.error;
-}
 
 /**
  * Mirrors the bottle grid's double-click-to-open (SPEC M8): the row opens
@@ -97,104 +65,14 @@ function display(spec: FieldSpec, value: unknown, money: (v: string) => string):
 export function LabelTableBody({
   rows,
   shown,
-  unlocked,
-  selectedIds,
-  onToggle,
-  options,
-  categoryGroups,
   categoryKinds,
-  originals,
-  edits,
-  updateEdit,
-  saveErrors,
 }: {
   rows: ExpressionRow[];
   shown: ShownColumn[];
-  unlocked: boolean;
-  selectedIds: ReadonlySet<number>;
-  onToggle: (id: number, selected: boolean) => void;
-  options: Record<string, Option[]>;
-  categoryGroups: Record<number, FieldGroup>;
   categoryKinds: Record<number, CategoryKind>;
-  originals: ReadonlyMap<number, LabelEdit>;
-  edits: Record<number, LabelEdit>;
-  updateEdit: (row: ExpressionRow, name: string, value: LabelEdit[string]) => void;
-  saveErrors: Record<number, RowErrors>;
 }) {
   const router = useRouter();
   const money = useMoney();
-  // A brand created from a cell should be pickable in every other row too.
-  const [optionsByField, setOptionsByField] = React.useState(options);
-
-  function editCell(row: ExpressionRow, column: LabelColumn, values: LabelEdit, errors: Record<string, string>) {
-    const cellId = (name: string) => `label-${row.id}-${name}`;
-    const labelledBy = `label-col-${column.id}`;
-
-    if (LINK_COLUMNS.has(column.id)) {
-      const kind = column.id as LinkKind;
-      const field = LINK_KINDS[kind].field;
-      const categoryKind = categoryKinds[Number(values.categoryId ?? row.categoryId)] ?? "other";
-      return (
-        <LinksCell
-          kind={kind}
-          id={cellId(field)}
-          labelledBy={labelledBy}
-          value={values[field] as LinkedRow[]}
-          onChange={(next) => updateEdit(row, field, next)}
-          options={(optionsByField[field] ?? []).filter((option) => kind !== "distilleries" || !option.country || countryForDistillery(categoryKind, option.country))}
-          {...(kind === "distilleries" ? { defaultCountry: isAgaveKind(categoryKind) ? "Mexico" : ["cognac", "armagnac", "calvados"].includes(categoryKind) ? "France" : categoryKind === "pisco" ? "Peru" : undefined } : {})}
-          onOptionCreated={(option) => setOptionsByField((prev) => withOption(prev, field, option))}
-          className="h-8"
-          {...(kind === "mashbills"
-            ? {
-                distilleryChoices: (values.distilleryLinks as LinkedRow[]).map((d) => ({ id: d.id, name: d.label })),
-              }
-            : {})}
-        />
-      );
-    }
-    if (column.id === "ingredients") return <Link href={`/expressions/${row.id}/edit`} className="text-accent hover:underline">Edit ingredients</Link>;
-    if (column.id === "age" && categoryKinds[Number(values.categoryId ?? row.categoryId)] === "tequila" && values.tequilaClass === "blanco") {
-      return <span className="text-muted-foreground">Blanco</span>;
-    }
-    if (column.id === "abv") {
-      const proof = String(values.proof ?? "");
-      return proof === "" || Number.isNaN(Number(proof)) ? DASH : `${formatNumeric(String(Number(proof) / 2))}%`;
-    }
-    if (column.id === "strength") {
-      const tier = strengthTier(row.fieldGroup, values.proof);
-      return tier ? STRENGTH_TIER_LABELS[tier] : DASH;
-    }
-    return (
-      <div className="flex items-start gap-1">
-        {column.specs.map((spec) => (
-          <div key={spec.name} className="flex items-center gap-0.5">
-            <GridCell
-              spec={spec}
-              id={cellId(spec.name)}
-              labelledBy={labelledBy}
-              value={values[spec.name] as FieldValue}
-              onChange={(next) => updateEdit(row, spec.name, next)}
-              invalid={errors[spec.name] !== undefined}
-              options={optionsByField[spec.name] ?? []}
-              onOptionCreated={(option) =>
-                setOptionsByField((prev) => ({
-                  ...prev,
-                  [spec.name]: [...(prev[spec.name] ?? []), option].sort((a, b) => a.label.localeCompare(b.label)),
-                }))
-              }
-              className={cn("h-8", column.specs.length > 1 && "w-16")}
-            />
-            {AGE_UNITS[spec.name] ? (
-              <span aria-hidden="true" className="text-xs text-muted-foreground">
-                {AGE_UNITS[spec.name]}
-              </span>
-            ) : null}
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   function viewCell(row: ExpressionRow, column: LabelColumn) {
     switch (column.id) {
@@ -272,32 +150,11 @@ export function LabelTableBody({
   return (
     <TableBody>
       {rows.map((row) => {
-        const edit = edits[row.id];
-        const values = edit ?? originals.get(row.id)!;
-        const fieldGroup = unlocked ? fieldGroupOf(row, edit, categoryGroups) : row.fieldGroup;
-        const categoryId = Number(values.categoryId ?? row.categoryId);
-        const kind = categoryKinds[categoryId] ?? "other";
-        const hidden = hiddenFields({ group: fieldGroup, kind, values: values as Record<string, unknown>, ginAged: values.isAgedGin === true });
-        const rowErrors = saveErrors[row.id];
+        const fieldGroup = row.fieldGroup;
+        const kind = categoryKinds[row.categoryId] ?? "other";
+        const hidden = hiddenFields({ group: fieldGroup, kind, values: row as unknown as Record<string, unknown>, ginAged: row.isAgedGin === true });
         return (
-          <TableRow
-            key={row.id}
-            onDoubleClick={(event) => !unlocked && openOnDoubleClick(event, router, row.id)}
-            // Top-aligned only while editing, where inputs of different
-            // heights share a row; read-only rows centre, so the text lines up
-            // with the edit button beside it.
-            className={unlocked ? "[&>td]:align-top" : "cursor-pointer"}
-          >
-            {unlocked ? (
-              <TableCell>
-                <Checkbox
-                  checked={selectedIds.has(row.id)}
-                  onCheckedChange={(value) => onToggle(row.id, Boolean(value))}
-                  aria-label={`Select ${row.brand} ${row.name}`}
-                />
-              </TableCell>
-            ) : null}
-
+          <TableRow key={row.id} onDoubleClick={(event) => openOnDoubleClick(event, router, row.id)} className="cursor-pointer">
             {shown.map(({ column, group }) => {
               const applies = groupApplies(group, fieldGroup)
                 && !hidden.has(column.id)
@@ -311,32 +168,20 @@ export function LabelTableBody({
                 && !(["barrelFilledOn", "bottledOn", "isNas"].includes(column.id) && isAgaveKind(kind))
                 && !(column.id === "ageStatement" && (kind === "tequila" || isGinKind(kind)))
                 && !(["barrelFilledOn", "bottledOn"].includes(column.id) && isGinKind(kind))
-                && !(column.id === "age" && isGinKind(kind) && values.isAgedGin !== true)
-                && !(column.id === "isNas" && isGinKind(kind) && values.isAgedGin !== true);
+                && !(column.id === "age" && isGinKind(kind) && row.isAgedGin !== true)
+                && !(column.id === "isNas" && isGinKind(kind) && row.isAgedGin !== true);
               return (
                 <TableCell
                   key={column.id}
-                  className={cn(
-                    !PHONE_COLUMNS.has(column.id) && "hidden sm:table-cell",
-                    column.numeric && "text-right tabular-nums",
-                    unlocked && applies && column.specs.length === 1 && CELL_WIDTH[column.specs[0]!.kind],
-                    unlocked && applies && LINK_COLUMNS.has(column.id) && "min-w-44",
-                  )}
+                  className={cn(!PHONE_COLUMNS.has(column.id) && "hidden sm:table-cell", column.numeric && "text-right tabular-nums")}
                 >
-                  {!applies ? (
+                  {applies ? (
+                    viewCell(row, column)
+                  ) : (
                     <span className="text-muted-foreground/60" title="Not used for this category">
                       —
                     </span>
-                  ) : unlocked && column.id !== "bottles" ? (
-                    editCell(row, column, values, rowErrors?.fields ?? {})
-                  ) : (
-                    viewCell(row, column)
                   )}
-                  {column.locked && rowErrors ? (
-                    <p role="alert" className="mt-1 text-xs text-destructive">
-                      {errorText(rowErrors)}
-                    </p>
-                  ) : null}
                 </TableCell>
               );
             })}

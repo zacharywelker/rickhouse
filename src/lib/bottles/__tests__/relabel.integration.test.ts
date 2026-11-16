@@ -15,6 +15,7 @@ describe.skipIf(!url)("relabeling a bottle against a real database", () => {
   let stranger: number;
   let state: typeof import("../state");
   let actions: typeof import("@/app/(app)/bottles/actions");
+  let rows: typeof import("@/lib/bulk-editor/rows");
 
   beforeAll(async () => {
     m = await connect();
@@ -25,6 +26,7 @@ describe.skipIf(!url)("relabeling a bottle against a real database", () => {
     session.id = owner;
     state = await import("../state");
     actions = await import("@/app/(app)/bottles/actions");
+    rows = await import("@/lib/bulk-editor/rows");
   });
 
   afterAll(async () => {
@@ -102,16 +104,16 @@ describe.skipIf(!url)("relabeling a bottle against a real database", () => {
     expect(await labelOf("tasting_notes", h.tasting)).toBe(from);
   });
 
-  it("the bulk grid: several bottles relabel together with their history, a stranger's label is refused", async () => {
+  it("the bulk editor: several bottles relabel together with their history, a stranger's label is refused", async () => {
     const from = await fx.mkLabel(owner, cat.whiskey, "From D");
     const to = await fx.mkLabel(owner, cat.whiskey, "To D");
     const theirs = await fx.mkLabel(stranger, cat.whiskey, "Theirs D");
     const a = await mkHistory(owner, from);
     const b = await mkHistory(owner, from);
     const plain = await fx.mkBottle(owner, from);
-    const edit = (id: number, expressionId: number) => ({ id, expressionId, storeId: null, status: "owned", pricePaid: "", dateAcquired: "", releaseYear: "" });
-    const res = await actions.updateBottlesBulkAction([edit(a.bottle, to), edit(b.bottle, to), edit(plain, to), edit(a.bottle, theirs)]);
-    expect(res.results.map((r) => r.ok)).toEqual([true, true, true, false]);
+    const move = (id: number, expressionId: number) => rows.patchBottleRow(owner, id, { expressionId });
+    const res = [await move(a.bottle, to), await move(b.bottle, to), await move(plain, to), await move(a.bottle, theirs)];
+    expect(res.map((r) => r.ok)).toEqual([true, true, true, false]);
     await expectFollowed(a, to, from);
     await expectFollowed(b, to, from);
     expect(await labelOf("bottles", plain)).toBe(to);
@@ -151,8 +153,7 @@ describe.skipIf(!url)("relabeling a bottle against a real database", () => {
     const theirs = await mkHistory(stranger, theirLabel);
     // Their bottle id through my session: gone, and their history stays put.
     expect(await state.updateBottle(theirs.bottle, owner, { columns: { expressionId: to } })).toBeNull();
-    const res = await actions.updateBottlesBulkAction([{ id: theirs.bottle, expressionId: to, storeId: null, status: "owned", pricePaid: "", dateAcquired: "", releaseYear: "" }]);
-    expect(res.results[0]).toMatchObject({ ok: false });
+    expect(await rows.patchBottleRow(owner, theirs.bottle, { expressionId: to })).toMatchObject({ ok: false, kind: "gone" });
     expect(await labelOf("bottles", theirs.bottle)).toBe(theirLabel);
     expect(await labelOf("tasting_notes", theirs.tasting)).toBe(theirLabel);
     expect(await labelOf("tournament_entries", theirs.entry)).toBe(theirLabel);
