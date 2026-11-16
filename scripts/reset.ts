@@ -6,28 +6,31 @@
  *
  *   npm run db:reset
  *
- * Refuses to run against a database that does not look like a development
- * one, because this deletes a collection.
+ * Refuses to run unless DATABASE_URL is a local throwaway database (a name with
+ * a test, tourney, scratch, proto, e2e or audit segment), because this deletes a
+ * collection. The host alone cannot tell: the real database is usually on
+ * localhost too.
  */
 import { drizzle } from "drizzle-orm/postgres-js";
 import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import * as schema from "../src/db/schema";
 import { createPasswordUser } from "../src/lib/auth/accounts";
+import { assertThrowawayDatabase, LOCAL_HOSTS } from "../src/lib/throwaway-database";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");
 
-const SAFE_HOSTS = ["localhost", "127.0.0.1", "db"];
+/** The Docker Compose database service, as well as this machine. The name still has to be a throwaway one. */
+const SAFE_HOSTS = [...LOCAL_HOSTS, "db"];
 
 function assertSafe(target: string): void {
-  if (process.env.ALLOW_DESTRUCTIVE_RESET === "true") return;
-  const host = new URL(target).hostname;
-  if (!SAFE_HOSTS.includes(host)) {
-    throw new Error(
-      `Refusing to wipe the database at ${host}. Set ALLOW_DESTRUCTIVE_RESET=true if you really mean it.`,
-    );
+  if (process.env.ALLOW_DESTRUCTIVE_RESET === "true") {
+    const parsed = new URL(target);
+    console.warn(`reset: ALLOW_DESTRUCTIVE_RESET is set, so wiping "${decodeURIComponent(parsed.pathname.slice(1))}" on ${parsed.hostname} without the throwaway-database check.`);
+    return;
   }
+  assertThrowawayDatabase(target, SAFE_HOSTS);
 }
 
 // Order matters only for readability; TRUNCATE ... CASCADE handles the rest.

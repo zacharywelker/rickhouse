@@ -1,4 +1,8 @@
 import postgres from "postgres";
+import { assertThrowawayDatabase } from "../../src/lib/throwaway-database";
+
+// The one definition of a throwaway database lives in src/lib; specs import it from here too.
+export { assertThrowawayDatabase };
 
 /** Eight labels with a bottle each, at proofs 90 to 125. Their names are unlikely to occur anywhere else on a page. */
 export const FIELD_WORDS = ["Quillon", "Brevard", "Tamsin", "Corbett", "Marlow", "Ostrava", "Penhall", "Ravenel"] as const;
@@ -7,26 +11,6 @@ export const FIELD_COUNT = FIELD_WORDS.length;
 export const FIELD_NAMES = new RegExp(FIELD_WORDS.join("|"));
 
 const PROOFS = [90, 92, 100, 101, 112, 115, 120, 125];
-
-/**
- * Throws unless DATABASE_URL names a throwaway database on this machine (localhost, no `host=` override): one whose name has a segment test, tourney, scratch or proto
- * (`rickhouse_tourney_web`, `rickhouse_tourney_proto` pass; `rickhouse` and `contest` do not). Call it before anything
- * that resets or seeds, since `resetDatabase()` wipes whatever the URL points at.
- */
-export function assertThrowawayDatabase(url: string | undefined = process.env.DATABASE_URL): void {
-  let name = "";
-  let local = false;
-  try {
-    const parsed = new URL(url ?? "");
-    name = decodeURIComponent(parsed.pathname.slice(1));
-    local = ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) && !parsed.searchParams.has("host");
-  } catch {
-    name = "";
-  }
-  if (!local || !/(^|_)(test|tourney|scratch|proto)(_|$)/.test(name)) {
-    throw new Error("DATABASE_URL must be a local throwaway database (a name with a test, tourney, scratch or proto segment).");
-  }
-}
 
 /**
  * Gives the admin account the field the tournament specs play with. `db:reset` leaves one bottle, and the specs need
