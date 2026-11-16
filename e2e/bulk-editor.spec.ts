@@ -1444,3 +1444,204 @@ test("a label's older names open the form's own list, save as they are changed, 
   await reloaded(page);
   await expect(cell(page, 4, releases)).toContainText("Sheet Batch One");
 });
+
+test("bulk review keeps search focus when it moves the selected row", async ({ page }) => {
+  await select(page, 5, await col(page, "Brand"));
+  const search = searchBox(page);
+  await search.fill("no matching bottles");
+  await expect(page.getByText(/match\. Clear the filters/)).toBeVisible();
+  await expect(search).toBeFocused();
+});
+
+test("bulk review warns about text that has not been committed", async ({ page }) => {
+  const hasLeaveWarning = () => page.evaluate(() => !window.dispatchEvent(new Event("beforeunload", { cancelable: true })));
+  await select(page, 1, await col(page, "Label"));
+  await page.keyboard.press("Enter");
+  await expect(combo(page)).toBeVisible();
+  expect(await hasLeaveWarning()).toBe(false);
+  await combo(page).fill("unfinished selection");
+  await expect.poll(hasLeaveWarning).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect.poll(hasLeaveWarning).toBe(false);
+});
+
+test("bulk review clears a pending Store choice when replaced by a full match", async ({ page }) => {
+  await bothSwitch(page, "Labels").click();
+  const store = await col(page, "Store");
+  await select(page, 0, store);
+  await page.keyboard.type("Review Test Store");
+  await page.keyboard.press("Control+Enter");
+  await reloaded(page);
+  await select(page, 1, store);
+  await paste(page, "Review Test");
+  await expect(cell(page, 1, store)).toContainText("Choose");
+  await paste(page, "Review Test Store");
+  await expect(cell(page, 1, store)).toHaveText("Review Test Store");
+  await reloaded(page);
+  await expect(cell(page, 1, store)).toHaveText("Review Test Store");
+});
+
+test("bulk review protects releases and older names while their fields are incomplete", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  await showColumns(page, "Other names", "Known releases");
+  const [names, releases] = [await col(page, "Other names"), await col(page, "Known releases")];
+
+  await select(page, 0, releases);
+  await page.keyboard.press("Enter");
+  const releaseEditor = page.getByRole("dialog", { name: "Known releases, as on the label form" });
+  await releaseEditor.getByRole("button", { name: "Add a release" }).click();
+  await releaseEditor.getByLabel("Name").last().fill("Keep This Release");
+  await page.keyboard.press("Escape");
+  await reloaded(page);
+  await select(page, 0, releases);
+  await page.keyboard.press("Enter");
+  await expect(releaseEditor.getByLabel("Name").last()).toHaveValue("Keep This Release");
+  await releaseEditor.getByLabel("Name").last().fill("");
+  await expect(releaseEditor.getByRole("alert")).toContainText("Enter a name");
+  await page.keyboard.press("Escape");
+  await reloaded(page);
+  await expect(cell(page, 0, releases)).toContainText("Keep This Release");
+
+  await select(page, 0, names);
+  await page.keyboard.press("Enter");
+  const namesEditor = page.getByRole("dialog", { name: "Other / old names, as on the label form" });
+  await namesEditor.getByRole("button", { name: "Add an older name" }).click();
+  await namesEditor.getByRole("textbox", { name: "Name", exact: true }).last().fill("Keep This Name");
+  await namesEditor.getByLabel("From").last().fill("1987");
+  await page.keyboard.press("Escape");
+  await reloaded(page);
+
+  await select(page, 0, names);
+  await page.keyboard.press("Enter");
+  await namesEditor.getByLabel("From").last().fill("19");
+  await expect(namesEditor.getByRole("alert")).toContainText("Enter a four-digit year");
+  await page.keyboard.press("Escape");
+  await reloaded(page);
+  await select(page, 0, names);
+  await page.keyboard.press("Enter");
+  await expect(namesEditor.getByRole("textbox", { name: "Name", exact: true }).last()).toHaveValue("Keep This Name");
+  await expect(namesEditor.getByLabel("From").last()).toHaveValue("1987");
+});
+
+test("bulk review creates a draft once and locks its cells until the saved row arrives", async ({ page }) => {
+  const [brand, name] = [await col(page, "Brand"), await col(page, "Label")];
+  const row = await blankRow(page);
+  const labelCells = sheet(page).locator(`td[data-c="${name}"]`).filter({ hasText: "Double Oak Spirit" });
+  const before = await labelCells.count();
+  let creates = 0;
+  let allowCreate!: () => void;
+  const createGate = new Promise<void>((resolve) => { allowCreate = resolve; });
+  await page.route("**/bulk-editor", async (route) => {
+    if (route.request().method() === "POST") {
+      creates += 1;
+      await createGate;
+    }
+    await route.continue();
+  });
+
+  try {
+    await select(page, row, brand);
+    await paste(page, "Pursuit Spirits\tDouble Oak Spirit");
+    await select(page, 0, brand);
+    await expect.poll(() => creates).toBe(1);
+    await searchBox(page).click();
+    await select(page, row, brand);
+    await expect(cell(page, row, brand)).toHaveAttribute("aria-readonly", "true");
+    await page.keyboard.press("Enter");
+    await expect(combo(page)).toHaveCount(0);
+  } finally {
+    allowCreate();
+  }
+
+  await expect(labelCells).toHaveCount(before + 1);
+  await reloaded(page);
+  await expect(labelCells).toHaveCount(before + 1);
+  expect(creates).toBe(1);
+});
+
+test("bulk review keeps multiline bottle notes through editing and saving", async ({ page }) => {
+  await showColumns(page, "Notes");
+  const notes = await col(page, "Notes");
+  await select(page, 2, notes);
+  await page.keyboard.press("F2");
+  const input = sheet(page).getByRole("textbox", { name: "Notes", exact: true });
+  await input.fill("First line");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("Second line");
+  await expect(input).toHaveValue("First line\nSecond line");
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+
+  await select(page, 2, notes);
+  await page.keyboard.press("F2");
+  await expect(input).toHaveValue("First line\nSecond line");
+  await input.press("Control+End");
+  await page.keyboard.insertText("!");
+  await input.press("Enter");
+  await reloaded(page);
+  await select(page, 2, notes);
+  await page.keyboard.press("F2");
+  await expect(input).toHaveValue("First line\nSecond line!");
+});
+
+test("bulk review keeps a pasted draft with an unresolved Store until it is cleared", async ({ page }) => {
+  const [brand, name, store] = [await col(page, "Brand"), await col(page, "Label"), await col(page, "Store")];
+  const draftRow = await blankRow(page);
+  const line = Array.from({ length: store - brand + 1 }, () => "");
+  line[0] = "Pursuit Spirits";
+  line[name - brand] = "Double Oak Spirit";
+  line[store - brand] = "Unknown shop";
+  await select(page, draftRow, brand);
+  await paste(page, line.join("\t"));
+
+  await select(page, draftRow, store);
+  await page.keyboard.press("Enter");
+  await expect(combo(page)).toHaveValue("Unknown shop");
+  await page.keyboard.press("Escape");
+  await searchBox(page).click();
+  await expect(cell(page, draftRow, store)).toContainText("Choose");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+  await expect(page.getByText(/choose or clear the pasted value/)).toBeVisible();
+
+  await select(page, draftRow, store);
+  await page.keyboard.press("Delete");
+  await select(page, 0, brand);
+  await reloaded(page);
+  await expect(sheet(page).getByText("Unknown shop")).toHaveCount(0);
+});
+
+test("bulk review counts a draft containing only pending choices as unsaved", async ({ page }) => {
+  const brand = await col(page, "Brand");
+  await select(page, await blankRow(page), brand);
+  await paste(page, "Unknown Review Brand\tUnknown Review Label");
+  await expect(page.getByRole("status")).toContainText("1 row not saved yet");
+  expect(await page.evaluate(() => !window.dispatchEvent(new Event("beforeunload", { cancelable: true })))).toBe(true);
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(sheet(page).getByText("Unknown Review Brand")).toHaveCount(0);
+  await expect(page.getByRole("status")).toHaveCount(0);
+});
+
+test("bulk review clears a save failure when the row is deleted", async ({ page }) => {
+  const row = 2;
+  let failedSave = false;
+  await page.route("**/bulk-editor", async (route) => {
+    if (route.request().method() === "POST" && !failedSave) {
+      failedSave = true;
+      await route.abort();
+    } else {
+      await route.continue();
+    }
+  });
+
+  await type(page, row, await col(page, "Price paid"), "54");
+  const notice = page.getByRole("button", { name: "Go to it", exact: true });
+  await expect(notice).toBeVisible();
+
+  await tick(page, row).check();
+  await deleteBar(page).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Delete 1 bottle?");
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(notice).toHaveCount(0);
+});
