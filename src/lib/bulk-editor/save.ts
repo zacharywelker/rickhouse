@@ -73,13 +73,23 @@ export function serverFields(editor: CellEditor | undefined, column: string, val
 const LINKED_FACTS: Readonly<Record<string, string>> = { regions: "regions", originCountryLinked: "originCountry", originRegionLinked: "originRegion" };
 export const LINKED_COLUMNS = Object.keys(LINKED_FACTS);
 
+/** A staged manual origin takes precedence over a value inferred by a link. */
+function linkedField(column: string, cells: Readonly<Record<string, string>>): string | undefined {
+  const field = LINKED_FACTS[column];
+  if ((field === "originCountry" || field === "originRegion") && cells[field]?.trim()) return undefined;
+  return field;
+}
+
 /** A field and its text, under the server's field name. A blank clears the value (null). The lists are sent by `linksBody`. */
 function patchFields(cells: Readonly<Record<string, string>>): Record<string, unknown> {
   return Object.assign(
     {},
     ...Object.entries(cells).map(([column, value]) => {
       if (EDITORS[column]?.links) return {};
-      if (column in LINKED_FACTS) return { [LINKED_FACTS[column]!]: valueOrNull(value) };
+      if (column in LINKED_FACTS) {
+        const field = linkedField(column, cells);
+        return field ? { [field]: valueOrNull(value) } : {};
+      }
       return serverFields(EDITORS[column], column, value);
     }),
   );
@@ -113,7 +123,8 @@ export function createBody(draft: DraftRow, cells: Readonly<Record<string, strin
   for (const [column, value] of Object.entries(cells ?? {})) {
     const editor = EDITORS[column];
     if (column in LINKED_FACTS) {
-      if (value !== "") facts[LINKED_FACTS[column]!] = value;
+      const field = linkedField(column, cells ?? {});
+      if (field && value !== "") facts[field] = value;
       continue;
     }
     if (editor?.links) {
