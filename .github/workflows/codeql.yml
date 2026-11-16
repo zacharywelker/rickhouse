@@ -48,18 +48,20 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-
+      # Before Initialize CodeQL on purpose: init turns on the build tracer for
+      # every later step, and the tracer makes brew run under Rosetta and fail.
       - name: Generate the Xcode project
         if: matrix.language == 'swift'
         working-directory: ios
         run: |
           brew install xcodegen
           xcodegen generate
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
       # Must compile every Swift file: CodeQL only sees what the compiler
       # runs on, so no build caches, and signing is off (no certificates here).
