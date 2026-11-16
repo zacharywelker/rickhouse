@@ -88,6 +88,8 @@ describe("after a save", () => {
   it("drops a move that was sent, and keeps a different one", () => {
     expect(settleMoves({ b7: 3 }, sent)).toEqual({});
     expect(settleMoves({ b7: 4 }, sent)).toEqual({ b7: 4 });
+    const returned = settleMoves({ b7: 1 }, sent);
+    expect(bottlePatchBody(undefined, returned.b7)).toEqual({ expressionId: 1 });
   });
 });
 
