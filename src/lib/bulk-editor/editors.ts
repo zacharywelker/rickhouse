@@ -119,7 +119,7 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
   ...Object.fromEntries(PANEL_KEYS.map((key) => [key, panelEditor(key)])),
 };
 
-/** The label cells a person has triple-clicked open, as `labelId:columnId`. Unlocking is per label and per column. */
+/** The cells a person has triple-clicked open, as `labelId:columnId` (or the bottle's). Unlocking is per label and per column. */
 export type Unlocked = ReadonlySet<string>;
 export const unlockKey = (labelId: number, column: string): string => `${labelId}:${column}`;
 const NOTHING_UNLOCKED: Unlocked = new Set();
@@ -131,21 +131,18 @@ export const lockKeyOf = (editor: CellEditor, row: SheetRow, column: string): st
 const NAME_TEXT: CellEditor = { column: "name", field: "name", scope: "label", spec: labelSpec("name"), required: true, typeToReplace: true, initial: (r) => r.label.name, display: (v) => text(v) };
 
 /**
- * Whether a cell is one a person can unlock: a label's plain fact on a saved bottle row, in the view that shows both.
- * It changes every bottle on the label, so it is locked until it is triple-clicked, as on the single forms. With
- * Labels off it is not shown, and with Bottles off the row is the label itself and needs no lock.
+ * Whether a cell is locked until it is triple-clicked: only one whose value is filled in from another cell (the age
+ * and its statement, `lock`), where typing over it would fight the fill. A label's own facts are not locked on a bottle
+ * row: they can be edited there, and the cell says how many bottles that reaches.
  */
 export function isLocked(column: SheetColumn, view: SheetView, row: SheetRow, unlocked: Unlocked = NOTHING_UNLOCKED, kinds: Kinds = {}): boolean {
   const editor = EDITORS[column.id];
-  // A saved label's category is one of the label's facts, locked on a bottle row like the rest; the other picking cells are not locked.
-  if (!editor || (editor.combo && editor.combo !== "category")) return false;
+  if (!editor || editor.combo) return false;
   // A cell that is not used for this spirit has nothing to unlock.
   if (editor.applies?.(row, kinds) === false) return false;
   if (unlocked.has(lockKeyOf(editor, row, column.id))) return false;
   // Another cell it excludes is filled in (the age and its statement).
-  if (editor.lock?.(row, kinds) != null) return true;
-  if (editor.scope !== "label" || row.draft || !row.bottle) return false;
-  return view.labels && view.bottles;
+  return editor.lock?.(row, kinds) != null;
 }
 
 /**
@@ -153,8 +150,8 @@ export function isLocked(column: SheetColumn, view: SheetView, row: SheetRow, un
  *
  * - A bottle's own plain cells: on a bottle row.
  * - A label's plain facts: where the row is the label (Labels without Bottles), where a new label is being made, or on a
- *   bottle row once the cell is unlocked, since they then belong to every bottle on the label. With Labels off they are
- *   not shown and nothing changes them.
+ *   bottle row, where they belong to every bottle on the label (the cell says how many). With Labels off they are not
+ *   shown and nothing changes them.
  * - Brand and Label: on a new row, they choose or create. On a saved bottle they *move* it to another label that exists
  *   (never renaming the label); with only Labels on, Brand is a choice that may create and Label is typed, which is how a
  *   label is renamed or fixed. Category is for a new label, since an existing label has one already.
@@ -166,8 +163,8 @@ export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow, u
   const draft = row.draft;
   if (editor.combo) {
     if (!draft) {
-      // A saved label's category: with only Labels on it is the label's to change; on a bottle row it is locked until triple-clicked.
-      if (editor.combo === "category") return !view.bottles || (view.labels && unlocked.has(lockKeyOf(editor, row, column.id))) ? editor : null;
+      // A saved label's category is the label's to change, on its own row or on a bottle row (it then reaches every bottle).
+      if (editor.combo === "category") return view.labels ? editor : null;
       if (row.bottle) return editor;
       return editor.combo === "label" ? NAME_TEXT : editor;
     }
@@ -180,7 +177,7 @@ export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow, u
   if (draft?.labelChosen && !draft.labelIsNew) return null;
   if (!view.bottles) return editor;
   if (draft) return draft.labelChosen ? editor : null;
-  return view.labels && unlocked.has(lockKeyOf(editor, row, column.id)) ? editor : null;
+  return view.labels ? editor : null;
 }
 
 export type Parsed = { ok: true; value: string } | { ok: false; message: string };

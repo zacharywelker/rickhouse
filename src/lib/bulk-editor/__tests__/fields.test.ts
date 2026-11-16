@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyEdits } from "../changes";
-import { EDITORS, editorFor, isLocked, parseCell, unlockKey } from "../editors";
+import { EDITORS, editorFor, isLocked, parseCell } from "../editors";
 import { cellFromText, GENERATED, GENERATED_BOTTLE, GENERATED_LABEL, isYesNoChoice, textOf, type Kinds } from "../fields";
 import { serverFields } from "../save";
 import { SHEET_COLUMNS, type SheetBottle, type SheetColumn, type SheetContext, type SheetLabel, type SheetRow, type SheetView } from "../sheet";
@@ -62,12 +62,13 @@ describe("which spirits a label fact applies to", () => {
   it("tequila class is for tequila, not other agave or a bourbon", () => {
     expect(editorFor(col("tequilaClass"), labelsOnly, labelRow(), new Set(), kinds)).toBeNull();
   });
-  it("on a bottle row, a label fact is locked until unlocked, and a fact that does not apply has no lock", () => {
+  it("on a bottle row, a label fact can be edited with no lock, and a fact that does not apply has no editor", () => {
     const row = bottleRow();
-    expect(isLocked(col("peatStatus"), both, row, new Set(), kinds)).toBe(true);
-    expect(editorFor(col("peatStatus"), both, row, new Set([unlockKey(1, "peatStatus")]), kinds)?.field).toBe("peatStatus");
+    expect(isLocked(col("peatStatus"), both, row, new Set(), kinds)).toBe(false);
+    expect(editorFor(col("peatStatus"), both, row, new Set(), kinds)?.field).toBe("peatStatus");
     const rum = bottleRow(label({ id: 2, categoryId: 30, fieldGroup: "rum" }), bottle({ expressionId: 2 }));
     expect(isLocked(col("peatStatus"), both, rum, new Set(), kinds)).toBe(false);
+    expect(editorFor(col("peatStatus"), both, rum, new Set(), kinds)).toBeNull();
   });
 });
 
@@ -113,8 +114,8 @@ describe("the Cask / Bonded cell", () => {
     expect(col("designation").cell(bottleRow(label({ isCaskStrength: true, isBottledInBond: true })), ctx)).toEqual({ text: "Cask Strength · Bottled in Bond" });
     expect(col("designation").cell(bottleRow(), ctx)).toEqual({ text: "—", muted: true });
   });
-  it("is a label's: locked on a bottle row, editable where the row is the label", () => {
-    expect(isLocked(col("designation"), both, bottleRow(), new Set(), kinds)).toBe(true);
+  it("is a label's: editable on a bottle row and where the row is the label", () => {
+    expect(editorFor(col("designation"), both, bottleRow(), new Set(), kinds)?.field).toBe("designation");
     expect(editorFor(col("designation"), labelsOnly, labelRow(), new Set(), kinds)?.field).toBe("designation");
   });
   it("refuses a choice the spirit cannot have", () => {

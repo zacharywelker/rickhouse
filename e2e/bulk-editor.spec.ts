@@ -58,6 +58,18 @@ test("shows the bottles as text, and mounts an editor only when one is wanted", 
   await expect(editors(page)).toHaveCount(0);
 });
 
+test("the cell the cursor is on is outlined while the page has focus, with the mouse or the arrow keys", async ({ page }) => {
+  const price = await col(page, "Price paid");
+  const outline = () => page.evaluate(() => {
+    const el = document.activeElement as HTMLElement;
+    return { onCell: el.matches("td[data-r]"), style: getComputedStyle(el).outlineStyle, width: getComputedStyle(el).outlineWidth };
+  });
+  await cell(page, 1, price).click();
+  expect(await outline()).toEqual({ onCell: true, style: "solid", width: "2px" });
+  await page.keyboard.press("ArrowDown");
+  expect(await outline()).toEqual({ onCell: true, style: "solid", width: "2px" });
+});
+
 test("typing replaces a value, Enter keeps it and drops to the next row in the same column", async ({ page }) => {
   const price = await col(page, "Price paid");
   await cell(page, 1, price).click();
@@ -125,13 +137,12 @@ test("Delete clears a cell and that is saved too", async ({ page }) => {
   await expect(cell(page, 2, price)).toHaveText("—");
 });
 
-test("a label's own facts are read-only on a bottle row, and editable when the row is the label", async ({ page }) => {
+test("a label's own facts are editable on a bottle row, and editable when the row is the label", async ({ page }) => {
   const proof = await col(page, "Proof");
   await cell(page, 1, proof).click();
-  await page.keyboard.press("Enter");
   await page.keyboard.type("123");
-  await expect(editors(page)).toHaveCount(0);
-  await expect(cell(page, 1, proof).locator("span[title]").first()).toHaveAttribute("title", "Triple-click to edit");
+  await expect(editors(page)).toHaveCount(1); // no lock to get past
+  await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "Bottles", exact: true }).click();
   const msrp = await col(page, "MSRP");
@@ -252,21 +263,18 @@ test("a new label under a new brand takes its category from the closed list, and
 // Label fields and bottle fields: locks, and moving a bottle
 // ---------------------------------------------------------------------------
 
-test("a label's fact is locked on a bottle row; triple-click opens it and says how many bottles it changes", async ({ page }) => {
+test("a label's fact is edited on a bottle row without unlocking it, and the cell says how many bottles it changes", async ({ page }) => {
   const proof = await col(page, "Proof");
-  await expect(cell(page, 1, proof).locator("svg")).toHaveCount(1);
-  await page.keyboard.type("5"); // nothing is focused on the sheet yet
-  await cell(page, 1, proof).click({ clickCount: 3 });
+  await expect(cell(page, 1, proof).locator("svg")).toHaveCount(0); // no lock
   await expect(cell(page, 1, proof)).toContainText(/all \d+/);
-  await page.keyboard.press("Enter");
-  await expect(page.getByText(/^Changes \d+ bottles?$/)).toBeVisible();
+  await cell(page, 1, proof).click();
   await page.keyboard.type("101");
+  await expect(page.getByText(/^Changes \d+ bottles?$/)).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(cell(page, 1, proof)).toContainText("101");
-  // Saved for the label, so every bottle on it; after a reload the cell is locked again and holds the new value.
+  // Saved for the label, so every bottle on it, and there after a reload.
   await reloaded(page);
   await expect(cell(page, 1, proof)).toContainText("101");
-  await expect(cell(page, 1, proof).locator("span[title]").first()).toHaveAttribute("title", "Triple-click to edit");
 });
 
 test("Bottles only shows no label facts, and Brand moves a bottle to a label that exists, never a new one", async ({ page }) => {
@@ -1340,10 +1348,12 @@ test("deleting a block drops pending Store choices and preserves the saved store
 });
 
 test("a locked cell and a list are skipped with the reason", async ({ page }) => {
-  // On a bottle row the label's proof is locked until triple-clicked.
-  const proof = await col(page, "Proof");
-  await select(page, 0, proof);
-  await paste(page, "90");
+  // The age statement is locked while an age is entered (the years and the statement are not both typed).
+  await bothSwitch(page, "Bottles").click();
+  const [y, statement] = [await col(page, "Y"), await col(page, "Age statement")];
+  await type(page, 1, y, "9");
+  await select(page, 1, statement);
+  await paste(page, "Old Number Nine");
   await expect(pasteNotice(page)).toContainText("locked");
 });
 
