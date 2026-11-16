@@ -25,6 +25,8 @@ type Input = {
   setDrafts: React.Dispatch<React.SetStateAction<DraftRow[]>>;
   /** A new row has saved: the key its saved row will have, so the sheet can keep it on screen whatever is filtered. */
   onLanded?: (savedKey: string) => void;
+  /** Allows a draft's open editor to finish before creation starts. */
+  editingDraft: React.RefObject<string | null>;
 };
 
 /** The quiet time after the last save before the sheet is reloaded, so a run of saves is one reload. */
@@ -55,8 +57,8 @@ export function useRowSaver(input: Input) {
   const sent = React.useRef(new Map<string, Sent>());
   const created = React.useRef(new Set<string>());
   const requested = React.useRef(new Set<string>());
-  /** New rows, by the key their saved row will have, once the data arrives. (A move or a rename re-sorts at once, so the sheet has already followed it.) */
-  const landed = React.useRef(new Map<string, string>());
+  /** Successful creates wait for readback unless the bottle's status excludes it from the sheet. */
+  const landed = React.useRef(new Map<string, { key: string; waitForRow: boolean }>());
   const [reveal, setReveal] = React.useState<Array<{ key: string; at: number }>>([]);
   /** A saved new row's key, and the key its saved row will have: the sheet hides the new row once that one is in its data. */
   const [createdAs, setCreatedAs] = React.useState<Record<string, string>>({});
@@ -86,8 +88,9 @@ export function useRowSaver(input: Input) {
 
   const save = React.useCallback(
     async (key: string): Promise<void> => {
+      const isDraft = key.startsWith("d");
       if (inflight.current.has(key)) {
-        again.current.add(key);
+        if (!isDraft) again.current.add(key);
         return;
       }
       const { edits, moves, drafts, view } = latest.current;
@@ -111,7 +114,9 @@ export function useRowSaver(input: Input) {
         call = () => patchLabelRowAction(id, labelPatchBody(cells));
       } else {
         const draft = drafts.find((d) => d.key === key);
-        if (!draft || isBlank(draft, edits) || draftNeeds(draft) !== null) return;
+        // A new row that has been made is not made again: it stays in the list until the reloaded data has it, and a second
+        // request for it (the cursor leaving it as well as the run of Tab and Enter that finished it) would add a duplicate.
+        if (!draft || latest.current.editingDraft.current === key || created.current.has(key) || isBlank(draft, edits) || draftNeeds(draft) !== null) return;
         snapshot = { cells: cells ?? {} };
         const body = createBody(draft, cells, view.bottles);
         call = () => createRowAction(body);
@@ -124,11 +129,14 @@ export function useRowSaver(input: Input) {
         const outcome = await call();
         if (outcome.ok) {
           sent.current.set(key, snapshot);
-          if (!key.startsWith("b") && !key.startsWith("l")) {
+          if (isDraft) {
             created.current.add(key);
             const bottleId = "bottleId" in outcome ? outcome.bottleId : null;
             const savedKey = bottleId != null && view.bottles ? `b${bottleId}` : `l${"labelId" in outcome ? outcome.labelId : 0}`;
-            landed.current.set(key, savedKey);
+            const newStatus = snapshot.cells.status;
+            const offShelf = savedKey.startsWith("b") && Boolean(newStatus && newStatus !== "owned" && newStatus !== "open");
+            landed.current.set(key, { key: savedKey, waitForRow: !offShelf });
+            if (!offShelf) setReveal((prev) => [...prev, { key: savedKey, at: Date.now() }]);
             latest.current.onLanded?.(savedKey);
             setCreatedAs((prev) => ({ ...prev, [key]: savedKey }));
           }
@@ -166,9 +174,8 @@ export function useRowSaver(input: Input) {
   /** Saves every new row that has what it needs (the cursor has left them, or has left the sheet). */
   const saveDrafts = React.useCallback(
     (except?: string) => {
-      const { drafts, edits } = latest.current;
-      for (const draft of drafts) {
-        if (draft.key !== except && !isBlank(draft, edits) && draftNeeds(draft) === null) void save(draft.key);
+      for (const draft of latest.current.drafts) {
+        if (draft.key !== except) void save(draft.key);
       }
     },
     [save],
@@ -183,13 +190,20 @@ export function useRowSaver(input: Input) {
       return;
     }
     if (sent.current.size === 0) return;
-    const arrived = [...landed.current.values()];
-    landed.current = new Map();
-    if (arrived.length > 0) setReveal((prev) => [...prev, ...arrived.map((key) => ({ key, at: Date.now() }))]);
-    const done = sent.current;
-    const madeRows = created.current;
-    sent.current = new Map();
-    created.current = new Set();
+    const readKeys = new Set([...labels.map((label) => `l${label.id}`), ...bottles.map((bottle) => `b${bottle.id}`)]);
+    const done = new Map<string, Sent>();
+    const madeRows = new Set<string>();
+    for (const [key, snapshot] of sent.current) {
+      const made = landed.current.get(key);
+      if (made?.waitForRow && !readKeys.has(made.key)) continue;
+      if (made) {
+        landed.current.delete(key);
+        madeRows.add(key);
+      }
+      sent.current.delete(key);
+      done.set(key, snapshot);
+    }
+    if (done.size === 0) return;
     setEdits((edits) => {
       const settled = settleEdits(edits, done);
       return [...madeRows].reduce((next, key) => {
@@ -200,7 +214,6 @@ export function useRowSaver(input: Input) {
     setMoves((moves) => settleMoves(moves, done));
     if (madeRows.size > 0) {
       setDrafts((drafts) => drafts.filter((d) => !madeRows.has(d.key)));
-      setCreatedAs((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !madeRows.has(key))));
     }
     const keys = [...done.keys()];
     // Not cancelled by a later reload: the glyph would then stay on.
@@ -216,5 +229,6 @@ export function useRowSaver(input: Input) {
 
   const clearReveal = React.useCallback(() => setReveal([]), []);
 
-  return { rowState, request, save, saveDrafts, reset, reveal, clearReveal, revealFor: REVEAL_FOR_MS, createdAs };
+  const draftSaving = (key: string) => inflight.current.has(key) || created.current.has(key);
+  return { rowState, request, save, saveDrafts, reset, reveal, clearReveal, revealFor: REVEAL_FOR_MS, createdAs, draftSaving };
 }
