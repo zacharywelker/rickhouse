@@ -39,7 +39,7 @@ describe("columnsFor", () => {
 
   it("follows the shelf order, label facts then the bottle's own", () => {
     expect(ids({ labels: true, bottles: true }, DEFAULT_HIDDEN)).toEqual([
-      "brand", "name", "category", "sizeMl", "proof", "designation", "ageYears", "ageMonths", "ageDays", "ageStatement", "distilleries", "mashbills", "finishes", "msrp",
+      "brand", "name", "category", "sizeMl", "proof", "abv", "designation", "ageYears", "ageMonths", "ageDays", "ageStatement", "distilleries", "mashbills", "finishes", "msrp",
       "singleBarrel", "pricePaid", "store", "dateAcquired", "status",
     ]);
   });
@@ -92,6 +92,7 @@ describe("cells", () => {
 
   it("shows a label's own facts", () => {
     expect(cell("proof", { label: l, bottle: null })).toEqual({ text: "100" });
+    expect(cell("abv", { label: l, bottle: null })).toEqual({ text: "50%" });
     expect(cell("sizeMl", { label: l, bottle: null })).toEqual({ text: "750 mL" });
     expect(cell("designation", { label: l, bottle: null })).toEqual({ text: "Cask Strength · Bottled in Bond" });
     expect(cell("msrp", { label: l, bottle: null })).toEqual({ text: "$49.99" });
@@ -106,6 +107,8 @@ describe("cells", () => {
 
   it("shows a bottle's own value, and the label's in grey when the bottle has none of its own", () => {
     expect(cell("ownProof", { label: l, bottle: bottle({ id: 1, expressionId: 1 }) })).toEqual({ text: "100", muted: true });
+    expect(cell("ownAbv", { label: l, bottle: bottle({ id: 1, expressionId: 1 }) })).toEqual({ text: "50%", muted: true });
+    expect(cell("ownAbv", { label: l, bottle: bottle({ id: 1, expressionId: 1, proof: "104.2" }) })).toEqual({ text: "52.1%" });
     expect(cell("ownProof", { label: l, bottle: bottle({ id: 1, expressionId: 1, proof: "104.2" }) })).toEqual({ text: "104.2" });
     expect(cell("ownSize", { label: l, bottle: bottle({ id: 1, expressionId: 1, sizeMl: 375 }) })).toEqual({ text: "375 mL" });
     expect(cell("ownSize", { label: l, bottle: bottle({ id: 1, expressionId: 1 }) })).toEqual({ text: "750 mL", muted: true });

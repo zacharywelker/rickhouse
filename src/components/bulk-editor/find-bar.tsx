@@ -5,14 +5,16 @@ import { ArrowDown, ArrowUp, Check, Search, X } from "lucide-react";
 import { SEARCH_INPUT_ID } from "@/components/keyboard-shortcuts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Find, Range } from "@/lib/bulk-editor/find";
+import { rangeActive, type AgeRange, type Find } from "@/lib/bulk-editor/find";
 import { cn } from "@/lib/utils";
 
-type Item<K extends string | number> = { key: K; label: string };
+type Item<K extends string | number | null> = { key: K; label: string };
 
 /** A filter that picks any number of things from a list, with its own search box, as the collection tables have. */
-function MultiPick<K extends string | number>({ label, items, selected, onToggle }: { label: string; items: Item<K>[]; selected: K[]; onToggle: (key: K) => void }) {
+function MultiPick<K extends string | number | null>({ label, items, selected, onToggle }: { label: string; items: Item<K>[]; selected: K[]; onToggle: (key: K) => void }) {
   const [query, setQuery] = React.useState("");
   const needle = query.trim().toLowerCase();
   const shown = needle === "" ? items : items.filter((item) => item.label.toLowerCase().includes(needle));
@@ -42,7 +44,7 @@ function MultiPick<K extends string | number>({ label, items, selected, onToggle
             shown.map((item) => {
               const on = selected.includes(item.key);
               return (
-                <li key={item.key}>
+                <li key={item.key === null ? "missing" : `value-${item.key}`}>
                   <button type="button" onClick={() => onToggle(item.key)} aria-pressed={on} className="flex w-full items-center gap-2 px-2 py-2 text-left text-sm hover:bg-muted">
                     <Check aria-hidden className={cn("size-4 shrink-0", on ? "text-primary opacity-100" : "opacity-0")} />
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -93,24 +95,45 @@ function BoundBox({ label, placeholder, value, onChange }: { label: string; plac
 }
 
 /** Min and max, either of which may be left open. */
-function RangeField({ label, hint, value, onChange }: { label: string; hint?: string; value: Range; onChange: (next: Range) => void }) {
+function RangeField({ label, hint, value, onChange, choices }: {
+  label: string;
+  hint?: string;
+  value: AgeRange;
+  onChange: (next: AgeRange) => void;
+  choices: ReadonlyArray<{ key: "missing" | "nas"; label: string }>;
+}) {
+  const id = React.useId();
   return (
-    <fieldset className="flex items-center gap-2">
+    <fieldset className="space-y-1">
       <legend className="sr-only">{label}</legend>
-      <span aria-hidden className="w-24 shrink-0 text-sm">
-        {label}
-        {hint ? <span className="block text-xs text-muted-foreground">{hint}</span> : null}
-      </span>
-      <BoundBox label={`${label}, at least`} placeholder="Min" value={value.min} onChange={(min) => onChange({ ...value, min })} />
-      <span aria-hidden className="text-muted-foreground">
-        to
-      </span>
-      <BoundBox label={`${label}, at most`} placeholder="Max" value={value.max} onChange={(max) => onChange({ ...value, max })} />
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="w-24 shrink-0 text-sm">
+          {label}
+          {hint ? <span className="block text-xs text-muted-foreground">{hint}</span> : null}
+        </span>
+        <BoundBox label={`${label}, at least`} placeholder="Min" value={value.min} onChange={(min) => onChange({ ...value, min })} />
+        <span aria-hidden className="text-muted-foreground">to</span>
+        <BoundBox label={`${label}, at most`} placeholder="Max" value={value.max} onChange={(max) => onChange({ ...value, max })} />
+      </div>
+      <div className="flex gap-3 pl-[6.5rem]">
+        {choices.map((choice) => (
+          <div key={choice.key} className="flex items-center gap-1.5">
+            <Checkbox
+              id={`${id}-${choice.key}`}
+              checked={value[choice.key] === true}
+              onCheckedChange={(checked) => onChange({ ...value, [choice.key]: checked === true })}
+            />
+            <Label htmlFor={`${id}-${choice.key}`} className="cursor-pointer">{choice.label}</Label>
+          </div>
+        ))}
+      </div>
     </fieldset>
   );
 }
 
-const hasBound = (range: Range) => range.min !== null || range.max !== null;
+function withMissing<K extends string | number>(items: Item<K>[], label: string): Item<K | null>[] {
+  return [{ key: null, label }, ...items];
+}
 
 /**
  * Search, filters and sort for the sheet. They change what is shown and nothing else. The sort is a control here as well
@@ -134,7 +157,7 @@ export function FindBar({ find, onFind, categories, brands, stores, more, bottle
 }) {
   const moreActive =
     [find.distilleryIds, find.mashbillIds, find.finishIds, find.ingredients].filter((l) => l.length > 0).length +
-    [find.proof, find.age, ...(bottlesAlone ? [find.price] : []), find.msrp].filter(hasBound).length;
+    [find.proof, find.age, ...(bottlesAlone ? [find.price] : []), find.msrp].filter(rangeActive).length;
   return (
     <>
       <div className="relative">
@@ -152,7 +175,7 @@ export function FindBar({ find, onFind, categories, brands, stores, more, bottle
       </div>
       <MultiPick label="Category" items={categories} selected={find.categoryIds} onToggle={(id) => onFind({ ...find, categoryIds: toggle(find.categoryIds, id) })} />
       <MultiPick label="Brand" items={brands} selected={find.brandIds} onToggle={(id) => onFind({ ...find, brandIds: toggle(find.brandIds, id) })} />
-      {stores ? <MultiPick label="Store" items={stores} selected={find.stores} onToggle={(name) => onFind({ ...find, stores: toggle(find.stores, name) })} /> : null}
+      {stores ? <MultiPick label="Store" items={withMissing(stores, "None")} selected={find.stores} onToggle={(name) => onFind({ ...find, stores: toggle(find.stores, name) })} /> : null}
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className={cn(moreActive > 0 && "border-primary/50 text-primary")}>
@@ -162,16 +185,16 @@ export function FindBar({ find, onFind, categories, brands, stores, more, bottle
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[26rem] max-w-[calc(100vw-2rem)] p-3">
           <div className="flex flex-wrap gap-2">
-            <MultiPick label="Distillery" items={more.distilleries} selected={find.distilleryIds} onToggle={(id) => onFind({ ...find, distilleryIds: toggle(find.distilleryIds, id) })} />
-            <MultiPick label="Mashbill" items={more.mashbills} selected={find.mashbillIds} onToggle={(id) => onFind({ ...find, mashbillIds: toggle(find.mashbillIds, id) })} />
-            <MultiPick label="Finish" items={more.finishes} selected={find.finishIds} onToggle={(id) => onFind({ ...find, finishIds: toggle(find.finishIds, id) })} />
-            <MultiPick label="Ingredient" items={more.ingredients} selected={find.ingredients} onToggle={(name) => onFind({ ...find, ingredients: toggle(find.ingredients, name) })} />
+            <MultiPick label="Distillery" items={withMissing(more.distilleries, "None")} selected={find.distilleryIds} onToggle={(id) => onFind({ ...find, distilleryIds: toggle(find.distilleryIds, id) })} />
+            <MultiPick label="Mashbill" items={withMissing(more.mashbills, "Unknown")} selected={find.mashbillIds} onToggle={(id) => onFind({ ...find, mashbillIds: toggle(find.mashbillIds, id) })} />
+            <MultiPick label="Finish" items={withMissing(more.finishes, "None")} selected={find.finishIds} onToggle={(id) => onFind({ ...find, finishIds: toggle(find.finishIds, id) })} />
+            <MultiPick label="Ingredient" items={withMissing(more.ingredients, "None")} selected={find.ingredients} onToggle={(name) => onFind({ ...find, ingredients: toggle(find.ingredients, name) })} />
           </div>
           <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
-            <RangeField label="Proof" value={find.proof} onChange={(proof) => onFind({ ...find, proof })} />
-            <RangeField label="Age" hint="years" value={find.age} onChange={(age) => onFind({ ...find, age })} />
-            {bottlesAlone ? <RangeField label="Price paid" value={find.price} onChange={(price) => onFind({ ...find, price })} /> : null}
-            <RangeField label="MSRP" value={find.msrp} onChange={(msrp) => onFind({ ...find, msrp })} />
+            <RangeField label="Proof" value={find.proof} choices={[{ key: "missing", label: "None" }]} onChange={(proof) => onFind({ ...find, proof })} />
+            <RangeField label="Age" hint="years" value={find.age} choices={[{ key: "missing", label: "Unknown" }, { key: "nas", label: "NAS" }]} onChange={(age) => onFind({ ...find, age })} />
+            {bottlesAlone ? <RangeField label="Price paid" value={find.price} choices={[{ key: "missing", label: "Unknown" }]} onChange={(price) => onFind({ ...find, price })} /> : null}
+            <RangeField label="MSRP" value={find.msrp} choices={[{ key: "missing", label: "Unknown" }]} onChange={(msrp) => onFind({ ...find, msrp })} />
           </div>
         </PopoverContent>
       </Popover>

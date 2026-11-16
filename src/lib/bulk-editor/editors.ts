@@ -1,3 +1,4 @@
+import { proofToAbv } from "@/lib/bottles/proof";
 import type { FieldSpec } from "@/lib/admin/types";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
@@ -75,6 +76,33 @@ const text = (value: string): Cell => (value === "" ? DASH : { text: value });
 const money = (value: string, ctx: SheetContext): Cell => (value === "" ? DASH : { text: formatMoney(value, ctx.currency) });
 const mL = (value: string): Cell => (value === "" ? DASH : { text: `${value} mL` });
 
+export function proofColumnFor(column: string): "proof" | "ownProof" | undefined {
+  if (column === "abv") return "proof";
+  if (column === "ownAbv") return "ownProof";
+}
+
+/** Both strength columns read the same staged proof, including on drafts. */
+export function stagedCellValue(column: string, cells: Readonly<Record<string, string>> | undefined): string | undefined {
+  const proofColumn = proofColumnFor(column);
+  const value = cells?.[proofColumn ?? column];
+  return proofColumn && value !== undefined ? proofToAbv(value) : value;
+}
+
+function abvEditor(column: string, proof: CellEditor): CellEditor {
+  const label = proof.scope === "label" ? "ABV %" : "This bottle's ABV %";
+  return {
+    ...proof,
+    column,
+    spec: { kind: "number", name: "abv", label, min: 0, max: 100, step: 0.01 },
+    initial: (row) => proofToAbv(proof.initial(row)),
+    display: (value, _ctx, row) => {
+      if (value !== "") return { text: `${value}%` };
+      const inherited = proof.scope === "bottle" ? proofToAbv(row.label.proof ?? "") : "";
+      return inherited === "" ? DASH : { text: `${inherited}%`, muted: true };
+    },
+  };
+}
+
 const BY_HAND: Readonly<Record<string, CellEditor>> = {
   // The picking cells, on a new row only for now. On a saved row they come with the rules for moving a bottle and renaming a label.
   brand: { column: "brand", field: "brand", scope: "label", combo: "brand", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.brand, display: (v) => text(v) },
@@ -111,6 +139,8 @@ const BY_HAND: Readonly<Record<string, CellEditor>> = {
 /** Every cell that can be edited, by its column's id: the ones made by hand, the two composites, and one for each simple form field. */
 export const EDITORS: Readonly<Record<string, CellEditor>> = {
   ...BY_HAND,
+  abv: abvEditor("abv", BY_HAND.proof!),
+  ownAbv: abvEditor("ownAbv", BY_HAND.ownProof!),
   ...Object.fromEntries([...GENERATED, ...LABEL_AGE, ...BOTTLE_AGE].map((g) => [g.column.id, g.editor])),
   designation: designationEditor(),
   singleBarrel: singleBarrelEditor(),

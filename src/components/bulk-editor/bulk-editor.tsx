@@ -9,13 +9,14 @@ import { GridCell } from "@/components/bulk/grid-cell";
 import { useHiddenColumns } from "@/components/bulk/use-hidden-columns";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { abvToProof } from "@/lib/bottles/proof";
 import type { FieldGroup } from "@/db/schema";
 import {
   brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, isBlank, labelCandidates, withBlankRow, withBrand, withCategory, withLabel,
   type CategoryChoice, type DraftRow,
 } from "@/lib/bulk-editor/drafts";
 import { arrange, editKey, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
-import { EDITORS, editorFor, isLocked, lockKeyOf, parseCell, setEdit, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
+import { EDITORS, editorFor, isLocked, lockKeyOf, parseCell, proofColumnFor, setEdit, stagedCellValue, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
 import { arrowMove, enterMove, tabMove, type ArrowKey, type Moved, type Pos } from "@/lib/bulk-editor/nav";
 import {
   columnsFor,
@@ -334,6 +335,8 @@ type RowProps = {
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
 const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, panelNode, pendingCols, onFinish, onInvalid, onInput }: RowProps) {
+  const draftProof = row.draft ? rowEdits?.proof : undefined;
+  const displayRow = draftProof === undefined ? row : { ...row, label: { ...row.label, proof: draftProof || null } };
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -341,9 +344,9 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
         const locked = isLocked(column, view, row, unlocked, context.kinds);
         const spec = EDITORS[column.id];
         // A label's cell keeps its edit under the label; it still shows if the view has since changed and the cell cannot be edited.
-        const edited = (spec?.scope === "label" && !row.draft ? labelEdits : rowEdits)?.[column.id];
+        const edited = stagedCellValue(column.id, spec?.scope === "label" && !row.draft ? labelEdits : rowEdits);
         const waiting = pendingCols?.[column.id];
-        const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec ? spec.display(edited, context, row) : column.cell(row, context);
+        const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec ? spec.display(edited, context, displayRow) : column.cell(displayRow, context);
         // An unlocked label cell on a bottle row reaches every bottle on the label.
         const reach = editor && editor.scope === "label" && !editor.combo && !row.draft && row.bottle ? row.label.bottleCount : null;
         const isBlocked = blockedColumn === column.id;
@@ -631,7 +634,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const valueAt = (pos: Pos): string => {
     const row = rows[pos.row]!;
     const editor = editorAt(pos);
-    return editor ? (edits[editKey(row, editor)]?.[columns[pos.col]!.id] ?? editor.initial(row)) : "";
+    return editor ? (stagedCellValue(editor.column, edits[editKey(row, editor)]) ?? editor.initial(row)) : "";
   };
 
   function go(moved: Moved, list: SheetRow[] = rows) {
@@ -676,8 +679,16 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const column = columns[pos.col];
     const editor = editorAt(pos);
     if (!row || !column || !editor) return;
-    if (row.draft) setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
     const key = editKey(row, editor);
+    const proofColumn = proofColumnFor(column.id);
+    // Reopening a rounded ABV value must preserve the original proof.
+    if (proofColumn) {
+      const currentValue = valueAt(pos);
+      if (value === currentValue || (value !== "" && currentValue !== "" && Number(value) === Number(currentValue))) return;
+    }
+    const storedColumn = proofColumn ?? column.id;
+    const storedValue = proofColumn ? abvToProof(value) : value;
+    const original = EDITORS[storedColumn]?.initial(row) ?? editor.initial(row);
     const linkedOrigin = column.id === "originCountry" || column.id === "originRegion" ? `${column.id}Linked` : undefined;
     const withoutLinkedOrigin = (prev: Edits): Edits => {
       if (!linkedOrigin || prev[key]?.[linkedOrigin] === undefined) return prev;
@@ -686,17 +697,18 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     };
     if (row.draft) {
       if (saver.draftSaving(row.key)) return;
+      setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
       keepKeys(row.key);
       // A new row's cells are forgotten when put back to empty: there is nothing to send.
-      setEdits((prev) => setEdit(withoutLinkedOrigin(prev), key, column.id, value, editor.initial(row)));
+      setEdits((prev) => setEdit(withoutLinkedOrigin(prev), key, storedColumn, storedValue, original));
       return;
     }
     // A saved row saves as soon as a cell of it is committed. An edit that is already here is kept even when it is put
     // back to what the sheet shows: the earlier value may already be saved, and the sheet has not read it back yet.
-    const had = edits[key]?.[column.id] !== undefined || (linkedOrigin !== undefined && edits[key]?.[linkedOrigin] !== undefined);
-    if (!had && value === editor.initial(row)) return;
+    const had = edits[key]?.[storedColumn] !== undefined || (linkedOrigin !== undefined && edits[key]?.[linkedOrigin] !== undefined);
+    if (!had && storedValue === original) return;
     touch(key);
-    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [column.id]: value } }));
+    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [storedColumn]: storedValue } }));
     saver.request(key);
   }
 
@@ -1050,7 +1062,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   /** A cell as it is drawn: what has been typed into it, else what the row holds. */
   function shownCell(row: SheetRow, column: SheetColumn): { shown: Cell; editor: CellEditor | null; value: string } {
     const editor = EDITORS[column.id] ?? null;
-    const edited = editor ? edits[editKey(row, editor)]?.[column.id] : undefined;
+    const edited = editor ? stagedCellValue(column.id, edits[editKey(row, editor)]) : undefined;
     const shown = edited !== undefined && editor ? editor.display(edited, context, row) : column.cell(row, context);
     return { shown, editor, value: edited ?? (editor ? editor.initial(row) : "") };
   }
@@ -1105,6 +1117,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       toChoose += 1;
     };
 
+    const pastedProofs = new Set<string>();
+    const blankProofs = new Map<string, Pos>();
     for (const { pos, text, line } of targets) {
       const row = rows[pos.row];
       const column = columns[pos.col];
@@ -1171,9 +1185,26 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
           continue;
         }
       }
-      stage(pos, checked.value);
+      // When both units are pasted together, preserve the more precise Proof value.
+      const proofColumn = proofColumnFor(column.id);
+      if (proofColumn) {
+        const pair = pendKey(row.key, proofColumn);
+        if (!pastedProofs.has(pair)) {
+          blankProofs.delete(pair);
+          stage(pos, checked.value);
+        }
+      } else if (column.id === "proof" || column.id === "ownProof") {
+        const pair = pendKey(row.key, column.id);
+        if (checked.value === "") blankProofs.set(pair, pos);
+        else {
+          pastedProofs.add(pair);
+          stage(pos, checked.value);
+        }
+      } else stage(pos, checked.value);
       pasted += 1;
     }
+
+    for (const pos of blankProofs.values()) stage(pos, "");
 
     // Lines that land on a new row, or past the last row, become new rows.
     let added = 0;
@@ -1249,7 +1280,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         if (!read.ok) return void skipped.push(`${where}: ${read.message}`);
         const checked = parseCell(editor, read.value, today);
         if (!checked.ok) return void skipped.push(`${where}: ${checked.message}`);
-        if (checked.value !== "") typed[column.id] = checked.value;
+        if (checked.value === "") return;
+        const proofColumn = proofColumnFor(column.id);
+        if (!proofColumn) typed[column.id] = checked.value;
+        else typed[proofColumn] ??= abvToProof(checked.value);
       });
       const settled = settleDraft(emptyDraft(key), texts, { bottles: view.bottles, brands, labels, categories, drafts: [...drafts, ...made] });
       made.push(settled.draft);

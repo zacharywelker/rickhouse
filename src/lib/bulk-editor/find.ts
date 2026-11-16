@@ -20,24 +20,26 @@ export type Sort = { column: string; desc: boolean };
 const num = (value: string | number | null | undefined): number | null => (value === null || value === undefined || value === "" ? null : Number.isFinite(Number(value)) ? Number(value) : null);
 
 /** Inclusive, either end open. */
-export type Range = { min: number | null; max: number | null };
+export type Range = { min: number | null; max: number | null; missing?: boolean };
+export type AgeRange = Range & { nas?: boolean };
 export const NO_RANGE: Range = { min: null, max: null };
 const hasBound = (range: Range) => range.min !== null || range.max !== null;
+export const rangeActive = (range: AgeRange): boolean => hasBound(range) || range.missing === true || range.nas === true;
 
 export type Find = {
   q: string;
   categoryIds: number[];
   brandIds: number[];
   /** Store names, as a bottle has them. A bottle's filter: it does not apply to a row that is only a label. */
-  stores: string[];
-  distilleryIds: number[];
-  mashbillIds: number[];
-  finishIds: number[];
+  stores: Array<string | null>;
+  distilleryIds: Array<number | null>;
+  mashbillIds: Array<number | null>;
+  finishIds: Array<number | null>;
   /** Ingredient names (the sheet's labels carry names, not ids). */
-  ingredients: string[];
+  ingredients: Array<string | null>;
   /** The proof and age a row has: its bottle's own if it has one, else its label's. */
   proof: Range;
-  age: Range;
+  age: AgeRange;
   /** What was paid (a bottle's filter) and the label's MSRP. */
   price: Range;
   msrp: Range;
@@ -53,7 +55,7 @@ export const NO_FIND: Find = {
 export function filterCount(find: Find): number {
   const lists = [find.categoryIds, find.brandIds, find.stores, find.distilleryIds, find.mashbillIds, find.finishIds, find.ingredients];
   const ranges = [find.proof, find.age, find.price, find.msrp];
-  return (find.q.trim() !== "" ? 1 : 0) + lists.filter((l) => l.length > 0).length + ranges.filter(hasBound).length;
+  return (find.q.trim() !== "" ? 1 : 0) + lists.filter((l) => l.length > 0).length + ranges.filter(rangeActive).length;
 }
 
 export const isFiltered = (find: Find): boolean => filterCount(find) > 0;
@@ -130,7 +132,29 @@ export const ageOf = (row: SheetRow, ctx: FindContext): number | null => (hasOwn
 /** A row's proof: its bottle's own if it has one, else the label's. */
 export const proofOf = (row: SheetRow): number | null => num(row.bottle?.proof ?? row.label.proof);
 
-const inRange = (value: number | null, range: Range): boolean => !hasBound(range) || (value !== null && (range.min === null || value >= range.min) && (range.max === null || value <= range.max));
+const inRange = (value: number | null, range: Range): boolean =>
+  hasBound(range) && value !== null && (range.min === null || value >= range.min) && (range.max === null || value <= range.max);
+
+function matchesRange(value: number | null, range: Range): boolean {
+  return !rangeActive(range) || (range.missing === true && value === null) || inRange(value, range);
+}
+
+function matchesAge(row: SheetRow, range: AgeRange, ctx: FindContext): boolean {
+  if (!rangeActive(range)) return true;
+  const age = ageOf(row, ctx);
+  if (inRange(age, range)) return true;
+  const bottleHasAge = hasOwnAge(row.bottle);
+  const statement = (bottleHasAge ? row.bottle?.ageStatement : row.label.ageStatement)?.trim() ?? "";
+  const ginNas = row.label.fieldGroup === "gin" && row.label.isAgedGin ? row.bottle?.ginIsNas : null;
+  const nas = ginNas ?? (/^NAS$/i.test(statement) || (!bottleHasAge && row.label.isNas));
+  if (nas) return range.nas === true;
+  return range.missing === true && age === null && statement === "";
+}
+
+function matchesAny<T>(values: readonly T[], selected: ReadonlyArray<T | null>): boolean {
+  if (selected.length === 0) return true;
+  return values.length === 0 ? selected.includes(null) : values.some((value) => selected.includes(value));
+}
 
 // ---------------------------------------------------------------------------
 // Filters
@@ -141,13 +165,13 @@ export function matchesFilters(row: SheetRow, find: Find, ctx: FindContext): boo
   const { label, bottle } = row;
   if (find.categoryIds.length > 0 && !find.categoryIds.includes(label.categoryId)) return false;
   if (find.brandIds.length > 0 && !find.brandIds.includes(label.brandId)) return false;
-  if (find.distilleryIds.length > 0 && !label.links.distilleries.some((d) => find.distilleryIds.includes(d.id))) return false;
-  if (find.mashbillIds.length > 0 && !label.links.mashbills.some((m) => find.mashbillIds.includes(m.id))) return false;
-  if (find.finishIds.length > 0 && !label.links.finishes.some((f) => find.finishIds.includes(f.id))) return false;
-  if (find.ingredients.length > 0 && !(label.links.ingredients ?? []).some((i) => find.ingredients.includes(i.name))) return false;
-  if (!inRange(proofOf(row), find.proof) || !inRange(ageOf(row, ctx), find.age) || !inRange(num(label.msrp), find.msrp)) return false;
-  if (find.stores.length > 0 && !(bottle?.storeName && find.stores.includes(bottle.storeName))) return false;
-  if (!inRange(num(bottle?.pricePaid), find.price)) return false;
+  if (!matchesAny(label.links.distilleries.map((d) => d.id), find.distilleryIds)) return false;
+  if (!matchesAny(label.links.mashbills.map((m) => m.id), find.mashbillIds)) return false;
+  if (!matchesAny(label.links.finishes.map((f) => f.id), find.finishIds)) return false;
+  if (!matchesAny((label.links.ingredients ?? []).map((i) => i.name), find.ingredients)) return false;
+  if (!matchesRange(proofOf(row), find.proof) || !matchesAge(row, find.age, ctx) || !matchesRange(num(label.msrp), find.msrp)) return false;
+  if (!matchesAny(bottle?.storeName?.trim() ? [bottle.storeName] : [], find.stores)) return false;
+  if (!matchesRange(num(bottle?.pricePaid), find.price)) return false;
   return find.q.trim() === "" || matchesSearch(row, find.q);
 }
 
@@ -176,6 +200,7 @@ const SORT_VALUES: Record<string, (row: SheetRow, ctx: FindContext) => Value> = 
   category: (r) => r.label.category,
   sizeMl: (r) => r.label.sizeMl,
   proof: (r) => num(r.label.proof),
+  abv: (r) => num(r.label.proof),
   ageYears: (r, ctx) => labelAgeYears(r.label, ctx),
   ownAgeYears: (r, ctx) => ageOf(r, ctx),
   distilleries: (r) => links(r.label.links.distilleries),
@@ -191,7 +216,8 @@ const SORT_VALUES: Record<string, (row: SheetRow, ctx: FindContext) => Value> = 
   pickName: (r) => r.bottle?.pickName ?? null,
   location: (r) => r.bottle?.location ?? null,
   notes: (r) => r.bottle?.notes ?? null,
-  ownProof: (r) => num(r.bottle?.proof ?? r.label.proof),
+  ownProof: proofOf,
+  ownAbv: proofOf,
   ownSize: (r) => r.bottle?.sizeMl ?? r.label.sizeMl,
 };
 

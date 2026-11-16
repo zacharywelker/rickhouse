@@ -1,3 +1,4 @@
+import { proofToAbv } from "@/lib/bottles/proof";
 import { describeLinks } from "@/lib/expressions/links";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
@@ -136,6 +137,11 @@ const DESIGNATION = designationEditor();
 const SINGLE_BARREL = singleBarrelEditor();
 
 /** The columns made by hand, in the order a bottle is entered at the shelf: label facts, then the bottle's own. */
+function abvCell(proof: string | null | undefined): Cell {
+  const abv = proofToAbv(proof ?? "");
+  return abv === "" ? DASH : { text: `${abv}%` };
+}
+
 const BY_HAND: ReadonlyArray<SheetColumn> = [
   {
     id: "brand",
@@ -149,6 +155,7 @@ const BY_HAND: ReadonlyArray<SheetColumn> = [
   { id: "category", label: "Category", group: "label", always: true, cell: (r) => (r.label.category === "" ? DASH : { text: r.label.category }) },
   { id: "sizeMl", label: "Size", group: "label", align: "right", cell: (r) => ({ text: `${r.label.sizeMl} mL` }) },
   { id: "proof", label: "Proof", group: "label", align: "right", cell: (r) => (r.label.proof === null ? DASH : { text: formatNumeric(r.label.proof) }) },
+  { id: "abv", label: "ABV %", group: "label", align: "right", with: "proof", cell: (r) => abvCell(r.label.proof) },
   {
     id: "designation",
     label: "Cask / BiB",
@@ -189,6 +196,15 @@ const BY_HAND: ReadonlyArray<SheetColumn> = [
     cell: (r) => own(r.bottle?.proof == null ? null : { text: formatNumeric(r.bottle.proof) }, r.label.proof === null ? DASH : { text: formatNumeric(r.label.proof) }),
   },
   {
+    id: "ownAbv",
+    label: "This bottle's ABV %",
+    group: "bottle",
+    align: "right",
+    defaultHidden: true,
+    with: "ownProof",
+    cell: (r) => own(r.bottle?.proof == null ? null : abvCell(r.bottle.proof), abvCell(r.label.proof)),
+  },
+  {
     id: "ownSize",
     label: "This bottle's size",
     group: "bottle",
@@ -210,7 +226,7 @@ export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = (() => {
     return list;
   };
   const label = after(after(BY_HAND.filter((c) => c.group === "label"), "designation", LABEL_AGE.map((g) => g.column)), "finishes", [INGREDIENTS_COLUMN]);
-  const bottle = after(BY_HAND.filter((c) => c.group === "bottle"), "ownProof", BOTTLE_AGE.map((g) => g.column));
+  const bottle = after(BY_HAND.filter((c) => c.group === "bottle"), "ownAbv", BOTTLE_AGE.map((g) => g.column));
   return [...label, ...GENERATED_LABEL.map((g) => g.column), ...PANEL_COLUMNS, ...bottle, ...GENERATED_BOTTLE.map((g) => g.column)];
 })();
 
