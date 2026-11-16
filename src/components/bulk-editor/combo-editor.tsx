@@ -20,7 +20,7 @@ const LIST_HEIGHT = 280;
  * a brand or label (`resolveKey` holds that rule). Escape cancels. Clicking away takes an exact match, and otherwise
  * drops what was typed: leaving a cell never creates anything.
  */
-export function ComboEditor({ kind, column, initial, data, error, onFinish, onInvalid }: {
+export function ComboEditor({ kind, column, initial, data, error, onFinish, onInvalid, onInput }: {
   kind: ComboKind;
   column: string;
   initial: Editing;
@@ -28,6 +28,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
   error: string | null;
   onFinish: (finish: Finish) => void;
   onInvalid: (message: string) => void;
+  onInput: (value: string) => void;
 }) {
   const [text, setText] = React.useState(initial.value);
   const [highlight, setHighlight] = React.useState<Highlight>(() => defaultHighlight(suggest(initial.value, data.candidates, { allowCreate: data.allowCreate })));
@@ -190,6 +191,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
         onChange={(event) => {
           const next = event.target.value;
           setText(next);
+          onInput(next);
           moved.current = false;
           setHighlight(defaultHighlight(suggest(next, data.candidates, { allowCreate: data.allowCreate })));
         }}
