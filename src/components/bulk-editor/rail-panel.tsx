@@ -49,11 +49,8 @@ function Facts({ title, facts }: { title: string; facts: RailFact[] }) {
             <dt className="text-muted-foreground">{fact.label}</dt>
             <dd className="min-w-0 text-right tabular-nums">
               <span className="break-words">{fact.value}</span>
-              {fact.source === "own" ? (
-                <span className="block text-xs text-muted-foreground">
-                  This bottle&rsquo;s own{fact.alongside ? `; the label says ${fact.alongside}` : ""}
-                </span>
-              ) : null}
+              {fact.source === "own" ? <span className="block text-xs text-muted-foreground">This bottle&rsquo;s own</span> : null}
+              {fact.source === "vintage" ? <span className="block text-xs text-muted-foreground">From the vintage</span> : null}
             </dd>
           </React.Fragment>
         ))}

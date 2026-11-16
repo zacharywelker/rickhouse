@@ -72,7 +72,7 @@ export function markerFor(row: SheetRow, level: Level): Marker | null {
 
 const distinct = (values: ReadonlyArray<string | null>): number => new Set(values.filter((v): v is string => v !== null).map((v) => Number(v))).size;
 
-export function resolve(field: ValueField, row: SheetRow, ctx: SheetContext): Resolved {
+export function resolve(field: ValueField, row: SheetRow, ctx: Pick<SheetContext, "kinds" | "index">): Resolved {
   const { label, bottle } = row;
   const fromLabel = labelValue(label, field);
   const index = ctx.index;

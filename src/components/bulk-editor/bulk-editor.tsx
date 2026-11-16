@@ -31,6 +31,7 @@ import {
   type SheetPhoto,
   type SheetRow,
   type SheetView,
+  type SheetVintage,
 } from "@/lib/bulk-editor/sheet";
 import { cn, humanise } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
@@ -42,6 +43,8 @@ import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND
 import { decodeRef, encodePick, REF_CAN_CREATE, REF_NO_CREATE, REF_WHAT, refCandidates, refNames, type RefData } from "@/lib/bulk-editor/references";
 import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
 import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-editor/clipboard";
+import { indexSheet } from "@/lib/bulk-editor/resolve";
+import { copyValue } from "@/lib/bulk-editor/value-cells";
 import { EXISTING_LABEL_REQUIRES_BOTTLES, pastedDraftConflict, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
 import { ComboEditor } from "./combo-editor";
 import { LinksEditor, type LinkOptions } from "./links-editor";
@@ -146,8 +149,8 @@ function ViewToggle({ label, on, onlyOne, onClick }: { label: string; on: boolea
 }
 
 /** The Fields picker, by form section: the shelf-order columns first under Label and Bottle, then a group for each section of each form. */
-const PICKER_GROUPS: ReadonlyArray<PickerGroup> = (["label", "bottle"] as const).flatMap((group) => {
-  const title = group === "label" ? "Label" : "Bottle";
+const PICKER_GROUPS: ReadonlyArray<PickerGroup> = (["label", "bottle", "value"] as const).flatMap((group) => {
+  const title = group === "label" ? "Label" : group === "bottle" ? "Bottle" : "Values";
   const columns = SHEET_COLUMNS.filter((c) => c.group === group);
   const sections = [...new Set(columns.flatMap((c) => (c.section ? [c.section] : [])))];
   return [
@@ -430,9 +433,11 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
  * left. You can move around it and edit the plain cells from the keyboard: arrows, Tab and Enter, F2 or a keystroke to
  * edit, Escape to cancel. Edits are kept here, in the browser, and marked; saving them arrives in a later step.
  */
-export function BulkEditor({ labels, bottles, brands, categories, groups, kinds, photos, refs, linkOptions, currency }: {
+export function BulkEditor({ labels, bottles, vintages, brands, categories, groups, kinds, photos, refs, linkOptions, currency }: {
   labels: SheetLabel[];
   bottles: SheetBottle[];
+  /** Each vintage's own proof and age, for the bottles on them. */
+  vintages: SheetVintage[];
   brands: Array<{ id: number; name: string }>;
   categories: CategoryChoice[];
   groups: Record<number, FieldGroup>;
@@ -459,12 +464,13 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       kinds,
       refs: refNames(refs),
       categories: Object.fromEntries(categories.map((c) => [c.id, c.name])),
+      index: indexSheet(labels, bottles, vintages),
       lists: {
         versions: Object.fromEntries(Object.entries(refs.versions).map(([id, rows]) => [id, rows.map((r) => r.name)])),
         releases: Object.fromEntries(Object.entries(refs.releases).map(([id, rows]) => [id, rows.map((r) => r.name)])),
       },
     }),
-    [currency, kinds, refs, categories],
+    [currency, kinds, refs, categories, labels, bottles, vintages],
   );
   const categoryInfo = React.useMemo(() => Object.fromEntries(categories.map((c) => [c.id, { name: c.name, group: groups[c.id] ?? "other", ...(c.slug ? { slug: c.slug } : {}) }])), [categories, groups]);
 
@@ -1065,6 +1071,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       const row = rows[r];
       if (!row) continue;
       lines.push(columns.slice(block.c1, block.c2 + 1).map((column) => {
+        // A value column holds what resolves for the row (the bottle's, its vintage's or the label's), which is not what its editor starts from.
+        if (column.group === "value" && edits[editKey(row, EDITORS[column.id]!)]?.[column.id] === undefined) return copyValue(column.id, row, context);
         const { shown, editor, value } = shownCell(row, column);
         return copyText(editor, value, shown);
       }));
@@ -1535,8 +1543,15 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
 
   // Brand and Label sit under one "Label" caption; the Bottle group has its own, after a dark rule.
   const frozenCount = columns.filter((c) => FROZEN[c.id]).length;
-  const labelRest = columns.filter((c) => c.group === "label" && !FROZEN[c.id]).length;
-  const bottleCount = columns.filter((c) => c.group === "bottle").length;
+  // After the frozen Brand and Label, a caption for each run of columns of one group: the sheet interleaves what a bottle is (Label, Bottle) with its values.
+  const runs = columns
+    .filter((c) => !FROZEN[c.id])
+    .reduce<Array<{ group: SheetColumn["group"]; span: number }>>((out, c) => {
+      const last = out[out.length - 1];
+      if (last && last.group === c.group) last.span += 1;
+      else out.push({ group: c.group, span: 1 });
+      return out;
+    }, []);
   const hasBand = columns.some((c) => c.band !== undefined);
 
   return (
@@ -1609,12 +1624,15 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
             <TableHead colSpan={frozenCount} className="sticky top-0 z-30 h-7 bg-card text-[11px] tracking-wider md:left-0" style={{ minWidth: 336 }}>
               Label
             </TableHead>
-            {labelRest > 0 ? <TableHead colSpan={labelRest} className="sticky top-0 z-20 h-7 border-l border-l-border/40 bg-card" /> : null}
-            {bottleCount > 0 ? (
-              <TableHead colSpan={bottleCount} className="sticky top-0 z-20 h-7 border-l border-l-foreground bg-card text-[11px] tracking-wider">
-                Bottle
+            {runs.map((run, i) => (
+              <TableHead
+                key={i}
+                colSpan={run.span}
+                className={cn("sticky top-0 z-20 h-7 bg-card text-[11px] tracking-wider", i === 0 && run.group === "label" ? "border-l border-l-border/40" : "border-l border-l-foreground")}
+              >
+                {run.group === "label" ? "Label" : run.group === "bottle" ? "Bottle" : ""}
               </TableHead>
-            ) : null}
+            ))}
           </TableRow>
           {/* A caption over columns that belong together (the three age boxes). Only here when one is shown, so the last row is always the column headers. */}
           {hasBand ? (

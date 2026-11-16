@@ -7,6 +7,7 @@ import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { formatNumeric } from "@/lib/utils";
 import { hasAge } from "./age-derive";
 import { cellFromText, editorFrom, type Generated, type Kinds, type Simple } from "./fields";
+import { valueCell } from "./value-cells";
 import type { Cell, SheetColumn, SheetContext, SheetLabel, SheetRow } from "./sheet";
 
 /**
@@ -82,12 +83,13 @@ function labelAgeColumn(field: Field): Generated {
     id: field,
     label: field === "ageStatement" ? "Age statement" : SHORT[field],
     sortLabel: field === "ageYears" ? "Age" : undefined,
-    group: "label",
+    // One Age for the row: the bottle's, its vintage's or the label's, shown in every view (`resolve.ts`).
+    group: "value",
     align: field === "ageStatement" ? undefined : "right",
     ...(field === "ageStatement" ? {} : { always: true, band: "Age", width: 56 }),
     // One entry in the Fields picker for the three.
     ...(field === "ageMonths" || field === "ageDays" ? { with: "ageYears" } : {}),
-    cell: (row, ctx) => labelCell(field, row, ctx.kinds),
+    cell: (row, ctx) => (labelHidden(row, ctx.kinds).has(field) ? { ...DASH, note: "Not used for this spirit" } : valueCell(field, row, ctx, field === "ageStatement" ? (v) => v : (v) => formatNumeric(v))),
   };
   return { column, editor };
 }

@@ -4,7 +4,7 @@ import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 import { BOTTLE_AGE, LABEL_AGE } from "./age";
 import { LINK_KEYS, linkEditor } from "./links";
-import { designationEditor, GENERATED, singleBarrelEditor, storeEditor, type Kinds } from "./fields";
+import { designationEditor, GENERATED, storeEditor, type Kinds } from "./fields";
 import type { LinkKey } from "./links";
 import { PANEL_KEYS, panelEditor, type PanelKey } from "./panels";
 import type { RefKind } from "./references";
@@ -113,7 +113,6 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
   ...BY_HAND,
   ...Object.fromEntries([...GENERATED, ...LABEL_AGE, ...BOTTLE_AGE].map((g) => [g.column.id, g.editor])),
   designation: designationEditor(),
-  singleBarrel: singleBarrelEditor(),
   store: storeEditor(),
   ...Object.fromEntries(LINK_KEYS.map((key) => [key, linkEditor(key)])),
   ...Object.fromEntries(PANEL_KEYS.map((key) => [key, panelEditor(key)])),

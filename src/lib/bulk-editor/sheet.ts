@@ -1,12 +1,13 @@
 import { describeLinks } from "@/lib/expressions/links";
-import type { SheetIndex } from "./resolve";
+import type { Marker, SheetIndex } from "./resolve";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
-import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
-import { BOTTLE_AGE, LABEL_AGE } from "./age";
+import { formatDate, formatMoney, humanise } from "@/lib/utils";
+import { LABEL_AGE } from "./age";
 import { INGREDIENTS_COLUMN } from "./links";
 import { PANEL_COLUMNS } from "./panels";
-import { designationEditor, GENERATED_BOTTLE, GENERATED_LABEL, singleBarrelEditor } from "./fields";
+import { designationEditor, GENERATED_BOTTLE, GENERATED_LABEL } from "./fields";
+import { abvCell, proofCell, sizeCell } from "./value-cells";
 
 /**
  * The bulk editor's sheet as plain data: which rows it has in each view, which columns, and what each cell says.
@@ -107,13 +108,17 @@ export type Cell = {
   badge?: string;
   /** Worked out, not stored (an age a designation implies): drawn in italics, with `note` as its reason. */
   inferred?: boolean;
+  /** A small tag before the text: where the value comes from, when it is not the label's own (`resolve.ts`). */
+  marker?: Marker;
+  /** The label's vintages disagree and it has no value of its own: the cell says "Varies", and a copy leaves it blank. */
+  varies?: boolean;
 };
 
 export type SheetColumn = {
   id: string;
   label: string;
-  /** Label columns change the label; bottle columns change one bottle. */
-  group: "label" | "bottle";
+  /** Label columns change the label; bottle columns change one bottle; value columns show the bottle's, its vintage's or the label's, whichever applies, in every view. */
+  group: "label" | "bottle" | "value";
   align?: "right";
   /** Brand and Label: always shown, and held at the left while the sheet scrolls. */
   identity?: boolean;
@@ -141,13 +146,10 @@ const text = (value: string | null | undefined): Cell => (value ? { text: value 
 
 const NO_MASHBILL = new Set(["rum", "agave", "brandy", "gin", "vodka", "amaro", "liqueur"]);
 
-/** The bottle's own value when it has one; otherwise the label's, in grey, so it is plain it is inherited. */
-function own(value: Cell | null, inherited: Cell): Cell {
-  return value ? value : { ...inherited, muted: true };
-}
-
 const DESIGNATION = designationEditor();
-const SINGLE_BARREL = singleBarrelEditor();
+
+/** The columns every bottle is entered through, in order, before the rest. */
+const FIRST_COLUMNS: ReadonlyArray<string> = ["brand", "name", "category", "releaseId", "singleBarrel", "privateSelection", "sizeMl", "proof", "abv", "ageYears", "ageMonths", "ageDays", "ageStatement"];
 
 /** The columns made by hand, in the order a bottle is entered at the shelf: label facts, then the bottle's own. */
 const BY_HAND: ReadonlyArray<SheetColumn> = [
@@ -161,8 +163,9 @@ const BY_HAND: ReadonlyArray<SheetColumn> = [
   },
   { id: "name", label: "Label", group: "label", identity: true, cell: (r) => (r.draft && r.label.name === "" ? DASH : { text: r.label.name, ...(r.draft?.labelIsNew && r.draft.labelChosen ? { badge: "new" } : {}) }) },
   { id: "category", label: "Category", group: "label", always: true, cell: (r) => (r.label.category === "" ? DASH : { text: r.label.category }) },
-  { id: "sizeMl", label: "Size", group: "label", align: "right", cell: (r) => ({ text: `${r.label.sizeMl} mL` }) },
-  { id: "proof", label: "Proof", group: "label", align: "right", cell: (r) => (r.label.proof === null ? DASH : { text: formatNumeric(r.label.proof) }) },
+  { id: "sizeMl", label: "Size", group: "value", align: "right", cell: (r, c) => sizeCell(r, c) },
+  { id: "proof", label: "Proof", group: "value", align: "right", cell: (r, c) => proofCell(r, c) },
+  { id: "abv", label: "ABV", group: "value", align: "right", cell: (r, c) => abvCell(r, c) },
   {
     id: "designation",
     label: "Cask / BiB",
@@ -180,12 +183,6 @@ const BY_HAND: ReadonlyArray<SheetColumn> = [
   { id: "msrp", label: "MSRP", group: "label", align: "right", cell: (r, c) => (r.label.msrp === null ? DASH : { text: formatMoney(r.label.msrp, c.currency) }) },
   { id: "bottleCount", label: "Bottles", group: "label", align: "right", labelsOnly: true, cell: (r) => ({ text: String(r.label.bottleCount) }) },
 
-  {
-    id: "singleBarrel",
-    label: "Single barrel / pick",
-    group: "bottle",
-    cell: (r, c) => (SINGLE_BARREL.applies?.(r, c.kinds) === false ? { text: "—", muted: true, note: "Only for aged gin" } : SINGLE_BARREL.display(SINGLE_BARREL.initial(r), c, r)),
-  },
   { id: "pricePaid", label: "Price paid", group: "bottle", align: "right", cell: (r, c) => (r.bottle?.pricePaid == null ? DASH : { text: formatMoney(r.bottle.pricePaid, c.currency) }) },
   { id: "store", label: "Store", group: "bottle", cell: (r) => text(r.bottle?.storeName) },
   { id: "dateAcquired", label: "Purchased", group: "bottle", cell: (r) => (r.bottle?.dateAcquired ? { text: formatDate(r.bottle.dateAcquired) } : DASH) },
@@ -194,22 +191,6 @@ const BY_HAND: ReadonlyArray<SheetColumn> = [
   { id: "pickName", label: "Pick name", group: "bottle", defaultHidden: true, cell: (r) => text(r.bottle?.pickName) },
   { id: "location", label: "Location", group: "bottle", defaultHidden: true, cell: (r) => text(r.bottle?.location) },
   { id: "notes", label: "Notes", group: "bottle", defaultHidden: true, cell: (r) => text(r.bottle?.notes) },
-  {
-    id: "ownProof",
-    label: "This bottle's proof",
-    group: "bottle",
-    align: "right",
-    defaultHidden: true,
-    cell: (r) => own(r.bottle?.proof == null ? null : { text: formatNumeric(r.bottle.proof) }, r.label.proof === null ? DASH : { text: formatNumeric(r.label.proof) }),
-  },
-  {
-    id: "ownSize",
-    label: "This bottle's size",
-    group: "bottle",
-    align: "right",
-    defaultHidden: true,
-    cell: (r) => own(r.bottle?.sizeMl == null ? null : { text: `${r.bottle.sizeMl} mL` }, { text: `${r.label.sizeMl} mL` }),
-  },
 ];
 
 /**
@@ -217,15 +198,17 @@ const BY_HAND: ReadonlyArray<SheetColumn> = [
  * Past the hand-made ones come the columns made from the forms' fields (`fields.ts`), all of them hidden until switched on.
  */
 export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = (() => {
-  // The age boxes sit where the Age column was: after Cask / BiB, and after the bottle's own proof.
+  // The age boxes sit after Cask / BiB in the label's own list; they are moved up with the other values below.
   const after = (list: SheetColumn[], id: string, add: ReadonlyArray<SheetColumn>) => {
     const at = list.findIndex((c) => c.id === id);
     list.splice(at + 1, 0, ...add);
     return list;
   };
-  const label = after(after(BY_HAND.filter((c) => c.group === "label"), "designation", LABEL_AGE.map((g) => g.column)), "finishes", [INGREDIENTS_COLUMN]);
-  const bottle = after(BY_HAND.filter((c) => c.group === "bottle"), "ownProof", BOTTLE_AGE.map((g) => g.column));
-  return [...label, ...GENERATED_LABEL.map((g) => g.column), ...PANEL_COLUMNS, ...bottle, ...GENERATED_BOTTLE.map((g) => g.column)];
+  const label = after(after(BY_HAND.filter((c) => c.group === "label" || c.group === "value"), "designation", LABEL_AGE.map((g) => g.column)), "finishes", [INGREDIENTS_COLUMN]);
+  const rest = [...label, ...GENERATED_LABEL.map((g) => g.column), ...PANEL_COLUMNS, ...BY_HAND.filter((c) => c.group === "bottle"), ...GENERATED_BOTTLE.map((g) => g.column)];
+  // The order a bottle is entered in: what it is (brand, label, category, vintage, single barrel, private selection), then its values.
+  const head = FIRST_COLUMNS.map((id) => rest.find((c) => c.id === id)!);
+  return [...head, ...rest.filter((c) => !FIRST_COLUMNS.includes(c.id))];
 })();
 
 /** The ids the Fields picker starts with switched off. */
@@ -246,8 +229,9 @@ export function normaliseView(view: Partial<SheetView> | null | undefined): Shee
 export function columnsFor(view: SheetView, hidden: ReadonlySet<string>): SheetColumn[] {
   return SHEET_COLUMNS.filter((column) => {
     if (column.identity) return true;
-    if (column.always) return column.group === "label" ? view.labels : view.bottles;
+    if (column.always) return column.group === "label" ? view.labels : column.group === "bottle" ? view.bottles : true;
     if (hidden.has(column.with ?? column.id)) return false;
+    if (column.group === "value") return true;
     if (column.group === "label") return view.labels && (!column.labelsOnly || !view.bottles);
     return view.bottles;
   });

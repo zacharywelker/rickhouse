@@ -280,7 +280,9 @@ test("a label's fact is edited on a bottle row without unlocking it, and the cel
 test("Bottles only shows no label facts, and Brand moves a bottle to a label that exists, never a new one", async ({ page }) => {
   await page.getByRole("button", { name: "Labels", exact: true }).click();
   const names = await sheet(page).locator("thead tr:last-child th").allTextContents();
-  expect(names.map((n) => n.trim())).not.toContain("Proof");
+  // The label's own facts are gone with Labels off; the values (Proof, Age, Size) stay, since a bottle has them too.
+  expect(names.map((n) => n.trim())).not.toContain("MSRP");
+  expect(names.map((n) => n.trim())).toContain("Proof");
   await cell(page, 0, 0).click();
   await page.keyboard.press("Enter");
   await page.keyboard.type("zzzzzz");
@@ -724,24 +726,24 @@ test("Cask / Bonded is one cell: a letter picks, it saves, and it is there after
   await expect(cell(page, 0, designation)).toContainText("Bottled in Bond");
 });
 
-test("Single barrel / pick: a private pick opens its pick details before it has saved", async ({ page }) => {
+test("Private selection: a private selection opens its pick details before it has saved", async ({ page }) => {
   await showColumns(page, "Pick name", "Picked By");
-  const [pick, pickName] = [await col(page, "Single barrel / pick"), await col(page, "Pick name")];
+  const [singleBarrel, selection, pickName] = [await col(page, "Single barrel"), await col(page, "Private selection"), await col(page, "Pick name")];
   await cell(page, 0, pickName).click();
   await page.keyboard.press("Enter");
-  await expect(editors(page)).toHaveCount(0); // not a private pick yet: nothing to type into
-  await cell(page, 0, pick).click();
-  await page.keyboard.type("p"); // Private pick
-  await page.keyboard.press("Enter");
-  // A private pick is not a single barrel (it can be a blend of barrels): the cell says only what was chosen.
-  await expect(cell(page, 0, pick)).toHaveText("Private pick");
+  await expect(editors(page)).toHaveCount(0); // not a private selection yet: nothing to type into
+  await cell(page, 0, selection).click();
+  await page.keyboard.press("Space"); // a yes/no cell is flipped, not opened
+  // A private selection is not a single barrel (it can be a blend of barrels): each cell says only what was chosen.
+  await expect(cell(page, 0, selection)).toHaveText("Yes");
+  await expect(cell(page, 0, singleBarrel)).not.toHaveText("Yes");
   await cell(page, 0, pickName).click();
   await page.keyboard.press("Enter");
   await expect(editors(page)).toHaveCount(1); // opened at once, before the save was read back
   await page.keyboard.type("Binnys Pick");
   await page.keyboard.press("Enter");
   await reloaded(page);
-  await expect(cell(page, 0, pick)).toHaveText("Private pick");
+  await expect(cell(page, 0, selection)).toHaveText("Yes");
   await expect(cell(page, 0, pickName)).toContainText("Binnys Pick");
 });
 
@@ -921,8 +923,8 @@ test("a store is picked from the list or made with Enter on Create, never by a t
 });
 
 test("a release and a label name are picked from the bottle's own label, and cannot be made here", async ({ page }) => {
-  await showColumns(page, "Release", "Label Version");
-  const [release, version, name] = [await col(page, "Release"), await col(page, "Label Version"), await col(page, "Label")];
+  await showColumns(page, "Label Version");
+  const [release, version, name] = [await col(page, "Vintage"), await col(page, "Label Version"), await col(page, "Label")];
   const labelName = (await cell(page, 0, name).innerText()).split("\n")[0]!.trim();
   const db = postgres(process.env.DATABASE_URL!);
   try {
@@ -1051,7 +1053,7 @@ test("Y, M and D are three narrow boxes under one Age caption, with the statemen
   // They cannot be taken out of the Fields picker one by one, and there is no combined Age column.
   expect(headers).not.toContain("Age");
   await fieldsButton(page).click();
-  await expect(page.getByRole("group", { name: "Label", exact: true }).getByLabel("Age", { exact: true })).toBeDisabled();
+  await expect(page.getByRole("group", { name: "Values", exact: true }).getByLabel("Age", { exact: true })).toBeDisabled();
   await page.keyboard.press("Escape");
 });
 
@@ -1120,21 +1122,6 @@ test("a block of cells is selected with Shift and the arrows and cleared with De
   for (const [r, c] of [[3, y], [3, m], [4, y], [4, d]] as const) await expect(cell(page, r, c)).toHaveText("—");
   await reloaded(page);
   for (const [r, c] of [[3, y], [3, m], [4, y], [4, d]] as const) await expect(cell(page, r, c)).toHaveText("—");
-});
-
-test("a bottle's own age is three boxes that show the label's in grey, and blank goes back to it", async ({ page }) => {
-  await showColumns(page, "This bottle's age");
-  const headers = (await sheet(page).locator("thead tr:last-child th").allTextContents()).map((t) => t.trim());
-  const own = headers.lastIndexOf("Y");
-  expect(headers.slice(own, own + 3)).toEqual(["Y", "M", "D"]);
-  await type(page, 5, own, "7");
-  await expect(cell(page, 5, own)).toHaveText("7");
-  await reloaded(page);
-  await expect(cell(page, 5, own)).toHaveText("7");
-  await select(page, 5, own);
-  await page.keyboard.press("Delete");
-  await reloaded(page);
-  await expect(cell(page, 5, own)).not.toHaveText("7");
 });
 
 // ---------------------------------------------------------------------------

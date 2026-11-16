@@ -1,10 +1,11 @@
 import { words } from "@/lib/expressions/label-search";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { whiskeyAge } from "@/lib/expressions/whiskey-age";
+import { resolve, type SheetIndex } from "./resolve";
 import { compareRows, type SheetLabel, type SheetRow } from "./sheet";
 
 /** What ages are worked out against: the category's kind, which sets the minimum age a whiskey designation implies. */
-export type FindContext = { kinds: Readonly<Record<number, CategoryKind>> };
+export type FindContext = { kinds: Readonly<Record<number, CategoryKind>>; /** Where a bottle on a vintage finds the vintage's proof and age (`resolve.ts`). */ index?: SheetIndex };
 
 /**
  * Finding rows in the editor: search, filters and sort, applied to the rows already on the page (a home collection is
@@ -125,10 +126,15 @@ export function labelAgeYears(label: SheetLabel, ctx: FindContext): number | nul
   return ageInYears(label);
 }
 
-/** A row's age: its bottle's own if the bottle says one, else the label's. */
-export const ageOf = (row: SheetRow, ctx: FindContext): number | null => (hasOwnAge(row.bottle) ? ageInYears(row.bottle!) : labelAgeYears(row.label, ctx));
-/** A row's proof: its bottle's own if it has one, else the label's. */
-export const proofOf = (row: SheetRow): number | null => num(row.bottle?.proof ?? row.label.proof);
+/** A row's age: its bottle's own if the bottle says one, else its vintage's, else the label's. */
+export function ageOf(row: SheetRow, ctx: FindContext): number | null {
+  if (hasOwnAge(row.bottle)) return ageInYears(row.bottle!);
+  const vintage = row.bottle?.releaseId == null ? undefined : ctx.index?.vintageById.get(row.bottle.releaseId);
+  if (vintage && (vintage.ageYears !== null || vintage.ageMonths !== null || vintage.ageDays !== null || (vintage.ageStatement ?? "").trim() !== "")) return ageInYears(vintage);
+  return labelAgeYears(row.label, ctx);
+}
+/** A row's proof as the Proof column shows it: its bottle's own, else its vintage's, else the label's. "Varies" and blank are no number. */
+export const proofOf = (row: SheetRow, ctx: FindContext): number | null => num(resolve("proof", row, ctx).value);
 
 const inRange = (value: number | null, range: Range): boolean => !hasBound(range) || (value !== null && (range.min === null || value >= range.min) && (range.max === null || value <= range.max));
 
@@ -145,7 +151,7 @@ export function matchesFilters(row: SheetRow, find: Find, ctx: FindContext): boo
   if (find.mashbillIds.length > 0 && !label.links.mashbills.some((m) => find.mashbillIds.includes(m.id))) return false;
   if (find.finishIds.length > 0 && !label.links.finishes.some((f) => find.finishIds.includes(f.id))) return false;
   if (find.ingredients.length > 0 && !(label.links.ingredients ?? []).some((i) => find.ingredients.includes(i.name))) return false;
-  if (!inRange(proofOf(row), find.proof) || !inRange(ageOf(row, ctx), find.age) || !inRange(num(label.msrp), find.msrp)) return false;
+  if (!inRange(proofOf(row, ctx), find.proof) || !inRange(ageOf(row, ctx), find.age) || !inRange(num(label.msrp), find.msrp)) return false;
   if (find.stores.length > 0 && !(bottle?.storeName && find.stores.includes(bottle.storeName))) return false;
   if (!inRange(num(bottle?.pricePaid), find.price)) return false;
   return find.q.trim() === "" || matchesSearch(row, find.q);
@@ -174,10 +180,10 @@ const SORT_VALUES: Record<string, (row: SheetRow, ctx: FindContext) => Value> = 
   brand: (r) => r.label.brand,
   name: (r) => r.label.name,
   category: (r) => r.label.category,
-  sizeMl: (r) => r.label.sizeMl,
-  proof: (r) => num(r.label.proof),
-  ageYears: (r, ctx) => labelAgeYears(r.label, ctx),
-  ownAgeYears: (r, ctx) => ageOf(r, ctx),
+  sizeMl: (r, ctx) => num(resolve("sizeMl", r, ctx).value),
+  proof: (r, ctx) => proofOf(r, ctx),
+  abv: (r, ctx) => proofOf(r, ctx),
+  ageYears: (r, ctx) => ageOf(r, ctx),
   distilleries: (r) => links(r.label.links.distilleries),
   mashbills: (r) => links(r.label.links.mashbills),
   finishes: (r) => links(r.label.links.finishes),
@@ -191,8 +197,6 @@ const SORT_VALUES: Record<string, (row: SheetRow, ctx: FindContext) => Value> = 
   pickName: (r) => r.bottle?.pickName ?? null,
   location: (r) => r.bottle?.location ?? null,
   notes: (r) => r.bottle?.notes ?? null,
-  ownProof: (r) => num(r.bottle?.proof ?? r.label.proof),
-  ownSize: (r) => r.bottle?.sizeMl ?? r.label.sizeMl,
 };
 
 export const isSortable = (column: string): boolean => column in SORT_VALUES;

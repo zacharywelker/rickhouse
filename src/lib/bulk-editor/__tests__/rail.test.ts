@@ -28,17 +28,17 @@ describe("the rail for a bottle", () => {
     expect(byLabel(rail, "Price paid")).toMatchObject({ value: "$47.00", source: "bottle" });
     expect(byLabel(rail, "Store")).toMatchObject({ value: "Binny's", source: "bottle" });
   });
-  it("shows this bottle's own proof or size with the label's alongside, and the label's alone when it has none", () => {
+  it("shows this bottle's own proof or size as its own, and the label's alone when it has none", () => {
     const own = railFor(row(bottle({ proof: "104.2", sizeMl: 1000 })), ctx, both, {}, null);
-    expect(byLabel(own, "Proof")).toMatchObject({ value: "104.2", source: "own", alongside: "100" });
-    expect(own.facts.find((f) => f.label.startsWith("Size"))).toMatchObject({ value: "1000 mL", source: "own", alongside: "750 mL" });
+    expect(byLabel(own, "Proof")).toMatchObject({ value: "104.2", source: "own" });
+    expect(own.facts.find((f) => f.label.startsWith("Size"))).toMatchObject({ value: "1000 mL", source: "own" });
     expect(byLabel(rail, "Proof")).toMatchObject({ source: "label" });
-    expect(byLabel(rail, "Proof")?.alongside).toBeUndefined();
+    expect(byLabel(rail, "Proof")?.source).toBe("label");
   });
   it("shows an edit not yet read back, as the sheet does", () => {
     const edited = railFor(row(), ctx, both, { b7: { pricePaid: "52", ownProof: "99" }, l1: { msrp: "55" } }, null);
     expect(byLabel(edited, "Price paid")?.value).toBe("$52.00");
-    expect(byLabel(edited, "Proof")).toMatchObject({ value: "99", source: "own", alongside: "100" });
+    expect(byLabel(edited, "Proof")).toMatchObject({ value: "99", source: "own" });
     expect(byLabel(edited, "MSRP")?.value).toBe("$55.00");
   });
   it("lists what is still blank, short, in the order worth filling", () => {
