@@ -1,5 +1,5 @@
 import type { Level, ValueField } from "./resolve";
-import type { SheetRow } from "./sheet";
+import type { SheetContext, SheetRow } from "./sheet";
 
 /**
  * Which level an edit to a value changes: the bottle's own, its vintage's, or the label's. Pure: the editor component
@@ -43,4 +43,32 @@ const OWN: Readonly<Record<string, string>> = {
 /** The column an edit is stored under at a level: the bottle's own editor for the bottle level, the column itself otherwise. */
 export function columnFor(column: string, level: Level): string {
   return level === "bottle" ? (OWN[column] ?? column) : column;
+}
+
+const bottlesOf = (n: number) => `${n} ${n === 1 ? "bottle" : "bottles"}`;
+
+/** How many bottles a level reaches for this row: those on its vintage, or on its label. */
+function reach(level: Level, row: SheetRow, ctx: Pick<SheetContext, "index">): number {
+  if (level === "label") return row.label.bottleCount;
+  const releaseId = row.bottle?.releaseId ?? null;
+  return releaseId === null ? 0 : (ctx.index?.bottlesByLabel.get(row.label.id) ?? []).filter((b) => b.releaseId === releaseId).length;
+}
+
+const vintageName = (row: SheetRow, ctx: Pick<SheetContext, "index">): string => {
+  const releaseId = row.bottle?.releaseId ?? null;
+  return (releaseId === null ? undefined : ctx.index?.vintageById.get(releaseId)?.name) ?? "Vintage";
+};
+
+/** The short note under a cell being edited: who the edit is for ("2025A vintage · 2 bottles", "Label · 6 bottles", "Only this bottle"). */
+export function noteText(level: Level, row: SheetRow, ctx: Pick<SheetContext, "index">): string {
+  if (level === "bottle") return "Only this bottle";
+  if (level === "vintage") return `${vintageName(row, ctx)} vintage · ${bottlesOf(reach(level, row, ctx))}`;
+  return `Label · ${bottlesOf(reach(level, row, ctx))}`;
+}
+
+/** The same in a sentence, for the details pane ("Typing changes …"). */
+export function scopeSentence(level: Level, row: SheetRow, ctx: Pick<SheetContext, "index">): string {
+  if (level === "bottle") return "only this bottle";
+  if (level === "vintage") return `the ${vintageName(row, ctx)} vintage (${bottlesOf(reach(level, row, ctx))})`;
+  return `the label (${bottlesOf(reach(level, row, ctx))})`;
 }

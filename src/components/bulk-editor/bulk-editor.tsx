@@ -43,7 +43,9 @@ import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND
 import { decodeRef, encodePick, REF_CAN_CREATE, REF_NO_CREATE, REF_WHAT, refCandidates, refNames, type RefData } from "@/lib/bulk-editor/references";
 import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
 import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-editor/clipboard";
-import { indexSheet } from "@/lib/bulk-editor/resolve";
+import { indexSheet, resolve, type Level, type ValueField } from "@/lib/bulk-editor/resolve";
+import { columnFor, defaultScope, nextScope, noteText, scopeSentence, scopesFor } from "@/lib/bulk-editor/scope";
+import { platformKeyName } from "@/lib/platform";
 import { copyValue } from "@/lib/bulk-editor/value-cells";
 import { EXISTING_LABEL_REQUIRES_BOTTLES, pastedDraftConflict, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
 import { ComboEditor } from "./combo-editor";
@@ -53,6 +55,7 @@ import { FindBar } from "./find-bar";
 import { RailContent } from "./rail-panel";
 import { DeleteBar } from "./delete-bar";
 import type { ComboData, Editing, Finish } from "./types";
+import { EditNote } from "./edit-note";
 import { SourceTag } from "./source-tag";
 import { useRowSaver } from "./use-row-saver";
 
@@ -204,7 +207,7 @@ function StatusGlyph({ status }: { status: RowStatus }) {
  * The one live editor: the form's own field control for the cell, mounted over the active cell only. It is positioned
  * over the cell instead of inside it, so opening it never changes a column's width or moves a row.
  */
-function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onInvalid, onInput }: { editor: CellEditor; row: SheetRow; kinds: SheetContext["kinds"]; initial: Editing; error: string | null; reach: number | null; onFinish: (finish: Finish) => void; onInvalid: (message: string) => void; onInput: (value: string) => void }) {
+function ActiveEditor({ editor, row, kinds, initial, error, reach, scopeNote, onStep, onFinish, onInvalid, onInput }: { editor: CellEditor; row: SheetRow; kinds: SheetContext["kinds"]; initial: Editing; error: string | null; reach: number | null; /** For a value cell: who the edit is for, and the step to the next level. */ scopeNote: string | null; onStep: ((step: 1 | -1) => void) | undefined; onFinish: (finish: Finish) => void; onInvalid: (message: string) => void; onInput: (value: string) => void }) {
   const [draft, setDraft] = React.useState(initial.value);
   const input = React.useRef<HTMLElement | null>(null);
 
@@ -242,6 +245,13 @@ function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onI
       onKeyDown={(event) => {
         if (event.nativeEvent.isComposing) return;
         if (event.key === "Enter" && event.shiftKey && editor.spec.kind === "textarea") return;
+        // Alt (Option) and the arrows step through the levels an edit can change; Tab, Enter and Escape keep their jobs.
+        if (event.altKey && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+          event.preventDefault();
+          event.stopPropagation();
+          onStep?.(event.key === "ArrowDown" ? 1 : -1);
+          return;
+        }
         if (event.key === "Enter") {
           event.preventDefault();
           event.stopPropagation();
@@ -285,6 +295,8 @@ function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onI
         <p role="alert" className="absolute left-0 top-full z-30 mt-px whitespace-nowrap border border-destructive bg-card px-2 py-0.5 text-xs text-destructive">
           {error}
         </p>
+      ) : scopeNote !== null && onStep ? (
+        <EditNote text={scopeNote} keyName={platformKeyName()} onStep={onStep} />
       ) : reach !== null ? (
         <p className="absolute left-0 top-full z-30 mt-px whitespace-nowrap border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground">{changesText(reach)}</p>
       ) : null}
@@ -334,10 +346,19 @@ type RowProps = {
   onFinish: ((finish: Finish) => void) | undefined;
   onInvalid: ((message: string) => void) | undefined;
   onInput: ((value: string) => void) | undefined;
+  /** The short note for the open value cell (who the edit is for), and the step to the next level; only for the active row. */
+  scopeNote: string | null;
+  onStep: ((step: 1 | -1) => void) | undefined;
 };
 
+/** The columns that hold a value which can come from the bottle, its vintage or the label (`resolve.ts`): what an edit changes is chosen. */
+const VALUE_FIELD: Readonly<Record<string, ValueField>> = { sizeMl: "sizeMl", proof: "proof", ageYears: "ageYears", ageMonths: "ageMonths", ageDays: "ageDays", ageStatement: "ageStatement" };
+
+/** Two typed values are the same when the text is, or they are the same number (112 and 112.00). */
+const sameValue = (a: string, b: string): boolean => a === b || (a !== "" && b !== "" && Number.isFinite(Number(a)) && Number(a) === Number(b));
+
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, panelNode, pendingCols, onFinish, onInvalid, onInput }: RowProps) {
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, panelNode, pendingCols, onFinish, onInvalid, onInput, scopeNote, onStep }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -347,7 +368,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
         // A label's cell keeps its edit under the label; it still shows if the view has since changed and the cell cannot be edited.
         const edited = (spec?.scope === "label" && !row.draft ? labelEdits : rowEdits)?.[column.id];
         const waiting = pendingCols?.[column.id];
-        const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec ? spec.display(edited, context, row) : column.cell(row, context);
+        const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec && column.group !== "value" ? spec.display(edited, context, row) : column.cell(row, context);
         // An unlocked label cell on a bottle row reaches every bottle on the label.
         const reach = editor && editor.scope === "label" && !editor.combo && !row.draft && row.bottle ? row.label.bottleCount : null;
         const isBlocked = blockedColumn === column.id;
@@ -420,7 +441,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               ) : (editor.combo || editor.reference) && combo ? (
                 <ComboEditor kind={editor.combo ?? "reference"} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} onInput={onInput} />
               ) : (
-                <ActiveEditor editor={editor} row={row} kinds={context.kinds} initial={editing} error={error} reach={reach} onFinish={onFinish} onInvalid={onInvalid} onInput={onInput} />
+                <ActiveEditor editor={editor} row={row} kinds={context.kinds} initial={editing} error={error} reach={reach} scopeNote={scopeNote} onStep={onStep} onFinish={onFinish} onInvalid={onInvalid} onInput={onInput} />
               )
             ) : null}
           </TableCell>
@@ -598,7 +619,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     setTimeout(() => setFlashKey((now) => (now === key ? null : now)), 2000);
   };
   const [active, setActive] = React.useState<{ key: string; col: number; row: number } | null>(null);
-  const [openEditor, setEditing] = React.useState<(Editing & { rowKey: string; columnId: string; original: string }) | null>(null);
+  const [openEditor, setEditing] = React.useState<(Editing & { rowKey: string; columnId: string; original: string; /** For a value cell: the level the edit will change. */ scope: Level | null }) | null>(null);
   const [inputChanged, setInputChanged] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   /** The column a run of Tabs started in, which Enter returns to on the next row. */
@@ -670,14 +691,17 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       return ref === null ? "" : "name" in ref ? ref.name : (context.refs?.[editorAt(pos)!.reference!][ref.id] ?? "");
     };
     const categoryName = (value: string) => (value.startsWith("id:") ? (context.categories?.[Number(value.slice(3))] ?? "") : value);
-    const held = editorAt(pos)?.reference ? refName(valueAt(pos)) : editorAt(pos)?.combo === "category" ? categoryName(valueAt(pos)) : valueAt(pos);
+    // A value cell opens on the value it shows (the bottle's, its vintage's or the label's), and an age only implied by a designation is not copied in.
+    const valueField = VALUE_FIELD[column.id];
+    const resolved = valueField ? resolve(valueField, row, context) : null;
+    const held = resolved ? (resolved.derived || resolved.varies ? "" : (resolved.value ?? "")) : editorAt(pos)?.reference ? refName(valueAt(pos)) : editorAt(pos)?.combo === "category" ? categoryName(valueAt(pos)) : valueAt(pos);
     // A cell a paste left to be chosen opens searching what was pasted.
     const waiting = pending[pendKey(row.key, column.id)];
     const value = waiting ?? chosen?.value ?? (replace ? (typed ?? "") : held);
     const original = waiting ?? held;
     editingDraft.current = row.draft ? row.key : null;
     setInputChanged(value !== original);
-    setEditing({ value, replace: replace || waiting !== undefined, rowKey: row.key, columnId: column.id, original });
+    setEditing({ value, replace: replace || waiting !== undefined, rowKey: row.key, columnId: column.id, original, scope: valueField && !row.draft && row.bottle ? defaultScope(row, valueField) : null });
   }
 
   /** A yes/no cell is flipped, not opened: Space, Enter or a double click. */
@@ -685,13 +709,16 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     stage(pos, valueAt(pos) === "true" ? "false" : "true");
   }
 
-  function stage(pos: Pos, value: string) {
+  function stage(pos: Pos, value: string): { level: Level | undefined; key: string } | undefined {
     const row = rows[pos.row];
     const column = columns[pos.col];
     const editor = editorAt(pos);
     if (!row || !column || !editor) return;
     if (row.draft) setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
-    const key = editKey(row, editor);
+    // A value is written at the level chosen for it (or where it starts, for a paste or a clear): the bottle, its vintage, or the label.
+    const level = levelFor(row, column.id);
+    const key = editKey(row, editor, level);
+    const storedAs = level ? columnFor(column.id, level) : column.id;
     const linkedOrigin = column.id === "originCountry" || column.id === "originRegion" ? `${column.id}Linked` : undefined;
     const withoutLinkedOrigin = (prev: Edits): Edits => {
       if (!linkedOrigin || prev[key]?.[linkedOrigin] === undefined) return prev;
@@ -707,11 +734,43 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     }
     // A saved row saves as soon as a cell of it is committed. An edit that is already here is kept even when it is put
     // back to what the sheet shows: the earlier value may already be saved, and the sheet has not read it back yet.
-    const had = edits[key]?.[column.id] !== undefined || (linkedOrigin !== undefined && edits[key]?.[linkedOrigin] !== undefined);
-    if (!had && value === editor.initial(row)) return;
+    const had = edits[key]?.[storedAs] !== undefined || (linkedOrigin !== undefined && edits[key]?.[linkedOrigin] !== undefined);
+    // A level that was stepped to is a decision: the same number written at another level is a change, not a no-op.
+    const field = VALUE_FIELD[column.id];
+    const stepped = field !== undefined && openEditor?.rowKey === row.key && openEditor.columnId === column.id && openEditor.scope !== null && openEditor.scope !== defaultScope(row, field);
+    if (!had && !stepped && sameValue(value, levelText(row, column.id, level, editor))) return undefined;
     touch(key);
-    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [column.id]: value } }));
+    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [storedAs]: value } }));
     saver.request(key);
+    return { level, key };
+  }
+
+  /** The level a value written to this cell goes to: the one stepped to in the open editor, else where it starts. Nothing for a cell that is not a value. */
+  function levelFor(row: SheetRow, columnId: string): Level | undefined {
+    const field = VALUE_FIELD[columnId];
+    if (!field || row.draft || !row.bottle) return undefined;
+    if (openEditor && openEditor.rowKey === row.key && openEditor.columnId === columnId && openEditor.scope) return openEditor.scope;
+    return defaultScope(row, field);
+  }
+
+  /** What a level holds of a value now, as text: the bottle's own, the vintage's own, or the label's. */
+  function levelText(row: SheetRow, columnId: string, level: Level | undefined, editor: CellEditor): string {
+    const field = VALUE_FIELD[columnId];
+    if (!field || !level) return editor.initial(row);
+    const vintage = row.bottle?.releaseId == null ? undefined : context.index?.vintageById.get(row.bottle.releaseId);
+    const raw = level === "bottle" ? (row.bottle as unknown as Record<string, unknown> | null)?.[field] : level === "vintage" ? (vintage as unknown as Record<string, unknown> | undefined)?.[field] : (row.label as unknown as Record<string, unknown>)[field];
+    return raw === null || raw === undefined ? "" : String(raw);
+  }
+
+  /** Steps the level an open value cell will change: on with a positive step, back with a negative one. */
+  function stepScope(step: 1 | -1) {
+    const row = current ? rows[current.row] : undefined;
+    const field = openEditor ? VALUE_FIELD[openEditor.columnId] : undefined;
+    if (!row || !field || !openEditor?.scope) return;
+    const levels = scopesFor(row, field);
+    if (levels.length < 2) return;
+    const to = nextScope(levels, openEditor.scope, step);
+    setEditing((prev) => (prev ? { ...prev, scope: to } : prev));
   }
 
   /** The quiet time after a change made in a list's picker before it is saved, so typing a share is one save, not one per digit. */
@@ -1112,6 +1171,10 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     }
 
     let pasted = 0;
+
+    /** The shared levels (a vintage, a label) this paste wrote to, so it never changes more bottles than it says. */
+
+    const shared = new Map<string, string>();
     let toChoose = 0;
     let beyondColumns = 0;
     const beyondRows = new Set<number>();
@@ -1187,7 +1250,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
           continue;
         }
       }
-      stage(pos, checked.value);
+      const written = stage(pos, checked.value);
+      if (written?.level && written.level !== "bottle") shared.set(written.key, scopeSentence(written.level, row, context));
       pasted += 1;
     }
 
@@ -1207,6 +1271,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
 
     setRange(null);
     const parts = [`Pasted ${pasted} ${pasted === 1 ? "cell" : "cells"}.`];
+    if (shared.size > 0) parts.push(`Changed ${[...shared.values()].join(" and ")}.`);
     if (added > 0) parts.push(`Added ${added} new ${added === 1 ? "row" : "rows"}.`);
     if (toChoose > 0) parts.push(`${toChoose} to choose: press Enter on a marked cell to pick from what matches. A new row saves once its required fields and pending choices are resolved.`);
     if (beyondRows.size > 0) parts.push(`${beyondRows.size} ${beyondRows.size === 1 ? "line" : "lines"} past the last row ${beyondRows.size === 1 ? "was" : "were"} not pasted.`);
@@ -1550,7 +1615,10 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   }
   // Editing a cell that belongs to the label changes every bottle on it; the rail says so as well as the cell.
   const railEditor = current && editing ? editorAt(current) : null;
-  const railReach = railRow && railEditor && railEditor.scope === "label" && !railEditor.combo && !railRow.draft && railRow.bottle ? railRow.label.bottleCount : null;
+  const railField = current ? VALUE_FIELD[columns[current.col]?.id ?? ""] : undefined;
+  const railReach = railRow && railEditor && railEditor.scope === "label" && !railEditor.combo && !railRow.draft && railRow.bottle && !railField ? railRow.label.bottleCount : null;
+  // For a value cell, where the value comes from and what typing would change, said in full (the short note is under the cell while it is edited).
+  const railChanges = railRow && railField && railRow.bottle && !railRow.draft ? `Typing changes ${scopeSentence(editing?.scope ?? defaultScope(railRow, railField), railRow, context)}.` : null;
 
   // Brand and Label sit under one "Label" caption; the Bottle group has its own, after a dark rule.
   const frozenCount = columns.filter((c) => FROZEN[c.id]).length;
@@ -1744,6 +1812,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
                 onFinish={isActiveRow ? finish : undefined}
                 onInvalid={isActiveRow ? setError : undefined}
                 onInput={isActiveRow && editing ? (value) => setInputChanged(value !== editing.original) : undefined}
+                scopeNote={isActiveRow && editing?.scope ? noteText(editing.scope, row, context) : null}
+                onStep={isActiveRow && editing?.scope && scopesFor(row, VALUE_FIELD[columns[current!.col]?.id ?? ""]).length > 1 ? stepScope : undefined}
               />
             );
           })}
@@ -1808,7 +1878,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
             </button>
           </div>
           <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto p-3">
-            <RailContent rail={rail} shelf={shelf} reach={railReach} />
+            <RailContent rail={rail} shelf={shelf} reach={railReach} changes={railChanges} />
           </div>
       </div>
       <button type="button" onClick={toggleRail} aria-label="Show the details panel" aria-expanded={false} className={cn("h-24 w-9 items-start justify-center border border-border bg-card pt-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", railChoice === null ? "flex xl:hidden" : railChoice === "closed" ? "flex" : "hidden")}>

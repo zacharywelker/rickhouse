@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { columnFor, defaultScope, nextScope, scopesFor } from "../scope";
-import type { SheetBottle, SheetLabel, SheetRow } from "../sheet";
+import { columnFor, defaultScope, nextScope, noteText, scopeSentence, scopesFor } from "../scope";
+import { indexSheet } from "../resolve";
+import type { SheetBottle, SheetContext, SheetLabel, SheetRow, SheetVintage } from "../sheet";
 
 const label = {} as SheetLabel;
 const bottle = (over: Record<string, unknown> = {}) => ({ id: 7, releaseId: null, isSingleBarrel: false, isSingleBarrelPick: false, ...over }) as unknown as SheetBottle;
@@ -56,5 +57,24 @@ describe("the column an edit is stored under at a level", () => {
     expect(columnFor("proof", "vintage")).toBe("proof");
     expect(columnFor("proof", "label")).toBe("proof");
     expect(columnFor("designation", "bottle")).toBe("designation");
+  });
+});
+
+describe("what the note and the details pane say", () => {
+  const l = { id: 1, bottleCount: 6 } as unknown as SheetLabel;
+  const v = { id: 70, labelId: 1, name: "2025A" } as unknown as SheetVintage;
+  const bs = [bottle({ id: 7, expressionId: 1, releaseId: 70 }), bottle({ id: 8, expressionId: 1, releaseId: 70 }), bottle({ id: 9, expressionId: 1 })];
+  const ctx: SheetContext = { currency: "USD", kinds: {}, index: indexSheet([l], bs, [v]) };
+  const r = { key: "b7", label: l, bottle: bs[0]! } as SheetRow;
+  it("is short in the note: who is affected", () => {
+    expect(noteText("vintage", r, ctx)).toBe("2025A vintage · 2 bottles");
+    expect(noteText("label", r, ctx)).toBe("Label · 6 bottles");
+    expect(noteText("bottle", r, ctx)).toBe("Only this bottle");
+    expect(noteText("vintage", { ...r, bottle: bottle({ id: 7, releaseId: 70 }) }, { ...ctx, index: indexSheet([l], [bs[0]!], [v]) })).toBe("2025A vintage · 1 bottle");
+  });
+  it("is the whole sentence in the pane", () => {
+    expect(scopeSentence("vintage", r, ctx)).toBe("the 2025A vintage (2 bottles)");
+    expect(scopeSentence("label", r, ctx)).toBe("the label (6 bottles)");
+    expect(scopeSentence("bottle", r, ctx)).toBe("only this bottle");
   });
 });

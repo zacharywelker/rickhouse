@@ -92,6 +92,118 @@ test("a vintage value wears a V tag and a label's own value wears none, and the 
   await expect(cell(page, last, proof).getByRole("img")).toHaveCount(0);
 });
 
+/** A label's first bottles put on one vintage with its own proof, by the database, for the specs about which level an edit changes. */
+async function onVintage(page: Page, extraBottles = 0): Promise<{ labelId: number; releaseId: number; bottleId: number }> {
+  const [name] = [await col(page, "Label")];
+  const labelName = (await cell(page, 0, name).innerText()).split("\n")[0]!.trim();
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [label] = await db`select id from expressions where name = ${labelName} limit 1`;
+    await db`delete from expression_releases where expression_id = ${label!.id} and name = 'Step Vintage'`;
+    const [release] = await db`insert into expression_releases (expression_id, name, proof) values (${label!.id}, 'Step Vintage', 112) returning id`;
+    await db`update bottles set release_id = ${release!.id} where expression_id = ${label!.id}`;
+    for (let i = 0; i < extraBottles; i += 1) await db`insert into bottles (owner_id, expression_id, release_id, status) select owner_id, expression_id, release_id, status from bottles where expression_id = ${label!.id} limit 1`;
+    const [first] = await db`select id from bottles where expression_id = ${label!.id} order by id limit 1`;
+    return { labelId: label!.id as number, releaseId: release!.id as number, bottleId: first!.id as number };
+  } finally {
+    await db.end();
+  }
+}
+const editNote = (page: Page) => page.locator("[data-edit-note]");
+
+test("Alt+Down steps what an edit changes, Alt+Up steps back, and Tab and Enter keep their jobs", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  await onVintage(page);
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  await cell(page, 0, proof).click();
+  await page.keyboard.type("113");
+  await expect(editNote(page)).toContainText(/^Step Vintage vintage · \d+ bottles?/);
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(editNote(page)).toContainText(/^Label · \d+ bottles?/);
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(editNote(page)).toContainText(/^Only this bottle/);
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(editNote(page)).toContainText(/^Step Vintage vintage/);
+  await page.keyboard.press("Alt+ArrowUp");
+  await expect(editNote(page)).toContainText(/^Only this bottle/);
+  await expect(editors(page)).toHaveCount(1); // the rotation did not finish or move the edit
+  await page.keyboard.press("Tab");
+  await expect(editors(page)).toHaveCount(0); // Tab still finishes the cell and moves on
+  expect((await active(page))!.col).toBeGreaterThan(proof);
+});
+
+test("an edit is saved at the level it was stepped to: this bottle, the vintage, or the label", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  const { labelId, releaseId, bottleId } = await onVintage(page);
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  const read = async () => {
+    const db = postgres(process.env.DATABASE_URL!);
+    try {
+      const [b] = await db`select proof from bottles where id = ${bottleId}`;
+      const [r] = await db`select proof from expression_releases where id = ${releaseId}`;
+      const [l] = await db`select proof from expressions where id = ${labelId}`;
+      return { bottle: b!.proof === null ? null : Number(b!.proof), vintage: r!.proof === null ? null : Number(r!.proof), label: l!.proof === null ? null : Number(l!.proof) };
+    } finally {
+      await db.end();
+    }
+  };
+  const before = await read();
+  // Only this bottle.
+  await cell(page, 0, proof).click();
+  await page.keyboard.type("119");
+  await page.keyboard.press("Alt+ArrowDown"); // label
+  await page.keyboard.press("Alt+ArrowDown"); // this bottle
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+  expect(await read()).toEqual({ ...before, bottle: 119 });
+  await expect(cell(page, 0, proof)).toContainText("119");
+  // The vintage, which is where it starts.
+  await cell(page, 0, proof).click();
+  await page.keyboard.press("Delete"); // clears at the starting level (the bottle's pick flags are off: the vintage)
+  await reloaded(page);
+  expect((await read()).vintage).toBeNull();
+  // The label: stepped to, and its default is set without touching the vintage or the bottle.
+  const mid = await read();
+  await cell(page, 0, proof).click();
+  await page.keyboard.type("101");
+  await page.keyboard.press("Alt+ArrowDown"); // from the vintage to the label
+  await expect(editNote(page)).toContainText(/^Label · \d+ bottles?/);
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+  expect(await read()).toEqual({ ...mid, label: 101 });
+});
+
+test("a new, unsaved row offers no choice: Alt+Down does nothing and there is no note", async ({ page }) => {
+  const [brand, proof] = [await col(page, "Brand"), await col(page, "Proof")];
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Cask One");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, row, proof).click();
+  await page.keyboard.type("9");
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(editors(page)).toHaveCount(1);
+  await expect(editNote(page)).toHaveCount(0);
+});
+
+test("pasting onto several bottles of one vintage writes the vintage once and the notice says so", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  await onVintage(page, 2);
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  await select(page, 0, proof);
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+ArrowDown");
+  await paste(page, "100\n101\n102");
+  await expect(pasteNotice(page)).toContainText(/Changed the Step Vintage vintage \(\d+ bottles\)/);
+});
+
 test("typing replaces a value, Enter keeps it and drops to the next row in the same column", async ({ page }) => {
   const price = await col(page, "Price paid");
   await cell(page, 1, price).click();
@@ -286,7 +398,8 @@ test("a new label under a new brand takes its category from the closed list, and
 // ---------------------------------------------------------------------------
 
 test("a label's fact is edited on a bottle row without unlocking it, and the cell says how many bottles it changes", async ({ page }) => {
-  const proof = await col(page, "Proof");
+  // MSRP, a label fact with no vintage level: a value like Proof says "Label · N bottles" instead (see the Alt+Down specs).
+  const proof = await col(page, "MSRP");
   await expect(cell(page, 1, proof).locator("svg")).toHaveCount(0); // no lock
   await expect(cell(page, 1, proof)).toContainText(/all \d+/);
   await cell(page, 1, proof).click();
