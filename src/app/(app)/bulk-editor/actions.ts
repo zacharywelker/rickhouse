@@ -39,18 +39,38 @@ export async function patchLabelRowAction(labelId: number, raw: unknown): Promis
   return outcome;
 }
 
+const DELETE_LIMIT = 5000;
+const selectedIds = (list: unknown) => Array.isArray(list)
+  ? [...new Set(list.filter((id): id is number => typeof id === "number" && Number.isInteger(id) && id > 0))]
+  : [];
+
 /** What deleting these rows would take with them, for the confirmation (see `deleteImpact`). */
 export async function deleteImpactAction(input: { labelIds: number[]; bottleIds: number[] }) {
   const user = await requireSession();
-  return deleteImpact(user.id, input);
+  const labelIds = selectedIds(input?.labelIds);
+  const bottleIds = selectedIds(input?.bottleIds);
+  const impact = await deleteImpact(user.id, { labelIds: labelIds.slice(0, DELETE_LIMIT), bottleIds: bottleIds.slice(0, DELETE_LIMIT) });
+  return {
+    ...impact,
+    excluded: Math.max(0, labelIds.length - DELETE_LIMIT) + Math.max(0, bottleIds.length - DELETE_LIMIT),
+  };
 }
 
 /** Deletes the chosen rows: a label with all its bottles, a bottle alone (see `deleteRows`). */
 export async function deleteRowsAction(input: { labelIds: number[]; bottleIds: number[] }): Promise<DeleteOutcome> {
   const user = await requireSession();
-  // Bounded, and ids only: nothing else from the browser is read.
-  const ids = (list: unknown) => (Array.isArray(list) ? list.filter((id): id is number => typeof id === "number").slice(0, 5000) : []);
-  const outcome = await deleteRows(user.id, { labelIds: ids(input?.labelIds), bottleIds: ids(input?.bottleIds) });
+  const labelIds = selectedIds(input?.labelIds);
+  const bottleIds = selectedIds(input?.bottleIds);
+  const outcome = await deleteRows(user.id, { labelIds: labelIds.slice(0, DELETE_LIMIT), bottleIds: bottleIds.slice(0, DELETE_LIMIT) });
+  for (const id of labelIds.slice(DELETE_LIMIT)) {
+    outcome.failed.push({ kind: "label", id, error: "Only the first 5,000 selected labels can be deleted at once." });
+  }
+  const deletedBottles = new Set(outcome.deletedBottleIds);
+  for (const id of bottleIds.slice(DELETE_LIMIT)) {
+    if (!deletedBottles.has(id)) {
+      outcome.failed.push({ kind: "bottle", id, error: "Only the first 5,000 selected bottles can be deleted at once." });
+    }
+  }
   if (outcome.deletedLabels + outcome.deletedBottles > 0) refresh();
   return outcome;
 }

@@ -160,19 +160,19 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
         if (!row) throw new Rejected(invalidField("label", "Choose one of your labels."));
         if (row.brandId !== brandId) throw new Rejected(invalidField("label", "That label is not under this brand."));
         labelId = row.id;
-        spirit = { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin };
+        spirit = { kind: (await categoryKindsById(tx))[row.categoryId] ?? "other", ginAged: row.isAgedGin };
       } else {
         const made = await ensureLabel(tx, ownerId, brandId, label.name, label.categoryId, label.facts ?? {}, links!);
         labelId = made.id;
         createdLabel = made.created;
         labelFactsIgnored = !made.created && Object.keys(label.facts ?? {}).length > 0;
-        spirit = { kind: (await categoryKindsById())[made.categoryId] ?? "other", ginAged: made.isAgedGin };
+        spirit = { kind: (await categoryKindsById(tx))[made.categoryId] ?? "other", ginAged: made.isAgedGin };
       }
 
       // The bottle.
       let bottleId: number | null = null;
       if (bottle) {
-        const made = await newBottleValues(bottle, labelId, spirit);
+        const made = await newBottleValues(bottle, labelId, spirit, tx);
         if (!made.ok) throw new Rejected(failure("invalid", made.error, made.fieldErrors));
         if (made.values.storeId != null && (await tx.$count(stores, and(eq(stores.id, made.values.storeId), eq(stores.ownerId, ownerId)))) === 0) {
           throw new Rejected(invalidField("storeId", "Choose one of your stores."));
@@ -220,7 +220,7 @@ async function ensureLabel(
     try {
       const made = await tx.transaction(async (savepoint) => {
         const input = expressionSchema.parse({ ...facts, brandId, categoryId, name });
-        return { id: await writeLabel(savepoint, ownerId, null, await labelValues(input, ownerId, null), links), isAgedGin: input.isAgedGin };
+        return { id: await writeLabel(savepoint, ownerId, null, await labelValues(input, ownerId, null, savepoint), links), isAgedGin: input.isAgedGin };
       });
       return { id: made.id, created: true, categoryId, isAgedGin: made.isAgedGin };
     } catch (error: unknown) {
@@ -318,6 +318,8 @@ export type DeleteOutcome = {
   /** Every bottle removed: those that went with a label, and those deleted alone. */
   deletedBottles: number;
   failed: Array<{ kind: "label" | "bottle"; id: number; error: string }>;
+  deletedLabelIds: number[];
+  deletedBottleIds: number[];
 };
 
 /**
@@ -327,7 +329,7 @@ export type DeleteOutcome = {
 export async function deleteRows(ownerId: number, input: { labelIds: number[]; bottleIds: number[] }): Promise<DeleteOutcome> {
   const unique = (ids: number[]) => [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
   const labelIds = unique(input.labelIds);
-  const outcome: DeleteOutcome = { deletedLabels: 0, deletedBottles: 0, failed: [] };
+  const outcome: DeleteOutcome = { deletedLabels: 0, deletedBottles: 0, failed: [], deletedLabelIds: [], deletedBottleIds: [] };
 
   const owned = labelIds.length ? new Set((await db.select({ id: expressions.id }).from(expressions).where(and(eq(expressions.ownerId, ownerId), inArray(expressions.id, labelIds)))).map((r) => r.id)) : new Set<number>();
   for (const id of labelIds) if (!owned.has(id)) outcome.failed.push({ kind: "label", id, error: "That label is gone." });
@@ -342,19 +344,24 @@ export async function deleteRows(ownerId: number, input: { labelIds: number[]; b
       const colaFiles = await colaFilesForExpression(id);
       const releasePhotos = await releasePhotosOfLabel(id);
       const gone = await db.transaction(async (tx) => {
-        await tx.delete(bottles).where(and(eq(bottles.expressionId, id), eq(bottles.ownerId, ownerId)));
-        return tx.delete(expressions).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId))).returning({ photoPath: expressions.photoPath, photoThumbPath: expressions.photoThumbPath });
+        const removedBottles = await tx.delete(bottles).where(and(eq(bottles.expressionId, id), eq(bottles.ownerId, ownerId))).returning({ id: bottles.id });
+        const removedLabels = await tx.delete(expressions).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId))).returning({ photoPath: expressions.photoPath, photoThumbPath: expressions.photoThumbPath });
+        return { removedBottles, label: removedLabels[0] };
       });
-      if (gone.length === 0) {
+      if (!gone.label) {
         outcome.failed.push({ kind: "label", id, error: "That label is gone." });
         continue;
       }
       outcome.deletedLabels += 1;
-      outcome.deletedBottles += bottleIds.length;
-      for (const b of bottleIds) wentWithLabel.add(b);
+      outcome.deletedLabelIds.push(id);
+      outcome.deletedBottles += gone.removedBottles.length;
+      for (const { id: bottleId } of gone.removedBottles) {
+        outcome.deletedBottleIds.push(bottleId);
+        wentWithLabel.add(bottleId);
+      }
       await Promise.all([
         ...images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)),
-        gone[0]?.photoPath ? deleteStoredImage(gone[0].photoPath, gone[0].photoThumbPath) : Promise.resolve(),
+        gone.label.photoPath ? deleteStoredImage(gone.label.photoPath, gone.label.photoThumbPath) : Promise.resolve(),
         deleteColaFiles(colaFiles),
         deleteStoredPhotos(releasePhotos),
       ]);
@@ -374,8 +381,13 @@ export async function deleteRows(ownerId: number, input: { labelIds: number[]; b
         continue;
       }
       const images = await db.select({ filePath: bottleImages.filePath, thumbPath: bottleImages.thumbPath }).from(bottleImages).where(eq(bottleImages.bottleId, id));
-      await db.delete(bottles).where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId)));
+      const removed = await db.delete(bottles).where(and(eq(bottles.id, id), eq(bottles.ownerId, ownerId))).returning({ id: bottles.id });
+      if (removed.length === 0) {
+        outcome.failed.push({ kind: "bottle", id, error: "That bottle is gone." });
+        continue;
+      }
       outcome.deletedBottles += 1;
+      outcome.deletedBottleIds.push(id);
       await Promise.all(images.map((image) => deleteStoredImage(image.filePath, image.thumbPath)));
     } catch (error: unknown) {
       const shaped = mapDbError(error, { singular: "Bottle" });
