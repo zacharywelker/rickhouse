@@ -6,7 +6,8 @@ import { fieldErrorsOf } from "@/lib/expressions/save";
 import { bottleSchema, bottleStateSchema } from "@/lib/expressions/schema";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { withBottleSpiritFacts } from "@/lib/expressions/spirit-details";
-import { settleNewBottleOpen } from "./opened-rules";
+import { bottleLifecycleDateError, settleNewBottleOpen } from "./opened-rules";
+import { statusUpdate } from "./status-rules";
 
 export type NewBottleValues = Omit<typeof bottles.$inferInsert, "ownerId">;
 
@@ -37,9 +38,16 @@ export async function newBottleValues(
     return { ok: false, error: issues[0]?.message ?? "Please check the highlighted fields.", fieldErrors: fieldErrorsOf(issues) };
   }
   const settled = await settleLabelChoices(parsed.data, query);
-  const values = settleNewBottleOpen(
-    { ...withBottleSpiritFacts(settled, spirit.kind, spirit.ginAged), ...state.data },
-    new Date().toISOString().slice(0, 10),
-  );
+  const today = new Date().toISOString().slice(0, 10);
+  const open = settleNewBottleOpen({
+    ...withBottleSpiritFacts(settled, spirit.kind, spirit.ginAged),
+    ...state.data,
+    isOpen: state.data.isOpen || state.data.dateOpened !== null,
+  }, today);
+  const status = statusUpdate(open, open.status, today);
+  if (!status.ok) return { ok: false, error: status.message, fieldErrors: { status: status.message } };
+  const values = { ...open, ...status.set };
+  const dates = bottleLifecycleDateError(values, today);
+  if (dates) return { ok: false, error: dates.message, fieldErrors: { [dates.field]: dates.message } };
   return { ok: true, values: values as NewBottleValues };
 }

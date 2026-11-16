@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { bottles, expressionNames, expressionReleases, expressions, stores, tastingNotes } from "@/db/schema";
 import type { z } from "zod";
 import { fillUpdate } from "./fill-rules";
-import { openedUpdate, type OpenedChoice } from "./opened-rules";
+import { bottleLifecycleDateError, openedUpdate, type OpenedChoice } from "./opened-rules";
 import { openFlagUpdate, statusUpdate } from "./status-rules";
 import { movesHistory } from "./relabel";
 import type { tastingNoteSchema } from "@/lib/expressions/schema";
@@ -59,7 +59,16 @@ export type BottleColumns = Partial<
  * `status` and `isOpen` are the bulk editor's: a typed status and the Opened tick, each held to the rules in
  * `status-rules.ts` against the bottle as the rest of this patch leaves it. The phone's request cannot send them.
  */
-export type BottlePatch = { fillPct?: number; dateOpened?: string | null; ifOpenedCleared?: OpenedChoice; status?: string; isOpen?: boolean; columns?: BottleColumns };
+export type BottlePatch = {
+  fillPct?: number;
+  dateOpened?: string | null;
+  ifOpenedCleared?: OpenedChoice;
+  status?: string;
+  isOpen?: boolean;
+  columns?: BottleColumns;
+  /** The sheet’s fill and Opened cells also have to agree with the bottle’s status. */
+  fromBulkEditor?: boolean;
+};
 export type BottleUpdate =
   | { ok: true; result: FillResult }
   | { ok: false; code: "opened_cleared" | "invalid"; message: string; field?: string };
@@ -133,7 +142,8 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
       // An explicit Opened flag is the decision for a cleared date. Apply it below using the same
       // full-bottle rule as the checkbox on its own.
       const choice = patch.dateOpened === null && patch.isOpen !== undefined ? "keep_open" : patch.ifOpenedCleared;
-      const opened = openedUpdate(state, patch.dateOpened, choice, today);
+      // A coordinated edit can replace or clear the killed date. Validate the pair after applying the whole patch.
+      const opened = openedUpdate({ ...state, dateKilled: null }, patch.dateOpened, choice, today);
       if (!opened.ok) return opened;
       if (opened.set.fillPct !== undefined && patch.fillPct !== undefined && patch.fillPct !== opened.set.fillPct) {
         return { ok: false, code: "invalid", message: "Marking it sealed sets the level to full.", field: "fillPct" };
@@ -149,19 +159,21 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
       const flag = openFlagUpdate(left(), patch.isOpen, today);
       if (!flag.ok) return { ok: false, code: "invalid", message: flag.message, field: "isOpen" };
       Object.assign(set, flag.set);
-      if (patch.dateOpened === null) set.dateOpened = null;
     }
-    if (patch.status !== undefined) {
-      const next = statusUpdate(left(), patch.status, today);
-      if (!next.ok) return { ok: false, code: "invalid", message: next.message, field: "status" };
+    const lifeField = (["status", "fillPct", "isOpen", "dateOpened"] as const).find((field) => patch[field] !== undefined);
+    const checkBulkStatus = patch.fromBulkEditor && lifeField !== undefined;
+    const targetStatus = patch.status ?? (checkBulkStatus ? left().status : undefined);
+    if (targetStatus !== undefined) {
+      const next = statusUpdate(left(), targetStatus, today);
+      if (!next.ok) return { ok: false, code: "invalid", message: next.message, field: lifeField ?? "status" };
       Object.assign(set, next.set);
     }
-    if (columns.dateKilled) {
-      const opened = (set.dateOpened as string | null | undefined) === undefined ? current.dateOpened : (set.dateOpened as string | null);
-      if (columns.dateKilled > today) return { ok: false, code: "invalid", message: "That date is in the future.", field: "dateKilled" };
-      if (opened && columns.dateKilled < opened) return { ok: false, code: "invalid", message: "Killed before it was opened — check these dates.", field: "dateKilled" };
-    }
+    if (patch.dateOpened === null) set.dateOpened = null;
     Object.assign(set, columns);
+    if (checkBulkStatus || set.dateOpened !== undefined || set.dateKilled !== undefined) {
+      const dates = bottleLifecycleDateError(left(), today);
+      if (dates) return { ok: false, code: "invalid", ...dates };
+    }
 
     const returning = { fillPct: bottles.fillPct, isOpen: bottles.isOpen, status: bottles.status, dateOpened: bottles.dateOpened };
     if (Object.keys(set).length === 0) {

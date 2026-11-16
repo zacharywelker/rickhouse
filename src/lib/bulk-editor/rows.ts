@@ -4,7 +4,6 @@ import { z } from "zod";
 import { db } from "@/db";
 import { BOTTLE_STATUSES, bottleImages, bottles, brands, categories, expressions, stores } from "@/db/schema";
 import { newBottleValues } from "@/lib/bottles/new-bottle";
-import { statusUpdate } from "@/lib/bottles/status-rules";
 import { bottlePatchSchema } from "@/lib/bottles/patch-schema";
 import { updateBottle } from "@/lib/bottles/state";
 import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
@@ -207,15 +206,7 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
         if (made.values.storeId != null && (await tx.$count(stores, and(eq(stores.id, made.values.storeId), eq(stores.ownerId, ownerId)))) === 0) {
           throw new Rejected(invalidField("storeId", "Choose one of your stores."));
         }
-        // A status that is not simply owned or open is held to what it means (killed is empty, a wishlist bottle is sealed).
-        const values = { ...made.values } as Record<string, unknown> & typeof made.values;
-        if (values.status && values.status !== "owned" && values.status !== "open") {
-          const asOwned = { isOpen: values.isOpen ?? false, dateOpened: values.dateOpened ?? null, dateKilled: values.dateKilled ?? null, fillPct: values.fillPct ?? 100, status: "owned" };
-          const next = statusUpdate(asOwned, values.status, new Date().toISOString().slice(0, 10));
-          if (!next.ok) throw new Rejected(invalidField("status", next.message));
-          Object.assign(values, next.set);
-        }
-        const [inserted] = await tx.insert(bottles).values({ ...values, ownerId }).returning({ id: bottles.id });
+        const [inserted] = await tx.insert(bottles).values({ ...made.values, ownerId }).returning({ id: bottles.id });
         bottleId = inserted!.id;
       }
 
@@ -334,7 +325,7 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
     const { fillPct, dateOpened, ifOpenedCleared, ...columns } = parsed.data;
     const { status, isOpen, ...own } = life;
     const outcome = await updateBottle(bottleId, ownerId, {
-      fillPct, dateOpened, ifOpenedCleared,
+      fillPct, dateOpened, ifOpenedCleared, fromBulkEditor: true,
       ...(status !== undefined ? { status } : {}),
       ...(isOpen !== undefined ? { isOpen } : {}),
       columns: { ...columns, ...own, ...(version !== undefined ? { expressionNameId: version } : {}) },
