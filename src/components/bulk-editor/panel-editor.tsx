@@ -111,6 +111,10 @@ export function PanelEditor({
             initialRows={loaded.rows}
             toText={otherNamesRowsText}
             onChange={(rows) => emit(otherNamesRowsText(rows))}
+            validateChange={(rows) => {
+              const invalidYear = rows.some((row) => [row.yearFrom, row.yearTo].some((value) => value?.trim() && !/^\d{4}$/.test(value.trim())));
+              return invalidYear ? "Enter a four-digit year." : parseOtherNames(otherNamesRowsText(rows)).error;
+            }}
             savesAtOnce
           />
         ) : (
