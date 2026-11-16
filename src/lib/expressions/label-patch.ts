@@ -79,8 +79,8 @@ function pgCode(error: unknown): string | null {
   return null;
 }
 
-async function labelCalled(ownerId: number, brandId: number, name: string, exceptId: number) {
-  const [row] = await db
+async function labelCalled(ownerId: number, brandId: number, name: string, exceptId: number, query: Pick<typeof db, "select"> = db) {
+  const [row] = await query
     .select({ id: expressions.id, name: expressions.name, brand: brands.name })
     .from(expressions)
     .innerJoin(brands, eq(brands.id, expressions.brandId))
@@ -139,7 +139,7 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
 
       const name = facts.name ?? current.name;
       if (newBrandName === null && (brandId !== current.brandId || name.toLowerCase() !== current.name.toLowerCase())) {
-        const taken = await labelCalled(ownerId, brandId, name, id);
+        const taken = await labelCalled(ownerId, brandId, name, id, tx);
         if (taken) return { ok: false, kind: "name_taken", existing: taken };
       }
       if (newBrandName !== null) brandId = await findOrCreateBrand(tx, ownerId, newBrandName);
@@ -147,7 +147,8 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       // The same category rules as the web form's save: only the columns the category writes (vodka has no aging),
       // and Bottled In Bond is 100 proof whatever was sent, including on a label that already is.
       const categoryId = facts.categoryId ?? current.categoryId;
-      const kind = (await categoryKindsById())[categoryId] ?? "other";
+      const kinds = await categoryKindsById(tx);
+      const kind = kinds[categoryId] ?? "other";
       const [category] = await tx
         .select({ fieldGroup: categories.fieldGroup })
         .from(categories)
@@ -158,8 +159,8 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       const byName =
         facts.name !== undefined || facts.categoryId !== undefined
           ? nameRuleColumns(current, sent, ((groups, kinds) => (values: Record<string, unknown>) => nameContextFor(values, groups, kinds))(
-              await categoryFieldGroups(),
-              await categoryKindsById(),
+              await categoryFieldGroups(tx),
+              kinds,
             ))
           : {};
       const allowed = writableLabelFacts(category?.fieldGroup ?? "other", kind);
@@ -192,7 +193,7 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       if (kind === "tequila" && current.categoryId !== categoryId && !patch.links?.ingredients && !patch.ingredients) {
         await replaceIngredients(tx, ownerId, id, [{ name: "Blue Weber" }]);
       }
-      if (isGinKind(kind) && !isGinKind((await categoryKindsById())[current.categoryId] ?? "other") && !patch.links?.ingredients && !patch.ingredients) {
+      if (isGinKind(kind) && !isGinKind(kinds[current.categoryId] ?? "other") && !patch.links?.ingredients && !patch.ingredients) {
         await replaceIngredients(tx, ownerId, id, [{ name: "Juniper", kind: "botanical" }]);
       }
       if (patch.otherNames) await syncExpressionNames(tx, id, patch.otherNames);
