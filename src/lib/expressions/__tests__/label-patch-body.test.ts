@@ -10,6 +10,13 @@ describe("bulk label patch", () => {
     expect(bulkLabelPatchBody.safeParse({}).success).toBe(false);
   });
 
+  it("keeps explicit age provenance when updating a whiskey age", () => {
+    expect(bulkLabelPatchBody.parse({ ageYears: 6, ageYearsSource: "derived" })).toEqual({
+      ageYears: "6",
+      ageYearsSource: "derived",
+    });
+  });
+
   it("keeps explicit statuses and clears", () => {
     expect(bulkLabelPatchBody.parse({
       peatStatus: "unpeated",
