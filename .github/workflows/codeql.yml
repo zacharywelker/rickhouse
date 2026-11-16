@@ -29,29 +29,31 @@ jobs:
     name: Detect iOS changes
     runs-on: ubuntu-latest
     outputs:
-      swift: ${{ steps.diff.outputs.swift }}
+      matrix: ${{ steps.diff.outputs.matrix }}
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 2
 
       - name: Compare with the base branch
         id: diff
         run: |
+          js='{"language":"javascript-typescript","runner":"ubuntu-latest","build-mode":"none"}'
+          swift='{"language":"swift","runner":"macos-26","build-mode":"manual"}'
           if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "swift=true" >> "$GITHUB_OUTPUT"
+            include="$js,$swift"
           # On a PR the checkout is a merge commit; HEAD^1 is the base branch tip.
           elif git diff --name-only HEAD^1 HEAD | grep -q -E '^(ios/|\.github/workflows/codeql\.yml$)'; then
-            echo "swift=true" >> "$GITHUB_OUTPUT"
+            include="$js,$swift"
           else
-            echo "swift=false" >> "$GITHUB_OUTPUT"
+            include="$js"
           fi
+          echo "matrix={\"include\":[$include]}" >> "$GITHUB_OUTPUT"
 
   analyze:
     name: Analyze (${{ matrix.language }})
     needs: changes
-    if: matrix.language != 'swift' || needs.changes.outputs.swift == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
@@ -62,19 +64,11 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - language: javascript-typescript
-            runner: ubuntu-latest
-            build-mode: none
-          - language: swift
-            # The app targets iOS 26, which needs Xcode 26.
-            runner: macos-26
-            build-mode: manual
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
 
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # Before Initialize CodeQL on purpose: init turns on the build tracer for
       # every later step, and the tracer makes brew run under Rosetta and fail.
@@ -86,7 +80,7 @@ jobs:
           xcodegen generate
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -106,6 +100,6 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@9418214df1f2c4b8128c770156c409013b07d6b9 # v3
         with:
           category: "/language:${{ matrix.language }}"
