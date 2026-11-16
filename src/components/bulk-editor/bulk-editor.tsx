@@ -442,7 +442,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const [error, setError] = React.useState<string | null>(null);
   /** The column a run of Tabs started in, which Enter returns to on the next row. */
   const anchorCol = React.useRef(0);
-  const focusAfter = React.useRef(true);
+  const focusAfter = React.useRef(false);
   /** Set when Tab follows a row that has just moved to its sorted place: the view then goes with it. */
   const followRow = React.useRef(false);
   const sheetRef = React.useRef<HTMLDivElement>(null);
@@ -696,10 +696,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // Put the browser's focus on the active cell after a move, and keep it in view.
   React.useEffect(() => {
     if (!current || editing) return;
-    if (!focusAfter.current) {
-      focusAfter.current = true;
-      return;
-    }
+    const requested = focusAfter.current;
+    focusAfter.current = false;
+    const focusedCell = document.activeElement?.closest("td[data-r]");
+    if (!requested && !sheetRef.current?.contains(focusedCell ?? null)) return;
     const el = sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${current.row}"][data-c="${current.col}"]`);
     if (el && document.activeElement !== el) {
       el.focus({ preventScroll: true });
