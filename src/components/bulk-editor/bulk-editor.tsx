@@ -42,7 +42,7 @@ import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND
 import { decodeRef, encodePick, REF_CAN_CREATE, REF_NO_CREATE, REF_WHAT, refCandidates, refNames, type RefData } from "@/lib/bulk-editor/references";
 import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
 import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-editor/clipboard";
-import { settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
+import { EXISTING_LABEL_REQUIRES_BOTTLES, pastedDraftConflict, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
 import { ComboEditor } from "./combo-editor";
 import { LinksEditor, type LinkOptions } from "./links-editor";
 import { FindBar } from "./find-bar";
@@ -760,7 +760,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     // A choice the sheet will not take is refused in the open editor, with the reason, rather than dropped.
     if ("pick" in result && columnId === "name" && result.pick.kind === "existing" && !view.bottles) {
       focusAfter.current = result.focus;
-      setError("That label already exists. Switch Bottles on to add a bottle of it.");
+      setError(EXISTING_LABEL_REQUIRES_BOTTLES);
       return;
     }
 
@@ -896,7 +896,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       } else if (rows[pos.row] && columns[pos.col] && pending[pendKey(rows[pos.row]!.key, columns[pos.col]!.id)] !== undefined) {
         // A label waits for its brand, and a category for its label.
         event.preventDefault();
-        setGone((prev) => [...prev.filter((g) => g.key !== "choose-first"), { key: "choose-first", text: "Choose the brand first, then the label, then the category: each opens once the one before it is chosen." }]);
+        const draft = drafts.find((d) => d.key === rows[pos.row]!.key);
+        const conflict = draft && pastedDraftConflict(draft, pendingByRow.get(draft.key) ?? {}, { bottles: view.bottles, labels, categories });
+        const text = conflict && conflict.column === columns[pos.col]!.id ? conflict.message : "Choose the brand first, then the label, then the category: each opens once the one before it is chosen.";
+        setGone((prev) => [...prev.filter((g) => g.key !== "choose-first"), { key: "choose-first", text }]);
       }
     } else if (key === " " && !event.shiftKey && editorAt(pos)?.spec.kind === "checkbox") {
       event.preventDefault();
@@ -1198,7 +1201,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         if (!checked.ok) return void skipped.push(`${where}: ${checked.message}`);
         if (checked.value !== "") typed[column.id] = checked.value;
       });
-      const settled = settleDraft(emptyDraft(key), texts, { brands, labels, categories, drafts: [...drafts, ...made] });
+      const settled = settleDraft(emptyDraft(key), texts, { bottles: view.bottles, brands, labels, categories, drafts: [...drafts, ...made] });
       made.push(settled.draft);
       for (const [name, text] of Object.entries(settled.left)) {
         newPending[pendKey(key, name)] = text;
@@ -1223,7 +1226,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       if (name !== except && waitingText !== undefined) texts[name] = waitingText;
     }
     if (Object.keys(texts).length === 0) return list;
-    const settled = settleDraft(draft, texts, { brands, labels, categories, drafts: list });
+    const settled = settleDraft(draft, texts, { bottles: view.bottles, brands, labels, categories, drafts: list });
     for (const name of Object.keys(texts)) if (!(name in settled.left)) dropPending(key, name);
     return list.map((d) => (d.key === key ? settled.draft : d));
   }
@@ -1319,6 +1322,11 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (isBlank(d, edits, pendingColumn !== undefined) || state?.kind === "saving" || state?.kind === "saved") continue;
     if (state?.kind === "blocked") blockedRows.push({ key: d.key, title: draftTitle(d), message: state.message, column: state.column, short: state.message });
     else {
+      const conflict = pastedDraftConflict(d, pendingByRow.get(d.key) ?? {}, { bottles: view.bottles, labels, categories });
+      if (conflict) {
+        blockedRows.push({ key: d.key, title: draftTitle(d), message: conflict.message, column: conflict.column, short: conflict.message });
+        continue;
+      }
       const need = draftNeeds(d) ?? (pendingColumn ? { column: pendingColumn, action: "choose or clear the pasted value", short: "Choose a value" } : null);
       if (need && (activeKey !== d.key || idle)) blockedRows.push({ key: d.key, title: draftTitle(d), action: need.action, column: need.column, short: need.short });
     }

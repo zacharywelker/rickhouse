@@ -131,6 +131,7 @@ export function useRowSaver(input: Input) {
         // A new row that has been made is not made again: it stays in the list until the reloaded data has it, and a second
         // request for it (the cursor leaving it as well as the run of Tab and Enter that finished it) would add a duplicate.
         if (!draft || latest.current.editingDraft.current === key || created.current.has(key) || pendingByRow.has(key) || isBlank(draft, edits) || draftNeeds(draft) !== null) return;
+        if (!view.bottles && draft.label?.kind === "existing") return;
         snapshot = { cells: cells ?? {} };
         const body = createBody(draft, cells, view.bottles);
         call = () => createRowAction(body);
