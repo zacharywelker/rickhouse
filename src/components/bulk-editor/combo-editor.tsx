@@ -23,7 +23,7 @@ const LIST_HEIGHT = 280;
 /** The most a Brand or Label list shows once something is typed; the Create option is that many arrow presses away at most. */
 const LIST_CAP: Record<string, number> = { brand: 5, label: 12 };
 
-export function ComboEditor({ kind, column, initial, data, error, onFinish, onInvalid }: {
+export function ComboEditor({ kind, column, initial, data, error, onFinish, onInvalid, onInput }: {
   kind: ComboKind | "reference";
   column: string;
   initial: Editing;
@@ -31,6 +31,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
   error: string | null;
   onFinish: (finish: Finish) => void;
   onInvalid: (message: string) => void;
+  onInput: (value: string) => void;
 }) {
   const ask = React.useCallback((typed: string) => suggest(typed, data.candidates, { allowCreate: data.allowCreate, cap: LIST_CAP[data.what] }), [data.candidates, data.allowCreate, data.what]);
   const [text, setText] = React.useState(initial.value);
@@ -195,6 +196,7 @@ export function ComboEditor({ kind, column, initial, data, error, onFinish, onIn
         onChange={(event) => {
           const next = event.target.value;
           setText(next);
+          onInput(next);
           moved.current = false;
           setHighlight(defaultHighlight(ask(next)));
         }}
