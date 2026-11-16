@@ -14,6 +14,9 @@ struct BottleFormView: View {
     @State private var photos: [FormPhoto] = []
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showCamera = false
+    @State private var showLibrary = false
+    @State private var importingPhotos = false
+    @State private var photoError: String?
     @State private var saving = false
     @State private var error: String?
     /// Set once the bottle exists, so a retry after a failed photo upload
@@ -29,19 +32,8 @@ struct BottleFormView: View {
     var body: some View {
         Form {
             Section {
-                if !photos.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach($photos) { $photo in
-                                PhotoThumb(photo: $photo) { photos.removeAll { $0.id == photo.id } }
-                            }
-                        }
-                    }
-                }
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button("Take photo", systemImage: "camera") { showCamera = true }
-                }
-                PhotosPicker("Choose from library", selection: $pickerItems, maxSelectionCount: 6, matching: .images)
+                photoStrip
+                if let photoError { ErrorText(photoError) }
             } header: { SectionLabel("Photos") }
             Section {
                 FillPicker(percent: draft.fill, disabled: createdId != nil, sealed: !draft.isOpen) { draft.setFill($0) }
@@ -71,20 +63,29 @@ struct BottleFormView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button(saving ? "Saving…" : error == nil ? "Save" : "Retry", action: save)
-                    .disabled(saving || photos.contains(where: \.working))
+                    .disabled(saving || importingPhotos || photos.contains(where: \.working))
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { add($0) }.ignoresSafeArea()
         }
+        .photosPicker(isPresented: $showLibrary, selection: $pickerItems, maxSelectionCount: 6, matching: .images)
         .onChange(of: pickerItems) { _, items in
+            guard !items.isEmpty else { return }
+            importingPhotos = true
+            photoError = nil
             Task {
+                defer {
+                    pickerItems = []
+                    importingPhotos = false
+                }
                 for item in items {
                     if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
                         add(image)
+                    } else {
+                        photoError = "Some photos couldn't be opened. Choose them again to retry."
                     }
                 }
-                pickerItems = []
             }
         }
         .task(id: photos.map(\.id)) {
@@ -98,6 +99,71 @@ struct BottleFormView: View {
                 } catch { return }
             }
         }
+    }
+
+    private var photoStrip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach($photos) { $photo in
+                        PhotoThumb(photo: $photo) { photos.removeAll { $0.id == photo.id } }
+                    }
+                    addPhotosTile.id("add-photos")
+                    if photos.isEmpty {
+                        photoGuide("Front")
+                        photoGuide("Back")
+                    }
+                }
+            }
+            .onChange(of: photos.count) { before, count in
+                if count > before { proxy.scrollTo("add-photos", anchor: .trailing) }
+            }
+        }
+        .disabled(saving)
+    }
+
+    private var addPhotosTile: some View {
+        Menu {
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Take photo", systemImage: "camera") { showCamera = true }
+            }
+            Button("Choose from library", systemImage: "photo.on.rectangle") { showLibrary = true }
+        } label: {
+            VStack(spacing: 6) {
+                if importingPhotos {
+                    ProgressView()
+                } else {
+                    Image(systemName: "plus").font(.system(size: 19, weight: .medium))
+                }
+                Text("Add photos").font(.inter(12, .semibold, relativeTo: .caption))
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(Theme.ink)
+            .frame(width: 80, height: 100)
+            .background(Theme.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(Theme.muted, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(importingPhotos)
+        .accessibilityLabel(importingPhotos ? "Importing photos" : "Add photos")
+    }
+
+    private func photoGuide(_ title: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: "photo").font(.system(size: 17))
+            Text(title).font(.inter(12, relativeTo: .caption))
+        }
+        .foregroundStyle(Theme.muted)
+        .frame(width: 80, height: 100)
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(Theme.muted.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        }
+        .accessibilityHidden(true)
     }
 
     /// Shows the photo at once, then swaps in the cutout if Vision can make one.
@@ -165,6 +231,7 @@ struct PhotoThumb: View {
                     Image(systemName: "xmark.circle.fill").symbolRenderingMode(.palette)
                         .foregroundStyle(Theme.paper, Theme.ink)
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Remove photo")
                 .padding(2)
             }
@@ -176,6 +243,7 @@ struct PhotoThumb: View {
                             .frame(width: 28, height: 28)
                             .background(photo.useCutout ? Theme.ink : Theme.paper, in: Circle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel(photo.useCutout ? "Background removed. Use original" : "Original. Remove background")
                     .padding(2)
                 }
