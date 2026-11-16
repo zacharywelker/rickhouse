@@ -151,7 +151,7 @@ function ActiveEditor({ editor, initial, error, reach, onFinish, onInvalid }: { 
 
   React.useEffect(() => {
     const el = input.current;
-    if (!(el instanceof HTMLInputElement)) return;
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
     el.focus();
     if (!initial.replace) el.select();
     else {
@@ -177,6 +177,8 @@ function ActiveEditor({ editor, initial, error, reach, onFinish, onInvalid }: { 
       className="absolute left-0 top-0 z-20 h-9 w-max min-w-full max-w-72 bg-card"
       style={{ minWidth: "max(100%, 7rem)" }}
       onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return;
+        if (event.key === "Enter" && event.shiftKey && editor.spec.kind === "textarea") return;
         if (event.key === "Enter") {
           event.preventDefault();
           event.stopPropagation();
