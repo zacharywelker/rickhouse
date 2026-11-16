@@ -1,0 +1,81 @@
+name: CodeQL
+
+# Advanced setup (replaces the default setup, which can't build the iOS app:
+# ios/Rickhouse.xcodeproj is generated from ios/project.yml and not committed).
+# Turn off "Default setup" under Settings > Code security, or the two will
+# upload conflicting results.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+      actions: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            runner: ubuntu-latest
+            build-mode: none
+          - language: swift
+            # The app targets iOS 26, which needs Xcode 26.
+            runner: macos-26
+            build-mode: manual
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Generate the Xcode project
+        if: matrix.language == 'swift'
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      # Must compile every Swift file: CodeQL only sees what the compiler
+      # runs on, so no build caches, and signing is off (no certificates here).
+      - name: Build iOS app
+        if: matrix.language == 'swift'
+        working-directory: ios
+        run: |
+          xcodebuild clean build \
+            -project Rickhouse.xcodeproj \
+            -scheme Rickhouse \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
