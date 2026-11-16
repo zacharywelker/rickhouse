@@ -1,4 +1,5 @@
 import "server-only";
+import type { db } from "@/db";
 import type { bottles } from "@/db/schema";
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { fieldErrorsOf } from "@/lib/expressions/save";
@@ -26,6 +27,7 @@ export async function newBottleValues(
   raw: Record<string, unknown>,
   expressionId: number,
   spirit: { kind: CategoryKind; ginAged: boolean },
+  query: Pick<typeof db, "select">,
 ): Promise<NewBottle> {
   const row = { acquisition: "purchase", status: "owned", ...raw, expressionId };
   const parsed = bottleSchema.safeParse(row);
@@ -34,7 +36,7 @@ export async function newBottleValues(
     const issues = [...(parsed.success ? [] : parsed.error.issues), ...(state.success ? [] : state.error.issues)];
     return { ok: false, error: issues[0]?.message ?? "Please check the highlighted fields.", fieldErrors: fieldErrorsOf(issues) };
   }
-  const settled = await settleLabelChoices(parsed.data);
+  const settled = await settleLabelChoices(parsed.data, query);
   const values = settleNewBottleOpen(
     { ...withBottleSpiritFacts(settled, spirit.kind, spirit.ginAged), ...state.data },
     new Date().toISOString().slice(0, 10),

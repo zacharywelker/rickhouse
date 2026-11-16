@@ -160,19 +160,19 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
         if (!row) throw new Rejected(invalidField("label", "Choose one of your labels."));
         if (row.brandId !== brandId) throw new Rejected(invalidField("label", "That label is not under this brand."));
         labelId = row.id;
-        spirit = { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin };
+        spirit = { kind: (await categoryKindsById(tx))[row.categoryId] ?? "other", ginAged: row.isAgedGin };
       } else {
         const made = await ensureLabel(tx, ownerId, brandId, label.name, label.categoryId, label.facts ?? {}, links!);
         labelId = made.id;
         createdLabel = made.created;
         labelFactsIgnored = !made.created && Object.keys(label.facts ?? {}).length > 0;
-        spirit = { kind: (await categoryKindsById())[made.categoryId] ?? "other", ginAged: made.isAgedGin };
+        spirit = { kind: (await categoryKindsById(tx))[made.categoryId] ?? "other", ginAged: made.isAgedGin };
       }
 
       // The bottle.
       let bottleId: number | null = null;
       if (bottle) {
-        const made = await newBottleValues(bottle, labelId, spirit);
+        const made = await newBottleValues(bottle, labelId, spirit, tx);
         if (!made.ok) throw new Rejected(failure("invalid", made.error, made.fieldErrors));
         if (made.values.storeId != null && (await tx.$count(stores, and(eq(stores.id, made.values.storeId), eq(stores.ownerId, ownerId)))) === 0) {
           throw new Rejected(invalidField("storeId", "Choose one of your stores."));
@@ -220,7 +220,7 @@ async function ensureLabel(
     try {
       const made = await tx.transaction(async (savepoint) => {
         const input = expressionSchema.parse({ ...facts, brandId, categoryId, name });
-        return { id: await writeLabel(savepoint, ownerId, null, await labelValues(input, ownerId, null), links), isAgedGin: input.isAgedGin };
+        return { id: await writeLabel(savepoint, ownerId, null, await labelValues(input, ownerId, null, savepoint), links), isAgedGin: input.isAgedGin };
       });
       return { id: made.id, created: true, categoryId, isAgedGin: made.isAgedGin };
     } catch (error: unknown) {

@@ -55,6 +55,16 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(Number(bottle.price_paid)).toBe(47);
     });
 
+    it("saves a pool's worth of concurrent bottles on an existing label", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Pool Test");
+      const { brand_id: brand } = await one<{ brand_id: number }>("SELECT brand_id FROM expressions WHERE id = $1", label);
+      const results = await Promise.all(
+        Array.from({ length: 12 }, () => rows.createRow(owner, { brand: { id: brand }, label: { id: label }, bottle: {} })),
+      );
+      expect(results.map((r) => r.ok)).toEqual(Array(12).fill(true));
+      expect(await count("bottles", "expression_id = $1", label)).toBe(12);
+    });
+
     it("makes a label without a bottle when none is sent", async () => {
       const out = await rows.createRow(owner, { brand: { name: "Label Only Brand" }, label: { name: "Lonely", categoryId: cat.rum } });
       expect(out).toMatchObject({ ok: true, bottleId: null, created: { brand: true, label: true, bottle: false } });
