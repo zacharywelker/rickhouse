@@ -54,12 +54,12 @@ A label whose vintages disagree shows **"Varies"** at the label level instead of
 
 | The bottle is | Typing changes | Switch |
 |---|---|---|
-| a single barrel or a private selection | this bottle | none: always this bottle |
-| on a vintage (and neither of the above) | that vintage, and so every bottle of it | the vintage, or only this bottle |
-| neither | the label, and so every bottle of it | the label, or only this bottle |
+| a single barrel or a private selection | this bottle | this bottle, the label |
+| on a vintage (and neither of the above) | that vintage, and so every bottle of it | this bottle, the vintage, the label |
+| neither | the label, and so every bottle of it | this bottle, the label |
 | a new row for a new label | the new label's defaults, until the row is marked a single barrel or private selection | none |
 
-**Decided by the owner:** typing into a label-level proof or age that reads "Varies" (Labels-only view) sets **the label's default** and leaves every vintage's own value alone. The label is not reachable from a bottle that is on a vintage; use the Labels-only view or a bottle with no vintage.
+**Decided by the owner:** typing into a label-level proof or age that reads "Varies" (Labels-only view) sets **the label's default** and leaves every vintage's own value alone. The same default can be set from any bottle by rotating the scope to the label. The "Switch" column lists the levels the rotation steps through, narrowest first; the first level in the target column is where it starts.
 
 "Only this bottle" writes the bottle's own override. Clearing a value at a level removes that level's value, so the next level down shows through.
 
@@ -67,7 +67,7 @@ A label whose vintages disagree shows **"Varies"** at the label level instead of
 
 A value that does not belong to the label carries a small marker in the cell: one for a vintage, one for a single barrel, one for a private selection, one for both. A label's own value has none, so a plain sheet stays plain. A hover says it in words. The same marker applies to every field in this design, including size and the three spirit-specific overrides. A bottle's own size that differs from its label's is marked as this bottle's.
 
-Two styles were mocked up: **small shapes** (diamond, filled dot, hollow dot, half-filled dot) and **tiny letter tags** (V, SB, PS, SB PS). The owner has not chosen yet. Colour is not the signal, so the sheet stays readable and readable in both themes.
+**Chosen by the owner: tiny letter tags** (V, SB, PS, SB PS), set upright. They must never be italic, including inside cells that are italic for an inferred value. Colour is not the signal, so the sheet stays readable and readable in both themes.
 
 ### 4. The note while editing
 
@@ -75,7 +75,7 @@ While a cell is being edited, a short note sits under it and says what will chan
 
 ### 5. The scope switch
 
-Where the table above offers a choice, **Alt+Down (Option+Down on a Mac) toggles it while the cell is being edited**, and clicking the note toggles it. The note names the other choice and the key. The key is the same on every operating system by decision (Ctrl+Down is taken by macOS). **Tab, Enter and Ctrl+Enter keep their present meaning** (move between cells and rows, and create the typed name). Alt+Up does the same as Alt+Down, as there are only ever two choices.
+**Alt+Down (Option+Down on a Mac) rotates the scope while the cell is being edited**, through the levels the bottle has, narrowest first: this bottle, its vintage (if it has one), the label, and back around. **Alt+Up rotates the other way.** Clicking the note also steps on. The note names its neighbours ("Changes the 2025A vintage (2 bottles) · Alt ↑ only this bottle · Alt ↓ the label"). It starts at the level in decision 2, including for a single barrel or private selection, which start at this bottle. The key is the same on every operating system by decision (Ctrl+Down is taken by macOS). **The page reads the platform from the browser to say "Option" on a Mac and "Alt" elsewhere in the note; the key itself is the same.** **Tab, Enter and Ctrl+Enter keep their present meaning** (move between cells and rows, and create the typed name).
 
 ### 6. Column order for adding a bottle
 
@@ -94,6 +94,7 @@ A new row that is creating a new label sends its proof, age and spirit-specific 
 - **The values that describe the liquid move to the bottle** and the new label is created without them: proof and ABV, age (years, months, days, statement), tequila class, brandy grade, gin NAS. **Size and everything else stay on the label.**
 - A corner notice names exactly what moved ("Proof and age are now this bottle's, since it's a private selection").
 - Un-marking later does not move them back.
+- **The corner notice carries a "Keep everything on the label instead" action**, which puts the moved values back on the label as its defaults and leaves the bottle flagged. It is on the notice for the move on a new row and for the safety net below. After the notice is dismissed, rotating the scope to the label and retyping does the same job.
 - Only a row that is **creating the label** does this, at the moment of marking.
 
 **The safety net (this session only):** pressing Enter on a value cell leaves the row, and a complete new-label row saves when left, so the person can reach the flag after the label already exists. If a bottle is then marked single barrel or private selection and it is **the only bottle on a label that was created in this session**, the same values move from the label to the bottle and the label's are cleared, with the same notice. A label from an earlier session is never touched this way.
@@ -122,7 +123,6 @@ For a row marked single barrel or private selection, **no new vintage is created
 
 ## Open items for the owner
 
-- Marker style: shapes or letter tags.
 - Whether Single barrel and Private selection are two columns or stay one combined cell.
 - Whether a row marked single barrel or private selection should create a vintage at all (the default above is no).
 
