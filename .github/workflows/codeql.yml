@@ -22,8 +22,36 @@ permissions:
   contents: read
 
 jobs:
+  # The Swift scan takes ~25 minutes, so on a PR it only runs when the PR
+  # touches iOS code (or this workflow). Pushes to main, the weekly schedule
+  # and manual runs always scan everything.
+  changes:
+    name: Detect iOS changes
+    runs-on: ubuntu-latest
+    outputs:
+      swift: ${{ steps.diff.outputs.swift }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Compare with the base branch
+        id: diff
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "swift=true" >> "$GITHUB_OUTPUT"
+          # On a PR the checkout is a merge commit; HEAD^1 is the base branch tip.
+          elif git diff --name-only HEAD^1 HEAD | grep -q -E '^(ios/|\.github/workflows/codeql\.yml$)'; then
+            echo "swift=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "swift=false" >> "$GITHUB_OUTPUT"
+          fi
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: changes
+    if: matrix.language != 'swift' || needs.changes.outputs.swift == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
