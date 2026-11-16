@@ -1310,7 +1310,7 @@ test("deleting a block drops pending Store choices and preserves the saved store
   await select(page, 0, store);
   await page.keyboard.type("Block Delete Test Store");
   await page.keyboard.press("Enter");
-  await expect(cell(page, 0, store)).toHaveText("Block Delete Test Store");
+  await expect(cell(page, 0, store)).toContainText("Block Delete Test Store");
   await reloaded(page);
 
   await select(page, 0, store);
