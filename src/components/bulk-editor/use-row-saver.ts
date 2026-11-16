@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { createRowAction, patchBottleRowAction, patchLabelRowAction } from "@/app/(app)/bulk-editor/actions";
+import { createRowAction, labelLinksAction, patchBottleRowAction, patchLabelRowAction } from "@/app/(app)/bulk-editor/actions";
 import type { Moves } from "@/lib/bulk-editor/changes";
 import { isBlank, type DraftRow } from "@/lib/bulk-editor/drafts";
 import type { Edits } from "@/lib/bulk-editor/editors";
-import type { LinkLists } from "@/lib/bulk-editor/links";
+import { LINK_KEYS, linksFromLoaded } from "@/lib/bulk-editor/links";
 import { bottlePatchBody, createBody, draftNeeds, failureColumn, labelPatchBody, settleEdits, settleMoves, type Sent } from "@/lib/bulk-editor/save";
 import type { SheetBottle, SheetLabel, SheetView } from "@/lib/bulk-editor/sheet";
 
@@ -30,8 +30,6 @@ type Input = {
   onLeftShelf?: (key: string, status: string) => void;
   /** Allows a draft's open editor to finish before creation starts. */
   editingDraft: React.RefObject<string | null>;
-  /** Each label's lists as they were last read in full, so what was not edited is sent unchanged. */
-  linkCache?: React.MutableRefObject<Map<number, LinkLists>>;
 };
 
 /** The quiet time after the last save before the sheet is reloaded, so a run of saves is one reload. */
@@ -119,7 +117,14 @@ export function useRowSaver(input: Input) {
         if (!cells) return;
         snapshot = { cells };
         const label = latest.current.labels.find((l) => l.id === id);
-        call = () => patchLabelRowAction(id, labelPatchBody(cells, label ? { label, loaded: latest.current.linkCache?.current.get(id) } : undefined));
+        call = async () => {
+          const hasLinkEdits = LINK_KEYS.some((column) => cells[column] !== undefined);
+          const loaded = hasLinkEdits ? await labelLinksAction(id) : null;
+          if (hasLinkEdits && (!loaded || !label)) {
+            return { ok: false, error: "Could not read this label's lists. Try saving again.", fieldErrors: {} };
+          }
+          return patchLabelRowAction(id, labelPatchBody(cells, label ? { label, loaded: loaded ? linksFromLoaded(loaded) : undefined } : undefined));
+        };
       } else {
         const draft = drafts.find((d) => d.key === key);
         // A new row that has been made is not made again: it stays in the list until the reloaded data has it, and a second

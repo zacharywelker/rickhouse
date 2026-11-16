@@ -506,8 +506,6 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // one is made fresh each time (see `withBlankRow`).
   const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
   const editingDraft = React.useRef<string | null>(null);
-  /** Each label's lists as they were last read in full (with finish pairs), so a save sends what was not edited unchanged. */
-  const linkCache = React.useRef(new Map<number, LinkLists>());
   /** Bottles that have just been given a status that takes them off the shelf: said once, so the row going is not a surprise. */
   const [gone, setGone] = React.useState<Array<{ key: string; text: string }>>([]);
   function leftShelf(key: string, status: string) {
@@ -516,7 +514,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const title = label ? `${label.brand} ${label.name}` : "A bottle";
     setGone((prev) => [...prev.filter((g) => g.key !== key), { key, text: `${title} is now ${humanise(status).toLowerCase()}, so it is no longer listed here. This sheet shows the bottles you own or have open.` }]);
   }
-  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf, editingDraft, linkCache });
+  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf, editingDraft });
   const createdAs = saver.createdAs;
   /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
   const [keyFloor, setKeyFloor] = React.useState(0);
@@ -1103,10 +1101,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         labelId={row.draft ? null : row.label.id}
         start={listsWith(row.label, own)}
         edited={edited}
-        cached={() => (row.draft ? undefined : linkCache.current.get(row.label.id))}
         options={linkOptions}
         onChange={(lists, changed, brought) => changeLists(row, lists, changed, brought)}
-        onLoaded={(lists) => linkCache.current.set(row.label.id, lists)}
         onClose={() => {
           flushLists(row);
           finish({ keep: true, move: "stay", focus: true });
@@ -1134,6 +1130,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setDeletedKeys((prev) => new Set([...prev, ...gone]));
     setSelected(new Set(ticked.filter((key) => !gone.has(key))));
     // Anything typed into a row that is gone goes with it.
+    for (const key of gone) {
+      clearTimeout(linkTimers.current.get(key));
+      linkTimers.current.delete(key);
+    }
     saver.forgetDeleted(gone);
     setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.has(key))));
     setMoves((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.has(key))));
