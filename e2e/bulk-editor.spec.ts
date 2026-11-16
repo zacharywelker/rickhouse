@@ -1139,7 +1139,20 @@ test("a label's distilleries open in the form's own picker, save as they are cha
   await page.keyboard.press("Escape");
   await expect(popover(page)).toHaveCount(0);
   await expect(cell(page, 3, distillery)).toContainText("Tennessee Distilling Ltd.");
+  await expect(cell(page, 3, 0).getByTitle("Saved", { exact: true })).toBeVisible();
+  await expect(cell(page, 3, 0).getByTitle("Saved", { exact: true })).toHaveCount(0, { timeout: 10000 });
+  await select(page, 3, distillery);
+  await page.keyboard.press("Enter");
+  await expect(popover(page).getByRole("group", { name: "Distilleries" }).getByRole("listitem")).toHaveCount(2);
+  await page.keyboard.press("Escape");
+
+  const finish = await col(page, "Finish");
+  await select(page, 3, finish);
+  await page.keyboard.press("Enter");
+  await addTo(page, "Add finishes", "French Oak");
+  await page.keyboard.press("Escape");
   await reloaded(page);
+  await expect(cell(page, 3, finish)).toContainText("French Oak");
   await expect(cell(page, 3, distillery)).toContainText("Tennessee Distilling Ltd., Bardstown Bourbon Company");
 });
 
