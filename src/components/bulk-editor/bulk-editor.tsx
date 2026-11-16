@@ -1082,12 +1082,14 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         if (found.kind === "blank") {
           if (editor.reference) {
             stage(pos, "");
+            dropPending(row.key, column.id);
             pasted += 1;
           } else skip("a brand or label is changed by choosing another");
         } else if (found.kind === "exact") {
           if (editor.reference) stage(pos, `id:${found.match.id}`);
           else if (row.bottle) moveBottleTo(row, found.match.id!);
           else stage(pos, found.match.name);
+          dropPending(row.key, column.id);
           pasted += 1;
         } else wait(row, column, text);
         continue;
