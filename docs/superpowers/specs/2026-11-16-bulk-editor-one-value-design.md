@@ -1,5 +1,7 @@
 # Bulk editor: one value per field, shown at the level it comes from
 
+**Status: approved by the owner, 2026-11-16.**
+
 Follows the bulk editor (#308, built) and the owner's first round of real use (#359). It **replaces the "Locked and overridable cells" section of `2026-11-10-bulk-editor-design.md`**: the separate "This bottle's proof / age / size" columns go away, and a value is no longer a label column plus a bottle column.
 
 ## Why
@@ -94,7 +96,7 @@ A new row that is creating a new label sends its proof, age and spirit-specific 
 - **The values that describe the liquid move to the bottle** and the new label is created without them: proof and ABV, age (years, months, days, statement), tequila class, brandy grade, gin NAS. **Size and everything else stay on the label.**
 - A corner notice names exactly what moved ("Proof and age are now this bottle's, since it's a private selection").
 - Un-marking later does not move them back.
-- **A corner notice, with an outlined "Undo" button in the app's own button style, names what moved and for which bottle**, for example "Barrell Craft Spirits · Cask Select: proof and age moved to this bottle (private selection). Size stays on the label. Undo puts them back on the label." Undo puts the moved values back on the label as its defaults and leaves the bottle flagged; it undoes only this move, which the notice says. The notice **fades by itself** (about ten seconds, paused while the pointer or keyboard focus is on it, and announced to screen readers when it appears). It is shown for the move on a new row and for the safety net below. Once it has gone, rotating the scope to the label and retyping does the same job.
+- **A corner notice, with an outlined "Undo" button in the app's own button style, names what moved and for which bottle**, for example "Barrell Craft Spirits · Cask Select: proof and age moved to this bottle (private selection). Size stays on the label. Undo puts them back on the label." Undo puts the moved values back on the label as its defaults and leaves the bottle flagged; it undoes only this move, which the notice says. The notice **fades by itself** (about ten seconds, paused while the pointer or keyboard focus is on it, and announced to screen readers when it appears). It is shown for the move on a new row and for the safety net below. It appears in the existing bottom-right corner notice area (the one the blocked-row notice uses, above the delete bar when rows are ticked), and when two notices are showing they **stack, newest on top**. Once it has gone, rotating the scope to the label and retyping does the same job.
 - Only a row that is **creating the label** does this, at the moment of marking.
 
 **The safety net (this session only):** pressing Enter on a value cell leaves the row, and a complete new-label row saves when left, so the person can reach the flag after the label already exists. If a bottle is then marked single barrel or private selection and it is **the only bottle on a label that was created in this session**, the same values move from the label to the bottle and the label's are cleared, with the same notice. A label from an earlier session is never touched this way.
