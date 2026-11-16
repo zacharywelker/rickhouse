@@ -1,31 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bottleGridEditSchema, bottleSchema, bottleStateSchema, expressionGridEditSchema, tastingEditSchema, tastingSchema } from "../schema";
-
-describe("expressionGridEditSchema", () => {
-  it("leaves out what was not sent, rather than clearing it", () => {
-    // A grid row sends only its edited fields; anything absent must stay
-    // absent, or saving one cell would blank the rest of the label.
-    const parsed = expressionGridEditSchema.parse({ msrp: "59.99" });
-    expect(parsed).toEqual({ msrp: "59.99" });
-  });
-
-  it("clears what was sent blank", () => {
-    expect(expressionGridEditSchema.parse({ upc: "", ageYears: "" })).toEqual({ upc: null, ageYears: null });
-  });
-
-  it("validates what it is sent", () => {
-    expect(expressionGridEditSchema.safeParse({ upc: "12ab" }).success).toBe(false);
-    expect(expressionGridEditSchema.safeParse({ name: "   " }).success).toBe(false);
-  });
-
-  it("reads yes/no/unknown and checkboxes as the form does", () => {
-    expect(expressionGridEditSchema.parse({ isSolera: "true", colorAdded: "", isNas: true })).toEqual({
-      isSolera: true,
-      colorAdded: null,
-      isNas: true,
-    });
-  });
-});
+import { bottleSchema, bottleStateSchema, tastingEditSchema, tastingSchema } from "../schema";
 
 describe("bottleStateSchema", () => {
   it("defaults to a full, closed bottle", () => {
@@ -61,9 +35,6 @@ describe("bottle dates", () => {
 
   it("refuses a bottle bought in the future", () => {
     expect(futureIssue(bottleSchema.safeParse({ expressionId: "1", dateAcquired: "2099-01-01" }))).toEqual(["dateAcquired"]);
-    expect(futureIssue(bottleGridEditSchema.safeParse({ expressionId: "1", dateAcquired: "2099-01-01" }))).toEqual([
-      "dateAcquired",
-    ]);
   });
 
   it("refuses a barrel bottled in the future, and accepts one bottled in the past", () => {

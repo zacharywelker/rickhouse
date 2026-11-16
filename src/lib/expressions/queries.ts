@@ -275,6 +275,7 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       brand: brands.name,
       brandId: expressions.brandId,
       category: categories.name,
+      categorySlug: categories.slug,
       categoryId: expressions.categoryId,
       fieldGroup: categories.fieldGroup,
       proof: expressions.proof,
@@ -284,11 +285,16 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       brandyGrade: expressions.brandyGrade,
       ginStyle: expressions.ginStyle,
       isAgedGin: expressions.isAgedGin,
+      cooperageId: expressions.cooperageId,
+      ageYearsSource: expressions.ageYearsSource,
       isAged: expressions.isAged,
       amaroStyle: expressions.amaroStyle,
       peatStatus: expressions.peatStatus,
       originCountry: expressions.originCountry,
       originRegion: expressions.originRegion,
+      originCountryManual: expressions.originCountryManual,
+      originRegionManual: expressions.originRegionManual,
+      regions: expressions.regions,
       dairyStatus: expressions.dairyStatus,
       isNonChillFiltered: expressions.isNonChillFiltered,
       ageYears: expressions.ageYears,
@@ -439,16 +445,28 @@ export type ExpressionRow = {
   brand: string;
   brandId: number;
   category: string;
+  /** The stable identifier behind the category's name (a single malt has no mashbill to pick). */
+  categorySlug?: string;
   categoryId: number;
   fieldGroup: FieldGroup;
   proof: string | null;
   abv: string | null;
   ageStatement: string | null;
+  /** Who made the casks, when known. */
+  cooperageId?: number | null;
+  /** Whether the age in years was typed or worked out from the age statement (whiskey). */
+  ageYearsSource?: "entered" | "derived";
+  isAgedGin?: boolean;
   isAged?: boolean;
   amaroStyle?: string | null;
   peatStatus?: string;
   originCountry?: string | null;
   originRegion?: string | null;
+  /** Typed by the owner, so a linked distillery's place does not overwrite it. */
+  originCountryManual?: boolean;
+  originRegionManual?: boolean;
+  /** Scotch regions. */
+  regions?: string[] | null;
   dairyStatus?: string;
   isNonChillFiltered?: boolean;
   tequilaClass?: string | null;
@@ -521,14 +539,14 @@ export async function expressionOptions(ownerId: number) {
 }
 
 /** categoryId -> field group, so a grid can tell which sections apply to a row without a round trip. */
-export async function categoryFieldGroups(): Promise<Record<number, FieldGroup>> {
-  const rows = await db.select({ id: categories.id, fieldGroup: categories.fieldGroup }).from(categories);
+export async function categoryFieldGroups(query: Pick<typeof db, "select"> = db): Promise<Record<number, FieldGroup>> {
+  const rows = await query.select({ id: categories.id, fieldGroup: categories.fieldGroup }).from(categories);
   return Object.fromEntries(rows.map((row) => [row.id, row.fieldGroup]));
 }
 
 /** Which whiskey each category is (American, Scotch, other), by category id. */
-export async function categoryKindsById(): Promise<Record<number, CategoryKind>> {
-  const rows = await db.select({ id: categories.id, slug: categories.slug, parentId: categories.parentId }).from(categories);
+export async function categoryKindsById(query: Pick<typeof db, "select"> = db): Promise<Record<number, CategoryKind>> {
+  const rows = await query.select({ id: categories.id, slug: categories.slug, parentId: categories.parentId }).from(categories);
   return categoryKinds(rows);
 }
 
@@ -544,8 +562,8 @@ export async function bottleSpiritForExpression(expressionId: number): Promise<{
   return row ? { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin } : { kind: "other", ginAged: false };
 }
 
-export async function fieldGroupForCategory(categoryId: number): Promise<FieldGroup> {
-  const [row] = await db
+export async function fieldGroupForCategory(categoryId: number, query: Pick<typeof db, "select"> = db): Promise<FieldGroup> {
+  const [row] = await query
     .select({ fieldGroup: categories.fieldGroup })
     .from(categories)
     .where(eq(categories.id, categoryId))
