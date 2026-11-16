@@ -657,19 +657,25 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (!row || !column || !editor) return;
     if (row.draft) setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
     const key = editKey(row, editor);
+    const linkedOrigin = column.id === "originCountry" || column.id === "originRegion" ? `${column.id}Linked` : undefined;
+    const withoutLinkedOrigin = (prev: Edits): Edits => {
+      if (!linkedOrigin || prev[key]?.[linkedOrigin] === undefined) return prev;
+      const { [linkedOrigin]: _linked, ...rest } = prev[key];
+      return { ...prev, [key]: rest };
+    };
     if (row.draft) {
       if (saver.draftSaving(row.key)) return;
       keepKeys(row.key);
       // A new row's cells are forgotten when put back to empty: there is nothing to send.
-      setEdits((prev) => setEdit(prev, key, column.id, value, editor.initial(row)));
+      setEdits((prev) => setEdit(withoutLinkedOrigin(prev), key, column.id, value, editor.initial(row)));
       return;
     }
     // A saved row saves as soon as a cell of it is committed. An edit that is already here is kept even when it is put
     // back to what the sheet shows: the earlier value may already be saved, and the sheet has not read it back yet.
-    const had = edits[key]?.[column.id] !== undefined;
+    const had = edits[key]?.[column.id] !== undefined || (linkedOrigin !== undefined && edits[key]?.[linkedOrigin] !== undefined);
     if (!had && value === editor.initial(row)) return;
     touch(key);
-    setEdits((prev) => ({ ...prev, [key]: { ...prev[key], [column.id]: value } }));
+    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [column.id]: value } }));
     saver.request(key);
   }
 
@@ -1314,6 +1320,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         labelId={row.draft ? null : row.label.id}
         start={listsWith(row.label, own)}
         edited={edited}
+        staged={own}
         options={linkOptions}
         onChange={(lists, changed, brought) => changeLists(row, lists, changed, brought)}
         onClose={() => {
