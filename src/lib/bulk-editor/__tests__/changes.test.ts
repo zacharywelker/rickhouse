@@ -61,8 +61,9 @@ describe("moving a bottle", () => {
     expect(other).toMatchObject({ key: "b8", label: { id: 1 } });
     expect(other!.moved).toBeUndefined();
   });
-  it("forgets a move back to the original label", () => {
-    expect(setMove({ b7: 3 }, "b7", 1, 1)).toEqual({});
+  it("queues a return to the original label while a previous move is pending", () => {
+    expect(setMove({ b7: 3 }, "b7", 1, 1)).toEqual({ b7: 1 });
+    expect(setMove({}, "b7", 1, 1)).toEqual({});
     const same = { b7: 3 };
     expect(setMove(same, "b7", 3, 1)).toBe(same);
     expect(setMove({}, "b7", 3, 1)).toEqual({ b7: 3 });
