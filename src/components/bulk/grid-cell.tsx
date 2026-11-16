@@ -4,6 +4,7 @@ import * as React from "react";
 import { MaybeMoney, useMoneyStep } from "@/components/currency-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { StopSlider } from "@/components/forms/stop-slider";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { cn } from "@/lib/utils";
@@ -125,6 +126,21 @@ export function GridCell({
           onOptionCreated={onOptionCreated ?? (() => undefined)}
           invalid={invalid}
           placeholder={spec.resource === null ? `Pick a ${spec.label.toLowerCase()}…` : "Pick or create…"}
+        />
+      );
+
+    case "textarea":
+      return (
+        <Textarea
+          ref={inputRef}
+          id={id}
+          value={text}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={spec.placeholder}
+          aria-label={spec.label}
+          aria-invalid={invalid || undefined}
+          className={cn(CELL_WIDTH.textarea, className, "h-auto min-h-24", invalid && "border-destructive")}
         />
       );
 
