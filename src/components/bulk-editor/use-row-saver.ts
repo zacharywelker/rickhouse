@@ -30,6 +30,7 @@ type Input = {
   onLeftShelf?: (key: string, status: string) => void;
   /** Allows a draft's open editor to finish before creation starts. */
   editingDraft: React.RefObject<string | null>;
+  pendingByRow: ReadonlyMap<string, Record<string, string>>;
 };
 
 /** The quiet time after the last save before the sheet is reloaded, so a run of saves is one reload. */
@@ -98,7 +99,7 @@ export function useRowSaver(input: Input) {
         if (!isDraft) again.current.add(key);
         return;
       }
-      const { edits, moves, drafts, view } = latest.current;
+      const { edits, moves, drafts, view, pendingByRow } = latest.current;
       const cells = edits[key];
       let call: () => Promise<{ ok: true; bottleId?: number | null; labelId?: number } | { ok: false; error: string; fieldErrors: Record<string, string> }>;
       let snapshot: Sent;
@@ -129,7 +130,7 @@ export function useRowSaver(input: Input) {
         const draft = drafts.find((d) => d.key === key);
         // A new row that has been made is not made again: it stays in the list until the reloaded data has it, and a second
         // request for it (the cursor leaving it as well as the run of Tab and Enter that finished it) would add a duplicate.
-        if (!draft || latest.current.editingDraft.current === key || created.current.has(key) || isBlank(draft, edits) || draftNeeds(draft) !== null) return;
+        if (!draft || latest.current.editingDraft.current === key || created.current.has(key) || pendingByRow.has(key) || isBlank(draft, edits) || draftNeeds(draft) !== null) return;
         snapshot = { cells: cells ?? {} };
         const body = createBody(draft, cells, view.bottles);
         call = () => createRowAction(body);

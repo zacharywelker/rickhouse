@@ -538,7 +538,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const title = label ? `${label.brand} ${label.name}` : "A bottle";
     setGone((prev) => [...prev.filter((g) => g.key !== key), { key, text: `${title} is now ${humanise(status).toLowerCase()}, so it is no longer listed here. This sheet shows the bottles you own or have open.` }]);
   }
-  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf, editingDraft });
+  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf, editingDraft, pendingByRow });
   const createdAs = saver.createdAs;
   /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
   const [keyFloor, setKeyFloor] = React.useState(0);
@@ -778,10 +778,10 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setEditing(null);
     setInputChanged(false);
     setError(null);
-    // A cell a paste left to be chosen is dealt with either way: chosen, or, when the editor is cancelled, dropped.
-    const wasPending = pending[pendKey(row.key, columnId)] !== undefined;
-    if (wasPending) dropPending(row.key, columnId);
+    // A pending choice remains until a value is accepted or the cell is explicitly cleared with Delete.
     if ("cancel" in result) return;
+    const wasPending = pending[pendKey(row.key, columnId)] !== undefined && !("keep" in result);
+    if (wasPending) dropPending(row.key, columnId);
 
     // The rows as they will be once this is applied: the next cell to land on can depend on what was just chosen
     // (a brand opens the Label cell), so the move is judged against them, not against the rows as they are now.
@@ -1139,7 +1139,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setRange(null);
     const parts = [`Pasted ${pasted} ${pasted === 1 ? "cell" : "cells"}.`];
     if (added > 0) parts.push(`Added ${added} new ${added === 1 ? "row" : "rows"}.`);
-    if (toChoose > 0) parts.push(`${toChoose} to choose: press Enter on a marked cell to pick from what matches. A new row saves once its brand, label and category are chosen.`);
+    if (toChoose > 0) parts.push(`${toChoose} to choose: press Enter on a marked cell to pick from what matches. A new row saves once its required fields and pending choices are resolved.`);
     if (beyondRows.size > 0) parts.push(`${beyondRows.size} ${beyondRows.size === 1 ? "line" : "lines"} past the last row ${beyondRows.size === 1 ? "was" : "were"} not pasted.`);
     if (beyondColumns > 0) parts.push(`${beyondColumns} ${beyondColumns === 1 ? "cell" : "cells"} past the last column ${beyondColumns === 1 ? "was" : "were"} not pasted.`);
     if (skipped.length > 0) parts.push(`Not pasted: ${skipped.slice(0, 4).join("; ")}${skipped.length > 4 ? `; and ${skipped.length - 4} more` : ""}.`);
@@ -1267,7 +1267,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // What has not been saved: new rows that have been started, and rows with an edit or a move that is not yet saved.
   const stateOf = saver.rowState;
   const notSaved = new Set<string>();
-  for (const d of drafts) if (!isBlank(d, edits) && stateOf[d.key]?.kind !== "saved") notSaved.add(d.key);
+  for (const d of drafts) if (!isBlank(d, edits, pendingByRow.has(d.key)) && stateOf[d.key]?.kind !== "saved") notSaved.add(d.key);
   for (const key of [...Object.keys(edits), ...Object.keys(moves)]) if (!key.startsWith("d") && stateOf[key]?.kind !== "saved") notSaved.add(key);
   const saving = Object.values(stateOf).some((state) => state.kind === "saving");
   const unsaved = notSaved.size;
@@ -1315,10 +1315,11 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const blockedRows: BlockedRow[] = [];
   for (const d of drafts) {
     const state = stateOf[d.key];
-    if (isBlank(d, edits) || state?.kind === "saving" || state?.kind === "saved") continue;
+    const pendingColumn = Object.keys(pendingByRow.get(d.key) ?? {})[0];
+    if (isBlank(d, edits, pendingColumn !== undefined) || state?.kind === "saving" || state?.kind === "saved") continue;
     if (state?.kind === "blocked") blockedRows.push({ key: d.key, title: draftTitle(d), message: state.message, column: state.column, short: state.message });
     else {
-      const need = draftNeeds(d);
+      const need = draftNeeds(d) ?? (pendingColumn ? { column: pendingColumn, action: "choose or clear the pasted value", short: "Choose a value" } : null);
       if (need && (activeKey !== d.key || idle)) blockedRows.push({ key: d.key, title: draftTitle(d), action: need.action, column: need.column, short: need.short });
     }
   }
@@ -1334,7 +1335,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (blockedFor(row)) return "blocked";
     const stored = stateOf[row.key] ?? (row.draft ? undefined : stateOf[`l${row.label.id}`]);
     if (stored && stored.kind !== "blocked") return stored.kind;
-    return row.draft && !isBlank(allDrafts.find((d) => d.key === row.key) ?? { key: row.key, brand: null, label: null, categoryId: null }, edits) ? "draft" : undefined;
+    return row.draft && !isBlank(allDrafts.find((d) => d.key === row.key) ?? { key: row.key, brand: null, label: null, categoryId: null }, edits, pendingByRow.has(row.key)) ? "draft" : undefined;
   };
 
   /** Where the cursor goes for "Go to first": the first blocked row, on the cell that blocks it. */
@@ -1506,6 +1507,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                   // Only what is not saved: a saved change is kept.
                   setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !notSaved.has(key))));
                   setDrafts((prev) => prev.filter((d) => !notSaved.has(d.key)));
+                  setPending((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !notSaved.has(key.split("\u0000")[0]!))));
                   setMoves((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !notSaved.has(key))));
                   setUnlocked(new Set());
                   saver.reset();

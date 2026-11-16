@@ -49,8 +49,8 @@ export function withLabel(draft: DraftRow, label: Pick, existingCategoryId: numb
 export const withCategory = (draft: DraftRow, categoryId: number): DraftRow => (draft.categoryId === categoryId ? draft : { ...draft, categoryId });
 
 /** Nothing chosen and nothing typed: the empty row at the bottom. */
-export function isBlank(draft: DraftRow, edits: Edits): boolean {
-  return draft.brand === null && draft.label === null && draft.categoryId === null && Object.keys(edits[draft.key] ?? {}).length === 0;
+export function isBlank(draft: DraftRow, edits: Edits, hasPending = false): boolean {
+  return !hasPending && draft.brand === null && draft.label === null && draft.categoryId === null && Object.keys(edits[draft.key] ?? {}).length === 0;
 }
 
 /** How many new rows have anything in them. */
