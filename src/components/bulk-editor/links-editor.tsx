@@ -24,6 +24,7 @@ export function LinksEditor({
   labelId,
   start,
   edited,
+  staged,
   options,
   onChange,
   onClose,
@@ -36,6 +37,7 @@ export function LinksEditor({
   /** The lists as the sheet holds them now (the label's, with what has been edited over them), and which of them have been edited. */
   start: LinkLists;
   edited: ReadonlyArray<LinkKey>;
+  staged?: Readonly<Record<string, string>>;
   options: LinkOptions;
   /** A list changed: the lists now, which of them changed, and what a distillery link brings along. */
   onChange: (lists: LinkLists, changed: LinkKey[], brought: Record<string, string>) => void;
@@ -75,8 +77,9 @@ export function LinksEditor({
     const after: LinkLists = { distilleries: next.distilleries, mashbills: next.mashbills, finishes: next.finishes, ingredients: next.ingredients ?? [] };
     const changed = LINK_KEYS.filter((key) => JSON.stringify(after[key]) !== JSON.stringify(before[key]));
     if (changed.length === 0) return;
+    live.current = after;
     setLists(after);
-    onChange(after, changed, brings ? linkedFacts(label, kind, options.distilleryLinks, before.distilleries, after.distilleries) : {});
+    onChange(after, changed, brings ? linkedFacts(label, kind, options.distilleryLinks, before.distilleries, after.distilleries, staged) : {});
   };
 
   const links: LabelLinks | null = lists && { distilleries: lists.distilleries, mashbills: lists.mashbills, finishes: lists.finishes, ingredients: lists.ingredients };

@@ -138,6 +138,30 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(await count("brands", `owner_id = $1 AND name = 'Store Test Brand'`, owner)).toBe(0);
     });
 
+    it("opens a bottle from Date Opened alone", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Opened at Creation");
+      const picked = await one<{ brand_id: number }>("SELECT brand_id FROM expressions WHERE id = $1", label);
+      const out = await rows.createRow(owner, { brand: { id: picked.brand_id }, label: { id: label }, bottle: { dateOpened: "2024-01-01" } });
+      expect(out.ok).toBe(true);
+      if (!out.ok) return;
+      expect(await one("SELECT is_open, status, date_opened::text AS date_opened FROM bottles WHERE id = $1", out.bottleId)).toMatchObject({
+        is_open: true, status: "open", date_opened: "2024-01-01",
+      });
+    });
+
+    it("rejects empty open bottles and generated opening dates later than the killed date", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Invalid New State");
+      const picked = await one<{ brand_id: number }>("SELECT brand_id FROM expressions WHERE id = $1", label);
+      const identity = { brand: { id: picked.brand_id }, label: { id: label } };
+      expect(await rows.createRow(owner, { ...identity, bottle: { status: "open", fillPct: 0 } })).toMatchObject({
+        ok: false, fieldErrors: { status: expect.stringContaining("empty") },
+      });
+      expect(await rows.createRow(owner, { ...identity, bottle: { isOpen: true, dateKilled: "2024-01-01" } })).toMatchObject({
+        ok: false, fieldErrors: { dateKilled: expect.stringContaining("Killed before it was opened") },
+      });
+      expect(await count("bottles", "expression_id = $1", label)).toBe(0);
+    });
+
     it("reports a bad value on its own field and creates nothing", async () => {
       const bad = await rows.createRow(owner, { brand: { name: "Bad Facts Brand" }, label: { name: "Bad Facts", categoryId: cat.whiskey, facts: { proof: "abc" } } });
       expect(bad).toMatchObject({ ok: false, kind: "invalid", fieldErrors: { proof: expect.any(String) } });
@@ -171,6 +195,50 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
 
       expect(await rows.patchBottleRow(owner, bottle, { fillPct: 100, dateOpened: null, isOpen: false })).toMatchObject({ ok: true });
       expect(await opened()).toMatchObject({ is_open: false, status: "owned", date_opened: null, fill_pct: 100 });
+
+      expect(await rows.patchBottleRow(owner, bottle, { status: "open", dateOpened: null })).toMatchObject({ ok: true });
+      expect(await opened()).toMatchObject({ is_open: true, status: "open", date_opened: null });
+    });
+
+    it("validates final lifecycle state when the requested status is already stored", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Existing Bottle Status");
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql("UPDATE bottles SET is_open = true, status = 'open' WHERE id = $1", bottle);
+      expect(await rows.patchBottleRow(owner, bottle, { status: "open", fillPct: 0 })).toMatchObject({
+        ok: false, fieldErrors: { status: expect.stringContaining("empty") },
+      });
+      expect(await rows.patchBottleRow(owner, bottle, { fillPct: 0 })).toMatchObject({
+        ok: false, fieldErrors: { fillPct: expect.stringContaining("empty") },
+      });
+
+      expect(await rows.patchBottleRow(owner, bottle, { status: "killed" })).toMatchObject({ ok: true });
+      expect(await rows.patchBottleRow(owner, bottle, { status: "killed", fillPct: 25 })).toMatchObject({ ok: true });
+      expect(await one("SELECT status, fill_pct FROM bottles WHERE id = $1", bottle)).toMatchObject({ status: "killed", fill_pct: 0 });
+    });
+
+    it("compares an edited opening date to the replacement or cleared killed date", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Coordinated Dates");
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql("UPDATE bottles SET is_open = true, status = 'open', date_opened = '2024-01-01', date_killed = '2024-06-01' WHERE id = $1", bottle);
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: "2024-07-01", dateKilled: "2024-07-02" })).toMatchObject({ ok: true });
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: "2024-08-01", dateKilled: null })).toMatchObject({ ok: true });
+      expect(await one("SELECT date_opened::text AS date_opened, date_killed::text AS date_killed FROM bottles WHERE id = $1", bottle)).toMatchObject({
+        date_opened: "2024-08-01", date_killed: null,
+      });
+    });
+
+    it("rejects automatically opening a bottle after its stored killed date", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Previously Killed Date");
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql("UPDATE bottles SET is_open = false, status = 'owned', date_opened = NULL, date_killed = '2024-01-01' WHERE id = $1", bottle);
+      for (const edit of [{ isOpen: true }, { status: "open" }, { fillPct: 60 }]) {
+        expect(await rows.patchBottleRow(owner, bottle, edit)).toMatchObject({
+          ok: false, fieldErrors: { dateKilled: expect.stringContaining("Killed before it was opened") },
+        });
+      }
+      expect(await one("SELECT is_open, status, date_opened::text AS date_opened FROM bottles WHERE id = $1", bottle)).toMatchObject({
+        is_open: false, status: "owned", date_opened: null,
+      });
     });
 
     it("refuses label fields, so a bottle request cannot change a label", async () => {
