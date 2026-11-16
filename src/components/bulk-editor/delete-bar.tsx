@@ -9,7 +9,7 @@ import { deleteSentence, type DeleteIds } from "@/lib/bulk-editor/delete";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 
 /**
- * The bar that appears while rows are selected, in the app's delete-confirm convention (`GridEditBar`, DESIGN.md §38): a
+ * The bar that appears while rows are selected, in the app's delete-confirm convention (DESIGN.md §38): a
  * sticky bar with the count and a destructive button, and a dialog that names what goes. The numbers in the dialog come
  * from the server when it opens, so they are what will be deleted, not what the sheet guesses.
  */
@@ -37,7 +37,7 @@ export function DeleteBar({ count, noun, ids, onClear, onDone }: { count: number
       onDone(outcome);
       if (outcome.failed.length === 0) setOpen(false);
       else {
-        setFailures(outcome.failed.map((f) => f.error));
+        setFailures([...new Set(outcome.failed.map((f) => f.error))]);
         setSummary(`${outcome.deletedLabels + outcome.deletedBottles} deleted. ${outcome.failed.length} could not be deleted.`);
       }
     } catch {
@@ -69,6 +69,9 @@ export function DeleteBar({ count, noun, ids, onClear, onDone }: { count: number
           <div className="px-6 py-4 text-sm">
             {sentence ? <p>{sentence.body}</p> : <p className="text-muted-foreground">Counting what goes with them…</p>}
             {ids.labelIds.length > 0 && sentence ? <p className="mt-2 text-muted-foreground">Everything recorded against those bottles goes too: photos, tastings and tags.</p> : null}
+            {impact && impact.excluded > 0 ? (
+              <p className="mt-2">{impact.excluded} selected {impact.excluded === 1 ? "row exceeds" : "rows exceed"} the deletion limit and will stay selected.</p>
+            ) : null}
             {summary ? <p className="mt-3">{summary}</p> : null}
             {failures.length > 0 ? (
               <ul className="mt-2 list-disc space-y-1 pl-5 text-destructive">

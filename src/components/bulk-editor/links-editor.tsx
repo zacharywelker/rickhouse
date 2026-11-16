@@ -24,10 +24,8 @@ export function LinksEditor({
   labelId,
   start,
   edited,
-  cached,
   options,
   onChange,
-  onLoaded,
   onClose,
 }: {
   which: LinkKey;
@@ -38,16 +36,12 @@ export function LinksEditor({
   /** The lists as the sheet holds them now (the label's, with what has been edited over them), and which of them have been edited. */
   start: LinkLists;
   edited: ReadonlyArray<LinkKey>;
-  /** The label's lists as they were last read in full, if they have been. */
-  cached: () => LinkLists | undefined;
   options: LinkOptions;
   /** A list changed: the lists now, which of them changed, and what a distillery link brings along. */
   onChange: (lists: LinkLists, changed: LinkKey[], brought: Record<string, string>) => void;
-  /** The label's lists were read in full: the sheet keeps them to send what was not edited. */
-  onLoaded: (lists: LinkLists) => void;
   onClose: () => void;
 }) {
-  const [lists, setLists] = React.useState<LinkLists | null>(() => (labelId === null ? start : (cached() ?? null)));
+  const [lists, setLists] = React.useState<LinkLists | null>(() => (labelId === null ? start : null));
   const [failed, setFailed] = React.useState(false);
   const live = React.useRef<LinkLists | null>(lists);
   React.useLayoutEffect(() => {
@@ -55,14 +49,13 @@ export function LinksEditor({
   });
 
   React.useEffect(() => {
-    if (labelId === null || cached()) return;
+    if (labelId === null) return;
     let cancelled = false;
     labelLinksAction(labelId)
       .then((loaded) => {
         if (cancelled) return;
         if (!loaded) return setFailed(true);
         const full = linksFromLoaded(loaded);
-        onLoaded(full);
         // What has been edited since is kept over what was read.
         const merged: LinkLists = { ...full };
         for (const key of edited) (merged as Record<string, unknown>)[key] = start[key];

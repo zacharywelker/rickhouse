@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { createRowAction, patchBottleRowAction, patchLabelRowAction } from "@/app/(app)/bulk-editor/actions";
+import { createRowAction, labelLinksAction, patchBottleRowAction, patchLabelRowAction } from "@/app/(app)/bulk-editor/actions";
 import type { Moves } from "@/lib/bulk-editor/changes";
 import { isBlank, type DraftRow } from "@/lib/bulk-editor/drafts";
 import type { Edits } from "@/lib/bulk-editor/editors";
-import type { LinkLists } from "@/lib/bulk-editor/links";
+import { LINK_KEYS, linksFromLoaded } from "@/lib/bulk-editor/links";
 import { bottlePatchBody, createBody, draftNeeds, failureColumn, labelPatchBody, settleEdits, settleMoves, type Sent } from "@/lib/bulk-editor/save";
 import type { SheetBottle, SheetLabel, SheetView } from "@/lib/bulk-editor/sheet";
 
@@ -28,8 +28,9 @@ type Input = {
   onLanded?: (savedKey: string) => void;
   /** A saved bottle has been given a status that takes it off the shelf, so the sheet (which lists only owned and open bottles) will stop showing it. */
   onLeftShelf?: (key: string, status: string) => void;
-  /** Each label's lists as they were last read in full, so what was not edited is sent unchanged. */
-  linkCache?: React.MutableRefObject<Map<number, LinkLists>>;
+  /** Allows a draft's open editor to finish before creation starts. */
+  editingDraft: React.RefObject<string | null>;
+  pendingByRow: ReadonlyMap<string, Record<string, string>>;
 };
 
 /** The quiet time after the last save before the sheet is reloaded, so a run of saves is one reload. */
@@ -60,8 +61,9 @@ export function useRowSaver(input: Input) {
   const sent = React.useRef(new Map<string, Sent>());
   const created = React.useRef(new Set<string>());
   const requested = React.useRef(new Set<string>());
-  /** New rows, by the key their saved row will have, once the data arrives. (A move or a rename re-sorts at once, so the sheet has already followed it.) */
-  const landed = React.useRef(new Map<string, string>());
+  const deleted = React.useRef(new Set<string>());
+  /** Successful creates wait for readback unless the bottle's status excludes it from the sheet. */
+  const landed = React.useRef(new Map<string, { key: string; waitForRow: boolean }>());
   const [reveal, setReveal] = React.useState<Array<{ key: string; at: number }>>([]);
   /** A saved new row's key, and the key its saved row will have: the sheet hides the new row once that one is in its data. */
   const [createdAs, setCreatedAs] = React.useState<Record<string, string>>({});
@@ -91,11 +93,13 @@ export function useRowSaver(input: Input) {
 
   const save = React.useCallback(
     async (key: string): Promise<void> => {
+      if (deleted.current.has(key)) return;
+      const isDraft = key.startsWith("d");
       if (inflight.current.has(key)) {
-        again.current.add(key);
+        if (!isDraft) again.current.add(key);
         return;
       }
-      const { edits, moves, drafts, view } = latest.current;
+      const { edits, moves, drafts, view, pendingByRow } = latest.current;
       const cells = edits[key];
       let call: () => Promise<{ ok: true; bottleId?: number | null; labelId?: number } | { ok: false; error: string; fieldErrors: Record<string, string> }>;
       let snapshot: Sent;
@@ -114,12 +118,19 @@ export function useRowSaver(input: Input) {
         if (!cells) return;
         snapshot = { cells };
         const label = latest.current.labels.find((l) => l.id === id);
-        call = () => patchLabelRowAction(id, labelPatchBody(cells, label ? { label, loaded: latest.current.linkCache?.current.get(id) } : undefined));
+        call = async () => {
+          const hasLinkEdits = LINK_KEYS.some((column) => cells[column] !== undefined);
+          const loaded = hasLinkEdits ? await labelLinksAction(id) : null;
+          if (hasLinkEdits && (!loaded || !label)) {
+            return { ok: false, error: "Could not read this label's lists. Try saving again.", fieldErrors: {} };
+          }
+          return patchLabelRowAction(id, labelPatchBody(cells, label ? { label, loaded: loaded ? linksFromLoaded(loaded) : undefined } : undefined));
+        };
       } else {
         const draft = drafts.find((d) => d.key === key);
         // A new row that has been made is not made again: it stays in the list until the reloaded data has it, and a second
         // request for it (the cursor leaving it as well as the run of Tab and Enter that finished it) would add a duplicate.
-        if (!draft || created.current.has(key) || isBlank(draft, edits) || draftNeeds(draft) !== null) return;
+        if (!draft || latest.current.editingDraft.current === key || created.current.has(key) || pendingByRow.has(key) || isBlank(draft, edits) || draftNeeds(draft) !== null) return;
         snapshot = { cells: cells ?? {} };
         const body = createBody(draft, cells, view.bottles);
         call = () => createRowAction(body);
@@ -130,15 +141,19 @@ export function useRowSaver(input: Input) {
       mark(key, { kind: "saving" });
       try {
         const outcome = await call();
+        if (deleted.current.has(key)) return;
         if (outcome.ok) {
           sent.current.set(key, snapshot);
           const status = key.startsWith("b") ? snapshot.cells.status : undefined;
           if (status !== undefined && status !== "owned" && status !== "open") latest.current.onLeftShelf?.(key, status);
-          if (!key.startsWith("b") && !key.startsWith("l")) {
+          if (isDraft) {
             created.current.add(key);
             const bottleId = "bottleId" in outcome ? outcome.bottleId : null;
             const savedKey = bottleId != null && view.bottles ? `b${bottleId}` : `l${"labelId" in outcome ? outcome.labelId : 0}`;
-            landed.current.set(key, savedKey);
+            const newStatus = snapshot.cells.status;
+            const offShelf = savedKey.startsWith("b") && Boolean(newStatus && newStatus !== "owned" && newStatus !== "open");
+            landed.current.set(key, { key: savedKey, waitForRow: !offShelf });
+            if (!offShelf) setReveal((prev) => [...prev, { key: savedKey, at: Date.now() }]);
             latest.current.onLanded?.(savedKey);
             setCreatedAs((prev) => ({ ...prev, [key]: savedKey }));
           }
@@ -148,6 +163,7 @@ export function useRowSaver(input: Input) {
           mark(key, { kind: "blocked", column: failureColumn(outcome.fieldErrors, scope, fallback), message: outcome.error });
         }
       } catch {
+        if (deleted.current.has(key)) return;
         mark(key, { kind: "blocked", column: fallback, message: "Could not reach the server. Change the row again to try once more." });
       } finally {
         inflight.current.delete(key);
@@ -176,9 +192,8 @@ export function useRowSaver(input: Input) {
   /** Saves every new row that has what it needs (the cursor has left them, or has left the sheet). */
   const saveDrafts = React.useCallback(
     (except?: string) => {
-      const { drafts, edits } = latest.current;
-      for (const draft of drafts) {
-        if (draft.key !== except && !isBlank(draft, edits) && draftNeeds(draft) === null) void save(draft.key);
+      for (const draft of latest.current.drafts) {
+        if (draft.key !== except) void save(draft.key);
       }
     },
     [save],
@@ -193,13 +208,20 @@ export function useRowSaver(input: Input) {
       return;
     }
     if (sent.current.size === 0) return;
-    const arrived = [...landed.current.values()];
-    landed.current = new Map();
-    if (arrived.length > 0) setReveal((prev) => [...prev, ...arrived.map((key) => ({ key, at: Date.now() }))]);
-    const done = sent.current;
-    const madeRows = created.current;
-    sent.current = new Map();
-    created.current = new Set();
+    const readKeys = new Set([...labels.map((label) => `l${label.id}`), ...bottles.map((bottle) => `b${bottle.id}`)]);
+    const done = new Map<string, Sent>();
+    const madeRows = new Set<string>();
+    for (const [key, snapshot] of sent.current) {
+      const made = landed.current.get(key);
+      if (made?.waitForRow && !readKeys.has(made.key)) continue;
+      if (made) {
+        landed.current.delete(key);
+        madeRows.add(key);
+      }
+      sent.current.delete(key);
+      done.set(key, snapshot);
+    }
+    if (done.size === 0) return;
     setEdits((edits) => {
       const settled = settleEdits(edits, done);
       return [...madeRows].reduce((next, key) => {
@@ -210,7 +232,6 @@ export function useRowSaver(input: Input) {
     setMoves((moves) => settleMoves(moves, done));
     if (madeRows.size > 0) {
       setDrafts((drafts) => drafts.filter((d) => !madeRows.has(d.key)));
-      setCreatedAs((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !madeRows.has(key))));
     }
     const keys = [...done.keys()];
     // Not cancelled by a later reload: the glyph would then stay on.
@@ -226,5 +247,16 @@ export function useRowSaver(input: Input) {
 
   const clearReveal = React.useCallback(() => setReveal([]), []);
 
-  return { rowState, request, save, saveDrafts, reset, reveal, clearReveal, revealFor: REVEAL_FOR_MS, createdAs };
+  const forgetDeleted = React.useCallback((keys: ReadonlySet<string>) => {
+    for (const key of keys) {
+      deleted.current.add(key);
+      requested.current.delete(key);
+      again.current.delete(key);
+      sent.current.delete(key);
+    }
+    setRowState((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !keys.has(key))));
+  }, []);
+
+  const draftSaving = (key: string) => inflight.current.has(key) || created.current.has(key);
+  return { rowState, request, save, saveDrafts, reset, forgetDeleted, reveal, clearReveal, revealFor: REVEAL_FOR_MS, createdAs, draftSaving };
 }

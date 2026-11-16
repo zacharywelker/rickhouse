@@ -3,6 +3,7 @@ import { connect, fixtures, url, type Cat, type Db, type Fixtures } from "@/lib/
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("@/lib/auth", () => ({ requireSession: vi.fn() }));
 
 /** Opt-in, like the tournament integration tests: needs TOURNAMENT_TEST_DATABASE_URL naming a throwaway migrated database. */
 describe.skipIf(!url)("bulk editor rows against a real database", () => {
@@ -53,6 +54,16 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       );
       expect(bottle).toMatchObject({ expression_id: out.labelId, owner_id: owner, status: "owned", acquisition: "purchase" });
       expect(Number(bottle.price_paid)).toBe(47);
+    });
+
+    it("saves a pool's worth of concurrent bottles on an existing label", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Pool Test");
+      const { brand_id: brand } = await one<{ brand_id: number }>("SELECT brand_id FROM expressions WHERE id = $1", label);
+      const results = await Promise.all(
+        Array.from({ length: 12 }, () => rows.createRow(owner, { brand: { id: brand }, label: { id: label }, bottle: {} })),
+      );
+      expect(results.map((r) => r.ok)).toEqual(Array(12).fill(true));
+      expect(await count("bottles", "expression_id = $1", label)).toBe(12);
     });
 
     it("makes a label without a bottle when none is sent", async () => {
@@ -145,6 +156,21 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       const after = await one<{ notes: string; price_paid: string }>(`SELECT notes, price_paid FROM bottles WHERE id = $1`, bottle);
       expect(after.notes).toBe("written on the phone");
       expect(Number(after.price_paid)).toBe(50);
+    });
+
+    it("applies the Opened flag when the date is also cleared", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Clear Opened Date");
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql("UPDATE bottles SET is_open = true, status = 'open', date_opened = '2024-01-01', fill_pct = 50 WHERE id = $1", bottle);
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: null, isOpen: false })).toMatchObject({
+        ok: false, fieldErrors: { isOpen: expect.any(String) },
+      });
+      expect(await rows.patchBottleRow(owner, bottle, { dateOpened: null, isOpen: true })).toMatchObject({ ok: true });
+      const opened = () => one("SELECT is_open, status, date_opened, fill_pct FROM bottles WHERE id = $1", bottle);
+      expect(await opened()).toMatchObject({ is_open: true, status: "open", date_opened: null, fill_pct: 50 });
+
+      expect(await rows.patchBottleRow(owner, bottle, { fillPct: 100, dateOpened: null, isOpen: false })).toMatchObject({ ok: true });
+      expect(await opened()).toMatchObject({ is_open: false, status: "owned", date_opened: null, fill_pct: 100 });
     });
 
     it("refuses label fields, so a bottle request cannot change a label", async () => {
@@ -245,6 +271,23 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
     });
   });
 
+  describe("delete actions", () => {
+    it("excludes over-limit rows from the preview and reports them without deleting them", async () => {
+      const auth = await import("@/lib/auth");
+      vi.mocked(auth.requireSession).mockResolvedValue({ id: owner } as Awaited<ReturnType<typeof auth.requireSession>>);
+      const actions = await import("@/app/(app)/bulk-editor/actions");
+      const first = await fx.mkLabel(owner, cat.whiskey, "Delete Within Limit");
+      const excluded = await fx.mkLabel(owner, cat.whiskey, "Delete Beyond Limit");
+      const missing = Array.from({ length: 4999 }, (_, i) => 1_000_000_000 + i);
+      const selection = { labelIds: [first, ...missing, excluded], bottleIds: [] };
+      await expect(actions.deleteImpactAction(selection)).resolves.toMatchObject({ labels: 1, excluded: 1 });
+      const outcome = await actions.deleteRowsAction(selection);
+      expect(outcome.deletedLabelIds).toEqual([first]);
+      expect(outcome.failed.at(-1)).toMatchObject({ kind: "label", id: excluded, error: expect.stringContaining("5,000") });
+      expect(await count("expressions", "id = $1", excluded)).toBe(1);
+    });
+  });
+
   describe("deleteRows", () => {
     it("deletes a label with every bottle on it, whatever the bottle's status, and nothing else", async () => {
       const a = await fx.mkLabel(owner, cat.whiskey, "Del A");
@@ -254,7 +297,7 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       await m.sql(`UPDATE bottles SET status = 'sold' WHERE id = $1`, sold);
       const kept = await fx.mkBottle(owner, keep);
       const out = await rows.deleteRows(owner, { labelIds: [a], bottleIds: [] });
-      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 2, failed: [] });
+      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 2, failed: [], deletedLabelIds: [a], deletedBottleIds: expect.arrayContaining([shelf, sold]) });
       expect(await count("expressions", "id = $1", a)).toBe(0);
       expect(await count("bottles", "id = ANY($1)", [shelf, sold])).toBe(0);
       expect(await count("expressions", "id = $1", keep)).toBe(1);
@@ -264,7 +307,7 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
     it("deletes a bottle alone and leaves its label, even when it was the label's last bottle", async () => {
       const label = await fx.mkLabel(owner, cat.whiskey, "Del Last");
       const only = await fx.mkBottle(owner, label);
-      expect(await rows.deleteRows(owner, { labelIds: [], bottleIds: [only] })).toEqual({ deletedLabels: 0, deletedBottles: 1, failed: [] });
+      expect(await rows.deleteRows(owner, { labelIds: [], bottleIds: [only] })).toEqual({ deletedLabels: 0, deletedBottles: 1, failed: [], deletedLabelIds: [], deletedBottleIds: [only] });
       expect(await count("bottles", "id = $1", only)).toBe(0);
       expect(await count("expressions", "id = $1", label)).toBe(1);
     });
@@ -274,7 +317,7 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       const b1 = await fx.mkBottle(owner, label);
       const b2 = await fx.mkBottle(owner, label);
       const out = await rows.deleteRows(owner, { labelIds: [label], bottleIds: [b1, b2] });
-      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 2, failed: [] });
+      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 2, failed: [], deletedLabelIds: [label], deletedBottleIds: expect.arrayContaining([b1, b2]) });
     });
 
     it("touches nothing of another account's, and says it is gone", async () => {
@@ -298,7 +341,7 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
     it("ignores ids that are not positive whole numbers, and repeats", async () => {
       const label = await fx.mkLabel(owner, cat.whiskey, "Del Repeat");
       const out = await rows.deleteRows(owner, { labelIds: [label, label, -1, 0, 1.5], bottleIds: [NaN] });
-      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 0, failed: [] });
+      expect(out).toEqual({ deletedLabels: 1, deletedBottles: 0, failed: [], deletedLabelIds: [label], deletedBottleIds: [] });
     });
 
     it("agrees with deleteImpact about what it takes", async () => {
