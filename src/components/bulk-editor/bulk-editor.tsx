@@ -14,7 +14,7 @@ import {
   brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, isBlank, labelCandidates, withBlankRow, withBrand, withCategory, withLabel,
   type CategoryChoice, type DraftRow,
 } from "@/lib/bulk-editor/drafts";
-import { applyVintageEdits, arrange, editKey, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
+import { applyVintageEdits, arrange, editKey, withDraftVintages, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
 import { EDITORS, editorFor, isLocked, lockKeyOf, parseCell, setEdit, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
 import { arrowMove, enterMove, tabMove, type ArrowKey, type Moved, type Pos } from "@/lib/bulk-editor/nav";
 import {
@@ -295,8 +295,8 @@ function ActiveEditor({ editor, row, kinds, initial, error, reach, scopeNote, on
         <p role="alert" className="absolute left-0 top-full z-30 mt-px whitespace-nowrap border border-destructive bg-card px-2 py-0.5 text-xs text-destructive">
           {error}
         </p>
-      ) : scopeNote !== null && onStep ? (
-        <EditNote text={scopeNote} keyName={platformKeyName()} onStep={onStep} />
+      ) : scopeNote !== null ? (
+        <EditNote text={scopeNote} keyName={platformKeyName()} {...(onStep ? { onStep } : {})} />
       ) : reach !== null ? (
         <p className="absolute left-0 top-full z-30 mt-px whitespace-nowrap border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground">{changesText(reach)}</p>
       ) : null}
@@ -368,7 +368,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
         // A label's cell keeps its edit under the label; it still shows if the view has since changed and the cell cannot be edited.
         const edited = (spec?.scope === "label" && !row.draft ? labelEdits : rowEdits)?.[column.id];
         const waiting = pendingCols?.[column.id];
-        const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec && column.group !== "value" ? spec.display(edited, context, row) : column.cell(row, context);
+        const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec && (column.group !== "value" || row.draft) ? spec.display(edited, context, row) : column.cell(row, context);
         // An unlocked label cell on a bottle row reaches every bottle on the label.
         const reach = editor && editor.scope === "label" && !editor.combo && !row.draft && row.bottle ? row.label.bottleCount : null;
         const isBlocked = blockedColumn === column.id;
@@ -603,8 +603,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   // after it: for a moment both would be there, and a cursor on the row below would land on the wrong one.
   const savedKeys = React.useMemo(() => new Set(savedRows.map((r) => r.key)), [savedRows]);
   const rowsFor = React.useCallback(
-    (list: DraftRow[]) => [...savedRows, ...list.filter((d) => !(createdAs[d.key] && savedKeys.has(createdAs[d.key]!))).map((draft) => draftSheetRow(draft, draftContext))],
-    [savedRows, savedKeys, createdAs, draftContext],
+    (list: DraftRow[]) => [...savedRows, ...withDraftVintages(list.filter((d) => !(createdAs[d.key] && savedKeys.has(createdAs[d.key]!))).map((draft) => draftSheetRow(draft, draftContext)), edits)],
+    [savedRows, savedKeys, createdAs, draftContext, edits],
   );
   const rows = React.useMemo(() => rowsFor(allDrafts), [rowsFor, allDrafts]);
 
@@ -701,7 +701,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     const original = waiting ?? held;
     editingDraft.current = row.draft ? row.key : null;
     setInputChanged(value !== original);
-    setEditing({ value, replace: replace || waiting !== undefined, rowKey: row.key, columnId: column.id, original, scope: valueField && !row.draft && row.bottle ? defaultScope(row, valueField) : null });
+    setEditing({ value, replace: replace || waiting !== undefined, rowKey: row.key, columnId: column.id, original, scope: valueField && !row.draft && row.bottle ? defaultScope(row, valueField) : valueField && row.draft?.vintageName !== undefined ? "vintage" : null });
   }
 
   /** A yes/no cell is flipped, not opened: Space, Enter or a double click. */
@@ -947,7 +947,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     if (row && editor?.combo === "category" && !row.draft) return { candidates: categoryCandidates(categories), allowCreate: false, what: "category", enterDropsDown: true };
     if (row && editor?.reference) {
       const kind = editor.reference;
-      return { candidates: refCandidates(kind, row.label.id, refs), allowCreate: REF_CAN_CREATE[kind], what: REF_WHAT[kind], enterDropsDown: true, ...(REF_NO_CREATE[kind] ? { noCreateReason: REF_NO_CREATE[kind] } : {}) };
+      return { candidates: refCandidates(kind, row.label.id, refs), allowCreate: REF_CAN_CREATE[kind], what: REF_WHAT[kind], // On a new row, Enter on the vintage goes on to the next cell (its proof and age are the vintage's), as Brand and Label do, rather than leaving the row and saving it.
+        enterDropsDown: !(row.draft && kind === "release"), ...(REF_NO_CREATE[kind] ? { noCreateReason: REF_NO_CREATE[kind] } : {}) };
     }
     if (!row || !editor?.combo) return null;
     // A saved row: a bottle picks a label that exists to move to; a label (Labels only) picks a brand, or makes one.
@@ -1812,7 +1813,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
                 onFinish={isActiveRow ? finish : undefined}
                 onInvalid={isActiveRow ? setError : undefined}
                 onInput={isActiveRow && editing ? (value) => setInputChanged(value !== editing.original) : undefined}
-                scopeNote={isActiveRow && editing?.scope ? noteText(editing.scope, row, context) : null}
+                scopeNote={isActiveRow && editing?.scope ? (row.draft ? `${row.draft.vintageName ?? "Vintage"} vintage (new) · 1 bottle` : noteText(editing.scope, row, context)) : null}
                 onStep={isActiveRow && editing?.scope && scopesFor(row, VALUE_FIELD[columns[current!.col]?.id ?? ""]).length > 1 ? stepScope : undefined}
               />
             );

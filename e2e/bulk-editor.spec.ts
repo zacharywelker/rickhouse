@@ -1057,7 +1057,7 @@ test("a store is picked from the list or made with Enter on Create, never by a t
   await expect(cell(page, 0, store)).toHaveText("—");
 });
 
-test("a release and a label name are picked from the bottle's own label, and cannot be made here", async ({ page }) => {
+test("a vintage is picked or made from the bottle's own label, and a label name is only picked", async ({ page }) => {
   await showColumns(page, "Label Version");
   const [release, version, name] = [await col(page, "Vintage"), await col(page, "Label Version"), await col(page, "Label")];
   const labelName = (await cell(page, 0, name).innerText()).split("\n")[0]!.trim();
@@ -1087,14 +1087,50 @@ test("a release and a label name are picked from the bottle's own label, and can
   await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
   await expect(cell(page, 0, version)).toHaveText("Old Label Name");
 
-  // A name that is not one of this label's cannot be made here: the list says where it is added.
+  // A vintage can be made here, by its name: Create is offered, and Enter makes it. A label name cannot (it is added on the label's page).
   await cell(page, 0, release).click();
-  await page.keyboard.type("Brand new release");
+  await page.keyboard.type("Brand new vintage");
+  await expect(listbox(page).getByRole("option", { name: /Create/ })).toBeVisible();
   await page.keyboard.press("Enter");
-  await expect(listbox(page).locator("xpath=..").getByRole("alert")).toBeVisible();
-  await expect(listbox(page).locator("xpath=..")).toContainText("added on the label's page");
+  await expect(cell(page, 0, release)).toHaveText("Brand new vintage");
+  await reloaded(page);
+  await expect(cell(page, 0, release)).toHaveText("Brand new vintage");
+  await cell(page, 0, version).click();
+  await page.keyboard.type("Not an old name");
+  await expect(listbox(page).getByRole("option", { name: /Create/ })).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
+});
+
+test("a new row can make a vintage, and the proof typed into it is the vintage's, not the label's", async ({ page }) => {
+  const [brand, release, proof] = [await col(page, "Brand"), await col(page, "Vintage"), await col(page, "Proof")];
+  const existingBrand = (await cell(page, 0, brand).innerText()).split("\n")[0]!.trim();
+  const existingLabel = (await cell(page, 0, await col(page, "Label")).innerText()).split("\n")[0]!.trim();
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type(existingBrand);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type(existingLabel);
+  await page.keyboard.press("Tab");
+  await cell(page, row, release).click();
+  await page.keyboard.type("Fresh Batch 9");
+  await page.keyboard.press("Enter"); // Create
+  await expect(cell(page, row, release)).toContainText("Fresh Batch 9");
+  await cell(page, row, proof).click();
+  await page.keyboard.type("109.8");
+  await expect(editNote(page)).toContainText("Fresh Batch 9 vintage (new) · 1 bottle");
+  await page.keyboard.press("Alt+ArrowDown"); // a new row's own vintage offers no choice
+  await expect(editNote(page)).toContainText("Fresh Batch 9 vintage (new)");
+  await page.keyboard.press("Enter");
+  await cell(page, row + 1, brand).click(); // leave the row: it saves
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [v] = await db`select r.proof, e.proof as label_proof from expression_releases r join expressions e on e.id = r.expression_id where r.name = 'Fresh Batch 9' and e.name = ${existingLabel}`;
+    expect(Number(v!.proof)).toBe(109.8);
+    expect(Number(v!.label_proof)).not.toBe(109.8);
+  } finally {
+    await db.end();
+  }
 });
 
 // ---------------------------------------------------------------------------

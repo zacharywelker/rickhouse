@@ -119,6 +119,8 @@ export const EDITORS: Readonly<Record<string, CellEditor>> = {
 };
 
 /** The cells a person has triple-clicked open, as `labelId:columnId` (or the bottle's). Unlocking is per label and per column. */
+/** The cells that are a vintage's own on a row that makes one. */
+const VINTAGE_COLUMNS: ReadonlySet<string> = new Set(["proof", "ageYears", "ageMonths", "ageDays", "ageStatement"]);
 export type Unlocked = ReadonlySet<string>;
 export const unlockKey = (labelId: number, column: string): string => `${labelId}:${column}`;
 const NOTHING_UNLOCKED: Unlocked = new Set();
@@ -172,8 +174,8 @@ export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow, u
     return draft.labelChosen && draft.labelIsNew ? editor : null;
   }
   if (editor.scope === "bottle") return row.bottle ? editor : null;
-  // A new row that names a label that exists is that label's, not a new one to fill in.
-  if (draft?.labelChosen && !draft.labelIsNew) return null;
+  // A new row that names a label that exists is that label's, not a new one to fill in; except for the proof and age of a vintage the row makes.
+  if (draft?.labelChosen && !draft.labelIsNew && !(draft.vintageName !== undefined && VINTAGE_COLUMNS.has(column.id))) return null;
   if (!view.bottles) return editor;
   if (draft) return draft.labelChosen ? editor : null;
   return view.labels ? editor : null;

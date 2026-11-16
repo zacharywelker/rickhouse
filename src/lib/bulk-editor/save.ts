@@ -144,12 +144,25 @@ export function createBody(draft: DraftRow, cells: Readonly<Record<string, strin
     if (!editor || editor.combo || value === "") continue;
     Object.assign(editor.scope === "label" ? facts : bottle, serverFields(editor, column, value));
   }
+  // A vintage made in this row takes the proof and age typed into it, and the label does not: they are the vintage's.
+  let vintage: { name: string; facts: Record<string, string> } | undefined;
+  if (typeof bottle.releaseName === "string") {
+    vintage = { name: bottle.releaseName, facts: {} };
+    delete bottle.releaseName;
+    for (const field of ["proof", "ageYears", "ageMonths", "ageDays", "ageStatement"]) {
+      if (field in facts) {
+        vintage.facts[field] = String(facts[field]);
+        delete facts[field];
+      }
+    }
+  }
   const brand = draft.brand!;
   const label = draft.label!;
   return {
     brand: brand.kind === "existing" ? { id: brand.id } : { name: brand.name },
     label: label.kind === "existing" ? { id: label.id } : { name: label.name, categoryId: draft.categoryId, ...(Object.keys(facts).length > 0 ? { facts } : {}) },
-    ...(bottleView || Object.keys(bottle).length > 0 ? { bottle } : {}),
+    ...(vintage ? { vintage: { name: vintage.name, ...(Object.keys(vintage.facts).length > 0 ? { facts: vintage.facts } : {}) } } : {}),
+    ...(bottleView || Object.keys(bottle).length > 0 || vintage ? { bottle } : {}),
   };
 }
 
@@ -171,6 +184,7 @@ const COLUMN_OF_FIELD: Record<string, { label: string; bottle: string }> = {
   storeId: { label: "store", bottle: "store" },
   storeName: { label: "store", bottle: "store" },
   releaseId: { label: "releaseId", bottle: "releaseId" },
+  releaseName: { label: "releaseId", bottle: "releaseId" },
   expressionNameId: { label: "expressionNameId", bottle: "expressionNameId" },
   cooperageId: { label: "cooperageId", bottle: "cooperageId" },
   cooperageName: { label: "cooperageId", bottle: "cooperageId" },

@@ -83,7 +83,14 @@ export type SheetPhoto = { path: string; isCutout: boolean | null };
 
 export type SheetView = { labels: boolean; bottles: boolean };
 /** What a new, unsaved row has chosen so far (see `drafts.ts`). */
-export type DraftMeta = { brandChosen: boolean; labelChosen: boolean; brandIsNew: boolean; labelIsNew: boolean };
+export type DraftMeta = {
+  brandChosen: boolean;
+  labelChosen: boolean;
+  brandIsNew: boolean;
+  labelIsNew: boolean;
+  /** The name of a vintage this row makes (typed into its Vintage cell): the proof and age typed into the row are the vintage's. */
+  vintageName?: string;
+};
 export type SheetRow = {
   key: string;
   label: SheetLabel;

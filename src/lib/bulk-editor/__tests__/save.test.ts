@@ -106,3 +106,19 @@ describe("keys for new rows", () => {
     expect(withBlankRow([draft({ key: "d1" })], 1).map((d) => d.key)).toEqual(["d1", "d2"]);
   });
 });
+
+describe("a new row with a new vintage", () => {
+  it("sends the vintage by name, with the proof and age typed into the row, and keeps them off the label", () => {
+    const body = createBody(draft({ brand: existing(1, "Pinhook"), label: existing(2, "Vertical") }), { releaseId: "new:2026", proof: "109.8", ageYears: "9", pricePaid: "40" }, true);
+    expect(body).toEqual({ brand: { id: 1 }, label: { id: 2 }, vintage: { name: "2026", facts: { proof: "109.8", ageYears: "9" } }, bottle: { pricePaid: "40" } });
+  });
+  it("leaves a new label's own proof empty, since the proof typed belongs to the vintage", () => {
+    const body = createBody(draft({ brand: fresh("Zzyzx"), label: fresh("Cask One"), categoryId: 4 }), { releaseId: "new:2026", proof: "109.8", sizeMl: "700" }, true);
+    expect(body).toMatchObject({ label: { name: "Cask One", categoryId: 4, facts: { sizeMl: "700" } }, vintage: { name: "2026", facts: { proof: "109.8" } } });
+    expect((body.label as { facts: Record<string, unknown> }).facts).not.toHaveProperty("proof");
+  });
+  it("sends a vintage with nothing typed into it as its name alone, and an existing vintage as its id on the bottle", () => {
+    expect(createBody(draft({ brand: existing(1, "A"), label: existing(2, "B") }), { releaseId: "new:2026" }, true)).toMatchObject({ vintage: { name: "2026" } });
+    expect(createBody(draft({ brand: existing(1, "A"), label: existing(2, "B") }), { releaseId: "id:21" }, true)).toEqual({ brand: { id: 1 }, label: { id: 2 }, bottle: { releaseId: 21 } });
+  });
+});

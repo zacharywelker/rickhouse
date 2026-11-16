@@ -465,4 +465,54 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(Number((await one<{ proof: string }>(`SELECT proof FROM expression_releases WHERE id = $1`, b)).proof)).toBe(107.4);
     });
   });
+
+  describe("making a vintage from the bottle row", () => {
+    const vintages = async (labelId: number) => m.sql<{ id: number; name: string; proof: string | null }>(`SELECT id, name, proof FROM expression_releases WHERE expression_id = $1 ORDER BY id`, labelId);
+
+    it("createRow on an existing label makes the vintage with the typed proof, puts the bottle on it, and leaves the label's proof alone", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Create A");
+      await m.sql(`UPDATE expressions SET proof = 90 WHERE id = $1`, label);
+      const brand = (await one<{ brand_id: number }>(`SELECT brand_id FROM expressions WHERE id = $1`, label)).brand_id;
+      const out = await rows.createRow(owner, { brand: { id: brand }, label: { id: label }, vintage: { name: "2026", facts: { proof: "109.8", ageYears: "9" } }, bottle: {} });
+      expect(out, JSON.stringify(out)).toMatchObject({ ok: true });
+      if (!out.ok) return;
+      const list = await vintages(label);
+      expect(list).toHaveLength(1);
+      expect([list[0]!.name, Number(list[0]!.proof)]).toEqual(["2026", 109.8]);
+      expect((await one<{ release_id: number }>(`SELECT release_id FROM bottles WHERE id = $1`, out.bottleId)).release_id).toBe(list[0]!.id);
+      expect(Number((await one<{ proof: string }>(`SELECT proof FROM expressions WHERE id = $1`, label)).proof)).toBe(90);
+    });
+    it("createRow for a new label with a new vintage leaves the label's own proof empty", async () => {
+      const out = await rows.createRow(owner, { brand: { name: "Vintage Create Co" }, label: { name: "Cask", categoryId: cat.whiskey, facts: { sizeMl: "700" } }, vintage: { name: "Batch 1", facts: { proof: "118" } }, bottle: {} });
+      expect(out, JSON.stringify(out)).toMatchObject({ ok: true });
+      if (!out.ok) return;
+      expect((await one<{ proof: string | null }>(`SELECT proof FROM expressions WHERE id = $1`, out.labelId)).proof).toBeNull();
+      expect(Number((await vintages(out.labelId))[0]!.proof)).toBe(118);
+    });
+    it("two rows naming the same new vintage make one", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Create B");
+      const brand = (await one<{ brand_id: number }>(`SELECT brand_id FROM expressions WHERE id = $1`, label)).brand_id;
+      const body = { brand: { id: brand }, label: { id: label }, vintage: { name: "2027" }, bottle: {} };
+      const [a, b] = await Promise.all([rows.createRow(owner, body), rows.createRow(owner, body)]);
+      expect([a.ok, b.ok]).toEqual([true, true]);
+      expect(await vintages(label)).toHaveLength(1);
+    });
+    it("patchBottleRow with a vintage name makes it for the bottle's label and puts the bottle on it", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Create C");
+      const bottle = await fx.mkBottle(owner, label);
+      expect(await rows.patchBottleRow(owner, bottle, { releaseName: "2028" })).toEqual({ ok: true });
+      const list = await vintages(label);
+      expect(list.map((v) => v.name)).toEqual(["2028"]);
+      expect((await one<{ release_id: number }>(`SELECT release_id FROM bottles WHERE id = $1`, bottle)).release_id).toBe(list[0]!.id);
+      // Naming it again finds it: no second vintage.
+      expect(await rows.patchBottleRow(owner, bottle, { releaseName: "2028" })).toEqual({ ok: true });
+      expect(await vintages(label)).toHaveLength(1);
+    });
+    it("refuses a name and an id together, and an empty name", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Create D");
+      const bottle = await fx.mkBottle(owner, label);
+      expect(await rows.patchBottleRow(owner, bottle, { releaseName: "" })).toMatchObject({ ok: false, kind: "invalid" });
+      expect(await vintages(label)).toHaveLength(0);
+    });
+  });
 });

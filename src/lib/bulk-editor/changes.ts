@@ -105,6 +105,17 @@ function rawOf(editor: CellEditor, value: string): Record<string, unknown> {
 }
 
 /**
+ * A new row that names a vintage to make (typed into its Vintage cell) says so on its row, which opens the cells that are
+ * the vintage's (its proof and age) even when its label exists: they are not the label's to change.
+ */
+export function withDraftVintages(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRow[] {
+  return rows.map((row) => {
+    const typed = row.draft ? edits[row.key]?.releaseId : undefined;
+    return row.draft && typed !== undefined && typed.startsWith("new:") && typed.length > 4 ? { ...row, draft: { ...row.draft, vintageName: typed.slice(4) } } : row;
+  });
+}
+
+/**
  * What has been typed into a row's cells, put onto the row's own label and bottle data, so that everything that reads a
  * row (its cells, which cells apply to it, the rail) sees it. A cell that gates others, like Private pick, then opens
  * them at once instead of once the save has been read back. Rows with nothing typed are returned as they are.
