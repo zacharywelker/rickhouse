@@ -58,11 +58,14 @@ function labelLock(field: Field, label: SheetLabel): string | null {
 }
 
 /** The minimum a whiskey implies, or the youngest age its statement gives, when nothing is stored: shown, never saved. */
-function inferred(label: SheetLabel, kinds: Kinds): Cell | null {
+export function inferred(label: SheetLabel, kinds: Kinds): Cell | null {
   if (label.fieldGroup !== "whiskey" || hasAge(label) || label.isNas) return null;
   const age = whiskeyAge(label, (kinds[label.categoryId] as CategoryKind | undefined) ?? "other");
   return age.groupingYears === null ? null : { text: formatNumeric(String(age.groupingYears)), muted: true, inferred: true, ...(age.explanation ? { note: age.explanation } : {}) };
 }
+
+/** The age a designation implies for a label with none stored, or null (what the resolver falls back to, last). */
+export const inferredAge = inferred;
 
 function labelCell(field: Field, row: SheetRow, kinds: Kinds): Cell {
   if (labelHidden(row, kinds).has(field)) return { ...DASH, note: "Not used for this spirit" };

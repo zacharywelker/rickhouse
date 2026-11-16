@@ -1,4 +1,5 @@
 import { describeLinks } from "@/lib/expressions/links";
+import type { SheetIndex } from "./resolve";
 import type { ExpressionRow } from "@/lib/expressions/queries";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
@@ -95,7 +96,7 @@ export type SheetRow = {
 export type RefNames = { store: Record<number, string>; cooperage: Record<number, string>; release: Record<number, string>; version: Record<number, string> };
 /** Each label's own lists, by name, for the cells that summarise them: its older names, and its known releases. */
 export type LabelLists = { versions: Record<number, string[]>; releases: Record<number, string[]> };
-export type SheetContext = { currency: string; kinds: Record<number, CategoryKind>; refs?: RefNames; lists?: LabelLists; /** Category names, for a saved label's Category cell. */ categories?: Record<number, string> };
+export type SheetContext = { currency: string; /** Lookups for resolving a value from the bottle, its vintage or the label (`resolve.ts`). */ index?: SheetIndex; kinds: Record<number, CategoryKind>; refs?: RefNames; lists?: LabelLists; /** Category names, for a saved label's Category cell. */ categories?: Record<number, string> };
 export type Cell = {
   text: string;
   /** Said on hover, and to a screen reader: why a cell is empty or cannot be edited ("Not used for this spirit"). */
