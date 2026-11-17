@@ -81,3 +81,36 @@ describe("copying a value cell", () => {
     expect(copyValue("proof", row(empty, null), varying)).toBe("");
   });
 });
+
+describe("tequila class, brandy grade and gin NAS: one cell each", () => {
+  const agave = label({ id: 2, fieldGroup: "agave", categoryId: 30, tequilaClass: "blanco" });
+  const kinds = { 30: "tequila" } as never;
+  const ctxOf = (l: SheetLabel, bs: SheetBottle[]): SheetContext => ({ currency: "USD", kinds, index: indexSheet([l], bs, []) });
+
+  it("has a column for each, and none for the bottle's own", () => {
+    const ids = SHEET_COLUMNS.map((c) => c.id);
+    for (const id of ["tequilaClass", "brandyGrade", "isNas"]) expect(ids).toContain(id);
+    for (const gone of ["ownTequilaClass", "ownBrandyGrade", "ginIsNas"]) expect(ids).not.toContain(gone);
+    for (const id of ["tequilaClass", "brandyGrade", "isNas"]) expect(col(id).group).toBe("value");
+  });
+  it("shows the label's tequila class with no marker, and a bottle's own with a B", () => {
+    const plain = bottle({ id: 8, expressionId: 2 });
+    const own = bottle({ id: 9, expressionId: 2, tequilaClass: "reposado" });
+    expect(col("tequilaClass").cell(row(agave, plain), ctxOf(agave, [plain]))).toMatchObject({ text: expect.stringContaining("Blanco") });
+    expect(col("tequilaClass").cell(row(agave, plain), ctxOf(agave, [plain])).marker).toBeUndefined();
+    expect(col("tequilaClass").cell(row(agave, own), ctxOf(agave, [own]))).toMatchObject({ text: expect.stringContaining("Reposado"), marker: "B" });
+  });
+  it("says it is not used where the spirit has no such field", () => {
+    const whiskey = label();
+    const cell = col("tequilaClass").cell(row(whiskey, bottle()), { currency: "USD", kinds: { 5: "american" } as never, index: indexSheet([whiskey], [], []) });
+    expect(cell).toMatchObject({ text: "—" });
+    expect(cell.note).toBeTruthy();
+  });
+  it("shows a gin bottle's own NAS over the label's", () => {
+    const gin = label({ id: 3, fieldGroup: "gin", categoryId: 40, isNas: false, isAgedGin: true });
+    const b = bottle({ id: 10, expressionId: 3, ginIsNas: true });
+    const c = { currency: "USD", kinds: { 40: "gin" } as never, index: indexSheet([gin], [b], []) };
+    expect(col("isNas").cell(row(gin, b), c)).toMatchObject({ text: "Yes", marker: "B" });
+    expect(col("isNas").cell(row(gin, bottle({ id: 11, expressionId: 3 })), c)).toEqual({ text: "—", muted: true });
+  });
+});

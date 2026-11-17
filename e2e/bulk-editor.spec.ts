@@ -323,6 +323,15 @@ test("corner notices stack with the newest on top, go by themselves after about 
   await expect(notices).toHaveCount(0, { timeout: 15_000 });
 });
 
+test("tequila class, brandy grade and NAS are one cell each in the Fields picker, with none for the bottle's own", async ({ page }) => {
+  await fieldsButton(page).click();
+  const values = page.getByRole("group", { name: "Values: Strength and age", exact: true });
+  for (const name of ["Tequila Class", "Age Designation", "NAS"]) await expect(values.getByLabel(name, { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel("This bottle's tequila class")).toHaveCount(0);
+  await expect(page.getByLabel("This bottle's age designation")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+});
+
 test("typing replaces a value, Enter keeps it and drops to the next row in the same column", async ({ page }) => {
   const price = await col(page, "Price paid");
   await cell(page, 1, price).click();

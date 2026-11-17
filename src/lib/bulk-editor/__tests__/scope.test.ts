@@ -49,6 +49,12 @@ describe("stepping through the levels", () => {
 });
 
 describe("the column an edit is stored under at a level", () => {
+  it("keeps the three spirit overrides under the bottle's own editors", () => {
+    expect(columnFor("tequilaClass", "bottle")).toBe("ownTequilaClass");
+    expect(columnFor("brandyGrade", "bottle")).toBe("ownBrandyGrade");
+    expect(columnFor("isNas", "bottle")).toBe("ginIsNas");
+    expect(columnFor("tequilaClass", "label")).toBe("tequilaClass");
+  });
   it("is the bottle's own editor for the bottle level, and the same column for the vintage and the label", () => {
     expect(columnFor("proof", "bottle")).toBe("ownProof");
     expect(columnFor("sizeMl", "bottle")).toBe("ownSize");

@@ -23,6 +23,17 @@ export function abvCell(row: SheetRow, ctx: Pick<SheetContext, "kinds" | "index"
   return valueCell("proof", row, ctx, (proof) => formatNumeric(String(Number(proof) / 2)));
 }
 
+/**
+ * A choice that a bottle can override (tequila class, brandy grade) or a flag (gin NAS): the bottle's own with a B, else
+ * the label's with none. `display` is the field's own editor display, so the words are the form's. A blank is a dash.
+ */
+export function choiceCell(field: ValueField, row: SheetRow, ctx: Pick<SheetContext, "kinds" | "index">, display: (value: string) => Cell): Cell {
+  const r = resolve(field, row, ctx);
+  if (r.value === null || (field === "ginIsNas" && r.value === "false" && r.level === "label")) return DASH;
+  const shown = display(r.value);
+  return { ...shown, ...(r.marker ? { marker: r.marker } : {}) };
+}
+
 export const proofCell = (row: SheetRow, ctx: Pick<SheetContext, "kinds" | "index">): Cell => valueCell("proof", row, ctx, (v) => formatNumeric(v));
 export const sizeCell = (row: SheetRow, ctx: Pick<SheetContext, "kinds" | "index">): Cell => valueCell("sizeMl", row, ctx, (v) => `${v} mL`);
 
