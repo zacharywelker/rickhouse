@@ -1,4 +1,6 @@
 import { ageSummary, ownAgeSummary } from "./age";
+import { describeAgeParts } from "@/lib/expressions/display";
+import { resolve } from "./resolve";
 import { applyEdits, editKey } from "./changes";
 import { EDITORS, type Edits } from "./editors";
 import { SHEET_COLUMNS, type SheetContext, type SheetPhoto, type SheetRow, type SheetView } from "./sheet";
@@ -9,7 +11,7 @@ import { SHEET_COLUMNS, type SheetContext, type SheetPhoto, type SheetRow, type 
  */
 
 /** Where a fact comes from: the label, this bottle's own, or the bottle itself (a thing only a bottle has). */
-export type FactSource = "label" | "own" | "bottle";
+export type FactSource = "label" | "vintage" | "own" | "bottle";
 
 export type RailFact = {
   label: string;
@@ -38,10 +40,10 @@ const isBlank = (text: string) => text === "" || text === DASH;
 
 /** The label's facts, in the order the sheet has them. */
 const LABEL_FACTS = [
-  { id: "sizeMl", own: "ownSize" },
-  { id: "proof", own: "ownProof" },
+  { id: "sizeMl" },
+  { id: "proof" },
   { id: "designation" },
-  { id: "age", own: "ownAge" }, // not columns: the age reads as one value here (see `ageSummary`)
+  { id: "age" }, // not a column: the age reads as one value here (see `ageSummary`)
   { id: "distilleries" },
   { id: "mashbills" },
   { id: "finishes" },
@@ -49,7 +51,7 @@ const LABEL_FACTS = [
 ] as const;
 
 /** What only a bottle has. */
-const BOTTLE_FACTS = ["pricePaid", "store", "dateAcquired", "singleBarrel", "pickName", "releaseYear", "location", "notes", "status"] as const;
+const BOTTLE_FACTS = ["pricePaid", "store", "dateAcquired", "singleBarrel", "privateSelection", "pickName", "releaseYear", "location", "notes", "status"] as const;
 
 /** Worth asking for when empty: few, so the list stays short. */
 const WORTH_FILLING = ["proof", "distilleries", "msrp", "pricePaid", "store", "dateAcquired"] as const;
@@ -61,8 +63,16 @@ const MAX_BLANK = 4;
 export function railFor(row: SheetRow, ctx: SheetContext, view: SheetView, edits: Edits, photo: SheetPhoto | null): Rail {
   /** A column's cell for this row, with an edit not yet read back shown in place of the saved value. */
   const cellOf = (id: string) => {
-    if (id === "age") return ageSummary(applied.label, ctx.kinds);
-    if (id === "ownAge") return ownAgeSummary(applied, ctx.kinds);
+    if (id === "age") {
+      // The bottle's own age, else its vintage's, else the label's, as the Age columns resolve it.
+      const level = resolve("ageYears", applied, ctx).level;
+      if (level === "bottle" && applied.bottle) return ownAgeSummary(applied, ctx.kinds);
+      const vintage = level === "vintage" && applied.bottle?.releaseId != null ? ctx.index?.vintageById.get(applied.bottle.releaseId) : undefined;
+      const text = vintage ? (describeAgeParts(vintage.ageYears, vintage.ageMonths, vintage.ageDays) ?? vintage.ageStatement) : null;
+      return text ? { text, marker: "V" as const } : ageSummary(applied.label, ctx.kinds);
+    }
+    // Size and proof are resolved from the bottle, its vintage and the label, with what has been typed laid over them.
+    if (id === "sizeMl" || id === "proof") return column(id).cell(applied, ctx);
     const editor = EDITORS[id];
     const typed = editor ? edits[editKey(row, editor)]?.[id] : undefined;
     return typed !== undefined && editor ? editor.display(typed, ctx, row) : column(id).cell(row, ctx);
@@ -75,16 +85,14 @@ export function railFor(row: SheetRow, ctx: SheetContext, view: SheetView, edits
   const empty = new Set<string>();
 
   for (const fact of LABEL_FACTS) {
-    const own = onBottle && "own" in fact ? cellOf(fact.own) : null;
-    const labelCell = cellOf(fact.id);
-    // The bottle's own columns show the label's value in grey when the bottle has none: that is "from the label".
-    const useOwn = own !== null && !own.muted;
-    const cell = useOwn ? own! : labelCell;
+    const cell = cellOf(fact.id);
     if (isBlank(cell.text)) {
       empty.add(fact.id);
       continue;
     }
-    facts.push({ label: fact.id === "age" ? "Age" : column(fact.id).label, value: cell.text, source: useOwn ? "own" : "label", ...(useOwn && !isBlank(labelCell.text) ? { alongside: labelCell.text } : {}) });
+    // Where the value comes from: the vintage (V), this bottle's own (B, SB, PS), or the label's, which has no marker.
+    const source: FactSource = !onBottle || !cell.marker ? "label" : cell.marker === "V" ? "vintage" : "own";
+    facts.push({ label: fact.id === "age" ? "Age" : column(fact.id).label, value: cell.text, source });
   }
   if (onBottle) {
     for (const id of BOTTLE_FACTS) {

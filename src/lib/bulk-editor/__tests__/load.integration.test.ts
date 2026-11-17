@@ -106,4 +106,19 @@ describe.skipIf(!url)("what the bulk editor loads, against a real database", () 
     expect(photos.bottles[onPhoto]).toMatchObject({ path: "labels/t.jpg" });
     expect(photos.bottles[onNone]).toBeUndefined();
   });
+
+  it("returns each vintage's own proof and age, and none of another account's", async () => {
+    const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Values");
+    const theirs = await fx.mkLabel(stranger, cat.whiskey, "Vintage Theirs");
+    const a = (await m.sql<{ id: number }>(`INSERT INTO expression_releases (expression_id, name, proof, age_years) VALUES ($1, 'Vertical 2021', 112, 7) RETURNING id`, label))[0]!.id;
+    const b = (await m.sql<{ id: number }>(`INSERT INTO expression_releases (expression_id, name, proof, age_years) VALUES ($1, 'Vertical 2022', 107.4, 8) RETURNING id`, label))[0]!.id;
+    const c = (await m.sql<{ id: number }>(`INSERT INTO expression_releases (expression_id, name) VALUES ($1, 'Their Release') RETURNING id`, theirs))[0]!.id;
+
+    const { vintages } = await load.loadSheet(owner);
+
+    const mine = vintages.filter((v) => v.labelId === label);
+    expect(mine.map((v) => [v.id, v.name, v.proof, v.ageYears])).toEqual([[a, "Vertical 2021", "112.00", "7.0"], [b, "Vertical 2022", "107.40", "8.0"]]);
+    expect(mine[0]).toMatchObject({ ageMonths: null, ageDays: null, ageStatement: null, ageYearsSource: "entered" });
+    expect(vintages.some((v) => v.id === c)).toBe(false);
+  });
 });

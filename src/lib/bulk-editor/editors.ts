@@ -1,11 +1,11 @@
-import { proofToAbv } from "@/lib/bottles/proof";
 import type { FieldSpec } from "@/lib/admin/types";
+import { proofToAbv } from "@/lib/bottles/proof";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 import { BOTTLE_AGE, LABEL_AGE } from "./age";
 import { LINK_KEYS, linkEditor } from "./links";
-import { designationEditor, GENERATED, singleBarrelEditor, storeEditor, type Kinds } from "./fields";
+import { designationEditor, GENERATED, storeEditor, type Kinds } from "./fields";
 import type { LinkKey } from "./links";
 import { PANEL_KEYS, panelEditor, type PanelKey } from "./panels";
 import type { RefKind } from "./references";
@@ -76,32 +76,24 @@ const text = (value: string): Cell => (value === "" ? DASH : { text: value });
 const money = (value: string, ctx: SheetContext): Cell => (value === "" ? DASH : { text: formatMoney(value, ctx.currency) });
 const mL = (value: string): Cell => (value === "" ? DASH : { text: `${value} mL` });
 
-export function proofColumnFor(column: string): "proof" | "ownProof" | undefined {
-  if (column === "abv") return "proof";
-  if (column === "ownAbv") return "ownProof";
-}
-
-/** Both strength columns read the same staged proof, including on drafts. */
-export function stagedCellValue(column: string, cells: Readonly<Record<string, string>> | undefined): string | undefined {
-  const proofColumn = proofColumnFor(column);
-  const value = cells?.[proofColumn ?? column];
-  return proofColumn && value !== undefined ? proofToAbv(value) : value;
-}
-
-function abvEditor(column: string, proof: CellEditor): CellEditor {
-  const label = proof.scope === "label" ? "ABV %" : "This bottle's ABV %";
+/**
+ * ABV is the same number as Proof, half of it, and is stored as proof at the same level a Proof edit would be. Like the
+ * form's pair: the one that has a value drives and the other is calculated, so ABV is locked (triple-click to edit anyway)
+ * while there is a proof, and typing a proof recalculates it.
+ */
+function abvEditor(proof: CellEditor): CellEditor {
   return {
     ...proof,
-    column,
-    spec: { kind: "number", name: "abv", label, min: 0, max: 100, step: 0.01 },
-    initial: (row) => proofToAbv(proof.initial(row)),
-    display: (value, _ctx, row) => {
-      if (value !== "") return { text: `${value}%` };
-      const inherited = proof.scope === "bottle" ? proofToAbv(row.label.proof ?? "") : "";
-      return inherited === "" ? DASH : { text: `${inherited}%`, muted: true };
-    },
+    column: "abv",
+    spec: { kind: "number", name: "abv", label: "ABV %", min: 0, max: 100, step: 0.01 },
+    lock: (r) => ((r.bottle?.proof ?? r.label.proof ?? "") === "" ? null : "Calculated from Proof. Triple-click to enter an ABV instead"),
+    initial: (r) => proofToAbv(proof.initial(r)),
+    display: (v) => text(v),
   };
 }
+
+/** The proof an ABV column's staged value stands for: edits of both columns are kept under `proof`. */
+export const staged = (column: string, value: string | undefined): string | undefined => (column === "abv" && value !== undefined ? proofToAbv(value) : value);
 
 const BY_HAND: Readonly<Record<string, CellEditor>> = {
   // The picking cells, on a new row only for now. On a saved row they come with the rules for moving a bottle and renaming a label.
@@ -139,17 +131,17 @@ const BY_HAND: Readonly<Record<string, CellEditor>> = {
 /** Every cell that can be edited, by its column's id: the ones made by hand, the two composites, and one for each simple form field. */
 export const EDITORS: Readonly<Record<string, CellEditor>> = {
   ...BY_HAND,
-  abv: abvEditor("abv", BY_HAND.proof!),
-  ownAbv: abvEditor("ownAbv", BY_HAND.ownProof!),
+  abv: abvEditor(BY_HAND.proof!),
   ...Object.fromEntries([...GENERATED, ...LABEL_AGE, ...BOTTLE_AGE].map((g) => [g.column.id, g.editor])),
   designation: designationEditor(),
-  singleBarrel: singleBarrelEditor(),
   store: storeEditor(),
   ...Object.fromEntries(LINK_KEYS.map((key) => [key, linkEditor(key)])),
   ...Object.fromEntries(PANEL_KEYS.map((key) => [key, panelEditor(key)])),
 };
 
 /** The cells a person has triple-clicked open, as `labelId:columnId` (or the bottle's). Unlocking is per label and per column. */
+/** The cells that are a vintage's own on a row that makes one. */
+const VINTAGE_COLUMNS: ReadonlySet<string> = new Set(["proof", "ageYears", "ageMonths", "ageDays", "ageStatement"]);
 export type Unlocked = ReadonlySet<string>;
 export const unlockKey = (labelId: number, column: string): string => `${labelId}:${column}`;
 const NOTHING_UNLOCKED: Unlocked = new Set();
@@ -203,8 +195,8 @@ export function editorFor(column: SheetColumn, view: SheetView, row: SheetRow, u
     return draft.labelChosen && draft.labelIsNew ? editor : null;
   }
   if (editor.scope === "bottle") return row.bottle ? editor : null;
-  // A new row that names a label that exists is that label's, not a new one to fill in.
-  if (draft?.labelChosen && !draft.labelIsNew) return null;
+  // A new row that names a label that exists is that label's, not a new one to fill in; except for the proof and age of a vintage the row makes.
+  if (draft?.labelChosen && !draft.labelIsNew && !(draft.vintageName !== undefined && VINTAGE_COLUMNS.has(column.id))) return null;
   if (!view.bottles) return editor;
   if (draft) return draft.labelChosen ? editor : null;
   return view.labels ? editor : null;

@@ -1,10 +1,11 @@
 import { words } from "@/lib/expressions/label-search";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { whiskeyAge } from "@/lib/expressions/whiskey-age";
+import { resolve, type SheetIndex } from "./resolve";
 import { compareRows, type SheetLabel, type SheetRow } from "./sheet";
 
 /** What ages are worked out against: the category's kind, which sets the minimum age a whiskey designation implies. */
-export type FindContext = { kinds: Readonly<Record<number, CategoryKind>> };
+export type FindContext = { kinds: Readonly<Record<number, CategoryKind>>; /** Where a bottle on a vintage finds the vintage's proof and age (`resolve.ts`). */ index?: SheetIndex };
 
 /**
  * Finding rows in the editor: search, filters and sort, applied to the rows already on the page (a home collection is
@@ -127,10 +128,15 @@ export function labelAgeYears(label: SheetLabel, ctx: FindContext): number | nul
   return ageInYears(label);
 }
 
-/** A row's age: its bottle's own if the bottle says one, else the label's. */
-export const ageOf = (row: SheetRow, ctx: FindContext): number | null => (hasOwnAge(row.bottle) ? ageInYears(row.bottle!) : labelAgeYears(row.label, ctx));
-/** A row's proof: its bottle's own if it has one, else the label's. */
-export const proofOf = (row: SheetRow): number | null => num(row.bottle?.proof ?? row.label.proof);
+/** A row's age: its bottle's own if the bottle says one, else its vintage's, else the label's. */
+export function ageOf(row: SheetRow, ctx: FindContext): number | null {
+  if (hasOwnAge(row.bottle)) return ageInYears(row.bottle!);
+  const vintage = row.bottle?.releaseId == null ? undefined : ctx.index?.vintageById.get(row.bottle.releaseId);
+  if (vintage && (vintage.ageYears !== null || vintage.ageMonths !== null || vintage.ageDays !== null || (vintage.ageStatement ?? "").trim() !== "")) return ageInYears(vintage);
+  return labelAgeYears(row.label, ctx);
+}
+/** A row's proof as the Proof column shows it: its bottle's own, else its vintage's, else the label's. "Varies" and blank are no number. */
+export const proofOf = (row: SheetRow, ctx: FindContext): number | null => num(resolve("proof", row, ctx).value);
 
 const inRange = (value: number | null, range: Range): boolean =>
   hasBound(range) && value !== null && (range.min === null || value >= range.min) && (range.max === null || value <= range.max);
@@ -139,14 +145,16 @@ function matchesRange(value: number | null, range: Range): boolean {
   return !rangeActive(range) || (range.missing === true && value === null) || inRange(value, range);
 }
 
+/** An age filter: the age in range, or Unknown (no age and no statement), or NAS (the statement says so, or a gin bottle is marked). */
 function matchesAge(row: SheetRow, range: AgeRange, ctx: FindContext): boolean {
   if (!rangeActive(range)) return true;
   const age = ageOf(row, ctx);
   if (inRange(age, range)) return true;
-  const bottleHasAge = hasOwnAge(row.bottle);
-  const statement = (bottleHasAge ? row.bottle?.ageStatement : row.label.ageStatement)?.trim() ?? "";
+  const statement = resolve("ageStatement", row, ctx).value?.trim() ?? "";
   const ginNas = row.label.fieldGroup === "gin" && row.label.isAgedGin ? row.bottle?.ginIsNas : null;
-  const nas = ginNas ?? (/^NAS$/i.test(statement) || (!bottleHasAge && row.label.isNas));
+  // The label's NAS flag counts only while no age comes from the bottle or its vintage.
+  const fromLabel = (["ageYears", "ageMonths", "ageDays", "ageStatement"] as const).every((field) => resolve(field, row, ctx).level === "label");
+  const nas = ginNas ?? (/^NAS$/i.test(statement) || (fromLabel && row.label.isNas));
   if (nas) return range.nas === true;
   return range.missing === true && age === null && statement === "";
 }
@@ -169,7 +177,7 @@ export function matchesFilters(row: SheetRow, find: Find, ctx: FindContext): boo
   if (!matchesAny(label.links.mashbills.map((m) => m.id), find.mashbillIds)) return false;
   if (!matchesAny(label.links.finishes.map((f) => f.id), find.finishIds)) return false;
   if (!matchesAny((label.links.ingredients ?? []).map((i) => i.name), find.ingredients)) return false;
-  if (!matchesRange(proofOf(row), find.proof) || !matchesAge(row, find.age, ctx) || !matchesRange(num(label.msrp), find.msrp)) return false;
+  if (!matchesRange(proofOf(row, ctx), find.proof) || !matchesAge(row, find.age, ctx) || !matchesRange(num(label.msrp), find.msrp)) return false;
   if (!matchesAny(bottle?.storeName?.trim() ? [bottle.storeName] : [], find.stores)) return false;
   if (!matchesRange(num(bottle?.pricePaid), find.price)) return false;
   return find.q.trim() === "" || matchesSearch(row, find.q);
@@ -198,11 +206,10 @@ const SORT_VALUES: Record<string, (row: SheetRow, ctx: FindContext) => Value> = 
   brand: (r) => r.label.brand,
   name: (r) => r.label.name,
   category: (r) => r.label.category,
-  sizeMl: (r) => r.label.sizeMl,
-  proof: (r) => num(r.label.proof),
-  abv: (r) => num(r.label.proof),
-  ageYears: (r, ctx) => labelAgeYears(r.label, ctx),
-  ownAgeYears: (r, ctx) => ageOf(r, ctx),
+  sizeMl: (r, ctx) => num(resolve("sizeMl", r, ctx).value),
+  proof: (r, ctx) => proofOf(r, ctx),
+  abv: (r, ctx) => proofOf(r, ctx),
+  ageYears: (r, ctx) => ageOf(r, ctx),
   distilleries: (r) => links(r.label.links.distilleries),
   mashbills: (r) => links(r.label.links.mashbills),
   finishes: (r) => links(r.label.links.finishes),
@@ -216,9 +223,6 @@ const SORT_VALUES: Record<string, (row: SheetRow, ctx: FindContext) => Value> = 
   pickName: (r) => r.bottle?.pickName ?? null,
   location: (r) => r.bottle?.location ?? null,
   notes: (r) => r.bottle?.notes ?? null,
-  ownProof: proofOf,
-  ownAbv: proofOf,
-  ownSize: (r) => r.bottle?.sizeMl ?? r.label.sizeMl,
 };
 
 export const isSortable = (column: string): boolean => column in SORT_VALUES;

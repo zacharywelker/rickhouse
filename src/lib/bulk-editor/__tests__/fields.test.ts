@@ -24,17 +24,19 @@ describe("the generated columns", () => {
     expect(GENERATED_LABEL.length).toBeGreaterThan(30);
     expect(GENERATED_BOTTLE.length).toBeGreaterThan(8);
   });
-  it("are hidden until switched on, and each has an editor under its own id", () => {
+  it("are hidden until switched on, except the vintage and the two barrel flags, and each has an editor under its own id", () => {
+    const entered = new Set(["releaseId", "singleBarrel", "privateSelection"]);
     for (const g of GENERATED) {
-      expect(g.column.defaultHidden).toBe(true);
+      expect(g.column.defaultHidden).toBe(entered.has(g.column.id) ? false : true);
       expect(EDITORS[g.column.id]).toBe(g.editor);
       expect(g.column.section).toBeTruthy();
     }
   });
-  it("keep the label's columns before the bottle's, which the sheet's two captions rely on", () => {
-    const groups = SHEET_COLUMNS.map((c) => c.group);
-    expect(groups.indexOf("bottle")).toBe(groups.filter((g) => g === "label").length);
-    expect(groups.lastIndexOf("label")).toBe(groups.indexOf("bottle") - 1);
+  it("keep the order a bottle is entered in, then the label's other columns, then the bottle's, which the header captions follow", () => {
+    const ids = SHEET_COLUMNS.map((c) => c.id);
+    expect(ids.slice(0, 6)).toEqual(["brand", "name", "category", "releaseId", "singleBarrel", "privateSelection"]);
+    const rest = SHEET_COLUMNS.slice(13).map((c) => c.group);
+    expect(rest.lastIndexOf("label")).toBeLessThan(rest.indexOf("bottle"));
   });
   it("give a bottle's own value of a field a label has too its own id, so neither hides the other", () => {
     expect(EDITORS.ownBarrelFilledOn!.field).toBe("barrelFilledOn");
@@ -89,12 +91,13 @@ describe("which spirits and kinds of bottle a bottle fact applies to", () => {
   it("a gin that is not aged has no barrel at all", () => {
     const gin = label({ id: 4, categoryId: 40, fieldGroup: "gin", isAgedGin: false });
     expect(editorFor(col("singleBarrel"), both, bottleRow(gin, bottle({ expressionId: 4 })), new Set(), kinds)).toBeNull();
-    expect(editorFor(col("singleBarrel"), both, bottleRow(), new Set(), kinds)?.field).toBe("singleBarrel");
+    expect(editorFor(col("singleBarrel"), both, bottleRow(), new Set(), kinds)?.field).toBe("isSingleBarrel");
+    expect(editorFor(col("privateSelection"), both, bottleRow(), new Set(), kinds)?.field).toBe("isSingleBarrelPick");
   });
   it("a bottle that has just been made a private pick opens its pick details at once, before it has saved", () => {
     const row = bottleRow();
     expect(editorFor(col("pickedBy"), both, row, new Set(), kinds)).toBeNull();
-    const [typed] = applyEdits([row], { b7: { singleBarrel: "pick" } });
+    const [typed] = applyEdits([row], { b7: { privateSelection: "true" } });
     expect(editorFor(col("pickedBy"), both, typed!, new Set(), kinds)?.field).toBe("pickedBy");
   });
 });
@@ -141,11 +144,9 @@ describe("what a cell's text is, to the server", () => {
   });
   it("is both flags for the two composite cells", () => {
     expect(serverFields(EDITORS.designation, "designation", "bib")).toEqual({ isCaskStrength: false, isBottledInBond: true });
-    // A private pick is not a single barrel (it can be a blend of barrels), and a single barrel is not a pick.
-    expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "pick")).toEqual({ isSingleBarrel: false, isSingleBarrelPick: true });
-    expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "single")).toEqual({ isSingleBarrel: true, isSingleBarrelPick: false });
-    expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "both")).toEqual({ isSingleBarrel: true, isSingleBarrelPick: true });
-    expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "")).toEqual({ isSingleBarrel: false, isSingleBarrelPick: false });
+    // Single barrel and private selection are two plain yes/no cells: a selection can be a blend of barrels, and a single barrel need not be a selection.
+    expect(serverFields(EDITORS.singleBarrel, "singleBarrel", "true")).toEqual({ isSingleBarrel: true });
+    expect(serverFields(EDITORS.privateSelection, "privateSelection", "true")).toEqual({ isSingleBarrelPick: true });
   });
 });
 

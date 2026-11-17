@@ -39,14 +39,14 @@ describe("columnsFor", () => {
 
   it("follows the shelf order, label facts then the bottle's own", () => {
     expect(ids({ labels: true, bottles: true }, DEFAULT_HIDDEN)).toEqual([
-      "brand", "name", "category", "sizeMl", "proof", "abv", "designation", "ageYears", "ageMonths", "ageDays", "ageStatement", "distilleries", "mashbills", "finishes", "msrp",
-      "singleBarrel", "pricePaid", "store", "dateAcquired", "status",
+      "brand", "name", "category", "releaseId", "singleBarrel", "privateSelection", "sizeMl", "proof", "abv", "ageYears", "ageMonths", "ageDays", "ageStatement",
+      "designation", "distilleries", "mashbills", "finishes", "msrp", "pricePaid", "store", "dateAcquired", "status",
     ]);
   });
 
-  it("hides the bottle's own proof, age and size until they are switched on", () => {
-    expect(ids({ labels: true, bottles: true }, DEFAULT_HIDDEN)).not.toContain("ownProof");
-    expect(ids({ labels: true, bottles: true })).toEqual(expect.arrayContaining(["ownProof", "ownAgeYears", "ownAgeMonths", "ownAgeDays", "ownSize"]));
+  it("has one Proof, Age and Size column, and none for the bottle's own", () => {
+    const all = ids({ labels: true, bottles: true });
+    for (const gone of ["ownProof", "ownAgeYears", "ownAgeMonths", "ownAgeDays", "ownSize"]) expect(all).not.toContain(gone);
   });
 
   it("with Bottles off, shows the label's columns and a count of bottles", () => {
@@ -58,7 +58,7 @@ describe("columnsFor", () => {
 
   it("with Labels off, shows Brand, Label and the bottle's columns only", () => {
     const bottlesOnly = ids({ labels: false, bottles: true }, DEFAULT_HIDDEN);
-    expect(bottlesOnly).toEqual(["brand", "name", "singleBarrel", "pricePaid", "store", "dateAcquired", "status"]);
+    expect(bottlesOnly).toEqual(["brand", "name", "releaseId", "singleBarrel", "privateSelection", "sizeMl", "proof", "abv", "ageYears", "ageMonths", "ageDays", "ageStatement", "pricePaid", "store", "dateAcquired", "status"]);
   });
 
   it("keeps a column the person hid hidden", () => {
@@ -92,7 +92,6 @@ describe("cells", () => {
 
   it("shows a label's own facts", () => {
     expect(cell("proof", { label: l, bottle: null })).toEqual({ text: "100" });
-    expect(cell("abv", { label: l, bottle: null })).toEqual({ text: "50%" });
     expect(cell("sizeMl", { label: l, bottle: null })).toEqual({ text: "750 mL" });
     expect(cell("designation", { label: l, bottle: null })).toEqual({ text: "Cask Strength · Bottled in Bond" });
     expect(cell("msrp", { label: l, bottle: null })).toEqual({ text: "$49.99" });
@@ -105,13 +104,11 @@ describe("cells", () => {
     expect(cell("msrp", { label: bare, bottle: null })).toEqual({ text: "—", muted: true });
   });
 
-  it("shows a bottle's own value, and the label's in grey when the bottle has none of its own", () => {
-    expect(cell("ownProof", { label: l, bottle: bottle({ id: 1, expressionId: 1 }) })).toEqual({ text: "100", muted: true });
-    expect(cell("ownAbv", { label: l, bottle: bottle({ id: 1, expressionId: 1 }) })).toEqual({ text: "50%", muted: true });
-    expect(cell("ownAbv", { label: l, bottle: bottle({ id: 1, expressionId: 1, proof: "104.2" }) })).toEqual({ text: "52.1%" });
-    expect(cell("ownProof", { label: l, bottle: bottle({ id: 1, expressionId: 1, proof: "104.2" }) })).toEqual({ text: "104.2" });
-    expect(cell("ownSize", { label: l, bottle: bottle({ id: 1, expressionId: 1, sizeMl: 375 }) })).toEqual({ text: "375 mL" });
-    expect(cell("ownSize", { label: l, bottle: bottle({ id: 1, expressionId: 1 }) })).toEqual({ text: "750 mL", muted: true });
+  it("shows a bottle's own value with a B marker, and the label's with none when the bottle has none of its own", () => {
+    expect(cell("proof", { label: l, bottle: bottle({ id: 1, expressionId: 1 }) })).toEqual({ text: "100" });
+    expect(cell("proof", { label: l, bottle: bottle({ id: 1, expressionId: 1, proof: "104.2" }) })).toEqual({ text: "104.2", marker: "B" });
+    expect(cell("sizeMl", { label: l, bottle: bottle({ id: 1, expressionId: 1, sizeMl: 375 }) })).toEqual({ text: "375 mL", marker: "B" });
+    expect(cell("sizeMl", { label: l, bottle: bottle({ id: 1, expressionId: 1 }) })).toEqual({ text: "750 mL" });
   });
 
   it("shows a bottle's price, store, date and single-barrel facts", () => {
@@ -119,10 +116,12 @@ describe("cells", () => {
     expect(cell("pricePaid", { label: l, bottle: b })).toEqual({ text: "$47.00" });
     expect(cell("store", { label: l, bottle: b })).toEqual({ text: "Binny's" });
     expect(cell("dateAcquired", { label: l, bottle: b })).toEqual({ text: "Sep 20, 2025" });
-    expect(cell("singleBarrel", { label: l, bottle: b })).toEqual({ text: "Single barrel · Private pick" });
-    // They are separate: a pick can be a blend of barrels, and a single barrel need not be a pick.
-    expect(cell("singleBarrel", { label: l, bottle: bottle({ id: 2, expressionId: 1, isSingleBarrelPick: true }) })).toEqual({ text: "Private pick" });
-    expect(cell("singleBarrel", { label: l, bottle: bottle({ id: 3, expressionId: 1, isSingleBarrel: true }) })).toEqual({ text: "Single barrel" });
+    expect(cell("singleBarrel", { label: l, bottle: b })).toEqual({ text: "Yes" });
+    expect(cell("privateSelection", { label: l, bottle: b })).toEqual({ text: "Yes" });
+    // They are two separate flags: a private selection can be a blend of barrels, and a single barrel need not be a selection.
+    expect(cell("singleBarrel", { label: l, bottle: bottle({ id: 2, expressionId: 1, isSingleBarrelPick: true }) }).text).not.toBe("Yes");
+    expect(cell("privateSelection", { label: l, bottle: bottle({ id: 2, expressionId: 1, isSingleBarrelPick: true }) })).toEqual({ text: "Yes" });
+    expect(cell("privateSelection", { label: l, bottle: bottle({ id: 3, expressionId: 1, isSingleBarrel: true }) }).text).not.toBe("Yes");
   });
 
   it("shows no mashbill for a spirit that has none", () => {

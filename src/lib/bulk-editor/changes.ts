@@ -3,16 +3,43 @@ import { derivedAge, type AgeState } from "./age-derive";
 import { EDITORS, type CellEditor, type Edits } from "./editors";
 import { isYesNoChoice } from "./fields";
 import type { Candidate } from "./suggest";
-import { compareRows, type SheetBottle, type SheetLabel, type SheetRow } from "./sheet";
+import type { Level } from "./resolve";
+import { compareRows, type SheetBottle, type SheetLabel, type SheetRow, type SheetVintage } from "./sheet";
 
 /**
  * Where an edit is kept, which decides who it changes. A bottle's own cell is kept under the bottle's row, so it
  * changes that bottle. A label's cell is kept under the *label*, so every bottle row of that label shows it and the
  * save changes the label once, for all of its bottles. Rows that do not exist yet keep everything under their own key.
  */
-export function editKey(row: SheetRow, editor: CellEditor): string {
-  if (row.draft || editor.scope === "bottle") return row.key;
+export function editKey(row: SheetRow, editor: CellEditor, level?: Level): string {
+  if (row.draft) return row.key;
+  // A value that is chosen at a level is kept under it: the bottle, its vintage (`v<releaseId>`), or the label.
+  if (level === "bottle") return row.key;
+  if (level === "vintage" && row.bottle?.releaseId != null) return `v${row.bottle.releaseId}`;
+  if (level === "label") return `l${row.label.id}`;
+  if (editor.scope === "bottle") return row.key;
   return `l${row.label.id}`;
+}
+
+/** The fields of a vintage a cell can set, by the sheet's column id. */
+const VINTAGE_FIELD: Readonly<Record<string, "proof" | "ageYears" | "ageMonths" | "ageDays" | "ageStatement">> = { proof: "proof", ageYears: "ageYears", ageMonths: "ageMonths", ageDays: "ageDays", ageStatement: "ageStatement" };
+
+/**
+ * The vintages as the person has just left them: what was typed at the vintage level laid over each one's own proof and
+ * age, so a bottle on it shows it at once. A blank takes the value away, which lets the next level down show through.
+ */
+export function applyVintageEdits(vintages: ReadonlyArray<SheetVintage>, edits: Edits): SheetVintage[] {
+  return vintages.map((vintage) => {
+    const cells = edits[`v${vintage.id}`];
+    if (!cells) return vintage;
+    const changed: Record<string, string | number | null> = {};
+    for (const [column, value] of Object.entries(cells)) {
+      const field = VINTAGE_FIELD[column];
+      if (!field) continue;
+      changed[field] = value.trim() === "" ? null : field === "ageMonths" || field === "ageDays" ? Number(value) : value;
+    }
+    return { ...vintage, ...changed } as SheetVintage;
+  });
 }
 
 /** The edits a row shows: its own, and (for a saved row) the label's. Two lookups, so the stored objects stay stable. */
@@ -78,6 +105,17 @@ function rawOf(editor: CellEditor, value: string): Record<string, unknown> {
 }
 
 /**
+ * A new row that names a vintage to make (typed into its Vintage cell) says so on its row, which opens the cells that are
+ * the vintage's (its proof and age) even when its label exists: they are not the label's to change.
+ */
+export function withDraftVintages(rows: ReadonlyArray<SheetRow>, edits: Edits): SheetRow[] {
+  return rows.map((row) => {
+    const typed = row.draft ? edits[row.key]?.releaseId : undefined;
+    return row.draft && typed !== undefined && typed.startsWith("new:") && typed.length > 4 ? { ...row, draft: { ...row.draft, vintageName: typed.slice(4) } } : row;
+  });
+}
+
+/**
  * What has been typed into a row's cells, put onto the row's own label and bottle data, so that everything that reads a
  * row (its cells, which cells apply to it, the rail) sees it. A cell that gates others, like Private pick, then opens
  * them at once instead of once the save has been read back. Rows with nothing typed are returned as they are.
@@ -137,17 +175,18 @@ export function moveCandidates(column: "brand" | "name", row: SheetRow, labels: 
 
 export type BottleChange = { bottleId: number; fields: Record<string, string>; moveToLabelId?: number };
 export type LabelChange = { labelId: number; fields: Record<string, string>; /** Every bottle on the label takes it. */ bottles: number };
-export type Changes = { bottles: BottleChange[]; labels: LabelChange[] };
+export type VintageChange = { releaseId: number; labelId: number; fields: Record<string, string>; /** The bottles on the vintage: every one shows it. */ bottles: number };
+export type Changes = { bottles: BottleChange[]; labels: LabelChange[]; vintages: VintageChange[] };
 
 /**
  * The edits as requests: one per bottle for its own cells (and its move), one per label for the label's. A label edit
  * is one request however many rows show it, and says how many bottles it reaches. Rows not saved yet are not here.
  */
-export function buildChanges(edits: Edits, moves: Moves, labels: ReadonlyArray<SheetLabel>, bottles: ReadonlyArray<SheetBottle>): Changes {
+export function buildChanges(edits: Edits, moves: Moves, labels: ReadonlyArray<SheetLabel>, bottles: ReadonlyArray<SheetBottle>, vintages: ReadonlyArray<SheetVintage> = []): Changes {
   // The Label column is a pick on a new row (its field is "label") but a typed rename on a saved label, which the server calls "name".
   const fieldOf = (column: string) => (column === "name" ? "name" : (EDITORS[column]?.field ?? column));
   const byBottle = new Map<number, BottleChange>();
-  const out: Changes = { bottles: [], labels: [] };
+  const out: Changes = { bottles: [], labels: [], vintages: [] };
   const bottle = (id: number) => {
     let change = byBottle.get(id);
     if (!change) {
@@ -162,7 +201,10 @@ export function buildChanges(edits: Edits, moves: Moves, labels: ReadonlyArray<S
     const id = Number(key.slice(1));
     const fields = Object.fromEntries(Object.entries(cells).map(([column, value]) => [fieldOf(column), value]));
     if (key.startsWith("b") && bottles.some((b) => b.id === id)) Object.assign(bottle(id).fields, fields);
-    else if (key.startsWith("l")) {
+    else if (key.startsWith("v")) {
+      const vintage = vintages.find((v) => v.id === id);
+      if (vintage) out.vintages.push({ releaseId: id, labelId: vintage.labelId, fields, bottles: bottles.filter((b) => b.releaseId === id).length });
+    } else if (key.startsWith("l")) {
       const label = labels.find((l) => l.id === id);
       if (label) out.labels.push({ labelId: id, fields, bottles: label.bottleCount });
     }

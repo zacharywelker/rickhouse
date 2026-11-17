@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyMoves, arrange, buildChanges, editKey, labelEditsOf, moveCandidates, setMove } from "../changes";
+import { applyMoves, applyVintageEdits, arrange, buildChanges, editKey, labelEditsOf, moveCandidates, setMove } from "../changes";
+import { indexSheet, resolve } from "../resolve";
 import { EDITORS, setEdit, type Edits } from "../editors";
-import type { SheetBottle, SheetLabel, SheetRow } from "../sheet";
+import type { SheetBottle, SheetLabel, SheetRow, SheetVintage } from "../sheet";
 
 const mk = (id: number, brandId: number, brand: string, name: string, bottleCount: number) => ({ id, brandId, brand, name, category: "Bourbon", bottleCount }) as unknown as SheetLabel;
 const labels = [mk(1, 10, "Four Roses", "Single Barrel", 3), mk(2, 10, "Four Roses", "Small Batch", 1), mk(3, 11, "Buffalo Trace", "Eagle Rare", 2)];
@@ -29,7 +30,7 @@ describe("where an edit is kept", () => {
 describe("what saving would send", () => {
   it("a bottle-column edit changes one bottle and no label", () => {
     const edits: Edits = { b7: { pricePaid: "52" } };
-    expect(buildChanges(edits, {}, labels, bottles)).toEqual({ bottles: [{ bottleId: 7, fields: { pricePaid: "52" } }], labels: [] });
+    expect(buildChanges(edits, {}, labels, bottles)).toEqual({ bottles: [{ bottleId: 7, fields: { pricePaid: "52" } }], labels: [], vintages: [] });
   });
   it("an edit to the bottle's own proof is that bottle's, not the label's", () => {
     const edits: Edits = { b7: { ownProof: "99" } };
@@ -39,7 +40,7 @@ describe("what saving would send", () => {
   });
   it("a label edit is one request for the label, reaching every bottle on it", () => {
     const edits: Edits = { l1: { msrp: "59" } };
-    expect(buildChanges(edits, {}, labels, bottles)).toEqual({ bottles: [], labels: [{ labelId: 1, fields: { msrp: "59" }, bottles: 3 }] });
+    expect(buildChanges(edits, {}, labels, bottles)).toEqual({ bottles: [], labels: [{ labelId: 1, fields: { msrp: "59" }, bottles: 3 }], vintages: [] });
   });
   it("a rename and a brand change on a label go by the server's names", () => {
     expect(buildChanges({ l1: { name: "Single Barrel Select", brand: "Four Roses Distillery" } }, {}, labels, bottles).labels[0]!.fields).toEqual({ name: "Single Barrel Select", brand: "Four Roses Distillery" });
@@ -50,7 +51,7 @@ describe("what saving would send", () => {
     expect(out.labels).toEqual([]);
   });
   it("leaves new rows and gone rows out", () => {
-    expect(buildChanges({ d0: { proof: "1" }, b999: { notes: "x" }, l999: { msrp: "1" } }, {}, labels, bottles)).toEqual({ bottles: [], labels: [] });
+    expect(buildChanges({ d0: { proof: "1" }, b999: { notes: "x" }, l999: { msrp: "1" }, v999: { proof: "1" } }, {}, labels, bottles)).toEqual({ bottles: [], labels: [], vintages: [] });
   });
 });
 
@@ -104,5 +105,30 @@ describe("arranging the rows as the person left them", () => {
     const more = [...bs, bottle(9, 2)];
     const rs = more.map((b): SheetRow => ({ key: `b${b.id}`, label: all.find((l) => l.id === b.expressionId)!, bottle: b }));
     expect(order(arrange(rs, { b1: 2 }, {}, all))).toEqual(["b1", "b2", "b9", "b3"]);
+  });
+});
+
+describe("an edit at the vintage level", () => {
+  const vintage = (over: Record<string, unknown> = {}) => ({ id: 70, labelId: 1, name: "2025A", proof: "112", ageYears: null, ageMonths: null, ageDays: null, ageStatement: null, ageYearsSource: "entered", ...over }) as unknown as SheetVintage;
+  const onVintage = [{ ...bottle(7, 1), releaseId: 70 }, { ...bottle(8, 1), releaseId: 70 }, { ...bottle(9, 1), releaseId: null }] as unknown as SheetBottle[];
+  const labelsWithProof = [{ ...labels[0]!, proof: "90", sizeMl: 750, fieldGroup: "whiskey", isNas: false } as unknown as SheetLabel, labels[1]!, labels[2]!];
+
+  it("is kept under the vintage, so every bottle on it shows the change", () => {
+    expect(editKey({ key: "b7", label: labels[0]!, bottle: onVintage[0]! }, EDITORS.proof!, "vintage")).toBe("v70");
+    expect(editKey({ key: "b7", label: labels[0]!, bottle: onVintage[0]! }, EDITORS.proof!, "bottle")).toBe("b7");
+    expect(editKey({ key: "b7", label: labels[0]!, bottle: onVintage[0]! }, EDITORS.proof!, "label")).toBe("l1");
+  });
+  it("is one request for the vintage, saying how many bottles are on it", () => {
+    const out = buildChanges({ v70: { proof: "113" } }, {}, labels, onVintage, [vintage()]);
+    expect(out.vintages).toEqual([{ releaseId: 70, labelId: 1, fields: { proof: "113" }, bottles: 2 }]);
+    expect(out.bottles).toEqual([]);
+    expect(out.labels).toEqual([]);
+  });
+  it("is laid over the vintage, and a blank takes it back to the next level down (the label's)", () => {
+    const row: SheetRow = { key: "b7", label: labelsWithProof[0]!, bottle: onVintage[0]! };
+    const make = (edits: Edits) => ({ currency: "USD", kinds: {}, index: indexSheet(labelsWithProof, onVintage, applyVintageEdits([vintage()], edits)) });
+    expect(resolve("proof", row, make({ v70: { proof: "113" } }))).toMatchObject({ value: "113", level: "vintage" });
+    expect(resolve("proof", row, make({ v70: { proof: "" } }))).toMatchObject({ value: "90", level: "label" });
+    expect(resolve("proof", row, make({}))).toMatchObject({ value: "112", level: "vintage" });
   });
 });

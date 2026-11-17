@@ -9,14 +9,14 @@ import { GridCell } from "@/components/bulk/grid-cell";
 import { useHiddenColumns } from "@/components/bulk/use-hidden-columns";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { abvToProof } from "@/lib/bottles/proof";
+import { abvToProof, proofToAbv } from "@/lib/bottles/proof";
 import type { FieldGroup } from "@/db/schema";
 import {
   brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, isBlank, labelCandidates, withBlankRow, withBrand, withCategory, withLabel,
   type CategoryChoice, type DraftRow,
 } from "@/lib/bulk-editor/drafts";
-import { arrange, editKey, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
-import { EDITORS, editorFor, isLocked, lockKeyOf, parseCell, proofColumnFor, setEdit, stagedCellValue, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
+import { applyVintageEdits, arrange, editKey, withDraftVintages, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
+import { EDITORS, editorFor, isLocked, lockKeyOf, parseCell, setEdit, staged, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
 import { arrowMove, enterMove, tabMove, type ArrowKey, type Moved, type Pos } from "@/lib/bulk-editor/nav";
 import {
   columnsFor,
@@ -32,6 +32,7 @@ import {
   type SheetPhoto,
   type SheetRow,
   type SheetView,
+  type SheetVintage,
 } from "@/lib/bulk-editor/sheet";
 import { cn, humanise } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
@@ -43,6 +44,12 @@ import { effectiveFind, filterCount, filterRows, isFiltered, isSortable, NO_FIND
 import { decodeRef, encodePick, REF_CAN_CREATE, REF_NO_CREATE, REF_WHAT, refCandidates, refNames, type RefData } from "@/lib/bulk-editor/references";
 import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
 import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-editor/clipboard";
+import { indexSheet, resolve, type Level, type ValueField } from "@/lib/bulk-editor/resolve";
+import { LIQUID_FIELDS } from "@/lib/bulk-editor/late-mark";
+import { patchBottleRowAction, patchLabelRowAction } from "@/app/(app)/bulk-editor/actions";
+import { columnFor, defaultScope, nextScope, noteText, scopeSentence, scopesFor } from "@/lib/bulk-editor/scope";
+import { platformKeyName } from "@/lib/platform";
+import { copyValue } from "@/lib/bulk-editor/value-cells";
 import { EXISTING_LABEL_REQUIRES_BOTTLES, pastedDraftConflict, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
 import { ComboEditor } from "./combo-editor";
 import { LinksEditor, type LinkOptions } from "./links-editor";
@@ -51,6 +58,9 @@ import { FindBar } from "./find-bar";
 import { RailContent } from "./rail-panel";
 import { DeleteBar } from "./delete-bar";
 import type { ComboData, Editing, Finish } from "./types";
+import { EditNote } from "./edit-note";
+import { Notices, type Notice } from "./notices";
+import { SourceTag } from "./source-tag";
 import { useRowSaver } from "./use-row-saver";
 
 const VIEW_KEY = "bulk-editor:view";
@@ -147,8 +157,8 @@ function ViewToggle({ label, on, onlyOne, onClick }: { label: string; on: boolea
 }
 
 /** The Fields picker, by form section: the shelf-order columns first under Label and Bottle, then a group for each section of each form. */
-const PICKER_GROUPS: ReadonlyArray<PickerGroup> = (["label", "bottle"] as const).flatMap((group) => {
-  const title = group === "label" ? "Label" : "Bottle";
+const PICKER_GROUPS: ReadonlyArray<PickerGroup> = (["label", "bottle", "value"] as const).flatMap((group) => {
+  const title = group === "label" ? "Label" : group === "bottle" ? "Bottle" : "Values";
   const columns = SHEET_COLUMNS.filter((c) => c.group === group);
   const sections = [...new Set(columns.flatMap((c) => (c.section ? [c.section] : [])))];
   return [
@@ -201,7 +211,7 @@ function StatusGlyph({ status }: { status: RowStatus }) {
  * The one live editor: the form's own field control for the cell, mounted over the active cell only. It is positioned
  * over the cell instead of inside it, so opening it never changes a column's width or moves a row.
  */
-function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onInvalid, onInput }: { editor: CellEditor; row: SheetRow; kinds: SheetContext["kinds"]; initial: Editing; error: string | null; reach: number | null; onFinish: (finish: Finish) => void; onInvalid: (message: string) => void; onInput: (value: string) => void }) {
+function ActiveEditor({ editor, row, kinds, initial, error, reach, scopeNote, onStep, onFinish, onInvalid, onInput }: { editor: CellEditor; row: SheetRow; kinds: SheetContext["kinds"]; initial: Editing; error: string | null; reach: number | null; /** For a value cell: who the edit is for, and the step to the next level. */ scopeNote: string | null; onStep: ((step: 1 | -1) => void) | undefined; onFinish: (finish: Finish) => void; onInvalid: (message: string) => void; onInput: (value: string) => void }) {
   const [draft, setDraft] = React.useState(initial.value);
   const input = React.useRef<HTMLElement | null>(null);
 
@@ -239,6 +249,13 @@ function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onI
       onKeyDown={(event) => {
         if (event.nativeEvent.isComposing) return;
         if (event.key === "Enter" && event.shiftKey && editor.spec.kind === "textarea") return;
+        // Alt (Option) and the arrows step through the levels an edit can change; Tab, Enter and Escape keep their jobs.
+        if (event.altKey && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+          event.preventDefault();
+          event.stopPropagation();
+          onStep?.(event.key === "ArrowDown" ? 1 : -1);
+          return;
+        }
         if (event.key === "Enter") {
           event.preventDefault();
           event.stopPropagation();
@@ -282,6 +299,8 @@ function ActiveEditor({ editor, row, kinds, initial, error, reach, onFinish, onI
         <p role="alert" className="absolute left-0 top-full z-30 mt-px whitespace-nowrap border border-destructive bg-card px-2 py-0.5 text-xs text-destructive">
           {error}
         </p>
+      ) : scopeNote !== null ? (
+        <EditNote text={scopeNote} keyName={platformKeyName()} {...(onStep ? { onStep } : {})} />
       ) : reach !== null ? (
         <p className="absolute left-0 top-full z-30 mt-px whitespace-nowrap border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground">{changesText(reach)}</p>
       ) : null}
@@ -331,12 +350,28 @@ type RowProps = {
   onFinish: ((finish: Finish) => void) | undefined;
   onInvalid: ((message: string) => void) | undefined;
   onInput: ((value: string) => void) | undefined;
+  /** The short note for the open value cell (who the edit is for), and the step to the next level; only for the active row. */
+  scopeNote: string | null;
+  onStep: ((step: 1 | -1) => void) | undefined;
 };
 
+/** The columns that hold a value which can come from the bottle, its vintage or the label (`resolve.ts`): what an edit changes is chosen. */
+const VALUE_FIELD: Readonly<Record<string, ValueField>> = { sizeMl: "sizeMl", proof: "proof", abv: "proof", ageYears: "ageYears", ageMonths: "ageMonths", ageDays: "ageDays", ageStatement: "ageStatement", tequilaClass: "tequilaClass", brandyGrade: "brandyGrade", isNas: "ginIsNas" };
+
+/** The values that move to a bottle marked a single barrel or private selection, in words: "proof and age". */
+function liquidWords(fields: ReadonlyArray<string>): string {
+  const words = new Set<string>();
+  for (const field of fields) words.add(field === "proof" ? "proof" : field.startsWith("age") ? "age" : field === "tequilaClass" ? "tequila class" : "age designation");
+  return [...words].join(" and ");
+}
+
+/** Two typed values are the same when the text is, or they are the same number (112 and 112.00). */
+/** Edits of ABV are kept as proof, under Proof. */
+const storedId = (column: string): string => (column === "abv" ? "proof" : column);
+const sameValue = (a: string, b: string): boolean => a === b || (a !== "" && b !== "" && Number.isFinite(Number(a)) && Number(a) === Number(b));
+
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
-const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, panelNode, pendingCols, onFinish, onInvalid, onInput }: RowProps) {
-  const draftProof = row.draft ? rowEdits?.proof : undefined;
-  const displayRow = draftProof === undefined ? row : { ...row, label: { ...row.label, proof: draftProof || null } };
+const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, view, context, rowEdits, labelEdits, unlocked, status, flash, rangeFrom, rangeTo, selected, onSelect, blockedColumn, blockedShort, blockedMessage, activeCol, editing, error, combo, linksNode, panelNode, pendingCols, onFinish, onInvalid, onInput, scopeNote, onStep }: RowProps) {
   return (
     <TableRow key={row.key} className="group">
       {columns.map((column, index) => {
@@ -344,9 +379,9 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
         const locked = isLocked(column, view, row, unlocked, context.kinds);
         const spec = EDITORS[column.id];
         // A label's cell keeps its edit under the label; it still shows if the view has since changed and the cell cannot be edited.
-        const edited = stagedCellValue(column.id, spec?.scope === "label" && !row.draft ? labelEdits : rowEdits);
+        const edited = staged(column.id, (spec?.scope === "label" && !row.draft ? labelEdits : rowEdits)?.[storedId(column.id)]);
         const waiting = pendingCols?.[column.id];
-        const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec ? spec.display(edited, context, displayRow) : column.cell(displayRow, context);
+        const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec && (column.group !== "value" || row.draft) ? spec.display(edited, context, row) : column.cell(row, context);
         // An unlocked label cell on a bottle row reaches every bottle on the label.
         const reach = editor && editor.scope === "label" && !editor.combo && !row.draft && row.bottle ? row.label.bottleCount : null;
         const isBlocked = blockedColumn === column.id;
@@ -402,6 +437,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
                 <span className="flex items-center gap-1 text-destructive"><CircleAlert aria-hidden className="size-3.5 shrink-0" />{blockedShort}</span>
               ) : (
                 <>
+                  {cell.marker ? <SourceTag marker={cell.marker} /> : null}
                   <span className={cn("block truncate", !column.identity && "max-w-56")}>{cell.text}</span>
                   {isBlocked ? <CircleAlert aria-hidden className="size-3.5 shrink-0 text-destructive" /> : null}
                 </>
@@ -418,7 +454,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               ) : (editor.combo || editor.reference) && combo ? (
                 <ComboEditor kind={editor.combo ?? "reference"} column={column.id} initial={editing} data={combo} error={error} onFinish={onFinish} onInvalid={onInvalid} onInput={onInput} />
               ) : (
-                <ActiveEditor editor={editor} row={row} kinds={context.kinds} initial={editing} error={error} reach={reach} onFinish={onFinish} onInvalid={onInvalid} onInput={onInput} />
+                <ActiveEditor editor={editor} row={row} kinds={context.kinds} initial={editing} error={error} reach={reach} scopeNote={scopeNote} onStep={onStep} onFinish={onFinish} onInvalid={onInvalid} onInput={onInput} />
               )
             ) : null}
           </TableCell>
@@ -433,9 +469,11 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
  * left. You can move around it and edit the plain cells from the keyboard: arrows, Tab and Enter, F2 or a keystroke to
  * edit, Escape to cancel. Edits are kept here, in the browser, and marked; saving them arrives in a later step.
  */
-export function BulkEditor({ labels, bottles, brands, categories, groups, kinds, photos, refs, linkOptions, currency }: {
+export function BulkEditor({ labels, bottles, vintages, brands, categories, groups, kinds, photos, refs, linkOptions, currency }: {
   labels: SheetLabel[];
   bottles: SheetBottle[];
+  /** Each vintage's own proof and age, for the bottles on them. */
+  vintages: SheetVintage[];
   brands: Array<{ id: number; name: string }>;
   categories: CategoryChoice[];
   groups: Record<number, FieldGroup>;
@@ -456,18 +494,26 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setView(next);
   };
   const [hidden, setHidden] = useHiddenColumns(HIDDEN_KEY, DEFAULT_HIDDEN);
+  const [edits, setEdits] = React.useState<Edits>({});
+  // Each vintage as it stands with what has been typed at the vintage level, so a bottle on it shows it at once. Rebuilt only when a vintage edit changes.
+  const vintageEditsKey = JSON.stringify(Object.entries(edits).filter(([key]) => key.startsWith("v")));
+  const index = React.useMemo(
+    () => indexSheet(labels, bottles, applyVintageEdits(vintages, Object.fromEntries(JSON.parse(vintageEditsKey) as Array<[string, Record<string, string>]>))),
+    [labels, bottles, vintages, vintageEditsKey],
+  );
   const context = React.useMemo<SheetContext>(
     () => ({
       currency,
       kinds,
       refs: refNames(refs),
       categories: Object.fromEntries(categories.map((c) => [c.id, c.name])),
+      index,
       lists: {
         versions: Object.fromEntries(Object.entries(refs.versions).map(([id, rows]) => [id, rows.map((r) => r.name)])),
         releases: Object.fromEntries(Object.entries(refs.releases).map(([id, rows]) => [id, rows.map((r) => r.name)])),
       },
     }),
-    [currency, kinds, refs, categories],
+    [currency, kinds, refs, categories, index],
   );
   const categoryInfo = React.useMemo(() => Object.fromEntries(categories.map((c) => [c.id, { name: c.name, group: groups[c.id] ?? "other", ...(c.slug ? { slug: c.slug } : {}) }])), [categories, groups]);
 
@@ -475,7 +521,6 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   /** Bottles moved to another label, and the label cells a person has triple-clicked open. Neither is saved yet. */
   const [moves, setMoves] = React.useState<Moves>({});
   const [unlocked, setUnlocked] = React.useState<Unlocked>(new Set());
-  const [edits, setEdits] = React.useState<Edits>({});
   const rawRows = React.useMemo(() => sheetRows(view, labels, bottles), [view, labels, bottles]);
   // Rows are in their sorted place as soon as a move or a rename is made, not once it has been saved and read back.
   const arranged = React.useMemo(() => arrange(rawRows, moves, edits, labels, categoryInfo), [rawRows, moves, edits, labels, categoryInfo]);
@@ -560,7 +605,54 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const title = label ? `${label.brand} ${label.name}` : "A bottle";
     setGone((prev) => [...prev.filter((g) => g.key !== key), { key, text: `${title} is now ${humanise(status).toLowerCase()}, so it is no longer listed here. This sheet shows the bottles you own or have open.` }]);
   }
-  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf, editingDraft, pendingByRow });
+  // Notices in the corner: what the sheet did for the person (a proof and age moved to a bottle), with Undo, going by themselves.
+  const [notices, setNotices] = React.useState<Notice[]>([]);
+  const noticeCount = React.useRef(0);
+  const pushNotice = React.useCallback((text: string, undo?: () => void) => {
+    noticeCount.current += 1;
+    const id = `n${noticeCount.current}`;
+    setNotices((prev) => [...prev, { id, text, ...(undo ? { undo } : {}) }]);
+  }, []);
+  const dismissNotice = React.useCallback((id: string) => setNotices((prev) => prev.filter((n) => n.id !== id)), []);
+  /** Gives a bottle's proof and age back to its label. The bottle's are cleared only once the label has taken them, and a refusal is said. */
+  const putBack = React.useCallback(
+    async (labelId: number, bottleId: number, values: Record<string, string>) => {
+      const onLabel = await patchLabelRowAction(labelId, values);
+      if (!onLabel.ok) {
+        pushNotice(`Could not put ${liquidWords(Object.keys(values))} back on the label: ${onLabel.error}`);
+        return;
+      }
+      const onBottle = await patchBottleRowAction(bottleId, Object.fromEntries(Object.keys(values).map((field) => [field, null])));
+      if (!onBottle.ok) pushNotice(`Put ${liquidWords(Object.keys(values))} on the label, but could not clear them from the bottle: ${onBottle.error}`);
+      router.refresh();
+    },
+    [pushNotice, router],
+  );
+  /** The labels made on this visit: only these can have their proof and age moved to a bottle marked a single barrel or private selection after they were saved. */
+  const createdLabels = React.useRef(new Set<number>());
+  /** The rows as drawn, for a notice that is made from inside a save (which runs outside the render that knows them). */
+  const rowsNow = React.useRef<SheetRow[]>([]);
+  const saver = useRowSaver({
+    labels,
+    bottles,
+    view,
+    edits,
+    moves,
+    drafts,
+    setEdits,
+    setMoves,
+    setDrafts,
+    onLanded: touch,
+    onLeftShelf: leftShelf,
+    onLabelCreated: (labelId) => createdLabels.current.add(labelId),
+    onMoved: (key, moved) => {
+      const row = rowsNow.current.find((r) => r.key === key);
+      const labelId = row?.label.id;
+      pushNotice(`${row ? `${row.label.brand} ${row.label.name}` : "This bottle"}: ${liquidWords(Object.keys(moved))} moved from the label to this bottle.`, labelId === undefined ? undefined : () => void putBack(labelId, Number(key.slice(1)), moved));
+    },
+    editingDraft,
+    pendingByRow,
+  });
   const createdAs = saver.createdAs;
   /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
   const [keyFloor, setKeyFloor] = React.useState(0);
@@ -571,10 +663,13 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   // after it: for a moment both would be there, and a cursor on the row below would land on the wrong one.
   const savedKeys = React.useMemo(() => new Set(savedRows.map((r) => r.key)), [savedRows]);
   const rowsFor = React.useCallback(
-    (list: DraftRow[]) => [...savedRows, ...list.filter((d) => !(createdAs[d.key] && savedKeys.has(createdAs[d.key]!))).map((draft) => draftSheetRow(draft, draftContext))],
-    [savedRows, savedKeys, createdAs, draftContext],
+    (list: DraftRow[]) => [...savedRows, ...withDraftVintages(list.filter((d) => !(createdAs[d.key] && savedKeys.has(createdAs[d.key]!))).map((draft) => draftSheetRow(draft, draftContext)), edits)],
+    [savedRows, savedKeys, createdAs, draftContext, edits],
   );
   const rows = React.useMemo(() => rowsFor(allDrafts), [rowsFor, allDrafts]);
+  React.useLayoutEffect(() => {
+    rowsNow.current = rows;
+  }, [rows]);
 
   /**
    * The cursor is on a row, not at a row number: a row can move to its sorted place under it. `row` is only where it
@@ -587,7 +682,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     setTimeout(() => setFlashKey((now) => (now === key ? null : now)), 2000);
   };
   const [active, setActive] = React.useState<{ key: string; col: number; row: number } | null>(null);
-  const [openEditor, setEditing] = React.useState<(Editing & { rowKey: string; columnId: string; original: string }) | null>(null);
+  const [openEditor, setEditing] = React.useState<(Editing & { rowKey: string; columnId: string; original: string; /** For a value cell: the level the edit will change. */ scope: Level | null }) | null>(null);
   const [inputChanged, setInputChanged] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   /** The column a run of Tabs started in, which Enter returns to on the next row. */
@@ -634,7 +729,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   const valueAt = (pos: Pos): string => {
     const row = rows[pos.row]!;
     const editor = editorAt(pos);
-    return editor ? (stagedCellValue(editor.column, edits[editKey(row, editor)]) ?? editor.initial(row)) : "";
+    return editor ? (staged(columns[pos.col]!.id, edits[editKey(row, editor)]?.[storedId(columns[pos.col]!.id)]) ?? editor.initial(row)) : "";
   };
 
   function go(moved: Moved, list: SheetRow[] = rows) {
@@ -659,14 +754,18 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       return ref === null ? "" : "name" in ref ? ref.name : (context.refs?.[editorAt(pos)!.reference!][ref.id] ?? "");
     };
     const categoryName = (value: string) => (value.startsWith("id:") ? (context.categories?.[Number(value.slice(3))] ?? "") : value);
-    const held = editorAt(pos)?.reference ? refName(valueAt(pos)) : editorAt(pos)?.combo === "category" ? categoryName(valueAt(pos)) : valueAt(pos);
+    // A value cell opens on the value it shows (the bottle's, its vintage's or the label's), and an age only implied by a designation is not copied in.
+    const valueField = VALUE_FIELD[column.id];
+    const resolved = valueField ? resolve(valueField, row, context) : null;
+    const heldRaw = resolved ? (resolved.derived || resolved.varies ? "" : (resolved.value ?? "")) : editorAt(pos)?.reference ? refName(valueAt(pos)) : editorAt(pos)?.combo === "category" ? categoryName(valueAt(pos)) : valueAt(pos);
+    const held = column.id === "abv" ? proofToAbv(heldRaw) : heldRaw;
     // A cell a paste left to be chosen opens searching what was pasted.
     const waiting = pending[pendKey(row.key, column.id)];
     const value = waiting ?? chosen?.value ?? (replace ? (typed ?? "") : held);
     const original = waiting ?? held;
     editingDraft.current = row.draft ? row.key : null;
     setInputChanged(value !== original);
-    setEditing({ value, replace: replace || waiting !== undefined, rowKey: row.key, columnId: column.id, original });
+    setEditing({ value, replace: replace || waiting !== undefined, rowKey: row.key, columnId: column.id, original, scope: valueField && !row.draft && row.bottle ? defaultScope(row, valueField) : valueField && row.draft?.vintageName !== undefined ? "vintage" : null });
   }
 
   /** A yes/no cell is flipped, not opened: Space, Enter or a double click. */
@@ -674,21 +773,18 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     stage(pos, valueAt(pos) === "true" ? "false" : "true");
   }
 
-  function stage(pos: Pos, value: string) {
+  function stage(pos: Pos, value: string): { level: Level | undefined; key: string } | undefined {
     const row = rows[pos.row];
     const column = columns[pos.col];
     const editor = editorAt(pos);
     if (!row || !column || !editor) return;
-    const key = editKey(row, editor);
-    const proofColumn = proofColumnFor(column.id);
-    // Reopening a rounded ABV value must preserve the original proof.
-    if (proofColumn) {
-      const currentValue = valueAt(pos);
-      if (value === currentValue || (value !== "" && currentValue !== "" && Number(value) === Number(currentValue))) return;
-    }
-    const storedColumn = proofColumn ?? column.id;
-    const storedValue = proofColumn ? abvToProof(value) : value;
-    const original = EDITORS[storedColumn]?.initial(row) ?? editor.initial(row);
+    if (row.draft) setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
+    // A value is written at the level chosen for it (or where it starts, for a paste or a clear): the bottle, its vintage, or the label.
+    const level = levelFor(row, column.id);
+    const key = editKey(row, editor, level);
+    const storedAs = level ? columnFor(column.id, level) : storedId(column.id);
+    // ABV is typed as a percentage and kept as proof.
+    const stored = column.id === "abv" ? abvToProof(value) : value;
     const linkedOrigin = column.id === "originCountry" || column.id === "originRegion" ? `${column.id}Linked` : undefined;
     const withoutLinkedOrigin = (prev: Edits): Edits => {
       if (!linkedOrigin || prev[key]?.[linkedOrigin] === undefined) return prev;
@@ -697,19 +793,74 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     };
     if (row.draft) {
       if (saver.draftSaving(row.key)) return;
-      setDrafts((prev) => (prev.some((d) => d.key === row.key) ? prev : [...prev, emptyDraft(row.key)]));
       keepKeys(row.key);
       // A new row's cells are forgotten when put back to empty: there is nothing to send.
-      setEdits((prev) => setEdit(withoutLinkedOrigin(prev), key, storedColumn, storedValue, original));
-      return;
+      setEdits((prev) => setEdit(withoutLinkedOrigin(prev), key, storedAs, stored, EDITORS[storedAs]?.initial(row) ?? editor.initial(row)));
+      // Marked a single barrel or private selection after its proof and age were typed: they are the bottle's now, and the notice says so.
+      if ((column.id === "singleBarrel" || column.id === "privateSelection") && value === "true") {
+        const typed = LIQUID_FIELDS.filter((field) => (edits[row.key]?.[field] ?? "") !== "");
+        const draft = allDrafts.find((d) => d.key === row.key);
+        if (typed.length > 0 && draft) {
+          const words = liquidWords(typed);
+          const typedValues = Object.fromEntries(typed.map((field) => [field, edits[row.key]![field]!]));
+          pushNotice(
+            `${draftTitle(draft)}: ${words} ${words.includes(" and ") ? "are" : "is"} now this bottle's, since it's a ${column.id === "singleBarrel" ? "single barrel" : "private selection"}. Size stays on the label.`,
+            () => {
+              // The row may have been saved while the notice was up: then the values are already on the bottle, and go back the way a moved label's do.
+              const savedKey = saver.createdAs[row.key];
+              const saved = savedKey ? rowsNow.current.find((r) => r.key === savedKey) : undefined;
+              if (savedKey && saved) void putBack(saved.label.id, Number(savedKey.slice(1)), typedValues);
+              else setDrafts((prev) => prev.map((d) => (d.key === row.key ? { ...d, keepOnLabel: true } : d)));
+            },
+          );
+        }
+      }
+      return undefined;
     }
     // A saved row saves as soon as a cell of it is committed. An edit that is already here is kept even when it is put
     // back to what the sheet shows: the earlier value may already be saved, and the sheet has not read it back yet.
-    const had = edits[key]?.[storedColumn] !== undefined || (linkedOrigin !== undefined && edits[key]?.[linkedOrigin] !== undefined);
-    if (!had && storedValue === original) return;
+    const had = edits[key]?.[storedAs] !== undefined || (linkedOrigin !== undefined && edits[key]?.[linkedOrigin] !== undefined);
+    // A level that was stepped to is a decision: the same number written at another level is a change, not a no-op.
+    const field = VALUE_FIELD[column.id];
+    const stepped = field !== undefined && openEditor?.rowKey === row.key && openEditor.columnId === column.id && openEditor.scope !== null && openEditor.scope !== defaultScope(row, field);
+    const current = levelText(row, column.id, level, editor);
+    // Reopening a rounded ABV and leaving it alone must not rewrite the proof it came from.
+    const same = column.id === "abv" ? sameValue(value, proofToAbv(current)) : sameValue(value, current);
+    if (!had && !stepped && same) return undefined;
     touch(key);
-    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [storedColumn]: storedValue } }));
+    // Marked a single barrel or private selection on a label made on this visit that has only this bottle: ask for its proof and age to move too (the server checks the count).
+    const net = (column.id === "singleBarrel" || column.id === "privateSelection") && value === "true" && row.bottle !== null && createdLabels.current.has(row.label.id) && row.label.bottleCount === 1;
+    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [storedAs]: stored, ...(net ? { moveLiquidFromLabel: "true" } : {}) } }));
     saver.request(key);
+    return { level, key };
+  }
+
+  /** The level a value written to this cell goes to: the one stepped to in the open editor, else where it starts. Nothing for a cell that is not a value. */
+  function levelFor(row: SheetRow, columnId: string): Level | undefined {
+    const field = VALUE_FIELD[columnId];
+    if (!field || row.draft || !row.bottle) return undefined;
+    if (openEditor && openEditor.rowKey === row.key && openEditor.columnId === columnId && openEditor.scope) return openEditor.scope;
+    return defaultScope(row, field);
+  }
+
+  /** What a level holds of a value now, as text: the bottle's own, the vintage's own, or the label's. */
+  function levelText(row: SheetRow, columnId: string, level: Level | undefined, editor: CellEditor): string {
+    const field = VALUE_FIELD[columnId];
+    if (!field || !level) return editor.initial(row);
+    const vintage = row.bottle?.releaseId == null ? undefined : context.index?.vintageById.get(row.bottle.releaseId);
+    const raw = level === "bottle" ? (row.bottle as unknown as Record<string, unknown> | null)?.[field] : level === "vintage" ? (vintage as unknown as Record<string, unknown> | undefined)?.[field] : (row.label as unknown as Record<string, unknown>)[field === "ginIsNas" ? "isNas" : field];
+    return raw === null || raw === undefined ? "" : String(raw);
+  }
+
+  /** Steps the level an open value cell will change: on with a positive step, back with a negative one. */
+  function stepScope(step: 1 | -1) {
+    const row = current ? rows[current.row] : undefined;
+    const field = openEditor ? VALUE_FIELD[openEditor.columnId] : undefined;
+    if (!row || !field || !openEditor?.scope) return;
+    const levels = scopesFor(row, field);
+    if (levels.length < 2) return;
+    const to = nextScope(levels, openEditor.scope, step);
+    setEditing((prev) => (prev ? { ...prev, scope: to } : prev));
   }
 
   /** The quiet time after a change made in a list's picker before it is saved, so typing a share is one save, not one per digit. */
@@ -886,7 +1037,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (row && editor?.combo === "category" && !row.draft) return { candidates: categoryCandidates(categories), allowCreate: false, what: "category", enterDropsDown: true };
     if (row && editor?.reference) {
       const kind = editor.reference;
-      return { candidates: refCandidates(kind, row.label.id, refs), allowCreate: REF_CAN_CREATE[kind], what: REF_WHAT[kind], enterDropsDown: true, ...(REF_NO_CREATE[kind] ? { noCreateReason: REF_NO_CREATE[kind] } : {}) };
+      return { candidates: refCandidates(kind, row.label.id, refs), allowCreate: REF_CAN_CREATE[kind], what: REF_WHAT[kind], // On a new row, Enter on the vintage goes on to the next cell (its proof and age are the vintage's), as Brand and Label do, rather than leaving the row and saving it.
+        enterDropsDown: !(row.draft && kind === "release"), ...(REF_NO_CREATE[kind] ? { noCreateReason: REF_NO_CREATE[kind] } : {}) };
     }
     if (!row || !editor?.combo) return null;
     // A saved row: a bottle picks a label that exists to move to; a label (Labels only) picks a brand, or makes one.
@@ -918,6 +1070,15 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     if (!hit?.direct) return;
     const { pos } = hit;
     const { key } = event;
+
+    // Ctrl+Z (Cmd+Z on a Mac), as in a spreadsheet: takes back the newest change that still has an Undo showing. With none showing it does nothing.
+    const newest = [...notices].reverse().find((notice) => notice.undo);
+    if (key.toLowerCase() === "z" && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && newest) {
+      event.preventDefault();
+      newest.undo?.();
+      dismissNotice(newest.id);
+      return;
+    }
 
     if (key === "Escape" && range) {
       event.preventDefault();
@@ -1062,7 +1223,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   /** A cell as it is drawn: what has been typed into it, else what the row holds. */
   function shownCell(row: SheetRow, column: SheetColumn): { shown: Cell; editor: CellEditor | null; value: string } {
     const editor = EDITORS[column.id] ?? null;
-    const edited = editor ? stagedCellValue(column.id, edits[editKey(row, editor)]) : undefined;
+    const edited = editor ? staged(column.id, edits[editKey(row, editor)]?.[storedId(column.id)]) : undefined;
     const shown = edited !== undefined && editor ? editor.display(edited, context, row) : column.cell(row, context);
     return { shown, editor, value: edited ?? (editor ? editor.initial(row) : "") };
   }
@@ -1077,6 +1238,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       const row = rows[r];
       if (!row) continue;
       lines.push(columns.slice(block.c1, block.c2 + 1).map((column) => {
+        // A value column holds what resolves for the row (the bottle's, its vintage's or the label's), which is not what its editor starts from.
+        if (column.group === "value" && edits[editKey(row, EDITORS[column.id]!)]?.[column.id] === undefined) return copyValue(column.id, row, context);
         const { shown, editor, value } = shownCell(row, column);
         return copyText(editor, value, shown);
       }));
@@ -1108,6 +1271,12 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     }
 
     let pasted = 0;
+
+    /** The shared levels (a vintage, a label) this paste wrote to, so it never changes more bottles than it says. */
+
+    const shared = new Map<string, string>();
+    /** What each shared level was given in this paste: a level that is given two different values keeps only the last. */
+    const given = new Map<string, { values: Set<string>; last: string }>();
     let toChoose = 0;
     let beyondColumns = 0;
     const beyondRows = new Set<number>();
@@ -1117,8 +1286,6 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       toChoose += 1;
     };
 
-    const pastedProofs = new Set<string>();
-    const blankProofs = new Map<string, Pos>();
     for (const { pos, text, line } of targets) {
       const row = rows[pos.row];
       const column = columns[pos.col];
@@ -1185,26 +1352,16 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
           continue;
         }
       }
-      // When both units are pasted together, preserve the more precise Proof value.
-      const proofColumn = proofColumnFor(column.id);
-      if (proofColumn) {
-        const pair = pendKey(row.key, proofColumn);
-        if (!pastedProofs.has(pair)) {
-          blankProofs.delete(pair);
-          stage(pos, checked.value);
-        }
-      } else if (column.id === "proof" || column.id === "ownProof") {
-        const pair = pendKey(row.key, column.id);
-        if (checked.value === "") blankProofs.set(pair, pos);
-        else {
-          pastedProofs.add(pair);
-          stage(pos, checked.value);
-        }
-      } else stage(pos, checked.value);
+      const written = stage(pos, checked.value);
+      if (written?.level && written.level !== "bottle") {
+        shared.set(written.key, scopeSentence(written.level, row, context));
+        const seen = given.get(`${written.key}:${column.id}`) ?? { values: new Set<string>(), last: "" };
+        seen.values.add(checked.value);
+        seen.last = checked.value;
+        given.set(`${written.key}:${column.id}`, seen);
+      }
       pasted += 1;
     }
-
-    for (const pos of blankProofs.values()) stage(pos, "");
 
     // Lines that land on a new row, or past the last row, become new rows.
     let added = 0;
@@ -1222,6 +1379,9 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
 
     setRange(null);
     const parts = [`Pasted ${pasted} ${pasted === 1 ? "cell" : "cells"}.`];
+    if (shared.size > 0) parts.push(`Changed ${[...shared.values()].join(" and ")}.`);
+    const clashes = [...given.values()].filter((g) => g.values.size > 1);
+    if (clashes.length > 0) parts.push(`Different values were pasted to the same ${clashes.length === 1 ? "level" : "levels"}; the last ${clashes.length === 1 ? "one" : "of each"} (${clashes.map((g) => g.last).join(", ")}) was kept. Press ${platformKeyName()} and the down arrow in a cell to change only one bottle.`);
     if (added > 0) parts.push(`Added ${added} new ${added === 1 ? "row" : "rows"}.`);
     if (toChoose > 0) parts.push(`${toChoose} to choose: press Enter on a marked cell to pick from what matches. A new row saves once its required fields and pending choices are resolved.`);
     if (beyondRows.size > 0) parts.push(`${beyondRows.size} ${beyondRows.size === 1 ? "line" : "lines"} past the last row ${beyondRows.size === 1 ? "was" : "were"} not pasted.`);
@@ -1281,9 +1441,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
         const checked = parseCell(editor, read.value, today);
         if (!checked.ok) return void skipped.push(`${where}: ${checked.message}`);
         if (checked.value === "") return;
-        const proofColumn = proofColumnFor(column.id);
-        if (!proofColumn) typed[column.id] = checked.value;
-        else typed[proofColumn] ??= abvToProof(checked.value);
+        if (column.id === "abv") typed.proof ??= abvToProof(checked.value);
+        else typed[column.id] = checked.value;
       });
       const settled = settleDraft(emptyDraft(key), texts, { bottles: view.bottles, brands, labels, categories, drafts: [...drafts, ...made] });
       made.push(settled.draft);
@@ -1417,15 +1576,18 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   }
   for (const [key, state] of Object.entries(stateOf)) {
     if (state.kind !== "blocked" || key.startsWith("d")) continue;
-    const label = key.startsWith("l") ? labels.find((l) => `l${l.id}` === key) : rows.find((r) => r.key === key)?.label;
-    blockedRows.push({ key, title: label ? `${label.brand} ${label.name}` : "A row", message: state.message, column: state.column, short: state.message });
+    // A vintage's key is `v<releaseId>`: named by its label and its own name.
+    const vintage = key.startsWith("v") ? vintages.find((v) => v.id === Number(key.slice(1))) : undefined;
+    const label = vintage ? labels.find((l) => l.id === vintage.labelId) : key.startsWith("l") ? labels.find((l) => `l${l.id}` === key) : rows.find((r) => r.key === key)?.label;
+    blockedRows.push({ key, title: label ? `${label.brand} ${label.name}${vintage ? ` ${vintage.name}` : ""}` : "A row", message: state.message, column: state.column, short: state.message });
   }
   const blockedByKey = new Map(blockedRows.map((b) => [b.key, b]));
-  const blockedFor = (row: SheetRow) => blockedByKey.get(row.key) ?? (row.draft ? undefined : blockedByKey.get(`l${row.label.id}`));
+  const vintageKeyOf = (row: SheetRow) => (row.bottle?.releaseId == null ? undefined : `v${row.bottle.releaseId}`);
+  const blockedFor = (row: SheetRow) => blockedByKey.get(row.key) ?? (row.draft ? undefined : (blockedByKey.get(`l${row.label.id}`) ?? blockedByKey.get(vintageKeyOf(row) ?? "")));
   /** The glyph on a row: a failed or unready save, one on its way, one just done, or a new row not saved yet. */
   const statusOf = (row: SheetRow): RowStatus | undefined => {
     if (blockedFor(row)) return "blocked";
-    const stored = stateOf[row.key] ?? (row.draft ? undefined : stateOf[`l${row.label.id}`]);
+    const stored = stateOf[row.key] ?? (row.draft ? undefined : (stateOf[`l${row.label.id}`] ?? stateOf[vintageKeyOf(row) ?? ""]));
     if (stored && stored.kind !== "blocked") return stored.kind;
     return row.draft && !isBlank(allDrafts.find((d) => d.key === row.key) ?? { key: row.key, brand: null, label: null, categoryId: null }, edits, pendingByRow.has(row.key)) ? "draft" : undefined;
   };
@@ -1434,7 +1596,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   function jumpToFirst() {
     const first = blockedRows[0];
     if (!first) return;
-    const row = rows.findIndex((r) => r.key === first.key || (first.key.startsWith("l") && !r.draft && `l${r.label.id}` === first.key));
+    const row = rows.findIndex((r) => r.key === first.key || (first.key.startsWith("l") && !r.draft && `l${r.label.id}` === first.key) || (first.key.startsWith("v") && vintageKeyOf(r) === first.key));
     if (row < 0) return;
     const col = Math.max(0, columns.findIndex((c) => c.id === first.column));
     focusAfter.current = true;
@@ -1453,7 +1615,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
       // Inside the sheet, in the rail or the autocomplete, or in a popover or dialog opened from it (they are drawn outside the sheet): not a click away.
-      if (sheetRef.current?.contains(target) || target?.closest?.("[data-bulk-editor-panel], [data-radix-popper-content-wrapper], [role=dialog]")) return;
+      if (sheetRef.current?.contains(target) || target?.closest?.("[data-bulk-editor-panel], [data-notice], [data-radix-popper-content-wrapper], [role=dialog]")) return;
       // After the click has been handled: a cell being edited commits first.
       setTimeout(() => saver.saveDrafts(), 50);
     };
@@ -1565,12 +1727,22 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
   }
   // Editing a cell that belongs to the label changes every bottle on it; the rail says so as well as the cell.
   const railEditor = current && editing ? editorAt(current) : null;
-  const railReach = railRow && railEditor && railEditor.scope === "label" && !railEditor.combo && !railRow.draft && railRow.bottle ? railRow.label.bottleCount : null;
+  const railField = current ? VALUE_FIELD[columns[current.col]?.id ?? ""] : undefined;
+  const railReach = railRow && railEditor && railEditor.scope === "label" && !railEditor.combo && !railRow.draft && railRow.bottle && !railField ? railRow.label.bottleCount : null;
+  // For a value cell, where the value comes from and what typing would change, said in full (the short note is under the cell while it is edited).
+  const railChanges = railRow && railField && railRow.bottle && !railRow.draft ? `Typing changes ${scopeSentence(editing?.scope ?? defaultScope(railRow, railField), railRow, context)}.` : null;
 
   // Brand and Label sit under one "Label" caption; the Bottle group has its own, after a dark rule.
   const frozenCount = columns.filter((c) => FROZEN[c.id]).length;
-  const labelRest = columns.filter((c) => c.group === "label" && !FROZEN[c.id]).length;
-  const bottleCount = columns.filter((c) => c.group === "bottle").length;
+  // After the frozen Brand and Label, a caption for each run of columns of one group: the sheet interleaves what a bottle is (Label, Bottle) with its values.
+  const runs = columns
+    .filter((c) => !FROZEN[c.id])
+    .reduce<Array<{ group: SheetColumn["group"]; span: number }>>((out, c) => {
+      const last = out[out.length - 1];
+      if (last && last.group === c.group) last.span += 1;
+      else out.push({ group: c.group, span: 1 });
+      return out;
+    }, []);
   const hasBand = columns.some((c) => c.band !== undefined);
 
   return (
@@ -1643,12 +1815,16 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
             <TableHead colSpan={frozenCount} className="sticky top-0 z-30 h-7 bg-card text-[11px] tracking-wider md:left-0" style={{ minWidth: 336 }}>
               Label
             </TableHead>
-            {labelRest > 0 ? <TableHead colSpan={labelRest} className="sticky top-0 z-20 h-7 border-l border-l-border/40 bg-card" /> : null}
-            {bottleCount > 0 ? (
-              <TableHead colSpan={bottleCount} className="sticky top-0 z-20 h-7 border-l border-l-foreground bg-card text-[11px] tracking-wider">
-                Bottle
+            {runs.map((run, i) => (
+              <TableHead
+                key={i}
+                colSpan={run.span}
+                className={cn("sticky top-0 z-20 h-7 bg-card text-[11px] tracking-wider", i === 0 && run.group === "label" ? "border-l border-l-border/40" : "border-l border-l-foreground")}
+              >
+                {/* The first label run continues the frozen Label caption, so it is not named again. */}
+                {run.group === "label" ? (i === 0 ? <span className="sr-only">Label, continued</span> : "Label") : run.group === "bottle" ? "Bottle" : <span className="sr-only">Values</span>}
               </TableHead>
-            ) : null}
+            ))}
           </TableRow>
           {/* A caption over columns that belong together (the three age boxes). Only here when one is shown, so the last row is always the column headers. */}
           {hasBand ? (
@@ -1748,6 +1924,8 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
                 onFinish={isActiveRow ? finish : undefined}
                 onInvalid={isActiveRow ? setError : undefined}
                 onInput={isActiveRow && editing ? (value) => setInputChanged(value !== editing.original) : undefined}
+                scopeNote={isActiveRow && editing?.scope ? (row.draft ? `${row.draft.vintageName ?? "Vintage"} vintage (new) · 1 bottle` : noteText(editing.scope, row, context)) : null}
+                onStep={isActiveRow && editing?.scope && scopesFor(row, VALUE_FIELD[columns[current!.col]?.id ?? ""]).length > 1 ? stepScope : undefined}
               />
             );
           })}
@@ -1764,12 +1942,13 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
       ) : null}
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
         Arrow keys move. Type or press Enter to edit. A label&rsquo;s own cells on a bottle row change every bottle on the label (the cell says how many). A grey cell with a lock is filled in from another cell, such as an age from its statement: triple-click it to edit. Brand or Label on a bottle moves it to another label. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only, and Ctrl+Enter creates what you typed.
-        Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels.
+        Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels. {platformKeyName() === "Option" ? "Cmd" : "Ctrl"}+Z takes back the change in the newest notice that offers Undo, while it is showing.
         Rows save as you go: a saved row as soon as a cell is finished, a new row when you leave it.
       </p>
       <DeleteBar count={ticked.length} noun={view.bottles ? "bottle" : "label"} ids={idsOfKeys(ticked)} onClear={() => setSelected(new Set())} onDone={afterDelete} />
       {/* Present before anything is in it, so a screen reader announces the text when it appears. It never takes focus. */}
-      <div aria-live="polite" aria-atomic="true" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
+      <div aria-live="polite" aria-atomic="false" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
+        <Notices notices={notices} onDismiss={dismissNotice} />
         {blockedRows.length > 0 ? (
           <div className="pointer-events-auto flex flex-col gap-2 border border-destructive bg-card p-3 text-sm shadow-md">
             <p className="flex items-start gap-2">
@@ -1812,7 +1991,7 @@ export function BulkEditor({ labels, bottles, brands, categories, groups, kinds,
             </button>
           </div>
           <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto p-3">
-            <RailContent rail={rail} shelf={shelf} reach={railReach} />
+            <RailContent rail={rail} shelf={shelf} reach={railReach} changes={railChanges} />
           </div>
       </div>
       <button type="button" onClick={toggleRail} aria-label="Show the details panel" aria-expanded={false} className={cn("h-24 w-9 items-start justify-center border border-border bg-card pt-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", railChoice === null ? "flex xl:hidden" : railChoice === "closed" ? "flex" : "hidden")}>
