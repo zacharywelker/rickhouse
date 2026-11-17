@@ -6,7 +6,9 @@ import { Check, Circle, CircleAlert, Lock, LoaderCircle } from "lucide-react";
 import { ArrowDown, ArrowUp, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { ColumnPicker, type PickerGroup } from "@/components/bulk/column-picker";
 import { GridCell } from "@/components/bulk/grid-cell";
+import { useColumnWidths } from "@/components/bulk/use-column-widths";
 import { useHiddenColumns } from "@/components/bulk/use-hidden-columns";
+import { clampWidth } from "@/lib/bulk-editor/widths";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { FieldGroup } from "@/db/schema";
@@ -59,17 +61,33 @@ import { DeleteBar } from "./delete-bar";
 import type { ComboData, Editing, Finish } from "./types";
 import { EditNote } from "./edit-note";
 import { Notices, type Notice } from "./notices";
+import { ResizeHandle } from "./resize-handle";
 import { SourceTag } from "./source-tag";
 import { useRowSaver } from "./use-row-saver";
 
 const VIEW_KEY = "bulk-editor:view";
 const HIDDEN_KEY = "bulk-editor:hidden";
 const RAIL_KEY = "bulk-editor:rail";
+const WIDTHS_KEY = "bulk-editor:widths";
 /** The width from which the rail is open until the person chooses: with it open the sheet still has about 900px at this width. */
 const RAIL_AUTO_OPEN = "(min-width: 1280px)";
 
-/** Brand and Label are held at the left while the rest of the sheet scrolls. Widths are fixed so the second can sit against the first. */
-const FROZEN: Record<string, { left: number; width: number }> = { brand: { left: 0, width: 156 }, name: { left: 156, width: 180 } };
+/** Brand and Label are held at the left while the rest of the sheet scrolls. Label sits against Brand, so it is offset by Brand's width. */
+const FROZEN: Record<string, { left: string; width: number }> = { brand: { left: "0px", width: 156 }, name: { left: "var(--cw-brand, 156px)", width: 180 } };
+
+/**
+ * A column's width is a CSS variable on the sheet (`--cw-<id>`), set from the widths a person has dragged. Cells only
+ * name the variable, so a drag moves the column by setting one property: no row re-renders. A column with no width
+ * of its own and none dragged (`auto`) sizes to its content.
+ */
+const widthVar = (id: string) => `--cw-${id}`;
+function widthStyle(column: SheetColumn): React.CSSProperties {
+  const own = FROZEN[column.id]?.width ?? column.width;
+  const v = `var(${widthVar(column.id)}, ${own === undefined ? "" : `${own}px`})`;
+  return own === undefined
+    ? { width: `var(${widthVar(column.id)}, auto)`, minWidth: `var(${widthVar(column.id)}, 0px)`, maxWidth: `var(${widthVar(column.id)}, none)` }
+    : { width: v, minWidth: v, maxWidth: v };
+}
 
 /** Whether the cell is in the sheet's scroll box and clear of the headers held at its top (64px: the box's scroll padding). */
 function withinView(el: HTMLElement): boolean {
@@ -185,7 +203,7 @@ function frozenProps(column: SheetColumn, header: boolean) {
     className: header
       ? cn("md:z-30", column.id === "name" && "md:shadow-[1px_0_0_var(--border),0_1px_0_var(--border)]")
       : cn("md:sticky md:z-10 md:bg-card md:group-hover:bg-muted", column.id === "name" && "md:shadow-[1px_0_0_var(--border)]"),
-    style: { left: frozen.left, width: frozen.width, minWidth: frozen.width, maxWidth: frozen.width },
+    style: { left: frozen.left },
   };
 }
 
@@ -412,7 +430,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               ruleClass(index, column, columns[index - 1]),
               frozen.className,
             )}
-            style={column.width ? { ...frozen.style, width: column.width, minWidth: column.width, maxWidth: column.width } : frozen.style}
+            style={{ ...frozen.style, ...widthStyle(column) }}
           >
             <span className={cn("flex items-center gap-1.5", column.align === "right" && "justify-end", isEditing && "invisible")} title={isBlocked ? blockedMessage : locked ? (spec?.lock?.(row, context.kinds) ?? "Triple-click to edit") : reach !== null ? changesText(reach) : (cell.note ?? cell.text)}>
               {column.id === "brand" ? (
@@ -435,7 +453,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
               ) : (
                 <>
                   {cell.marker ? <SourceTag marker={cell.marker} /> : null}
-                  <span className={cn("block truncate", !column.identity && "max-w-56")}>{cell.text}</span>
+                  <span className="block truncate" style={{ maxWidth: `var(${widthVar(column.id)}, ${column.identity ? "none" : "14rem"})` }}>{cell.text}</span>
                   {isBlocked ? <CircleAlert aria-hidden className="size-3.5 shrink-0 text-destructive" /> : null}
                 </>
               )}
@@ -491,6 +509,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     setView(next);
   };
   const [hidden, setHidden] = useHiddenColumns(HIDDEN_KEY, DEFAULT_HIDDEN);
+  const { widths, set: setWidth, clear: clearWidths } = useColumnWidths(WIDTHS_KEY);
   const [edits, setEdits] = React.useState<Edits>({});
   // Each vintage as it stands with what has been typed at the vintage level, so a bottle on it shows it at once. Rebuilt only when a vintage edit changes.
   const vintageEditsKey = JSON.stringify(Object.entries(edits).filter(([key]) => key.startsWith("v")));
@@ -1054,6 +1073,11 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     return { pos: { row: Number(td.dataset.r), col: Number(td.dataset.c) }, direct: td === target };
   }
 
+  /** A column's width as drawn now, whether it was dragged, has its own, or sizes to its content. */
+  function headWidth(id: string): number {
+    return sheetRef.current?.querySelector<HTMLElement>(`#bulk-editor-col-${CSS.escape(id)}`)?.getBoundingClientRect().width ?? 0;
+  }
+
   function onKeyDown(event: React.KeyboardEvent<HTMLTableSectionElement>) {
     // While editing, the editor has the keys.
     if (editing) return;
@@ -1068,6 +1092,17 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       event.preventDefault();
       newest.undo?.();
       dismissNotice(newest.id);
+      return;
+    }
+
+    // Alt+Shift+Left/Right narrows or widens the active column by 10px; Alt+Shift+Backspace gives it its own width back.
+    if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && (key === "ArrowLeft" || key === "ArrowRight" || key === "Backspace")) {
+      event.preventDefault();
+      const id = columns[pos.col]?.id;
+      if (id) {
+        if (key === "Backspace") setWidth(id, null);
+        else setWidth(id, clampWidth(headWidth(id) + (key === "ArrowRight" ? 10 : -10)));
+      }
       return;
     }
 
@@ -1738,9 +1773,10 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     <div className="flex items-start gap-4">
     <div
       ref={sheetRef}
+      style={Object.fromEntries(Object.entries(widths).map(([id, w]) => [widthVar(id), `${w}px`])) as React.CSSProperties}
       // From md up the sheet scrolls inside a box that fits the screen, so the headers stay put and the keyboard's
       // scroll-into-view keeps the active cell clear of them and of the frozen columns.
-      className="min-w-0 border border-border bg-card md:[&>.overflow-x-auto]:max-h-[calc(100dvh-19.5rem)] md:[&>.overflow-x-auto]:min-h-80 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[336px] md:[&>.overflow-x-auto]:scroll-pt-16"
+      className="min-w-0 border border-border bg-card md:[&>.overflow-x-auto]:max-h-[calc(100dvh-19.5rem)] md:[&>.overflow-x-auto]:min-h-80 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[calc(var(--cw-brand,156px)+var(--cw-name,180px))] md:[&>.overflow-x-auto]:scroll-pt-16"
     >
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2.5">
         <div role="group" aria-label="What the sheet shows" className="inline-flex divide-x divide-border border border-border">
@@ -1754,6 +1790,11 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
           onChange={(next) => setHidden(new Set(SHEET_COLUMNS.filter((c) => !c.identity && !c.always && !next.has(c.id)).map((c) => c.id)))}
           presets={PICKER_PRESETS}
         />
+        {Object.keys(widths).length > 0 ? (
+          <Button type="button" variant="ghost" size="sm" onClick={clearWidths}>
+            Reset widths
+          </Button>
+        ) : null}
         <FindBar
           find={find}
           onFind={changeFind}
@@ -1801,7 +1842,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       <Table role="grid" aria-label="Bulk editor" aria-rowcount={rows.length + 1} className="border-separate border-spacing-0 whitespace-nowrap tabular-nums">
         <TableHeader>
           <TableRow className="border-b-0 hover:bg-transparent">
-            <TableHead colSpan={frozenCount} className="sticky top-0 z-30 h-7 bg-card text-[11px] tracking-wider md:left-0" style={{ minWidth: 336 }}>
+            <TableHead colSpan={frozenCount} className="sticky top-0 z-30 h-7 bg-card text-[11px] tracking-wider md:left-0" style={{ minWidth: "calc(var(--cw-brand, 156px) + var(--cw-name, 180px))" }}>
               Label
             </TableHead>
             {runs.map((run, i) => (
@@ -1846,7 +1887,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
                   scope="col"
                   aria-sort={activeSort?.column === column.id ? (activeSort.desc ? "descending" : "ascending") : undefined}
                   className={cn(HEAD_CELL, "font-medium", column.align === "right" && "text-right", column.width && "px-2", ruleClass(index, column, columns[index - 1]), frozen.className)}
-                  style={{ ...frozen.style, top: hasBand ? 52 : 28, ...(column.width ? { width: column.width, minWidth: column.width, maxWidth: column.width } : {}) }}
+                  style={{ ...frozen.style, top: hasBand ? 52 : 28, ...widthStyle(column) }}
                 >
                   {column.id === "brand" ? (
                     <input
@@ -1875,6 +1916,15 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
                   ) : (
                     column.label
                   )}
+                  <ResizeHandle
+                    measure={() => headWidth(column.id)}
+                    live={(px) => sheetRef.current?.style.setProperty(widthVar(column.id), `${px}px`)}
+                    commit={(px) => setWidth(column.id, px)}
+                    reset={() => {
+                      sheetRef.current?.style.removeProperty(widthVar(column.id));
+                      setWidth(column.id, null);
+                    }}
+                  />
                 </TableHead>
               );
             })}
@@ -1932,7 +1982,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
         Arrow keys move. Type or press Enter to edit. A label&rsquo;s own cells on a bottle row change every bottle on the label (the cell says how many). A grey cell with a lock is filled in from another cell, such as an age from its statement: triple-click it to edit. Brand or Label on a bottle moves it to another label. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only, and Ctrl+Enter creates what you typed.
         Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels. {platformKeyName() === "Option" ? "Cmd" : "Ctrl"}+Z takes back the change in the newest notice that offers Undo, while it is showing.
-        Rows save as you go: a saved row as soon as a cell is finished, a new row when you leave it.
+        Drag the edge of a column header to resize it (double-click to undo), or press Alt+Shift+Left or Right on a cell. Rows save as you go: a saved row as soon as a cell is finished, a new row when you leave it.
       </p>
       <DeleteBar count={ticked.length} noun={view.bottles ? "bottle" : "label"} ids={idsOfKeys(ticked)} onClear={() => setSelected(new Set())} onDone={afterDelete} />
       {/* Present before anything is in it, so a screen reader announces the text when it appears. It never takes focus. */}
