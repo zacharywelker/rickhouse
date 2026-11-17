@@ -1,4 +1,5 @@
 import type { FieldSpec } from "@/lib/admin/types";
+import { proofToAbv } from "@/lib/bottles/proof";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import { formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
@@ -75,6 +76,25 @@ const text = (value: string): Cell => (value === "" ? DASH : { text: value });
 const money = (value: string, ctx: SheetContext): Cell => (value === "" ? DASH : { text: formatMoney(value, ctx.currency) });
 const mL = (value: string): Cell => (value === "" ? DASH : { text: `${value} mL` });
 
+/**
+ * ABV is the same number as Proof, half of it, and is stored as proof at the same level a Proof edit would be. Like the
+ * form's pair: the one that has a value drives and the other is calculated, so ABV is locked (triple-click to edit anyway)
+ * while there is a proof, and typing a proof recalculates it.
+ */
+function abvEditor(proof: CellEditor): CellEditor {
+  return {
+    ...proof,
+    column: "abv",
+    spec: { kind: "number", name: "abv", label: "ABV %", min: 0, max: 100, step: 0.01 },
+    lock: (r) => ((r.bottle?.proof ?? r.label.proof ?? "") === "" ? null : "Calculated from Proof. Triple-click to enter an ABV instead"),
+    initial: (r) => proofToAbv(proof.initial(r)),
+    display: (v) => text(v),
+  };
+}
+
+/** The proof an ABV column's staged value stands for: edits of both columns are kept under `proof`. */
+export const staged = (column: string, value: string | undefined): string | undefined => (column === "abv" && value !== undefined ? proofToAbv(value) : value);
+
 const BY_HAND: Readonly<Record<string, CellEditor>> = {
   // The picking cells, on a new row only for now. On a saved row they come with the rules for moving a bottle and renaming a label.
   brand: { column: "brand", field: "brand", scope: "label", combo: "brand", spec: NO_SPEC, typeToReplace: true, initial: (r) => r.label.brand, display: (v) => text(v) },
@@ -111,6 +131,7 @@ const BY_HAND: Readonly<Record<string, CellEditor>> = {
 /** Every cell that can be edited, by its column's id: the ones made by hand, the two composites, and one for each simple form field. */
 export const EDITORS: Readonly<Record<string, CellEditor>> = {
   ...BY_HAND,
+  abv: abvEditor(BY_HAND.proof!),
   ...Object.fromEntries([...GENERATED, ...LABEL_AGE, ...BOTTLE_AGE].map((g) => [g.column.id, g.editor])),
   designation: designationEditor(),
   store: storeEditor(),

@@ -11,13 +11,14 @@ import { useHiddenColumns } from "@/components/bulk/use-hidden-columns";
 import { clampWidth } from "@/lib/bulk-editor/widths";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { abvToProof, proofToAbv } from "@/lib/bottles/proof";
 import type { FieldGroup } from "@/db/schema";
 import {
   brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, isBlank, labelCandidates, withBlankRow, withBrand, withCategory, withLabel,
   type CategoryChoice, type DraftRow,
 } from "@/lib/bulk-editor/drafts";
 import { applyVintageEdits, arrange, editKey, withDraftVintages, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
-import { EDITORS, editorFor, isLocked, lockKeyOf, parseCell, setEdit, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
+import { EDITORS, editorFor, isLocked, lockKeyOf, parseCell, setEdit, staged, type CellEditor, type Edits, type Unlocked } from "@/lib/bulk-editor/editors";
 import { arrowMove, enterMove, tabMove, type ArrowKey, type Moved, type Pos } from "@/lib/bulk-editor/nav";
 import {
   columnsFor,
@@ -373,7 +374,7 @@ type RowProps = {
 };
 
 /** The columns that hold a value which can come from the bottle, its vintage or the label (`resolve.ts`): what an edit changes is chosen. */
-const VALUE_FIELD: Readonly<Record<string, ValueField>> = { sizeMl: "sizeMl", proof: "proof", ageYears: "ageYears", ageMonths: "ageMonths", ageDays: "ageDays", ageStatement: "ageStatement", tequilaClass: "tequilaClass", brandyGrade: "brandyGrade", isNas: "ginIsNas" };
+const VALUE_FIELD: Readonly<Record<string, ValueField>> = { sizeMl: "sizeMl", proof: "proof", abv: "proof", ageYears: "ageYears", ageMonths: "ageMonths", ageDays: "ageDays", ageStatement: "ageStatement", tequilaClass: "tequilaClass", brandyGrade: "brandyGrade", isNas: "ginIsNas" };
 
 /** The values that move to a bottle marked a single barrel or private selection, in words: "proof and age". */
 function liquidWords(fields: ReadonlyArray<string>): string {
@@ -383,6 +384,8 @@ function liquidWords(fields: ReadonlyArray<string>): string {
 }
 
 /** Two typed values are the same when the text is, or they are the same number (112 and 112.00). */
+/** Edits of ABV are kept as proof, under Proof. */
+const storedId = (column: string): string => (column === "abv" ? "proof" : column);
 const sameValue = (a: string, b: string): boolean => a === b || (a !== "" && b !== "" && Number.isFinite(Number(a)) && Number(a) === Number(b));
 
 /** A row of text cells. Memoised: moving between cells re-renders two rows, not the whole sheet. */
@@ -394,7 +397,7 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
         const locked = isLocked(column, view, row, unlocked, context.kinds);
         const spec = EDITORS[column.id];
         // A label's cell keeps its edit under the label; it still shows if the view has since changed and the cell cannot be edited.
-        const edited = (spec?.scope === "label" && !row.draft ? labelEdits : rowEdits)?.[column.id];
+        const edited = staged(column.id, (spec?.scope === "label" && !row.draft ? labelEdits : rowEdits)?.[storedId(column.id)]);
         const waiting = pendingCols?.[column.id];
         const cell: Cell = waiting !== undefined ? { text: waiting, muted: true, inferred: true, badge: "Choose" } : edited !== undefined && spec && (column.group !== "value" || row.draft) ? spec.display(edited, context, row) : column.cell(row, context);
         // An unlocked label cell on a bottle row reaches every bottle on the label.
@@ -745,7 +748,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   const valueAt = (pos: Pos): string => {
     const row = rows[pos.row]!;
     const editor = editorAt(pos);
-    return editor ? (edits[editKey(row, editor)]?.[columns[pos.col]!.id] ?? editor.initial(row)) : "";
+    return editor ? (staged(columns[pos.col]!.id, edits[editKey(row, editor)]?.[storedId(columns[pos.col]!.id)]) ?? editor.initial(row)) : "";
   };
 
   function go(moved: Moved, list: SheetRow[] = rows) {
@@ -773,7 +776,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     // A value cell opens on the value it shows (the bottle's, its vintage's or the label's), and an age only implied by a designation is not copied in.
     const valueField = VALUE_FIELD[column.id];
     const resolved = valueField ? resolve(valueField, row, context) : null;
-    const held = resolved ? (resolved.derived || resolved.varies ? "" : (resolved.value ?? "")) : editorAt(pos)?.reference ? refName(valueAt(pos)) : editorAt(pos)?.combo === "category" ? categoryName(valueAt(pos)) : valueAt(pos);
+    const heldRaw = resolved ? (resolved.derived || resolved.varies ? "" : (resolved.value ?? "")) : editorAt(pos)?.reference ? refName(valueAt(pos)) : editorAt(pos)?.combo === "category" ? categoryName(valueAt(pos)) : valueAt(pos);
+    const held = column.id === "abv" ? proofToAbv(heldRaw) : heldRaw;
     // A cell a paste left to be chosen opens searching what was pasted.
     const waiting = pending[pendKey(row.key, column.id)];
     const value = waiting ?? chosen?.value ?? (replace ? (typed ?? "") : held);
@@ -797,7 +801,9 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     // A value is written at the level chosen for it (or where it starts, for a paste or a clear): the bottle, its vintage, or the label.
     const level = levelFor(row, column.id);
     const key = editKey(row, editor, level);
-    const storedAs = level ? columnFor(column.id, level) : column.id;
+    const storedAs = level ? columnFor(column.id, level) : storedId(column.id);
+    // ABV is typed as a percentage and kept as proof.
+    const stored = column.id === "abv" ? abvToProof(value) : value;
     const linkedOrigin = column.id === "originCountry" || column.id === "originRegion" ? `${column.id}Linked` : undefined;
     const withoutLinkedOrigin = (prev: Edits): Edits => {
       if (!linkedOrigin || prev[key]?.[linkedOrigin] === undefined) return prev;
@@ -808,7 +814,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       if (saver.draftSaving(row.key)) return;
       keepKeys(row.key);
       // A new row's cells are forgotten when put back to empty: there is nothing to send.
-      setEdits((prev) => setEdit(withoutLinkedOrigin(prev), key, column.id, value, editor.initial(row)));
+      setEdits((prev) => setEdit(withoutLinkedOrigin(prev), key, storedAs, stored, EDITORS[storedAs]?.initial(row) ?? editor.initial(row)));
       // Marked a single barrel or private selection after its proof and age were typed: they are the bottle's now, and the notice says so.
       if ((column.id === "singleBarrel" || column.id === "privateSelection") && value === "true") {
         const typed = LIQUID_FIELDS.filter((field) => (edits[row.key]?.[field] ?? "") !== "");
@@ -836,11 +842,14 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     // A level that was stepped to is a decision: the same number written at another level is a change, not a no-op.
     const field = VALUE_FIELD[column.id];
     const stepped = field !== undefined && openEditor?.rowKey === row.key && openEditor.columnId === column.id && openEditor.scope !== null && openEditor.scope !== defaultScope(row, field);
-    if (!had && !stepped && sameValue(value, levelText(row, column.id, level, editor))) return undefined;
+    const current = levelText(row, column.id, level, editor);
+    // Reopening a rounded ABV and leaving it alone must not rewrite the proof it came from.
+    const same = column.id === "abv" ? sameValue(value, proofToAbv(current)) : sameValue(value, current);
+    if (!had && !stepped && same) return undefined;
     touch(key);
     // Marked a single barrel or private selection on a label made on this visit that has only this bottle: ask for its proof and age to move too (the server checks the count).
     const net = (column.id === "singleBarrel" || column.id === "privateSelection") && value === "true" && row.bottle !== null && createdLabels.current.has(row.label.id) && row.label.bottleCount === 1;
-    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [storedAs]: value, ...(net ? { moveLiquidFromLabel: "true" } : {}) } }));
+    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [storedAs]: stored, ...(net ? { moveLiquidFromLabel: "true" } : {}) } }));
     saver.request(key);
     return { level, key };
   }
@@ -1249,7 +1258,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   /** A cell as it is drawn: what has been typed into it, else what the row holds. */
   function shownCell(row: SheetRow, column: SheetColumn): { shown: Cell; editor: CellEditor | null; value: string } {
     const editor = EDITORS[column.id] ?? null;
-    const edited = editor ? edits[editKey(row, editor)]?.[column.id] : undefined;
+    const edited = editor ? staged(column.id, edits[editKey(row, editor)]?.[storedId(column.id)]) : undefined;
     const shown = edited !== undefined && editor ? editor.display(edited, context, row) : column.cell(row, context);
     return { shown, editor, value: edited ?? (editor ? editor.initial(row) : "") };
   }
@@ -1466,7 +1475,9 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         if (!read.ok) return void skipped.push(`${where}: ${read.message}`);
         const checked = parseCell(editor, read.value, today);
         if (!checked.ok) return void skipped.push(`${where}: ${checked.message}`);
-        if (checked.value !== "") typed[column.id] = checked.value;
+        if (checked.value === "") return;
+        if (column.id === "abv") typed.proof ??= abvToProof(checked.value);
+        else typed[column.id] = checked.value;
       });
       const settled = settleDraft(emptyDraft(key), texts, { bottles: view.bottles, brands, labels, categories, drafts: [...drafts, ...made] });
       made.push(settled.draft);

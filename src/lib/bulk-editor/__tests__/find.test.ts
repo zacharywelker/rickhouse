@@ -134,6 +134,24 @@ describe("the detail filters", () => {
     expect(ids({ ingredients: ["Cherry"] })).toEqual(["b1"]);
     expect(ids({ ingredients: ["Cherry", "Nothing here"] })).toEqual(["b1"]); // any of them
   });
+  it("includes empty links alongside selected references", () => {
+    expect(ids({ mashbillIds: [null] })).toEqual(["b2", "b3"]);
+    expect(ids({ mashbillIds: [7, null], ingredients: ["Cherry", null] })).toEqual(["b1", "b2", "b3"]);
+    expect(ids({ finishIds: [null], distilleryIds: [null] })).toEqual([]);
+    const noDistillery = { ...rs[2]!, label: { ...c, links: { ...c.links, distilleries: [] } } };
+    expect(keys(filterRows([...rs, noDistillery], find({ distilleryIds: [null] }), none, ctx))).toEqual(["b3"]);
+  });
+  it("finds missing proof or MSRP and can include them alongside a numeric range", () => {
+    expect(ids({ proof: { ...NO_RANGE, missing: true } })).toEqual(["b3"]);
+    expect(ids({ proof: { min: 100, max: null, missing: true } })).toEqual(["b1", "b3"]);
+    expect(ids({ msrp: { ...NO_RANGE, missing: true } })).toEqual(["b3"]);
+    expect(filterCount(find({ proof: { min: 100, max: null, missing: true }, msrp: { ...NO_RANGE, missing: true } }))).toBe(2);
+  });
+  it("finds an unset store or price paid only in Bottles view", () => {
+    const f = find({ stores: [null], price: { ...NO_RANGE, missing: true } });
+    expect(keys(filterRows(rows, effectiveFind(f, { labels: false, bottles: true }), none, ctx))).toEqual([]);
+    expect(filterCount(effectiveFind(f, { labels: true, bottles: true }))).toBe(0);
+  });
   it("filters by proof range on the proof a row has: its bottle's own, else its label's", () => {
     expect(proofOf(rs[0]!, { kinds: {} })).toBe(104);
     expect(ids({ proof: { min: 100, max: null } })).toEqual(["b1"]); // b1's bottle is 104 though its label says 100
@@ -205,6 +223,22 @@ describe("sorting the age and link columns", () => {
 
 describe("a whiskey's age includes the minimum its designation implies, as the Age column does", () => {
   const whiskey = (over: Record<string, unknown>) => ({ ...label(1, 1, "A", "B", 20, "Bourbon"), fieldGroup: "whiskey", isStraight: false, isNas: false, isBottledInBond: false, isAged: false, ...over }) as unknown as SheetLabel;
+  it("finds explicit NAS separately from unknown age and respects a bottle's own age", () => {
+    const nas = whiskey({ isNas: true, isStraight: true });
+    const ageRows: SheetRow[] = [
+      { key: "nas", label: nas, bottle: null },
+      { key: "unknown", label: whiskey({}), bottle: bottle(2) },
+      { key: "legacy-nas", label: whiskey({}), bottle: bottle(3, { ageStatement: "NAS" }) },
+      { key: "override", label: nas, bottle: bottle(4, { ageYears: "8" }) },
+      { key: "statement", label: whiskey({ ageStatement: "A blend of vintages" }), bottle: null },
+      { key: "gin-nas", label: { ...whiskey({}), fieldGroup: "gin", isAgedGin: true }, bottle: bottle(6, { ginIsNas: true }) },
+      { key: "gin-override", label: { ...nas, fieldGroup: "gin", isAgedGin: true }, bottle: bottle(7, { ginIsNas: false }) },
+    ];
+    const ids = (age: Find["age"]) => keys(filterRows(ageRows, find({ age }), none, ctx));
+    expect(ids({ ...NO_RANGE, nas: true })).toEqual(["nas", "legacy-nas", "gin-nas"]);
+    expect(ids({ ...NO_RANGE, missing: true })).toEqual(["unknown", "gin-override"]);
+    expect(ids({ min: 7, max: null, nas: true, missing: true })).toEqual(["nas", "unknown", "legacy-nas", "override", "gin-nas", "gin-override"]);
+  });
   it("is 4 years for a bonded bourbon with no age written down, and 2 for a straight one", () => {
     expect(labelAgeYears(whiskey({ isBottledInBond: true }), ctx)).toBe(4);
     expect(labelAgeYears(whiskey({ isStraight: true }), ctx)).toBe(2);

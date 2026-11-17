@@ -562,6 +562,38 @@ test("a label's fact is edited on a bottle row without unlocking it, and the cel
   await expect(cell(page, 1, proof)).toContainText("101");
 });
 
+test("Proof and ABV are both shown and editable: the one with a value drives, the other is calculated and locked", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  const abv = await col(page, "ABV");
+  expect(abv).toBe(proof + 1);
+
+  // Typing a proof calculates the ABV and locks it.
+  await select(page, 1, proof);
+  await page.keyboard.press("Enter");
+  await editors(page).fill("101.05");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 1, abv)).toContainText("50.53");
+  await expect(cell(page, 1, abv).locator("svg")).toHaveCount(1);
+  await reloaded(page);
+  await expect(cell(page, 1, proof)).toContainText("101.05");
+  await expect(cell(page, 1, abv)).toContainText("50.53");
+
+  // A locked ABV opens with a triple-click, and typing one writes the proof, the same level a Proof edit would.
+  await cell(page, 1, abv).click({ clickCount: 3 });
+  await page.keyboard.press("Enter");
+  await editors(page).fill("46.35");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 1, proof)).toContainText("92.7");
+  await reloaded(page);
+  await expect(cell(page, 1, proof)).toContainText("92.7");
+  await expect(cell(page, 1, abv)).toContainText("46.35");
+
+  // Pasting both together keeps the proof as typed: the locked ABV does not overwrite it.
+  await select(page, 1, proof);
+  await paste(page, "101.05\t50.5");
+  await expect(cell(page, 1, proof)).toContainText("101.05");
+});
+
 test("Bottles only shows no label facts, and Brand moves a bottle to a label that exists, never a new one", async ({ page }) => {
   await page.getByRole("button", { name: "Labels", exact: true }).click();
   const names = await sheet(page).locator("thead tr:last-child th").allTextContents();
@@ -790,6 +822,37 @@ test("a range filter narrows the sheet, the panel says how many are set, and Cle
   await expect(page.getByLabel("Proof, at most")).toHaveValue("");
   await page.keyboard.press("Escape");
   await expect(countLine(page)).toHaveText(`${total} bottles`);
+});
+
+test("missing-value choices narrow the sheet and Clear resets them", async ({ page }) => {
+  await bothSwitch(page, "Bottles").click();
+  const proof = await col(page, "Proof");
+  await select(page, 1, proof);
+  await page.keyboard.press("Delete");
+  await reloaded(page);
+
+  const more = page.getByRole("button", { name: /^More filters/ });
+  await more.click();
+  const noProof = page.getByRole("group", { name: "Proof" }).getByRole("checkbox", { name: "None" });
+  await noProof.click();
+  await expect(noProof).toBeChecked();
+  await expect(more).toContainText("1");
+  await expect(countLine(page)).toContainText("Showing");
+  await expect(cell(page, 0, proof)).toHaveText("—");
+
+  await page.getByRole("button", { name: "Filter by mashbill" }).click();
+  const unknownMashbill = page.getByRole("button", { name: "Unknown", exact: true });
+  await unknownMashbill.click();
+  await expect(unknownMashbill).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  await expect(more).toContainText("2");
+  await expect(page.getByRole("group", { name: "Age" }).getByRole("checkbox", { name: "NAS" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Age" }).getByRole("checkbox", { name: "Unknown" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await more.click();
+  await expect(noProof).not.toBeChecked();
 });
 
 test("age, distillery, mashbill and finish can be sorted, each starting ascending", async ({ page }) => {

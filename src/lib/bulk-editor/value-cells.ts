@@ -1,3 +1,4 @@
+import { proofToAbv } from "@/lib/bottles/proof";
 import { formatNumeric } from "@/lib/utils";
 import { inferredAge } from "./age";
 import { resolve, type ValueField } from "./resolve";
@@ -18,9 +19,9 @@ export function valueCell(field: ValueField, row: SheetRow, ctx: Pick<SheetConte
   return { text: format(r.value), ...(r.marker ? { marker: r.marker } : {}) };
 }
 
-/** ABV is the proof halved, shown wherever the proof is, with the same marker. */
+/** ABV is the proof halved, rounded as the form rounds it, shown wherever the proof is, with the same marker. */
 export function abvCell(row: SheetRow, ctx: Pick<SheetContext, "kinds" | "index">): Cell {
-  return valueCell("proof", row, ctx, (proof) => formatNumeric(String(Number(proof) / 2)));
+  return valueCell("proof", row, ctx, (proof) => proofToAbv(proof));
 }
 
 /**
@@ -43,5 +44,5 @@ export function copyValue(column: string, row: SheetRow, ctx: Pick<SheetContext,
   if (!field) return "";
   const r = resolve(field, row, ctx);
   if (r.varies || r.value === null) return "";
-  return column === "abv" ? formatNumeric(String(Number(r.value) / 2)) : r.value;
+  return column === "abv" ? proofToAbv(r.value) : r.value;
 }

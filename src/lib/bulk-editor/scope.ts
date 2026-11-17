@@ -48,7 +48,9 @@ const OWN: Readonly<Record<string, string>> = {
 
 /** The column an edit is stored under at a level: the bottle's own editor for the bottle level, the column itself otherwise. */
 export function columnFor(column: string, level: Level): string {
-  return level === "bottle" ? (OWN[column] ?? column) : column;
+  // ABV is the proof, halved: it is kept under Proof (the editor converts).
+  const stored = column === "abv" ? "proof" : column;
+  return level === "bottle" ? (OWN[stored] ?? stored) : stored;
 }
 
 const bottlesOf = (n: number) => `${n} ${n === 1 ? "bottle" : "bottles"}`;

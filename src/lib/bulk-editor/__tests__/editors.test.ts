@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countEdits, EDITORS, editorFor, isLocked, parseCell, setEdit, unlockKey, type CellEditor } from "../editors";
+import { countEdits, EDITORS, editorFor, isLocked, parseCell, setEdit, staged, unlockKey, type CellEditor } from "../editors";
 import { SHEET_COLUMNS, type SheetBottle, type SheetColumn, type SheetContext, type SheetLabel, type SheetRow } from "../sheet";
 
 const label = { id: 1, brand: "Four Roses", name: "Single Barrel", proof: "100.0", sizeMl: 750, msrp: "49.99" } as unknown as SheetLabel;
@@ -101,6 +101,21 @@ describe("editorFor on a new row", () => {
   it("lets the bottle's own cells be typed on a new bottle row", () => {
     expect(editorFor(col("pricePaid"), both, draftRow({}))?.column).toBe("pricePaid");
     expect(editorFor(col("pricePaid"), labelsOnly, draftRow({}, false))).toBeNull();
+  });
+});
+
+describe("ABV beside Proof", () => {
+  it("is the proof halved, calculated and locked while there is a proof, and open when there is none", () => {
+    expect(ed("abv").initial(labelRow)).toBe("50");
+    expect(ed("abv").lock?.(labelRow, {})).not.toBeNull();
+    expect(ed("abv").lock?.(bottleRow(bottle({ proof: "104.2" })), {})).not.toBeNull();
+    expect(ed("abv").lock?.({ ...labelRow, label: { ...labelRow.label, proof: null } }, {})).toBeNull();
+    expect(ed("abv").display("46.35", ctx, labelRow)).toEqual({ text: "46.35" });
+  });
+  it("is stored as proof, so both columns read the one edit", () => {
+    expect(staged("abv", "92.7")).toBe("46.35");
+    expect(staged("proof", "92.7")).toBe("92.7");
+    expect(staged("abv", undefined)).toBeUndefined();
   });
 });
 

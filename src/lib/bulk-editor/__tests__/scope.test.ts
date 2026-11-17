@@ -55,6 +55,8 @@ describe("stepping through the levels", () => {
 
 describe("the column an edit is stored under at a level", () => {
   it("keeps the three spirit overrides under the bottle's own editors", () => {
+    expect(columnFor("abv", "bottle")).toBe("ownProof");
+    expect(columnFor("abv", "label")).toBe("proof");
     expect(columnFor("tequilaClass", "bottle")).toBe("ownTequilaClass");
     expect(columnFor("brandyGrade", "bottle")).toBe("ownBrandyGrade");
     expect(columnFor("isNas", "bottle")).toBe("ginIsNas");
