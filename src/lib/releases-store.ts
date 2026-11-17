@@ -197,7 +197,7 @@ export async function saveRelease(
   ownerId: number,
   expressionId: number,
   releaseId: number | null,
-  fields: Partial<Omit<ReleaseRow, "id" | "ageStatement">>,
+  fields: Partial<Omit<ReleaseRow, "id">>,
 ): Promise<ReleaseSaved> {
   const gone = (message: string): ReleaseSaved => ({ ok: false, status: 404, code: "not_found", message });
   const [label] = await db

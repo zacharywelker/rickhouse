@@ -2,14 +2,14 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { BOTTLE_STATUSES, bottleImages, bottles, brands, categories, expressions, stores } from "@/db/schema";
+import { BOTTLE_STATUSES, bottleImages, bottles, brands, categories, expressionReleases, expressions, stores } from "@/db/schema";
 import { newBottleValues } from "@/lib/bottles/new-bottle";
 import { bottlePatchSchema } from "@/lib/bottles/patch-schema";
 import { updateBottle } from "@/lib/bottles/state";
 import { colaFilesForExpression, deleteColaFiles } from "@/lib/cola/store";
 import { mapDbError, pgCode } from "@/lib/db-errors";
 import { deleteStoredImage } from "@/lib/images";
-import { deleteStoredPhotos, releasePhotosOfLabel } from "@/lib/releases-store";
+import { deleteStoredPhotos, releaseById, releasePhotosOfLabel, saveRelease } from "@/lib/releases-store";
 import { ensureBrand } from "@/lib/expressions/brand";
 import { patchLabel } from "@/lib/expressions/label-patch";
 import { bulkLabelPatchBody } from "@/lib/expressions/label-patch-body";
@@ -19,7 +19,7 @@ import { expressionSchema } from "@/lib/expressions/schema";
 import { fieldErrorsOf, flavorMissing, labelValues, LabelRejected, linksFrom, writeLabel, type Tx } from "@/lib/expressions/save";
 import { parseReleaseRows, type ReleaseInput } from "@/lib/releases";
 import { derivedAge } from "./age-derive";
-import { ensureCooperage, ensureStore, takeBack } from "./reference-rows";
+import { ensureCooperage, ensureStore, ensureVintage, takeBack } from "./reference-rows";
 import { fieldGroupForCategory } from "@/lib/expressions/queries";
 
 /**
@@ -56,7 +56,8 @@ export type CreateOutcome =
     }
   | RowFailure;
 
-export type PatchOutcome = { ok: true } | RowFailure;
+/** `moved`: the label's values that went to the bottle (a bottle marked a single barrel or private selection late), as text, so the sheet can offer Undo. */
+export type PatchOutcome = { ok: true; moved?: Record<string, string> } | RowFailure;
 
 const failure = (kind: RowFailure["kind"], error: string, fieldErrors: Record<string, string> = {}): RowFailure => ({ ok: false, kind, error, fieldErrors });
 const invalidField = (field: string, message: string) => failure("invalid", message, { [field]: message });
@@ -123,6 +124,13 @@ const newRowSchema = z
         })
         .strict(),
     ]),
+    /** A vintage of the label: an existing one by id, or one to make by name (and the proof and age typed into the row). */
+    vintage: z
+      .union([
+        z.object({ id: posInt }).strict(),
+        z.object({ name: z.string().trim().min(1, "Enter a vintage.").max(160, "Keep this under 160 characters."), facts: z.record(z.string(), z.string()).optional() }).strict(),
+      ])
+      .optional(),
     bottle: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
@@ -137,7 +145,7 @@ type Spirit = { kind: CategoryKind; ginAged: boolean };
 export async function createRow(ownerId: number, raw: unknown): Promise<CreateOutcome> {
   const parsed = newRowSchema.safeParse(raw);
   if (!parsed.success) return invalidFrom(parsed.error.issues);
-  const { brand, label, bottle } = parsed.data;
+  const { brand, label, bottle, vintage } = parsed.data;
   // A new store or cooperage is named in the row; it is made inside the transaction below, with the label and bottle.
   const bottleBody = bottle ? { ...bottle } : undefined;
   const storeNamed = bottleBody ? takeName(bottleBody, "storeName", "storeId") : {};
@@ -209,6 +217,15 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
         const [group] = await tx.select({ group: categories.fieldGroup }).from(expressions).innerJoin(categories, eq(categories.id, expressions.categoryId)).where(eq(expressions.id, labelId)).limit(1);
         Object.assign(bottleBody, derivedAge(null, bottleBody, group?.group === "whiskey"));
         if (storeNamed.name !== undefined) bottleBody.storeId = (await ensureStore(tx, ownerId, storeNamed.name)).id;
+        // The bottle's vintage: one that is the label's, or one made here with what was typed into the row.
+        if (vintage) {
+          if ("id" in vintage) {
+            if ((await tx.$count(expressionReleases, and(eq(expressionReleases.id, vintage.id), eq(expressionReleases.expressionId, labelId)))) === 0) throw new Rejected(invalidField("releaseId", "That vintage is not one of this label's."));
+            bottleBody.releaseId = vintage.id;
+          } else {
+            bottleBody.releaseId = (await ensureVintage(tx, ownerId, labelId, vintage.name, vintage.facts ?? {})).id;
+          }
+        }
         const made = await newBottleValues(bottleBody, labelId, spirit, tx);
         if (!made.ok) throw new Rejected(failure("invalid", made.error, made.fieldErrors));
         if (made.values.storeId != null && (await tx.$count(stores, and(eq(stores.id, made.values.storeId), eq(stores.ownerId, ownerId)))) === 0) {
@@ -293,6 +310,8 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
   // Two things the phone's request does not take: a store named instead of picked, and which of the label's names the bottle shows.
   const body = isRecord(raw) ? { ...raw } : raw;
   let named: string | undefined;
+  let namedVintage: string | undefined;
+  let moveLiquid = false;
   let version: number | null | undefined;
   let life: z.infer<typeof lifeSchema> = {};
   if (isRecord(body)) {
@@ -312,6 +331,12 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
     const store = takeName(body, "storeName", "storeId");
     if (store.failure) return store.failure;
     named = store.name;
+    // Marking the bottle a single barrel or private selection can take the label's proof and age with it (see below).
+    moveLiquid = body.moveLiquidFromLabel === true && (body.isSingleBarrel === true || body.isSingleBarrelPick === true);
+    delete body.moveLiquidFromLabel;
+    const vintageName = takeName(body, "releaseName", "releaseId");
+    if (vintageName.failure) return vintageName.failure;
+    namedVintage = vintageName.name;
     if ("expressionNameId" in body) {
       const parsedVersion = posInt.nullable().safeParse(body.expressionNameId);
       if (!parsedVersion.success) return invalidField("expressionNameId", "Choose one of this label's names.");
@@ -334,8 +359,46 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
       source = ageYearsSource as typeof source;
     }
   }
-  const made: { store?: number } = {};
+  const made: { store?: number; vintage?: number } = {};
+  /** The label's values that move to this bottle, and the label they leave. Only for the label's one and only bottle. */
+  let moved: { labelId: number; values: Record<string, string> } | null = null;
   try {
+    if (moveLiquid && isRecord(body)) {
+      const [own] = await db
+        .select({ labelId: bottles.expressionId, releaseId: bottles.releaseId, proof: bottles.proof, ageYears: bottles.ageYears, ageMonths: bottles.ageMonths, ageDays: bottles.ageDays, ageStatement: bottles.ageStatement, tequilaClass: bottles.tequilaClass, brandyGrade: bottles.brandyGrade })
+        .from(bottles)
+        .where(and(eq(bottles.id, bottleId), eq(bottles.ownerId, ownerId)))
+        .limit(1);
+      if (own && (await db.$count(bottles, and(eq(bottles.expressionId, own.labelId), eq(bottles.ownerId, ownerId)))) === 1) {
+        const [label] = await db
+          .select({ proof: expressions.proof, ageYears: expressions.ageYears, ageMonths: expressions.ageMonths, ageDays: expressions.ageDays, ageStatement: expressions.ageStatement, tequilaClass: expressions.tequilaClass, brandyGrade: expressions.brandyGrade })
+          .from(expressions)
+          .where(and(eq(expressions.id, own.labelId), eq(expressions.ownerId, ownerId)))
+          .limit(1);
+        // A field the bottle already has, or that its vintage gives it, stays as it is: the move would change what the row shows.
+        const [vintage] = own.releaseId === null ? [] : await db.select({ proof: expressionReleases.proof, ageYears: expressionReleases.ageYears, ageMonths: expressionReleases.ageMonths, ageDays: expressionReleases.ageDays, ageStatement: expressionReleases.ageStatement }).from(expressionReleases).where(eq(expressionReleases.id, own.releaseId)).limit(1);
+        const has = (v: unknown) => v !== null && v !== undefined && String(v) !== "";
+        const values: Record<string, string> = {};
+        for (const [field, value] of Object.entries(label ?? {})) {
+          const taken = has((own as Record<string, unknown>)[field]) || has((vintage as Record<string, unknown> | undefined)?.[field]);
+          if (has(value) && !taken && !(field in body)) {
+            values[field] = String(value);
+            body[field] = String(value);
+          }
+        }
+        if (Object.keys(values).length > 0) moved = { labelId: own.labelId, values };
+      }
+    }
+    // A vintage named in the cell is made for the bottle's label (the one it is moving to, if it is moving), or found.
+    if (namedVintage !== undefined && isRecord(body)) {
+      const labelId = typeof body.expressionId === "number" ? body.expressionId : ((await db.select({ id: bottles.expressionId }).from(bottles).where(and(eq(bottles.id, bottleId), eq(bottles.ownerId, ownerId))).limit(1))[0]?.id ?? null);
+      if (labelId === null) return failure("gone", "That bottle is gone.");
+      // A label the bottle is moving to is checked to be the caller's before anything is made on it.
+      if ((await db.$count(expressions, and(eq(expressions.id, labelId), eq(expressions.ownerId, ownerId)))) === 0) return invalidField("expressionId", "Choose one of your labels.");
+      const vintage = await db.transaction((tx) => ensureVintage(tx, ownerId, labelId, namedVintage!));
+      body.releaseId = vintage.id;
+      if (vintage.created) made.vintage = vintage.id;
+    }
     if (named !== undefined && isRecord(body)) {
       const store = await db.transaction((tx) => ensureStore(tx, ownerId, named!));
       body.storeId = store.id;
@@ -357,6 +420,11 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
     if (!outcome.ok) {
       return await undo(made, failure("invalid", outcome.message, outcome.field ? { [outcome.field]: outcome.message } : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : {}));
     }
+    // The values now on the bottle are cleared from the label, which no longer has them as its defaults.
+    if (moved) {
+      await db.update(expressions).set(Object.fromEntries(Object.keys(moved.values).map((field) => [field, null]))).where(and(eq(expressions.id, moved.labelId), eq(expressions.ownerId, ownerId)));
+      return { ok: true, moved: moved.values };
+    }
     return { ok: true };
   } catch (error: unknown) {
     await undo(made, null);
@@ -365,8 +433,8 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
 }
 
 /** A failed patch gives back the store or cooperage it made for itself, then returns its failure. */
-async function undo<T extends RowFailure | null>(made: { store?: number; cooperage?: number }, outcome: T): Promise<T> {
-  if (made.store !== undefined || made.cooperage !== undefined) await db.transaction((tx) => takeBack(tx, made));
+async function undo<T extends RowFailure | null>(made: { store?: number; cooperage?: number; vintage?: number }, outcome: T): Promise<T> {
+  if (made.store !== undefined || made.cooperage !== undefined || made.vintage !== undefined) await db.transaction((tx) => takeBack(tx, made));
   return outcome;
 }
 
@@ -434,6 +502,31 @@ async function patchLabelWith(ownerId: number, labelId: number, body: unknown, m
   if (outcome.kind === "gone") return undo(made, failure("gone", "That label is gone."));
   if (outcome.kind === "invalid") return undo(made, invalidField(outcome.field, outcome.message));
   return undo(made, { ...failure("name_taken", `You already have ${outcome.existing.title}.`, { name: "Already taken." }), existing: outcome.existing });
+}
+
+// ---------------------------------------------------------------------------
+// A vintage's own proof and age
+// ---------------------------------------------------------------------------
+
+/** What a vintage cell can set: the proof and the age, as strings, a blank clearing it. */
+const VINTAGE_KEYS = ["proof", "ageYears", "ageMonths", "ageDays", "ageStatement"] as const;
+
+/**
+ * Changes one vintage's own proof and age: what a bottle on it shows when it has none of its own. Only these five
+ * fields can be sent (a vintage is renamed on its label's page). A vintage that is not the caller's is gone.
+ */
+export async function patchVintageRow(ownerId: number, releaseId: number, raw: unknown): Promise<PatchOutcome> {
+  if (!isRecord(raw)) return failure("invalid", "Nothing to change.");
+  const unknown = Object.keys(raw).filter((key) => !(VINTAGE_KEYS as ReadonlyArray<string>).includes(key));
+  if (unknown.length > 0) return invalidField(unknown[0]!, "A vintage's name is changed on its label's page.");
+  const release = await releaseById(releaseId, ownerId);
+  if (!release) return failure("gone", "That vintage is gone.");
+  const fields = Object.fromEntries(Object.entries(raw).map(([key, value]) => [key, value == null ? "" : String(value)]));
+  const saved = await saveRelease(ownerId, release.expressionId, releaseId, fields);
+  if (saved.ok) return { ok: true };
+  if (saved.status === 404) return failure("gone", saved.message);
+  const field = Object.keys(fields)[0] ?? "proof";
+  return invalidField(field, saved.message);
 }
 
 // ---------------------------------------------------------------------------

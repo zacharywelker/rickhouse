@@ -177,17 +177,25 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
       row = (await one(`SELECT is_cask_strength AS cask, is_bottled_in_bond AS bib FROM expressions WHERE id = $1`, label)) as { cask: boolean; bib: boolean };
       expect([row.cask, row.bib]).toEqual([false, false]);
     });
-    it("Single barrel / pick sets the bottle's two flags independently: a pick need not be a single barrel", async () => {
+    it("Single barrel and Private selection each set their own flag: a selection need not be a single barrel", async () => {
       const label = await fx.mkLabel(owner, catId["american-whiskey"]!, "Parity pick");
       const bottle = await fx.mkBottle(owner, label);
       const flags = async () => {
         const row = (await one(`SELECT is_single_barrel AS one, is_single_barrel_pick AS pick FROM bottles WHERE id = $1`, bottle)) as { one: boolean; pick: boolean };
         return [row.one, row.pick];
       };
-      for (const [choice, expected] of [["pick", [false, true]], ["single", [true, false]], ["both", [true, true]], ["", [false, false]]] as const) {
-        expect(await rows.patchBottleRow(owner, bottle, serverFields(EDITORS.singleBarrel, "singleBarrel", choice))).toEqual({ ok: true });
-        expect(await flags(), `choice "${choice}"`).toEqual(expected);
-      }
+      const set = async (single: string | null, pick: string | null) => {
+        const body = { ...(single === null ? {} : serverFields(EDITORS.singleBarrel, "singleBarrel", single)), ...(pick === null ? {} : serverFields(EDITORS.privateSelection, "privateSelection", pick)) };
+        expect(await rows.patchBottleRow(owner, bottle, body)).toEqual({ ok: true });
+      };
+      await set(null, "true");
+      expect(await flags(), "a selection alone").toEqual([false, true]);
+      await set("true", "false");
+      expect(await flags(), "a single barrel alone").toEqual([true, false]);
+      await set("true", "true");
+      expect(await flags(), "both").toEqual([true, true]);
+      await set("false", "false");
+      expect(await flags(), "neither").toEqual([false, false]);
     });
   });
 
@@ -195,7 +203,7 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
     it("creates a label with facts and a bottle with its own values, through the same mapping", async () => {
       const brand = `Parity Create ${Date.now()}`;
       const facts = { ...serverFields(EDITORS.isStraight, "isStraight", "true"), ...serverFields(EDITORS.designation, "designation", "cask"), ...serverFields(EDITORS.upc, "upc", "012345678905") };
-      const bottle = { ...serverFields(EDITORS.batch, "batch", "B524"), ...serverFields(EDITORS.acquisition, "acquisition", "gift"), ...serverFields(EDITORS.singleBarrel, "singleBarrel", "single") };
+      const bottle = { ...serverFields(EDITORS.batch, "batch", "B524"), ...serverFields(EDITORS.acquisition, "acquisition", "gift"), ...serverFields(EDITORS.singleBarrel, "singleBarrel", "true") };
       const out = await rows.createRow(owner, { brand: { name: brand }, label: { name: "Created", categoryId: catId["american-whiskey"], facts }, bottle });
       expect(out, JSON.stringify(out)).toMatchObject({ ok: true });
       if (!out.ok) return;

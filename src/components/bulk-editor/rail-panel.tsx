@@ -49,11 +49,8 @@ function Facts({ title, facts }: { title: string; facts: RailFact[] }) {
             <dt className="text-muted-foreground">{fact.label}</dt>
             <dd className="min-w-0 text-right tabular-nums">
               <span className="break-words">{fact.value}</span>
-              {fact.source === "own" ? (
-                <span className="block text-xs text-muted-foreground">
-                  This bottle&rsquo;s own{fact.alongside ? `; the label says ${fact.alongside}` : ""}
-                </span>
-              ) : null}
+              {fact.source === "own" ? <span className="block text-xs text-muted-foreground">This bottle&rsquo;s own</span> : null}
+              {fact.source === "vintage" ? <span className="block text-xs text-muted-foreground">From the vintage</span> : null}
             </dd>
           </React.Fragment>
         ))}
@@ -108,7 +105,7 @@ function OnYourShelf({ shelf }: { shelf: Shelf }) {
  * live region: it changes on every cell move, so a screen reader is not told of it. The sheet carries each row's
  * information for anyone who is not looking at the rail.
  */
-export const RailContent = React.memo(function RailContent({ rail, shelf, reach }: { rail: Rail | null; shelf: Shelf | null; reach: number | null }) {
+export const RailContent = React.memo(function RailContent({ rail, shelf, reach, changes }: { rail: Rail | null; shelf: Shelf | null; reach: number | null; /** For a value cell: what typing into it would change, in a sentence. */ changes?: string | null }) {
   if (rail === null) return <p className="text-sm text-muted-foreground">Click a cell to see its row here.</p>;
   const name = rail.label || rail.brand;
   const kindText = rail.kind === "new" ? "New row" : rail.kind === "label" ? `Label · ${rail.bottleCount ?? 0} ${rail.bottleCount === 1 ? "bottle" : "bottles"}` : "Bottle";
@@ -123,6 +120,7 @@ export const RailContent = React.memo(function RailContent({ rail, shelf, reach 
           {rail.category ? <p className="mt-1 text-sm text-muted-foreground">{rail.category}</p> : null}
         </div>
       </div>
+      {changes ? <p className="text-sm text-muted-foreground">{changes}</p> : null}
       {reach !== null ? (
         <p className="border border-foreground px-2 py-1.5 text-sm">
           Editing this changes {reach} {reach === 1 ? "bottle" : "bottles"}: it belongs to the label.

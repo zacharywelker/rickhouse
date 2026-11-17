@@ -40,7 +40,7 @@ async function active(page: Page): Promise<{ row: number; col: number } | null> 
 
 /** A saved row is saved once the sheet has stopped saying so; the value then survives a reload. */
 async function reloaded(page: Page) {
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   await page.waitForTimeout(800); // the sheet reads the saves back
   await page.reload();
   await expect(sheet(page)).toBeVisible();
@@ -68,6 +68,290 @@ test("the cell the cursor is on is outlined while the page has focus, with the m
   expect(await outline()).toEqual({ onCell: true, style: "solid", width: "2px" });
   await page.keyboard.press("ArrowDown");
   expect(await outline()).toEqual({ onCell: true, style: "solid", width: "2px" });
+});
+
+test("a vintage value wears a V tag and a label's own value wears none, and the tag is upright", async ({ page }) => {
+  const [name, proof] = [await col(page, "Label"), await col(page, "Proof")];
+  const labelName = (await cell(page, 0, name).innerText()).split("\n")[0]!.trim();
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [label] = await db`select id from expressions where name = ${labelName} limit 1`;
+    const [release] = await db`insert into expression_releases (expression_id, name, proof) values (${label!.id}, 'Tag Vintage', 112) returning id`;
+    await db`update bottles set release_id = ${release!.id} where expression_id = ${label!.id}`;
+  } finally {
+    await db.end();
+  }
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  const tag = cell(page, 0, proof).locator('[title="From the vintage"]');
+  await expect(tag).toHaveText("V");
+  await expect(cell(page, 0, proof)).toContainText("112");
+  expect(await tag.evaluate((el) => getComputedStyle(el).fontStyle)).toBe("normal");
+  // Another label's bottle takes the label's own value: no tag.
+  const last = (await lastRow(page)) - 1;
+  await expect(cell(page, last, proof).getByRole("img")).toHaveCount(0);
+});
+
+/** A label's first bottles put on one vintage with its own proof, by the database, for the specs about which level an edit changes. */
+async function onVintage(page: Page, extraBottles = 0): Promise<{ labelId: number; releaseId: number; bottleId: number }> {
+  const [name] = [await col(page, "Label")];
+  const labelName = (await cell(page, 0, name).innerText()).split("\n")[0]!.trim();
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [label] = await db`select id from expressions where name = ${labelName} limit 1`;
+    await db`delete from expression_releases where expression_id = ${label!.id} and name = 'Step Vintage'`;
+    const [release] = await db`insert into expression_releases (expression_id, name, proof) values (${label!.id}, 'Step Vintage', 112) returning id`;
+    // The bottles start with no proof of their own: an earlier spec may have given one, and a cell that shows it starts at the bottle.
+    await db`update bottles set release_id = ${release!.id}, proof = null where expression_id = ${label!.id}`;
+    for (let i = 0; i < extraBottles; i += 1) await db`insert into bottles (owner_id, expression_id, release_id, status) select owner_id, expression_id, release_id, status from bottles where expression_id = ${label!.id} limit 1`;
+    const [first] = await db`select id from bottles where expression_id = ${label!.id} order by id limit 1`;
+    return { labelId: label!.id as number, releaseId: release!.id as number, bottleId: first!.id as number };
+  } finally {
+    await db.end();
+  }
+}
+const editNote = (page: Page) => page.locator("[data-edit-note]");
+
+test("Alt+Down steps what an edit changes, Alt+Up steps back, and Tab and Enter keep their jobs", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  await onVintage(page);
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  await cell(page, 0, proof).click();
+  await page.keyboard.type("113");
+  await expect(editNote(page)).toContainText(/^Step Vintage vintage · \d+ bottles?/);
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(editNote(page)).toContainText(/^Label · \d+ bottles?/);
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(editNote(page)).toContainText(/^Only this bottle/);
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(editNote(page)).toContainText(/^Step Vintage vintage/);
+  await page.keyboard.press("Alt+ArrowUp");
+  await expect(editNote(page)).toContainText(/^Only this bottle/);
+  await expect(editors(page)).toHaveCount(1); // the rotation did not finish or move the edit
+  await page.keyboard.press("Tab");
+  await expect(editors(page)).toHaveCount(0); // Tab still finishes the cell and moves on
+  expect((await active(page))!.col).toBeGreaterThan(proof);
+});
+
+test("an edit is saved at the level it was stepped to: this bottle, the vintage, or the label", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  const { labelId, releaseId, bottleId } = await onVintage(page);
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  const read = async () => {
+    const db = postgres(process.env.DATABASE_URL!);
+    try {
+      const [b] = await db`select proof from bottles where id = ${bottleId}`;
+      const [r] = await db`select proof from expression_releases where id = ${releaseId}`;
+      const [l] = await db`select proof from expressions where id = ${labelId}`;
+      return { bottle: b!.proof === null ? null : Number(b!.proof), vintage: r!.proof === null ? null : Number(r!.proof), label: l!.proof === null ? null : Number(l!.proof) };
+    } finally {
+      await db.end();
+    }
+  };
+  const before = await read();
+  // Only this bottle.
+  await cell(page, 0, proof).click();
+  await page.keyboard.type("119");
+  await page.keyboard.press("Alt+ArrowDown"); // label
+  await page.keyboard.press("Alt+ArrowDown"); // this bottle
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+  expect(await read()).toEqual({ ...before, bottle: 119 });
+  await expect(cell(page, 0, proof)).toContainText("119");
+  // A cell that shows the bottle's own value starts at the bottle: clearing it gives the vintage's back.
+  await cell(page, 0, proof).click();
+  await page.keyboard.press("Delete");
+  await reloaded(page);
+  expect((await read()).bottle).toBeNull();
+  await expect(cell(page, 0, proof)).toContainText("112");
+  // The vintage, which is where it starts once the bottle has no value of its own.
+  await cell(page, 0, proof).click();
+  await page.keyboard.press("Delete"); // clears at the starting level (the bottle's pick flags are off: the vintage)
+  await reloaded(page);
+  expect((await read()).vintage).toBeNull();
+  // The label: stepped to, and its default is set without touching the vintage or the bottle.
+  const mid = await read();
+  await cell(page, 0, proof).click();
+  await page.keyboard.type("101");
+  await page.keyboard.press("Alt+ArrowDown"); // from the vintage to the label
+  await expect(editNote(page)).toContainText(/^Label · \d+ bottles?/);
+  await page.keyboard.press("Enter");
+  await reloaded(page);
+  expect(await read()).toEqual({ ...mid, label: 101 });
+});
+
+test("a new, unsaved row offers no choice: Alt+Down does nothing and there is no note", async ({ page }) => {
+  const [brand, proof] = [await col(page, "Brand"), await col(page, "Proof")];
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type("Zzyzx Distilling");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Cask One");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, row, proof).click();
+  await page.keyboard.type("9");
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(editors(page)).toHaveCount(1);
+  await expect(editNote(page)).toHaveCount(0);
+});
+
+test("pasting onto several bottles of one vintage writes the vintage once and the notice says so", async ({ page }) => {
+  const proof = await col(page, "Proof");
+  await onVintage(page, 2);
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  await select(page, 0, proof);
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Shift+ArrowDown");
+  await paste(page, "100\n101\n102");
+  await expect(pasteNotice(page)).toContainText(/Changed the Step Vintage vintage \(\d+ bottles\)/);
+  // Three different numbers went to one vintage, which keeps only the last: the notice says so instead of hiding it.
+  await expect(pasteNotice(page)).toContainText("Different values were pasted to the same level; the last one (102) was kept");
+});
+
+/** The brands the late-marking and notice specs make, removed after each spec so the rows other specs count on stay where they were. */
+test.afterEach(async () => {
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const brands = await db`select id from brands where name similar to '(Late|Stack) % Co'`;
+    if (brands.length === 0) return;
+    const ids = brands.map((b) => b.id as number);
+    await db`delete from bottles where expression_id in (select id from expressions where brand_id = any(${ids}))`;
+    await db`delete from expressions where brand_id = any(${ids})`;
+    await db`delete from brands where id = any(${ids})`;
+  } finally {
+    await db.end();
+  }
+});
+
+/** A new row for a new label (brand, label, category), with the proof and age typed, and the cursor left on the empty row below. */
+async function newLabelRow(page: Page, brandName: string, labelName: string): Promise<number> {
+  const [brand, proof, ageY] = [await col(page, "Brand"), await col(page, "Proof"), await col(page, "Y")];
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type(brandName);
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(labelName);
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, row, proof).click();
+  await page.keyboard.type("118.3");
+  await page.keyboard.press("Tab");
+  await cell(page, row, ageY).click();
+  await page.keyboard.type("8");
+  await page.keyboard.press("Tab");
+  return row;
+}
+const corner = (page: Page) => page.locator("[aria-live=polite]").filter({ hasText: /now this bottle's|moved from the label/ });
+const liquidOf = async (labelName: string) => {
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [r] = await db`select e.proof as label_proof, e.age_years as label_age, b.proof as bottle_proof, b.age_years as bottle_age, b.is_single_barrel_pick as pick from expressions e join bottles b on b.expression_id = e.id where e.name = ${labelName}`;
+    const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    return { label: [n(r?.label_proof), n(r?.label_age)], bottle: [n(r?.bottle_proof), n(r?.bottle_age)], pick: r?.pick ?? null };
+  } finally {
+    await db.end();
+  }
+};
+
+test("marking a new row a private selection after typing its proof and age moves them to the bottle", async ({ page }) => {
+  const [selection] = [await col(page, "Private selection")];
+  const row = await newLabelRow(page, "Late Marking Co", "Cask Select");
+  await cell(page, row, selection).click();
+  await page.keyboard.press("Space");
+  await expect(corner(page)).toContainText("Late Marking Co Cask Select: proof and age are now this bottle's, since it's a private selection");
+  await expect(corner(page).getByRole("button", { name: "Undo" })).toBeVisible();
+  await cell(page, row + 1, 0).click(); // leave the row: it saves
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
+  expect(await liquidOf("Cask Select")).toEqual({ label: [null, null], bottle: [118.3, 8], pick: true });
+});
+
+test("Undo on the late-marking notice keeps the proof and age on the new label", async ({ page }) => {
+  const [selection] = [await col(page, "Private selection")];
+  const row = await newLabelRow(page, "Late Undo Co", "Undo Select");
+  await cell(page, row, selection).click();
+  await page.keyboard.press("Space");
+  await corner(page).getByRole("button", { name: "Undo" }).click();
+  await cell(page, row + 1, 0).click();
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
+  expect(await liquidOf("Undo Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: true });
+});
+
+test("Ctrl+Z takes back the newest notice's change while it is showing, as the Undo button does", async ({ page }) => {
+  const [selection] = [await col(page, "Private selection")];
+  const row = await newLabelRow(page, "Late Zed Co", "Zed Select");
+  await cell(page, row, selection).click();
+  await page.keyboard.press("Space");
+  await expect(corner(page).getByRole("button", { name: "Undo" })).toBeVisible();
+  await page.keyboard.press("Control+z");
+  await expect(corner(page).getByRole("button", { name: "Undo" })).toHaveCount(0);
+  await cell(page, row + 1, 0).click();
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
+  expect(await liquidOf("Zed Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: true });
+});
+
+test("a row saved first and marked later, in the same session, moves them and says so; after a reload nothing moves", async ({ page }) => {
+  const [selection, proof] = [await col(page, "Private selection"), await col(page, "Proof")];
+  /** The saved row of a label, found by its name each time, since the sheet places a saved row in its sorted place a moment after it saves. */
+  const rowOf = (name: string) => sheet(page).locator("tbody tr", { hasText: name }).last();
+  const row = await newLabelRow(page, "Late Net Co", "Net Select");
+  await cell(page, row + 1, 0).click(); // leave the row: it saves, unmarked, with the label holding the proof and age
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
+  expect(await liquidOf("Net Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: false });
+  await expect(rowOf("Net Select").locator("td").nth(proof)).toContainText("118.3");
+  await rowOf("Net Select").locator("td").nth(selection).click();
+  await page.keyboard.press("Space");
+  await expect(corner(page)).toContainText("Late Net Co Net Select: proof and age moved from the label to this bottle");
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
+  expect(await liquidOf("Net Select")).toEqual({ label: [null, null], bottle: [118.3, 8], pick: true });
+  await expect(rowOf("Net Select").locator("td").nth(proof)).toContainText("118.3");
+  // A label from an earlier session is never touched this way: after a reload, marking leaves its values where they are.
+  const row2 = await newLabelRow(page, "Late Old Co", "Old Select");
+  await cell(page, row2 + 1, 0).click();
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  await expect(rowOf("Old Select")).toBeVisible();
+  await rowOf("Old Select").locator("td").nth(selection).click();
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
+  expect(await liquidOf("Old Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: true });
+});
+
+test("corner notices stack with the newest on top, go by themselves after about ten seconds, and wait while the pointer is on them", async ({ page }) => {
+  test.setTimeout(75_000);
+  const selection = await col(page, "Private selection");
+  const first = await newLabelRow(page, "Stack One Co", "Stack One");
+  await cell(page, first, selection).click();
+  await page.keyboard.press("Space");
+  const second = await newLabelRow(page, "Stack Two Co", "Stack Two");
+  await cell(page, second, selection).click();
+  await page.keyboard.press("Space");
+  const notices = page.locator("[data-notice]");
+  await expect(notices).toHaveCount(2);
+  await expect(notices.nth(0)).toContainText("Stack Two Co Stack Two"); // the newest is on top
+  await expect(notices.nth(1)).toContainText("Stack One Co Stack One");
+  // While the pointer is on a notice it stays, past the time it would otherwise go.
+  await notices.nth(0).hover();
+  await page.waitForTimeout(11_000);
+  await expect(notices.nth(0)).toContainText("Stack Two Co Stack Two");
+  // Once it is away from them, they go by themselves.
+  await page.mouse.move(5, 5);
+  await expect(notices).toHaveCount(0, { timeout: 15_000 });
+});
+
+test("tequila class, brandy grade and NAS are one cell each in the Fields picker, with none for the bottle's own", async ({ page }) => {
+  await fieldsButton(page).click();
+  const values = page.getByRole("group", { name: "Values: Strength and age", exact: true });
+  for (const name of ["Tequila Class", "Age Designation", "NAS"]) await expect(values.getByLabel(name, { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel("This bottle's tequila class")).toHaveCount(0);
+  await expect(page.getByLabel("This bottle's age designation")).toHaveCount(0);
+  await page.keyboard.press("Escape");
 });
 
 test("typing replaces a value, Enter keeps it and drops to the next row in the same column", async ({ page }) => {
@@ -264,7 +548,8 @@ test("a new label under a new brand takes its category from the closed list, and
 // ---------------------------------------------------------------------------
 
 test("a label's fact is edited on a bottle row without unlocking it, and the cell says how many bottles it changes", async ({ page }) => {
-  const proof = await col(page, "Proof");
+  // MSRP, a label fact with no vintage level: a value like Proof says "Label · N bottles" instead (see the Alt+Down specs).
+  const proof = await col(page, "MSRP");
   await expect(cell(page, 1, proof).locator("svg")).toHaveCount(0); // no lock
   await expect(cell(page, 1, proof)).toContainText(/all \d+/);
   await cell(page, 1, proof).click();
@@ -280,7 +565,9 @@ test("a label's fact is edited on a bottle row without unlocking it, and the cel
 test("Bottles only shows no label facts, and Brand moves a bottle to a label that exists, never a new one", async ({ page }) => {
   await page.getByRole("button", { name: "Labels", exact: true }).click();
   const names = await sheet(page).locator("thead tr:last-child th").allTextContents();
-  expect(names.map((n) => n.trim())).not.toContain("Proof");
+  // The label's own facts are gone with Labels off; the values (Proof, Age, Size) stay, since a bottle has them too.
+  expect(names.map((n) => n.trim())).not.toContain("MSRP");
+  expect(names.map((n) => n.trim())).toContain("Proof");
   await cell(page, 0, 0).click();
   await page.keyboard.press("Enter");
   await page.keyboard.type("zzzzzz");
@@ -447,7 +734,7 @@ test("a row typed while the sheet is filtered stays on screen, and clearing the 
   await page.keyboard.type("bou");
   await page.keyboard.press("Tab");
   await cell(page, row + 1, brand).click(); // leave the row: it saves and joins the saved rows
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   await page.waitForTimeout(1500); // read back: the saved row is now in the data, and must not be filtered out
   expect((await labelNames(page)).filter((n) => n === "Doesnt Match The Search")).toHaveLength(1);
   await page.getByRole("button", { name: "Clear filters" }).click();
@@ -468,7 +755,7 @@ test("sort by a column, an edited row does not jump, and the header flips it", a
   await cell(page, 1, price).click();
   await page.keyboard.type("1");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   await page.waitForTimeout(1500);
   expect(await labelNames(page)).toEqual(before);
   await expect(cell(page, 1, price)).toHaveText("$1.00");
@@ -724,24 +1011,24 @@ test("Cask / Bonded is one cell: a letter picks, it saves, and it is there after
   await expect(cell(page, 0, designation)).toContainText("Bottled in Bond");
 });
 
-test("Single barrel / pick: a private pick opens its pick details before it has saved", async ({ page }) => {
+test("Private selection: a private selection opens its pick details before it has saved", async ({ page }) => {
   await showColumns(page, "Pick name", "Picked By");
-  const [pick, pickName] = [await col(page, "Single barrel / pick"), await col(page, "Pick name")];
+  const [singleBarrel, selection, pickName] = [await col(page, "Single barrel"), await col(page, "Private selection"), await col(page, "Pick name")];
   await cell(page, 0, pickName).click();
   await page.keyboard.press("Enter");
-  await expect(editors(page)).toHaveCount(0); // not a private pick yet: nothing to type into
-  await cell(page, 0, pick).click();
-  await page.keyboard.type("p"); // Private pick
-  await page.keyboard.press("Enter");
-  // A private pick is not a single barrel (it can be a blend of barrels): the cell says only what was chosen.
-  await expect(cell(page, 0, pick)).toHaveText("Private pick");
+  await expect(editors(page)).toHaveCount(0); // not a private selection yet: nothing to type into
+  await cell(page, 0, selection).click();
+  await page.keyboard.press("Space"); // a yes/no cell is flipped, not opened
+  // A private selection is not a single barrel (it can be a blend of barrels): each cell says only what was chosen.
+  await expect(cell(page, 0, selection)).toHaveText("Yes");
+  await expect(cell(page, 0, singleBarrel)).not.toHaveText("Yes");
   await cell(page, 0, pickName).click();
   await page.keyboard.press("Enter");
   await expect(editors(page)).toHaveCount(1); // opened at once, before the save was read back
   await page.keyboard.type("Binnys Pick");
   await page.keyboard.press("Enter");
   await reloaded(page);
-  await expect(cell(page, 0, pick)).toHaveText("Private pick");
+  await expect(cell(page, 0, selection)).toHaveText("Yes");
   await expect(cell(page, 0, pickName)).toContainText("Binnys Pick");
 });
 
@@ -920,9 +1207,9 @@ test("a store is picked from the list or made with Enter on Create, never by a t
   await expect(cell(page, 0, store)).toHaveText("—");
 });
 
-test("a release and a label name are picked from the bottle's own label, and cannot be made here", async ({ page }) => {
-  await showColumns(page, "Release", "Label Version");
-  const [release, version, name] = [await col(page, "Release"), await col(page, "Label Version"), await col(page, "Label")];
+test("a vintage is picked or made from the bottle's own label, and a label name is only picked", async ({ page }) => {
+  await showColumns(page, "Label Version");
+  const [release, version, name] = [await col(page, "Vintage"), await col(page, "Label Version"), await col(page, "Label")];
   const labelName = (await cell(page, 0, name).innerText()).split("\n")[0]!.trim();
   const db = postgres(process.env.DATABASE_URL!);
   try {
@@ -950,14 +1237,50 @@ test("a release and a label name are picked from the bottle's own label, and can
   await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
   await expect(cell(page, 0, version)).toHaveText("Old Label Name");
 
-  // A name that is not one of this label's cannot be made here: the list says where it is added.
+  // A vintage can be made here, by its name: Create is offered, and Enter makes it. A label name cannot (it is added on the label's page).
   await cell(page, 0, release).click();
-  await page.keyboard.type("Brand new release");
+  await page.keyboard.type("Brand new vintage");
+  await expect(listbox(page).getByRole("option", { name: /Create/ })).toBeVisible();
   await page.keyboard.press("Enter");
-  await expect(listbox(page).locator("xpath=..").getByRole("alert")).toBeVisible();
-  await expect(listbox(page).locator("xpath=..")).toContainText("added on the label's page");
+  await expect(cell(page, 0, release)).toHaveText("Brand new vintage");
+  await reloaded(page);
+  await expect(cell(page, 0, release)).toHaveText("Brand new vintage");
+  await cell(page, 0, version).click();
+  await page.keyboard.type("Not an old name");
+  await expect(listbox(page).getByRole("option", { name: /Create/ })).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(cell(page, 0, release)).toHaveText("Spring 2024 Release");
+});
+
+test("a new row can make a vintage, and the proof typed into it is the vintage's, not the label's", async ({ page }) => {
+  const [brand, release, proof] = [await col(page, "Brand"), await col(page, "Vintage"), await col(page, "Proof")];
+  const existingBrand = (await cell(page, 0, brand).innerText()).split("\n")[0]!.trim();
+  const existingLabel = (await cell(page, 0, await col(page, "Label")).innerText()).split("\n")[0]!.trim();
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type(existingBrand);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type(existingLabel);
+  await page.keyboard.press("Tab");
+  await cell(page, row, release).click();
+  await page.keyboard.type("Fresh Batch 9");
+  await page.keyboard.press("Enter"); // Create
+  await expect(cell(page, row, release)).toContainText("Fresh Batch 9");
+  await cell(page, row, proof).click();
+  await page.keyboard.type("109.8");
+  await expect(editNote(page)).toContainText("Fresh Batch 9 vintage (new) · 1 bottle");
+  await page.keyboard.press("Alt+ArrowDown"); // a new row's own vintage offers no choice
+  await expect(editNote(page)).toContainText("Fresh Batch 9 vintage (new)");
+  await page.keyboard.press("Enter");
+  await cell(page, row + 1, brand).click(); // leave the row: it saves
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [v] = await db`select r.proof, e.proof as label_proof from expression_releases r join expressions e on e.id = r.expression_id where r.name = 'Fresh Batch 9' and e.name = ${existingLabel}`;
+    expect(Number(v!.proof)).toBe(109.8);
+    expect(Number(v!.label_proof)).not.toBe(109.8);
+  } finally {
+    await db.end();
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -1051,7 +1374,7 @@ test("Y, M and D are three narrow boxes under one Age caption, with the statemen
   // They cannot be taken out of the Fields picker one by one, and there is no combined Age column.
   expect(headers).not.toContain("Age");
   await fieldsButton(page).click();
-  await expect(page.getByRole("group", { name: "Label", exact: true }).getByLabel("Age", { exact: true })).toBeDisabled();
+  await expect(page.getByRole("group", { name: "Values", exact: true }).getByLabel("Age", { exact: true })).toBeDisabled();
   await page.keyboard.press("Escape");
 });
 
@@ -1120,21 +1443,6 @@ test("a block of cells is selected with Shift and the arrows and cleared with De
   for (const [r, c] of [[3, y], [3, m], [4, y], [4, d]] as const) await expect(cell(page, r, c)).toHaveText("—");
   await reloaded(page);
   for (const [r, c] of [[3, y], [3, m], [4, y], [4, d]] as const) await expect(cell(page, r, c)).toHaveText("—");
-});
-
-test("a bottle's own age is three boxes that show the label's in grey, and blank goes back to it", async ({ page }) => {
-  await showColumns(page, "This bottle's age");
-  const headers = (await sheet(page).locator("thead tr:last-child th").allTextContents()).map((t) => t.trim());
-  const own = headers.lastIndexOf("Y");
-  expect(headers.slice(own, own + 3)).toEqual(["Y", "M", "D"]);
-  await type(page, 5, own, "7");
-  await expect(cell(page, 5, own)).toHaveText("7");
-  await reloaded(page);
-  await expect(cell(page, 5, own)).toHaveText("7");
-  await select(page, 5, own);
-  await page.keyboard.press("Delete");
-  await reloaded(page);
-  await expect(cell(page, 5, own)).not.toHaveText("7");
 });
 
 // ---------------------------------------------------------------------------

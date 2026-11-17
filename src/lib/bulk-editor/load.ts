@@ -7,7 +7,7 @@ import { DEFAULT_STATUSES } from "@/lib/bottles/filters";
 import { parseLabelFilters } from "@/lib/expressions/filters";
 import { categoryFieldGroups, categoryKindsById, queryExpressions } from "@/lib/expressions/queries";
 import type { CategoryChoice } from "./drafts";
-import type { SheetBottle, SheetLabel, SheetPhoto } from "./sheet";
+import type { SheetBottle, SheetLabel, SheetPhoto, SheetVintage } from "./sheet";
 import type { Option } from "@/lib/admin/types";
 import type { RefData } from "./references";
 
@@ -34,6 +34,8 @@ export async function loadSheet(ownerId: number): Promise<{
   linkOptions: { distilleryLinks: Option[]; mashbillLinks: Option[]; finishLinks: Option[] };
   /** What the picking cells choose from: the account's stores and cooperages, and each label's own releases and older names. */
   refs: RefData;
+  /** Each vintage's own proof and age (a vintage is a known release), by label then name: what a bottle on it shows. */
+  vintages: SheetVintage[];
 }> {
   const [{ rows: labels }, bottleRows, kinds, brandOptions, categoryOptions, groups, bottlePhotos, labelPhotos, storeOptions, cooperageOptions, releaseRows, nameRows, distilleryOptions, mashbillOptions, finishOptions] = await Promise.all([
     queryExpressions({ ...parseLabelFilters({}), pageSize: EVERYTHING }, ownerId),
@@ -98,7 +100,17 @@ export async function loadSheet(ownerId: number): Promise<{
     REFERENCE_OPTION_LOADERS.stores(ownerId),
     REFERENCE_OPTION_LOADERS.cooperages(ownerId),
     db
-      .select({ id: expressionReleases.id, labelId: expressionReleases.expressionId, name: expressionReleases.name })
+      .select({
+        id: expressionReleases.id,
+        labelId: expressionReleases.expressionId,
+        name: expressionReleases.name,
+        proof: expressionReleases.proof,
+        ageYears: expressionReleases.ageYears,
+        ageMonths: expressionReleases.ageMonths,
+        ageDays: expressionReleases.ageDays,
+        ageStatement: expressionReleases.ageStatement,
+        ageYearsSource: expressionReleases.ageYearsSource,
+      })
       .from(expressionReleases)
       .innerJoin(expressions, eq(expressions.id, expressionReleases.expressionId))
       .where(eq(expressions.ownerId, ownerId))
@@ -129,6 +141,7 @@ export async function loadSheet(ownerId: number): Promise<{
     groups,
     photos: { bottles: photoMap(bottlePhotos), labels: photoMap(labelPhotos) },
     linkOptions: { distilleryLinks: distilleryOptions, mashbillLinks: mashbillOptions, finishLinks: finishOptions },
+    vintages: releaseRows.map((r) => ({ ...r })),
     refs: {
       stores: storeOptions.map((o) => ({ id: o.value, name: o.label, ...(o.hint ? { hint: o.hint } : {}) })),
       cooperages: cooperageOptions.map((o) => ({ id: o.value, name: o.label })),

@@ -247,21 +247,30 @@ function generatedLabelColumns(): Generated[] {
 // --- the bottle's ---
 
 /** Bottle fields made by hand elsewhere, or covered by a composite cell. */
-const HAND_MADE_BOTTLE = new Set(["ageYears", "ageMonths", "ageDays", "ageStatement", "status", "storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName", "isSingleBarrel", "isSingleBarrelPick"]);
+const HAND_MADE_BOTTLE = new Set(["ageYears", "ageMonths", "ageDays", "ageStatement", "status", "storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName"]);
 /** A bottle's field of the same name as a label's (its own value, overriding the label's) gets its own column id. */
 const BOTTLE_ID: Readonly<Record<string, string>> = {
   bottleCount: "releaseBottleCount",
   barrelFilledOn: "ownBarrelFilledOn",
   bottledOn: "ownBottledOn",
+  isSingleBarrel: "singleBarrel",
+  isSingleBarrelPick: "privateSelection",
   tequilaClass: "ownTequilaClass",
   brandyGrade: "ownBrandyGrade",
 };
 const BOTTLE_HEADER: Readonly<Record<string, string>> = {
+  releaseId: "Vintage",
+  isSingleBarrel: "Single barrel",
+  isSingleBarrelPick: "Private selection",
   barrelFilledOn: "This bottle's distilled / barrel filled",
   bottledOn: "This bottle's bottled date",
   tequilaClass: "This bottle's tequila class",
   brandyGrade: "This bottle's age designation",
 };
+
+/** The bottle columns that are part of how a bottle is entered, so they are not hidden until switched on. */
+const SHOWN_BY_DEFAULT: ReadonlySet<string> = new Set(["releaseId", "singleBarrel", "privateSelection"]);
+const shown = (column: SheetColumn): SheetColumn => (SHOWN_BY_DEFAULT.has(column.id) ? { ...column, defaultHidden: false } : column);
 
 function generatedBottleColumns(): Generated[] {
   const out: Generated[] = [];
@@ -276,12 +285,12 @@ function generatedBottleColumns(): Generated[] {
         // On a bottle moved to another label, neither a release nor a label name carries over: the server clears them.
         const read = spec.name === "releaseId" ? (row: SheetRow) => (row.moved ? null : row.bottle?.releaseId) : (row: SheetRow) => (row.moved ? null : row.bottle?.expressionNameId);
         const editor = referenceEditor(spec, id, kind, "bottle", read, (row, kinds) => releasedTo(row) !== false && reason(row, kinds) === null);
-        out.push({ column: referenceColumn(spec, id, spec.label, "bottle", section.title, editor, reason), editor });
+        out.push({ column: shown(referenceColumn(spec, id, BOTTLE_HEADER[spec.name] ?? spec.label, "bottle", section.title, editor, reason)), editor });
         continue;
       }
       if (!isSimple(spec)) continue;
       const editor = editorFrom(spec, id, "bottle", (row) => row.bottle, (row, kinds) => reason(row, kinds) === null);
-      out.push({ column: columnFrom(spec, id, BOTTLE_HEADER[spec.name] ?? spec.label, "bottle", section.title, editor, reason), editor });
+      out.push({ column: shown(columnFrom(spec, id, BOTTLE_HEADER[spec.name] ?? spec.label, "bottle", section.title, editor, reason)), editor });
     }
   }
   return out;
@@ -294,14 +303,6 @@ const DESIGNATIONS = [
   { value: "cask", label: "Cask Strength" },
   { value: "bib", label: "Bottled in Bond" },
   { value: "both", label: "Cask Strength · Bottled in Bond" },
-] as const;
-
-/** The four ways the two flags can stand: a private pick need not be a single barrel (it can be a blend of barrels), and a single barrel need not be a pick. */
-const PICKS = [
-  { value: "", label: "—" },
-  { value: "single", label: "Single barrel" },
-  { value: "pick", label: "Private pick" },
-  { value: "both", label: "Single barrel · Private pick" },
 ] as const;
 
 /** Cask Strength and Bottled in Bond, as one choice: how the shelf is entered. Both are the label's flags. */
@@ -330,26 +331,6 @@ export function designationEditor(): CellEditor {
       return null;
     },
     display: (value) => (value === "" ? DASH : { text: DESIGNATIONS.find((d) => d.value === value)?.label ?? value }),
-  };
-}
-
-/** Single barrel and Private pick, as one choice. They are two separate flags of the bottle, so all four combinations are choices. */
-export function singleBarrelEditor(): CellEditor {
-  const spec: FieldSpec = { kind: "select", name: "singleBarrel", label: "Single barrel / pick", options: PICKS };
-  return {
-    column: "singleBarrel",
-    field: "singleBarrel",
-    scope: "bottle",
-    spec,
-    applies: (row, kinds) => row.bottle !== null && bottleFieldNotUsed("isSingleBarrel", labelFacts(row, kinds)) === null,
-    typeToReplace: false,
-    fieldsOf: (value) => ({ isSingleBarrel: value === "single" || value === "both", isSingleBarrelPick: value === "pick" || value === "both" }),
-    initial: (row) => {
-      const single = row.bottle?.isSingleBarrel === true;
-      const pick = row.bottle?.isSingleBarrelPick === true;
-      return single && pick ? "both" : pick ? "pick" : single ? "single" : "";
-    },
-    display: (value) => (value === "" ? DASH : { text: PICKS.find((p) => p.value === value)?.label ?? value }),
   };
 }
 

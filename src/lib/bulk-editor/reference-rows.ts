@@ -1,7 +1,8 @@
 import "server-only";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
-import { bottles, cooperages, expressions, stores } from "@/db/schema";
+import { bottles, cooperages, expressionReleases, expressions, stores } from "@/db/schema";
+import { parseReleaseRow } from "@/lib/releases";
 import type { Tx } from "@/lib/expressions/save";
 import { slugify } from "@/lib/utils";
 
@@ -59,11 +60,33 @@ export async function ensureCooperage(tx: Tx, ownerId: number, name: string): Pr
  * Takes back a store or cooperage that a save made and then failed to use, unless something has used it since.
  * Needed for the patches, which change a bottle or a label in a transaction of their own.
  */
-export async function takeBack(tx: Tx, made: { store?: number; cooperage?: number }): Promise<void> {
+export async function takeBack(tx: Tx, made: { store?: number; cooperage?: number; vintage?: number }): Promise<void> {
+  if (made.vintage !== undefined) {
+    await tx.delete(expressionReleases).where(and(eq(expressionReleases.id, made.vintage), sql`not exists (select 1 from ${bottles} where ${bottles.releaseId} = ${expressionReleases.id})`));
+  }
   if (made.store !== undefined) {
     await tx.delete(stores).where(and(eq(stores.id, made.store), sql`not exists (select 1 from ${bottles} where ${bottles.storeId} = ${stores.id})`));
   }
   if (made.cooperage !== undefined) {
     await tx.delete(cooperages).where(and(eq(cooperages.id, made.cooperage), sql`not exists (select 1 from ${expressions} where ${expressions.cooperageId} = ${cooperages.id})`));
   }
+}
+
+/**
+ * The vintage (a label's known release) of this name on this label, made if it is new, with the proof and age typed
+ * into the row that makes it. Safe when two saves of the same new vintage run at once (the advisory lock on its name).
+ * A vintage that exists already keeps what it has: the values typed are not written over it.
+ */
+export async function ensureVintage(tx: Tx, ownerId: number, labelId: number, name: string, facts: Readonly<Record<string, string>> = {}): Promise<{ id: number; created: boolean }> {
+  // The label must be the caller's: a vintage is never made on someone else's label, whatever id was sent.
+  if ((await tx.$count(expressions, and(eq(expressions.id, labelId), eq(expressions.ownerId, ownerId)))) === 0) throw new Error("That label is not one of your labels.");
+  await lock(tx, "vintage", ownerId, `${labelId}:${name}`);
+  const [found] = await tx.select({ id: expressionReleases.id }).from(expressionReleases).where(and(eq(expressionReleases.expressionId, labelId), eq(expressionReleases.name, name))).limit(1);
+  if (found) return { id: found.id, created: false };
+  const parsed = parseReleaseRow({ name, ...facts });
+  if (parsed.error !== null) throw new Error(parsed.error);
+  const { id: _ignored, ...values } = parsed.value;
+  const [last] = await tx.select({ position: sql<number>`coalesce(max(${expressionReleases.position}), -1)` }).from(expressionReleases).where(eq(expressionReleases.expressionId, labelId));
+  const [row] = await tx.insert(expressionReleases).values({ ...values, expressionId: labelId, position: (last?.position ?? -1) + 1 }).returning({ id: expressionReleases.id });
+  return { id: row!.id, created: true };
 }

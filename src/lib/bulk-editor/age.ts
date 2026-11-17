@@ -7,6 +7,7 @@ import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { formatNumeric } from "@/lib/utils";
 import { hasAge } from "./age-derive";
 import { cellFromText, editorFrom, type Generated, type Kinds, type Simple } from "./fields";
+import { valueCell } from "./value-cells";
 import type { Cell, SheetColumn, SheetContext, SheetLabel, SheetRow } from "./sheet";
 
 /**
@@ -58,11 +59,14 @@ function labelLock(field: Field, label: SheetLabel): string | null {
 }
 
 /** The minimum a whiskey implies, or the youngest age its statement gives, when nothing is stored: shown, never saved. */
-function inferred(label: SheetLabel, kinds: Kinds): Cell | null {
+export function inferred(label: SheetLabel, kinds: Kinds): Cell | null {
   if (label.fieldGroup !== "whiskey" || hasAge(label) || label.isNas) return null;
   const age = whiskeyAge(label, (kinds[label.categoryId] as CategoryKind | undefined) ?? "other");
   return age.groupingYears === null ? null : { text: formatNumeric(String(age.groupingYears)), muted: true, inferred: true, ...(age.explanation ? { note: age.explanation } : {}) };
 }
+
+/** The age a designation implies for a label with none stored, or null (what the resolver falls back to, last). */
+export const inferredAge = inferred;
 
 function labelCell(field: Field, row: SheetRow, kinds: Kinds): Cell {
   if (labelHidden(row, kinds).has(field)) return { ...DASH, note: "Not used for this spirit" };
@@ -79,12 +83,13 @@ function labelAgeColumn(field: Field): Generated {
     id: field,
     label: field === "ageStatement" ? "Age statement" : SHORT[field],
     sortLabel: field === "ageYears" ? "Age" : undefined,
-    group: "label",
+    // One Age for the row: the bottle's, its vintage's or the label's, shown in every view (`resolve.ts`).
+    group: "value",
     align: field === "ageStatement" ? undefined : "right",
     ...(field === "ageStatement" ? {} : { always: true, band: "Age", width: 56 }),
     // One entry in the Fields picker for the three.
     ...(field === "ageMonths" || field === "ageDays" ? { with: "ageYears" } : {}),
-    cell: (row, ctx) => labelCell(field, row, ctx.kinds),
+    cell: (row, ctx) => (labelHidden(row, ctx.kinds).has(field) ? { ...DASH, note: "Not used for this spirit" } : valueCell(field, row, ctx, field === "ageStatement" ? (v) => v : (v) => formatNumeric(v))),
   };
   return { column, editor };
 }
