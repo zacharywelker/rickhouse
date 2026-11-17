@@ -135,7 +135,7 @@ describe("the detail filters", () => {
     expect(ids({ ingredients: ["Cherry", "Nothing here"] })).toEqual(["b1"]); // any of them
   });
   it("filters by proof range on the proof a row has: its bottle's own, else its label's", () => {
-    expect(proofOf(rs[0]!)).toBe(104);
+    expect(proofOf(rs[0]!, { kinds: {} })).toBe(104);
     expect(ids({ proof: { min: 100, max: null } })).toEqual(["b1"]); // b1's bottle is 104 though its label says 100
     expect(ids({ proof: { min: 85, max: 95 } })).toEqual(["b2"]);
     expect(ids({ proof: { min: null, max: 95 } })).toEqual(["b2"]); // a row with no proof is out, as in the table
@@ -198,7 +198,7 @@ describe("sorting the age and link columns", () => {
     expect(keys(sortRows(rs, { column: "finishes", desc: true }, base, ctx))).toEqual(["b3", "b1", "b2"]);
   });
   it("says these columns can be sorted", () => {
-    for (const id of ["ageYears", "ownAgeYears", "distilleries", "mashbills", "finishes"]) expect(isSortable(id)).toBe(true);
+    for (const id of ["ageYears", "sizeMl", "proof", "abv", "distilleries", "mashbills", "finishes"]) expect(isSortable(id)).toBe(true);
     expect(isSortable("designation")).toBe(false);
   });
 });

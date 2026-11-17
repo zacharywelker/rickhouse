@@ -18,7 +18,7 @@ describe("editorFor", () => {
   const labelsOnly = { labels: true, bottles: false };
 
   it("lets a bottle's own plain cells be edited on a bottle row", () => {
-    for (const id of ["pricePaid", "dateAcquired", "releaseYear", "location", "notes", "ownProof", "ownSize"]) {
+    for (const id of ["pricePaid", "dateAcquired", "releaseYear", "location", "notes"]) {
       expect(editorFor(col(id), both, bottleRow())?.column).toBe(id);
     }
   });

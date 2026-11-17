@@ -31,7 +31,7 @@ import {
   stores,
   tags,
 } from "@/db/schema";
-import { HOME_COUNTRY, formatPlace, normalizeLocation, normalizePlace } from "@/lib/places";
+import { HOME_COUNTRY, formatPlace, isScotchCountry, normalizeLocation, normalizePlace } from "@/lib/places";
 import { otherNamesText, parseOtherNames } from "@/lib/other-names";
 import { syncDistilleryNames } from "@/lib/other-names-store";
 import { resolveSlug } from "@/lib/slug";
@@ -668,7 +668,7 @@ const distilleriesConfig: ResourceConfig = {
       slug,
       companyId: input.companyId,
       ...normalizePlace(input),
-      region: input.region,
+      region: isScotchCountry(input.country) ? input.region : null,
       dspNumber: ["us", "usa", "united states", "united states of america"].includes(input.country.trim().toLocaleLowerCase()) ? input.dspNumber : null,
       nomNumber: ["mx", "mexico", "méxico"].includes(input.country.trim().toLocaleLowerCase()) ? input.nomNumber : null,
       founded: input.founded,
@@ -1453,12 +1453,16 @@ export const RESOURCES: Record<ResourceKey, ResourceConfig> = {
 
 async function brandOptions(ownerId: number): Promise<Option[]> {
   const rows = await db
-    .select({ value: brands.id, label: brands.name, hint: companies.name })
+    .select({ value: brands.id, label: brands.name, companyId: brands.companyId, hint: companies.name })
     .from(brands)
     .leftJoin(companies, eq(brands.companyId, companies.id))
     .where(eq(brands.ownerId, ownerId))
     .orderBy(asc(brands.name));
-  return rows.map((r) => ({ value: r.value, label: r.label, ...(r.hint ? { hint: r.hint } : {}) }));
+  return rows.map((r) => ({
+    value: r.value, label: r.label,
+    ...(r.companyId !== null ? { companyId: r.companyId } : {}),
+    ...(r.hint ? { hint: r.hint } : {}),
+  }));
 }
 
 async function finishOptions(ownerId: number): Promise<Option[]> {
@@ -1515,10 +1519,11 @@ async function mashbillOptions(ownerId: number): Promise<Option[]> {
     .orderBy(asc(mashbills.name), asc(mashbills.id));
 
   return rows.map((r) => {
-    const recipe = describeMashbill(parseRecipe(r.recipe));
+    const grains = parseRecipe(r.recipe);
+    const recipe = describeMashbill(grains);
     const label = mashbillTitle(r, recipe || "No recipe");
     const hint = [r.isGeneric ? "Generic" : label !== recipe ? recipe : "", !r.isGeneric ? r.style : null].filter(Boolean).join(" · ");
-    return { value: r.value, label, ...(hint ? { hint } : {}) };
+    return { value: r.value, label, grains, ...(hint ? { hint } : {}) };
   });
 }
 

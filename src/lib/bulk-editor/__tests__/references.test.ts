@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { editorFor, EDITORS } from "../editors";
-import { decodeRef, encodePick, encodeRef, refCandidates, refNames, refServerFields, type RefData } from "../references";
+import { decodeRef, encodePick, encodeRef, refCandidates, refNames, refServerFields, REF_CAN_CREATE, REF_NO_CREATE, type RefData } from "../references";
 import { applyEdits } from "../changes";
 import { bottlePatchBody, createBody } from "../save";
 import { SHEET_COLUMNS, type SheetBottle, type SheetColumn, type SheetLabel, type SheetRow } from "../sheet";
@@ -84,5 +84,13 @@ describe("the picking cells", () => {
   it("go in a new row's request, the store under the bottle and the cooperage under the label's facts", () => {
     const draft = { key: "d1", brand: { kind: "existing", id: 1, name: "Four Roses" }, label: { kind: "new", name: "New" }, categoryId: 5 } as const;
     expect(createBody(draft, { store: "new:Binny's", cooperageId: "id:9" }, true)).toMatchObject({ bottle: { storeName: "Binny's" }, label: { facts: { cooperageId: 9 } } });
+  });
+});
+
+describe("a vintage can be made from the bottle row", () => {
+  it("is offered Create, like a store, and is sent to the server by name", () => {
+    expect(REF_CAN_CREATE.release).toBe(true);
+    expect(REF_NO_CREATE.release).toBeUndefined();
+    expect(refServerFields("releaseId", "new:2025A")).toEqual({ releaseName: "2025A" });
   });
 });

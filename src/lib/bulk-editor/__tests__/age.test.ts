@@ -12,6 +12,8 @@ const kinds = { 5: "american" } as const;
 const ctx: SheetContext = { currency: "USD", kinds };
 const col = (id: string): SheetColumn => SHEET_COLUMNS.find((c) => c.id === id)!;
 const cell = (id: string, r: SheetRow) => col(id).cell(r, ctx);
+/** The bottle's own age cells are no longer columns; their editors remain, under their own ids, for writing at the bottle level. */
+const own = (id: string) => ({ id }) as SheetColumn;
 
 describe("the age columns", () => {
   it("are Y, M and D under one Age caption that cannot be hidden, with the statement as the next column", () => {
@@ -22,11 +24,10 @@ describe("the age columns", () => {
     expect(col("ageStatement").band).toBeUndefined();
     expect(columnsFor(labelsOnly, new Set(["ageYears", "ageMonths", "ageDays"])).map((c) => c.id)).toEqual(expect.arrayContaining(["ageYears", "ageMonths", "ageDays"]));
   });
-  it("show a bottle's own age as one block: hidden until switched on, and Y, M and D go together", () => {
-    expect(columnsFor(both, DEFAULT_HIDDEN).map((c) => c.id)).not.toContain("ownAgeYears");
-    const shown = columnsFor(both, new Set([...DEFAULT_HIDDEN].filter((id) => id !== "ownAgeYears"))).map((c) => c.id);
-    expect(shown).toEqual(expect.arrayContaining(["ownAgeYears", "ownAgeMonths", "ownAgeDays"]));
-    expect(col("ownAgeMonths").with).toBe("ownAgeYears");
+  it("are one Age for the row, shown in every view, with no second set for the bottle's own", () => {
+    for (const v of [labelsOnly, both, { labels: false, bottles: true }]) expect(columnsFor(v, DEFAULT_HIDDEN).map((c) => c.id)).toEqual(expect.arrayContaining(["ageYears", "ageMonths", "ageDays", "ageStatement"]));
+    expect(SHEET_COLUMNS.map((c) => c.id)).not.toContain("ownAgeYears");
+    expect(col("ageYears").group).toBe("value");
   });
 });
 
@@ -91,8 +92,8 @@ describe("what locks what", () => {
     const a = row(label(), bottle({ id: 7, ageYears: "9" }));
     const b = row(label(), bottle({ id: 8, ageYears: "9" }));
     const open = new Set([lockKeyOf(EDITORS.ownAgeStatement!, a, "ownAgeStatement")]);
-    expect(isLocked(col("ownAgeStatement"), both, a, open, kinds)).toBe(false);
-    expect(isLocked(col("ownAgeStatement"), both, b, open, kinds)).toBe(true);
+    expect(isLocked(own("ownAgeStatement"), both, a, open, kinds)).toBe(false);
+    expect(isLocked(own("ownAgeStatement"), both, b, open, kinds)).toBe(true);
   });
 });
 
@@ -119,16 +120,16 @@ describe("typing", () => {
 });
 
 describe("a bottle's own age", () => {
-  it("shows the label's in grey where it has none, and its own where it has", () => {
+  it("shows the label's where it has none, and its own, marked B, where it has", () => {
     const l = label({ ageYears: "12.0" });
-    expect(cell("ownAgeYears", row(l, bottle()))).toEqual({ text: "12", muted: true });
-    expect(cell("ownAgeYears", row(l, bottle({ ageYears: "9" })))).toEqual({ text: "9" });
+    expect(cell("ageYears", row(l, bottle()))).toEqual({ text: "12" });
+    expect(cell("ageYears", row(l, bottle({ ageYears: "9" })))).toEqual({ text: "9", marker: "B" });
     expect(EDITORS.ownAgeYears!.display("", ctx, row(l, bottle()))).toEqual({ text: "12", muted: true });
   });
   it("follows the bottle form's rules: none for a blanco or an unaged gin", () => {
-    expect(editorFor(col("ownAgeYears"), { labels: false, bottles: true }, row(label({ fieldGroup: "agave", tequilaClass: "blanco" }), bottle()), undefined, { 5: "tequila" })).toBeNull();
-    expect(editorFor(col("ownAgeYears"), { labels: false, bottles: true }, row(label({ fieldGroup: "gin" }), bottle()), undefined, { 5: "gin" })).toBeNull();
-    expect(editorFor(col("ownAgeYears"), { labels: false, bottles: true }, row(label(), bottle()), undefined, kinds)?.column).toBe("ownAgeYears");
+    expect(editorFor(own("ownAgeYears"), { labels: false, bottles: true }, row(label({ fieldGroup: "agave", tequilaClass: "blanco" }), bottle()), undefined, { 5: "tequila" })).toBeNull();
+    expect(editorFor(own("ownAgeYears"), { labels: false, bottles: true }, row(label({ fieldGroup: "gin" }), bottle()), undefined, { 5: "gin" })).toBeNull();
+    expect(editorFor(own("ownAgeYears"), { labels: false, bottles: true }, row(label(), bottle()), undefined, kinds)?.column).toBe("ownAgeYears");
   });
 });
 

@@ -29,7 +29,13 @@ type Common = {
 const CASK_TYPE_KINDS = ["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"];
 
 /** Linking a distillery can bring its region and origin along, so its changes go through `changeLinks`. */
-export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks }: Omit<Common, "onLinksChange"> & { options: Option[]; changeLinks: (next: LabelLinks) => void }) {
+/** What the label form adds to a picker: the pairing suggestions under each row, and the hooks that keep its option lists current. */
+type PickerExtras = {
+  onOptionCreated?: (option: Option) => void;
+  renderRowExtra?: (row: LinkedRow) => React.ReactNode;
+};
+
+export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks, brand, onOptionCreated, renderRowExtra }: Omit<Common, "onLinksChange"> & PickerExtras & { options: Option[]; changeLinks: (next: LabelLinks) => void; brand?: Option }) {
   return (
     <OrderedPicker
       name="distilleryLinks"
@@ -45,8 +51,9 @@ export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks
       undisclosable
       value={links.distilleries}
       onChange={(rows) => changeLinks({ ...links, distilleries: rows })}
-      chosenMashbillIds={new Set(links.mashbills.map((m) => m.id))}
-      onSuggestMashbill={(row) => changeLinks({ ...links, mashbills: [...links.mashbills, row] })}
+      {...(brand ? { brand } : {})}
+      {...(onOptionCreated ? { onOptionCreated } : {})}
+      {...(renderRowExtra ? { renderRowExtra } : {})}
     />
   );
 }
@@ -88,7 +95,7 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange }: Co
   return null;
 }
 
-export function MashbillPicker({ fieldGroup, singleMalt, categoryName, options, links, onLinksChange }: Common & { singleMalt: boolean; categoryName: string | undefined; options: Option[] }) {
+export function MashbillPicker({ fieldGroup, singleMalt, categoryName, options, links, onLinksChange, matchesOption, onOptionCreated, renderRowExtra }: Common & PickerExtras & { singleMalt: boolean; categoryName: string | undefined; options: Option[]; matchesOption?: (option: Option) => boolean }) {
   if (fieldGroup === "gin") return null;
   if (fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") {
     // Older mashbill links remain stored while the relevant spirit uses ingredients.
@@ -121,6 +128,9 @@ export function MashbillPicker({ fieldGroup, singleMalt, categoryName, options, 
         resource={null}
         emptyHint="No mashbills yet — add a new one from here."
         options={options}
+        {...(matchesOption ? { matchesOption } : {})}
+        {...(onOptionCreated ? { onOptionCreated } : {})}
+        {...(renderRowExtra ? { renderRowExtra } : {})}
         amountLabel="Share"
         amountSuffix="%"
         amountMax={100}

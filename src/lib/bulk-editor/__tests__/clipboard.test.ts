@@ -49,8 +49,8 @@ describe("what a pasted piece of text means for a cell", () => {
     expect(read("dateAcquired", "last week")).toEqual({ ok: false, message: expect.stringMatching(/date/) });
   });
   it("reads a choice by its label or its value, in any case", () => {
-    expect(read("singleBarrel", "private pick")).toEqual({ ok: true, value: "pick" });
-    expect(read("singleBarrel", "Single barrel · Private pick")).toEqual({ ok: true, value: "both" });
+    expect(read("privateSelection", "yes")).toEqual({ ok: true, value: "true" });
+    expect(read("singleBarrel", "No")).toEqual({ ok: true, value: "false" });
     expect(read("status", "SOLD")).toEqual({ ok: true, value: "sold" });
     expect(read("fillPct", "½")).toEqual({ ok: true, value: "50" });
     expect(read("fillPct", "75")).toEqual({ ok: true, value: "75" });
@@ -68,7 +68,7 @@ describe("what a cell copies", () => {
   it("copies the value as it is typed, and a choice by its label", () => {
     expect(copyText(EDITORS.dateAcquired!, "2025-11-01", shown("Nov 1, 2025"))).toBe("2025-11-01");
     expect(copyText(EDITORS.pricePaid!, "47.00", shown("$47.00"))).toBe("47.00");
-    expect(copyText(EDITORS.singleBarrel!, "pick", shown("Private pick"))).toBe("Private pick");
+    expect(copyText(EDITORS.privateSelection!, "true", shown("Yes"))).toBe("Yes");
     expect(copyText(EDITORS.status!, "open", shown("Open"))).toBe("Open");
     expect(copyText(EDITORS.isFavorite!, "true", shown("Yes"))).toBe("Yes");
     expect(copyText(EDITORS.isFavorite!, "false", shown("—"))).toBe("No");
@@ -79,7 +79,7 @@ describe("what a cell copies", () => {
     expect(copyText(null, "", shown("12"))).toBe("12");
   });
   it("round trips: what is copied pastes back as the same value", () => {
-    for (const [id, value] of [["dateAcquired", "2025-11-01"], ["pricePaid", "47.00"], ["singleBarrel", "both"], ["status", "traded"], ["fillPct", "25"], ["isFavorite", "true"]] as const) {
+    for (const [id, value] of [["dateAcquired", "2025-11-01"], ["pricePaid", "47.00"], ["privateSelection", "true"], ["status", "traded"], ["fillPct", "25"], ["isFavorite", "true"]] as const) {
       const editor = EDITORS[id]!;
       expect(readPasted(editor, copyText(editor, value, shown("x")))).toEqual({ ok: true, value });
     }

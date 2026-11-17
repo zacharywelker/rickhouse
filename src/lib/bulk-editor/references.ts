@@ -5,8 +5,8 @@ import type { Candidate } from "./suggest";
 /**
  * The cells that pick one thing from a list of others: a bottle's store, release and label name (version), and a label's
  * cooperage. The list is the account's (stores, cooperages) or the label's own (releases, older names). A store or a
- * cooperage can be made on the spot, by choosing the visible *Create "…"* with Enter, like a brand; a release and a
- * label name belong to a label and are only picked.
+ * cooperage or a vintage (a known release) can be made on the spot, by choosing the visible *Create "…"* with Enter, like a
+ * brand, and a vintage needs only its name; a label name belongs to a label and is only picked.
  *
  * An edited cell holds its choice as text: `id:12` for one that exists, `new:Name` for one to be made, and nothing to clear.
  */
@@ -21,14 +21,13 @@ export type RefData = {
   versions: Record<number, Array<{ id: number; name: string }>>;
 };
 
-export const REF_CAN_CREATE: Readonly<Record<RefKind, boolean>> = { store: true, cooperage: true, release: false, version: false };
+export const REF_CAN_CREATE: Readonly<Record<RefKind, boolean>> = { store: true, cooperage: true, release: true, version: false };
 
 /** What the cell is called in the messages. */
-export const REF_WHAT: Readonly<Record<RefKind, string>> = { store: "store", cooperage: "cooperage", release: "release", version: "label name" };
+export const REF_WHAT: Readonly<Record<RefKind, string>> = { store: "store", cooperage: "cooperage", release: "vintage", version: "label name" };
 
-/** Why Create is not offered, for the two that cannot be made here. */
+/** Why Create is not offered, for the one that cannot be made here. A vintage can: a name is enough. */
 export const REF_NO_CREATE: Readonly<Partial<Record<RefKind, string>>> = {
-  release: "Releases are added on the label's page.",
   version: "A label's older names are added on the label's page.",
 };
 

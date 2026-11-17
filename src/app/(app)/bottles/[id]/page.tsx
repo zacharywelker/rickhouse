@@ -53,9 +53,9 @@ export default async function BottlePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ photos?: string }>;
+  searchParams: Promise<{ photos?: string; labelPhoto?: string }>;
 }) {
-  const [{ id }, { photos }] = await Promise.all([params, searchParams]);
+  const [{ id }, { photos, labelPhoto }] = await Promise.all([params, searchParams]);
   const bottleId = Number(id);
   if (!Number.isInteger(bottleId)) notFound();
 
@@ -185,6 +185,12 @@ export default async function BottlePage({
         </div>
       </div>
 
+      {labelPhoto === "failed" ? (
+        <p role="alert" className="text-sm text-destructive">
+          The label photo could not be uploaded. <Link className="underline" href={`/expressions/${e.id}`}>Open the label</Link> to try again.
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_1fr]">
         <div className="flex flex-col gap-4">
           <div className="relative w-full">
@@ -221,15 +227,6 @@ export default async function BottlePage({
               </div>
             </Polaroid>
           </div>
-          <FillControl
-            bottleId={bottleId}
-            fillPct={row.bottle.fillPct}
-            fieldGroup={group}
-            isOpen={row.bottle.isOpen}
-            status={row.bottle.status}
-            dateOpened={row.bottle.dateOpened}
-            dateKilled={row.bottle.dateKilled}
-          />
           <BottleImages
             bottleId={bottleId}
             images={images}
@@ -238,6 +235,21 @@ export default async function BottlePage({
         </div>
 
         <div className="flex flex-col gap-6 pb-6">
+          <section className="flex flex-col gap-2">
+            <h2 className="text-xl">This bottle</h2>
+            <dl>
+              <Spec label="Status" value={effectiveBottleStatus(row.bottle) === "owned" ? "Sealed" : humanise(effectiveBottleStatus(row.bottle))} />
+            </dl>
+            <FillControl
+              bottleId={bottleId}
+              fillPct={row.bottle.fillPct}
+              fieldGroup={group}
+              isOpen={row.bottle.isOpen}
+              status={row.bottle.status}
+              dateOpened={row.bottle.dateOpened}
+              dateKilled={row.bottle.dateKilled}
+            />
+          </section>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-4 py-2 sm:grid-cols-3">
             <Spec label="Proof" value={formatNumeric(proof)} />
             {tier ? <Spec label="Strength" value={STRENGTH_TIER_LABELS[tier]} /> : null}
@@ -290,7 +302,6 @@ export default async function BottlePage({
               }
             />
             <Spec label="How" value={humanise(row.bottle.acquisition)} />
-            <Spec label="Status" value={humanise(effectiveBottleStatus(row.bottle))} />
             <Spec label="Where" value={row.bottle.location} />
             {!(["vodka", "amaro", "liqueur"].includes(group)) ? <Spec
               label={release ? "Release" : "Batch"}
