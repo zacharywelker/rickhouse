@@ -2020,3 +2020,63 @@ test("bulk review clears a save failure when the row is deleted", async ({ page 
   await expect(dialog).toHaveCount(0);
   await expect(notice).toHaveCount(0);
 });
+
+test.describe("column widths", () => {
+  const head = async (page: Page, header: string) => sheet(page).locator("thead tr:last-child th").nth(await col(page, header));
+  const widthOf = async (loc: Locator) => Math.round((await loc.boundingBox())!.width);
+
+  test("a header edge drags, the body follows, and the width is remembered and reset", async ({ page }) => {
+    await page.evaluate(() => window.localStorage.removeItem("bulk-editor:widths"));
+    const index = await col(page, "Price paid");
+    const th = await head(page, "Price paid");
+    await th.scrollIntoViewIfNeeded();
+    const before = await widthOf(th);
+    const box = (await th.boundingBox())!;
+    const x = box.x + box.width - 3;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 60, y, { steps: 5 });
+    await page.mouse.up();
+    expect(await widthOf(th)).toBe(before + 60);
+    expect(await widthOf(cell(page, 0, index))).toBe(before + 60);
+    await expect.poll(() => page.evaluate(() => window.localStorage.getItem("bulk-editor:widths"))).toBe(JSON.stringify({ pricePaid: before + 60 }));
+
+    await page.reload();
+    await expect(sheet(page)).toBeVisible();
+    await expect.poll(async () => widthOf(await head(page, "Price paid"))).toBe(before + 60);
+
+    // Double-click on the edge gives the column its own width back.
+    await (await head(page, "Price paid")).scrollIntoViewIfNeeded();
+    const again = (await (await head(page, "Price paid")).boundingBox())!;
+    await page.mouse.dblclick(again.x + again.width - 3, again.y + again.height / 2);
+    await expect.poll(async () => widthOf(await head(page, "Price paid"))).toBe(before);
+    expect(await page.evaluate(() => window.localStorage.getItem("bulk-editor:widths"))).toBeNull();
+  });
+
+  test("Alt+Shift+Arrow resizes the active column and Label stays against Brand", async ({ page }) => {
+    await page.evaluate(() => window.localStorage.removeItem("bulk-editor:widths"));
+    const index = await col(page, "Price paid");
+    const th = await head(page, "Price paid");
+    const before = await widthOf(th);
+    await cell(page, 0, index).click();
+    await page.keyboard.press("Alt+Shift+ArrowRight");
+    await expect.poll(() => widthOf(th)).toBe(before + 10);
+    await page.keyboard.press("Alt+Shift+Backspace");
+    await expect.poll(() => widthOf(th)).toBe(before);
+
+    // Widening Brand moves Label's frozen offset with it.
+    const brand = await head(page, "Brand");
+    const label = await head(page, "Label");
+    const brandBox = (await brand.boundingBox())!;
+    const gap = async () => Math.round((await label.boundingBox())!.x - (await brand.boundingBox())!.x);
+    const before2 = await gap();
+    await page.mouse.move(brandBox.x + brandBox.width - 3, brandBox.y + brandBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(brandBox.x + brandBox.width + 37, brandBox.y + brandBox.height / 2, { steps: 5 });
+    await page.mouse.up();
+    expect(await gap()).toBe(before2 + 40);
+    await page.getByRole("button", { name: "Reset widths" }).click();
+    expect(await gap()).toBe(before2);
+  });
+});
