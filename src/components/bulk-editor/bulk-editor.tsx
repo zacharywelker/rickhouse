@@ -1776,7 +1776,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
                 className={cn("sticky top-0 z-20 h-7 bg-card text-[11px] tracking-wider", i === 0 && run.group === "label" ? "border-l border-l-border/40" : "border-l border-l-foreground")}
               >
                 {/* The first label run continues the frozen Label caption, so it is not named again. */}
-                {run.group === "label" ? (i === 0 ? "" : "Label") : run.group === "bottle" ? "Bottle" : ""}
+                {run.group === "label" ? (i === 0 ? <span className="sr-only">Label, continued</span> : "Label") : run.group === "bottle" ? "Bottle" : <span className="sr-only">Values</span>}
               </TableHead>
             ))}
           </TableRow>
