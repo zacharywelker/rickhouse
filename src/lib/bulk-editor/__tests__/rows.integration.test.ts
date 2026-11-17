@@ -554,6 +554,25 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(await rows.patchBottleRow(owner, bottle, { isSingleBarrelPick: true, moveLiquidFromLabel: true })).toEqual({ ok: true });
       expect(await liquid(label, bottle)).toEqual({ label: [90, null], bottle: [null, null], pick: true });
     });
+    it("keeps a proof the bottle already has, and leaves the label's where it is", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Late Mark D");
+      await m.sql(`UPDATE expressions SET proof = 90, age_years = 8 WHERE id = $1`, label);
+      const bottle = await fx.mkBottle(owner, label);
+      await m.sql(`UPDATE bottles SET proof = 110 WHERE id = $1`, bottle);
+      const out = await rows.patchBottleRow(owner, bottle, { isSingleBarrelPick: true, moveLiquidFromLabel: true });
+      expect(out).toMatchObject({ ok: true, moved: { ageYears: "8.0" } });
+      expect(out).not.toMatchObject({ moved: { proof: expect.anything() } });
+      expect(await liquid(label, bottle)).toEqual({ label: [90, null], bottle: [110, 8], pick: true });
+    });
+    it("leaves a value the bottle's vintage supplies on the label", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Late Mark E");
+      await m.sql(`UPDATE expressions SET proof = 90 WHERE id = $1`, label);
+      const bottle = await fx.mkBottle(owner, label);
+      const v = await one<{ id: number }>(`INSERT INTO expression_releases (expression_id, name, proof) VALUES ($1, '2025A', 112) RETURNING id`, label);
+      await m.sql(`UPDATE bottles SET release_id = $2 WHERE id = $1`, bottle, v.id);
+      expect(await rows.patchBottleRow(owner, bottle, { isSingleBarrelPick: true, moveLiquidFromLabel: true })).toEqual({ ok: true });
+      expect(await liquid(label, bottle)).toEqual({ label: [90, null], bottle: [null, null], pick: true });
+    });
     it("is not done unless it is asked for", async () => {
       const label = await fx.mkLabel(owner, cat.whiskey, "Late Mark C");
       await m.sql(`UPDATE expressions SET proof = 90 WHERE id = $1`, label);

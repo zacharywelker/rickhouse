@@ -70,7 +70,8 @@ export function markerFor(row: SheetRow, level: Level): Marker | null {
   return "B";
 }
 
-const distinct = (values: ReadonlyArray<string | null>): number => new Set(values.filter((v): v is string => v !== null).map((v) => Number(v))).size;
+/** How many different values there are. Numbers compare as numbers (112 and 112.0 agree); an age statement is text and compares as text. */
+const distinct = (values: ReadonlyArray<string | null>, text = false): number => new Set(values.filter((v): v is string => v !== null).map((v) => (text ? v.trim().toLowerCase() : Number(v)))).size;
 
 export function resolve(field: ValueField, row: SheetRow, ctx: Pick<SheetContext, "kinds" | "index">): Resolved {
   const { label, bottle } = row;
@@ -95,7 +96,7 @@ export function resolve(field: ValueField, row: SheetRow, ctx: Pick<SheetContext
     if (implied) return { value: implied.text, level: "label", marker: null, varies: false, derived: true };
   }
   const varies = !bottle && VINTAGE_FIELDS.has(field) && (
-    distinct((index?.vintagesByLabel.get(label.id) ?? []).map((v) => vintageValue(v, field))) > 1 ||
+    distinct((index?.vintagesByLabel.get(label.id) ?? []).map((v) => vintageValue(v, field)), field === "ageStatement") > 1 ||
     (field === "proof" && label.isCaskStrength === true && distinct((index?.bottlesByLabel.get(label.id) ?? []).map((b) => bottleValue(b, field))) > 1)
   );
   return { value: null, level: "label", marker: null, varies, derived: false };

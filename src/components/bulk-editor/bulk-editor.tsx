@@ -611,6 +611,20 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     setNotices((prev) => [...prev, { id, text, ...(undo ? { undo } : {}) }]);
   }, []);
   const dismissNotice = React.useCallback((id: string) => setNotices((prev) => prev.filter((n) => n.id !== id)), []);
+  /** Gives a bottle's proof and age back to its label. The bottle's are cleared only once the label has taken them, and a refusal is said. */
+  const putBack = React.useCallback(
+    async (labelId: number, bottleId: number, values: Record<string, string>) => {
+      const onLabel = await patchLabelRowAction(labelId, values);
+      if (!onLabel.ok) {
+        pushNotice(`Could not put ${liquidWords(Object.keys(values))} back on the label: ${onLabel.error}`);
+        return;
+      }
+      const onBottle = await patchBottleRowAction(bottleId, Object.fromEntries(Object.keys(values).map((field) => [field, null])));
+      if (!onBottle.ok) pushNotice(`Put ${liquidWords(Object.keys(values))} on the label, but could not clear them from the bottle: ${onBottle.error}`);
+      router.refresh();
+    },
+    [pushNotice, router],
+  );
   /** The labels made on this visit: only these can have their proof and age moved to a bottle marked a single barrel or private selection after they were saved. */
   const createdLabels = React.useRef(new Set<number>());
   /** The rows as drawn, for a notice that is made from inside a save (which runs outside the render that knows them). */
@@ -631,12 +645,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     onMoved: (key, moved) => {
       const row = rowsNow.current.find((r) => r.key === key);
       const labelId = row?.label.id;
-      pushNotice(`${row ? `${row.label.brand} ${row.label.name}` : "This bottle"}: ${liquidWords(Object.keys(moved))} moved from the label to this bottle.`, labelId === undefined ? undefined : async () => {
-        // Put them back: the label has them again, and the bottle has none of its own.
-        await patchLabelRowAction(labelId, moved);
-        await patchBottleRowAction(Number(key.slice(1)), Object.fromEntries(Object.keys(moved).map((field) => [field, null])));
-        router.refresh();
-      });
+      pushNotice(`${row ? `${row.label.brand} ${row.label.name}` : "This bottle"}: ${liquidWords(Object.keys(moved))} moved from the label to this bottle.`, labelId === undefined ? undefined : () => void putBack(labelId, Number(key.slice(1)), moved));
     },
     editingDraft,
     pendingByRow,
@@ -787,9 +796,16 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         const draft = allDrafts.find((d) => d.key === row.key);
         if (typed.length > 0 && draft) {
           const words = liquidWords(typed);
+          const typedValues = Object.fromEntries(typed.map((field) => [field, edits[row.key]![field]!]));
           pushNotice(
             `${draftTitle(draft)}: ${words} ${words.includes(" and ") ? "are" : "is"} now this bottle's, since it's a ${column.id === "singleBarrel" ? "single barrel" : "private selection"}. Size stays on the label.`,
-            () => setDrafts((prev) => prev.map((d) => (d.key === row.key ? { ...d, keepOnLabel: true } : d))),
+            () => {
+              // The row may have been saved while the notice was up: then the values are already on the bottle, and go back the way a moved label's do.
+              const savedKey = saver.createdAs[row.key];
+              const saved = savedKey ? rowsNow.current.find((r) => r.key === savedKey) : undefined;
+              if (savedKey && saved) void putBack(saved.label.id, Number(savedKey.slice(1)), typedValues);
+              else setDrafts((prev) => prev.map((d) => (d.key === row.key ? { ...d, keepOnLabel: true } : d)));
+            },
           );
         }
       }
@@ -1241,6 +1257,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     /** The shared levels (a vintage, a label) this paste wrote to, so it never changes more bottles than it says. */
 
     const shared = new Map<string, string>();
+    /** What each shared level was given in this paste: a level that is given two different values keeps only the last. */
+    const given = new Map<string, { values: Set<string>; last: string }>();
     let toChoose = 0;
     let beyondColumns = 0;
     const beyondRows = new Set<number>();
@@ -1317,7 +1335,13 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         }
       }
       const written = stage(pos, checked.value);
-      if (written?.level && written.level !== "bottle") shared.set(written.key, scopeSentence(written.level, row, context));
+      if (written?.level && written.level !== "bottle") {
+        shared.set(written.key, scopeSentence(written.level, row, context));
+        const seen = given.get(`${written.key}:${column.id}`) ?? { values: new Set<string>(), last: "" };
+        seen.values.add(checked.value);
+        seen.last = checked.value;
+        given.set(`${written.key}:${column.id}`, seen);
+      }
       pasted += 1;
     }
 
@@ -1338,6 +1362,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     setRange(null);
     const parts = [`Pasted ${pasted} ${pasted === 1 ? "cell" : "cells"}.`];
     if (shared.size > 0) parts.push(`Changed ${[...shared.values()].join(" and ")}.`);
+    const clashes = [...given.values()].filter((g) => g.values.size > 1);
+    if (clashes.length > 0) parts.push(`Different values were pasted to the same ${clashes.length === 1 ? "level" : "levels"}; the last ${clashes.length === 1 ? "one" : "of each"} (${clashes.map((g) => g.last).join(", ")}) was kept. Press ${platformKeyName()} and the down arrow in a cell to change only one bottle.`);
     if (added > 0) parts.push(`Added ${added} new ${added === 1 ? "row" : "rows"}.`);
     if (toChoose > 0) parts.push(`${toChoose} to choose: press Enter on a marked cell to pick from what matches. A new row saves once its required fields and pending choices are resolved.`);
     if (beyondRows.size > 0) parts.push(`${beyondRows.size} ${beyondRows.size === 1 ? "line" : "lines"} past the last row ${beyondRows.size === 1 ? "was" : "were"} not pasted.`);
@@ -1569,7 +1595,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
       // Inside the sheet, in the rail or the autocomplete, or in a popover or dialog opened from it (they are drawn outside the sheet): not a click away.
-      if (sheetRef.current?.contains(target) || target?.closest?.("[data-bulk-editor-panel], [data-radix-popper-content-wrapper], [role=dialog]")) return;
+      if (sheetRef.current?.contains(target) || target?.closest?.("[data-bulk-editor-panel], [data-notice], [data-radix-popper-content-wrapper], [role=dialog]")) return;
       // After the click has been handled: a cell being edited commits first.
       setTimeout(() => saver.saveDrafts(), 50);
     };
@@ -1901,7 +1927,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       </p>
       <DeleteBar count={ticked.length} noun={view.bottles ? "bottle" : "label"} ids={idsOfKeys(ticked)} onClear={() => setSelected(new Set())} onDone={afterDelete} />
       {/* Present before anything is in it, so a screen reader announces the text when it appears. It never takes focus. */}
-      <div aria-live="polite" aria-atomic="true" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
+      <div aria-live="polite" aria-atomic="false" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
         <Notices notices={notices} onDismiss={dismissNotice} />
         {blockedRows.length > 0 ? (
           <div className="pointer-events-auto flex flex-col gap-2 border border-destructive bg-card p-3 text-sm shadow-md">

@@ -202,6 +202,8 @@ test("pasting onto several bottles of one vintage writes the vintage once and th
   await page.keyboard.press("Shift+ArrowDown");
   await paste(page, "100\n101\n102");
   await expect(pasteNotice(page)).toContainText(/Changed the Step Vintage vintage \(\d+ bottles\)/);
+  // Three different numbers went to one vintage, which keeps only the last: the notice says so instead of hiding it.
+  await expect(pasteNotice(page)).toContainText("Different values were pasted to the same level; the last one (102) was kept");
 });
 
 /** The brands the late-marking and notice specs make, removed after each spec so the rows other specs count on stay where they were. */

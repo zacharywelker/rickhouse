@@ -5,7 +5,7 @@
  */
 export function EditNote({ text, keyName, onStep }: { text: string; keyName: "Option" | "Alt"; /** Absent where there is no choice to make (a new row's own vintage): no key is shown. */ onStep?: (step: 1 | -1) => void }) {
   return (
-    <p data-edit-note="" className="absolute left-0 top-full z-30 mt-px flex items-center gap-2 whitespace-nowrap border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground">
+    <p data-edit-note="" role="status" className="absolute left-0 top-full z-30 mt-px flex items-center gap-2 whitespace-nowrap border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground">
       <span>{text}</span>
       {onStep ? (
       <button

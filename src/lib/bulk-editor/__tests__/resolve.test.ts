@@ -62,6 +62,13 @@ describe("resolve: Varies", () => {
     const r = resolve("proof", row(l, null), ctxFor([l], [], [vintage({ id: 70, proof: "112" }), vintage({ id: 71, name: "2026A", proof: "107.4" })]));
     expect(r).toMatchObject({ varies: true, value: null });
   });
+  it("is shown when vintages have different age statements, and not when they agree", () => {
+    const l = label({ ageStatement: null });
+    const two = [vintage({ id: 70, ageStatement: "Straight" }), vintage({ id: 71, name: "2026A", ageStatement: "Over 4 years" })];
+    expect(resolve("ageStatement", row(l, null), ctxFor([l], [], two)).varies).toBe(true);
+    const same = [vintage({ id: 70, ageStatement: "Straight" }), vintage({ id: 71, name: "2026A", ageStatement: "straight " })];
+    expect(resolve("ageStatement", row(l, null), ctxFor([l], [], same)).varies).toBe(false);
+  });
   it("is not shown when every vintage has the same proof", () => {
     const l = label({ proof: null });
     const r = resolve("proof", row(l, null), ctxFor([l], [], [vintage({ id: 70, proof: "112" }), vintage({ id: 71, name: "2026A", proof: "112" })]));

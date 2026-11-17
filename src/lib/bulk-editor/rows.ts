@@ -364,16 +364,24 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
   let moved: { labelId: number; values: Record<string, string> } | null = null;
   try {
     if (moveLiquid && isRecord(body)) {
-      const [own] = await db.select({ labelId: bottles.expressionId }).from(bottles).where(and(eq(bottles.id, bottleId), eq(bottles.ownerId, ownerId))).limit(1);
+      const [own] = await db
+        .select({ labelId: bottles.expressionId, releaseId: bottles.releaseId, proof: bottles.proof, ageYears: bottles.ageYears, ageMonths: bottles.ageMonths, ageDays: bottles.ageDays, ageStatement: bottles.ageStatement, tequilaClass: bottles.tequilaClass, brandyGrade: bottles.brandyGrade })
+        .from(bottles)
+        .where(and(eq(bottles.id, bottleId), eq(bottles.ownerId, ownerId)))
+        .limit(1);
       if (own && (await db.$count(bottles, and(eq(bottles.expressionId, own.labelId), eq(bottles.ownerId, ownerId)))) === 1) {
         const [label] = await db
           .select({ proof: expressions.proof, ageYears: expressions.ageYears, ageMonths: expressions.ageMonths, ageDays: expressions.ageDays, ageStatement: expressions.ageStatement, tequilaClass: expressions.tequilaClass, brandyGrade: expressions.brandyGrade })
           .from(expressions)
           .where(and(eq(expressions.id, own.labelId), eq(expressions.ownerId, ownerId)))
           .limit(1);
+        // A field the bottle already has, or that its vintage gives it, stays as it is: the move would change what the row shows.
+        const [vintage] = own.releaseId === null ? [] : await db.select({ proof: expressionReleases.proof, ageYears: expressionReleases.ageYears, ageMonths: expressionReleases.ageMonths, ageDays: expressionReleases.ageDays, ageStatement: expressionReleases.ageStatement }).from(expressionReleases).where(eq(expressionReleases.id, own.releaseId)).limit(1);
+        const has = (v: unknown) => v !== null && v !== undefined && String(v) !== "";
         const values: Record<string, string> = {};
         for (const [field, value] of Object.entries(label ?? {})) {
-          if (value !== null && value !== undefined && String(value) !== "" && !(field in body)) {
+          const taken = has((own as Record<string, unknown>)[field]) || has((vintage as Record<string, unknown> | undefined)?.[field]);
+          if (has(value) && !taken && !(field in body)) {
             values[field] = String(value);
             body[field] = String(value);
           }
