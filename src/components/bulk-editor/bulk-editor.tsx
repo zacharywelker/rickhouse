@@ -1062,6 +1062,15 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     const { pos } = hit;
     const { key } = event;
 
+    // Ctrl+Z (Cmd+Z on a Mac), as in a spreadsheet: takes back the newest change that still has an Undo showing. With none showing it does nothing.
+    const newest = [...notices].reverse().find((notice) => notice.undo);
+    if (key.toLowerCase() === "z" && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && newest) {
+      event.preventDefault();
+      newest.undo?.();
+      dismissNotice(newest.id);
+      return;
+    }
+
     if (key === "Escape" && range) {
       event.preventDefault();
       setRange(null);
@@ -1922,7 +1931,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       ) : null}
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
         Arrow keys move. Type or press Enter to edit. A label&rsquo;s own cells on a bottle row change every bottle on the label (the cell says how many). A grey cell with a lock is filled in from another cell, such as an age from its statement: triple-click it to edit. Brand or Label on a bottle moves it to another label. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only, and Ctrl+Enter creates what you typed.
-        Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels.
+        Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels. {platformKeyName() === "Option" ? "Cmd" : "Ctrl"}+Z takes back the change in the newest notice that offers Undo, while it is showing.
         Rows save as you go: a saved row as soon as a cell is finished, a new row when you leave it.
       </p>
       <DeleteBar count={ticked.length} noun={view.bottles ? "bottle" : "label"} ids={idsOfKeys(ticked)} onClear={() => setSelected(new Set())} onDone={afterDelete} />

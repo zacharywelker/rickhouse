@@ -17,6 +17,11 @@ describe("where an edit starts (the spec's table)", () => {
   it("is the label for a field a vintage does not have, even on a vintage bottle", () => {
     expect(defaultScope(row(bottle({ releaseId: 70 })), "sizeMl")).toBe("label");
     expect(defaultScope(row(bottle({ releaseId: 70 })), "proof")).toBe("vintage");
+    // A cell that already shows this bottle's own value is edited at the bottle, whatever the bottle is on; its other values start where they did.
+    expect(defaultScope(row(bottle({ proof: "110" })), "proof")).toBe("bottle");
+    expect(defaultScope(row(bottle({ releaseId: 70, proof: "110" })), "proof")).toBe("bottle");
+    expect(defaultScope(row(bottle({ releaseId: 70, proof: "110" })), "ageYears")).toBe("vintage");
+    expect(defaultScope(row(bottle({ sizeMl: 1000 })), "sizeMl")).toBe("bottle");
   });
 });
 

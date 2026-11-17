@@ -16,10 +16,12 @@ export function scopesFor(row: SheetRow, field?: ValueField): Level[] {
   return hasVintage(row) && (field === undefined || VINTAGE_FIELDS.has(field)) ? ["bottle", "vintage", "label"] : ["bottle", "label"];
 }
 
-/** Where an edit starts: this bottle for a single barrel or private selection, else its vintage, else the label. */
+/** Where an edit starts: this bottle for a single barrel, a private selection, or a cell that shows the bottle's own value; else its vintage, else the label. */
 export function defaultScope(row: SheetRow, field?: ValueField): Level {
   if (row.draft || row.bottle === null) return "label";
   if (isPick(row)) return "bottle";
+  const own = field === undefined ? null : (row.bottle as unknown as Record<string, unknown>)[field];
+  if (own !== null && own !== undefined && String(own) !== "") return "bottle";
   return hasVintage(row) && (field === undefined || VINTAGE_FIELDS.has(field)) ? "vintage" : "label";
 }
 

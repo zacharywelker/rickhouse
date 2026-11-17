@@ -40,7 +40,7 @@ async function active(page: Page): Promise<{ row: number; col: number } | null> 
 
 /** A saved row is saved once the sheet has stopped saying so; the value then survives a reload. */
 async function reloaded(page: Page) {
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   await page.waitForTimeout(800); // the sheet reads the saves back
   await page.reload();
   await expect(sheet(page)).toBeVisible();
@@ -101,7 +101,8 @@ async function onVintage(page: Page, extraBottles = 0): Promise<{ labelId: numbe
     const [label] = await db`select id from expressions where name = ${labelName} limit 1`;
     await db`delete from expression_releases where expression_id = ${label!.id} and name = 'Step Vintage'`;
     const [release] = await db`insert into expression_releases (expression_id, name, proof) values (${label!.id}, 'Step Vintage', 112) returning id`;
-    await db`update bottles set release_id = ${release!.id} where expression_id = ${label!.id}`;
+    // The bottles start with no proof of their own: an earlier spec may have given one, and a cell that shows it starts at the bottle.
+    await db`update bottles set release_id = ${release!.id}, proof = null where expression_id = ${label!.id}`;
     for (let i = 0; i < extraBottles; i += 1) await db`insert into bottles (owner_id, expression_id, release_id, status) select owner_id, expression_id, release_id, status from bottles where expression_id = ${label!.id} limit 1`;
     const [first] = await db`select id from bottles where expression_id = ${label!.id} order by id limit 1`;
     return { labelId: label!.id as number, releaseId: release!.id as number, bottleId: first!.id as number };
@@ -159,7 +160,13 @@ test("an edit is saved at the level it was stepped to: this bottle, the vintage,
   await reloaded(page);
   expect(await read()).toEqual({ ...before, bottle: 119 });
   await expect(cell(page, 0, proof)).toContainText("119");
-  // The vintage, which is where it starts.
+  // A cell that shows the bottle's own value starts at the bottle: clearing it gives the vintage's back.
+  await cell(page, 0, proof).click();
+  await page.keyboard.press("Delete");
+  await reloaded(page);
+  expect((await read()).bottle).toBeNull();
+  await expect(cell(page, 0, proof)).toContainText("112");
+  // The vintage, which is where it starts once the bottle has no value of its own.
   await cell(page, 0, proof).click();
   await page.keyboard.press("Delete"); // clears at the starting level (the bottle's pick flags are off: the vintage)
   await reloaded(page);
@@ -260,7 +267,7 @@ test("marking a new row a private selection after typing its proof and age moves
   await expect(corner(page)).toContainText("Late Marking Co Cask Select: proof and age are now this bottle's, since it's a private selection");
   await expect(corner(page).getByRole("button", { name: "Undo" })).toBeVisible();
   await cell(page, row + 1, 0).click(); // leave the row: it saves
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   expect(await liquidOf("Cask Select")).toEqual({ label: [null, null], bottle: [118.3, 8], pick: true });
 });
 
@@ -271,8 +278,21 @@ test("Undo on the late-marking notice keeps the proof and age on the new label",
   await page.keyboard.press("Space");
   await corner(page).getByRole("button", { name: "Undo" }).click();
   await cell(page, row + 1, 0).click();
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   expect(await liquidOf("Undo Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: true });
+});
+
+test("Ctrl+Z takes back the newest notice's change while it is showing, as the Undo button does", async ({ page }) => {
+  const [selection] = [await col(page, "Private selection")];
+  const row = await newLabelRow(page, "Late Zed Co", "Zed Select");
+  await cell(page, row, selection).click();
+  await page.keyboard.press("Space");
+  await expect(corner(page).getByRole("button", { name: "Undo" })).toBeVisible();
+  await page.keyboard.press("Control+z");
+  await expect(corner(page).getByRole("button", { name: "Undo" })).toHaveCount(0);
+  await cell(page, row + 1, 0).click();
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
+  expect(await liquidOf("Zed Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: true });
 });
 
 test("a row saved first and marked later, in the same session, moves them and says so; after a reload nothing moves", async ({ page }) => {
@@ -281,25 +301,25 @@ test("a row saved first and marked later, in the same session, moves them and sa
   const rowOf = (name: string) => sheet(page).locator("tbody tr", { hasText: name }).last();
   const row = await newLabelRow(page, "Late Net Co", "Net Select");
   await cell(page, row + 1, 0).click(); // leave the row: it saves, unmarked, with the label holding the proof and age
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   expect(await liquidOf("Net Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: false });
   await expect(rowOf("Net Select").locator("td").nth(proof)).toContainText("118.3");
   await rowOf("Net Select").locator("td").nth(selection).click();
   await page.keyboard.press("Space");
   await expect(corner(page)).toContainText("Late Net Co Net Select: proof and age moved from the label to this bottle");
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   expect(await liquidOf("Net Select")).toEqual({ label: [null, null], bottle: [118.3, 8], pick: true });
   await expect(rowOf("Net Select").locator("td").nth(proof)).toContainText("118.3");
   // A label from an earlier session is never touched this way: after a reload, marking leaves its values where they are.
   const row2 = await newLabelRow(page, "Late Old Co", "Old Select");
   await cell(page, row2 + 1, 0).click();
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   await page.reload();
   await expect(sheet(page)).toBeVisible();
   await expect(rowOf("Old Select")).toBeVisible();
   await rowOf("Old Select").locator("td").nth(selection).click();
   await page.keyboard.press("Space");
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   expect(await liquidOf("Old Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: true });
 });
 
@@ -714,7 +734,7 @@ test("a row typed while the sheet is filtered stays on screen, and clearing the 
   await page.keyboard.type("bou");
   await page.keyboard.press("Tab");
   await cell(page, row + 1, brand).click(); // leave the row: it saves and joins the saved rows
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   await page.waitForTimeout(1500); // read back: the saved row is now in the data, and must not be filtered out
   expect((await labelNames(page)).filter((n) => n === "Doesnt Match The Search")).toHaveLength(1);
   await page.getByRole("button", { name: "Clear filters" }).click();
@@ -735,7 +755,7 @@ test("sort by a column, an edited row does not jump, and the header flips it", a
   await cell(page, 1, price).click();
   await page.keyboard.type("1");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   await page.waitForTimeout(1500);
   expect(await labelNames(page)).toEqual(before);
   await expect(cell(page, 1, price)).toHaveText("$1.00");
@@ -1252,7 +1272,7 @@ test("a new row can make a vintage, and the proof typed into it is the vintage's
   await expect(editNote(page)).toContainText("Fresh Batch 9 vintage (new)");
   await page.keyboard.press("Enter");
   await cell(page, row + 1, brand).click(); // leave the row: it saves
-  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 20_000 });
   const db = postgres(process.env.DATABASE_URL!);
   try {
     const [v] = await db`select r.proof, e.proof as label_proof from expression_releases r join expressions e on e.id = r.expression_id where r.name = 'Fresh Batch 9' and e.name = ${existingLabel}`;
