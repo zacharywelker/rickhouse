@@ -78,6 +78,8 @@ export async function takeBack(tx: Tx, made: { store?: number; cooperage?: numbe
  * A vintage that exists already keeps what it has: the values typed are not written over it.
  */
 export async function ensureVintage(tx: Tx, ownerId: number, labelId: number, name: string, facts: Readonly<Record<string, string>> = {}): Promise<{ id: number; created: boolean }> {
+  // The label must be the caller's: a vintage is never made on someone else's label, whatever id was sent.
+  if ((await tx.$count(expressions, and(eq(expressions.id, labelId), eq(expressions.ownerId, ownerId)))) === 0) throw new Error("That label is not one of your labels.");
   await lock(tx, "vintage", ownerId, `${labelId}:${name}`);
   const [found] = await tx.select({ id: expressionReleases.id }).from(expressionReleases).where(and(eq(expressionReleases.expressionId, labelId), eq(expressionReleases.name, name))).limit(1);
   if (found) return { id: found.id, created: false };

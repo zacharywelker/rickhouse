@@ -44,6 +44,8 @@ import { decodeRef, encodePick, REF_CAN_CREATE, REF_NO_CREATE, REF_WHAT, refCand
 import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
 import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-editor/clipboard";
 import { indexSheet, resolve, type Level, type ValueField } from "@/lib/bulk-editor/resolve";
+import { LIQUID_FIELDS } from "@/lib/bulk-editor/late-mark";
+import { patchBottleRowAction, patchLabelRowAction } from "@/app/(app)/bulk-editor/actions";
 import { columnFor, defaultScope, nextScope, noteText, scopeSentence, scopesFor } from "@/lib/bulk-editor/scope";
 import { platformKeyName } from "@/lib/platform";
 import { copyValue } from "@/lib/bulk-editor/value-cells";
@@ -56,6 +58,7 @@ import { RailContent } from "./rail-panel";
 import { DeleteBar } from "./delete-bar";
 import type { ComboData, Editing, Finish } from "./types";
 import { EditNote } from "./edit-note";
+import { Notices, type Notice } from "./notices";
 import { SourceTag } from "./source-tag";
 import { useRowSaver } from "./use-row-saver";
 
@@ -354,6 +357,13 @@ type RowProps = {
 /** The columns that hold a value which can come from the bottle, its vintage or the label (`resolve.ts`): what an edit changes is chosen. */
 const VALUE_FIELD: Readonly<Record<string, ValueField>> = { sizeMl: "sizeMl", proof: "proof", ageYears: "ageYears", ageMonths: "ageMonths", ageDays: "ageDays", ageStatement: "ageStatement" };
 
+/** The values that move to a bottle marked a single barrel or private selection, in words: "proof and age". */
+function liquidWords(fields: ReadonlyArray<string>): string {
+  const words = new Set<string>();
+  for (const field of fields) words.add(field === "proof" ? "proof" : field.startsWith("age") ? "age" : field === "tequilaClass" ? "tequila class" : "age designation");
+  return [...words].join(" and ");
+}
+
 /** Two typed values are the same when the text is, or they are the same number (112 and 112.00). */
 const sameValue = (a: string, b: string): boolean => a === b || (a !== "" && b !== "" && Number.isFinite(Number(a)) && Number(a) === Number(b));
 
@@ -592,7 +602,45 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     const title = label ? `${label.brand} ${label.name}` : "A bottle";
     setGone((prev) => [...prev.filter((g) => g.key !== key), { key, text: `${title} is now ${humanise(status).toLowerCase()}, so it is no longer listed here. This sheet shows the bottles you own or have open.` }]);
   }
-  const saver = useRowSaver({ labels, bottles, view, edits, moves, drafts, setEdits, setMoves, setDrafts, onLanded: touch, onLeftShelf: leftShelf, editingDraft, pendingByRow });
+  // Notices in the corner: what the sheet did for the person (a proof and age moved to a bottle), with Undo, going by themselves.
+  const [notices, setNotices] = React.useState<Notice[]>([]);
+  const noticeCount = React.useRef(0);
+  const pushNotice = React.useCallback((text: string, undo?: () => void) => {
+    noticeCount.current += 1;
+    const id = `n${noticeCount.current}`;
+    setNotices((prev) => [...prev, { id, text, ...(undo ? { undo } : {}) }]);
+  }, []);
+  const dismissNotice = React.useCallback((id: string) => setNotices((prev) => prev.filter((n) => n.id !== id)), []);
+  /** The labels made on this visit: only these can have their proof and age moved to a bottle marked a single barrel or private selection after they were saved. */
+  const createdLabels = React.useRef(new Set<number>());
+  /** The rows as drawn, for a notice that is made from inside a save (which runs outside the render that knows them). */
+  const rowsNow = React.useRef<SheetRow[]>([]);
+  const saver = useRowSaver({
+    labels,
+    bottles,
+    view,
+    edits,
+    moves,
+    drafts,
+    setEdits,
+    setMoves,
+    setDrafts,
+    onLanded: touch,
+    onLeftShelf: leftShelf,
+    onLabelCreated: (labelId) => createdLabels.current.add(labelId),
+    onMoved: (key, moved) => {
+      const row = rowsNow.current.find((r) => r.key === key);
+      const labelId = row?.label.id;
+      pushNotice(`${row ? `${row.label.brand} ${row.label.name}` : "This bottle"}: ${liquidWords(Object.keys(moved))} moved from the label to this bottle.`, labelId === undefined ? undefined : async () => {
+        // Put them back: the label has them again, and the bottle has none of its own.
+        await patchLabelRowAction(labelId, moved);
+        await patchBottleRowAction(Number(key.slice(1)), Object.fromEntries(Object.keys(moved).map((field) => [field, null])));
+        router.refresh();
+      });
+    },
+    editingDraft,
+    pendingByRow,
+  });
   const createdAs = saver.createdAs;
   /** One past the highest new-row key handed out, so the empty row keeps its key when earlier rows are saved and removed. */
   const [keyFloor, setKeyFloor] = React.useState(0);
@@ -607,6 +655,9 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     [savedRows, savedKeys, createdAs, draftContext, edits],
   );
   const rows = React.useMemo(() => rowsFor(allDrafts), [rowsFor, allDrafts]);
+  React.useLayoutEffect(() => {
+    rowsNow.current = rows;
+  }, [rows]);
 
   /**
    * The cursor is on a row, not at a row number: a row can move to its sorted place under it. `row` is only where it
@@ -730,7 +781,19 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       keepKeys(row.key);
       // A new row's cells are forgotten when put back to empty: there is nothing to send.
       setEdits((prev) => setEdit(withoutLinkedOrigin(prev), key, column.id, value, editor.initial(row)));
-      return;
+      // Marked a single barrel or private selection after its proof and age were typed: they are the bottle's now, and the notice says so.
+      if ((column.id === "singleBarrel" || column.id === "privateSelection") && value === "true") {
+        const typed = LIQUID_FIELDS.filter((field) => (edits[row.key]?.[field] ?? "") !== "");
+        const draft = allDrafts.find((d) => d.key === row.key);
+        if (typed.length > 0 && draft) {
+          const words = liquidWords(typed);
+          pushNotice(
+            `${draftTitle(draft)}: ${words} ${words.includes(" and ") ? "are" : "is"} now this bottle's, since it's a ${column.id === "singleBarrel" ? "single barrel" : "private selection"}. Size stays on the label.`,
+            () => setDrafts((prev) => prev.map((d) => (d.key === row.key ? { ...d, keepOnLabel: true } : d))),
+          );
+        }
+      }
+      return undefined;
     }
     // A saved row saves as soon as a cell of it is committed. An edit that is already here is kept even when it is put
     // back to what the sheet shows: the earlier value may already be saved, and the sheet has not read it back yet.
@@ -740,7 +803,9 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     const stepped = field !== undefined && openEditor?.rowKey === row.key && openEditor.columnId === column.id && openEditor.scope !== null && openEditor.scope !== defaultScope(row, field);
     if (!had && !stepped && sameValue(value, levelText(row, column.id, level, editor))) return undefined;
     touch(key);
-    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [storedAs]: value } }));
+    // Marked a single barrel or private selection on a label made on this visit that has only this bottle: ask for its proof and age to move too (the server checks the count).
+    const net = (column.id === "singleBarrel" || column.id === "privateSelection") && value === "true" && row.bottle !== null && createdLabels.current.has(row.label.id) && row.label.bottleCount === 1;
+    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [storedAs]: value, ...(net ? { moveLiquidFromLabel: "true" } : {}) } }));
     saver.request(key);
     return { level, key };
   }
@@ -1837,6 +1902,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       <DeleteBar count={ticked.length} noun={view.bottles ? "bottle" : "label"} ids={idsOfKeys(ticked)} onClear={() => setSelected(new Set())} onDone={afterDelete} />
       {/* Present before anything is in it, so a screen reader announces the text when it appears. It never takes focus. */}
       <div aria-live="polite" aria-atomic="true" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
+        <Notices notices={notices} onDismiss={dismissNotice} />
         {blockedRows.length > 0 ? (
           <div className="pointer-events-auto flex flex-col gap-2 border border-destructive bg-card p-3 text-sm shadow-md">
             <p className="flex items-start gap-2">

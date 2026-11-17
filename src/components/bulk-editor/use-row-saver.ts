@@ -28,6 +28,10 @@ type Input = {
   onLanded?: (savedKey: string) => void;
   /** A saved bottle has been given a status that takes it off the shelf, so the sheet (which lists only owned and open bottles) will stop showing it. */
   onLeftShelf?: (key: string, status: string) => void;
+  /** A new row made a new label: the sheet remembers it for this visit, since only such a label can have its proof and age moved late. */
+  onLabelCreated?: (labelId: number) => void;
+  /** A bottle was marked a single barrel or private selection and the server moved the label's values to it. */
+  onMoved?: (key: string, moved: Record<string, string>) => void;
   /** Allows a draft's open editor to finish before creation starts. */
   editingDraft: React.RefObject<string | null>;
   pendingByRow: ReadonlyMap<string, Record<string, string>>;
@@ -101,7 +105,7 @@ export function useRowSaver(input: Input) {
       }
       const { edits, moves, drafts, view, pendingByRow } = latest.current;
       const cells = edits[key];
-      let call: () => Promise<{ ok: true; bottleId?: number | null; labelId?: number } | { ok: false; error: string; fieldErrors: Record<string, string> }>;
+      let call: () => Promise<{ ok: true; bottleId?: number | null; labelId?: number; created?: { label?: boolean }; moved?: Record<string, string> } | { ok: false; error: string; fieldErrors: Record<string, string> }>;
       let snapshot: Sent;
       let scope: "label" | "bottle" = "label";
       let fallback = Object.keys(cells ?? {})[0] ?? "brand";
@@ -150,6 +154,8 @@ export function useRowSaver(input: Input) {
         if (deleted.current.has(key)) return;
         if (outcome.ok) {
           sent.current.set(key, snapshot);
+          if (outcome.moved) latest.current.onMoved?.(key, outcome.moved);
+          if (isDraft && outcome.created?.label && outcome.labelId !== undefined) latest.current.onLabelCreated?.(outcome.labelId);
           const status = key.startsWith("b") ? snapshot.cells.status : undefined;
           if (status !== undefined && status !== "owned" && status !== "open") latest.current.onLeftShelf?.(key, status);
           if (isDraft) {

@@ -1,4 +1,5 @@
 import type { DraftRow } from "./drafts";
+import { routeLiquid } from "./late-mark";
 import { EDITORS, type CellEditor, type Edits } from "./editors";
 import { isYesNoChoice } from "./fields";
 import { linksPayload } from "@/lib/expressions/links";
@@ -106,7 +107,9 @@ function patchFields(cells: Readonly<Record<string, string>>): Record<string, un
  * sealing is the Opened tick's job, which refuses to reset a level that is not full).
  */
 export const bottlePatchBody = (cells: Readonly<Record<string, string>> | undefined, moveTo: number | undefined): Record<string, unknown> => ({
-  ...patchFields(cells ?? {}),
+  ...patchFields(Object.fromEntries(Object.entries(cells ?? {}).filter(([column]) => column !== "moveLiquidFromLabel"))),
+  // Marking a bottle a single barrel or private selection can take the label's proof and age with it (the server decides, by its own count).
+  ...(cells?.moveLiquidFromLabel === "true" ? { moveLiquidFromLabel: true } : {}),
   ...(cells?.dateOpened === "" ? { ifOpenedCleared: "keep_open" } : {}),
   ...(moveTo !== undefined ? { expressionId: moveTo } : {}),
 });
@@ -143,6 +146,18 @@ export function createBody(draft: DraftRow, cells: Readonly<Record<string, strin
     }
     if (!editor || editor.combo || value === "") continue;
     Object.assign(editor.scope === "label" ? facts : bottle, serverFields(editor, column, value));
+  }
+  // A row marked a single barrel or private selection: the proof and age typed are the bottle's, and no vintage is made for it
+  // (the name typed in its Vintage cell is the bottle's batch, as a pick's batch is).
+  const marked = bottle.isSingleBarrel === true || bottle.isSingleBarrelPick === true;
+  if (marked && !draft.keepOnLabel) {
+    const routed = routeLiquid(facts as Record<string, string>, true, false);
+    for (const field of Object.keys(routed.bottle)) delete facts[field];
+    Object.assign(bottle, routed.bottle);
+    if (typeof bottle.releaseName === "string") {
+      bottle.batch = bottle.releaseName;
+      delete bottle.releaseName;
+    }
   }
   // A vintage made in this row takes the proof and age typed into it, and the label does not: they are the vintage's.
   let vintage: { name: string; facts: Record<string, string> } | undefined;

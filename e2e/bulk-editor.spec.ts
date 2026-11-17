@@ -204,6 +204,125 @@ test("pasting onto several bottles of one vintage writes the vintage once and th
   await expect(pasteNotice(page)).toContainText(/Changed the Step Vintage vintage \(\d+ bottles\)/);
 });
 
+/** The brands the late-marking and notice specs make, removed after each spec so the rows other specs count on stay where they were. */
+test.afterEach(async () => {
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const brands = await db`select id from brands where name similar to '(Late|Stack) % Co'`;
+    if (brands.length === 0) return;
+    const ids = brands.map((b) => b.id as number);
+    await db`delete from bottles where expression_id in (select id from expressions where brand_id = any(${ids}))`;
+    await db`delete from expressions where brand_id = any(${ids})`;
+    await db`delete from brands where id = any(${ids})`;
+  } finally {
+    await db.end();
+  }
+});
+
+/** A new row for a new label (brand, label, category), with the proof and age typed, and the cursor left on the empty row below. */
+async function newLabelRow(page: Page, brandName: string, labelName: string): Promise<number> {
+  const [brand, proof, ageY] = [await col(page, "Brand"), await col(page, "Proof"), await col(page, "Y")];
+  const row = await lastRow(page);
+  await cell(page, row, brand).click();
+  await page.keyboard.type(brandName);
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(labelName);
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("bou");
+  await page.keyboard.press("Tab");
+  await cell(page, row, proof).click();
+  await page.keyboard.type("118.3");
+  await page.keyboard.press("Tab");
+  await cell(page, row, ageY).click();
+  await page.keyboard.type("8");
+  await page.keyboard.press("Tab");
+  return row;
+}
+const corner = (page: Page) => page.locator("[aria-live=polite]").filter({ hasText: /now this bottle's|moved from the label/ });
+const liquidOf = async (labelName: string) => {
+  const db = postgres(process.env.DATABASE_URL!);
+  try {
+    const [r] = await db`select e.proof as label_proof, e.age_years as label_age, b.proof as bottle_proof, b.age_years as bottle_age, b.is_single_barrel_pick as pick from expressions e join bottles b on b.expression_id = e.id where e.name = ${labelName}`;
+    const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    return { label: [n(r?.label_proof), n(r?.label_age)], bottle: [n(r?.bottle_proof), n(r?.bottle_age)], pick: r?.pick ?? null };
+  } finally {
+    await db.end();
+  }
+};
+
+test("marking a new row a private selection after typing its proof and age moves them to the bottle", async ({ page }) => {
+  const [selection] = [await col(page, "Private selection")];
+  const row = await newLabelRow(page, "Late Marking Co", "Cask Select");
+  await cell(page, row, selection).click();
+  await page.keyboard.press("Space");
+  await expect(corner(page)).toContainText("Late Marking Co Cask Select: proof and age are now this bottle's, since it's a private selection");
+  await expect(corner(page).getByRole("button", { name: "Undo" })).toBeVisible();
+  await cell(page, row + 1, 0).click(); // leave the row: it saves
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  expect(await liquidOf("Cask Select")).toEqual({ label: [null, null], bottle: [118.3, 8], pick: true });
+});
+
+test("Undo on the late-marking notice keeps the proof and age on the new label", async ({ page }) => {
+  const [selection] = [await col(page, "Private selection")];
+  const row = await newLabelRow(page, "Late Undo Co", "Undo Select");
+  await cell(page, row, selection).click();
+  await page.keyboard.press("Space");
+  await corner(page).getByRole("button", { name: "Undo" }).click();
+  await cell(page, row + 1, 0).click();
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  expect(await liquidOf("Undo Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: true });
+});
+
+test("a row saved first and marked later, in the same session, moves them and says so; after a reload nothing moves", async ({ page }) => {
+  const [selection, proof] = [await col(page, "Private selection"), await col(page, "Proof")];
+  /** The saved row of a label, found by its name each time, since the sheet places a saved row in its sorted place a moment after it saves. */
+  const rowOf = (name: string) => sheet(page).locator("tbody tr", { hasText: name }).last();
+  const row = await newLabelRow(page, "Late Net Co", "Net Select");
+  await cell(page, row + 1, 0).click(); // leave the row: it saves, unmarked, with the label holding the proof and age
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  expect(await liquidOf("Net Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: false });
+  await expect(rowOf("Net Select").locator("td").nth(proof)).toContainText("118.3");
+  await rowOf("Net Select").locator("td").nth(selection).click();
+  await page.keyboard.press("Space");
+  await expect(corner(page)).toContainText("Late Net Co Net Select: proof and age moved from the label to this bottle");
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  expect(await liquidOf("Net Select")).toEqual({ label: [null, null], bottle: [118.3, 8], pick: true });
+  await expect(rowOf("Net Select").locator("td").nth(proof)).toContainText("118.3");
+  // A label from an earlier session is never touched this way: after a reload, marking leaves its values where they are.
+  const row2 = await newLabelRow(page, "Late Old Co", "Old Select");
+  await cell(page, row2 + 1, 0).click();
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  await page.reload();
+  await expect(sheet(page)).toBeVisible();
+  await expect(rowOf("Old Select")).toBeVisible();
+  await rowOf("Old Select").locator("td").nth(selection).click();
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 10_000 });
+  expect(await liquidOf("Old Select")).toEqual({ label: [118.3, 8], bottle: [null, null], pick: true });
+});
+
+test("corner notices stack with the newest on top, go by themselves after about ten seconds, and wait while the pointer is on them", async ({ page }) => {
+  test.setTimeout(75_000);
+  const selection = await col(page, "Private selection");
+  const first = await newLabelRow(page, "Stack One Co", "Stack One");
+  await cell(page, first, selection).click();
+  await page.keyboard.press("Space");
+  const second = await newLabelRow(page, "Stack Two Co", "Stack Two");
+  await cell(page, second, selection).click();
+  await page.keyboard.press("Space");
+  const notices = page.locator("[data-notice]");
+  await expect(notices).toHaveCount(2);
+  await expect(notices.nth(0)).toContainText("Stack Two Co Stack Two"); // the newest is on top
+  await expect(notices.nth(1)).toContainText("Stack One Co Stack One");
+  // While the pointer is on a notice it stays, past the time it would otherwise go.
+  await notices.nth(0).hover();
+  await page.waitForTimeout(11_000);
+  await expect(notices.nth(0)).toContainText("Stack Two Co Stack Two");
+  // Once it is away from them, they go by themselves.
+  await page.mouse.move(5, 5);
+  await expect(notices).toHaveCount(0, { timeout: 15_000 });
+});
+
 test("typing replaces a value, Enter keeps it and drops to the next row in the same column", async ({ page }) => {
   const price = await col(page, "Price paid");
   await cell(page, 1, price).click();

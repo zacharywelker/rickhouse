@@ -508,11 +508,58 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
       expect(await rows.patchBottleRow(owner, bottle, { releaseName: "2028" })).toEqual({ ok: true });
       expect(await vintages(label)).toHaveLength(1);
     });
+    it("never makes a vintage on a label that is not the caller's, even when the bottle is moved to it in the same request", async () => {
+      const mine = await fx.mkLabel(owner, cat.whiskey, "Vintage Mine");
+      const bottle = await fx.mkBottle(owner, mine);
+      const theirs = await fx.mkLabel(stranger, cat.whiskey, "Vintage Theirs 2");
+      const out = await rows.patchBottleRow(owner, bottle, { expressionId: theirs, releaseName: "Planted" });
+      expect(out).toMatchObject({ ok: false });
+      expect(await vintages(theirs)).toHaveLength(0);
+      expect((await one<{ expression_id: number }>(`SELECT expression_id FROM bottles WHERE id = $1`, bottle)).expression_id).toBe(mine);
+    });
+    it("ensureVintage itself refuses a label that is not the caller's, before it writes anything", async () => {
+      const theirs = await fx.mkLabel(stranger, cat.whiskey, "Vintage Theirs 3");
+      const { db } = await import("@/db");
+      const { ensureVintage } = await import("../reference-rows");
+      await expect(db.transaction((tx) => ensureVintage(tx, owner, theirs, "Planted"))).rejects.toThrow(/not one of your labels/);
+      expect(await vintages(theirs)).toHaveLength(0);
+    });
     it("refuses a name and an id together, and an empty name", async () => {
       const label = await fx.mkLabel(owner, cat.whiskey, "Vintage Create D");
       const bottle = await fx.mkBottle(owner, label);
       expect(await rows.patchBottleRow(owner, bottle, { releaseName: "" })).toMatchObject({ ok: false, kind: "invalid" });
       expect(await vintages(label)).toHaveLength(0);
+    });
+  });
+
+  describe("marking a bottle a single barrel or private selection late", () => {
+    const liquid = async (labelId: number, bottleId: number) => {
+      const l = await one<{ proof: string | null; age_years: string | null }>(`SELECT proof, age_years FROM expressions WHERE id = $1`, labelId);
+      const b = await one<{ proof: string | null; age_years: string | null; pick: boolean }>(`SELECT proof, age_years, is_single_barrel_pick AS pick FROM bottles WHERE id = $1`, bottleId);
+      return { label: [l.proof === null ? null : Number(l.proof), l.age_years === null ? null : Number(l.age_years)], bottle: [b.proof === null ? null : Number(b.proof), b.age_years === null ? null : Number(b.age_years)], pick: b.pick };
+    };
+    it("moves the label's proof and age to the bottle, and clears the label's, when it is the label's only bottle", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Late Mark A");
+      await m.sql(`UPDATE expressions SET proof = 118.3, age_years = 8 WHERE id = $1`, label);
+      const bottle = await fx.mkBottle(owner, label);
+      const out = await rows.patchBottleRow(owner, bottle, { isSingleBarrelPick: true, moveLiquidFromLabel: true });
+      expect(out).toMatchObject({ ok: true, moved: { proof: "118.30", ageYears: "8.0" } });
+      expect(await liquid(label, bottle)).toEqual({ label: [null, null], bottle: [118.3, 8], pick: true });
+    });
+    it("does nothing to the label when it has another bottle (another tab or the phone added one)", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Late Mark B");
+      await m.sql(`UPDATE expressions SET proof = 90 WHERE id = $1`, label);
+      const bottle = await fx.mkBottle(owner, label);
+      await fx.mkBottle(owner, label);
+      expect(await rows.patchBottleRow(owner, bottle, { isSingleBarrelPick: true, moveLiquidFromLabel: true })).toEqual({ ok: true });
+      expect(await liquid(label, bottle)).toEqual({ label: [90, null], bottle: [null, null], pick: true });
+    });
+    it("is not done unless it is asked for", async () => {
+      const label = await fx.mkLabel(owner, cat.whiskey, "Late Mark C");
+      await m.sql(`UPDATE expressions SET proof = 90 WHERE id = $1`, label);
+      const bottle = await fx.mkBottle(owner, label);
+      expect(await rows.patchBottleRow(owner, bottle, { isSingleBarrelPick: true })).toEqual({ ok: true });
+      expect((await liquid(label, bottle)).label).toEqual([90, null]);
     });
   });
 });

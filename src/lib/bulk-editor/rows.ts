@@ -56,7 +56,8 @@ export type CreateOutcome =
     }
   | RowFailure;
 
-export type PatchOutcome = { ok: true } | RowFailure;
+/** `moved`: the label's values that went to the bottle (a bottle marked a single barrel or private selection late), as text, so the sheet can offer Undo. */
+export type PatchOutcome = { ok: true; moved?: Record<string, string> } | RowFailure;
 
 const failure = (kind: RowFailure["kind"], error: string, fieldErrors: Record<string, string> = {}): RowFailure => ({ ok: false, kind, error, fieldErrors });
 const invalidField = (field: string, message: string) => failure("invalid", message, { [field]: message });
@@ -310,6 +311,7 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
   const body = isRecord(raw) ? { ...raw } : raw;
   let named: string | undefined;
   let namedVintage: string | undefined;
+  let moveLiquid = false;
   let version: number | null | undefined;
   let life: z.infer<typeof lifeSchema> = {};
   if (isRecord(body)) {
@@ -329,6 +331,9 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
     const store = takeName(body, "storeName", "storeId");
     if (store.failure) return store.failure;
     named = store.name;
+    // Marking the bottle a single barrel or private selection can take the label's proof and age with it (see below).
+    moveLiquid = body.moveLiquidFromLabel === true && (body.isSingleBarrel === true || body.isSingleBarrelPick === true);
+    delete body.moveLiquidFromLabel;
     const vintageName = takeName(body, "releaseName", "releaseId");
     if (vintageName.failure) return vintageName.failure;
     namedVintage = vintageName.name;
@@ -355,11 +360,33 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
     }
   }
   const made: { store?: number; vintage?: number } = {};
+  /** The label's values that move to this bottle, and the label they leave. Only for the label's one and only bottle. */
+  let moved: { labelId: number; values: Record<string, string> } | null = null;
   try {
+    if (moveLiquid && isRecord(body)) {
+      const [own] = await db.select({ labelId: bottles.expressionId }).from(bottles).where(and(eq(bottles.id, bottleId), eq(bottles.ownerId, ownerId))).limit(1);
+      if (own && (await db.$count(bottles, and(eq(bottles.expressionId, own.labelId), eq(bottles.ownerId, ownerId)))) === 1) {
+        const [label] = await db
+          .select({ proof: expressions.proof, ageYears: expressions.ageYears, ageMonths: expressions.ageMonths, ageDays: expressions.ageDays, ageStatement: expressions.ageStatement, tequilaClass: expressions.tequilaClass, brandyGrade: expressions.brandyGrade })
+          .from(expressions)
+          .where(and(eq(expressions.id, own.labelId), eq(expressions.ownerId, ownerId)))
+          .limit(1);
+        const values: Record<string, string> = {};
+        for (const [field, value] of Object.entries(label ?? {})) {
+          if (value !== null && value !== undefined && String(value) !== "" && !(field in body)) {
+            values[field] = String(value);
+            body[field] = String(value);
+          }
+        }
+        if (Object.keys(values).length > 0) moved = { labelId: own.labelId, values };
+      }
+    }
     // A vintage named in the cell is made for the bottle's label (the one it is moving to, if it is moving), or found.
     if (namedVintage !== undefined && isRecord(body)) {
       const labelId = typeof body.expressionId === "number" ? body.expressionId : ((await db.select({ id: bottles.expressionId }).from(bottles).where(and(eq(bottles.id, bottleId), eq(bottles.ownerId, ownerId))).limit(1))[0]?.id ?? null);
       if (labelId === null) return failure("gone", "That bottle is gone.");
+      // A label the bottle is moving to is checked to be the caller's before anything is made on it.
+      if ((await db.$count(expressions, and(eq(expressions.id, labelId), eq(expressions.ownerId, ownerId)))) === 0) return invalidField("expressionId", "Choose one of your labels.");
       const vintage = await db.transaction((tx) => ensureVintage(tx, ownerId, labelId, namedVintage!));
       body.releaseId = vintage.id;
       if (vintage.created) made.vintage = vintage.id;
@@ -384,6 +411,11 @@ export async function patchBottleRow(ownerId: number, bottleId: number, raw: unk
     if (!outcome) return await undo(made, failure("gone", "That bottle is gone."));
     if (!outcome.ok) {
       return await undo(made, failure("invalid", outcome.message, outcome.field ? { [outcome.field]: outcome.message } : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : {}));
+    }
+    // The values now on the bottle are cleared from the label, which no longer has them as its defaults.
+    if (moved) {
+      await db.update(expressions).set(Object.fromEntries(Object.keys(moved.values).map((field) => [field, null]))).where(and(eq(expressions.id, moved.labelId), eq(expressions.ownerId, ownerId)));
+      return { ok: true, moved: moved.values };
     }
     return { ok: true };
   } catch (error: unknown) {
