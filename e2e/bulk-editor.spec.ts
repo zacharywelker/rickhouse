@@ -547,14 +547,15 @@ test("a new label under a new brand takes its category from the closed list, and
 // Label fields and bottle fields: locks, and moving a bottle
 // ---------------------------------------------------------------------------
 
-test("a label's fact is edited on a bottle row without unlocking it, and the cell says how many bottles it changes", async ({ page }) => {
+test("a label's fact is edited on a bottle row without unlocking it, and says how many bottles it changes only while being edited", async ({ page }) => {
   // MSRP, a label fact with no vintage level: a value like Proof says "Label · N bottles" instead (see the Alt+Down specs).
   const proof = await col(page, "MSRP");
   await expect(cell(page, 1, proof).locator("svg")).toHaveCount(0); // no lock
-  await expect(cell(page, 1, proof)).toContainText(/all \d+/);
+  await expect(cell(page, 1, proof)).not.toContainText(/all \d+/); // the reach is said while editing, not on every cell
   await cell(page, 1, proof).click();
+  await expect(page.getByText(/^Changes \d+ bottles?$/)).toHaveCount(0); // selecting does not say it either
   await page.keyboard.type("101");
-  await expect(page.getByText(/^Changes \d+ bottles?$/)).toBeVisible();
+  await expect(page.getByText(/^Changes \d+ bottles?$/)).toBeVisible(); // below the field, while it is being edited
   await page.keyboard.press("Enter");
   await expect(cell(page, 1, proof)).toContainText("101");
   // Saved for the label, so every bottle on it, and there after a reload.

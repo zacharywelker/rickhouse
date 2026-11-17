@@ -461,7 +461,6 @@ const SheetRowView = React.memo(function SheetRowView({ row, rowIndex, columns, 
                 </>
               )}
               {locked ? <Lock aria-hidden className="size-3 shrink-0" /> : null}
-              {reach !== null ? <span className="shrink-0 border border-border px-1 text-[10px] uppercase leading-4 tracking-wide text-muted-foreground">{`all ${reach}`}</span> : null}
               {cell.badge ? <span className="shrink-0 border border-border px-1 text-[10px] uppercase leading-4 tracking-wide text-muted-foreground">{cell.badge}</span> : null}
             </span>
             {isEditing && editing && editor && onFinish && onInvalid && onInput ? (
