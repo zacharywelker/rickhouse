@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Loader2 } from "lucide-react";
-import { deleteImpactAction, deleteRowsAction } from "@/app/(app)/bulk-editor/actions";
+import { deleteImpactAction, deleteRowsAction } from "@/app/(wide)/bulk-editor/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { deleteSentence, type DeleteIds } from "@/lib/bulk-editor/delete";

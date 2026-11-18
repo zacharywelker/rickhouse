@@ -343,7 +343,7 @@ describe.skipIf(!url)("bulk editor rows against a real database", () => {
     it("excludes over-limit rows from the preview and reports them without deleting them", async () => {
       const auth = await import("@/lib/auth");
       vi.mocked(auth.requireSession).mockResolvedValue({ id: owner } as Awaited<ReturnType<typeof auth.requireSession>>);
-      const actions = await import("@/app/(app)/bulk-editor/actions");
+      const actions = await import("@/app/(wide)/bulk-editor/actions");
       const first = await fx.mkLabel(owner, cat.whiskey, "Delete Within Limit");
       const excluded = await fx.mkLabel(owner, cat.whiskey, "Delete Beyond Limit");
       const missing = Array.from({ length: 4999 }, (_, i) => 1_000_000_000 + i);

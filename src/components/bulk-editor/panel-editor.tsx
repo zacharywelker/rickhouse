@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { labelOtherNamesAction, labelReleasesAction } from "@/app/(app)/bulk-editor/actions";
+import { labelOtherNamesAction, labelReleasesAction } from "@/app/(wide)/bulk-editor/actions";
 import { OTHER_NAME_COLUMNS, otherNameRows, RELEASE_COLUMNS } from "@/components/expressions/label-list-columns";
 import { RegionPicker } from "@/components/expressions/region-picker";
 import { RowListEditor } from "@/components/expressions/row-list-editor";

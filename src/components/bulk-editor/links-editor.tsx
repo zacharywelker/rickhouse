@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { labelLinksAction } from "@/app/(app)/bulk-editor/actions";
+import { labelLinksAction } from "@/app/(wide)/bulk-editor/actions";
 import { DistilleryPicker, FinishPickers, IngredientPickers, MashbillPicker, type LabelLinks } from "@/components/expressions/label-link-pickers";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import type { Option } from "@/lib/admin/types";

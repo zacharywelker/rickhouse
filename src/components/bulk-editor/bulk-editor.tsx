@@ -48,7 +48,7 @@ import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links
 import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-editor/clipboard";
 import { indexSheet, resolve, type Level, type ValueField } from "@/lib/bulk-editor/resolve";
 import { LIQUID_FIELDS } from "@/lib/bulk-editor/late-mark";
-import { patchBottleRowAction, patchLabelRowAction } from "@/app/(app)/bulk-editor/actions";
+import { patchBottleRowAction, patchLabelRowAction } from "@/app/(wide)/bulk-editor/actions";
 import { columnFor, defaultScope, nextScope, noteText, scopeSentence, scopesFor } from "@/lib/bulk-editor/scope";
 import { platformKeyName } from "@/lib/platform";
 import { copyValue } from "@/lib/bulk-editor/value-cells";
