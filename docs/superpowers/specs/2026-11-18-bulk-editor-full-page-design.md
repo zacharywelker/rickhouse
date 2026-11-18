@@ -1,6 +1,6 @@
 # Bulk editor: the sheet is the whole page, the Details pane lies over it
 
-**Status: awaiting the owner's approval.** The owner approved the mockup below on 2026-11-18 ("this is what I want"); this document writes it down so it can be planned.
+**Status: approved by the owner, 2026-11-18.** The owner approved the mockup below ("this is what I want") and then this design ("this design is right").
 
 Follows #308 and item 1 of the owner's first round of real use (#359). It changes how the page is laid out. It does not change what the sheet or the pane contain.
 
