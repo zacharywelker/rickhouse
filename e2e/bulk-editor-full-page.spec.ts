@@ -39,7 +39,7 @@ async function measures(page: Page) {
   return page.evaluate(() => {
     const grid = document.querySelector("[role=grid][aria-label='Bulk editor']")!;
     const scrollBox = grid.closest(".overflow-x-auto")!;
-    const frame = scrollBox.parentElement!.getBoundingClientRect();
+    const frame = scrollBox.parentElement!.parentElement!.getBoundingClientRect(); // scroll box, its body, the frame
     return { docHeight: document.documentElement.scrollHeight, frameBottom: frame.bottom, frameHeight: frame.height, h1s: document.querySelectorAll("h1").length };
   });
 }
@@ -70,4 +70,104 @@ test("a toolbar that wraps costs the sheet height, not the page", async ({ page 
   const m = await measures(page);
   expect(m.docHeight).toBeLessThanOrEqual(800);
   expect(m.frameBottom).toBeGreaterThan(800 - 40);
+});
+
+// ---- the Details pane lies over the sheet ----
+
+const grid = (page: Page) => page.getByRole("grid", { name: "Bulk editor" });
+const scrollBox = (page: Page) => grid(page).locator("xpath=ancestor::div[contains(@class,'overflow-x-auto')][1]");
+const pane = (page: Page) => page.locator("aside[aria-label='Row details']");
+const lastHeader = (page: Page) => grid(page).locator("thead tr:last-child th").last();
+const hidePane = (page: Page) => page.getByRole("button", { name: "Hide the details panel" }).click();
+
+/** Opens the editor at a laptop width, where the columns overflow the sheet and the pane starts open. */
+async function openLaptop(page: Page) {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto("/bulk-editor");
+  await expect(grid(page)).toBeVisible();
+  await expect(pane(page)).toBeVisible();
+}
+async function scrollToEnd(page: Page) {
+  await scrollBox(page).evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+  await page.waitForTimeout(100);
+}
+
+test("the pane lies over the sheet's right edge, and showing or hiding it moves nothing", async ({ page }) => {
+  await openLaptop(page);
+  const before = { grid: await grid(page).boundingBox(), brand: await grid(page).locator("thead tr:last-child th").first().boundingBox(), row: await grid(page).locator("tbody tr").first().boundingBox() };
+  const box = (await scrollBox(page).boundingBox())!;
+  const bar = await scrollBox(page).evaluate((el) => (el as HTMLElement).offsetWidth - (el as HTMLElement).clientWidth);
+  const p = (await pane(page).boundingBox())!;
+  // Over the right edge of the sheet's scroll box, level with its top, and not covering its scrollbar.
+  expect(Math.abs(p.x + p.width - (box.x + box.width - bar))).toBeLessThanOrEqual(2);
+  expect(Math.abs(p.y - box.y)).toBeLessThanOrEqual(2);
+  expect(p.width).toBeLessThanOrEqual(300);
+
+  await hidePane(page);
+  await expect(pane(page).getByRole("button", { name: "Show the details panel" })).toBeVisible();
+  const after = { grid: await grid(page).boundingBox(), brand: await grid(page).locator("thead tr:last-child th").first().boundingBox(), row: await grid(page).locator("tbody tr").first().boundingBox() };
+  expect(after).toEqual(before);
+});
+
+test("the last column scrolls fully clear of the pane, and to the edge when the pane is hidden", async ({ page }) => {
+  await openLaptop(page);
+  await scrollToEnd(page);
+  const p = (await pane(page).boundingBox())!;
+  const last = (await lastHeader(page).boundingBox())!;
+  expect(last.x + last.width).toBeLessThanOrEqual(p.x + 1);
+
+  await hidePane(page);
+  await scrollToEnd(page);
+  const box = (await scrollBox(page).boundingBox())!;
+  const lastClosed = (await lastHeader(page).boundingBox())!;
+  expect(lastClosed.x + lastClosed.width).toBeLessThanOrEqual(box.x + box.width + 1);
+});
+
+test("arrowing to the last column leaves the cell clear of the pane", async ({ page }) => {
+  await openLaptop(page);
+  await grid(page).locator("td[data-r='0'][data-c='0']").click();
+  await page.keyboard.press("End");
+  await page.waitForTimeout(200);
+  const active = (await page.locator("td[data-r][aria-selected='true']").first().boundingBox())!;
+  const p = (await pane(page).boundingBox())!;
+  expect(active.x + active.width).toBeLessThanOrEqual(p.x + 1);
+});
+
+test("with columns resized, the last column still scrolls clear of the pane", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto("/bulk-editor");
+  await page.evaluate(() => window.localStorage.setItem("bulk-editor:widths", JSON.stringify({ brand: 220, category: 180 })));
+  await page.reload();
+  await expect(pane(page)).toBeVisible();
+  // The saved widths are read after the page has loaded.
+  await expect.poll(async () => Math.round((await grid(page).locator("thead tr:last-child th").first().boundingBox())!.width)).toBe(220);
+  await scrollToEnd(page);
+  const p = (await pane(page).boundingBox())!;
+  const last = (await lastHeader(page).boundingBox())!;
+  expect(last.x + last.width).toBeLessThanOrEqual(p.x + 1);
+  await page.evaluate(() => window.localStorage.removeItem("bulk-editor:widths"));
+});
+
+test("the save and undo notices sit above the pane", async ({ page }) => {
+  await openLaptop(page);
+  const z = await page.evaluate(() => {
+    const live = document.querySelector("div[aria-live='polite'].fixed") as HTMLElement;
+    const aside = document.querySelector("aside[aria-label='Row details']") as HTMLElement;
+    const level = (el: HTMLElement | null) => { for (let e = el; e; e = e.parentElement) { const z = getComputedStyle(e).zIndex; if (z !== "auto") return Number(z); } return 0; };
+    return { notices: level(live), pane: level(aside.firstElementChild as HTMLElement) };
+  });
+  expect(z.notices).toBeGreaterThan(z.pane);
+});
+
+test("ticking a row shows the delete bar without shrinking the sheet or going under the pane", async ({ page }) => {
+  await openLaptop(page);
+  const before = (await scrollBox(page).boundingBox())!;
+  await page.getByRole("checkbox", { name: /^Select / }).first().check();
+  const bar = page.getByText(/selected$/).first();
+  await expect(bar).toBeVisible();
+  const after = (await scrollBox(page).boundingBox())!;
+  expect(after.height).toBe(before.height);
+  const barBox = (await bar.locator("xpath=ancestor::div[contains(@class,'bg-card')][1]").boundingBox())!;
+  const p = (await pane(page).boundingBox())!;
+  expect(barBox.x + barBox.width).toBeLessThanOrEqual(p.x + 1);
 });
