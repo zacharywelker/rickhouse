@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bottles, expressions } from "@/db/schema";
+import { bottles, expressionReleases, expressions } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { bottleSchema, bottleStateSchema, expressionSchema } from "@/lib/expressions/schema";
@@ -15,7 +15,9 @@ import { LabelRejected, NotOwned, attachPendingColas, fieldErrorsOf, labelValues
 import { settleLabelChoices } from "@/lib/expressions/label-choices";
 import { pendingTtbIds } from "@/lib/cola/ids";
 import type { FieldValue } from "@/lib/forms/values";
-import { bottleSpiritForExpression, categoryKindsById } from "@/lib/expressions/queries";
+import { bottleSpiritForExpression, categoryFieldGroups, categoryKindsById } from "@/lib/expressions/queries";
+import { parseReleaseRows } from "@/lib/releases";
+import { syncExpressionReleases } from "@/lib/releases-store";
 import { withBottleSpiritFacts } from "@/lib/expressions/spirit-details";
 
 export type CatalogHit = {
@@ -73,6 +75,10 @@ export type CatalogInput = {
   links: { distilleryLinks: string; mashbillLinks: string; finishLinks: string; ingredientLinks?: string } | null;
   /** TTB approvals picked for a new label. */
   ttbIds: string;
+  /** A new label's vintages, as the label form submits them (JSON rows). */
+  vintages?: string;
+  /** Which of those vintages the bottle is, by name; blank for none. */
+  vintageName?: string;
   bottle: Record<string, FieldValue>;
 };
 
@@ -123,6 +129,15 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
     bottleSpirit.ginAged,
   );
 
+  // A new label's vintages are written with it, so the bottle can be one of them. The form leaves the section out for
+  // vodka, amaro and liqueur, and so does this.
+  const newLabelGroup = chosenId === null && label?.success ? (await categoryFieldGroups())[label.data.categoryId] : undefined;
+  const parsedVintages =
+    chosenId === null && input.vintages && !["vodka", "amaro", "liqueur"].includes(newLabelGroup ?? "") ? parseReleaseRows(input.vintages) : null;
+  if (parsedVintages?.error) {
+    return { ok: false, error: parsedVintages.error, labelErrors: { releases: parsedVintages.error }, bottleErrors: {} };
+  }
+
   const links = linksFrom(input.links ?? {});
   // Which write a database error came from, so it lands on the right half of the page.
   const progress: { stage: "label" | "bottle" } = { stage: "label" };
@@ -142,6 +157,20 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
         if (!owned) throw new NotOwned();
         expressionId = owned.id;
       }
+      // The label's vintages, then the one this bottle is (by the name it was typed with).
+      let vintageId: number | null = null;
+      if (chosenId === null && parsedVintages && parsedVintages.releases.length > 0) {
+        await syncExpressionReleases(tx, expressionId, parsedVintages.releases);
+        const wanted = (input.vintageName ?? "").trim();
+        if (wanted !== "") {
+          const [found] = await tx
+            .select({ id: expressionReleases.id })
+            .from(expressionReleases)
+            .where(and(eq(expressionReleases.expressionId, expressionId), eq(expressionReleases.name, wanted)))
+            .limit(1);
+          vintageId = found?.id ?? null;
+        }
+      }
       progress.stage = "bottle";
       const [row] = await tx
         .insert(bottles)
@@ -150,6 +179,8 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
             { ...bottleData, isOpen: state.data.isOpen, fillPct: state.data.fillPct, dateOpened: state.data.dateOpened },
             new Date().toISOString().slice(0, 10),
           ),
+          // A chosen vintage supplies the batch and year, so the bottle keeps neither of its own.
+          ...(vintageId !== null ? { releaseId: vintageId, batch: null, releaseYear: null } : {}),
           expressionId,
           ownerId: user.id,
         })

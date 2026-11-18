@@ -81,6 +81,50 @@ test("a photo link is sent with the bottle, and a failed upload is said on its p
   await expect(page.getByText("The bottle saved, but its photos didn't upload.", { exact: false })).toBeVisible();
 });
 
+test("a new label's vintages are typed with it, and the bottle can be one of them", async ({ page }) => {
+  const name = `Toasted Vintage ${stamp()}`;
+  await page.goto("/bottles/add");
+  const search = page.getByRole("combobox", { name: "Find the label" });
+  await search.fill(`Pursuit ${name}`);
+  await page.getByRole("option", { name: `New label: Pursuit Spirits · ${name}` }).click();
+  await page.getByRole("combobox", { name: "Category" }).click();
+  await page.locator("[cmdk-input]").fill("Rye");
+  const rye = page.locator('[cmdk-item]:not([data-value="__create__"])').filter({ hasText: /^Rye/ }).first();
+  await expect(rye).toBeVisible();
+  await rye.click();
+  await expect(page.getByRole("combobox", { name: /^Category/ })).toContainText("Rye");
+  await page.getByLabel("Proof", { exact: true }).first().fill("100");
+  await page.getByLabel("Distillery not disclosed").check();
+
+  // No vintages typed yet: the bottle has nothing to choose.
+  await expect(page.getByRole("heading", { name: "Vintages" })).toBeVisible();
+  await expect(page.getByLabel("Vintage", { exact: true })).toBeHidden();
+
+  await page.getByRole("button", { name: "Add a vintage" }).click();
+  await page.locator("#catalog-vintage-0-name").fill("Batch One");
+  await page.getByRole("button", { name: "Add a vintage" }).click();
+  await page.locator("#catalog-vintage-1-name").fill("Batch Two");
+  await page.locator("#catalog-vintage-1-year").fill("2023");
+
+  // The bottle offers the vintages that were typed, and a chosen one supplies the batch and year.
+  const choice = page.getByLabel("Vintage", { exact: true });
+  await expect(choice).toBeVisible();
+  await choice.selectOption("Batch Two");
+  await expect(page.getByLabel("Batch", { exact: true })).toBeHidden();
+
+  await page.getByLabel("Price Paid").fill("45");
+  await page.getByRole("button", { name: "Save label and bottle" }).click();
+  await expect(page).toHaveURL(/\/bottles\/\d+$/);
+  // The bottle is on the vintage it was saved with, and the label has both.
+  const vintageLink = page.getByRole("link", { name: "Batch Two" });
+  await expect(vintageLink).toBeVisible();
+  await vintageLink.click();
+  await expect(page).toHaveURL(/\/expressions\/\d+\/vintages\/\d+$/);
+  await page.getByRole("link", { name: new RegExp(name) }).first().click();
+  await expect(page.getByRole("heading", { name: "Vintages" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Batch One" })).toBeVisible();
+});
+
 test("a new label starts from the search, and both save together", async ({ page }) => {
   // No category in the name, so the category is left to be chosen.
   const name = `Toasted Barrel ${stamp()}`;
