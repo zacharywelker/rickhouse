@@ -18,7 +18,8 @@ import { cn } from "@/lib/utils";
  * menu, not an item inside it, so leaving is always one click.
  *
  * `wide` is for a page that is a workbench of its own (the bulk editor): the nav and the page run the full width of the
- * window.
+ * window, and from `md` up the window is also the page's height (the page scrolls only when the window is too short for
+ * the sheet's minimum).
  */
 export async function AppShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   const user = await requireSession();
@@ -33,7 +34,7 @@ export async function AppShell({ children, wide = false }: { children: React.Rea
   );
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className={cn("flex min-h-dvh flex-col", wide && "md:h-dvh")}>
       <KeyboardShortcuts />
       <AppNav
         wide={wide}

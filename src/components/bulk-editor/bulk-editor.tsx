@@ -1780,15 +1780,13 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   const hasBand = columns.some((c) => c.band !== undefined);
 
   return (
-    <div className="flex items-start gap-4">
     <div
       ref={sheetRef}
       style={Object.fromEntries(Object.entries(widths).map(([id, w]) => [widthVar(id), `${w}px`])) as React.CSSProperties}
-      // From md up the sheet scrolls inside a box that fits the screen, so the headers stay put and the keyboard's
-      // scroll-into-view keeps the active cell clear of them and of the frozen columns.
-      className="min-w-0 border border-border bg-card md:[&>.overflow-x-auto]:max-h-[calc(100dvh-19.5rem)] md:[&>.overflow-x-auto]:min-h-80 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[calc(var(--cw-brand,156px)+var(--cw-name,180px))] md:[&>.overflow-x-auto]:scroll-pt-16"
+      className="flex min-w-0 flex-col gap-3 md:min-h-0 md:flex-1"
     >
-      <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="w-full text-3xl text-accent md:mr-3 md:w-auto">Bulk editor</h1>
         <div role="group" aria-label="What the sheet shows" className="inline-flex divide-x divide-border border border-border">
           <ViewToggle label="Labels" on={view.labels} onlyOne={!view.bottles} onClick={() => changeView({ ...view, labels: !view.labels })} />
           <ViewToggle label="Bottles" on={view.bottles} onlyOne={!view.labels} onClick={() => changeView({ ...view, bottles: !view.bottles })} />
@@ -1849,6 +1847,9 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         </p>
       </div>
 
+      <div className="flex gap-4 md:min-h-80 md:flex-1 md:items-stretch">
+        {/* From md up the sheet scrolls inside a box that fits the window, so the headers stay put and the keyboard's scroll-into-view keeps the active cell clear of them and of the frozen columns. */}
+      <div className="flex min-w-0 flex-1 flex-col border border-border bg-card md:min-h-0 md:[&>.overflow-x-auto]:min-h-0 md:[&>.overflow-x-auto]:flex-1 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[calc(var(--cw-brand,156px)+var(--cw-name,180px))] md:[&>.overflow-x-auto]:scroll-pt-16">
       <Table role="grid" aria-label="Bulk editor" aria-rowcount={rows.length + 1} className="border-separate border-spacing-0 whitespace-nowrap tabular-nums">
         <TableHeader>
           <TableRow className="border-b-0 hover:bg-transparent">
@@ -2047,6 +2048,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         <PanelRightOpen aria-hidden className="size-4" />
       </button>
     </aside>
+      </div>
     </div>
   );
 }
