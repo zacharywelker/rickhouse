@@ -62,7 +62,7 @@ test("picking a label and saving adds a bottle of it, photos and all", async ({ 
   await page.getByRole("link", { name: "Double Oak Spirit", exact: true }).click();
   await expect(page).toHaveURL(/\/expressions\/\d+$/);
   await expect(page.getByRole("link", { name: /barrel B-1234/i })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Standard release" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Standard" })).toBeVisible();
 });
 
 test("a photo link is sent with the bottle, and a failed upload is said on its page", async ({ page }) => {

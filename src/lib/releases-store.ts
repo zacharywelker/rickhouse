@@ -27,7 +27,7 @@ const columns = {
 };
 
 /**
- * Makes a label's known releases exactly `releases`. A row with an id updates
+ * Makes a label's vintages exactly `releases`. A row with an id updates
  * that release (only if it is this label's), so a rename keeps its bottles,
  * photo and notes; a row without one matches by name or is inserted. Returns
  * the photos of releases it removed, for the caller to delete from disk once
@@ -125,12 +125,12 @@ export function removalWarning(row: { name: string; hasPhoto: boolean; hasNotes:
   const list = has.length === 1 ? has[0] : `${has.slice(0, -1).join(", ")} and ${has.at(-1)}`;
   const consequences = [
     row.hasPhoto || row.hasNotes ? `its ${[row.hasPhoto && "photo", row.hasNotes && "notes"].filter(Boolean).join(" and ")} will be deleted` : null,
-    row.bottleCount > 0 ? `${row.bottleCount === 1 ? "the bottle stays" : "the bottles stay"} but ${row.bottleCount === 1 ? "loses" : "lose"} this release` : null,
+    row.bottleCount > 0 ? `${row.bottleCount === 1 ? "the bottle stays" : "the bottles stay"} but ${row.bottleCount === 1 ? "loses" : "lose"} this vintage` : null,
   ].filter(Boolean);
   return `${row.name} has ${list}. Removing it: ${consequences.join("; ")}.`;
 }
 
-/** A label's known releases, in the order they were typed. */
+/** A label's vintages, in the order they were typed. */
 export async function expressionReleaseList(expressionId: number) {
   return db
     .select(columns)
@@ -150,7 +150,7 @@ export async function releaseById(id: number, ownerId: number) {
 }
 
 /**
- * Every known release of the account's labels, by label id, as the bottle
+ * Every vintage of the account's labels, by label id, as the bottle
  * form's Release choices. Only labels that have some appear.
  */
 export async function releaseChoices(ownerId: number): Promise<Record<number, Array<{ value: string; label: string }>>> {
@@ -190,7 +190,7 @@ export type ReleaseSaved =
   | { ok: false; status: 404 | 409 | 422; code: string; message: string };
 
 /**
- * Adds a known release to a label (`releaseId` null), or changes one, for the phone. Only what is sent changes; a
+ * Adds a vintage to a label (`releaseId` null), or changes one, for the phone. Only what is sent changes; a
  * release is removed by `removeRelease`. A label or release that is not the caller's is simply not found.
  */
 export async function saveRelease(
@@ -212,7 +212,7 @@ export async function saveRelease(
       .select(columns)
       .from(expressionReleases)
       .where(and(eq(expressionReleases.id, releaseId), eq(expressionReleases.expressionId, expressionId)));
-    if (!existing) return gone("That release is gone.");
+    if (!existing) return gone("That vintage is gone.");
     base = releaseRow(existing);
   }
   const parsed = parseReleaseRow({ ...base, ...fields });
@@ -230,7 +230,7 @@ export async function saveRelease(
       ),
     );
   if (clash.length > 0) {
-    return { ok: false, status: 409, code: "name_taken", message: `This label already has a release called "${values.name}".` };
+    return { ok: false, status: 409, code: "name_taken", message: `This label already has a vintage called "${values.name}".` };
   }
 
   if (releaseId !== null) {
@@ -251,7 +251,7 @@ export async function saveRelease(
 export type ReleaseRemoved = { ok: true; bottles: number } | { ok: false; status: 404; code: "not_found"; message: string };
 
 /**
- * Removes one known release of the caller's label, as the web's label form does by dropping it from the list: its
+ * Removes one vintage of the caller's label, as the web's label form does by dropping it from the list: its
  * photo and notes go with it, and its bottles (and their tastings) stay but lose the release (`bottles.release_id` is
  * set null by the database). `bottles` is how many that was. A label or release that is not the caller's is simply
  * not found, and nothing is touched. The photo files are deleted after the row is gone; if that fails the release is
@@ -259,7 +259,7 @@ export type ReleaseRemoved = { ok: true; bottles: number } | { ok: false; status
  * release that no longer exists.
  */
 export async function removeRelease(ownerId: number, expressionId: number, releaseId: number): Promise<ReleaseRemoved> {
-  const gone: ReleaseRemoved = { ok: false, status: 404, code: "not_found", message: "That release is gone." };
+  const gone: ReleaseRemoved = { ok: false, status: 404, code: "not_found", message: "That vintage is gone." };
   const removed = await db.transaction(async (tx) => {
     const [row] = await tx
       .select({

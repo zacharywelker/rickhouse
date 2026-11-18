@@ -13,13 +13,13 @@ import type { ActionResult } from "@/lib/admin/types";
 /** A release's own label photo, uploaded or fetched from a link. Same shape as the label's photo route. */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; releaseId: string }> },
+  { params }: { params: Promise<{ id: string; vintageId: string }> },
 ): Promise<NextResponse<ActionResult>> {
   const user = await requireSession();
 
-  const { releaseId: raw } = await params;
+  const { vintageId: raw } = await params;
   const releaseId = Number(raw);
-  const gone = NextResponse.json<ActionResult>({ ok: false, error: "That release is gone." }, { status: 404 });
+  const gone = NextResponse.json<ActionResult>({ ok: false, error: "That vintage is gone." }, { status: 404 });
   if (!Number.isInteger(releaseId)) return gone;
 
   const formData = await request.formData();
@@ -46,10 +46,10 @@ export async function POST(
     if (release.photoPath) await deleteStoredImage(release.photoPath, release.photoThumbPath);
 
     revalidatePath(`/expressions/${release.expressionId}`);
-    revalidatePath(`/expressions/${release.expressionId}/releases/${releaseId}`);
-    return NextResponse.json({ ok: true, message: "Release photo set." });
+    revalidatePath(`/expressions/${release.expressionId}/vintages/${releaseId}`);
+    return NextResponse.json({ ok: true, message: "Vintage photo set." });
   } catch (error: unknown) {
     if (error instanceof ImageError) return NextResponse.json({ ok: false, error: error.message });
-    return NextResponse.json(mapDbError(error, { singular: "Release" }));
+    return NextResponse.json(mapDbError(error, { singular: "Vintage" }));
   }
 }

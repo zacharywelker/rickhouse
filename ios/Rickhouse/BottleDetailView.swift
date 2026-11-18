@@ -93,7 +93,7 @@ struct BottleDetailView: View {
             if let bottle {
                 PhotoViewer(
                     subject: .bottle,
-                    title: Self.title(of: bottle) == "Standard release" ? "\(bottle.brand) \(bottle.name)" : bottle.name,
+                    title: Self.title(of: bottle) == "Standard" ? "\(bottle.brand) \(bottle.name)" : bottle.name,
                     photos: bottle.images.map { ViewerPhoto(id: $0.id, path: $0.path, isHero: $0.isPrimary) },
                     selection: start.selection
                 ) {
@@ -289,7 +289,7 @@ struct BottleDetailView: View {
             b.batch,
             b.releaseYear.map(String.init),
         ].compactMap { $0 }
-        return parts.isEmpty ? "Standard release" : parts.joined(separator: ", ")
+        return parts.isEmpty ? "Standard" : parts.joined(separator: ", ")
     }
 
     private func lines(of note: TastingNote) -> [(String, String)] {

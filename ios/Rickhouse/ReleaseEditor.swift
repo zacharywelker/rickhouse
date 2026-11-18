@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Adds a known release to a label, or changes one: the batch or yearly edition a bottle can say it is, with the proof,
+/// Adds a vintage to a label, or changes one: the batch or yearly edition a bottle can say it is, with the proof,
 /// age and MSRP it takes unless the bottle says otherwise. It saves on its own, apart from the label's Save. An existing
 /// release can be removed, after the server has said what that takes with it (a photo, notes, bottles that lose it). Its
 /// photo and notes are only edited on the web.
@@ -54,11 +54,11 @@ struct ReleaseEditor: View {
                     AgeRow(years: $ageYears, months: $ageMonths, days: $ageDays, error: nil)
                     EditRow(title: "MSRP", field: $msrp, placeholder: "Add MSRP", keyboard: .decimalPad, prefix: session.currencySymbol, tracksChanges: false)
                 } footer: {
-                    Text("A bottle of this release takes its proof, age and MSRP unless the bottle says otherwise. Leave a box blank to use the label's.")
+                    Text("A bottle of this vintage takes its proof, age and MSRP unless the bottle says otherwise. Leave a box blank to use the label's.")
                 }
                 if let release {
                     Section {
-                        Button("Remove this release", role: .destructive) { confirmingRemoval = true }
+                        Button("Remove this vintage", role: .destructive) { confirmingRemoval = true }
                             .foregroundStyle(Theme.error)
                             .disabled(saving)
                             .frame(minHeight: 44)
@@ -71,7 +71,7 @@ struct ReleaseEditor: View {
             .scrollContentBackground(.hidden)
             .keyboardDone()
             .background(Theme.paper)
-            .navigationTitle(isNew ? "Add release" : "Release")
+            .navigationTitle(isNew ? "Add vintage" : "Vintage")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -83,7 +83,7 @@ struct ReleaseEditor: View {
             }
         }
         .interactiveDismissDisabled(columns.contains { $0.field.changed })
-        .confirmSheet(ReleaseRemoval.title(release?.name ?? name.trimmed), message: ReleaseRemoval.message(removal: release?.removal), confirm: "Remove release", isPresented: $confirmingRemoval) { remove() }
+        .confirmSheet(ReleaseRemoval.title(release?.name ?? name.trimmed), message: ReleaseRemoval.message(removal: release?.removal), confirm: "Remove vintage", isPresented: $confirmingRemoval) { remove() }
     }
 
     private func remove() {

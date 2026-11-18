@@ -89,7 +89,7 @@ private let priceMessage = "Enter a price like 54.99."
 
 enum BottleFact: String, CaseIterable {
     case label = "expressionId"
-    case release = "releaseId"
+    case release = "vintageId"
     case acquisition
     case paid = "pricePaid"
     case acquired = "dateAcquired"
@@ -147,7 +147,7 @@ struct BottleDraft {
     var labelTequilaClass: String?
     var labelGinAged = false
     var labelGinIsNas = false
-    /// The label's known releases, for the Release choice.
+    /// The label's vintages, for the Release choice.
     var releases: [ReleaseChoice]
     /// The label's dates, which this bottle goes by unless it has its own.
     var labelDistilled: String?
@@ -166,17 +166,17 @@ struct BottleDraft {
         labelTequilaClass = bottle.labelTequilaClass
         labelGinAged = bottle.isAgedGin ?? false
         labelGinIsNas = bottle.labelGinIsNas ?? false
-        releases = bottle.releases ?? []
+        releases = bottle.vintages ?? []
         labelDistilled = bottle.labelBarrelFilledOn
         labelBottled = bottle.labelBottledOn
         wasOpen = bottle.isOpen
         originalFill = bottle.fillPct
         let own = bottle.own
         // The batch and year the server shows on a bottle with a release are the release's, not this bottle's own.
-        let onRelease = bottle.releaseId != nil
+        let onRelease = bottle.vintageId != nil
         fields = [
             .label: Field(String(bottle.expressionId ?? 0)),
-            .release: Field(bottle.releaseId.map(String.init)),
+            .release: Field(bottle.vintageId.map(String.init)),
             .acquisition: Field(bottle.acquisition ?? "purchase"),
             .paid: Field(bottle.pricePaid),
             .acquired: Field(bottle.dateAcquired.map { String($0.prefix(10)) }),

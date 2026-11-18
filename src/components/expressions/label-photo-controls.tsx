@@ -47,7 +47,7 @@ export function LabelPhotoControls({
     const url =
       releaseId === undefined
         ? `/api/expressions/${expressionId}/photo`
-        : `/api/expressions/${expressionId}/releases/${releaseId}/photo`;
+        : `/api/expressions/${expressionId}/vintages/${releaseId}/photo`;
     const response = await fetch(url, { method: "POST", body: data });
     const result: ActionResult = await response.json();
     if (result.ok) {

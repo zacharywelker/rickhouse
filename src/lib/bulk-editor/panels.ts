@@ -6,7 +6,7 @@ import type { Kinds } from "./fields";
 import type { Cell, SheetColumn, SheetContext, SheetRow } from "./sheet";
 
 /**
- * A label's regions, older names and known releases: three things the label form edits with its own controls (the six
+ * A label's regions, older names and vintages: three things the label form edits with its own controls (the six
  * Scotch region buttons, and a list of rows each), so the sheet's cell shows a summary and opens those same controls in a
  * popover (`panel-editor.tsx`). Which spirits have them is the form's rule. What an edited cell holds is text: the
  * regions as the form writes them ("Islay, Speyside"), the older names one per line as `otherNamesRowsText` writes
@@ -30,7 +30,7 @@ const namesOf = (key: PanelKey, value: string): string => {
   }
 };
 
-/** Vodka, amaro and liqueur have no known releases: the form leaves the section out. */
+/** Vodka, amaro and liqueur have no vintages: the form leaves the section out. */
 const hasReleases = (group: string) => !["vodka", "amaro", "liqueur"].includes(group);
 
 export function panelApplies(key: PanelKey, row: SheetRow, kinds: Kinds): boolean {
@@ -65,14 +65,14 @@ export function panelEditor(key: PanelKey): CellEditor {
   };
 }
 
-const LABELS: Record<PanelKey, string> = { regions: "Regions", otherNames: "Other names", releases: "Known releases" };
+const LABELS: Record<PanelKey, string> = { regions: "Regions", otherNames: "Other names", releases: "Vintages" };
 
 export const PANEL_COLUMNS: ReadonlyArray<SheetColumn> = PANEL_KEYS.map((key) => ({
   id: key,
   label: LABELS[key],
   group: "label",
   defaultHidden: true,
-  section: key === "regions" ? "Where it came from" : key === "otherNames" ? "Other / old names" : "Known releases",
+  section: key === "regions" ? "Where it came from" : key === "otherNames" ? "Other / old names" : "Vintages",
   cell: (row: SheetRow, ctx: SheetContext): Cell => {
     if (!panelApplies(key, row, ctx.kinds)) return { ...DASH, note: key === "regions" ? "Only for Scotch" : key === "releases" && row.draft ? "Save the label first" : "Not used for this spirit" };
     const text = stored(key, row, ctx);

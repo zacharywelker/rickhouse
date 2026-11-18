@@ -5,7 +5,7 @@ final class ScotchRegionsTests: XCTestCase {
     private func label(_ overrides: [String: Any] = [:]) throws -> LabelDetail {
         var json: [String: Any] = [
             "id": 10, "brandId": 1, "categoryId": 3, "brand": "Laphroaig", "name": "10", "category": "Single Malt Scotch",
-            "proof": "86", "sizeMl": 750, "distilleries": [], "finishes": [], "mashbills": [], "releases": [], "bottles": [], "tastings": [],
+            "proof": "86", "sizeMl": 750, "distilleries": [], "finishes": [], "mashbills": [], "vintages": [], "bottles": [], "tastings": [],
         ]
         json.merge(overrides) { _, new in new }
         return try JSONDecoder().decode(LabelDetail.self, from: JSONSerialization.data(withJSONObject: json))

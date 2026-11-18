@@ -73,7 +73,7 @@ export async function takeBack(tx: Tx, made: { store?: number; cooperage?: numbe
 }
 
 /**
- * The vintage (a label's known release) of this name on this label, made if it is new, with the proof and age typed
+ * The vintage of this name on this label, made if it is new, with the proof and age typed
  * into the row that makes it. Safe when two saves of the same new vintage run at once (the advisory lock on its name).
  * A vintage that exists already keeps what it has: the values typed are not written over it.
  */

@@ -5,7 +5,7 @@ import type { Candidate } from "./suggest";
 /**
  * The cells that pick one thing from a list of others: a bottle's store, release and label name (version), and a label's
  * cooperage. The list is the account's (stores, cooperages) or the label's own (releases, older names). A store or a
- * cooperage or a vintage (a known release) can be made on the spot, by choosing the visible *Create "…"* with Enter, like a
+ * cooperage or a vintage can be made on the spot, by choosing the visible *Create "…"* with Enter, like a
  * brand, and a vintage needs only its name; a label name belongs to a label and is only picked.
  *
  * An edited cell holds its choice as text: `id:12` for one that exists, `new:Name` for one to be made, and nothing to clear.

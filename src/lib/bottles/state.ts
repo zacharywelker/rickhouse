@@ -116,7 +116,7 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
     }
     if (columns.releaseId != null) {
       if ((await tx.$count(expressionReleases, and(eq(expressionReleases.id, columns.releaseId), eq(expressionReleases.expressionId, labelId)))) === 0) {
-        return { ok: false, code: "invalid", message: "That release is not one of this label's.", field: "releaseId" };
+        return { ok: false, code: "invalid", message: "That vintage is not one of this label's.", field: "releaseId" };
       }
       // A chosen release supplies the batch and year, so the two can never disagree.
       columns.batch = null;
@@ -124,7 +124,7 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
     }
     // A bottle that stays on a chosen release shows the release's batch and year, so editing its own would look like nothing happened.
     if (current.releaseId !== null && columns.releaseId === undefined && (columns.batch !== undefined || columns.releaseYear !== undefined)) {
-      return { ok: false, code: "invalid", message: "This bottle's batch and year come from its release.", field: columns.batch !== undefined ? "batch" : "releaseYear" };
+      return { ok: false, code: "invalid", message: "This bottle's batch and year come from its vintage.", field: columns.batch !== undefined ? "batch" : "releaseYear" };
     }
     // The foreign key only names a store; whose it is has to be checked here.
     if (columns.storeId != null && (await tx.$count(stores, and(eq(stores.id, columns.storeId), eq(stores.ownerId, ownerId)))) === 0) {

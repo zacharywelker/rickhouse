@@ -13,10 +13,10 @@ import type { PanelKey } from "@/lib/bulk-editor/panels";
 type Rows = Array<Record<string, string>>;
 type Loaded = { kind: "otherNames"; rows: Rows } | { kind: "releases"; rows: Rows; impact: Record<string, string> };
 
-const TITLES: Record<PanelKey, string> = { regions: "Regions", otherNames: "Other / old names", releases: "Known releases" };
+const TITLES: Record<PanelKey, string> = { regions: "Regions", otherNames: "Other / old names", releases: "Vintages" };
 
 /**
- * The cell for a label's regions, older names or known releases, opened: the label form's own control in a popover over
+ * The cell for a label's regions, older names or vintages, opened: the label form's own control in a popover over
  * the cell (the six region buttons, or the same list of rows), saved as it is changed. The lists are read as the form's
  * edit page reads them when it opens; what has been edited since is kept over what was read.
  */
@@ -121,7 +121,7 @@ export function PanelEditor({
           <RowListEditor
             name="releases"
             idPrefix="sheet-release"
-            addLabel="Add a release"
+            addLabel="Add a vintage"
             columns={RELEASE_COLUMNS}
             initialRows={loaded.rows}
             toText={(rows) => JSON.stringify(rows)}

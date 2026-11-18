@@ -21,7 +21,7 @@ export type Provenance = {
   pickName: string | null;
   pickedBy: string | null;
   barrelNumber: string | null;
-  release: string | null;
+  vintage: string | null;
   batch: string | null;
   releaseYear: number | null;
 };
@@ -35,7 +35,7 @@ export function provenanceOf(input: ProvenanceInput): Provenance | null {
     pickName: blank(input.pickName),
     pickedBy: blank(input.pickedBy),
     barrelNumber: blank(input.barrelNumber),
-    release: blank(input.releaseName),
+    vintage: blank(input.releaseName),
     batch: blank(input.bottleBatch),
     releaseYear: input.releaseYear,
   };
@@ -44,7 +44,7 @@ export function provenanceOf(input: ProvenanceInput): Provenance | null {
     !provenance.privateSelection &&
     provenance.pickName === null &&
     provenance.barrelNumber === null &&
-    provenance.release === null &&
+    provenance.vintage === null &&
     provenance.batch === null &&
     provenance.releaseYear === null;
   return standard ? null : provenance;
@@ -59,12 +59,12 @@ export function provenanceTags(provenance: Provenance | null): string[] {
   if (provenance.pickedBy) tags.push(`Picked by ${provenance.pickedBy}`);
   if (provenance.singleBarrel) tags.push("Single barrel");
   if (provenance.barrelNumber) tags.push(`Barrel ${provenance.barrelNumber}`);
-  if (provenance.release) tags.push(provenance.release);
+  if (provenance.vintage) tags.push(provenance.vintage);
   else if (provenance.batch) tags.push(`Batch ${provenance.batch}`);
   const year = provenance.releaseYear;
   if (year !== null) {
     // The year counts as already shown only as a whole number: "Batch 20240" does not carry 2024.
-    const shown = Number.isInteger(year) && provenance.release !== null && new RegExp(`(?<!\\d)${year}(?!\\d)`).test(provenance.release);
+    const shown = Number.isInteger(year) && provenance.vintage !== null && new RegExp(`(?<!\\d)${year}(?!\\d)`).test(provenance.vintage);
     if (!shown) tags.push(String(year));
   }
   return tags;

@@ -329,21 +329,21 @@ struct APIClient {
         _ = try await sendObject("PATCH", "api/v1/expressions/\(id)", json: changes, as: LabelOption.self)
     }
 
-    /// Adds a known release to a label. `fields` are the form's columns as typed (name, year, proof, ageYears, ageMonths,
+    /// Adds a vintage to a label. `fields` are the form's columns as typed (name, year, proof, ageYears, ageMonths,
     /// ageDays, msrp).
     func addRelease(labelId: Int, _ fields: [String: String]) async throws {
-        _ = try await sendObject("POST", "api/v1/expressions/\(labelId)/releases", json: fields, as: SavedRelease.self)
+        _ = try await sendObject("POST", "api/v1/expressions/\(labelId)/vintages", json: fields, as: SavedRelease.self)
     }
 
-    /// Removes a known release, with its photo and notes. Its bottles and their tastings stay but lose the release. It
+    /// Removes a vintage, with its photo and notes. Its bottles and their tastings stay but lose the release. It
     /// cannot be undone, so the page confirms first (`ReleaseRemoval`).
     func deleteRelease(labelId: Int, releaseId: Int) async throws {
-        try await delete("api/v1/expressions/\(labelId)/releases/\(releaseId)")
+        try await delete("api/v1/expressions/\(labelId)/vintages/\(releaseId)")
     }
 
-    /// Changes a known release; only the fields sent change, and a blank clears one.
+    /// Changes a vintage; only the fields sent change, and a blank clears one.
     func updateRelease(labelId: Int, releaseId: Int, _ fields: [String: String]) async throws {
-        _ = try await sendObject("PATCH", "api/v1/expressions/\(labelId)/releases/\(releaseId)", json: fields, as: SavedRelease.self)
+        _ = try await sendObject("PATCH", "api/v1/expressions/\(labelId)/vintages/\(releaseId)", json: fields, as: SavedRelease.self)
     }
 
     /// Merges one of your labels into another: its bottles and tastings move across, the other label's facts win

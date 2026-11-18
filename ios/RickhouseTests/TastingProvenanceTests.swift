@@ -40,7 +40,7 @@ final class TastingProvenanceTests: XCTestCase {
     }
 
     func testAReleaseDoesNotRepeatItsYear() throws {
-        XCTAssertEqual(try tags(["release": "Spring 2024", "releaseYear": 2024]), ["Spring 2024"])
+        XCTAssertEqual(try tags(["vintage": "Spring 2024", "releaseYear": 2024]), ["Spring 2024"])
     }
 
     func testABatchAndYearShowWhenThereIsNoReleaseName() throws {
@@ -48,20 +48,20 @@ final class TastingProvenanceTests: XCTestCase {
     }
 
     func testTheReleaseNameBeatsABatch() throws {
-        XCTAssertEqual(try tags(["release": "Spring 2024", "batch": "B1"]), ["Spring 2024"])
+        XCTAssertEqual(try tags(["vintage": "Spring 2024", "batch": "B1"]), ["Spring 2024"])
     }
 
     func testTheYearStaysWhenTheReleaseOnlyContainsItInALongerNumber() throws {
-        XCTAssertEqual(try tags(["release": "Batch 20240", "releaseYear": 2024]), ["Batch 20240", "2024"])
-        XCTAssertEqual(try tags(["release": "Batch 12024", "releaseYear": 2024]), ["Batch 12024", "2024"])
+        XCTAssertEqual(try tags(["vintage": "Batch 20240", "releaseYear": 2024]), ["Batch 20240", "2024"])
+        XCTAssertEqual(try tags(["vintage": "Batch 12024", "releaseYear": 2024]), ["Batch 12024", "2024"])
     }
 
     func testADifferentYearShowsBesideTheRelease() throws {
-        XCTAssertEqual(try tags(["release": "Spring 2023", "releaseYear": 2024]), ["Spring 2023", "2024"])
+        XCTAssertEqual(try tags(["vintage": "Spring 2023", "releaseYear": 2024]), ["Spring 2023", "2024"])
     }
 
     func testAReleaseWithNoYearDigitsShowsTheYear() throws {
-        XCTAssertEqual(try tags(["release": "Spring", "releaseYear": 2024]), ["Spring", "2024"])
+        XCTAssertEqual(try tags(["vintage": "Spring", "releaseYear": 2024]), ["Spring", "2024"])
     }
 
     func testPrivateSelectionAloneWhenFlaggedWithNoPicker() throws {
@@ -69,6 +69,6 @@ final class TastingProvenanceTests: XCTestCase {
     }
 
     func testTheReleaseNameIsTrimmed() throws {
-        XCTAssertEqual(try tags(["release": "  Spring "]), ["Spring"])
+        XCTAssertEqual(try tags(["vintage": "  Spring "]), ["Spring"])
     }
 }

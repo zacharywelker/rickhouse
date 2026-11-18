@@ -31,7 +31,7 @@ describe("labelTastingJson", () => {
       pickName: "Fall barrel",
       pickedBy: "Total Wine",
       barrelNumber: "1234",
-      release: null,
+      vintage: null,
       batch: null,
       releaseYear: null,
     });

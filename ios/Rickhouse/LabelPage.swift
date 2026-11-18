@@ -391,12 +391,12 @@ struct LabelPage: View {
             } else { fact("Mashbill", l.mashbills.joined(separator: ", ")) }
             fact("Finishes", l.finishes.joined(separator: ", "))
             fact("Barcode", l.upc)
-            if !l.releases.isEmpty {
-                NavigationLink { LabelReleasesList(title: "\(l.brand) \(l.name)", releases: l.releases) } label: {
+            if !l.vintages.isEmpty {
+                NavigationLink { LabelReleasesList(title: "\(l.brand) \(l.name)", releases: l.vintages) } label: {
                     HStack {
-                        Text("Releases").foregroundStyle(Theme.muted)
+                        Text("Vintages").foregroundStyle(Theme.muted)
                         Spacer()
-                        Text("\(l.releases.count)").foregroundStyle(Theme.ink)
+                        Text("\(l.vintages.count)").foregroundStyle(Theme.ink)
                         Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted).accessibilityHidden(true)
                     }
                     .font(.inter(15))
@@ -657,7 +657,7 @@ struct BottleLine: View {
             if let paid = bottle.pricePaid { parts.append(Format.money(paid)) }
             if let store = bottle.store { parts.append(store) }
         }
-        if bottle.title != "Standard release" { parts.append(bottle.title) }
+        if bottle.title != "Standard" { parts.append(bottle.title) }
         return parts.isEmpty ? "" : "· " + parts.joined(separator: " · ")
     }
 }
@@ -759,7 +759,7 @@ struct UpdateFillSheet: View {
     }
 }
 
-/// The known releases of a label.
+/// The vintages of a label.
 struct LabelReleasesList: View {
     let title: String
     let releases: [LabelRelease]

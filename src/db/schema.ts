@@ -461,7 +461,7 @@ export const expressionNames = pgTable(
 );
 
 /**
- * Known releases of a label — Booker's quarterly batches, a yearly vertical.
+ * Vintages of a label — Booker's quarterly batches, a yearly vertical.
  * Each may carry its own proof, age and MSRP; blank inherits from the label.
  * A bottle may point at one (`bottles.release_id`), and its own overrides
  * still win over the release's.
@@ -664,7 +664,7 @@ export const bottles = pgTable(
       onDelete: "set null",
     }),
 
-    /** Which known release of the label this is; NULL = none chosen (batch below may still say). */
+    /** Which vintage of the label this is; NULL = none chosen (batch below may still say). */
     releaseId: integer("release_id").references((): AnyPgColumn => expressionReleases.id, { onDelete: "set null" }),
 
     // ---- Release identity (M7). Here, not on the label, because these vary
@@ -685,7 +685,7 @@ export const bottles = pgTable(
 
     // ---- Overrides. NULL inherits from the label, resolved in bottle_list
     // rather than copied on save, so correcting the label still flows through.
-    /** In mL; one release can come in several sizes, so a bottle may differ from its label. */
+    /** In mL; one vintage can come in several sizes, so a bottle may differ from its label. */
     sizeMl: integer("size_ml"),
     proof: pct("proof"),
     abv: pct("abv").generatedAlwaysAs(sql`(proof / 2.0)`),

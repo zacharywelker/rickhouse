@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   // Produces .next/standalone for the slim runtime image (see Dockerfile).
   output: "standalone",
   typedRoutes: true,
+  // A vintage was a "known release" until it was renamed; links saved before still land on its page.
+  async redirects() {
+    return [{ source: "/expressions/:id/releases/:vintageId", destination: "/expressions/:id/vintages/:vintageId", permanent: true }];
+  },
   experimental: {
     // Uploads can be large; server actions need headroom for M3 image upload.
     serverActions: { bodySizeLimit: "12mb" },

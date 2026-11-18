@@ -113,7 +113,7 @@ export function BottleFields({
   suggestions?: Partial<Record<string, string[]>>;
   /** Each label's older names (by label id), for the Label Version choice. */
   labelVersions?: Record<number, Array<{ value: string; label: string }>>;
-  /** Each label's known releases (by label id), for the Release choice. */
+  /** Each label's vintages (by label id), for the Release choice. */
   releases?: Record<number, Array<{ value: string; label: string }>>;
   /** Each label's dates (by label id): a bottle goes by them unless it has its own. */
   labelDates?: Record<number, LabelDates>;

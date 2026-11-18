@@ -62,7 +62,7 @@ export type LabelPatch = {
   ingredients?: IngredientChoice[];
   /** The label's older names, exactly; see `syncExpressionNames`. */
   otherNames?: OtherName[];
-  /** The label's known releases, exactly (the bulk editor's; the phone does not send them): see `syncExpressionReleases`. */
+  /** The label's vintages, exactly (the bulk editor's; the phone does not send them): see `syncExpressionReleases`. */
   releases?: ReleaseInput[];
 };
 

@@ -453,7 +453,7 @@ export async function patchLabelRow(ownerId: number, labelId: number, raw: unkno
     if (cooperage.failure) return cooperage.failure;
     named = cooperage.name;
   }
-  // The label's known releases: JSON rows as the form sends them, written with the label.
+  // The label's vintages: JSON rows as the form sends them, written with the label.
   let releases: ReleaseInput[] | undefined;
   if (isRecord(body) && "releases" in body) {
     const parsedReleases = parseReleaseRows(String(body.releases ?? "[]"));

@@ -5,6 +5,7 @@ import { strengthTier } from "@/lib/expressions/rules";
 import { apiError, issueFields, parseId, readJsonObject } from "@/lib/api/v1";
 import { updateBottle } from "@/lib/bottles/state";
 import { deleteBottleAction } from "@/app/(app)/bottles/actions";
+import { apiFieldNames, bodyForSchema } from "@/lib/api/releases";
 import { bottlePatchSchema as patchSchema } from "@/lib/bottles/patch-schema";
 import { expressionReleaseList, releaseById } from "@/lib/releases-store";
 import { categoryWheels } from "@/lib/tasting-wheel-for";
@@ -78,7 +79,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     labelBarrelFilledOn: expression.barrelFilledOn,
     labelBottledOn: expression.bottledOn,
     acquisition: bottle.acquisition,
-    releaseId: bottle.releaseId,
+    vintageId: bottle.releaseId,
     batch: release?.name ?? bottle.batch,
     releaseYear: release?.releaseYear ?? bottle.releaseYear,
     isSingleBarrel: bottle.isSingleBarrel,
@@ -99,8 +100,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       ginIsNas: bottle.ginIsNas,
       sizeMl: bottle.sizeMl,
     },
-    // The label's known releases, for the Release choice.
-    releases: (await expressionReleaseList(expression.id)).map((r) => ({ id: r.id, name: r.name, releaseYear: r.releaseYear })),
+    // The label's vintages, for the Release choice.
+    vintages: (await expressionReleaseList(expression.id)).map((r) => ({ id: r.id, name: r.name, releaseYear: r.releaseYear })),
     barrelNumber: bottle.barrelNumber,
     pickName: bottle.pickName,
     location: bottle.location,
@@ -155,16 +156,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const read = await readJsonObject(request);
   if ("error" in read) return read.error;
-  const parsed = patchSchema.safeParse(read.body);
+  const parsed = patchSchema.safeParse(bodyForSchema(read.body));
   if (!parsed.success) {
-    return apiError(422, "invalid", parsed.error.issues[0]?.message ?? "Check the fields.", issueFields(parsed.error.issues));
+    return apiError(422, "invalid", parsed.error.issues[0]?.message ?? "Check the fields.", apiFieldNames(issueFields(parsed.error.issues)));
   }
 
   const { fillPct, dateOpened, ifOpenedCleared, ...columns } = parsed.data;
   const outcome = await updateBottle(id, user.id, { fillPct, dateOpened, ifOpenedCleared, columns });
   if (!outcome) return apiError(404, "not_found", "That bottle is gone.");
   if (!outcome.ok) {
-    return apiError(422, outcome.code, outcome.message, outcome.field ? { [outcome.field]: outcome.message } : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : undefined);
+    return apiError(422, outcome.code, outcome.message, outcome.field ? apiFieldNames({ [outcome.field]: outcome.message }) : outcome.code === "opened_cleared" ? { dateOpened: outcome.message } : undefined);
   }
   revalidatePath(`/bottles/${id}`);
   revalidatePath("/bottles");

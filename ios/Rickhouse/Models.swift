@@ -94,7 +94,7 @@ struct BottleDetail: Decodable {
     let pricePaid: String?
     let store: String?
     let storeId: Int?
-    let releaseId: Int?
+    let vintageId: Int?
     let dateAcquired: String?
     var dateOpened: String?
     let batch: String?
@@ -127,8 +127,8 @@ struct BottleDetail: Decodable {
     var bottleCount: Int? = nil
     /// What this bottle says for itself, apart from the release and label it falls back on; absent from an older server.
     var own: OwnFacts? = nil
-    /// The label's known releases, for the Release choice.
-    var releases: [ReleaseChoice]? = nil
+    /// The label's vintages, for the Release choice.
+    var vintages: [ReleaseChoice]? = nil
 }
 
 /// A bottle's own proof, age and size (nil: it goes by its release's or label's).
@@ -144,7 +144,7 @@ struct OwnFacts: Decodable {
     let sizeMl: Int?
 }
 
-/// One of a label's known releases, as a choice on a bottle.
+/// One of a label's vintages, as a choice on a bottle.
 struct ReleaseChoice: Decodable, Identifiable, Equatable {
     let id: Int
     let name: String
@@ -316,7 +316,7 @@ struct LabelDetail: Decodable {
     var ingredients: [String]? = nil
     var botanicals: [String]? = nil
     var ginBases: [String]? = nil
-    let releases: [LabelRelease]
+    let vintages: [LabelRelease]
     let bottles: [LabelBottle]
     let tastings: [LabelTasting]
     /// The distillery, mashbill and finish lists with ids and shares, for editing them. Absent from an older server.
@@ -361,7 +361,7 @@ struct LabelRelease: Decodable, Identifiable {
     var removal: String? = nil
 }
 
-/// What the server answers when a known release is added or changed.
+/// What the server answers when a vintage is added or changed.
 struct SavedRelease: Decodable { let id: String; let name: String }
 
 struct LabelBottle: Decodable, Identifiable, Hashable {
@@ -370,7 +370,7 @@ struct LabelBottle: Decodable, Identifiable, Hashable {
     let isOpen: Bool
     let fillPct: Int
     var isSealed: Bool { FillState.isSealed(status: status, isOpen: isOpen, fillPct: fillPct) }
-    let release: String?
+    let vintage: String?
     let releaseYear: Int?
     let pickName: String?
     let barrelNumber: String?
@@ -407,7 +407,7 @@ struct TastingProvenance: Decodable, Equatable {
     let pickName: String?
     let pickedBy: String?
     let barrelNumber: String?
-    let release: String?
+    let vintage: String?
     let batch: String?
     let releaseYear: Int?
 }
@@ -473,10 +473,10 @@ extension LabelBottle {
         let parts = [
             pickName.map { "“\($0)”" },
             barrelNumber.map { "barrel \($0)" },
-            release,
+            vintage,
             releaseYear.map(String.init),
         ].compactMap { $0 }
-        return parts.isEmpty ? "Standard release" : parts.joined(separator: ", ")
+        return parts.isEmpty ? "Standard" : parts.joined(separator: ", ")
     }
 }
 

@@ -643,7 +643,7 @@ export function ExpressionForm({
   initialLinks: LabelLinks;
   /** Older names, one per line, as `otherNamesText` writes them. */
   initialOtherNames?: string;
-  /** Known releases, as `releaseRow` shapes them. */
+  /** Vintages, as `releaseRow` shapes them. */
   initialReleases?: ReleaseRow[];
   /** By release id: what removing it would affect, for the confirm before it goes. */
   releaseImpact?: Record<string, string>;
@@ -764,7 +764,7 @@ export function ExpressionForm({
         (typeof values.categoryId === "string" && values.categoryId !== "" ? categoryGroups[Number(values.categoryId)] : undefined) ?? "other",
       ) ? <Section>
         <SectionHeader>
-          <SectionTitle>Known releases</SectionTitle>
+          <SectionTitle>Vintages</SectionTitle>
           <SectionDescription>
             Batches or yearly editions of this label. A bottle can say which one it is, and takes its proof, age and
             MSRP unless the bottle says otherwise. Leave a box blank to use the label&apos;s.
@@ -774,7 +774,7 @@ export function ExpressionForm({
           <RowListEditor
             name="releases"
             idPrefix="expression-release"
-            addLabel="Add a release"
+            addLabel="Add a vintage"
             columns={RELEASE_COLUMNS}
             initialRows={initialReleases}
             toText={(rows) => JSON.stringify(rows)}

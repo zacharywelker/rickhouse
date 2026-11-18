@@ -44,7 +44,7 @@ export async function labelOtherNamesAction(labelId: number) {
   return (await expressionOtherNames(labelId)).map((n) => ({ name: n.name, yearFrom: n.yearFrom, yearTo: n.yearTo }));
 }
 
-/** A label's known releases as the form's list holds them, and what removing each would lose (the form asks first). */
+/** A label's vintages as the form's list holds them, and what removing each would lose (the form asks first). */
 export async function labelReleasesAction(labelId: number) {
   if (!(await ownedLabel(labelId))) return null;
   const [rows, impact] = await Promise.all([expressionReleaseList(labelId), releaseRemovalImpact(labelId)]);

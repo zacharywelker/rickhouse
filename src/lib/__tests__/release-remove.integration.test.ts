@@ -15,7 +15,7 @@ vi.mock("@/lib/images", () => ({
 }));
 
 /** Opt-in, like the tournament integration tests: needs TOURNAMENT_TEST_DATABASE_URL naming a throwaway migrated database. */
-describe.skipIf(!url)("removing a known release, against a real database", () => {
+describe.skipIf(!url)("removing a vintage, against a real database", () => {
   let m: Db;
   let fx: Fixtures;
   let cat: Cat;
@@ -100,7 +100,7 @@ describe.skipIf(!url)("removing a known release, against a real database", () =>
   it("through the routes: the label read says what removing each release takes, and DELETE then takes it", async () => {
     session.id = owner;
     const labelRoute = await import("@/app/api/v1/expressions/[id]/route");
-    const releaseRoute = await import("@/app/api/v1/expressions/[id]/releases/[releaseId]/route");
+    const releaseRoute = await import("@/app/api/v1/expressions/[id]/vintages/[vintageId]/route");
     const label = await fx.mkLabel(owner, cat.whiskey, "Routes Label");
     const used = await mkRelease(label, "Used", { path: "releases/d.jpg", thumb: "releases/d-thumb.jpg" });
     const bare = await mkRelease(label, "Bare");
@@ -109,11 +109,11 @@ describe.skipIf(!url)("removing a known release, against a real database", () =>
 
     const read = async () => ((await (await labelRoute.GET(new NextRequest(`https://rickhouse.example.com/api/v1/expressions/${label}`), { params: Promise.resolve({ id: String(label) }) })).json()) as { releases: { id: number; removal: string | null }[] }).releases;
     const before = await read();
-    expect(before.find((r) => r.id === used)?.removal).toBe("Used has a photo and 1 bottle. Removing it: its photo will be deleted; the bottle stays but loses this release.");
+    expect(before.find((r) => r.id === used)?.removal).toBe("Used has a photo and 1 bottle. Removing it: its photo will be deleted; the bottle stays but loses this vintage.");
     expect(before.find((r) => r.id === bare)?.removal).toBeNull();
 
     deleted.calls.length = 0;
-    const res = await releaseRoute.DELETE(new NextRequest("https://rickhouse.example.com/x", { method: "DELETE" }), { params: Promise.resolve({ id: String(label), releaseId: String(used) }) });
+    const res = await releaseRoute.DELETE(new NextRequest("https://rickhouse.example.com/x", { method: "DELETE" }), { params: Promise.resolve({ id: String(label), vintageId: String(used) }) });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ id: used, bottles: 1 });
     expect((await read()).map((r) => r.id)).toEqual([bare]);

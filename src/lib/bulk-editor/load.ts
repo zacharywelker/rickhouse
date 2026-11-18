@@ -34,7 +34,7 @@ export async function loadSheet(ownerId: number): Promise<{
   linkOptions: { distilleryLinks: Option[]; mashbillLinks: Option[]; finishLinks: Option[] };
   /** What the picking cells choose from: the account's stores and cooperages, and each label's own releases and older names. */
   refs: RefData;
-  /** Each vintage's own proof and age (a vintage is a known release), by label then name: what a bottle on it shows. */
+  /** Each vintage's own proof and age (a named batch or yearly edition), by label then name: what a bottle on it shows. */
   vintages: SheetVintage[];
 }> {
   const [{ rows: labels }, bottleRows, kinds, brandOptions, categoryOptions, groups, bottlePhotos, labelPhotos, storeOptions, cooperageOptions, releaseRows, nameRows, distilleryOptions, mashbillOptions, finishOptions] = await Promise.all([

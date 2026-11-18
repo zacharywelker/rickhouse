@@ -86,7 +86,7 @@ export function CatalogBottle({
   initialLabel: CatalogLabel | null;
   /** Past values for Picked By, Warehouse, Rick / Floor and Where It Lives. */
   suggestions: BottleSuggestions;
-  /** Each label's known releases (by label id), for the Release choice. */
+  /** Each label's vintages (by label id), for the Release choice. */
   releases: Record<number, Array<{ value: string; label: string }>>;
   /** Each label's dates (by label id), which the bottle goes by unless it has its own. */
   labelDates: Record<number, LabelDates>;

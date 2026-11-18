@@ -85,7 +85,7 @@ export default async function BottlePage({
       ? null
       : ((await expressionOtherNames(row.expression.id)).find((name) => name.id === row.bottle.expressionNameId) ?? null);
 
-  // The known release this bottle is, if one was chosen. Its proof, age and
+  // The vintage this bottle is, if one was chosen. Its proof, age and
   // MSRP sit between the bottle's own and the label's, as in bottle_list.
   const release = row.bottle.releaseId === null ? null : await releaseById(row.bottle.releaseId, user.id);
   const releaseHasAge =
@@ -304,10 +304,10 @@ export default async function BottlePage({
             <Spec label="How" value={humanise(row.bottle.acquisition)} />
             <Spec label="Where" value={row.bottle.location} />
             {!(["vodka", "amaro", "liqueur"].includes(group)) ? <Spec
-              label={release ? "Release" : "Batch"}
+              label={release ? "Vintage" : "Batch"}
               value={
                 release ? (
-                  <Link href={`/expressions/${e.id}/releases/${release.id}` as Route} className="text-primary hover:underline">
+                  <Link href={`/expressions/${e.id}/vintages/${release.id}` as Route} className="text-primary hover:underline">
                     {batch}
                   </Link>
                 ) : (

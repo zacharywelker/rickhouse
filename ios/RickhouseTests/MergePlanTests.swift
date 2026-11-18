@@ -6,7 +6,7 @@ final class MergePlanTests: XCTestCase {
         var json: [String: Any] = [
             "id": 10, "brandId": 1, "categoryId": 3, "brand": "Wild Turkey", "name": "Rare Breed", "category": "Bourbon",
             "proof": "116.80", "sizeMl": 750, "msrp": "49.99", "distilleries": [], "finishes": [], "mashbills": [],
-            "releases": [],
+            "vintages": [],
             "bottles": (0..<bottles).map { ["id": $0 + 1, "status": "owned", "isOpen": false, "fillPct": 100] },
             "tastings": (0..<tastings).map { ["id": $0 + 1, "tastedOn": "2026-10-01"] },
         ]
