@@ -2,18 +2,19 @@
 
 import * as React from "react";
 import { Loader2 } from "lucide-react";
-import { deleteImpactAction, deleteRowsAction } from "@/app/(app)/bulk-editor/actions";
+import { deleteImpactAction, deleteRowsAction } from "@/app/(wide)/bulk-editor/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { deleteSentence, type DeleteIds } from "@/lib/bulk-editor/delete";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
+import { cn } from "@/lib/utils";
 
 /**
  * The bar that appears while rows are selected, in the app's delete-confirm convention (DESIGN.md §38): a
  * sticky bar with the count and a destructive button, and a dialog that names what goes. The numbers in the dialog come
  * from the server when it opens, so they are what will be deleted, not what the sheet guesses.
  */
-export function DeleteBar({ count, noun, ids, onClear, onDone }: { count: number; noun: string; ids: DeleteIds; onClear: () => void; onDone: (outcome: DeleteOutcome) => void }) {
+export function DeleteBar({ count, noun, ids, onClear, onDone, className }: { count: number; noun: string; ids: DeleteIds; onClear: () => void; onDone: (outcome: DeleteOutcome) => void; /** Where it sits, when not in the page flow. */ className?: string }) {
   const [open, setOpen] = React.useState(false);
   const [impact, setImpact] = React.useState<Awaited<ReturnType<typeof deleteImpactAction>> | null>(null);
   const [deleting, setDeleting] = React.useState(false);
@@ -49,7 +50,7 @@ export function DeleteBar({ count, noun, ids, onClear, onDone }: { count: number
 
   const sentence = impact ? deleteSentence(ids, impact) : null;
   return (
-    <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 border border-border bg-card px-4 py-3 shadow-xl">
+    <div className={cn("sticky bottom-4 z-10 flex flex-wrap items-center gap-3 border border-border bg-card px-4 py-3 shadow-xl", className)}>
       <span className="text-sm font-medium">
         {count} {noun}
         {count === 1 ? "" : "s"} selected

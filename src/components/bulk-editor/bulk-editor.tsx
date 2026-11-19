@@ -48,7 +48,7 @@ import { listsWith, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links
 import { copyText, matchName, parseTsv, readPasted, toTsv } from "@/lib/bulk-editor/clipboard";
 import { indexSheet, resolve, type Level, type ValueField } from "@/lib/bulk-editor/resolve";
 import { LIQUID_FIELDS } from "@/lib/bulk-editor/late-mark";
-import { patchBottleRowAction, patchLabelRowAction } from "@/app/(app)/bulk-editor/actions";
+import { patchBottleRowAction, patchLabelRowAction } from "@/app/(wide)/bulk-editor/actions";
 import { columnFor, defaultScope, nextScope, noteText, scopeSentence, scopesFor } from "@/lib/bulk-editor/scope";
 import { platformKeyName } from "@/lib/platform";
 import { copyValue } from "@/lib/bulk-editor/value-cells";
@@ -63,6 +63,7 @@ import type { ComboData, Editing, Finish } from "./types";
 import { EditNote } from "./edit-note";
 import { Notices, type Notice } from "./notices";
 import { ResizeHandle } from "./resize-handle";
+import { Shortcuts, ShortcutsFooter } from "./shortcuts";
 import { SourceTag } from "./source-tag";
 import { useRowSaver } from "./use-row-saver";
 
@@ -152,6 +153,31 @@ function useRail() {
   }, [choice]);
   return [choice, toggle] as const;
 }
+
+/**
+ * The scrollbars of the sheet's scroll box, as CSS variables on its parent (`--sbw`, `--sbh`), so the pane lying over the
+ * box can stop short of them: a scrollbar under the pane could not be dragged.
+ */
+function useScrollbarInsets(ref: React.RefObject<HTMLElement | null>) {
+  React.useEffect(() => {
+    const body = ref.current;
+    const box = body?.querySelector<HTMLElement>(":scope > .overflow-x-auto");
+    if (!body || !box) return;
+    const measure = () => {
+      body.style.setProperty("--sbw", `${box.offsetWidth - box.clientWidth}px`);
+      body.style.setProperty("--sbh", `${box.offsetHeight - box.clientHeight}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    if (box.firstElementChild) observer.observe(box.firstElementChild);
+    return () => observer.disconnect();
+  }, [ref]);
+}
+
+/** Where the delete bar sits from `md` up: over the bottom of the sheet, to the left of the pane (18rem) while it is shown, clear of the scrollbars. */
+const DELETE_BAR_OVER =
+  "md:absolute md:bottom-[calc(1rem+var(--sbh,0px))] md:left-4 md:group-data-[rail=open]/body:right-[calc(19rem+var(--sbw,0px))] md:group-data-[rail=closed]/body:right-[calc(1rem+var(--sbw,0px))] md:group-data-[rail=auto]/body:right-[calc(1rem+var(--sbw,0px))] xl:group-data-[rail=auto]/body:right-[calc(19rem+var(--sbw,0px))]";
 
 function ViewToggle({ label, on, onlyOne, onClick }: { label: string; on: boolean; onlyOne: boolean; onClick: () => void }) {
   return (
@@ -709,6 +735,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   /** Set when Tab follows a row that has just moved to its sorted place: the view then goes with it. */
   const followRow = React.useRef(false);
   const sheetRef = React.useRef<HTMLDivElement>(null);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+  useScrollbarInsets(bodyRef);
 
   const dims = { rows: rows.length, cols: columns.length };
   // The view or the columns can change under the cursor; keep it on the sheet.
@@ -1544,6 +1572,14 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.row, current?.col, editing]);
 
+  // Showing the Details pane puts it over the right edge, where the selected cell may be: bring the cell back into view, clear of the pane.
+  React.useEffect(() => {
+    if (railChoice !== "open" || !current) return;
+    sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${current.row}"][data-c="${current.col}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    // Only the pane being shown matters, not where the cursor is.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [railChoice]);
+
   // What has not been saved: new rows that have been started, and rows with an edit or a move that is not yet saved.
   const stateOf = saver.rowState;
   const notSaved = new Set<string>();
@@ -1780,15 +1816,13 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   const hasBand = columns.some((c) => c.band !== undefined);
 
   return (
-    <div className="flex items-start gap-4">
     <div
       ref={sheetRef}
       style={Object.fromEntries(Object.entries(widths).map(([id, w]) => [widthVar(id), `${w}px`])) as React.CSSProperties}
-      // From md up the sheet scrolls inside a box that fits the screen, so the headers stay put and the keyboard's
-      // scroll-into-view keeps the active cell clear of them and of the frozen columns.
-      className="min-w-0 border border-border bg-card md:[&>.overflow-x-auto]:max-h-[calc(100dvh-19.5rem)] md:[&>.overflow-x-auto]:min-h-80 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[calc(var(--cw-brand,156px)+var(--cw-name,180px))] md:[&>.overflow-x-auto]:scroll-pt-16"
+      className="flex min-w-0 flex-col gap-3 md:min-h-0 md:flex-1"
     >
-      <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="w-full text-3xl text-accent md:mr-3 md:w-auto">Bulk editor</h1>
         <div role="group" aria-label="What the sheet shows" className="inline-flex divide-x divide-border border border-border">
           <ViewToggle label="Labels" on={view.labels} onlyOne={!view.bottles} onClick={() => changeView({ ...view, labels: !view.labels })} />
           <ViewToggle label="Bottles" on={view.bottles} onlyOne={!view.labels} onClick={() => changeView({ ...view, bottles: !view.bottles })} />
@@ -1849,6 +1883,9 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         </p>
       </div>
 
+      <div className="flex min-w-0 flex-col border border-border bg-card md:min-h-80 md:flex-1">
+        {/* From md up the sheet scrolls inside a box that fits the window, so the headers stay put and the keyboard's scroll-into-view keeps the active cell clear of them, of the frozen columns and, while the Details pane is over the sheet, of the pane (the pane's width is the scroll box's right padding and scroll padding). */}
+        <div ref={bodyRef} data-rail={railChoice ?? "auto"} data-bar={ticked.length > 0 ? "on" : "off"} className="group/body relative flex min-h-0 flex-1 flex-col md:[&>.overflow-x-auto]:min-h-0 md:[&>.overflow-x-auto]:flex-1 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[calc(var(--cw-brand,156px)+var(--cw-name,180px))] md:[&>.overflow-x-auto]:scroll-pt-16 md:data-[rail=open]:[&>.overflow-x-auto]:pr-72 md:data-[rail=open]:[&>.overflow-x-auto]:scroll-pr-72 xl:data-[rail=auto]:[&>.overflow-x-auto]:pr-72 xl:data-[rail=auto]:[&>.overflow-x-auto]:scroll-pr-72 md:data-[bar=on]:[&>.overflow-x-auto]:pb-20 md:data-[bar=on]:[&>.overflow-x-auto]:scroll-pb-20">
       <Table role="grid" aria-label="Bulk editor" aria-rowcount={rows.length + 1} className="border-separate border-spacing-0 whitespace-nowrap tabular-nums">
         <TableHeader>
           <TableRow className="border-b-0 hover:bg-transparent">
@@ -1980,6 +2017,25 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
           })}
         </TableBody>
       </Table>
+        {/* The Details pane lies over the right edge of the sheet's scroll box, stopping short of its scrollbars. Display only, and not a live region (it changes on every cell move). Clicks in it are not clicks away from the sheet. */}
+        <aside data-bulk-editor-panel="" aria-label="Row details" className="pointer-events-none absolute bottom-[var(--sbh,0px)] right-[var(--sbw,0px)] top-0 z-20 hidden md:block">
+          <div className={cn("pointer-events-auto h-full w-72 flex-col border-l border-foreground bg-card shadow-[-2px_0_0_rgb(20_33_61/0.12)]", railChoice === null ? "hidden xl:flex" : railChoice === "open" ? "flex" : "hidden")}>
+            <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+              <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Details</h2>
+              <button type="button" onClick={toggleRail} aria-label="Hide the details panel" className="p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <PanelRightClose aria-hidden className="size-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              <RailContent rail={rail} shelf={shelf} reach={railReach} changes={railChanges} />
+            </div>
+          </div>
+          <button type="button" onClick={toggleRail} aria-label="Show the details panel" aria-expanded={false} className={cn("pointer-events-auto h-24 w-9 items-start justify-center border border-r-0 border-border bg-card pt-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", railChoice === null ? "flex xl:hidden" : railChoice === "closed" ? "flex" : "hidden")}>
+            <PanelRightOpen aria-hidden className="size-4" />
+          </button>
+        </aside>
+        <DeleteBar className={DELETE_BAR_OVER} count={ticked.length} noun={view.bottles ? "bottle" : "label"} ids={idsOfKeys(ticked)} onClear={() => setSelected(new Set())} onDone={afterDelete} />
+        </div>
 
       {savedRows.length === 0 && total > 0 ? (
         <p className="border-t border-border px-3 py-4 text-center text-sm text-muted-foreground">No {noun} match. Clear the filters to see them all.</p>
@@ -1989,12 +2045,9 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
           {view.bottles ? <>Nothing on the shelf yet. Type in the first row to add a bottle, or switch to Labels.</> : <>No labels yet. Type in the first row to add one.</>}
         </p>
       ) : null}
-      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        Arrow keys move. Type or press Enter to edit. A label&rsquo;s own cells on a bottle row change every bottle on the label (the cell says how many). A grey cell with a lock is filled in from another cell, such as an age from its statement: triple-click it to edit. Brand or Label on a bottle moves it to another label. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only, and Ctrl+Enter creates what you typed.
-        Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels. {platformKeyName() === "Option" ? "Cmd" : "Ctrl"}+Z takes back the change in the newest notice that offers Undo, while it is showing.
-        Drag the edge of a column header to resize it (double-click to undo), or press Alt+Shift+Left or Right on a cell. Rows save as you go: a saved row as soon as a cell is finished, a new row when you leave it.
+      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground md:hidden">
+        <Shortcuts />
       </p>
-      <DeleteBar count={ticked.length} noun={view.bottles ? "bottle" : "label"} ids={idsOfKeys(ticked)} onClear={() => setSelected(new Set())} onDone={afterDelete} />
       {/* Present before anything is in it, so a screen reader announces the text when it appears. It never takes focus. */}
       <div aria-live="polite" aria-atomic="false" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
         <Notices notices={notices} onDismiss={dismissNotice} />
@@ -2026,27 +2079,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         ) : null}
       </div>
     </div>
-    {/* The rail: display only, and not a live region (it changes on every cell move). Clicks in it are not clicks away from the sheet. */}
-    <aside
-      data-bulk-editor-panel=""
-      aria-label="Row details"
-      className={cn("sticky top-4 hidden shrink-0 self-start md:block", railChoice === null ? "w-9 xl:w-72" : railChoice === "open" ? "w-72" : "w-9")}
-    >
-      <div className={cn("border border-border bg-card", railChoice === null ? "hidden xl:block" : railChoice === "open" ? "block" : "hidden")}>
-          <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
-            <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Details</h2>
-            <button type="button" onClick={toggleRail} aria-label="Hide the details panel" className="p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <PanelRightClose aria-hidden className="size-4" />
-            </button>
-          </div>
-          <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto p-3">
-            <RailContent rail={rail} shelf={shelf} reach={railReach} changes={railChanges} />
-          </div>
-      </div>
-      <button type="button" onClick={toggleRail} aria-label="Show the details panel" aria-expanded={false} className={cn("h-24 w-9 items-start justify-center border border-border bg-card pt-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", railChoice === null ? "flex xl:hidden" : railChoice === "closed" ? "flex" : "hidden")}>
-        <PanelRightOpen aria-hidden className="size-4" />
-      </button>
-    </aside>
+      <ShortcutsFooter />
     </div>
   );
 }

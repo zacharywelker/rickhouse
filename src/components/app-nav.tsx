@@ -46,7 +46,8 @@ function isCurrent(pathname: string, href: string) {
  * from a rule, not a background fill — Rickhouse leans on rules and spacing
  * for hierarchy rather than card/pill chrome (DESIGN.md §7).
  */
-export function AppNav({ signOut, userMenu }: { signOut: React.ReactNode; userMenu: React.ReactNode }) {
+/** `wide`: the bar spans the whole window instead of the page column, for a page that does (the bulk editor). */
+export function AppNav({ signOut, userMenu, wide = false }: { signOut: React.ReactNode; userMenu: React.ReactNode; wide?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
@@ -106,7 +107,7 @@ export function AppNav({ signOut, userMenu }: { signOut: React.ReactNode; userMe
 
   return (
     <header className="border-b border-border">
-      <div className="mx-auto flex w-full max-w-page items-center gap-6 px-4 py-3 sm:px-6">
+      <div className={cn("mx-auto flex w-full items-center gap-6 px-4 py-3 sm:px-6", !wide && "max-w-page")}>
         <Link href="/" className="text-lg font-bold uppercase tracking-wide text-foreground">
           Rickhouse
         </Link>
@@ -143,7 +144,7 @@ export function AppNav({ signOut, userMenu }: { signOut: React.ReactNode; userMe
         <nav
           id="mobile-nav"
           aria-label="Main"
-          className="mx-auto flex w-full max-w-page flex-col gap-1 border-t border-border px-4 py-3 xl:hidden"
+          className={cn("mx-auto flex w-full flex-col gap-1 border-t border-border px-4 py-3 xl:hidden", !wide && "max-w-page")}
         >
           {LINKS.map((item) => mobileLink(item.href, item.label))}
           <div className="mt-2 border-t border-border pt-3 sm:hidden">

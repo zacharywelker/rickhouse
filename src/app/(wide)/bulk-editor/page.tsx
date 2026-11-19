@@ -12,8 +12,7 @@ export default async function BulkEditorPage() {
   const [{ labels, bottles, brands, categories, groups, kinds, photos, refs, linkOptions, vintages }, currency] = await Promise.all([loadSheet(user.id), getCurrency()]);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <h1 className="text-3xl text-accent">Bulk editor</h1>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <BulkEditor labels={labels} bottles={bottles} vintages={vintages} brands={brands} categories={categories} groups={groups} kinds={kinds} photos={photos} refs={refs} linkOptions={linkOptions} currency={currency} />
     </div>
   );

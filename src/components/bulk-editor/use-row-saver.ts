@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { createRowAction, labelLinksAction, patchBottleRowAction, patchLabelRowAction, patchVintageRowAction } from "@/app/(app)/bulk-editor/actions";
+import { createRowAction, labelLinksAction, patchBottleRowAction, patchLabelRowAction, patchVintageRowAction } from "@/app/(wide)/bulk-editor/actions";
 import type { Moves } from "@/lib/bulk-editor/changes";
 import { isBlank, type DraftRow } from "@/lib/bulk-editor/drafts";
 import type { Edits } from "@/lib/bulk-editor/editors";
