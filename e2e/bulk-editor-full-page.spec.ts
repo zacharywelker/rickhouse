@@ -199,3 +199,33 @@ test("below md the page is as before: the long help under the sheet and no foote
   await expect(page.getByRole("button", { name: "All shortcuts" })).toBeHidden();
   await expect(longHelp(page)).toBeVisible();
 });
+
+// ---- found in review ----
+
+test("showing the pane over the selected cell scrolls the cell clear of it", async ({ page }) => {
+  await openLaptop(page);
+  await hidePane(page);
+  await scrollToEnd(page);
+  const lastCol = (await grid(page).locator("thead tr:last-child th").count()) - 1;
+  await grid(page).locator(`td[data-r='0'][data-c='${lastCol}']`).click();
+  await page.getByRole("button", { name: "Show the details panel" }).click();
+  await expect(pane(page).getByRole("button", { name: "Hide the details panel" })).toBeVisible();
+  await page.waitForTimeout(300);
+  const active = (await page.locator("td[data-r][aria-selected='true']").first().boundingBox())!;
+  const p = (await pane(page).boundingBox())!;
+  expect(active.x + active.width).toBeLessThanOrEqual(p.x + 1);
+});
+
+test("the bottom rows scroll clear of the delete bar", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 420 }); // short, so the rows overflow the sheet
+  await page.goto("/bulk-editor");
+  await expect(grid(page)).toBeVisible();
+  await page.getByRole("checkbox", { name: /^Select / }).first().check();
+  const bar = page.getByText(/selected$/).first();
+  await expect(bar).toBeVisible();
+  await scrollBox(page).evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await page.waitForTimeout(150);
+  const barBox = (await bar.locator("xpath=ancestor::div[contains(@class,'bg-card')][1]").boundingBox())!;
+  const lastRow = (await grid(page).locator("tbody tr").last().boundingBox())!;
+  expect(lastRow.y + lastRow.height).toBeLessThanOrEqual(barBox.y + 1);
+});

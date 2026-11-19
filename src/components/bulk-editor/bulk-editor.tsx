@@ -1572,6 +1572,14 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.row, current?.col, editing]);
 
+  // Showing the Details pane puts it over the right edge, where the selected cell may be: bring the cell back into view, clear of the pane.
+  React.useEffect(() => {
+    if (railChoice !== "open" || !current) return;
+    sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${current.row}"][data-c="${current.col}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    // Only the pane being shown matters, not where the cursor is.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [railChoice]);
+
   // What has not been saved: new rows that have been started, and rows with an edit or a move that is not yet saved.
   const stateOf = saver.rowState;
   const notSaved = new Set<string>();
@@ -1877,7 +1885,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
 
       <div className="flex min-w-0 flex-col border border-border bg-card md:min-h-80 md:flex-1">
         {/* From md up the sheet scrolls inside a box that fits the window, so the headers stay put and the keyboard's scroll-into-view keeps the active cell clear of them, of the frozen columns and, while the Details pane is over the sheet, of the pane (the pane's width is the scroll box's right padding and scroll padding). */}
-        <div ref={bodyRef} data-rail={railChoice ?? "auto"} className="group/body relative flex min-h-0 flex-1 flex-col md:[&>.overflow-x-auto]:min-h-0 md:[&>.overflow-x-auto]:flex-1 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[calc(var(--cw-brand,156px)+var(--cw-name,180px))] md:[&>.overflow-x-auto]:scroll-pt-16 md:data-[rail=open]:[&>.overflow-x-auto]:pr-72 md:data-[rail=open]:[&>.overflow-x-auto]:scroll-pr-72 xl:data-[rail=auto]:[&>.overflow-x-auto]:pr-72 xl:data-[rail=auto]:[&>.overflow-x-auto]:scroll-pr-72">
+        <div ref={bodyRef} data-rail={railChoice ?? "auto"} data-bar={ticked.length > 0 ? "on" : "off"} className="group/body relative flex min-h-0 flex-1 flex-col md:[&>.overflow-x-auto]:min-h-0 md:[&>.overflow-x-auto]:flex-1 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[calc(var(--cw-brand,156px)+var(--cw-name,180px))] md:[&>.overflow-x-auto]:scroll-pt-16 md:data-[rail=open]:[&>.overflow-x-auto]:pr-72 md:data-[rail=open]:[&>.overflow-x-auto]:scroll-pr-72 xl:data-[rail=auto]:[&>.overflow-x-auto]:pr-72 xl:data-[rail=auto]:[&>.overflow-x-auto]:scroll-pr-72 md:data-[bar=on]:[&>.overflow-x-auto]:pb-20 md:data-[bar=on]:[&>.overflow-x-auto]:scroll-pb-20">
       <Table role="grid" aria-label="Bulk editor" aria-rowcount={rows.length + 1} className="border-separate border-spacing-0 whitespace-nowrap tabular-nums">
         <TableHeader>
           <TableRow className="border-b-0 hover:bg-transparent">
