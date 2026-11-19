@@ -11,6 +11,7 @@ import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitl
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { withOption } from "@/lib/forms/values";
 import { labelLinkSuggestionsAction, saveExpressionAction } from "@/app/(app)/expressions/actions";
+import { usePopup } from "@/components/popup/popup";
 import { EXPRESSION_SECTIONS, sectionVisible } from "@/lib/expressions/fields";
 import { IDLE_RESULT, type ActionResult, type FieldSpec, type Option } from "@/lib/admin/types";
 import type { FieldGroup } from "@/db/schema";
@@ -658,6 +659,7 @@ export function ExpressionForm({
   bottleProofs?: string[];
 }) {
   const router = useRouter();
+  const popup = usePopup();
   const [values, setValues] = React.useState<Record<string, FieldValue>>(() => ({ ...initialLabelValues(initialValues, categoryGroups), ageYearsSource: initialValues?.ageYearsSource === "derived" ? "derived" : "entered", originCountryManual: initialValues?.originCountryManual === true, originRegionManual: initialValues?.originRegionManual === true }));
   const [optionsByField, setOptionsByField] = React.useState(options);
   const [links, setLinks] = React.useState(initialLinks);
@@ -676,6 +678,8 @@ export function ExpressionForm({
   const saved = state.ok && state.message !== "";
   const bottleId = state.ok ? state.bottleId : undefined;
   const savedId = state.ok ? state.createdId : undefined;
+  // In the bulk editor's popup a save is reported to the popup (once) instead of navigating away.
+  const reported = React.useRef(false);
   React.useEffect(() => {
     if (!saved) return;
     let cancelled = false;
@@ -692,6 +696,12 @@ export function ExpressionForm({
         photoFailed = !result?.ok;
       }
       if (cancelled) return;
+      if (popup) {
+        if (reported.current) return;
+        reported.current = true;
+        popup.saved({ labelId: savedId ?? expressionId ?? undefined, ...(bottleId !== undefined ? { bottleId } : {}) });
+        return;
+      }
       // A failed photo lands on the label's page, which says so; the label is kept.
       // With a bottle just added, land on its edit page to fill in price, store,
       // etc.; otherwise on the label's own page.
@@ -709,7 +719,7 @@ export function ExpressionForm({
     return () => {
       cancelled = true;
     };
-  }, [saved, bottleId, savedId, state, router, expressionId]);
+  }, [saved, bottleId, savedId, state, router, expressionId, popup]);
 
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
   const set = (name: string, value: FieldValue) =>
@@ -811,9 +821,15 @@ export function ExpressionForm({
             <DeleteExpressionButton expressionId={expressionId} name={String(values.name ?? "This label")} />
           </div>
         ) : null}
-        <Button type="button" variant="outline" asChild>
-          <Link href={expressionId ? `/expressions/${expressionId}` : "/expressions"}>Cancel</Link>
-        </Button>
+        {popup ? (
+          <Button type="button" variant="outline" onClick={popup.close}>
+            Cancel
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" asChild>
+            <Link href={expressionId ? `/expressions/${expressionId}` : "/expressions"}>Cancel</Link>
+          </Button>
+        )}
         <Button type="submit" disabled={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
           {expressionId ? "Save Label" : "Create Label"}

@@ -10,6 +10,9 @@ import { assertThrowawayDatabase, seedTournamentField } from "./support/tourname
  * a CSS selector and the popup by its `data-popup` attribute.
  */
 
+// A popup is a client-side navigation to a page `next dev` may still have to compile.
+const slow = expect.configure({ timeout: 12_000 });
+
 test.beforeAll(async () => {
   // Before resetDatabase(), which wipes whatever DATABASE_URL names.
   assertThrowawayDatabase();
@@ -20,10 +23,10 @@ test.beforeAll(async () => {
 test.beforeEach(async ({ page }) => {
   await signIn(page);
   await page.goto("/bulk-editor");
-  await expect(page.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
+  await slow(page.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
   await page.evaluate(() => window.localStorage.removeItem("bulk-editor:view"));
   await page.reload();
-  await expect(page.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
+  await slow(page.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
 });
 
 const sheet = (page: Page) => page.locator('table[aria-label="Bulk editor"]');
@@ -60,14 +63,14 @@ async function chooseFromMenu(page: Page, label: string, item: RegExp | string) 
 
 test("Duplicate bottle opens the existing duplicate page in a popup over the sheet, and a hard load shows it as a full page", async ({ page }) => {
   await chooseFromMenu(page, "Quillon", "Duplicate bottle");
-  await expect(page).toHaveURL(/\/bottles\/new\?duplicate=\d+/);
-  await expect(popup(page)).toBeVisible();
-  await expect(popup(page)).toContainText("Duplicate bottle");
-  await expect(sheet(page)).toHaveCount(1);
+  await slow(page).toHaveURL(/\/bottles\/new\?duplicate=\d+/);
+  await slow(popup(page)).toBeVisible();
+  await slow(popup(page)).toContainText("Duplicate bottle");
+  await slow(sheet(page)).toHaveCount(1);
   const url = page.url();
   await page.goto(url);
-  await expect(popup(page)).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Duplicate bottle" })).toBeVisible();
+  await slow(popup(page)).toHaveCount(0);
+  await slow(page.getByRole("heading", { name: "Duplicate bottle" })).toBeVisible();
 });
 
 test("saving the duplicate closes the popup, adds the bottle to the sheet and leaves the original, copying no tasting", async ({ page }) => {
@@ -80,36 +83,36 @@ test("saving the duplicate closes the popup, adds the bottle to the sheet and le
   }
   expect(await counts("Brevard")).toEqual({ labels: 1, bottles: 1, tastings: 1 });
   await chooseFromMenu(page, "Brevard", "Duplicate bottle");
-  await expect(popup(page)).toBeVisible();
+  await slow(popup(page)).toBeVisible();
   await popup(page).getByRole("button", { name: "Add bottle" }).click();
-  await expect(popup(page)).toHaveCount(0);
-  await expect(page).toHaveURL(/\/bulk-editor$/);
+  await slow(popup(page)).toHaveCount(0);
+  await slow(page).toHaveURL(/\/bulk-editor$/);
   expect(await counts("Brevard")).toEqual({ labels: 1, bottles: 2, tastings: 1 });
-  await expect(rowOf(page, "Brevard")).toHaveCount(2);
+  await slow(rowOf(page, "Brevard")).toHaveCount(2);
 });
 
 test("Cancel closes the popup; with something typed in, Escape and Cancel both ask first", async ({ page }) => {
   await chooseFromMenu(page, "Tamsin", "Duplicate bottle");
-  await expect(popup(page)).toBeVisible();
+  await slow(popup(page)).toBeVisible();
   await popup(page).locator("textarea").first().fill("a note");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Discard what you entered?" })).toBeVisible();
+  await slow(page.getByRole("dialog", { name: "Discard what you entered?" })).toBeVisible();
   await page.getByRole("button", { name: "Keep editing" }).click();
-  await expect(popup(page)).toBeVisible();
+  await slow(popup(page)).toBeVisible();
   await popup(page).getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByRole("dialog", { name: "Discard what you entered?" })).toBeVisible();
+  await slow(page.getByRole("dialog", { name: "Discard what you entered?" })).toBeVisible();
   await page.getByRole("button", { name: "Discard" }).click();
-  await expect(popup(page)).toHaveCount(0);
-  await expect(page).toHaveURL(/\/bulk-editor$/);
+  await slow(popup(page)).toHaveCount(0);
+  await slow(page).toHaveURL(/\/bulk-editor$/);
   expect(await counts("Tamsin")).toMatchObject({ bottles: 1 });
 });
 
 test("Cancel with nothing typed closes the popup at once", async ({ page }) => {
   await chooseFromMenu(page, "Corbett", "Duplicate bottle");
-  await expect(popup(page)).toBeVisible();
+  await slow(popup(page)).toBeVisible();
   await popup(page).getByRole("button", { name: "Cancel" }).click();
-  await expect(popup(page)).toHaveCount(0);
-  await expect(page).toHaveURL(/\/bulk-editor$/);
+  await slow(popup(page)).toHaveCount(0);
+  await slow(page).toHaveURL(/\/bulk-editor$/);
 });
 
 test("Duplicate bottle is dimmed where a row is a label: in the Labels-only view, where a label with no bottle appears", async ({ page }) => {
@@ -124,5 +127,52 @@ test("Duplicate bottle is dimmed where a row is a label: in the Labels-only view
   // With Bottles on the sheet has one row per bottle, so a label with none only shows in the Labels-only view.
   await page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name: "Bottles", exact: true }).click();
   await (await labelCell(page, "Bottleless")).click({ button: "right" });
-  await expect(menu(page).getByRole("menuitem", { name: "Duplicate bottle" })).toHaveAttribute("aria-disabled", "true");
+  await slow(menu(page).getByRole("menuitem", { name: "Duplicate bottle" })).toHaveAttribute("aria-disabled", "true");
+});
+
+// ---------------------------------------------------------------------------
+// Duplicate label
+// ---------------------------------------------------------------------------
+
+test("Duplicate label opens the New Label form filled from the source, with the name empty, in a popup", async ({ page }) => {
+  await chooseFromMenu(page, "Ostrava", "Duplicate label");
+  await slow(page).toHaveURL(/\/expressions\/new\?duplicate=\d+/);
+  await slow(popup(page)).toBeVisible();
+  await slow(popup(page)).toContainText("Duplicate label");
+  await slow(sheet(page)).toHaveCount(1);
+  await slow(popup(page).locator('input[name="name"]')).toHaveValue("");
+  await slow(popup(page).locator('input[name="proof"]')).toHaveValue(/115/);
+});
+
+test("saving a duplicated label makes one new label with no bottles, and the source keeps its bottle", async ({ page }) => {
+  expect(await counts("Penhall")).toMatchObject({ labels: 1, bottles: 1 });
+  await chooseFromMenu(page, "Penhall", "Duplicate label");
+  await slow(popup(page)).toBeVisible();
+  await popup(page).locator('input[name="name"]').fill("Penhall Copy");
+  await popup(page).getByRole("button", { name: "Create Label", exact: true }).click();
+  await slow(popup(page)).toHaveCount(0);
+  await slow(page).toHaveURL(/\/bulk-editor$/);
+  expect(await counts("Penhall Copy")).toMatchObject({ labels: 1, bottles: 0 });
+  expect(await counts("Penhall")).toMatchObject({ labels: 1, bottles: 1 });
+});
+
+test("a duplicate given the source's own name either saves once or says why, and never makes two by accident", async ({ page }) => {
+  await chooseFromMenu(page, "Ravenel", "Duplicate label");
+  await slow(popup(page)).toBeVisible();
+  await popup(page).locator('input[name="name"]').fill("Ravenel");
+  await popup(page).getByRole("button", { name: "Create Label", exact: true }).click();
+  await page.waitForTimeout(3000);
+  const { labels } = await counts("Ravenel");
+  if (await popup(page).isVisible()) {
+    // Refused: still one label, and the form says so.
+    expect(labels).toBe(1);
+    await slow(popup(page).getByRole("alert").first()).toBeVisible();
+  } else {
+    expect(labels).toBe(2);
+  }
+});
+
+test("duplicating a label that is not there is a not-found page", async ({ page }) => {
+  const response = await page.goto("/expressions/new?duplicate=99999999");
+  expect(response?.status()).toBe(404);
 });

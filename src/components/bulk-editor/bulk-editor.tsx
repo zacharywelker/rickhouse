@@ -1874,6 +1874,10 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   const openPopup = (url: string) => router.push(url as Route);
   const menuHandlers: Partial<Record<MenuItemId, () => void>> = {
     insert: insertBelow,
+    duplicateLabel: () => {
+      const row = menuTarget();
+      if (row && !row.draft) openPopup(`/expressions/new?duplicate=${row.label.id}`);
+    },
     duplicateBottle: () => {
       const row = menuTarget();
       if (row?.bottle && !row.draft) openPopup(`/bottles/new?duplicate=${row.bottle.id}`);
