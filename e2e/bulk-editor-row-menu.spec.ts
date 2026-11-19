@@ -115,6 +115,21 @@ test("Delete label from a bottle row names the bottles that go with it, deletes 
   await expect(rowOf(page, "Brevard")).toHaveCount(0);
 });
 
+test("a long-press on a touch screen opens the menu for the row pressed, not for one right-clicked before", async ({ page }) => {
+  // Open and close the menu on a saved row first, so a stale row would show.
+  await (await labelCell(page, "Tamsin")).click({ button: "right" });
+  await expect(menu(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu(page)).toHaveCount(0);
+  const target = sheet(page).locator("tbody tr").last().locator("td").first();
+  const box = (await target.boundingBox())!;
+  // The browser's long-press is a pointer press that is held; Radix opens the menu from it after 700 ms, with no contextmenu event.
+  await target.dispatchEvent("pointerdown", { pointerType: "touch", isPrimary: true, button: 0, buttons: 1, clientX: box.x + 12, clientY: box.y + 8 });
+  await expect(menu(page)).toBeVisible({ timeout: 4000 });
+  await expect(menu(page).getByRole("menuitem", { name: "Discard new row" })).toBeVisible();
+  await expect(menu(page).getByRole("menuitem", { name: /Delete label/ })).toHaveCount(0);
+});
+
 test("the empty row at the bottom shows Discard new row, dimmed, and no deletes", async ({ page }) => {
   const last = sheet(page).locator("tbody tr").last();
   await last.locator("td").first().click({ button: "right" });

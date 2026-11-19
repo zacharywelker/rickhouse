@@ -54,7 +54,7 @@ import { patchBottleRowAction, patchLabelRowAction } from "@/app/(wide)/bulk-edi
 import { columnFor, defaultScope, nextScope, noteText, scopeSentence, scopesFor } from "@/lib/bulk-editor/scope";
 import { platformKeyName } from "@/lib/platform";
 import { copyValue } from "@/lib/bulk-editor/value-cells";
-import { EXISTING_LABEL_REQUIRES_BOTTLES, pastedDraftConflict, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
+import { EXISTING_LABEL_REQUIRES_BOTTLES, linesForNewRows, pastedDraftConflict, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
 import { ComboEditor } from "./combo-editor";
 import { LinksEditor, type LinkOptions } from "./links-editor";
 import { PanelEditor } from "./panel-editor";
@@ -1440,8 +1440,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     // Lines that land on a new row, or past the last row, become new rows.
     let added = 0;
     if (!(range && single)) {
-      const newStart = Math.max(0, rows.findIndex((r) => r.draft));
-      const lines = grid.map((cells, i) => ({ cells, rowIndex: at.row + i })).filter((l) => l.rowIndex >= newStart).map((l) => l.cells);
+      const lines = linesForNewRows(rows, at.row, grid.length).map((i) => grid[i]!);
       if (lines.length > 0) {
         const made = makeNewRows(lines.slice(0, MAX_NEW_ROWS), at.col, today, skipped);
         added = made.rows;
@@ -1827,6 +1826,13 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     place(hit.pos);
     setMenuRowKey(row.key);
   }
+  // A touch or pen long-press opens the menu without a contextmenu event, so the row is taken from the press itself.
+  function onPointerDown(event: React.PointerEvent<HTMLTableSectionElement>) {
+    if (event.pointerType === "mouse" || editing) return;
+    const hit = cellOf(event.target);
+    const row = hit ? rows[hit.pos.row] : undefined;
+    if (row) setMenuRowKey(row.key);
+  }
   /** Takes a new row that is not saved away, with everything typed into it. */
   function discardDraft(key: string) {
     if (saver.draftSaving(key)) return;
@@ -2063,10 +2069,11 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
             })}
           </TableRow>
         </TableHeader>
-        <ContextMenu>
+        {/* The row is forgotten when the menu closes, so a menu can never open on an earlier row's items. */}
+        <ContextMenu onOpenChange={(open) => { if (!open) setMenuRowKey(null); }}>
           {/* While a cell editor is open the browser's own menu stays, so Paste is there. */}
           <ContextMenuTrigger asChild disabled={editing !== null}>
-                <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onCopy={onCopy} onPaste={onPaste} onMouseDown={onMouseDown} onClick={onClick} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
+                <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onCopy={onCopy} onPaste={onPaste} onMouseDown={onMouseDown} onClick={onClick} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu} onPointerDown={onPointerDown}>
                   {rows.map((row, rowIndex) => {
                     const isActiveRow = current?.row === rowIndex;
                     return (

@@ -78,3 +78,17 @@ export function pastedDraftConflict(draft: DraftRow, pending: RowTexts, data: Pi
   }
   return null;
 }
+
+/**
+ * Which of a paste's lines make new rows: the ones that land on a new row or past the last row. A line that lands on a
+ * saved row is written there, even when a new row inserted above it sits between it and the paste's first line. Returns
+ * the lines' positions in the paste.
+ */
+export function linesForNewRows(rows: ReadonlyArray<{ draft?: unknown }>, atRow: number, lineCount: number): number[] {
+  const made: number[] = [];
+  for (let i = 0; i < lineCount; i += 1) {
+    const target = rows[atRow + i];
+    if (!target || target.draft) made.push(i);
+  }
+  return made;
+}

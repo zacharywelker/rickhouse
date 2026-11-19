@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyDraft } from "../drafts";
-import { pastedDraftConflict, settleDraft, type SettleData } from "../paste-rows";
+import { linesForNewRows, pastedDraftConflict, settleDraft, type SettleData } from "../paste-rows";
 import type { SheetLabel } from "../sheet";
 
 const label = (id: number, brandId: number, name: string, categoryId: number) => ({ id, brandId, name, categoryId }) as unknown as SheetLabel;
@@ -75,5 +75,27 @@ describe("what a pasted brand, label and category become on a new row", () => {
   });
   it("forgets a blank text", () => {
     expect(settleDraft(draft, { brand: "—", name: "" }, data).left).toEqual({});
+  });
+});
+
+describe("which pasted lines become new rows", () => {
+  const saved = { draft: undefined };
+  const fresh = { draft: {} };
+  // Two saved rows, a row inserted below them, two more saved rows, then the empty row at the bottom.
+  const rows = [saved, saved, fresh, saved, saved, fresh];
+
+  it("a line that lands on a saved row below an inserted row is written there and does not also become a new row", () => {
+    expect(linesForNewRows(rows, 3, 4)).toEqual([2, 3]);
+  });
+  it("a block pasted across an inserted row makes a new row only for the line that landed on it", () => {
+    expect(linesForNewRows(rows, 0, 4)).toEqual([2]);
+  });
+  it("lines past the last row and on the empty row become new rows, as before", () => {
+    expect(linesForNewRows([saved, saved, fresh], 1, 4)).toEqual([1, 2, 3]);
+    expect(linesForNewRows([saved, saved], 1, 3)).toEqual([1, 2]);
+  });
+  it("with every new row at the bottom it matches what pasting always did", () => {
+    expect(linesForNewRows([saved, saved, saved, fresh], 0, 6)).toEqual([3, 4, 5]);
+    expect(linesForNewRows([saved, saved, saved, fresh], 0, 2)).toEqual([]);
   });
 });
