@@ -63,6 +63,7 @@ import type { ComboData, Editing, Finish } from "./types";
 import { EditNote } from "./edit-note";
 import { Notices, type Notice } from "./notices";
 import { ResizeHandle } from "./resize-handle";
+import { Shortcuts, ShortcutsFooter } from "./shortcuts";
 import { SourceTag } from "./source-tag";
 import { useRowSaver } from "./use-row-saver";
 
@@ -2036,10 +2037,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
           {view.bottles ? <>Nothing on the shelf yet. Type in the first row to add a bottle, or switch to Labels.</> : <>No labels yet. Type in the first row to add one.</>}
         </p>
       ) : null}
-      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-        Arrow keys move. Type or press Enter to edit. A label&rsquo;s own cells on a bottle row change every bottle on the label (the cell says how many). A grey cell with a lock is filled in from another cell, such as an age from its statement: triple-click it to edit. Brand or Label on a bottle moves it to another label. In the empty row, type a brand, then a label, then a category: Enter takes the highlighted match or creates, Tab takes an existing match only, and Ctrl+Enter creates what you typed.
-        Tab goes to the next cell you can edit, and Enter finishes and drops to the next row. Escape cancels. {platformKeyName() === "Option" ? "Cmd" : "Ctrl"}+Z takes back the change in the newest notice that offers Undo, while it is showing.
-        Drag the edge of a column header to resize it (double-click to undo), or press Alt+Shift+Left or Right on a cell. Rows save as you go: a saved row as soon as a cell is finished, a new row when you leave it.
+      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground md:hidden">
+        <Shortcuts />
       </p>
       {/* Present before anything is in it, so a screen reader announces the text when it appears. It never takes focus. */}
       <div aria-live="polite" aria-atomic="false" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
@@ -2072,6 +2071,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         ) : null}
       </div>
     </div>
+      <ShortcutsFooter />
     </div>
   );
 }

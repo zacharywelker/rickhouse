@@ -50,7 +50,7 @@ test("the sheet fills the window and the page does not scroll", async ({ page })
   await expect(page.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
   const m = await measures(page);
   expect(m.docHeight).toBeLessThanOrEqual(1080);
-  expect(m.frameBottom).toBeGreaterThan(1080 - 40);
+  expect(m.frameBottom).toBeGreaterThan(1080 - 100); // the footer and the page padding are under the frame
   expect(m.h1s).toBe(1);
 });
 
@@ -69,7 +69,7 @@ test("a toolbar that wraps costs the sheet height, not the page", async ({ page 
   await expect(page.getByRole("grid", { name: "Bulk editor" })).toBeVisible();
   const m = await measures(page);
   expect(m.docHeight).toBeLessThanOrEqual(800);
-  expect(m.frameBottom).toBeGreaterThan(800 - 40);
+  expect(m.frameBottom).toBeGreaterThan(800 - 100);
 });
 
 // ---- the Details pane lies over the sheet ----
@@ -170,4 +170,32 @@ test("ticking a row shows the delete bar without shrinking the sheet or going un
   const barBox = (await bar.locator("xpath=ancestor::div[contains(@class,'bg-card')][1]").boundingBox())!;
   const p = (await pane(page).boundingBox())!;
   expect(barBox.x + barBox.width).toBeLessThanOrEqual(p.x + 1);
+});
+
+// ---- the footer ----
+
+/** The long help where it is showing: it is also in the page, hidden, from md up. */
+const longHelp = (page: Page) => page.getByText(/Enter takes the highlighted match or creates/).locator("visible=true");
+
+test("from md up the help is a one-line footer with the full text behind All shortcuts", async ({ page }) => {
+  await openLaptop(page);
+  const button = page.getByRole("button", { name: "All shortcuts" });
+  await expect(button).toBeVisible();
+  const footer = (await button.locator("xpath=..").boundingBox())!;
+  expect(footer.height).toBeLessThan(40);
+  await expect(longHelp(page)).toBeHidden();
+
+  await button.click();
+  await expect(longHelp(page)).toBeVisible();
+  await expect(page.getByText(/Drag the edge of a column header to resize it/).locator("visible=true")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(longHelp(page)).toBeHidden();
+});
+
+test("below md the page is as before: the long help under the sheet and no footer", async ({ page }) => {
+  await page.setViewportSize({ width: 700, height: 900 });
+  await page.goto("/bulk-editor");
+  await expect(grid(page)).toBeVisible();
+  await expect(page.getByRole("button", { name: "All shortcuts" })).toBeHidden();
+  await expect(longHelp(page)).toBeVisible();
 });
