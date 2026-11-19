@@ -150,7 +150,7 @@ struct LabelEditor: View {
                 .tightRow()
             }
             Section {
-                ForEach(label.releases) { release in
+                ForEach(label.vintages) { release in
                     Button { releaseSheet = ReleaseTarget(release: release) } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -166,16 +166,16 @@ struct LabelEditor: View {
                     }
                 }
                 Button { releaseSheet = ReleaseTarget(release: nil) } label: {
-                    Label("Add a release", systemImage: "plus.circle")
+                    Label("Add a vintage", systemImage: "plus.circle")
                         .font(.inter(15, .semibold))
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
                 .foregroundStyle(Theme.ink)
             } header: {
-                Text("Known releases")
+                Text("Vintages")
             } footer: {
-                Text("Batches or yearly editions. A release saves as soon as you save it, apart from the label's Save, and is removed on the web.")
+                Text("Batches or yearly editions. A vintage saves as soon as you save it, apart from the label's Save, and is removed on the web.")
             }
             if let factError { Section { ErrorText(factError) } }
         }
@@ -409,7 +409,7 @@ struct LabelFactRows: View {
         }
         .tightRow()
         if caskLocked {
-            Text(proofSpread.map { "Cask Strength: \($0) proof across its releases and bottles." } ?? "Cask Strength: the proof differs by release, so it isn't set here.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
+            Text(proofSpread.map { "Cask Strength: \($0) proof across its vintages and bottles." } ?? "Cask Strength: the proof differs by vintage, so it isn't set here.").font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
         }
         if let tier = Strength.tier(group: rules.group, proof: draft[.proof].trimmed) {
             Text(tier).font(.inter(12, .semibold, relativeTo: .caption)).foregroundStyle(Theme.muted).frame(maxWidth: .infinity, alignment: .trailing)

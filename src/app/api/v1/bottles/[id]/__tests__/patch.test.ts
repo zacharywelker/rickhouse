@@ -55,10 +55,19 @@ describe("PATCH /api/v1/bottles/:id", () => {
   });
 
   it("takes the label, release and the bottle's own proof, age and size, through the web validators", async () => {
-    await patch("5", { expressionId: "12", releaseId: null, proof: 118.4, ageYears: "7", ageMonths: "", sizeMl: 1000, isSingleBarrel: true, pickedBy: " The Club ", acquisition: "gift" });
+    await patch("5", { expressionId: "12", vintageId: null, proof: 118.4, ageYears: "7", ageMonths: "", sizeMl: 1000, isSingleBarrel: true, pickedBy: " The Club ", acquisition: "gift" });
     expect(updateBottle.mock.calls[0]![2].columns).toEqual({
       expressionId: 12, releaseId: null, proof: "118.4", ageYears: "7", ageMonths: null, sizeMl: 1000, isSingleBarrel: true, pickedBy: "The Club", acquisition: "gift",
     });
+  });
+
+  it("takes the chosen vintage as vintageId, and no longer as releaseId", async () => {
+    await patch("5", { vintageId: 4 });
+    expect(updateBottle).toHaveBeenLastCalledWith(5, 7, expect.objectContaining({ columns: { releaseId: 4 } }));
+    // The old name is not an API field any more: it is dropped, never passed on as the vintage.
+    updateBottle.mockClear();
+    await patch("5", { releaseId: 4, fillPct: 50 });
+    expect(updateBottle).toHaveBeenLastCalledWith(5, 7, expect.objectContaining({ columns: {} }));
   });
 
   it("refuses an acquisition it does not know and a status, which only the fill and Opened date set", async () => {

@@ -7,7 +7,7 @@ import { saveRelease } from "@/lib/releases-store";
 
 export const dynamic = "force-dynamic";
 
-/** Adds a known release to one of your labels. The name is required; the rest can be left blank. */
+/** Adds a vintage to one of your labels. The name is required; the rest can be left blank. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const user = await getCurrentUser();
   if (!user) return apiError(401, "unauthorized", "Sign in first.");

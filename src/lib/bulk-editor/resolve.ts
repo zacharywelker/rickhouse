@@ -3,7 +3,7 @@ import type { SheetBottle, SheetContext, SheetLabel, SheetRow, SheetVintage } fr
 
 /**
  * What a cell shows for a value that can come from three places: the bottle's own, else its vintage's (a label's
- * known release), else the label's. Pure, so the rule is testable and the cells, the sort and the edit note all agree.
+ * vintage), else the label's. Pure, so the rule is testable and the cells, the sort and the edit note all agree.
  */
 
 export type Level = "bottle" | "vintage" | "label";

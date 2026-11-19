@@ -117,7 +117,7 @@ final class RankingModelTests: StubbedSessionTestCase {
 
     func testTournamentRankDecodesPresentNullAndAbsent() throws {
         func detail(_ extra: String) throws -> LabelDetail {
-            let base = #"{"id":1,"wheel":null,"brandId":1,"categoryId":1,"brand":"B","name":"N","category":"Bourbon","upc":null,"proof":"90","ageStatement":null,"ageYears":null,"sizeMl":750,"msrp":null,"photoPath":null,"photoThumbPath":null,"distilleries":[],"finishes":[],"mashbills":[],"releases":[],"bottles":[],"tastings":[],"links":null"#
+            let base = #"{"id":1,"wheel":null,"brandId":1,"categoryId":1,"brand":"B","name":"N","category":"Bourbon","upc":null,"proof":"90","ageStatement":null,"ageYears":null,"sizeMl":750,"msrp":null,"photoPath":null,"photoThumbPath":null,"distilleries":[],"finishes":[],"mashbills":[],"vintages":[],"bottles":[],"tastings":[],"links":null"#
             return try JSONDecoder().decode(LabelDetail.self, from: Data((base + extra + "}").utf8))
         }
         let present = try detail(#","tournamentRank":{"rank":3,"of":12,"text":"Tournament rank: 3 of 12 bourbons","categoryId":1}"#)

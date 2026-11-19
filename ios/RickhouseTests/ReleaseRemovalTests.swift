@@ -7,7 +7,7 @@ final class ReleaseRemovalTests: XCTestCase {
     }
 
     func testTheServersWarningIsShownAndNothingCanBeBroughtBack() {
-        let warning = "Kentucky Tea has a photo and 2 bottles. Removing it: its photo will be deleted; the bottles stay but lose this release."
+        let warning = "Kentucky Tea has a photo and 2 bottles. Removing it: its photo will be deleted; the bottles stay but lose this vintage."
         XCTAssertEqual(ReleaseRemoval.message(removal: warning), warning + " This can't be undone.")
     }
 
@@ -18,9 +18,9 @@ final class ReleaseRemovalTests: XCTestCase {
     func testAReleaseReadsItsRemovalLineAndAnOlderServerHasNone() throws {
         let base: [String: Any] = ["id": 3, "name": "Batch 1", "releaseYear": 2024, "proof": "110", "ageStatement": NSNull(), "msrp": NSNull(), "photoThumbPath": NSNull()]
         var with = base
-        with["removal"] = "Batch 1 has 1 bottle. Removing it: the bottle stays but loses this release."
+        with["removal"] = "Batch 1 has 1 bottle. Removing it: the bottle stays but loses this vintage."
         let release = try JSONDecoder().decode(LabelRelease.self, from: JSONSerialization.data(withJSONObject: with))
-        XCTAssertEqual(release.removal, "Batch 1 has 1 bottle. Removing it: the bottle stays but loses this release.")
+        XCTAssertEqual(release.removal, "Batch 1 has 1 bottle. Removing it: the bottle stays but loses this vintage.")
 
         let bare = try JSONDecoder().decode(LabelRelease.self, from: JSONSerialization.data(withJSONObject: base))
         XCTAssertNil(bare.removal)

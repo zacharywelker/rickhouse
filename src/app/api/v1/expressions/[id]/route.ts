@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 const spreadOrNull = (spread: ReturnType<typeof proofSpread>) => (spread ? spreadLabel(spread) : null);
 
 /**
- * One label, read rather than edited: its specs and photo, its known releases, the caller's bottles of it
+ * One label, read rather than edited: its specs and photo, its vintages, the caller's bottles of it
  * and the tastings on those bottles. Someone else's label is simply not found.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
@@ -121,7 +121,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     ingredients: links.ingredients.map((i) => i.name),
     botanicals: links.ingredients.filter((i) => i.kind === "botanical").map((i) => i.name),
     ginBases: links.ingredients.filter((i) => i.kind === "gin_base").map((i) => i.name),
-    releases: releases.map((r) => ({
+    vintages: releases.map((r) => ({
       id: r.id,
       name: r.name,
       releaseYear: r.releaseYear,
@@ -140,7 +140,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       status: b.status,
       isOpen: b.isOpen,
       fillPct: b.fillPct,
-      release: b.releaseName ?? (b.batch ? `batch ${b.batch}` : null),
+      vintage: b.releaseName ?? (b.batch ? `batch ${b.batch}` : null),
       releaseYear: b.releaseYear,
       pickName: b.pickName,
       barrelNumber: b.barrelNumber,

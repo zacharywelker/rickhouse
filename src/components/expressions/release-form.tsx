@@ -117,7 +117,7 @@ export function ReleaseForm({ releaseId, initial, notes }: { releaseId: number; 
       <div className="flex justify-end">
         <Button type="submit" disabled={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-          Save release
+          Save vintage
         </Button>
       </div>
     </form>
@@ -161,7 +161,7 @@ export function DeleteReleaseButton({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete this release?</DialogTitle>
+            <DialogTitle>Delete this vintage?</DialogTitle>
             <DialogDescription>{warning ?? "Nothing else uses it. This cannot be undone."}</DialogDescription>
           </DialogHeader>
           {error ? (

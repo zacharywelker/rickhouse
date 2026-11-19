@@ -13,17 +13,17 @@ vi.mock("@/lib/releases-store", () => ({
 }));
 
 import { POST } from "../route";
-import { DELETE, PATCH } from "../[releaseId]/route";
+import { DELETE, PATCH } from "../[vintageId]/route";
 
 const request = (method: string, body: unknown) =>
-  new NextRequest("https://rickhouse.example.com/api/v1/expressions/10/releases", {
+  new NextRequest("https://rickhouse.example.com/api/v1/expressions/10/vintages", {
     method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 const add = (body: unknown, id = "10") => POST(request("POST", body), { params: Promise.resolve({ id }) });
 const change = (body: unknown, id = "10", releaseId = "3") =>
-  PATCH(request("PATCH", body), { params: Promise.resolve({ id, releaseId }) });
+  PATCH(request("PATCH", body), { params: Promise.resolve({ id, vintageId: releaseId }) });
 
 const saved = { id: "3", name: "2024-01", year: "2024", proof: "", ageYears: "", ageMonths: "", ageDays: "", ageStatement: "", msrp: "" };
 
@@ -34,7 +34,7 @@ beforeEach(() => {
   removeRelease.mockResolvedValue({ ok: true, bottles: 2 });
 });
 
-describe("POST /api/v1/expressions/:id/releases", () => {
+describe("POST /api/v1/expressions/:id/vintages", () => {
   it("adds a release for the caller, turning numbers and nulls into the strings the form takes", async () => {
     const res = await add({ name: "2024-01", year: 2024, proof: null });
     expect(res.status).toBe(201);
@@ -64,7 +64,7 @@ describe("POST /api/v1/expressions/:id/releases", () => {
   });
 });
 
-describe("PATCH /api/v1/expressions/:id/releases/:releaseId", () => {
+describe("PATCH /api/v1/expressions/:id/vintages/:vintageId", () => {
   it("changes only what is sent", async () => {
     const res = await change({ msrp: "99.99" });
     expect(res.status).toBe(200);
@@ -82,10 +82,10 @@ describe("PATCH /api/v1/expressions/:id/releases/:releaseId", () => {
   });
 });
 
-describe("DELETE /api/v1/expressions/:id/releases/:releaseId", () => {
+describe("DELETE /api/v1/expressions/:id/vintages/:vintageId", () => {
   const remove = (id = "10", releaseId = "3") =>
-    DELETE(new NextRequest(`https://rickhouse.example.com/api/v1/expressions/${id}/releases/${releaseId}`, { method: "DELETE" }), {
-      params: Promise.resolve({ id, releaseId }),
+    DELETE(new NextRequest(`https://rickhouse.example.com/api/v1/expressions/${id}/vintages/${releaseId}`, { method: "DELETE" }), {
+      params: Promise.resolve({ id, vintageId: releaseId }),
     });
 
   it("removes the caller's release and says how many bottles lost it", async () => {

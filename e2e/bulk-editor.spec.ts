@@ -1049,7 +1049,7 @@ const bothSwitch = (page: Page, name: "Labels" | "Bottles") => page.getByRole("g
 
 test("the form's other fields are columns, grouped by section and hidden until switched on", async ({ page }) => {
   await fieldsButton(page).click();
-  for (const group of ["Label: Process", "Label: Rum detail", "Label: Strength and age", "Bottle: Release", "Bottle: Single-barrel detail"]) {
+  for (const group of ["Label: Process", "Label: Rum detail", "Label: Strength and age", "Bottle: Vintage", "Bottle: Single-barrel detail"]) {
     await expect(page.getByRole("group", { name: group })).toBeVisible();
   }
   await expect(page.getByLabel("Batch", { exact: true })).not.toBeChecked();
@@ -1822,7 +1822,7 @@ test("a pasted existing label remains unresolved when Bottles is off", async ({ 
 });
 
 // ---------------------------------------------------------------------------
-// What was left: a saved label's category, regions, older names and known releases
+// What was left: a saved label's category, regions, older names and vintages
 // ---------------------------------------------------------------------------
 
 test("a saved label's category is picked from the existing ones, never made, and the cells that no longer apply say so", async ({ page }) => {
@@ -1855,10 +1855,10 @@ test("a saved label's category is picked from the existing ones, never made, and
   await expect(cell(page, 3, regions)).toContainText("Islay, Speyside");
 });
 
-test("a label's older names open the form's own list, save as they are changed, and a label can be given known releases", async ({ page }) => {
+test("a label's older names open the form's own list, save as they are changed, and a label can be given vintages", async ({ page }) => {
   await bothSwitch(page, "Bottles").click();
-  await showColumns(page, "Other names", "Known releases");
-  const [names, releases] = [await col(page, "Other names"), await col(page, "Known releases")];
+  await showColumns(page, "Other names", "Vintages");
+  const [names, releases] = [await col(page, "Other names"), await col(page, "Vintages")];
 
   await select(page, 4, names);
   await page.keyboard.press("Enter");
@@ -1874,9 +1874,9 @@ test("a label's older names open the form's own list, save as they are changed, 
 
   await select(page, 4, releases);
   await page.keyboard.press("Enter");
-  const list = page.getByRole("dialog", { name: /Known releases, as on the label form/ });
+  const list = page.getByRole("dialog", { name: /Vintages, as on the label form/ });
   await expect(list).toBeVisible();
-  await list.getByRole("button", { name: "Add a release" }).click();
+  await list.getByRole("button", { name: "Add a vintage" }).click();
   await list.getByLabel("Name").first().fill("Sheet Batch One");
   await page.keyboard.press("Escape");
   await expect(cell(page, 4, releases)).toContainText("Sheet Batch One");
@@ -1922,13 +1922,13 @@ test("bulk review clears a pending Store choice when replaced by a full match", 
 
 test("bulk review protects releases and older names while their fields are incomplete", async ({ page }) => {
   await bothSwitch(page, "Bottles").click();
-  await showColumns(page, "Other names", "Known releases");
-  const [names, releases] = [await col(page, "Other names"), await col(page, "Known releases")];
+  await showColumns(page, "Other names", "Vintages");
+  const [names, releases] = [await col(page, "Other names"), await col(page, "Vintages")];
 
   await select(page, 0, releases);
   await page.keyboard.press("Enter");
-  const releaseEditor = page.getByRole("dialog", { name: "Known releases, as on the label form" });
-  await releaseEditor.getByRole("button", { name: "Add a release" }).click();
+  const releaseEditor = page.getByRole("dialog", { name: "Vintages, as on the label form" });
+  await releaseEditor.getByRole("button", { name: "Add a vintage" }).click();
   await releaseEditor.getByLabel("Name").last().fill("Keep This Release");
   await page.keyboard.press("Escape");
   await reloaded(page);

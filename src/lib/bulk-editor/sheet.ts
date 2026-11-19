@@ -66,7 +66,7 @@ export type SheetBottle = {
   isFavorite: boolean;
 };
 
-/** A vintage (a label's known release) as the sheet reads it: its own proof and age, which a bottle on it shows. Null: it has none of its own. */
+/** A vintage as the sheet reads it: its own proof and age, which a bottle on it shows. Null: it has none of its own. */
 export type SheetVintage = {
   id: number;
   labelId: number;
@@ -103,7 +103,7 @@ export type SheetRow = {
 };
 /** What the picking cells name their choices by: id to name, for the stores, cooperages, releases and label names. */
 export type RefNames = { store: Record<number, string>; cooperage: Record<number, string>; release: Record<number, string>; version: Record<number, string> };
-/** Each label's own lists, by name, for the cells that summarise them: its older names, and its known releases. */
+/** Each label's own lists, by name, for the cells that summarise them: its older names, and its vintages. */
 export type LabelLists = { versions: Record<number, string[]>; releases: Record<number, string[]> };
 export type SheetContext = { currency: string; /** Lookups for resolving a value from the bottle, its vintage or the label (`resolve.ts`). */ index?: SheetIndex; kinds: Record<number, CategoryKind>; refs?: RefNames; lists?: LabelLists; /** Category names, for a saved label's Category cell. */ categories?: Record<number, string> };
 export type Cell = {
@@ -132,7 +132,7 @@ export type SheetColumn = {
   identity?: boolean;
   /** Shown whenever its group is, and cannot be hidden in the Fields picker: a new label cannot be saved without it. */
   always?: boolean;
-  /** The form section it belongs to ("Rum detail", "Release"…): the Fields picker groups by it. */
+  /** The form section it belongs to ("Rum detail", "Vintage"…): the Fields picker groups by it. */
   section?: string;
   /** A caption over this column and its neighbours that share it (the three age boxes under "Age"). */
   band?: string;

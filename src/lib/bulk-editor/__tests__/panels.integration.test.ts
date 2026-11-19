@@ -31,7 +31,7 @@ describe.skipIf(!url)("regions, older names, releases and the category save, aga
   const releases = (label: number) => q(`SELECT id, name, release_year, proof::float AS proof FROM expression_releases WHERE expression_id = $1 ORDER BY position`, label);
   const save = (label: number, cells: Record<string, string>) => rows.patchLabelRow(owner, label, labelPatchBody(cells));
 
-  describe("known releases", () => {
+  describe("vintages", () => {
     it("are written as the form's rows, in order, with a rename keeping the release (and what hangs off it)", async () => {
       const label = await fx.mkLabel(owner, cat.whiskey, "Rel One");
       expect(await save(label, { releases: JSON.stringify([{ name: "2024 Spring", year: "2024", proof: "110" }, { name: "2024 Fall" }]) })).toEqual({ ok: true });

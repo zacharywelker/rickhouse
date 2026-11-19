@@ -59,7 +59,7 @@ function releaseOf(bottle: Awaited<ReturnType<typeof bottlesOfLabel>>[number], g
     bottle.releaseName ?? (bottle.batch ? `batch ${bottle.batch}` : null),
     bottle.releaseYear && !bottle.releaseName?.includes(String(bottle.releaseYear)) ? String(bottle.releaseYear) : null,
   ].filter(Boolean);
-  if (parts.length === 0) return "Standard release";
+  if (parts.length === 0) return "Standard";
   const text = parts.join(", ");
   return text[0]!.toUpperCase() + text.slice(1);
 }
@@ -285,11 +285,11 @@ export default async function LabelPage({
 
           {releases.length > 0 && !["vodka", "amaro", "liqueur"].includes(group) ? (
             <div className="border-t border-border pt-6">
-              <h2 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Known releases</h2>
+              <h2 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Vintages</h2>
               <table className="w-full text-sm tabular-nums">
                 <thead className="text-left text-xs text-muted-foreground">
                   <tr>
-                    <th className="py-1 font-normal">Release</th>
+                    <th className="py-1 font-normal">Vintage</th>
                     <th className="py-1 font-normal">Proof</th>
                     <th className="py-1 font-normal">Age</th>
                     <th className="py-1 font-normal">MSRP</th>
@@ -299,7 +299,7 @@ export default async function LabelPage({
                   {releases.map((r) => (
                     <tr key={r.id} className="border-t border-border">
                       <td className="py-1">
-                        <Link href={`/expressions/${expressionId}/releases/${r.id}` as Route} className="hover:text-accent hover:underline">
+                        <Link href={`/expressions/${expressionId}/vintages/${r.id}` as Route} className="hover:text-accent hover:underline">
                           {releaseLabel(r)}
                         </Link>
                       </td>
@@ -336,7 +336,7 @@ export default async function LabelPage({
                       <th className="py-1.5 pr-3 font-semibold">
                         <span className="sr-only">Fill</span>
                       </th>
-                      <th className="py-1.5 pr-4 font-semibold">Release</th>
+                      <th className="py-1.5 pr-4 font-semibold">Vintage</th>
                       <th className="py-1.5 pr-4 font-semibold">Proof</th>
                       <th className="py-1.5 pr-4 font-semibold">Store</th>
                       <th className="py-1.5 pr-4 font-semibold">Acquired</th>

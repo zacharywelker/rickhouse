@@ -1,7 +1,7 @@
 import type { RowColumn } from "./row-list-editor";
 
 /**
- * The columns of the label form's two row lists (older names, known releases), shared so the bulk editor's popovers
+ * The columns of the label form's two row lists (older names, vintages), shared so the bulk editor's popovers
  * open the same boxes, with the same hints and the same checks on what is typed.
  */
 export const OTHER_NAME_COLUMNS: RowColumn[] = [

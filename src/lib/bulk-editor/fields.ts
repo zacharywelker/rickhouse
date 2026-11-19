@@ -40,7 +40,7 @@ export const NOT_HERE: Readonly<Record<string, string>> = {
  * old Bulk add pages nor the tables' Edit modes had any of it (agreed with the owner, 2026-11-13, in #340).
  */
 export const LEFT_TO_THE_SINGLE_PAGES: ReadonlyArray<string> = [
-  "A label's photo and its releases' photos",
+  "A label's photo and its vintages' photos",
   "TTB / COLA approvals",
   "Tasting notes",
   "A bottle's photos and its primary photo",

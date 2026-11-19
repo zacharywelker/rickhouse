@@ -100,7 +100,7 @@ enum Format {
         if let picker = p.pickedBy { tags.append("Picked by \(picker)") }
         if p.singleBarrel { tags.append("Single barrel") }
         if let barrel = p.barrelNumber { tags.append("Barrel \(barrel)") }
-        let release = p.release?.trimmingCharacters(in: .whitespaces)
+        let release = p.vintage?.trimmingCharacters(in: .whitespaces)
         if let release, !release.isEmpty { tags.append(release) } else if let batch = p.batch { tags.append("Batch \(batch)") }
         if let year = p.releaseYear {
             // The year counts as already shown only as a whole number: "Batch 20240" does not carry 2024.

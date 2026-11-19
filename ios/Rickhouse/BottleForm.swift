@@ -44,7 +44,7 @@ struct BottleFormSections: View {
                 LabelSwitchSheet { chosen in Task { await switchLabel(to: chosen) } }
             }
             if let droppedRelease {
-                Text("Moved to another label, so “\(droppedRelease)” is no longer its release.")
+                Text("Moved to another label, so “\(droppedRelease)” is no longer its vintage.")
                     .font(.inter(12, relativeTo: .caption)).foregroundStyle(Theme.muted)
             }
             if let switchError { ErrorText(switchError) }
@@ -82,7 +82,7 @@ struct BottleFormSections: View {
                     HStack {
                         Text("More details").font(.inter(16, .medium))
                         Spacer()
-                        Text("Release, single barrel, own proof and age").font(.inter(12)).foregroundStyle(Theme.muted)
+                        Text("Vintage, single barrel, own proof and age").font(.inter(12)).foregroundStyle(Theme.muted)
                         Image(systemName: "chevron.down").font(.system(size: 12, weight: .semibold))
                     }
                     .frame(minHeight: 44)
@@ -111,12 +111,12 @@ struct BottleFormSections: View {
                     Text("Not listed").tag("")
                     ForEach(draft.releases) { Text($0.title).tag(String($0.id)) }
                 } label: {
-                    Text("Release").foregroundStyle(Theme.muted)
+                    Text("Vintage").foregroundStyle(Theme.muted)
                 }
                 .tint(Theme.ink)
             }
             if draft.onRelease {
-                FixedRow(title: "Batch and year", value: draft.releaseTitle ?? "", reason: "From its release")
+                FixedRow(title: "Batch and year", value: draft.releaseTitle ?? "", reason: "From its vintage")
             } else {
                 EditRow(title: draft.isAgave ? "LOT #" : "Batch", field: field(.batch), placeholder: draft.isAgave ? "Lot number" : "Batch 2 or B524", error: error(.batch), tracksChanges: tracks)
                 EditRow(title: "Release year", field: field(.releaseYear), placeholder: "2024", keyboard: .numberPad, error: error(.releaseYear), tracksChanges: tracks)
@@ -126,9 +126,9 @@ struct BottleFormSections: View {
                 Toggle("Private selection", isOn: tick(.singleBarrelPick)).tint(Theme.ink).frame(minHeight: 44).tightRow()
             }
         } header: {
-            SectionLabel("Release")
+            SectionLabel("Vintage")
         } footer: {
-            Text("What varies bottle to bottle. A release gives its proof, age and MSRP unless this bottle says otherwise.")
+            Text("What varies bottle to bottle. A vintage gives its proof, age and MSRP unless this bottle says otherwise.")
         }
     }
 
@@ -139,7 +139,7 @@ struct BottleFormSections: View {
                 EditRow(title: "Picked by", field: field(.pickedBy), placeholder: "The club, bar or society", error: error(.pickedBy), tracksChanges: tracks)
             }
             EditRow(title: "Barrel number", field: field(.barrel), error: error(.barrel), tracksChanges: tracks)
-            EditRow(title: "Bottles in the release", field: field(.bottleCount), keyboard: .numberPad, error: error(.bottleCount), tracksChanges: tracks)
+            EditRow(title: "Bottle count", field: field(.bottleCount), keyboard: .numberPad, error: error(.bottleCount), tracksChanges: tracks)
             if !draft.hidesWarehouse {
                 EditRow(title: "Warehouse", field: field(.warehouse), placeholder: "Warehouse H", error: error(.warehouse), tracksChanges: tracks)
                 EditRow(title: "Rick / floor", field: field(.rickFloor), placeholder: "5th floor, rick 12", error: error(.rickFloor), tracksChanges: tracks)
@@ -204,7 +204,7 @@ struct BottleFormSections: View {
         } header: {
             SectionLabel("This bottle's own proof, age and size")
         } footer: {
-            Text("Leave these blank to use the label's. A single barrel almost always differs on proof and age, and one release can come in several sizes.")
+            Text("Leave these blank to use the label's. A single barrel almost always differs on proof and age, and one vintage can come in several sizes.")
         }
     }
 
@@ -225,7 +225,7 @@ struct BottleFormSections: View {
             draft.labelTequilaClass = detail.tequilaClass
             draft.labelGinAged = detail.isAgedGin ?? false
             draft.labelGinIsNas = detail.isNas ?? false
-            draft.releases = detail.releases.map { ReleaseChoice(id: $0.id, name: $0.name, releaseYear: $0.releaseYear) }
+            draft.releases = detail.vintages.map { ReleaseChoice(id: $0.id, name: $0.name, releaseYear: $0.releaseYear) }
             draft.labelDistilled = detail.barrelFilledOn
             draft.labelBottled = detail.bottledOn
             draft[.release].text = ""
@@ -251,7 +251,7 @@ struct BottleFormSections: View {
             draft.labelTequilaClass = detail.tequilaClass
             draft.labelGinAged = detail.isAgedGin ?? false
             draft.labelGinIsNas = detail.isNas ?? false
-            draft.releases = detail.releases.map { ReleaseChoice(id: $0.id, name: $0.name, releaseYear: $0.releaseYear) }
+            draft.releases = detail.vintages.map { ReleaseChoice(id: $0.id, name: $0.name, releaseYear: $0.releaseYear) }
             draft.labelDistilled = detail.barrelFilledOn
             draft.labelBottled = detail.bottledOn
             draft[.release].revert()

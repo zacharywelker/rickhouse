@@ -24,11 +24,11 @@ import { cn, formatDate, formatMoney, formatNumeric } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-async function load(params: Promise<{ id: string; releaseId: string }>) {
-  const { id, releaseId } = await params;
+async function load(params: Promise<{ id: string; vintageId: string }>) {
+  const { id, vintageId } = await params;
   const user = await requireSession();
   const expressionId = Number(id);
-  const rid = Number(releaseId);
+  const rid = Number(vintageId);
   if (!Number.isInteger(expressionId) || !Number.isInteger(rid)) return null;
   // Owned through its label, and has to be this label's.
   const release = await releaseById(rid, user.id);
@@ -37,13 +37,13 @@ async function load(params: Promise<{ id: string; releaseId: string }>) {
   return row ? { user, row, release } : null;
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string; releaseId: string }> }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ id: string; vintageId: string }> }): Promise<Metadata> {
   const loaded = await load(params);
-  return { title: loaded ? `${loaded.row.brand.name} ${loaded.row.expression.name} — ${loaded.release.name}` : "Release" };
+  return { title: loaded ? `${loaded.row.brand.name} ${loaded.row.expression.name} — ${loaded.release.name}` : "Vintage" };
 }
 
-/** One known release of a label: its own photo and notes, specs over the label's, and the bottles of it. */
-export default async function ReleasePage({ params }: { params: Promise<{ id: string; releaseId: string }> }) {
+/** One vintage of a label: its own photo and notes, specs over the label's, and the bottles of it. */
+export default async function ReleasePage({ params }: { params: Promise<{ id: string; vintageId: string }> }) {
   const loaded = await load(params);
   if (!loaded) notFound();
   const { user, row, release } = loaded;
@@ -118,7 +118,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
             </div>
           </Polaroid>
           {release.photoPath === null && e.photoPath !== null ? (
-            <p className="text-xs text-muted-foreground">Showing the label&rsquo;s photo until this release has its own.</p>
+            <p className="text-xs text-muted-foreground">Showing the label&rsquo;s photo until this vintage has its own.</p>
           ) : null}
           <LabelPhotoControls expressionId={e.id} releaseId={release.id} hasPhoto={release.photoPath !== null} />
         </div>
@@ -130,17 +130,17 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
             <Spec label="Age" value={age ? <span className={releaseHasAge ? undefined : "text-muted-foreground"}>{age}</span> : null} />
             <Spec label="Year" value={release.releaseYear} />
           </dl>
-          <p className="text-xs text-muted-foreground">Grey values come from the label; set them below to give this release its own.</p>
+          <p className="text-xs text-muted-foreground">Grey values come from the label; set them below to give this vintage its own.</p>
 
           {release.notes ? <p className="whitespace-pre-line border-t border-border pt-6 text-sm">{release.notes}</p> : null}
 
           <section className="flex flex-col gap-3 border-t border-border pt-6" aria-labelledby="release-bottles">
             <h2 id="release-bottles" className="text-xl">
-              Your bottles of this release
+              Your bottles of this vintage
             </h2>
             {owned.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                None yet. Pick this release on a bottle of {row.brand.name} {e.name} and it shows here.
+                None yet. Pick this vintage on a bottle of {row.brand.name} {e.name} and it shows here.
               </p>
             ) : (
               <ul className="flex flex-col divide-y divide-border">
@@ -168,7 +168,7 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
               Tasting notes
             </h2>
             {notes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing tasted from this release yet.</p>
+              <p className="text-sm text-muted-foreground">Nothing tasted from this vintage yet.</p>
             ) : (
               <ul className="flex flex-col divide-y divide-border">
                 {notes.map((note) => (
@@ -197,10 +197,10 @@ export default async function ReleasePage({ params }: { params: Promise<{ id: st
 
           <section className="flex flex-col gap-3 border-t border-border pt-6" aria-labelledby="release-edit">
             <h2 id="release-edit" className="text-xl">
-              Edit this release
+              Edit this vintage
             </h2>
             <p className="text-sm text-muted-foreground">
-              The same release as its row on the label&rsquo;s edit form — changing it in either place changes both.
+              The same vintage as its row on the label&rsquo;s edit form — changing it in either place changes both.
             </p>
             <ReleaseForm releaseId={release.id} initial={releaseRow(release)} notes={release.notes ?? ""} />
           </section>

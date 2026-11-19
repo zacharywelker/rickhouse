@@ -363,7 +363,7 @@ type RowProps = {
   pendingCols: Readonly<Record<string, string>> | undefined;
   /** The open editor of a distillery, mashbill, finish or ingredients cell (the label form's own picker); only for the active row. */
   linksNode: React.ReactNode;
-  /** The open editor of a regions, older names or known releases cell (the label form's own control); only for the active row. */
+  /** The open editor of a regions, older names or vintages cell (the label form's own control); only for the active row. */
   panelNode: React.ReactNode;
   onFinish: ((finish: Finish) => void) | undefined;
   onInvalid: ((message: string) => void) | undefined;

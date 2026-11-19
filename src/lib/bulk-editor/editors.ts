@@ -28,7 +28,7 @@ export type CellEditor = {
   column: string;
   /** Set for a cell that picks from a list. Its `spec` is then unused, and what is chosen is kept with the row, not in the edits. */
   combo?: ComboKind;
-  /** Set for a cell that opens the label form's own control for regions, older names or known releases (see `panels.ts`). */
+  /** Set for a cell that opens the label form's own control for regions, older names or vintages (see `panels.ts`). */
   panel?: PanelKey;
   /** Set for a cell that opens the label form's own picker for one of its lists (distilleries, mashbills, finishes, ingredients). What is kept in the edits is that list as JSON (see `links.ts`). */
   links?: LinkKey;

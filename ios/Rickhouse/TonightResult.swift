@@ -142,7 +142,7 @@ struct TonightResultView: View {
 
     private func facts(_ bottle: TonightPick.Bottle) -> some View {
         VStack(spacing: 6) {
-            fact("Release", detail.flatMap(releaseText))
+            fact("Vintage", detail.flatMap(releaseText))
             fact("Bottling", detail.map(bottlingText))
             fact("Age", detail?.ageStatement)
             fact("Distillery", detail.flatMap { joined($0.distilleries) })

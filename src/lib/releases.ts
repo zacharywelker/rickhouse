@@ -1,5 +1,5 @@
 /**
- * Known releases of a label, as the label form's rows and the release page's
+ * Vintages of a label, as the label form's rows and the release page's
  * form submit them: one object per release, every value a string as typed.
  * Pure, so both forms, the server and the tests share one reading.
  *
@@ -64,7 +64,7 @@ function whole(text: string, what: string, max: number): Parsed<number | null> {
 /** One row, checked. Errors name the release so a list of them reads clearly. */
 export function parseReleaseRow(row: Partial<ReleaseRow>): Parsed<ReleaseInput> {
   const name = (row.name ?? "").trim();
-  if (name === "") return fail("Every release needs a name.");
+  if (name === "") return fail("Every vintage needs a name.");
   if (name.length > MAX_NAME_LENGTH) return fail(`Keep each name under ${MAX_NAME_LENGTH} characters.`);
   const named = (error: string) => fail<ReleaseInput>(`${error} (${name})`);
 
@@ -114,9 +114,9 @@ export function parseReleaseRows(raw: string | null | undefined): ParsedReleases
   try {
     rows = JSON.parse(raw ?? "[]");
   } catch {
-    return { releases: [], error: "The releases could not be read." };
+    return { releases: [], error: "The vintages could not be read." };
   }
-  if (!Array.isArray(rows)) return { releases: [], error: "The releases could not be read." };
+  if (!Array.isArray(rows)) return { releases: [], error: "The vintages could not be read." };
   const releases: ReleaseInput[] = [];
   const seen = new Set<string>();
   for (const row of rows) {
@@ -128,11 +128,11 @@ export function parseReleaseRows(raw: string | null | undefined): ParsedReleases
     const parsed = parseReleaseRow(shaped);
     if (parsed.error !== null) return { releases: [], error: parsed.error };
     const key = parsed.value.name.toLowerCase();
-    if (seen.has(key)) return { releases: [], error: `Two releases are both called "${parsed.value.name}".` };
+    if (seen.has(key)) return { releases: [], error: `Two vintages are both called "${parsed.value.name}".` };
     seen.add(key);
     releases.push(parsed.value);
   }
-  if (releases.length > MAX_RELEASES) return { releases: [], error: `At most ${MAX_RELEASES} releases.` };
+  if (releases.length > MAX_RELEASES) return { releases: [], error: `At most ${MAX_RELEASES} vintages.` };
   return { releases, error: null };
 }
 

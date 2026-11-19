@@ -71,15 +71,15 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
   },
   {
     id: "release",
-    title: "Release",
-    description: "What varies bottle to bottle. The release unit and private selections reveal more fields below.",
+    title: "Vintage",
+    description: "What varies bottle to bottle. Single barrels and private selections reveal more fields below.",
     fields: [
-      // Shown only when the chosen label has known releases; picking one hides
+      // Shown only when the chosen label has vintages; picking one hides
       // Batch and Release Year, which the release then supplies (see BottleFields).
       {
         kind: "select",
         name: "releaseId",
-        label: "Release",
+        label: "Vintage",
         options: [{ value: "", label: "Not listed" }],
         help: "Its proof, age and MSRP apply unless this bottle says otherwise.",
         span: "full",
@@ -121,7 +121,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
         showWhenAny: ["isSingleBarrelPick"],
       },
       { kind: "text", name: "barrelNumber", label: "Barrel Number", span: "half" },
-      { kind: "number", name: "bottleCount", label: "Bottles In The Release", min: 1, step: 1, span: "half" },
+      { kind: "number", name: "bottleCount", label: "Bottle Count", min: 1, step: 1, span: "half" },
       { kind: "text", name: "warehouse", label: "Warehouse", placeholder: "Warehouse H", span: "half" },
       { kind: "text", name: "rickFloor", label: "Rick / Floor", placeholder: "5th floor, rick 12", span: "half" },
     ],
@@ -131,7 +131,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
     title: "This bottle's own proof, age and size",
     description:
       "Leave these blank to use the label's. A single barrel almost always differs on proof and age, and one " +
-      "release can come in several sizes, which is why they are here at all.",
+      "vintage can come in several sizes, which is why they are here at all.",
     fields: [
       {
         kind: "number",

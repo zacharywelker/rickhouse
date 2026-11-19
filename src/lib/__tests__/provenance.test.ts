@@ -51,37 +51,37 @@ describe("provenanceTags", () => {
     expect(provenanceTags(provenanceOf({ ...standard, isSingleBarrel: true }))).toEqual(["Single barrel"]);
   });
 
-  it("shows a release by name, and does not repeat its year", () => {
+  it("shows a vintage by name, and does not repeat its year", () => {
     const p = provenanceOf({ ...standard, releaseName: "Spring 2024", releaseYear: 2024 });
     expect(provenanceTags(p)).toEqual(["Spring 2024"]);
   });
 
-  it("shows a batch and a year when there is no release name", () => {
+  it("shows a batch and a year when there is no vintage name", () => {
     const p = provenanceOf({ ...standard, bottleBatch: "B521", releaseYear: 2021 });
     expect(provenanceTags(p)).toEqual(["Batch B521", "2021"]);
   });
 
-  it("prefers the release name to a batch", () => {
+  it("prefers the vintage name to a batch", () => {
     const p = provenanceOf({ ...standard, releaseName: "Spring 2024", bottleBatch: "B1" });
     expect(provenanceTags(p)).toEqual(["Spring 2024"]);
   });
 
-  it("keeps the year when the release name only contains it as part of a longer number", () => {
+  it("keeps the year when the vintage name only contains it as part of a longer number", () => {
     const p = provenanceOf({ ...standard, releaseName: "Batch 20240", releaseYear: 2024 });
     expect(provenanceTags(p)).toEqual(["Batch 20240", "2024"]);
   });
 
-  it("does not repeat a year the release name already shows", () => {
+  it("does not repeat a year the vintage name already shows", () => {
     const p = provenanceOf({ ...standard, releaseName: "Spring 2024", releaseYear: 2024 });
     expect(provenanceTags(p)).toEqual(["Spring 2024"]);
   });
 
-  it("shows both when the release name carries a different year", () => {
+  it("shows both when the vintage name carries a different year", () => {
     const p = provenanceOf({ ...standard, releaseName: "Spring 2023", releaseYear: 2024 });
     expect(provenanceTags(p)).toEqual(["Spring 2023", "2024"]);
   });
 
-  it("shows the year beside a release name with no year digits", () => {
+  it("shows the year beside a vintage name with no year digits", () => {
     const p = provenanceOf({ ...standard, releaseName: "Spring", releaseYear: 2024 });
     expect(provenanceTags(p)).toEqual(["Spring", "2024"]);
   });
@@ -91,7 +91,7 @@ describe("provenanceTags", () => {
     expect(provenanceTags(p)).toEqual(["Private selection"]);
   });
 
-  it("trims the release name it shows", () => {
+  it("trims the vintage name it shows", () => {
     const p = provenanceOf({ ...standard, releaseName: "  Spring " });
     expect(provenanceTags(p)).toEqual(["Spring"]);
   });

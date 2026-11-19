@@ -22,7 +22,7 @@ final class EditDraftsTests: XCTestCase {
         var json: [String: Any] = [
             "id": 10, "brandId": 1, "categoryId": 3, "brand": "Wild Turkey", "name": "Rare Breed", "category": "Bourbon",
             "proof": "116.80", "sizeMl": 750, "msrp": "49.99", "distilleries": [], "finishes": [], "mashbills": [],
-            "releases": [], "bottles": [], "tastings": [],
+            "vintages": [], "bottles": [], "tastings": [],
         ]
         json.merge(overrides) { _, new in new }
         return try JSONDecoder().decode(LabelDetail.self, from: JSONSerialization.data(withJSONObject: json))
@@ -70,7 +70,7 @@ final class EditDraftsTests: XCTestCase {
     }
 
     func testBatchAndYearOfABottleOnAReleaseAreNotEditable() throws {
-        var draft = BottleDraft(try bottle(["releaseId": 4, "batch": "2024", "releaseYear": 2024]))
+        var draft = BottleDraft(try bottle(["vintageId": 4, "batch": "2024", "releaseYear": 2024]))
         draft[.batch].text = "X"
         draft[.releaseYear].text = "1999"
         XCTAssertFalse(draft.isDirty)
@@ -295,25 +295,25 @@ final class EditDraftsTests: XCTestCase {
         XCTAssertEqual(Set(draft.patch().keys), ["batch"])
         draft[.release].text = "5"
         XCTAssertTrue(draft.onRelease)
-        same(draft.patch(), ["releaseId": 5]) // the batch is the release's now, so it is not sent
-        same(draft.undoPatch(), ["releaseId": NSNull(), "batch": "B1", "releaseYear": "2020"])
+        same(draft.patch(), ["vintageId": 5]) // the batch is the release's now, so it is not sent
+        same(draft.undoPatch(), ["vintageId": NSNull(), "batch": "B1", "releaseYear": "2020"])
     }
 
     func testABottleOnAReleaseHasNoBatchOfItsOwn() throws {
-        let draft = BottleDraft(try bottle(["releaseId": 5, "batch": "2024-01 Springfield", "releaseYear": 2024]))
-        XCTAssertTrue(draft[.batch].isEmpty, "the server shows the release's name as the batch; it is not the bottle's")
+        let draft = BottleDraft(try bottle(["vintageId": 5, "batch": "2024-01 Springfield", "releaseYear": 2024]))
+        XCTAssertTrue(draft[.batch].isEmpty, "the server shows the vintage's name as the batch; it is not the bottle's")
         XCTAssertFalse(draft.isDirty)
         var cleared = draft
         cleared[.release].text = ""
-        same(cleared.patch(), ["releaseId": NSNull()])
+        same(cleared.patch(), ["vintageId": NSNull()])
     }
 
     func testSwitchingTheLabelSendsItWithTheReleaseDropped() throws {
-        var draft = BottleDraft(try bottle(["releaseId": 5]))
+        var draft = BottleDraft(try bottle(["vintageId": 5]))
         draft[.label].text = "12"
         draft[.release].text = ""
-        same(draft.patch(), ["expressionId": 12, "releaseId": NSNull()])
-        same(draft.undoPatch(), ["expressionId": 10, "releaseId": 5])
+        same(draft.patch(), ["expressionId": 12, "vintageId": NSNull()])
+        same(draft.undoPatch(), ["expressionId": 10, "vintageId": 5])
     }
 
     func testTheBottlesOwnProofAgeAndSizeAreCheckedAndSent() throws {

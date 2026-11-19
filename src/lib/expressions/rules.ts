@@ -280,7 +280,7 @@ export function parseRegions(text: unknown): string[] {
 
 export type ProofSpread = { min: number; max: number; releases: number; bottles: number };
 
-/** The lowest and highest proof across a label's known releases and bottles, or null when none has one. */
+/** The lowest and highest proof across a label's vintages and bottles, or null when none has one. */
 export function proofSpread(releaseProofs: ReadonlyArray<unknown>, bottleProofs: ReadonlyArray<unknown>): ProofSpread | null {
   const numbers = (list: ReadonlyArray<unknown>) =>
     list.filter((value) => String(value ?? "").trim() !== "").map(Number).filter(Number.isFinite);

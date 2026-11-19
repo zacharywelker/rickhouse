@@ -24,6 +24,8 @@ import {
 import { BottleFields } from "@/components/expressions/bottle-form";
 import { SEALED } from "@/components/bottles/opened-level";
 import { PendingColas } from "@/components/expressions/cola-approvals";
+import { RELEASE_COLUMNS } from "@/components/expressions/label-list-columns";
+import { RowListEditor } from "@/components/expressions/row-list-editor";
 import { serializeLinks } from "@/components/expressions/ordered-picker";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { unshownErrors, type FieldError } from "@/lib/forms/unshown-errors";
@@ -67,6 +69,9 @@ const NO_ERRORS = {
  * then everything about this bottle and its photos, then one save. The label
  * and bottle stay separate records; only the order of entering them changes.
  */
+/** The key a new label's typed vintages are offered to the bottle under: it has no id yet. */
+const NEW_LABEL = -1;
+
 export function CatalogBottle({
   labelOptions,
   bottleOptions,
@@ -86,7 +91,7 @@ export function CatalogBottle({
   initialLabel: CatalogLabel | null;
   /** Past values for Picked By, Warehouse, Rick / Floor and Where It Lives. */
   suggestions: BottleSuggestions;
-  /** Each label's known releases (by label id), for the Release choice. */
+  /** Each label's vintages (by label id), for the Release choice. */
   releases: Record<number, Array<{ value: string; label: string }>>;
   /** Each label's dates (by label id), which the bottle goes by unless it has its own. */
   labelDates: Record<number, LabelDates>;
@@ -212,6 +217,7 @@ export function CatalogBottle({
     setLabelPhotoLink("");
     setPendingTtb(code?.kind === "ttb" ? [code.value] : []);
     setColaKey((key) => key + 1);
+    setVintageRows([]);
     focusLater(values.brandId ? "expression-name" : "expression-brandId");
     setErrors(NO_ERRORS);
     setPhase({ kind: "new" });
@@ -226,6 +232,8 @@ export function CatalogBottle({
   const backToSearch = () => {
     focusLater("search");
     setErrors(NO_ERRORS);
+    // The vintages typed for a label that was dropped go with it.
+    setVintageRows([]);
     setPhase({ kind: "search" });
   };
 
@@ -258,6 +266,19 @@ export function CatalogBottle({
   const bottleCategoryId = Number(phase.kind === "existing" && !phase.editing ? phase.label.values.categoryId : labelValues.categoryId);
   const bottleGroup = categoryGroups[bottleCategoryId] ?? "whiskey";
 
+  // --- Vintages of a new label --------------------------------------------------
+  // Typed with the label, written with it; the bottle can say it is one of them. The bottle's choice holds the
+  // vintage's name (a new label has no ids yet), and the server turns it into the saved vintage's id.
+  const [vintageRows, setVintageRows] = React.useState<Array<Record<string, string>>>([]);
+  const hasVintages = phase.kind === "new" && !["vodka", "amaro", "liqueur"].includes(bottleGroup);
+  const vintageNames = hasVintages ? vintageRows.map((row) => (row.name ?? "").trim()).filter((name) => name !== "") : [];
+  React.useEffect(() => {
+    // A vintage that was renamed or removed is no longer one to choose.
+    if (phase.kind !== "new") return;
+    setBottleValues((prev) => (prev.releaseId && !vintageNames.includes(String(prev.releaseId)) ? { ...prev, releaseId: "" } : prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vintageNames.join("\n"), phase.kind]);
+
   // --- Saving -----------------------------------------------------------------
   const [saving, setSaving] = React.useState(false);
 
@@ -280,7 +301,8 @@ export function CatalogBottle({
           }
         : null,
       ttbIds: String(form ? (new FormData(form).get("ttbIds") ?? "") : ""),
-      bottle: { ...bottleValues, isOpen: life.isOpen, fillPct: String(life.fillPct), dateOpened: life.isOpen ? life.dateOpened : "" },
+      ...(hasVintages && vintageNames.length > 0 ? { vintages: JSON.stringify(vintageRows), vintageName: String(bottleValues.releaseId ?? "") } : {}),
+      bottle: { ...bottleValues, ...(phase.kind === "new" ? { releaseId: "" } : {}), isOpen: life.isOpen, fillPct: String(life.fillPct), dateOpened: life.isOpen ? life.dateOpened : "" },
     }).catch((): null => null);
 
     if (!result || !result.ok) {
@@ -411,6 +433,31 @@ export function CatalogBottle({
               onLink={setLabelPhotoLink}
             /> : undefined}
           />
+          {hasVintages ? (
+            <Section>
+              <SectionHeader>
+                <SectionTitle>Vintages</SectionTitle>
+                <SectionDescription>
+                  Batches or yearly editions of this label, if it has them. The bottle below can say which one it is, and takes
+                  its proof, age and MSRP unless the bottle says otherwise.
+                </SectionDescription>
+              </SectionHeader>
+              <SectionContent>
+                <RowListEditor
+                  name="releases"
+                  idPrefix="catalog-vintage"
+                  addLabel="Add a vintage"
+                  columns={RELEASE_COLUMNS}
+                  // The editor starts from what is held here, so it shows the same rows that would be saved if it is unmounted
+                  // (the category switched to vodka and back) and mounted again.
+                  initialRows={vintageRows}
+                  toText={(rows) => JSON.stringify(rows)}
+                  onChange={setVintageRows}
+                  {...(errors.label.releases ? { error: errors.label.releases } : {})}
+                />
+              </SectionContent>
+            </Section>
+          ) : null}
           {phase.kind === "new" ? (
             <PendingColas
               key={colaKey}
@@ -437,8 +484,8 @@ export function CatalogBottle({
             </h2>
             <BottleFields
               // The label is chosen above, not a field here, so the release list is keyed by it.
-              values={phase.kind === "existing" ? { ...bottleValues, expressionId: String(phase.label.id) } : bottleValues}
-              releases={releases}
+              values={phase.kind === "existing" ? { ...bottleValues, expressionId: String(phase.label.id) } : { ...bottleValues, expressionId: String(NEW_LABEL) }}
+              releases={phase.kind === "new" ? { [NEW_LABEL]: vintageNames.map((name) => ({ value: name, label: name })) } : releases}
               labelDates={labelDates}
               onChange={(name, value) => setBottleValues((prev) => {
                 const next = { ...prev, [name]: value };

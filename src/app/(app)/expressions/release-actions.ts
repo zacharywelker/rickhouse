@@ -15,7 +15,7 @@ const MAX_NOTES = 4000;
 
 function revalidateRelease(expressionId: number, releaseId: number) {
   revalidatePath(`/expressions/${expressionId}`);
-  revalidatePath(`/expressions/${expressionId}/releases/${releaseId}`);
+  revalidatePath(`/expressions/${expressionId}/vintages/${releaseId}`);
   revalidatePath("/bottles");
 }
 
@@ -27,7 +27,7 @@ export async function saveReleaseAction(releaseId: number, _prev: ActionResult, 
   const user = await requireSession();
   // Someone else's release reads as gone, like everything else.
   const release = await releaseById(releaseId, user.id);
-  if (!release) return { ok: false, error: "That release is gone." };
+  if (!release) return { ok: false, error: "That vintage is gone." };
 
   const row: Partial<ReleaseRow> = {};
   for (const key of ["name", "year", "proof", "ageYears", "ageMonths", "ageDays", "ageStatement", "ageYearsSource", "msrp"] as const) {
@@ -45,9 +45,9 @@ export async function saveReleaseAction(releaseId: number, _prev: ActionResult, 
       .set({ ...values, notes: notes === "" ? null : notes })
       .where(eq(expressionReleases.id, releaseId));
     revalidateRelease(release.expressionId, releaseId);
-    return { ok: true, message: "Release saved." };
+    return { ok: true, message: "Vintage saved." };
   } catch (error: unknown) {
-    return mapDbError(error, { singular: "Release" });
+    return mapDbError(error, { singular: "Vintage" });
   }
 }
 
@@ -55,21 +55,21 @@ export async function saveReleaseAction(releaseId: number, _prev: ActionResult, 
 export async function deleteReleaseAction(releaseId: number): Promise<ActionResult> {
   const user = await requireSession();
   const release = await releaseById(releaseId, user.id);
-  if (!release) return { ok: false, error: "That release is gone." };
+  if (!release) return { ok: false, error: "That vintage is gone." };
   try {
     await db.delete(expressionReleases).where(eq(expressionReleases.id, releaseId));
     if (release.photoPath) await deleteStoredImage(release.photoPath, release.photoThumbPath);
     revalidateRelease(release.expressionId, releaseId);
-    return { ok: true, message: "Release deleted." };
+    return { ok: true, message: "Vintage deleted." };
   } catch (error: unknown) {
-    return mapDbError(error, { singular: "Release" });
+    return mapDbError(error, { singular: "Vintage" });
   }
 }
 
 export async function removeReleasePhotoAction(releaseId: number): Promise<ActionResult> {
   const user = await requireSession();
   const release = await releaseById(releaseId, user.id);
-  if (!release) return { ok: false, error: "That release is gone." };
+  if (!release) return { ok: false, error: "That vintage is gone." };
   try {
     await db
       .update(expressionReleases)
@@ -79,6 +79,6 @@ export async function removeReleasePhotoAction(releaseId: number): Promise<Actio
     revalidateRelease(release.expressionId, releaseId);
     return { ok: true, message: "Photo removed." };
   } catch (error: unknown) {
-    return mapDbError(error, { singular: "Release" });
+    return mapDbError(error, { singular: "Vintage" });
   }
 }
