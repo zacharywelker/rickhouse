@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write # to add/remove the claude-reviewed label
       issues: read
       id-token: write
 
@@ -30,6 +30,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
+      # A new push means the last review no longer covers the code.
+      - name: Clear claude-reviewed label
+        if: startsWith(github.head_ref, 'codex/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X DELETE repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels/claude-reviewed || true
 
       - name: Run Claude Code Review
         id: claude-review
@@ -43,3 +50,9 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
+      # Only Codex PRs are gated on this label (see AGENTS.md); it is advisory.
+      - name: Mark codex PR as reviewed by Claude
+        if: success() && startsWith(github.head_ref, 'codex/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels -f 'labels[]=claude-reviewed'
