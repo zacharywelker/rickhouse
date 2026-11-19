@@ -137,7 +137,7 @@ A panel at the right of the sheet that follows the row the cursor is in. Chosen 
 
 Shows what the owner already has from the brand being typed, so duplicates are visible and locked cells are explained. It changes with the cursor:
 
-1. **A known brand typed, no label yet:** a plain count ("5 bottles from 3 Four Roses labels") and a list of the brand's labels with how many of each.
+1. **A known brand typed, no label yet:** a plain count ("5 bottles from Four Roses") and a list of the brand's labels with how many of each.
 2. **An existing label chosen:** the same list with that label highlighted, plus a count line ("Your sixth Four Roses bottle", "Third Single Barrel"). The label's fields fill in and lock.
 3. **A new label under a known brand:** a "New label" badge saying saving adds it under the brand, with the brand's existing labels still listed.
 4. **A new brand:** a "New brand" badge saying nothing from that brand is on the shelf and that saving creates the brand and its first label. This is the cue to check the spelling.
