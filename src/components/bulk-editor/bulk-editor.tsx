@@ -175,9 +175,9 @@ function useScrollbarInsets(ref: React.RefObject<HTMLElement | null>) {
   }, [ref]);
 }
 
-/** Where the delete bar sits from `md` up: over the bottom of the sheet, to the left of the pane (18rem) while it is shown, clear of the scrollbars. */
+/** Where the delete bar sits from `md` up: over the bottom of the sheet, to the left of the pane (18rem and its margins) while it is shown, clear of the scrollbars. */
 const DELETE_BAR_OVER =
-  "md:absolute md:bottom-[calc(1rem+var(--sbh,0px))] md:left-4 md:group-data-[rail=open]/body:right-[calc(19rem+var(--sbw,0px))] md:group-data-[rail=closed]/body:right-[calc(1rem+var(--sbw,0px))] md:group-data-[rail=auto]/body:right-[calc(1rem+var(--sbw,0px))] xl:group-data-[rail=auto]/body:right-[calc(19rem+var(--sbw,0px))]";
+  "md:absolute md:bottom-[calc(1rem+var(--sbh,0px))] md:left-4 md:group-data-[rail=open]/body:right-[calc(19.5rem+var(--sbw,0px))] md:group-data-[rail=closed]/body:right-[calc(1rem+var(--sbw,0px))] md:group-data-[rail=auto]/body:right-[calc(1rem+var(--sbw,0px))] xl:group-data-[rail=auto]/body:right-[calc(19.5rem+var(--sbw,0px))]";
 
 function ViewToggle({ label, on, onlyOne, onClick }: { label: string; on: boolean; onlyOne: boolean; onClick: () => void }) {
   return (
@@ -1885,8 +1885,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       </div>
 
       <div className="flex min-w-0 flex-col border border-border bg-card md:min-h-80 md:flex-1">
-        {/* From md up the sheet scrolls inside a box that fits the window, so the headers stay put and the keyboard's scroll-into-view keeps the active cell clear of them, of the frozen columns and, while the Details pane is over the sheet, of the pane (the pane's width is the scroll box's right padding and scroll padding). */}
-        <div ref={bodyRef} data-rail={railChoice ?? "auto"} data-bar={ticked.length > 0 ? "on" : "off"} className="group/body relative flex min-h-0 flex-1 flex-col md:[&>.overflow-x-auto]:min-h-0 md:[&>.overflow-x-auto]:flex-1 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[calc(var(--cw-brand,156px)+var(--cw-name,180px))] md:[&>.overflow-x-auto]:scroll-pt-16 md:data-[rail=open]:[&>.overflow-x-auto]:pr-72 md:data-[rail=open]:[&>.overflow-x-auto]:scroll-pr-72 xl:data-[rail=auto]:[&>.overflow-x-auto]:pr-72 xl:data-[rail=auto]:[&>.overflow-x-auto]:scroll-pr-72 md:data-[bar=on]:[&>.overflow-x-auto]:pb-20 md:data-[bar=on]:[&>.overflow-x-auto]:scroll-pb-20">
+        {/* From md up the sheet scrolls inside a box that fits the window, so the headers stay put and the keyboard's scroll-into-view keeps the active cell clear of them, of the frozen columns and, while the Details pane floats over the sheet, of the pane. The pane takes no room from the sheet, so no column is resized: room to scroll the last column clear of it is the table's right margin, and the scroll padding keeps arrowed-to cells out from under it. */}
+        <div ref={bodyRef} data-rail={railChoice ?? "auto"} data-bar={ticked.length > 0 ? "on" : "off"} className="group/body relative flex min-h-0 flex-1 flex-col md:[&>.overflow-x-auto]:min-h-0 md:[&>.overflow-x-auto]:flex-1 md:[&>.overflow-x-auto]:overflow-y-auto md:[&>.overflow-x-auto]:scroll-pl-[calc(var(--cw-brand,156px)+var(--cw-name,180px))] md:[&>.overflow-x-auto]:scroll-pt-16 md:data-[rail=open]:[&>.overflow-x-auto>table]:mr-[19.5rem] md:data-[rail=open]:[&>.overflow-x-auto]:scroll-pr-[19.5rem] xl:data-[rail=auto]:[&>.overflow-x-auto>table]:mr-[19.5rem] xl:data-[rail=auto]:[&>.overflow-x-auto]:scroll-pr-[19.5rem] md:data-[bar=on]:[&>.overflow-x-auto]:pb-20 md:data-[bar=on]:[&>.overflow-x-auto]:scroll-pb-20">
       <Table role="grid" aria-label="Bulk editor" aria-rowcount={rows.length + 1} className="border-separate border-spacing-0 whitespace-nowrap tabular-nums">
         <TableHeader>
           <TableRow className="border-b-0 hover:bg-transparent">
@@ -2018,9 +2018,9 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
           })}
         </TableBody>
       </Table>
-        {/* The Details pane lies over the right edge of the sheet's scroll box, stopping short of its scrollbars. Display only, and not a live region (it changes on every cell move). Clicks in it are not clicks away from the sheet. */}
-        <aside data-bulk-editor-panel="" aria-label="Row details" className="pointer-events-none absolute bottom-[var(--sbh,0px)] right-[var(--sbw,0px)] top-0 z-20 hidden md:block">
-          <div className={cn("pointer-events-auto h-full w-72 flex-col border-l border-foreground bg-card shadow-[-2px_0_0_rgb(20_33_61/0.12)]", railChoice === null ? "hidden xl:flex" : railChoice === "open" ? "flex" : "hidden")}>
+        {/* The Details pane floats over the right side of the sheet's scroll box, inset from its edges and clear of its scrollbars. Display only, and not a live region (it changes on every cell move). Clicks in it are not clicks away from the sheet. */}
+        <aside data-bulk-editor-panel="" aria-label="Row details" className="pointer-events-none absolute bottom-[calc(var(--sbh,0px)+0.75rem)] right-[calc(var(--sbw,0px)+0.75rem)] top-3 z-20 hidden md:block">
+          <div className={cn("pointer-events-auto max-h-full w-72 flex-col border border-foreground bg-card shadow-[6px_6px_0_color-mix(in_srgb,var(--foreground)_24%,transparent)]", railChoice === null ? "hidden xl:flex" : railChoice === "open" ? "flex" : "hidden")}>
             <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
               <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Details</h2>
               <button type="button" onClick={toggleRail} aria-label="Hide the details panel" className="p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -2031,7 +2031,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
               <RailContent rail={rail} shelf={shelf} reach={railReach} changes={railChanges} />
             </div>
           </div>
-          <button type="button" onClick={toggleRail} aria-label="Show the details panel" aria-expanded={false} className={cn("pointer-events-auto h-24 w-9 items-start justify-center border border-r-0 border-border bg-card pt-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", railChoice === null ? "flex xl:hidden" : railChoice === "closed" ? "flex" : "hidden")}>
+          <button type="button" onClick={toggleRail} aria-label="Show the details panel" aria-expanded={false} className={cn("pointer-events-auto ml-auto h-24 w-9 items-start justify-center border border-foreground bg-card pt-2 text-muted-foreground shadow-[4px_4px_0_color-mix(in_srgb,var(--foreground)_24%,transparent)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", railChoice === null ? "flex xl:hidden" : railChoice === "closed" ? "flex" : "hidden")}>
             <PanelRightOpen aria-hidden className="size-4" />
           </button>
         </aside>
