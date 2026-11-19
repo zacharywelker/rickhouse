@@ -20,6 +20,10 @@ export type DraftRow = {
   categoryId: number | null;
   /** Undo on the late-marking notice: the proof and age typed stay the new label's although the row is a single barrel or private selection. */
   keepOnLabel?: boolean;
+  /** The key of the row this one was inserted below, which it stays under for as long as the sheet is open (see `orderRows`). */
+  insertAfter?: string;
+  /** Brand, label and category are what an insert copied from its neighbour and nothing of the row's own has been chosen or typed: the row is blank, and is never saved by itself. */
+  prefilled?: true;
 };
 export type CategoryChoice = { id: number; name: string; hint?: string; slug?: string };
 
@@ -41,7 +45,13 @@ export function pickOf(suggestion: Suggestion | { name: string }): Pick {
 
 /** A different brand empties the label and the category, which belonged to the old one. The same brand changes nothing. */
 export function withBrand(draft: DraftRow, brand: Pick): DraftRow {
-  return samePick(draft.brand, brand) ? draft : { ...draft, brand, label: null, categoryId: null };
+  return samePick(draft.brand, brand) ? draft : { ...ownChoice(draft), brand, label: null, categoryId: null };
+}
+
+/** A choice the row makes itself ends what it started with: it is no longer only a copy of its neighbour. */
+function ownChoice(draft: DraftRow): DraftRow {
+  const { prefilled: _, ...rest } = draft;
+  return rest;
 }
 
 /**
@@ -50,14 +60,60 @@ export function withBrand(draft: DraftRow, brand: Pick): DraftRow {
  */
 export function withLabel(draft: DraftRow, label: Pick, existingCategoryId: number | null): DraftRow {
   if (samePick(draft.label, label)) return draft;
-  return { ...draft, label, categoryId: label.kind === "existing" ? existingCategoryId : null };
+  return { ...ownChoice(draft), label, categoryId: label.kind === "existing" ? existingCategoryId : null };
 }
 
-export const withCategory = (draft: DraftRow, categoryId: number): DraftRow => (draft.categoryId === categoryId ? draft : { ...draft, categoryId });
+export const withCategory = (draft: DraftRow, categoryId: number): DraftRow => (draft.categoryId === categoryId ? draft : { ...ownChoice(draft), categoryId });
 
-/** Nothing chosen and nothing typed: the empty row at the bottom. */
+/**
+ * Nothing chosen and nothing typed: the empty row at the bottom. A row inserted below another starts with its
+ * neighbour's brand and label, and counts as blank until something of its own is chosen or typed: a row that already
+ * names an existing label has everything it needs to save, and would otherwise make an empty bottle on its own.
+ */
 export function isBlank(draft: DraftRow, edits: Edits, hasPending = false): boolean {
-  return !hasPending && draft.brand === null && draft.label === null && draft.categoryId === null && Object.keys(edits[draft.key] ?? {}).length === 0;
+  const chosen = draft.prefilled !== true && (draft.brand !== null || draft.label !== null || draft.categoryId !== null);
+  return !hasPending && !chosen && Object.keys(edits[draft.key] ?? {}).length === 0;
+}
+
+/**
+ * The new row for "Insert record below": the clicked row's brand, and in a view with bottles its label too (so the common
+ * case is one more bottle of that label). Below a new row it copies that row's picks, new ones included.
+ */
+export function insertionDraft(key: string, source: SheetRow, view: SheetView, sourceDraft?: DraftRow): DraftRow {
+  const insertAfter = source.key;
+  if (sourceDraft) {
+    return { key, brand: sourceDraft.brand, label: view.bottles ? sourceDraft.label : null, categoryId: view.bottles ? sourceDraft.categoryId : null, insertAfter, prefilled: true };
+  }
+  const { label } = source;
+  return {
+    key,
+    brand: { kind: "existing", id: label.brandId, name: label.brand },
+    label: view.bottles ? { kind: "existing", id: label.id, name: label.name } : null,
+    categoryId: view.bottles ? label.categoryId : null,
+    insertAfter,
+    prefilled: true,
+  };
+}
+
+/**
+ * The sheet's rows: the saved ones, then the new ones in the order they were made, each inserted one directly below the
+ * row it was inserted after (which can be another new row). The newest of several under one row is nearest it. A row
+ * whose anchor is not there any more, and one with no anchor, goes after the rest, in order.
+ */
+export function orderRows(saved: ReadonlyArray<SheetRow>, drafts: ReadonlyArray<{ row: SheetRow; after?: string }>): SheetRow[] {
+  const placed = [...saved];
+  const rest: SheetRow[] = [];
+  for (const { row, after } of drafts) {
+    const at = after === undefined ? -1 : placed.findIndex((r) => r.key === after);
+    if (at >= 0) {
+      placed.splice(at + 1, 0, row);
+      continue;
+    }
+    const inRest = after === undefined ? -1 : rest.findIndex((r) => r.key === after);
+    if (inRest >= 0) rest.splice(inRest + 1, 0, row);
+    else rest.push(row);
+  }
+  return [...placed, ...rest];
 }
 
 /** How many new rows have anything in them. */
