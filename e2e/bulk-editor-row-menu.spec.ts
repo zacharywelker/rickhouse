@@ -138,3 +138,80 @@ test("Discard new row removes a started new row and leaves the saved ones alone"
   await expect(rows).toHaveCount(started - 1);
   expect(await inDatabase("Tamsin")).toEqual({ labels: 1, bottles: 1 });
 });
+
+// ---------------------------------------------------------------------------
+// Insert record below
+// ---------------------------------------------------------------------------
+
+const insertBelow = async (page: Page, label: string, nth = 0) => {
+  await (await labelCell(page, label)).nth(nth).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Insert record below" }).click();
+};
+const rowIndex = async (row: Locator) => Number(await row.locator("td").first().getAttribute("data-r"));
+
+test("Insert record below puts a new row directly under the clicked one, with its brand and label, and the cursor on it", async ({ page }) => {
+  const rows = rowOf(page, "Penhall");
+  const at = await rowIndex(rows);
+  const before = await sheet(page).locator("tbody tr").count();
+  await insertBelow(page, "Penhall");
+  await expect(sheet(page).locator("tbody tr")).toHaveCount(before + 1);
+  await expect(rows).toHaveCount(2);
+  expect(await rowIndex(rows.nth(1))).toBe(at + 1);
+  // The new row is a draft: it has no checkbox. Its brand is the same.
+  await expect(rows.nth(0).locator('input[type="checkbox"]')).toHaveCount(1);
+  await expect(rows.nth(1).locator('input[type="checkbox"]')).toHaveCount(0);
+  await expect(rows.nth(1)).toContainText("Tz");
+  expect((await active(page))?.row).toBe(at + 1);
+});
+
+test("in the Labels-only view Insert fills only the brand", async ({ page }) => {
+  await page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name: "Bottles", exact: true }).click();
+  const at = await rowIndex(rowOf(page, "Ravenel"));
+  await insertBelow(page, "Ravenel");
+  const created = sheet(page).locator(`tbody tr:has(td[data-r="${at + 1}"])`);
+  await expect(created).toContainText("Tz");
+  await expect(created).not.toContainText("Ravenel");
+});
+
+test("a row inserted and never typed in is not saved, and does not count as unsaved", async ({ page }) => {
+  expect(await inDatabase("Marlow")).toEqual({ labels: 1, bottles: 1 });
+  await insertBelow(page, "Marlow");
+  // Leave it: a new row that has what it needs saves when the cursor goes.
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await page.waitForTimeout(2500);
+  expect(await inDatabase("Marlow")).toEqual({ labels: 1, bottles: 1 });
+  await expect(page.getByText(/not saved yet/)).toHaveCount(0);
+});
+
+test("typing a value in an inserted row saves a new bottle of that label, which sits with its label after a reload", async ({ page }) => {
+  expect(await inDatabase("Ostrava")).toEqual({ labels: 1, bottles: 1 });
+  const at = await rowIndex(rowOf(page, "Ostrava"));
+  await insertBelow(page, "Ostrava");
+  await sheet(page).locator(`td[data-r="${at + 1}"][data-c="${await col(page, "Price paid")}"]`).click();
+  await page.keyboard.type("45");
+  await page.keyboard.press("Enter");
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await expect.poll(() => inDatabase("Ostrava")).toEqual({ labels: 1, bottles: 2 });
+  await page.reload();
+  const rows = rowOf(page, "Ostrava");
+  await expect(rows).toHaveCount(2);
+  expect((await rowIndex(rows.nth(1))) - (await rowIndex(rows.nth(0)))).toBe(1);
+});
+
+test("inserting twice under one row puts both directly below it", async ({ page }) => {
+  const rows = rowOf(page, "Tamsin");
+  const at = await rowIndex(rows);
+  await insertBelow(page, "Tamsin");
+  await insertBelow(page, "Tamsin");
+  await expect(rows).toHaveCount(3);
+  expect([await rowIndex(rows.nth(0)), await rowIndex(rows.nth(1)), await rowIndex(rows.nth(2))]).toEqual([at, at + 1, at + 2]);
+});
+
+test("an inserted row stays directly below its row while the sheet is sorted", async ({ page }) => {
+  await sheet(page).locator("thead").getByRole("button", { name: /Proof/ }).first().click();
+  const rows = rowOf(page, "Corbett");
+  const at = await rowIndex(rows);
+  await insertBelow(page, "Corbett");
+  await expect(rows).toHaveCount(2);
+  expect(await rowIndex(rows.nth(1))).toBe(at + 1);
+});

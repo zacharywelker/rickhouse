@@ -20,7 +20,9 @@ export type MenuItem = {
 };
 
 const NOT_SAVED = "Not saved yet";
+const NOTHING_TYPED = "Nothing typed in this row";
 
+/** `opts.blank` is the empty row that is always at the bottom, not a new row that merely has nothing typed in it yet. */
 export function rowMenuItems(row: SheetRow, view: SheetView, opts: { blank: boolean }): MenuItem[] {
   const draft = row.draft;
   if (draft) {
@@ -28,10 +30,10 @@ export function rowMenuItems(row: SheetRow, view: SheetView, opts: { blank: bool
     const needsLabel = view.bottles && !view.labels && !(draft.labelChosen && !draft.labelIsNew);
     return [
       { id: "expand", label: "Expand record", group: 0, ...(needsLabel ? { disabled: "Choose a label first" } : {}) },
-      { id: "insert", label: "Insert record below", group: 0 },
+      { id: "insert", label: "Insert record below", group: 0, ...(opts.blank ? { disabled: NOTHING_TYPED } : {}) },
       { id: "duplicateBottle", label: "Duplicate bottle", group: 1, disabled: NOT_SAVED },
       { id: "duplicateLabel", label: "Duplicate label", group: 1, disabled: NOT_SAVED },
-      { id: "discard", label: "Discard new row", group: 2, danger: true, ...(opts.blank ? { disabled: "Nothing typed in this row" } : {}) },
+      { id: "discard", label: "Discard new row", group: 2, danger: true, ...(opts.blank ? { disabled: NOTHING_TYPED } : {}) },
     ];
   }
 

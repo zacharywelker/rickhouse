@@ -56,6 +56,10 @@ describe("a new, unsaved row's menu", () => {
   it("dims Discard on the empty row at the bottom", () => {
     expect(byId(rowMenuItems(draftRow(), BOTH, { blank: true }), "discard").disabled).toBeTruthy();
   });
+  it("dims Insert on the empty row at the bottom too, since there is nothing to insert it below, and only there", () => {
+    expect(byId(rowMenuItems(draftRow(), BOTH, { blank: true }), "insert").disabled).toBeTruthy();
+    expect(byId(rowMenuItems(draftRow(), BOTH, { blank: false }), "insert").disabled).toBeUndefined();
+  });
   it("in the Bottles-only view, needs an existing label before Expand works", () => {
     expect(byId(rowMenuItems(draftRow(), BOTTLES, { blank: false }), "expand").disabled).toBe("Choose a label first");
     expect(byId(rowMenuItems(draftRow({ brandChosen: true, labelChosen: true, labelIsNew: true }), BOTTLES, { blank: false }), "expand").disabled).toBe("Choose a label first");

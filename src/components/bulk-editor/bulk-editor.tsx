@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { abvToProof, proofToAbv } from "@/lib/bottles/proof";
 import type { FieldGroup } from "@/db/schema";
 import {
-  brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, isBlank, labelCandidates, withBlankRow, withBrand, withCategory, withLabel,
+  brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, insertionDraft, isBlank, labelCandidates, orderRows, withBlankRow, withBrand, withCategory, withLabel,
   type CategoryChoice, type DraftRow,
 } from "@/lib/bulk-editor/drafts";
 import { applyVintageEdits, arrange, editKey, withDraftVintages, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
@@ -38,7 +38,7 @@ import {
   type SheetVintage,
 } from "@/lib/bulk-editor/sheet";
 import { cn, humanise } from "@/lib/utils";
-import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
+import { blockedLine, draftNeeds, draftTitle, nextDraftKey, noticeText, type Blocked } from "@/lib/bulk-editor/save";
 import { idsOfKeys, type DeleteIds } from "@/lib/bulk-editor/delete";
 import { menuDeleteIds, rowMenuItems, type MenuItemId } from "@/lib/bulk-editor/row-menu";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
@@ -714,7 +714,12 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   // after it: for a moment both would be there, and a cursor on the row below would land on the wrong one.
   const savedKeys = React.useMemo(() => new Set(savedRows.map((r) => r.key)), [savedRows]);
   const rowsFor = React.useCallback(
-    (list: DraftRow[]) => [...savedRows, ...withDraftVintages(list.filter((d) => !(createdAs[d.key] && savedKeys.has(createdAs[d.key]!))).map((draft) => draftSheetRow(draft, draftContext)), edits)],
+    (list: DraftRow[]) => {
+      const shown = list.filter((d) => !(createdAs[d.key] && savedKeys.has(createdAs[d.key]!)));
+      const draftRows = withDraftVintages(shown.map((draft) => draftSheetRow(draft, draftContext)), edits);
+      // New rows follow the saved ones, except one inserted below another, which sits directly under it (see `orderRows`).
+      return orderRows(savedRows, draftRows.map((row, i) => ({ row, after: shown[i]!.insertAfter })));
+    },
     [savedRows, savedKeys, createdAs, draftContext, edits],
   );
   const rows = React.useMemo(() => rowsFor(allDrafts), [rowsFor, allDrafts]);
@@ -1807,7 +1812,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   const menuTarget = () => (menuRowKey === null ? undefined : rows.find((r) => r.key === menuRowKey));
   const menuRow = menuTarget();
   const menuItems = menuRow
-    ? rowMenuItems(menuRow, view, { blank: menuRow.draft ? isBlank(allDrafts.find((d) => d.key === menuRow.key) ?? emptyDraft(menuRow.key), edits, pendingByRow.has(menuRow.key)) : false })
+    ? rowMenuItems(menuRow, view, { blank: menuRow.draft !== undefined && !drafts.some((d) => d.key === menuRow.key) })
     : [];
   function onContextMenu(event: React.MouseEvent<HTMLTableSectionElement>) {
     // While a cell is being edited the browser's menu stays (Paste); see the trigger's `disabled`.
@@ -1839,7 +1844,26 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     askedDelete.current = true;
     setDeleteAsk(menuDeleteIds(id, row));
   };
+  /** A new row directly below the clicked one, starting with its brand (and label), and the cursor on its first empty cell that can be typed in. */
+  function insertBelow() {
+    const source = menuTarget();
+    if (!source) return;
+    const key = nextDraftKey(drafts, keyFloor);
+    const made = insertionDraft(key, source, view, source.draft ? drafts.find((d) => d.key === source.key) : undefined);
+    const nextDrafts = [...drafts, made];
+    const nextRows = rowsFor(withBlankRow(nextDrafts, keyFloor));
+    setDrafts(nextDrafts);
+    const at = nextRows.findIndex((r) => r.key === key);
+    if (at < 0) return;
+    const empty = columns.findIndex((_, col) => {
+      const editor = editorIn(nextRows, { row: at, col });
+      return editor !== null && editor.initial(nextRows[at]!) === "";
+    });
+    const col = empty >= 0 ? empty : Math.max(0, columns.findIndex((c) => c.id === "name"));
+    go({ pos: { row: at, col }, anchorCol: col }, nextRows);
+  }
   const menuHandlers: Partial<Record<MenuItemId, () => void>> = {
+    insert: insertBelow,
     deleteLabel: () => askDelete("deleteLabel"),
     deleteBottle: () => askDelete("deleteBottle"),
     discard: () => {
