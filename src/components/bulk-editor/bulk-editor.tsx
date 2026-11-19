@@ -63,7 +63,7 @@ import type { ComboData, Editing, Finish } from "./types";
 import { EditNote } from "./edit-note";
 import { Notices, type Notice } from "./notices";
 import { ResizeHandle } from "./resize-handle";
-import { Shortcuts, ShortcutsFooter } from "./shortcuts";
+import { Shortcuts, ShortcutsButton } from "./shortcuts";
 import { SourceTag } from "./source-tag";
 import { useRowSaver } from "./use-row-saver";
 
@@ -1881,6 +1881,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         <p className="ml-auto text-sm text-muted-foreground" aria-live="off">
           {filtered ? `Showing ${savedRows.length} of ${total} ${noun}` : `${total} ${noun}`}
         </p>
+        <ShortcutsButton />
       </div>
 
       <div className="flex min-w-0 flex-col border border-border bg-card md:min-h-80 md:flex-1">
@@ -2079,7 +2080,6 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         ) : null}
       </div>
     </div>
-      <ShortcutsFooter />
     </div>
   );
 }
