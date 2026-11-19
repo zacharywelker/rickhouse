@@ -65,6 +65,18 @@ const PHOTO: Encoding = { fullMax: 2000, fullQuality: 86, trimTransparent: true 
 
 export class ImageError extends Error {}
 
+/** Housekeeping refuses photos smaller than this on their longer side (search-result thumbnails are about 200 to 300 px). */
+export const HOUSEKEEPING_MIN_LONG_SIDE = 600;
+
+export type StoreOptions = { minLongSide?: number };
+
+/** The refusal message for an image whose longer side is under `min`, or null when it is big enough. */
+export function longSideError(width: number, height: number, min: number): string | null {
+  return Math.max(width, height) < min
+    ? `That image is ${width} × ${height} px. Photos need at least ${min} px on the long side.`
+    : null;
+}
+
 function uploadRoot(): string {
   return path.resolve(env().UPLOAD_DIR);
 }
@@ -105,8 +117,8 @@ export async function duplicateBottleImage(filePath: string, thumbPath: string |
   }
 }
 
-async function storeImage(file: File, originalsDir: string, thumbsDir: string): Promise<StoredImage> {
-  return storeImageBytes(Buffer.from(await file.arrayBuffer()), file.type, originalsDir, thumbsDir);
+async function storeImage(file: File, originalsDir: string, thumbsDir: string, options: StoreOptions = {}): Promise<StoredImage> {
+  return storeImageBytes(Buffer.from(await file.arrayBuffer()), file.type, originalsDir, thumbsDir, PHOTO, options);
 }
 
 async function storeImageBytes(
@@ -115,6 +127,7 @@ async function storeImageBytes(
   originalsDir: string,
   thumbsDir: string,
   encoding: Encoding = PHOTO,
+  options: StoreOptions = {},
 ): Promise<StoredImage> {
   const extension = ACCEPTED.get(type);
   if (!extension) {
@@ -123,10 +136,6 @@ async function storeImageBytes(
   if (buffer.byteLength > MAX_UPLOAD_BYTES) {
     throw new ImageError(`Images have to be under ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)}MB.`);
   }
-
-  const root = uploadRoot();
-  await mkdir(path.join(root, thumbsDir), { recursive: true });
-  if (encoding.display) await mkdir(path.join(root, encoding.display.dir), { recursive: true });
 
   const id = randomUUID();
 
@@ -138,6 +147,14 @@ async function storeImageBytes(
   if (!meta.width || !meta.height) {
     throw new ImageError("That file does not look like an image.");
   }
+  if (options.minLongSide !== undefined) {
+    const tooSmall = longSideError(meta.width, meta.height, options.minLongSide);
+    if (tooSmall) throw new ImageError(tooSmall);
+  }
+
+  const root = uploadRoot();
+  await mkdir(path.join(root, thumbsDir), { recursive: true });
+  if (encoding.display) await mkdir(path.join(root, encoding.display.dir), { recursive: true });
 
   // Cut-out photos often arrive on a big transparent canvas that leaves the
   // bottle tiny. Crop to the visible pixels (rotate runs before extract).
@@ -225,13 +242,13 @@ export function ensureTile(id: string): Promise<boolean> {
   return job;
 }
 
-export async function storeBottleImage(file: File): Promise<StoredImage> {
-  return storeImage(file, ORIGINALS, THUMBS);
+export async function storeBottleImage(file: File, options: StoreOptions = {}): Promise<StoredImage> {
+  return storeImage(file, ORIGINALS, THUMBS, options);
 }
 
 /** A bottle photo downloaded from a link. */
-export async function storeBottleImageBytes(bytes: Buffer, contentType: string): Promise<StoredImage> {
-  return storeImageBytes(bytes, contentType, ORIGINALS, THUMBS);
+export async function storeBottleImageBytes(bytes: Buffer, contentType: string, options: StoreOptions = {}): Promise<StoredImage> {
+  return storeImageBytes(bytes, contentType, ORIGINALS, THUMBS, PHOTO, options);
 }
 
 /**

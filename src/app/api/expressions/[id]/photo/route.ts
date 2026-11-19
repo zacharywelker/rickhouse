@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { ImageError, deleteStoredImage, storeBottleImage, storeBottleImageBytes } from "@/lib/images";
 import { fetchRemoteImage } from "@/lib/remote-image";
+import { housekeepingStoreOptions } from "@/lib/housekeeping/upload-options";
 import type { ActionResult } from "@/lib/admin/types";
 
 /** A label's photo, uploaded or fetched from a link. A route handler for the same reason as bottles/[id]/images. */
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const formData = await request.formData();
   const file = formData.get("photo");
   const link = String(formData.get("imageUrl") ?? "").trim();
+  const options = housekeepingStoreOptions(formData);
   const upload = file instanceof File && file.size > 0 ? file : null;
   if (!upload && link === "") return NextResponse.json({ ok: false, error: "No image was selected." });
 
@@ -34,10 +36,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!existing) return NextResponse.json({ ok: false, error: "That label is gone." }, { status: 404 });
 
     let stored;
-    if (upload) stored = await storeBottleImage(upload);
+    if (upload) stored = await storeBottleImage(upload, options);
     else {
       const remote = await fetchRemoteImage(link);
-      stored = await storeBottleImageBytes(remote.bytes, remote.contentType);
+      stored = await storeBottleImageBytes(remote.bytes, remote.contentType, options);
     }
     await db
       .update(expressions)

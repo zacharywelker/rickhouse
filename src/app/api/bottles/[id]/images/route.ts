@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { ImageError, copyToBottleImage, storeBottleImage, storeBottleImageBytes } from "@/lib/images";
 import { fetchRemoteImage } from "@/lib/remote-image";
+import { housekeepingStoreOptions } from "@/lib/housekeeping/upload-options";
 import type { ActionResult } from "@/lib/admin/types";
 
 /**
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const formData = await request.formData();
   const files = formData.getAll("images").filter((entry): entry is File => entry instanceof File && entry.size > 0);
   const link = String(formData.get("imageUrl") ?? "").trim();
+  const options = housekeepingStoreOptions(formData);
   if (files.length === 0 && link === "") {
     return NextResponse.json({ ok: false, error: "No images were selected." });
   }
@@ -52,12 +54,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let isFirst = (existing?.count ?? 0) === 0;
 
     const sources: Array<() => Promise<Awaited<ReturnType<typeof storeBottleImage>>>> = files.map(
-      (file) => () => storeBottleImage(file),
+      (file) => () => storeBottleImage(file, options),
     );
     if (link !== "") {
       sources.push(async () => {
         const remote = await fetchRemoteImage(link);
-        return storeBottleImageBytes(remote.bytes, remote.contentType);
+        return storeBottleImageBytes(remote.bytes, remote.contentType, options);
       });
     }
 
