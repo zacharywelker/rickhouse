@@ -13,6 +13,7 @@ import {
 } from "@/app/(app)/expressions/cola-actions";
 import { IDLE_RESULT, type ActionResult } from "@/lib/admin/types";
 import { colaDetailUrl, colaFormUrl } from "@/lib/cola/ids";
+import { PrintableLink } from "./cola-printable-link";
 import { registryCase } from "@/lib/cola/format";
 import { cn, formatDate } from "@/lib/utils";
 import { AddById, ColaSearchDialog, PendingIdField, stubCola, type PendingCola } from "./cola-search-dialog";
@@ -172,9 +173,12 @@ export function ColaApprovals(props: Props) {
                         {cola.permitNumber ?? "—"}
                       </td>
                       <td className="whitespace-nowrap py-1.5 pr-4 tabular-nums">
-                        <a href={colaDetailUrl(cola.ttbId)} target="_blank" rel="noreferrer" className={TEXT_LINK}>
-                          {cola.ttbId}&nbsp;↗
-                        </a>
+                        <span className="inline-flex items-center gap-2">
+                          <a href={colaDetailUrl(cola.ttbId)} target="_blank" rel="noreferrer" className={TEXT_LINK}>
+                            {cola.ttbId}&nbsp;↗
+                          </a>
+                          <PrintableLink ttbId={cola.ttbId} />
+                        </span>
                       </td>
                       {labelMode ? (
                         <td className="whitespace-nowrap py-1.5 text-right">
@@ -290,9 +294,12 @@ export function PendingColas({
                   {cola.permitNumber ?? "—"}
                 </td>
                 <td className="whitespace-nowrap py-1.5 pr-4 tabular-nums">
-                  <a href={colaDetailUrl(cola.ttbId)} target="_blank" rel="noreferrer" className={TEXT_LINK}>
-                    {cola.ttbId}&nbsp;↗
-                  </a>
+                  <span className="inline-flex items-center gap-2">
+                    <a href={colaDetailUrl(cola.ttbId)} target="_blank" rel="noreferrer" className={TEXT_LINK}>
+                      {cola.ttbId}&nbsp;↗
+                    </a>
+                    <PrintableLink ttbId={cola.ttbId} />
+                  </span>
                 </td>
                 <td className="whitespace-nowrap py-1.5 text-right">
                   <button

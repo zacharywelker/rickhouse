@@ -26,6 +26,7 @@ import {
 } from "@/app/(app)/expressions/cola-actions";
 import { IDLE_RESULT, type ActionResult } from "@/lib/admin/types";
 import { colaDetailUrl, normalizeTtbId } from "@/lib/cola/ids";
+import { PrintableLink } from "./cola-printable-link";
 import type { ColaSearchRow } from "@/lib/cola/parse";
 import { registryCase, searchWindow } from "@/lib/cola/format";
 import { cn, formatDate } from "@/lib/utils";
@@ -306,15 +307,18 @@ export function ColaSearchDialog(
                         </td>
                         <td className="py-2 pr-3 align-top whitespace-nowrap">{row.permitNumber ?? "—"}</td>
                         <td className="py-2 align-top whitespace-nowrap">
-                          <a
-                            href={colaDetailUrl(row.ttbId)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-primary hover:underline"
-                          >
-                            {row.ttbId}
-                            <ExternalLink className="size-3" />
-                          </a>
+                          <span className="inline-flex items-center gap-2">
+                            <a
+                              href={colaDetailUrl(row.ttbId)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-primary hover:underline"
+                            >
+                              {row.ttbId}
+                              <ExternalLink className="size-3" />
+                            </a>
+                            <PrintableLink ttbId={row.ttbId} />
+                          </span>
                         </td>
                       </tr>
                     );
