@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { Check, Circle, CircleAlert, Lock, LoaderCircle } from "lucide-react";
@@ -1869,8 +1870,14 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     const col = empty >= 0 ? empty : Math.max(0, columns.findIndex((c) => c.id === "name"));
     go({ pos: { row: at, col }, anchorCol: col }, nextRows);
   }
+  /** Opens one of the app's real pages in the popup over the sheet (the `@modal` slot renders it). */
+  const openPopup = (url: string) => router.push(url as Route);
   const menuHandlers: Partial<Record<MenuItemId, () => void>> = {
     insert: insertBelow,
+    duplicateBottle: () => {
+      const row = menuTarget();
+      if (row?.bottle && !row.draft) openPopup(`/bottles/new?duplicate=${row.bottle.id}`);
+    },
     deleteLabel: () => askDelete("deleteLabel"),
     deleteBottle: () => askDelete("deleteBottle"),
     discard: () => {

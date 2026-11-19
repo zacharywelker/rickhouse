@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { Route } from "next";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -41,7 +42,7 @@ export function PopupFrame({ children }: { children: React.ReactNode }) {
       close,
       saved: (result) => {
         if (next) {
-          router.replace(next);
+          router.replace(next as Route);
           return;
         }
         window.dispatchEvent(new CustomEvent<PopupSaved>(POPUP_SAVED_EVENT, { detail: result }));
