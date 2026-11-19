@@ -40,6 +40,7 @@ import {
 import { cn, humanise } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, nextDraftKey, noticeText, type Blocked } from "@/lib/bulk-editor/save";
 import { idsOfKeys, type DeleteIds } from "@/lib/bulk-editor/delete";
+import { POPUP_SAVED_EVENT, type PopupSaved } from "@/lib/bulk-editor/popup-nav";
 import { menuDeleteIds, rowMenuItems, type MenuItemId } from "@/lib/bulk-editor/row-menu";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 import { railFor } from "@/lib/bulk-editor/rail";
@@ -1877,6 +1878,28 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       if (row?.draft) discardDraft(row.key);
     },
   };
+  // The popup over the sheet saved a label or a bottle: once the reloaded data has it, keep it on screen, flash it and scroll to it.
+  const popupLanded = React.useRef<PopupSaved | null>(null);
+  React.useEffect(() => {
+    const onSaved = (event: Event) => {
+      const saved = (event as CustomEvent<PopupSaved>).detail;
+      if (!saved || (saved.bottleId === undefined && saved.labelId === undefined)) return;
+      popupLanded.current = saved;
+      // A label's id keeps every row of that label from being filtered out, a bottle's keeps just that row.
+      setTouched((prev) => new Set(prev).add(saved.bottleId !== undefined ? `b${saved.bottleId}` : `l${saved.labelId}`));
+    };
+    window.addEventListener(POPUP_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(POPUP_SAVED_EVENT, onSaved);
+  }, []);
+  React.useEffect(() => {
+    const saved = popupLanded.current;
+    if (!saved) return;
+    const at = rows.findIndex((r) => !r.draft && (saved.bottleId !== undefined ? r.key === `b${saved.bottleId}` : r.label.id === saved.labelId));
+    if (at < 0) return;
+    popupLanded.current = null;
+    flashRow(rows[at]!.key);
+    sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${at}"]`)?.scrollIntoView({ block: "center", inline: "nearest" });
+  }, [rows]);
   const menuCloseFocus = (event: Event) => {
     event.preventDefault();
     // An item that opened the delete dialog leaves focus to the dialog.
