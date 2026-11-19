@@ -36,7 +36,7 @@ const cards = (page: Page) => page.locator("div[tabindex='0']").filter({ hasText
 const waiting = (page: Page) => page.locator("div[tabindex='0']").filter({ hasText: "No photo yet" });
 
 /** The count shown on a tab, read from the tab's own text. */
-async function tabCount(page: Page, name: string): Promise<number> {
+async function tabCount(page: Page, name: string | RegExp): Promise<number> {
   const text = await page.getByRole("navigation", { name: "What needs a photo" }).getByRole("link", { name }).innerText();
   return Number(text.replace(/\D+/g, " ").trim().split(" ").pop());
 }
