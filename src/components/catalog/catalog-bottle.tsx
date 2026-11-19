@@ -217,6 +217,7 @@ export function CatalogBottle({
     setLabelPhotoLink("");
     setPendingTtb(code?.kind === "ttb" ? [code.value] : []);
     setColaKey((key) => key + 1);
+    setVintageRows([]);
     focusLater(values.brandId ? "expression-name" : "expression-brandId");
     setErrors(NO_ERRORS);
     setPhase({ kind: "new" });
@@ -231,6 +232,8 @@ export function CatalogBottle({
   const backToSearch = () => {
     focusLater("search");
     setErrors(NO_ERRORS);
+    // The vintages typed for a label that was dropped go with it.
+    setVintageRows([]);
     setPhase({ kind: "search" });
   };
 
@@ -445,7 +448,9 @@ export function CatalogBottle({
                   idPrefix="catalog-vintage"
                   addLabel="Add a vintage"
                   columns={RELEASE_COLUMNS}
-                  initialRows={[]}
+                  // The editor starts from what is held here, so it shows the same rows that would be saved if it is unmounted
+                  // (the category switched to vodka and back) and mounted again.
+                  initialRows={vintageRows}
                   toText={(rows) => JSON.stringify(rows)}
                   onChange={setVintageRows}
                   {...(errors.label.releases ? { error: errors.label.releases } : {})}

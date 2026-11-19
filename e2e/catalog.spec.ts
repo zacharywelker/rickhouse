@@ -125,6 +125,27 @@ test("a new label's vintages are typed with it, and the bottle can be one of the
   await expect(page.getByRole("link", { name: "Batch One" })).toBeVisible();
 });
 
+test("vintages typed for a label that was dropped do not come back on the next new label", async ({ page }) => {
+  const search = page.getByRole("combobox", { name: "Find the label" });
+  const startNew = async (name: string) => {
+    await page.goto("/bottles/add");
+    await search.fill(`Pursuit ${name}`);
+    await page.getByRole("option", { name: `New label: Pursuit Spirits · ${name}` }).click();
+  };
+
+  await startNew(`Toasted Dropped ${stamp()}`);
+  await page.getByRole("button", { name: "Add a vintage" }).click();
+  await page.locator("#catalog-vintage-0-name").fill("Ghost Batch");
+  await expect(page.getByLabel("Vintage", { exact: true })).toBeVisible();
+
+  // Back to the search, then a new label: no vintages are shown, and none are offered to the bottle.
+  await page.getByRole("button", { name: "Back to search" }).click();
+  await search.fill(`Pursuit Toasted Fresh ${stamp()}`);
+  await page.getByRole("option", { name: /^New label:/ }).click();
+  await expect(page.locator("#catalog-vintage-0-name")).toHaveCount(0);
+  await expect(page.getByLabel("Vintage", { exact: true })).toBeHidden();
+});
+
 test("a new label starts from the search, and both save together", async ({ page }) => {
   // No category in the name, so the category is left to be chosen.
   const name = `Toasted Barrel ${stamp()}`;

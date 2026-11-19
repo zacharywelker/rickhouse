@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { bottles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { apiError, paramsRecord, readJsonObject } from "@/lib/api/v1";
+import { apiFieldNames, bodyForSchema } from "@/lib/api/releases";
 import { mapDbError } from "@/lib/db-errors";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
 import { parseFilters } from "@/lib/bottles/filters";
@@ -71,7 +72,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const read = await readJsonObject(request);
   if ("error" in read) return read.error;
-  const input = { acquisition: "purchase", status: "owned", ...read.body };
+  // The API says vintageId; the shared schema still says releaseId (see `bodyForSchema`).
+  const input = { acquisition: "purchase", status: "owned", ...bodyForSchema(read.body) };
 
   const parsed = bottleSchema.safeParse(input);
   // Opened, level and date opened, as the web's add forms send them; absent means sealed and full.
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (typeof key === "string" && !(key in fields)) fields[key] = issue.message;
     }
     const first = (parsed.success ? state.error?.issues[0] : parsed.error.issues[0])?.message;
-    return apiError(422, "invalid", first ?? "Check the fields.", fields);
+    return apiError(422, "invalid", first ?? "Check the fields.", apiFieldNames(fields));
   }
 
   const data = parsed.data;
