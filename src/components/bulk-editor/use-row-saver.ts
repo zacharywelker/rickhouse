@@ -35,6 +35,8 @@ type Input = {
   /** Allows a draft's open editor to finish before creation starts. */
   editingDraft: React.RefObject<string | null>;
   pendingByRow: ReadonlyMap<string, Record<string, string>>;
+  /** New rows being expanded in the popup: not saved by the sheet while it is open, or the row would be made twice. */
+  held: ReadonlySet<string>;
 };
 
 /** The quiet time after the last save before the sheet is reloaded, so a run of saves is one reload. */
@@ -102,6 +104,7 @@ export function useRowSaver(input: Input) {
   const save = React.useCallback(
     async (key: string): Promise<void> => {
       if (deleted.current.has(key)) return;
+      if (latest.current.held.has(key)) return;
       const isDraft = key.startsWith("d");
       if (inflight.current.has(key)) {
         if (!isDraft) again.current.add(key);

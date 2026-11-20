@@ -1,7 +1,7 @@
 "use client";
 
 import type { Route } from "next";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { Check, Circle, CircleAlert, Lock, LoaderCircle } from "lucide-react";
 import { ArrowDown, ArrowUp, PanelRightClose, PanelRightOpen } from "lucide-react";
@@ -41,7 +41,9 @@ import {
 import { cn, humanise } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, nextDraftKey, noticeText, type Blocked } from "@/lib/bulk-editor/save";
 import { idsOfKeys, type DeleteIds } from "@/lib/bulk-editor/delete";
-import { expandSteps } from "@/lib/bulk-editor/expand";
+import { quickCreateAction } from "@/app/(app)/admin/actions";
+import { expandPrefill, expandSteps, expandStepsForDraft } from "@/lib/bulk-editor/expand";
+import { clearPrefill, writePrefill } from "@/lib/popup/prefill";
 import { chain, POPUP_SAVED_EVENT, type PopupSaved } from "@/lib/bulk-editor/popup-nav";
 import { menuDeleteIds, rowMenuItems, type MenuItemId } from "@/lib/bulk-editor/row-menu";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
@@ -632,6 +634,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
   // one is made fresh each time (see `withBlankRow`).
   const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
+  /** New rows being expanded in the popup (see `useRowSaver`'s `held`). */
+  const [held, setHeld] = React.useState<ReadonlySet<string>>(new Set());
   const editingDraft = React.useRef<string | null>(null);
   /** Bottles that have just been given a status that takes them off the shelf: said once, so the row going is not a surprise. */
   const [gone, setGone] = React.useState<Array<{ key: string; text: string; jump?: boolean }>>([]);
@@ -697,6 +701,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     setMoves,
     setDrafts,
     onLanded: touch,
+    held,
     onLeftShelf: leftShelf,
     onLabelCreated: (labelId) => createdLabels.current.add(labelId),
     onMoved: (key, moved) => {
@@ -1880,6 +1885,10 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
    */
   async function expandRow() {
     const row = menuTarget();
+    if (row?.draft) {
+      await expandDraft(row);
+      return;
+    }
     const steps = row && !row.draft ? expandSteps(row, view) : null;
     if (!row || !steps) return;
     const keys = [row.key, `l${row.label.id}`, vintageKeyOf(row)].filter((key): key is string => Boolean(key));
@@ -1889,9 +1898,45 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     }
     openPopup(chain(steps));
   }
+  /**
+   * Expand record on a new row: its typed values go to the real form through the prefill, and the row is held back from
+   * saving until the popup is over (the popup takes focus, which would otherwise save a finished row behind its back). A
+   * brand that does not exist yet is made first, as the Brand picker's own "create" would.
+   */
+  async function expandDraft(row: SheetRow) {
+    const draft = allDrafts.find((d) => d.key === row.key);
+    if (!draft) return;
+    const prefill = expandPrefill(draft, edits[draft.key], pendingByRow.get(draft.key), view);
+    let target = draft;
+    if (prefill.newBrand !== null) {
+      const made = await quickCreateAction("brands", prefill.newBrand);
+      if (!made.ok) {
+        pushNotice(`Could not make the brand "${prefill.newBrand}": ${made.error}`);
+        return;
+      }
+      prefill.label.brandId = Number(made.option.value);
+      const brand = { kind: "existing" as const, id: Number(made.option.value), name: made.option.label };
+      // The row now names a brand that exists; its label and category are its own and stay.
+      if (draft.brand?.kind === "new") {
+        target = { ...draft, brand };
+        setDrafts((prev) => prev.map((d) => (d.key === draft.key ? { ...d, brand } : d)));
+      }
+      prefill.newBrand = null;
+    }
+    const token = writePrefill(prefill);
+    const steps = expandStepsForDraft(target, view, token);
+    if (!steps) {
+      clearPrefill(token);
+      return;
+    }
+    if (prefill.dropped.length > 0) pushNotice(`Not carried into the form: ${prefill.dropped.join(", ")}. They stay in the new row.`);
+    heldRef.current = { key: draft.key, token };
+    heldAway.current = false;
+    setHeld((prev) => new Set(prev).add(draft.key));
+    openPopup(chain(steps));
+  }
   const menuHandlers: Partial<Record<MenuItemId, () => void>> = {
-    // A new row has nothing in the database to open yet: its Expand comes with the prefill.
-    ...(menuRow?.draft ? {} : { expand: () => void expandRow() }),
+    expand: () => void expandRow(),
     insert: insertBelow,
     duplicateLabel: () => {
       const row = menuTarget();
@@ -1908,12 +1953,49 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       if (row?.draft) discardDraft(row.key);
     },
   };
+  // A new row being expanded: held back from saving while its popup is open, and let go (or replaced by what the popup made) when it is over.
+  const pathname = usePathname();
+  const heldRef = React.useRef<{ key: string; token: string } | null>(null);
+  /** The popup's url has been seen since the hold began, so being back on the sheet means it is over. */
+  const heldAway = React.useRef(false);
+  const releaseHeld = React.useCallback((): string | null => {
+    const now = heldRef.current;
+    if (!now) return null;
+    heldRef.current = null;
+    heldAway.current = false;
+    clearPrefill(now.token);
+    setHeld((prev) => {
+      const next = new Set(prev);
+      next.delete(now.key);
+      return next;
+    });
+    return now.key;
+  }, []);
+  const onHeldSaved = React.useRef<() => void>(() => {});
+  React.useLayoutEffect(() => {
+    onHeldSaved.current = () => {
+      const key = releaseHeld();
+      if (key) discardDraft(key);
+    };
+  });
+  // Back on the sheet without a save having been reported: the popup was cancelled, and the row is as it was.
+  React.useEffect(() => {
+    const now = heldRef.current;
+    if (!now) return;
+    // A ref written from an effect, which is what it is for: no render depends on it.
+    // eslint-disable-next-line react-hooks/immutability
+    if (pathname !== "/bulk-editor") heldAway.current = true;
+    else if (heldAway.current) releaseHeld();
+  }, [pathname, releaseHeld]);
+
   // The popup over the sheet saved a label or a bottle: once the reloaded data has it, keep it on screen, flash it and scroll to it.
   const popupLanded = React.useRef<PopupSaved | null>(null);
   React.useEffect(() => {
     const onSaved = (event: Event) => {
       const saved = (event as CustomEvent<PopupSaved>).detail;
       if (!saved || (saved.bottleId === undefined && saved.labelId === undefined)) return;
+      // The popup made what a new row was for: the row is replaced by the saved one.
+      onHeldSaved.current();
       popupLanded.current = saved;
       // A label's id keeps every row of that label from being filtered out, a bottle's keeps just that row.
       setTouched((prev) => new Set(prev).add(saved.bottleId !== undefined ? `b${saved.bottleId}` : `l${saved.labelId}`));

@@ -271,13 +271,6 @@ test("a chained popup url loaded on its own is the full page, as before", async 
   await expect(page.getByRole("button", { name: "Save Label" })).toBeVisible();
 });
 
-test("Expand is not offered on a new row yet", async ({ page }) => {
-  const last = sheet(page).locator("tbody tr").last();
-  await last.locator("td").first().click({ button: "right" });
-  await expect(menu(page)).toBeVisible();
-  await expect(menu(page).getByRole("menuitem", { name: "Expand record" })).toHaveCount(0);
-});
-
 // ---------------------------------------------------------------------------
 // The pages take a prefill (a new row's typed values)
 // ---------------------------------------------------------------------------
@@ -322,3 +315,102 @@ test("without a prefill the pages are as before", async ({ page }) => {
   await page.goto("/bottles/add");
   await slow(page.getByRole("heading", { name: "Add a bottle" })).toBeVisible();
 });
+
+// ---------------------------------------------------------------------------
+// Expand record on a new row
+// ---------------------------------------------------------------------------
+
+async function column(page: Page, header: string): Promise<number> {
+  const names = await sheet(page).locator("thead tr:last-child th").allTextContents();
+  const index = names.findIndex((name) => name.trim() === header);
+  expect(index, `no "${header}" column`).toBeGreaterThanOrEqual(0);
+  return index;
+}
+
+/** Types a brand and a label into the empty row at the bottom: Tab takes one that exists, Enter makes a new label. */
+async function typeNewRow(page: Page, brand: string, label: string, how: "existing" | "new") {
+  const cell = sheet(page).locator("tbody tr").last().locator("td").nth(await column(page, "Brand"));
+  await cell.click();
+  await page.keyboard.type(brand);
+  await page.keyboard.press("Tab");
+  await page.keyboard.type(label);
+  await page.keyboard.press(how === "existing" ? "Tab" : "Enter");
+}
+/** The new row is below the saved ones, so it is the last row that shows the label. */
+async function expandNewRow(page: Page, label: string) {
+  await rowOf(page, label).last().locator("td").nth(await column(page, "Label")).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Expand record" }).click();
+}
+async function pickIn(page: Page, name: string, search: string) {
+  await popup(page).getByRole("combobox", { name }).click();
+  await page.locator("[cmdk-input]").fill(search);
+  await page.locator('[cmdk-item]:not([data-value="__create__"])').filter({ hasText: search }).first().click();
+}
+
+test("Expand on a new row with an existing brand and a new label name and no category opens the New Label form with them, and saving it makes a saved row", async ({ page }) => {
+  await only(page, "Labels");
+  await typeNewRow(page, "Tz", "Zed Prefilled", "new");
+  await expandNewRow(page, "Zed Prefilled");
+  await expect(page).toHaveURL(/\/expressions\/new\?prefill=/);
+  await expect(popup(page)).toBeVisible();
+  await expect(popup(page).locator('input[name="name"]')).toHaveValue("Zed Prefilled");
+  await expect(popup(page).getByRole("combobox", { name: "Brand" })).toContainText("Tz");
+  await pickIn(page, "Category", "Bourbon");
+  await popup(page).getByRole("button", { name: "Create Label", exact: true }).click();
+  await expect(popup(page)).toHaveCount(0);
+  await expect(page).toHaveURL(/\/bulk-editor$/);
+  expect(await counts("Zed Prefilled")).toMatchObject({ labels: 1, bottles: 0 });
+  // The new row has been taken over by the saved one: one row, not two.
+  await expect(rowOf(page, "Zed Prefilled")).toHaveCount(1);
+});
+
+test("Expand on a new row in the Both view opens the add-bottle page with a new label, and saving makes the label and its bottle once", async ({ page }) => {
+  await typeNewRow(page, "Tz", "Both Prefilled", "new");
+  await expandNewRow(page, "Both Prefilled");
+  await expect(page).toHaveURL(/\/bottles\/add\?prefill=/);
+  await expect(popup(page).locator("#expression-name")).toHaveValue("Both Prefilled");
+  await pickIn(page, "Category", "Bourbon");
+  await popup(page).getByRole("button", { name: "Save label and bottle" }).click();
+  await expect(popup(page)).toHaveCount(0);
+  expect(await counts("Both Prefilled")).toMatchObject({ labels: 1, bottles: 1 });
+  await expect(rowOf(page, "Both Prefilled")).toHaveCount(1);
+});
+
+test("a new row that is already complete is not created while its popup is open, and is kept if the popup is cancelled", async ({ page }) => {
+  expect(await counts("Corbett")).toMatchObject({ labels: 1, bottles: 1 });
+  await typeNewRow(page, "Tz", "Corbett", "existing");
+  const rowsBefore = await sheet(page).locator("tbody tr").count();
+  await expandNewRow(page, "Corbett");
+  await expect(popup(page)).toBeVisible();
+  await expect(page).toHaveURL(/\/bottles\/add\?expression=\d+&prefill=/);
+  // The sheet saves a finished new row when focus leaves it, and the popup has taken focus: it must not.
+  await page.waitForTimeout(3000);
+  expect(await counts("Corbett")).toMatchObject({ labels: 1, bottles: 1 });
+  await popup(page).getByRole("button", { name: "Cancel" }).click();
+  await expect(popup(page)).toHaveCount(0);
+  await expect(sheet(page).locator("tbody tr")).toHaveCount(rowsBefore);
+  // Cancelled, the row is as it was: leaving it saves it, as it always did.
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await expect.poll(() => counts("Corbett"), { timeout: 15000 }).toMatchObject({ bottles: 2 });
+});
+
+test("Expand is dimmed on a new row in the Bottles-only view until it names a label that exists", async ({ page }) => {
+  await only(page, "Bottles");
+  await sheet(page).locator("tbody tr").last().locator("td").first().click({ button: "right" });
+  await expect(menu(page).getByRole("menuitem", { name: "Expand record" })).toHaveAttribute("aria-disabled", "true");
+});
+
+test("a typed value the form cannot take is named in a notice, and cancelling leaves the new row as it was", async ({ page }) => {
+  await typeNewRow(page, "Tz", "Penhall", "existing");
+  const vintage = sheet(page).locator("tbody tr", { hasText: "Penhall" }).last().locator("td").nth(await column(page, "Vintage"));
+  await vintage.click();
+  await page.keyboard.type("Spring Batch");
+  await page.keyboard.press("Enter");
+  await expandNewRow(page, "Penhall");
+  await expect(popup(page)).toBeVisible();
+  await expect(page.getByText(/Not carried into the form: .*Vintage/i)).toBeVisible();
+  await popup(page).getByRole("button", { name: "Cancel" }).click();
+  await expect(popup(page)).toHaveCount(0);
+  await expect(sheet(page).locator("tbody tr", { hasText: "Spring Batch" })).toHaveCount(1);
+});
+
