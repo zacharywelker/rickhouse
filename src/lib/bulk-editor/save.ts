@@ -124,12 +124,8 @@ export const labelPatchBody = (cells: Readonly<Record<string, string>> | undefin
   ...(links ? linksBody(cells ?? {}, links.loaded, labelLists(links.label)) : {}),
 });
 
-/**
- * The body for a new row. An existing brand or label goes by id (and an existing label takes no facts: they are not the
- * row's to change). A new label carries its category and the facts typed into the row. The bottle is included when the
- * view is of bottles, or when anything was typed into a bottle cell, so typed values are never dropped.
- */
-export function createBody(draft: DraftRow, cells: Readonly<Record<string, string>> | undefined, bottleView: boolean): Record<string, unknown> {
+/** The label's facts and the bottle's fields that a row's typed cells stand for, as the server takes them (the cells' text through `serverFields`, links as payloads). */
+export function cellFields(cells: Readonly<Record<string, string>> | undefined): { facts: Record<string, unknown>; bottle: Record<string, unknown> } {
   const facts: Record<string, unknown> = {};
   const bottle: Record<string, unknown> = {};
   for (const [column, value] of Object.entries(cells ?? {})) {
@@ -147,6 +143,16 @@ export function createBody(draft: DraftRow, cells: Readonly<Record<string, strin
     if (!editor || editor.combo || value === "") continue;
     Object.assign(editor.scope === "label" ? facts : bottle, serverFields(editor, column, value));
   }
+  return { facts, bottle };
+}
+
+/**
+ * The body for a new row. An existing brand or label goes by id (and an existing label takes no facts: they are not the
+ * row's to change). A new label carries its category and the facts typed into the row. The bottle is included when the
+ * view is of bottles, or when anything was typed into a bottle cell, so typed values are never dropped.
+ */
+export function createBody(draft: DraftRow, cells: Readonly<Record<string, string>> | undefined, bottleView: boolean): Record<string, unknown> {
+  const { facts, bottle } = cellFields(cells);
   // A row marked a single barrel or private selection: the proof and age typed are the bottle's, and no vintage is made for it
   // (the name typed in its Vintage cell is the bottle's batch, as a pick's batch is).
   const marked = bottle.isSingleBarrel === true || bottle.isSingleBarrelPick === true;
@@ -224,6 +230,11 @@ const COLUMN_OF_FIELD: Record<string, { label: string; bottle: string }> = {
   dateOpened: { label: "dateOpened", bottle: "dateOpened" },
   dateKilled: { label: "dateKilled", bottle: "dateKilled" },
 };
+
+/** The sheet column a server field belongs to, or the field's own name when it has none. */
+export function columnOfField(field: string, scope: "label" | "bottle"): string {
+  return COLUMN_OF_FIELD[field]?.[scope] ?? field;
+}
 
 /** The cell a failed save is shown on: the first failing field that has a column, else `fallback`. */
 export function failureColumn(fieldErrors: Readonly<Record<string, string>>, scope: "label" | "bottle", fallback: string): string {
