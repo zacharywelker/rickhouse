@@ -31,7 +31,7 @@ const LABEL_FIELD_NAMES: ReadonlySet<string> = new Set(EXPRESSION_SECTIONS.flatM
 const BOTTLE_FIELD_NAMES: ReadonlySet<string> = new Set([...BOTTLE_FIELDS, ...BOTTLE_STATE_SECTION.fields].map((field) => field.name));
 
 /** What to hand the form for a new row: its picks, its typed cells (through the same mapping the saver uses) and its waiting text. */
-export function expandPrefill(draft: DraftRow, cells: Readonly<Record<string, string>> | undefined, pending: Readonly<Record<string, string>> | undefined, _view: SheetView): Prefill {
+export function expandPrefill(draft: DraftRow, cells: Readonly<Record<string, string>> | undefined, pending: Readonly<Record<string, string>> | undefined, view: SheetView): Prefill {
   const label: Record<string, unknown> = {};
   const bottle: Record<string, unknown> = {};
   const dropped = new Set<string>();
@@ -58,7 +58,8 @@ export function expandPrefill(draft: DraftRow, cells: Readonly<Record<string, st
     else dropped.add(columnName(field, "label"));
   }
   for (const [field, value] of Object.entries(bottleFields)) {
-    if (BOTTLE_FIELD_NAMES.has(field)) bottle[field] = value;
+    // With Bottles off the page that opens has no bottle form, so a bottle cell typed earlier has nowhere to go.
+    if (view.bottles && BOTTLE_FIELD_NAMES.has(field)) bottle[field] = value;
     else dropped.add(columnName(field, "bottle"));
   }
   return { label, bottle, dropped: [...dropped], newBrand };

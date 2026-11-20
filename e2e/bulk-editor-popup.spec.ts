@@ -414,3 +414,21 @@ test("a typed value the form cannot take is named in a notice, and cancelling le
   await expect(sheet(page).locator("tbody tr", { hasText: "Spring Batch" })).toHaveCount(1);
 });
 
+
+// ---------------------------------------------------------------------------
+// From the final review
+// ---------------------------------------------------------------------------
+
+test("cancelling at the bottle step keeps what the label step saved, and the sheet shows it", async ({ page }) => {
+  const names = await sheet(page).locator("thead tr:last-child th").allTextContents();
+  const proof = names.findIndex((name) => name.trim() === "Proof");
+  expect(proof, 'no "Proof" column').toBeGreaterThanOrEqual(0);
+  await chooseFromMenu(page, "Quillon", "Expand record");
+  await slow(popup(page)).toContainText("Step 1 of 2");
+  await popup(page).locator('input[name="proof"]').fill("91");
+  await popup(page).getByRole("button", { name: "Save Label" }).click();
+  await slow(popup(page)).toContainText("Step 2 of 2");
+  await popup(page).getByRole("button", { name: "Cancel" }).click();
+  await slow(popup(page)).toHaveCount(0);
+  await slow(rowOf(page, "Quillon").first().locator("td").nth(proof)).toContainText("91");
+});

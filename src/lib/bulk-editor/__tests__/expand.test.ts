@@ -70,6 +70,12 @@ describe("what a new row hands to the form", () => {
     expect(chosen.newBrand).toBeNull();
     expect(chosen.label).toEqual({ brandId: 10, name: "Zed Batch" });
   });
+  it("names typed bottle cells as not carried when the view has no bottle form to take them, and still carries the label's", () => {
+    const prefill = expandPrefill(newRow({ brand: existing(10, "Four Roses"), label: fresh("Zed Batch") }), { pricePaid: "45", proof: "101" }, undefined, LABELS);
+    expect(prefill.bottle).toEqual({});
+    expect(prefill.dropped).toEqual(["Price paid"]);
+    expect(prefill.label).toMatchObject({ proof: "101" });
+  });
   it("names a typed value the form has no field for, instead of dropping it silently", () => {
     const prefill = expandPrefill(newRow({ brand: existing(10, "Four Roses"), label: fresh("Zed Batch") }), { pricePaid: "45", releaseId: "new:Spring" }, undefined, BOTH);
     expect(prefill.bottle).toEqual({ pricePaid: "45" });

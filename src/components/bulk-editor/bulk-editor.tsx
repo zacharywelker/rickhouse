@@ -1929,7 +1929,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       clearPrefill(token);
       return;
     }
-    if (prefill.dropped.length > 0) pushNotice(`Not carried into the form: ${prefill.dropped.join(", ")}. They stay in the new row.`);
+    // What was typed there is gone once the form saves and the row is replaced, so say so before the form opens.
+    if (prefill.dropped.length > 0) pushNotice(`Not carried into the form: ${prefill.dropped.join(", ")}. Add them there, or cancel and switch the view; they are lost once it saves.`);
     heldRef.current = { key: draft.key, token };
     heldAway.current = false;
     setHeld((prev) => new Set(prev).add(draft.key));
