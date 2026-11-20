@@ -41,7 +41,8 @@ import {
 import { cn, humanise } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, nextDraftKey, noticeText, type Blocked } from "@/lib/bulk-editor/save";
 import { idsOfKeys, type DeleteIds } from "@/lib/bulk-editor/delete";
-import { POPUP_SAVED_EVENT, type PopupSaved } from "@/lib/bulk-editor/popup-nav";
+import { expandSteps } from "@/lib/bulk-editor/expand";
+import { chain, POPUP_SAVED_EVENT, type PopupSaved } from "@/lib/bulk-editor/popup-nav";
 import { menuDeleteIds, rowMenuItems, type MenuItemId } from "@/lib/bulk-editor/row-menu";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 import { railFor } from "@/lib/bulk-editor/rail";
@@ -1872,7 +1873,25 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   }
   /** Opens one of the app's real pages in the popup over the sheet (the `@modal` slot renders it). */
   const openPopup = (url: string) => router.push(url as Route);
+  /**
+   * Expand record on a saved row: what is waiting to be saved on it is saved first (the popup reads the database, so it
+   * would show old values and its own save would clash with the cells still waiting), and if that fails the popup does
+   * not open: the failure is already on the cell.
+   */
+  async function expandRow() {
+    const row = menuTarget();
+    const steps = row && !row.draft ? expandSteps(row, view) : null;
+    if (!row || !steps) return;
+    const keys = [row.key, `l${row.label.id}`, vintageKeyOf(row)].filter((key): key is string => Boolean(key));
+    for (const key of keys) {
+      if (Object.keys(edits[key] ?? {}).length === 0 && moves[key] === undefined) continue;
+      if ((await saver.settle(key))?.kind === "blocked") return;
+    }
+    openPopup(chain(steps));
+  }
   const menuHandlers: Partial<Record<MenuItemId, () => void>> = {
+    // A new row has nothing in the database to open yet: its Expand comes with the prefill.
+    ...(menuRow?.draft ? {} : { expand: () => void expandRow() }),
     insert: insertBelow,
     duplicateLabel: () => {
       const row = menuTarget();

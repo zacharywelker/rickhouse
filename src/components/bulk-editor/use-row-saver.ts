@@ -55,6 +55,8 @@ const SAVED_SHOWN_MS = 2500;
 export function useRowSaver(input: Input) {
   const router = useRouter();
   const [rowState, setRowState] = React.useState<Record<string, RowState>>({});
+  /** The same states, kept in step as they are set, so `settle` can read how a save ended without waiting for a render. */
+  const stateRef = React.useRef<Record<string, RowState>>({});
   const latest = React.useRef(input);
   React.useLayoutEffect(() => {
     latest.current = input;
@@ -77,6 +79,8 @@ export function useRowSaver(input: Input) {
   const saveAgain = React.useRef<(key: string) => Promise<void>>(async () => {});
 
   const mark = React.useCallback((key: string, state: RowState | null) => {
+    if (state === null) delete stateRef.current[key];
+    else stateRef.current[key] = state;
     setRowState((prev) => {
       if (state === null) {
         if (!(key in prev)) return prev;
@@ -254,6 +258,7 @@ export function useRowSaver(input: Input) {
 
   /** Forgets failures and what is waiting, for Discard. A save on its way is left alone. */
   const reset = React.useCallback(() => {
+    for (const [key, state] of Object.entries(stateRef.current)) if (state.kind !== "saving" && state.kind !== "saved") delete stateRef.current[key];
     setRowState((prev) => Object.fromEntries(Object.entries(prev).filter(([, state]) => state.kind === "saving" || state.kind === "saved")));
   }, []);
 
@@ -265,10 +270,29 @@ export function useRowSaver(input: Input) {
       requested.current.delete(key);
       again.current.delete(key);
       sent.current.delete(key);
+      delete stateRef.current[key];
     }
     setRowState((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !keys.has(key))));
   }, []);
 
+  /**
+   * Waits for any save under way on a row, saves what is waiting on it, and says how it stands: `blocked` means a value
+   * could not be saved (the failure shows on the cell), anything else means nothing is waiting. `save` alone returns at
+   * once when one is already on its way, so a caller that needs the outcome uses this.
+   */
+  const settle = React.useCallback(
+    async (key: string): Promise<RowState | undefined> => {
+      const idle = async () => {
+        while (inflight.current.has(key)) await new Promise<void>((resolve) => setTimeout(resolve, 30));
+      };
+      await idle();
+      await save(key);
+      await idle();
+      return stateRef.current[key];
+    },
+    [save],
+  );
+
   const draftSaving = (key: string) => inflight.current.has(key) || created.current.has(key);
-  return { rowState, request, save, saveDrafts, reset, forgetDeleted, reveal, clearReveal, revealFor: REVEAL_FOR_MS, createdAs, draftSaving };
+  return { rowState, request, save, settle, saveDrafts, reset, forgetDeleted, reveal, clearReveal, revealFor: REVEAL_FOR_MS, createdAs, draftSaving };
 }

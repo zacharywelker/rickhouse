@@ -176,3 +176,104 @@ test("duplicating a label that is not there is a not-found page", async ({ page 
   const response = await page.goto("/expressions/new?duplicate=99999999");
   expect(response?.status()).toBe(404);
 });
+
+// ---------------------------------------------------------------------------
+// Expand record on saved rows
+// ---------------------------------------------------------------------------
+
+const views = (page: Page) => page.getByRole("group", { name: "What the sheet shows" });
+/** Turns Labels or Bottles off (the other stays on, so the sheet shows only the other). */
+const only = async (page: Page, keep: "Labels" | "Bottles") => views(page).getByRole("button", { name: keep === "Labels" ? "Bottles" : "Labels", exact: true }).click();
+
+async function query<T extends Record<string, unknown>>(run: (sql: postgres.Sql) => Promise<T[]>): Promise<T[]> {
+  const sql = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
+  try {
+    return await run(sql);
+  } finally {
+    await sql.end();
+  }
+}
+const idsOf = async (name: string) => {
+  const [row] = await query<{ label: number; bottle: number }>((sql) => sql`SELECT e.id AS label, min(b.id) AS bottle FROM expressions e LEFT JOIN bottles b ON b.expression_id = e.id WHERE e.name = ${name} GROUP BY e.id`);
+  return { label: Number(row!.label), bottle: Number(row!.bottle) };
+};
+
+test("Expand in the Labels-only view opens the label's edit page", async ({ page }) => {
+  await only(page, "Labels");
+  await chooseFromMenu(page, "Marlow", "Expand record");
+  await expect(page).toHaveURL(new RegExp(`/expressions/${(await idsOf("Marlow")).label}/edit`));
+  await expect(popup(page)).toBeVisible();
+  await expect(popup(page).getByRole("button", { name: "Save Label" })).toBeVisible();
+  await expect(sheet(page)).toHaveCount(1);
+});
+
+test("Expand in the Bottles-only view opens the bottle's edit page", async ({ page }) => {
+  await only(page, "Bottles");
+  await chooseFromMenu(page, "Quillon", "Expand record");
+  await expect(page).toHaveURL(new RegExp(`/bottles/${(await idsOf("Quillon")).bottle}/edit`));
+  await expect(popup(page).getByRole("button", { name: "Save bottle" })).toBeVisible();
+});
+
+test("Expand in the Both view opens the label, then the bottle, and saving both closes the popup with both changes kept", async ({ page }) => {
+  const ids = await idsOf("Tamsin");
+  await chooseFromMenu(page, "Tamsin", "Expand record");
+  await expect(popup(page)).toContainText("Step 1 of 2");
+  await expect(page).toHaveURL(new RegExp(`/expressions/${ids.label}/edit`));
+  await popup(page).locator('input[name="proof"]').fill("88");
+  await popup(page).getByRole("button", { name: "Save Label" }).click();
+  await expect(popup(page)).toContainText("Step 2 of 2");
+  await expect(page).toHaveURL(new RegExp(`/bottles/${ids.bottle}/edit`));
+  await popup(page).locator("textarea").first().fill("expanded");
+  await popup(page).getByRole("button", { name: "Save bottle" }).click();
+  await expect(popup(page)).toHaveCount(0);
+  await expect(page).toHaveURL(/\/bulk-editor$/);
+  const [saved] = await query<{ proof: string; notes: string }>((sql) => sql`SELECT e.proof::text AS proof, b.notes FROM expressions e JOIN bottles b ON b.expression_id = e.id WHERE e.id = ${ids.label}`);
+  expect(Number(saved!.proof)).toBe(88);
+  expect(saved!.notes).toBe("expanded");
+});
+
+test("a cell just typed is saved before the popup opens, so the form shows it", async ({ page }) => {
+  await only(page, "Bottles");
+  const names = await sheet(page).locator("thead tr:last-child th").allTextContents();
+  const price = names.findIndex((name) => name.trim() === "Price paid");
+  expect(price, 'no "Price paid" column').toBeGreaterThanOrEqual(0);
+  const row = rowOf(page, "Corbett").first();
+  await row.locator("td").nth(price).click();
+  await page.keyboard.type("77");
+  await page.keyboard.press("Enter");
+  await (await labelCell(page, "Corbett")).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Expand record" }).click();
+  await expect(popup(page)).toBeVisible();
+  await expect(popup(page).locator('input[name="pricePaid"]')).toHaveValue(/77/);
+});
+
+test("a row whose unsaved cell cannot be saved does not open the popup", async ({ page }) => {
+  await only(page, "Bottles");
+  const names = await sheet(page).locator("thead tr:last-child th").allTextContents();
+  const price = names.findIndex((name) => name.trim() === "Price paid");
+  // The sheet's saves are server actions posted to its own url: refuse them.
+  await page.route((url) => url.pathname === "/bulk-editor", (route) => (route.request().method() === "POST" ? route.abort() : route.continue()));
+  const row = rowOf(page, "Penhall").first();
+  await row.locator("td").nth(price).click();
+  await page.keyboard.type("66");
+  await page.keyboard.press("Enter");
+  await (await labelCell(page, "Penhall")).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Expand record" }).click();
+  await page.waitForTimeout(2500);
+  await expect(popup(page)).toHaveCount(0);
+  await expect(page).toHaveURL(/\/bulk-editor$/);
+});
+
+test("a chained popup url loaded on its own is the full page, as before", async ({ page }) => {
+  const ids = await idsOf("Ravenel");
+  await page.goto(`/expressions/${ids.label}/edit?next=${encodeURIComponent(`/bottles/${ids.bottle}/edit?step=2&of=2`)}&step=1&of=2`);
+  await expect(popup(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save Label" })).toBeVisible();
+});
+
+test("Expand is not offered on a new row yet", async ({ page }) => {
+  const last = sheet(page).locator("tbody tr").last();
+  await last.locator("td").first().click({ button: "right" });
+  await expect(menu(page)).toBeVisible();
+  await expect(menu(page).getByRole("menuitem", { name: "Expand record" })).toHaveCount(0);
+});
