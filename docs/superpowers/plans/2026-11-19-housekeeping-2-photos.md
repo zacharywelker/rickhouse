@@ -178,3 +178,11 @@
 - [ ] **Step 2: Run it against the scratch database to see it fail or pass.** `npx playwright test e2e/housekeeping-photos.spec.ts --trace off`. Expected: PASS once the earlier tasks are in. Any failure is a finding: fix the code, not the test.
 - [ ] **Step 3: Run the existing photo and label specs** that exercise the same routes (`e2e/expressions.spec.ts`, `e2e/catalog.spec.ts`) and report any failure by name, noting whether it also fails on `main`.
 - [ ] **Step 4: Commit.** `git add -A && git commit -m "Add the Housekeeping photos end-to-end spec"`. In the PR, show the test counts: CI does not run Playwright or the database-backed suites.
+
+---
+
+## Revised in the final review
+
+- **Paging is by `offset`, not by page number** (Tasks 2 and 6 as built). A saved card stays on screen but leaves the server's list, so "page 2" after saving a whole page skipped a page of unsaved items. Next now moves by one page less the cards saved on this one; Previous by one page. The address is `?tab=&per=&offset=`, the range line reads `9–16 of 19` (with `· N saved just now`), and the "page X of Y" text is gone. `parsePhotoParams` returns `offset`; `pageWindow(total, per, offset)`, `nextOffset`, `previousOffset` and `photoHref` live in `photo-params.ts`; a `SavedCountProvider` and `PhotoPager` carry the count.
+- **`postPhoto`** in `label-photo-controls.tsx` turns a network failure or a non-JSON reply into an error, so a card is never left busy.
+- **The card is a `role="group"`** named `<label>: click here, then paste or drop a photo`.

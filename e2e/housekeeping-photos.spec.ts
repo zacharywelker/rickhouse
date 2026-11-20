@@ -16,7 +16,7 @@ const BIG = path.join(__dirname, "fixtures", "bottle.jpg"); // 900 x 1400
 const TINY = path.join(__dirname, "fixtures", "tiny.png"); // 300 x 200
 const TOO_SMALL = "That image is 300 × 200 px. Photos need at least 600 px on the long side.";
 
-/** Unpictured labels at the start: the seeded eleven plus whatever example data the reset adds. */
+/** Unpictured labels at the start: the seeded eighteen plus whatever example data the reset adds. */
 let LABELS = 0;
 
 test.beforeAll(async () => {
@@ -34,6 +34,7 @@ test.beforeEach(async ({ page }) => {
 /** The cards on the page, saved or not. */
 const cards = (page: Page) => page.locator("div[tabindex='0']").filter({ hasText: /No photo yet|Photo added\./ });
 const waiting = (page: Page) => page.locator("div[tabindex='0']").filter({ hasText: "No photo yet" });
+const names = (page: Page) => page.locator("div[tabindex='0'] p.font-semibold");
 
 /** The count shown on a tab, read from the tab's own text. */
 async function tabCount(page: Page, name: string | RegExp): Promise<number> {
@@ -73,14 +74,14 @@ test("lists eight cards at first and pages through the rest", async ({ page }) =
   await page.goto("/housekeeping");
   await expect(page.getByRole("heading", { name: "Housekeeping", level: 1 })).toBeVisible();
   expect(await tabCount(page, /^Labels/)).toBe(LABELS);
+  expect(LABELS).toBeGreaterThan(16);
   await expect(cards(page)).toHaveCount(8);
-  await expect(page.getByText(`1–8 of ${LABELS} · page 1 of ${Math.ceil(LABELS / 8)}`)).toBeVisible();
-  expect(LABELS).toBeGreaterThan(8);
-  expect(LABELS).toBeLessThanOrEqual(16);
-  await page.getByRole("link", { name: "Next" }).click();
-  await expect(cards(page)).toHaveCount(LABELS - 8);
-  await expect(page.getByText(`9–${Math.min(16, LABELS)} of ${LABELS} · page 2 of ${Math.ceil(LABELS / 8)}`)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Next", exact: true })).toBeDisabled();
+  await expect(page.getByText(`1–8 of ${LABELS}`)).toBeVisible();
+  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await expect(cards(page)).toHaveCount(8);
+  await expect(page.getByText(`9–16 of ${LABELS}`)).toBeVisible();
+  await page.getByRole("link", { name: "Previous" }).click();
+  await expect(page.getByText(`1–8 of ${LABELS}`)).toBeVisible();
 });
 
 test("the per-page choice changes the address and shows more cards", async ({ page }) => {
@@ -91,9 +92,11 @@ test("the per-page choice changes the address and shows more cards", async ({ pa
 });
 
 test("a bad address falls back instead of failing", async ({ page }) => {
-  const response = await page.goto("/housekeeping?page=99&per=7&tab=nonsense");
+  const response = await page.goto("/housekeeping?offset=999&per=7&tab=nonsense");
   expect(response?.status()).toBe(200);
-  await expect(cards(page)).not.toHaveCount(0);
+  // Past the end falls back to the last full window of eight.
+  await expect(cards(page)).toHaveCount(8);
+  await expect(page.getByText(`${LABELS - 7}–${LABELS} of ${LABELS}`)).toBeVisible();
 });
 
 test("a photo under 600 px is turned down and the card stays", async ({ page }) => {
@@ -103,17 +106,45 @@ test("a photo under 600 px is turned down and the card stays", async ({ page }) 
   await expect(waiting(page)).toHaveCount(8);
 });
 
+test("the label page's own photo form still takes a small image", async ({ page }) => {
+  const id = await labelIdByName("Hk Lab 11");
+  await page.goto(`/expressions/${id}`);
+  await page.getByLabel("Upload label photo").setInputFiles(TINY);
+  await expect(page.getByText("Label photo set.")).toBeVisible();
+  LABELS -= 1;
+});
+
+test("after saving every card on a page, Next shows the items that came next, not later ones", async ({ page }) => {
+  await page.goto("/housekeeping?tab=labels&per=8&offset=8");
+  const following = await names(page).allInnerTexts();
+  expect(following.length).toBeGreaterThan(0);
+  await page.goto("/housekeeping");
+  for (let i = 1; i <= 8; i++) {
+    await page.getByLabel("Upload label photo").first().setInputFiles(BIG);
+    await expect(page.getByText("Photo added.")).toHaveCount(i);
+  }
+  await expect(page.getByText("8 saved just now")).toBeVisible();
+  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await expect(names(page)).toHaveText(following);
+  LABELS -= 8;
+});
+
 test("a big photo is saved, the card stays as saved, and the label leaves the list on reload", async ({ page }) => {
   await page.goto("/housekeeping");
+  const before = await tabCount(page, /^Labels/);
+  expect(before).toBe(LABELS);
   await page.getByLabel("Upload label photo").first().setInputFiles(BIG);
   await expect(page.getByText("Photo added.")).toHaveCount(1);
-  await expect(cards(page)).toHaveCount(8);
+  await expect(cards(page)).toHaveCount(Math.min(8, before));
   await page.reload();
-  expect(await tabCount(page, /^Labels/)).toBe(LABELS - 1);
+  expect(await tabCount(page, /^Labels/)).toBe(before - 1);
+  LABELS -= 1;
 });
 
 test("a dropped file and a pasted image each save, and a dropped text file is refused", async ({ page }) => {
   await page.goto("/housekeeping");
+  const before = await tabCount(page, /^Labels/);
+  expect(before).toBeGreaterThanOrEqual(3);
   await handOver(page, "drop", { file: BIG });
   await expect(page.getByText("Photo added.")).toHaveCount(1);
   await handOver(page, "paste", { file: BIG });
@@ -121,7 +152,8 @@ test("a dropped file and a pasted image each save, and a dropped text file is re
   await handOver(page, "drop", { text: "hello" });
   await expect(page.getByRole("alert").filter({ hasText: "That needs to be an image." })).toBeVisible();
   await page.reload();
-  expect(await tabCount(page, /^Labels/)).toBe(LABELS - 3);
+  expect(await tabCount(page, /^Labels/)).toBe(before - 2);
+  LABELS -= 2;
 });
 
 test("two drops in a row on one card post once", async ({ page }) => {
@@ -133,6 +165,17 @@ test("two drops in a row on one card post once", async ({ page }) => {
   await handOver(page, "drop", { file: BIG }, 2);
   await expect(page.getByText("Photo added.")).toHaveCount(1);
   expect(posts).toHaveLength(1);
+});
+
+test("a failed upload says so and leaves the card usable", async ({ page }) => {
+  await page.goto("/housekeeping");
+  await page.route(/\/api\/expressions\/\d+\/photo$/, (route) => route.fulfill({ status: 500, body: "<html>Server error</html>" }));
+  await page.getByLabel("Upload label photo").first().setInputFiles(BIG);
+  await expect(page.getByRole("alert").filter({ hasText: "The upload did not go through. Try again." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add photo" }).first()).toBeEnabled();
+  await page.unroute(/\/api\/expressions\/\d+\/photo$/);
+  await page.getByLabel("Upload label photo").first().setInputFiles(BIG);
+  await expect(page.getByText("Photo added.")).toHaveCount(1);
 });
 
 test("a single barrel's photo goes to its bottle and the barrel leaves the list", async ({ page }) => {
@@ -151,11 +194,4 @@ test("a vintage's photo is saved and the vintage leaves the list", async ({ page
   await expect(page.getByText("Photo added.")).toHaveCount(1);
   await page.reload();
   expect(await tabCount(page, /^Vintages/)).toBe(HK_VINTAGES - 1);
-});
-
-test("the label page's own photo form still takes a small image", async ({ page }) => {
-  const id = await labelIdByName("Hk Lab 11");
-  await page.goto(`/expressions/${id}`);
-  await page.getByLabel("Upload label photo").setInputFiles(TINY);
-  await expect(page.getByText("Label photo set.")).toBeVisible();
 });

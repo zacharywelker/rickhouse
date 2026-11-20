@@ -20,6 +20,26 @@ export function uploadTarget(t: { expressionId?: number; releaseId?: number; bot
   return { url: `/api/expressions/${t.expressionId}/photo`, field: "photo" };
 }
 
+/**
+ * Posts a photo form and always answers with an ActionResult: a network failure, or a reply that is not JSON (an HTML
+ * error page, a body-size refusal), becomes an error the controls can show, so a card is never left spinning.
+ */
+export async function postPhoto(url: string, data: FormData): Promise<ActionResult> {
+  try {
+    const response = await fetch(url, { method: "POST", body: data });
+    try {
+      return (await response.json()) as ActionResult;
+    } catch {
+      return {
+        ok: false,
+        error: response.status === 413 ? "That photo is too large to upload." : "The upload did not go through. Try again.",
+      };
+    }
+  } catch {
+    return { ok: false, error: "The upload did not go through. Check your connection and try again." };
+  }
+}
+
 /** What a parent can ask of the controls: save a file it was handed (a paste or a drop), as if it had been chosen. */
 export type LabelPhotoControlsHandle = { uploadFile: (file: File) => void };
 
@@ -75,8 +95,7 @@ export const LabelPhotoControls = React.forwardRef<LabelPhotoControlsHandle, Pro
     if (housekeeping) data.append("source", "housekeeping");
     setBusy(true);
     setMessage(null);
-    const response = await fetch(target.url, { method: "POST", body: data });
-    const result: ActionResult = await response.json();
+    const result = await postPhoto(target.url, data);
     if (result.ok) {
       setLink("");
       setLinking(false);

@@ -6,7 +6,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }))
 vi.mock("@/app/(app)/expressions/photo-actions", () => ({ removeLabelPhotoAction: vi.fn() }));
 vi.mock("@/app/(app)/expressions/release-actions", () => ({ removeReleasePhotoAction: vi.fn() }));
 
-import { LabelPhotoControls, uploadTarget } from "../label-photo-controls";
+import { LabelPhotoControls, postPhoto, uploadTarget } from "../label-photo-controls";
 
 describe("uploadTarget", () => {
   it("posts a label's photo to the label route", () => {
@@ -48,5 +48,33 @@ describe("LabelPhotoControls markup", () => {
     const html = renderToStaticMarkup(<LabelPhotoControls bottleId={12} hasPhoto={false} housekeeping />);
     expect(html).toContain('aria-label="Upload bottle photo"');
     expect(html).not.toContain("Upload label photo");
+  });
+});
+
+describe("postPhoto", () => {
+  const data = () => new FormData();
+  const reply = (body: BodyInit | null, status = 200) => vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status })));
+
+  it("returns the server's answer", async () => {
+    reply(JSON.stringify({ ok: true, message: "Label photo set." }));
+    expect(await postPhoto("/api/x", data())).toEqual({ ok: true, message: "Label photo set." });
+  });
+
+  it("turns a network failure into an error instead of throwing", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    expect(await postPhoto("/api/x", data())).toEqual({
+      ok: false,
+      error: "The upload did not go through. Check your connection and try again.",
+    });
+  });
+
+  it("turns a reply that is not JSON into an error", async () => {
+    reply("<html>Server error</html>", 500);
+    expect(await postPhoto("/api/x", data())).toEqual({ ok: false, error: "The upload did not go through. Try again." });
+  });
+
+  it("says a too-large body was too large", async () => {
+    reply("<html>Payload too large</html>", 413);
+    expect(await postPhoto("/api/x", data())).toEqual({ ok: false, error: "That photo is too large to upload." });
   });
 });

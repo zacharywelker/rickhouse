@@ -14,9 +14,9 @@ export default async function HousekeepingPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireSession();
-  const { tab, per, page } = parsePhotoParams(await searchParams);
+  const { tab, per, offset } = parsePhotoParams(await searchParams);
   const counts = await countMissingPhotos(user.id);
-  const window = pageWindow(counts[tab], per, page);
+  const window = pageWindow(counts[tab], per, offset);
   const items = await listMissingPhotos(user.id, tab, window.offset, per);
   const waiting = counts.labels + counts.barrels + counts.vintages;
 

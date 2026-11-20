@@ -1,8 +1,8 @@
 import postgres from "postgres";
 import { assertThrowawayDatabase } from "./tournament-field";
 
-/** Eleven labels with no photo (one bottle each), five single-barrel bottles with no photo, four vintages with none. */
-export const HK_LABELS = 11;
+/** Eighteen labels with no photo (one bottle each), five single-barrel bottles with no photo, four vintages with none. */
+export const HK_LABELS = 18;
 export const HK_BARRELS = 5;
 export const HK_VINTAGES = 4;
 

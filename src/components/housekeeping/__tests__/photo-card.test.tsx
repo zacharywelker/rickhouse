@@ -48,6 +48,12 @@ describe("PhotoCard markup", () => {
     expect(html).toContain('aria-label="Upload label photo"');
   });
 
+  it("is a named group, so a screen reader says what the focused card is for", () => {
+    const html = renderToStaticMarkup(<PhotoCard item={label} />);
+    expect(html).toContain('role="group"');
+    expect(html).toContain('aria-label="Old Forester 1920: click here, then paste or drop a photo"');
+  });
+
   it("saves a barrel to its bottle", () => {
     const barrel: MissingPhoto = { ...label, key: "barrel:5", seed: 5, target: { kind: "barrel", bottleId: 5 } };
     const html = renderToStaticMarkup(<PhotoCard item={barrel} />);

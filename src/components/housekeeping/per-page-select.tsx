@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import { useRouter, useSearchParams } from "next/navigation";
 
-/** How many cards a page shows. Changing it keeps the tab and goes back to the first page. */
+/** How many cards a page shows. Changing it keeps the tab and goes back to the start. */
 export function PerPageSelect({ per, options }: { per: number; options: readonly number[] }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -17,7 +17,7 @@ export function PerPageSelect({ per, options }: { per: number; options: readonly
         onChange={(event) => {
           const next = new URLSearchParams(params.toString());
           next.set("per", event.target.value);
-          next.delete("page");
+          next.delete("offset");
           router.replace(`/housekeeping?${next.toString()}` as Route);
         }}
       >

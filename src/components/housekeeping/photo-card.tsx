@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Check } from "lucide-react";
 import { LabelPhotoControls, type LabelPhotoControlsHandle } from "@/components/expressions/label-photo-controls";
+import { useSavedCount } from "@/components/housekeeping/saved-count";
 import { Polaroid } from "@/components/ui/polaroid";
 import type { MissingPhoto } from "@/lib/housekeeping/photo-queries";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ export function PhotoCard({ item }: { item: MissingPhoto }) {
   const controls = React.useRef<LabelPhotoControlsHandle>(null);
   const [done, setDone] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(null);
+  const { markSaved } = useSavedCount();
 
   function take(files: FileList | null | undefined) {
     if (!files || files.length === 0) return;
@@ -38,6 +40,8 @@ export function PhotoCard({ item }: { item: MissingPhoto }) {
   const { target } = item;
   return (
     <div
+      role="group"
+      aria-label={`${item.name}: click here, then paste or drop a photo`}
       tabIndex={0}
       className={cn(
         "flex min-w-0 flex-col gap-3 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background",
@@ -78,7 +82,10 @@ export function PhotoCard({ item }: { item: MissingPhoto }) {
             hasPhoto={false}
             housekeeping
             refreshOnSave={false}
-            onSaved={() => setDone(true)}
+            onSaved={() => {
+              setDone(true);
+              markSaved();
+            }}
             {...(target.kind === "barrel"
               ? { bottleId: target.bottleId }
               : target.kind === "vintage"
