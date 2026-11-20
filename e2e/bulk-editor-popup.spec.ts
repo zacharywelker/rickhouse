@@ -277,3 +277,48 @@ test("Expand is not offered on a new row yet", async ({ page }) => {
   await expect(menu(page)).toBeVisible();
   await expect(menu(page).getByRole("menuitem", { name: "Expand record" })).toHaveCount(0);
 });
+
+// ---------------------------------------------------------------------------
+// The pages take a prefill (a new row's typed values)
+// ---------------------------------------------------------------------------
+
+/** Puts a prefill in this tab's storage, as the sheet does, and opens a page with its token. */
+async function openWithPrefill(page: Page, path: (token: string) => string, prefill: Record<string, unknown>) {
+  const token = `t${Date.now()}`;
+  await page.evaluate(([t, value]) => window.sessionStorage.setItem(`bulk-editor:prefill:${t}`, JSON.stringify(value)), [token, prefill] as const);
+  await page.goto(path(token));
+}
+const lookup = async (sql: string): Promise<number> => {
+  const [row] = await query<{ id: number }>((db) => db.unsafe(sql) as unknown as Promise<{ id: number }[]>);
+  return Number(row!.id);
+};
+
+test("/expressions/new?prefill= opens the New Label form with the new row's values filled in", async ({ page }) => {
+  const brandId = await lookup("SELECT id FROM brands WHERE name = 'Tz'");
+  const categoryId = await lookup("SELECT id FROM categories WHERE name = 'Bourbon' LIMIT 1");
+  await openWithPrefill(page, (t) => `/expressions/new?prefill=${t}`, { label: { brandId, name: "Prefilled Label", categoryId, proof: "99" }, bottle: {}, dropped: [], newBrand: null });
+  await slow(page.locator('input[name="name"]')).toHaveValue("Prefilled Label");
+  await slow(page.locator('input[name="proof"]')).toHaveValue(/99/);
+  await slow(page.getByRole("button", { name: "Create Label", exact: true })).toBeVisible();
+});
+
+test("/bottles/add?prefill= opens the add-bottle page with a new label and the bottle's values filled in", async ({ page }) => {
+  const brandId = await lookup("SELECT id FROM brands WHERE name = 'Tz'");
+  const categoryId = await lookup("SELECT id FROM categories WHERE name = 'Bourbon' LIMIT 1");
+  await openWithPrefill(page, (t) => `/bottles/add?prefill=${t}`, { label: { brandId, name: "Prefilled Both", categoryId }, bottle: { pricePaid: "45" }, dropped: [], newBrand: null });
+  await slow(page.locator("#expression-name")).toHaveValue("Prefilled Both");
+  await slow(page.locator("#bottle-pricePaid")).toHaveValue(/45/);
+});
+
+test("/bottles/add?expression=&prefill= opens with that label chosen and the bottle's values filled in", async ({ page }) => {
+  const labelId = (await idsOf("Marlow")).label;
+  await openWithPrefill(page, (t) => `/bottles/add?expression=${labelId}&prefill=${t}`, { label: {}, bottle: { pricePaid: "52" }, dropped: [], newBrand: null });
+  await slow(page.locator("#bottle-pricePaid")).toHaveValue(/52/);
+});
+
+test("without a prefill the pages are as before", async ({ page }) => {
+  await page.goto("/expressions/new");
+  await slow(page.getByRole("heading", { name: "New Label" })).toBeVisible();
+  await page.goto("/bottles/add");
+  await slow(page.getByRole("heading", { name: "Add a bottle" })).toBeVisible();
+});
