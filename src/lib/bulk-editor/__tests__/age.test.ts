@@ -16,13 +16,19 @@ const cell = (id: string, r: SheetRow) => col(id).cell(r, ctx);
 const own = (id: string) => ({ id }) as SheetColumn;
 
 describe("the age columns", () => {
-  it("are Y, M and D under one Age caption that cannot be hidden, with the statement as the next column", () => {
+  it("are Y, M and D under one Age caption that can be hidden as one, with the statement as the next column", () => {
     const ids = columnsFor(labelsOnly, DEFAULT_HIDDEN).map((c) => c.id);
     const at = ids.indexOf("ageYears");
     expect(ids.slice(at, at + 4)).toEqual(["ageYears", "ageMonths", "ageDays", "ageStatement"]);
-    for (const id of ["ageYears", "ageMonths", "ageDays"]) expect(col(id)).toMatchObject({ band: "Age", always: true });
+    for (const id of ["ageYears", "ageMonths", "ageDays"]) {
+      expect(col(id)).toMatchObject({ band: "Age" });
+      expect(col(id).always).toBeUndefined();
+    }
     expect(col("ageStatement").band).toBeUndefined();
-    expect(columnsFor(labelsOnly, new Set(["ageYears", "ageMonths", "ageDays"])).map((c) => c.id)).toEqual(expect.arrayContaining(["ageYears", "ageMonths", "ageDays"]));
+    // Hiding Age hides the three together; the statement is its own column.
+    const hidden = columnsFor(labelsOnly, new Set(["ageYears"])).map((c) => c.id);
+    for (const id of ["ageYears", "ageMonths", "ageDays"]) expect(hidden).not.toContain(id);
+    expect(hidden).toContain("ageStatement");
   });
   it("are one Age for the row, shown in every view, with no second set for the bottle's own", () => {
     for (const v of [labelsOnly, both, { labels: false, bottles: true }]) expect(columnsFor(v, DEFAULT_HIDDEN).map((c) => c.id)).toEqual(expect.arrayContaining(["ageYears", "ageMonths", "ageDays", "ageStatement"]));

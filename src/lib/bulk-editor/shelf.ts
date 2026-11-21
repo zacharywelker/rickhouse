@@ -97,7 +97,7 @@ export function shelfFor(input: { row: SheetRow; labels: ReadonlyArray<SheetLabe
   const summary =
     ownedTotal === 0
       ? `None of your ${brandName} is on your shelf yet${unsaved}`
-      : `${plural(ownedTotal, "bottle", "bottles")} from ${plural(brandLabels.length, `${brandName} label`, `${brandName} labels`)}${unsaved}`;
+      : `${plural(ownedTotal, "bottle", "bottles")} from ${brandName}${unsaved}`;
 
   const base = { summary, labels: shown, more: Math.max(0, rows.length - shown.length) };
   if (!draft && !row.bottle) {

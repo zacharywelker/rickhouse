@@ -88,3 +88,12 @@ Today the page is a 1440px column (`max-w-page`) with side padding, a title abov
 - `src/app/(app)/bulk-editor/page.tsx`: the page is a server component that renders the title and `BulkEditor`; the toolbar is inside `BulkEditor`, so the title moves into it or is passed in.
 - Imports of `@/app/(app)/bulk-editor/actions` in `links-editor.tsx`, `use-row-saver.ts`, `delete-bar.tsx`, `panel-editor.tsx`, `bulk-editor.tsx` and `src/lib/bulk-editor/__tests__/rows.integration.test.ts` change with the move.
 - Not read: the notices and Delete bar placement (builder item above), and whether any e2e spec depends on the old page height.
+
+## Revision, 2026-11-19 (owner feedback on the built page)
+
+The owner used the built page and changed four things. Where this section and the text above disagree, this section wins.
+
+- **The pane floats.** It is a card inset from the sheet's right and top edges (and clear of its scrollbars), with a full border and a flat offset shadow (`6px 6px 0` in the foreground at 24%), not a panel flush with the edge. Its height follows its content up to the sheet's height. The show-pane tab is a small card in the same style. This is the owner's explicit call over the design tokens' caution about floating-card shadows; it stays flat (no blur) and token-coloured.
+- **The pane never resizes a column.** The trailing space is no longer padding on the scroll box (which narrowed the table, so its columns stretched and shrank as the pane opened and closed). It is the table's right margin while the pane is shown, which adds room to scroll without changing the table's width; the scroll padding is kept so arrowed-to cells stay out from under the pane.
+- **No footer.** The one-line footer is gone and the sheet runs to the bottom of the window. The full shortcuts text is a small keyboard button at the end of the toolbar (from `md` up). Below `md` it is still under the sheet.
+- **The shelf line reads "5 bottles from Four Roses"** (the brand, not a count of its labels). The labels are still listed under it.

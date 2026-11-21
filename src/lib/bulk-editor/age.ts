@@ -86,7 +86,7 @@ function labelAgeColumn(field: Field): Generated {
     // One Age for the row: the bottle's, its vintage's or the label's, shown in every view (`resolve.ts`).
     group: "value",
     align: field === "ageStatement" ? undefined : "right",
-    ...(field === "ageStatement" ? {} : { always: true, band: "Age", width: 56 }),
+    ...(field === "ageStatement" ? {} : { band: "Age", width: 56 }),
     // One entry in the Fields picker for the three.
     ...(field === "ageMonths" || field === "ageDays" ? { with: "ageYears" } : {}),
     cell: (row, ctx) => (labelHidden(row, ctx.kinds).has(field) ? { ...DASH, note: "Not used for this spirit" } : valueCell(field, row, ctx, field === "ageStatement" ? (v) => v : (v) => formatNumeric(v))),

@@ -34,9 +34,9 @@ describe("ordinals", () => {
 
 describe("1. a known brand, no label yet", () => {
   const s = shelf(draftRow("d0", existing(FR, "Four Roses"), null));
-  it("says how many bottles from how many labels, and lists the labels, most owned first", () => {
+  it("says how many bottles from the brand, and lists the labels, most owned first", () => {
     expect(s.state).toBe("known-brand");
-    expect(s.summary).toBe("5 bottles from 3 Four Roses labels");
+    expect(s.summary).toBe("5 bottles from Four Roses");
     expect(s.labels.map((l) => [l.name, l.owned])).toEqual([["Single Barrel", 3], ["Small Batch", 1], ["Yellow Label", 1]]);
     expect(s.badge).toBeNull();
     expect(s.lines).toEqual([]);
@@ -53,7 +53,7 @@ describe("2. an existing label chosen", () => {
     expect(s.state).toBe("existing-label");
     expect(s.lines).toEqual(["Your sixth Four Roses bottle", "Fourth Single Barrel"]);
     expect(s.labels.find((l) => l.chosen)).toMatchObject({ name: "Single Barrel", owned: 3, unsaved: 1 });
-    expect(s.summary).toBe("5 bottles from 3 Four Roses labels · 1 not saved");
+    expect(s.summary).toBe("5 bottles from Four Roses · 1 not saved");
   });
   it("counts a bottle already typed above it first", () => {
     const above = nb("d0", existing(FR, "Four Roses"), existing(1, "Single Barrel"));
@@ -129,7 +129,7 @@ describe("no brand", () => {
 describe("counts", () => {
   it("count a new row that has saved as on the shelf, though the sheet has not read it back, and not as not saved", () => {
     const s = shelf(draftRow("d1", existing(FR, "Four Roses"), null), { newBottles: [nb("d0", existing(FR, "Four Roses"), existing(1, "Single Barrel"), true)] });
-    expect(s.summary).toBe("6 bottles from 3 Four Roses labels");
+    expect(s.summary).toBe("6 bottles from Four Roses");
     expect(s.labels[0]).toMatchObject({ name: "Single Barrel", owned: 4, unsaved: 0 });
   });
   it("follow a bottle moved to another label", () => {

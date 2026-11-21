@@ -981,19 +981,18 @@ test("On your shelf: counts from the sheet's own rows, the next bottle's place, 
   const [b, l] = pairs[0]!;
   const ofBrand = pairs.filter(([x]) => x === b).length;
   const ofLabel = pairs.filter(([x, y]) => x === b && y === l).length;
-  const labelCount = new Set(pairs.filter(([x]) => x === b).map(([, y]) => y)).size;
 
   await cell(page, rows, brand).click();
   await expect.poll(() => shelfText(page)).toContain("Choose a brand");
   await page.keyboard.type(b);
   await page.keyboard.press("Tab");
-  await expect.poll(() => shelfText(page)).toContain(`${ofBrand} ${ofBrand === 1 ? "bottle" : "bottles"} from ${labelCount} ${b} ${labelCount === 1 ? "label" : "labels"}`);
+  await expect.poll(() => shelfText(page)).toContain(`${ofBrand} ${ofBrand === 1 ? "bottle" : "bottles"} from ${b}`);
   await page.keyboard.type(l);
   await page.keyboard.press("Tab");
   const chosen = await shelfText(page);
   expect(chosen).toContain(`Your ${ORDINALS[ofBrand + 1]} ${b} bottle`);
   expect(chosen).toContain(`${ORDINALS[ofLabel + 1]![0]!.toUpperCase()}${ORDINALS[ofLabel + 1]!.slice(1)} ${l}`);
-  expect(chosen).toMatch(/labels? · 1 not saved/); // the summary counts it, as does the label's own row
+  expect(chosen).toContain(`from ${b} · 1 not saved`); // the summary counts it, as does the label's own row
   expect(chosen).toContain("+ 1 not saved");
 
   // A filter that hides rows changes no count: the rail says just what it said.
@@ -1435,11 +1434,16 @@ test("Y, M and D are three narrow boxes under one Age caption, with the statemen
   const y = headers.indexOf("Y");
   expect(headers.slice(y, y + 4)).toEqual(["Y", "M", "D", "Age statement"]);
   await expect(sheet(page).locator("thead tr").nth(1)).toContainText("Age");
-  // They cannot be taken out of the Fields picker one by one, and there is no combined Age column.
+  // There is no combined Age column; one Age entry in the Fields picker takes the three out together, and the statement stays.
   expect(headers).not.toContain("Age");
   await fieldsButton(page).click();
-  await expect(page.getByRole("group", { name: "Values", exact: true }).getByLabel("Age", { exact: true })).toBeDisabled();
+  const age = page.getByRole("group", { name: "Values", exact: true }).getByLabel("Age", { exact: true });
+  await expect(age).toBeEnabled();
+  await age.click();
   await page.keyboard.press("Escape");
+  const after = (await sheet(page).locator("thead tr:last-child th").allTextContents()).map((t) => t.trim());
+  for (const h of ["Y", "M", "D"]) expect(after).not.toContain(h);
+  expect(after).toContain("Age statement");
 });
 
 test("years, months and days are typed in their own boxes, save, and clear with Delete", async ({ page }) => {
