@@ -126,6 +126,11 @@ test("after saving every card on a page, Next shows the items that came next, no
   await expect(page.getByText("8 saved just now")).toBeVisible();
   await page.getByRole("link", { name: "Next", exact: true }).click();
   await expect(names(page)).toHaveText(following);
+  // The next batch took the same offset; leaving it alone and pressing Next must still move on, not repeat it.
+  const remaining = LABELS - 8;
+  await expect(page.getByText(`1–8 of ${remaining}`)).toBeVisible();
+  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await expect(page.getByText(`9–${remaining} of ${remaining}`)).toBeVisible();
   LABELS -= 8;
 });
 

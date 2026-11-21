@@ -70,7 +70,8 @@ export function PhotosSection({
         <PerPageSelect per={per} options={PER_PAGE_OPTIONS} />
       </div>
 
-      <SavedCountProvider key={`${tab}-${per}-${window.offset}`}>
+      {/* Keyed by the batch itself: when every card is saved, Next lands on the same address, with new cards at the same offset. */}
+      <SavedCountProvider key={`${tab}-${per}-${window.offset}-${items.map((item) => item.key).join(",")}`}>
         {items.length === 0 ? (
           <p className="border border-border px-4 py-6 text-sm text-muted-foreground">Nothing left to photograph here.</p>
         ) : (
