@@ -138,3 +138,40 @@ test("Discard new row removes a started new row and leaves the saved ones alone"
   await expect(rows).toHaveCount(started - 1);
   expect(await inDatabase("Tamsin")).toEqual({ labels: 1, bottles: 1 });
 });
+
+// ---------------------------------------------------------------------------
+// From the review of this branch
+// ---------------------------------------------------------------------------
+
+test("a new row typed after another was discarded can still be saved", async ({ page }) => {
+  expect(await inDatabase("Tamsin")).toEqual({ labels: 1, bottles: 1 });
+  const brand = await col(page, "Brand");
+  const typeComplete = async () => {
+    await sheet(page).locator("tbody tr").last().locator("td").nth(brand).click();
+    await page.keyboard.type("Tz");
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("Tamsin");
+    await page.keyboard.press("Tab");
+  };
+  // A finished new row (an existing brand and label), discarded from the menu before the cursor leaves it.
+  await typeComplete();
+  await sheet(page).locator("tbody tr").nth(-2).locator("td").nth(brand).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Discard new row" }).click();
+  expect(await inDatabase("Tamsin")).toEqual({ labels: 1, bottles: 1 });
+  // The next row typed in the empty row at the bottom must save as any other does, even though it starts with the key the discarded one had.
+  await typeComplete();
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await expect.poll(() => inDatabase("Tamsin"), { timeout: 15000 }).toEqual({ labels: 1, bottles: 2 });
+});
+
+test("cancelling the delete dialog opened from the menu puts the cursor back on the cell", async ({ page }) => {
+  const cell = await labelCell(page, "Penhall");
+  const [r, c] = [Number(await cell.getAttribute("data-r")), Number(await cell.getAttribute("data-c"))];
+  await cell.click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: /Delete bottle/ }).click();
+  await expect(page.getByRole("dialog")).toContainText("Delete 1 bottle?");
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect.poll(() => active(page)).toEqual({ row: r, col: c });
+  expect(await inDatabase("Penhall")).toEqual({ labels: 1, bottles: 1 });
+});
