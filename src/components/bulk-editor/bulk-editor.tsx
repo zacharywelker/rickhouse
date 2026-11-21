@@ -10,6 +10,7 @@ import { useColumnWidths } from "@/components/bulk/use-column-widths";
 import { useHiddenColumns } from "@/components/bulk/use-hidden-columns";
 import { clampWidth } from "@/lib/bulk-editor/widths";
 import { Button } from "@/components/ui/button";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { abvToProof, proofToAbv } from "@/lib/bottles/proof";
 import type { FieldGroup } from "@/db/schema";
@@ -38,7 +39,8 @@ import {
 } from "@/lib/bulk-editor/sheet";
 import { cn, humanise } from "@/lib/utils";
 import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
-import { idsOfKeys } from "@/lib/bulk-editor/delete";
+import { idsOfKeys, type DeleteIds } from "@/lib/bulk-editor/delete";
+import { menuDeleteIds, rowMenuItems, type MenuItemId } from "@/lib/bulk-editor/row-menu";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 import { railFor } from "@/lib/bulk-editor/rail";
 import { shelfFor } from "@/lib/bulk-editor/shelf";
@@ -58,7 +60,8 @@ import { LinksEditor, type LinkOptions } from "./links-editor";
 import { PanelEditor } from "./panel-editor";
 import { FindBar } from "./find-bar";
 import { RailContent } from "./rail-panel";
-import { DeleteBar } from "./delete-bar";
+import { DeleteBar, DeleteDialog } from "./delete-bar";
+import { RowMenuContent } from "./row-menu";
 import type { ComboData, Editing, Finish } from "./types";
 import { EditNote } from "./edit-note";
 import { Notices, type Notice } from "./notices";
@@ -576,6 +579,10 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   /** Rows ticked for deleting, and rows deleted that the page has not yet been reloaded without. */
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set());
   const [deletedKeys, setDeletedKeys] = React.useState<ReadonlySet<string>>(new Set());
+  /** The row the right-click menu was opened on (by key, since the row can change or go while it is open), and a delete it has asked about. */
+  const [menuRowKey, setMenuRowKey] = React.useState<string | null>(null);
+  const [deleteAsk, setDeleteAsk] = React.useState<DeleteIds | null>(null);
+  const askedDelete = React.useRef(false);
   const toggleSelected = React.useCallback((key: string) => setSelected((prev) => { const next = new Set(prev); if (!next.delete(key)) next.add(key); return next; }), []);
   const [find, setFind] = React.useState<Find>(NO_FIND);
   const [touched, setTouched] = React.useState<ReadonlySet<string>>(new Set());
@@ -1795,6 +1802,66 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     setMoves((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !gone.has(key))));
     React.startTransition(() => router.refresh());
   }
+
+  // The right-click menu. It acts on the row that was clicked, found again by its key when an item is chosen: the row may have gone.
+  const menuTarget = () => (menuRowKey === null ? undefined : rows.find((r) => r.key === menuRowKey));
+  const menuRow = menuTarget();
+  const menuItems = menuRow
+    ? rowMenuItems(menuRow, view, { blank: menuRow.draft ? isBlank(allDrafts.find((d) => d.key === menuRow.key) ?? emptyDraft(menuRow.key), edits, pendingByRow.has(menuRow.key)) : false })
+    : [];
+  function onContextMenu(event: React.MouseEvent<HTMLTableSectionElement>) {
+    // While a cell is being edited the browser's menu stays (Paste); see the trigger's `disabled`.
+    if (editing) return;
+    const hit = cellOf(event.target);
+    const row = hit ? rows[hit.pos.row] : undefined;
+    if (!hit || !row) {
+      // Not on a cell: neither menu.
+      event.preventDefault();
+      return;
+    }
+    place(hit.pos);
+    setMenuRowKey(row.key);
+  }
+  /** Takes a new row that is not saved away, with everything typed into it. */
+  function discardDraft(key: string) {
+    if (saver.draftSaving(key)) return;
+    clearTimeout(linkTimers.current.get(key));
+    linkTimers.current.delete(key);
+    saver.forgetDeleted(new Set([key]));
+    setDrafts((prev) => prev.filter((d) => d.key !== key));
+    setEdits((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key)));
+    setMoves((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key)));
+    setPending((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k.split("\u0000")[0] !== key)));
+  }
+  const askDelete = (id: "deleteLabel" | "deleteBottle") => {
+    const row = menuTarget();
+    if (!row || row.draft || (id === "deleteBottle" && !row.bottle)) return;
+    askedDelete.current = true;
+    setDeleteAsk(menuDeleteIds(id, row));
+  };
+  const menuHandlers: Partial<Record<MenuItemId, () => void>> = {
+    deleteLabel: () => askDelete("deleteLabel"),
+    deleteBottle: () => askDelete("deleteBottle"),
+    discard: () => {
+      const row = menuTarget();
+      if (row?.draft) discardDraft(row.key);
+    },
+  };
+  /** The dialog the menu's delete items open has no trigger to return focus to, so it goes back to the cursor's cell. */
+  const deleteDialogCloseFocus = (event: Event) => {
+    event.preventDefault();
+    if (current) sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${current.row}"][data-c="${current.col}"]`)?.focus({ preventScroll: true });
+  };
+  const menuCloseFocus = (event: Event) => {
+    event.preventDefault();
+    // An item that opened the delete dialog leaves focus to the dialog.
+    if (askedDelete.current) {
+      askedDelete.current = false;
+      return;
+    }
+    if (current) sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${current.row}"][data-c="${current.col}"]`)?.focus({ preventScroll: true });
+  };
+
   // Editing a cell that belongs to the label changes every bottle on it; the rail says so as well as the cell.
   const railEditor = current && editing ? editorAt(current) : null;
   const railField = current ? VALUE_FIELD[columns[current.col]?.id ?? ""] : undefined;
@@ -1977,45 +2044,51 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
             })}
           </TableRow>
         </TableHeader>
-        <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onCopy={onCopy} onPaste={onPaste} onMouseDown={onMouseDown} onClick={onClick} onDoubleClick={onDoubleClick}>
-          {rows.map((row, rowIndex) => {
-            const isActiveRow = current?.row === rowIndex;
-            return (
-              <SheetRowView
-                key={row.key}
-                row={row}
-                rowIndex={rowIndex}
-                columns={columns}
-                view={view}
-                context={context}
-                rowEdits={edits[row.key]}
-                labelEdits={labelEditsOf(edits, row)}
-                unlocked={unlocked}
-                status={statusOf(row)}
-                flash={flashKey === row.key}
-                rangeFrom={range && rowIndex >= Math.min(range.anchor.row, range.end.row) && rowIndex <= Math.max(range.anchor.row, range.end.row) ? Math.min(range.anchor.col, range.end.col) : -1}
-                rangeTo={range && rowIndex >= Math.min(range.anchor.row, range.end.row) && rowIndex <= Math.max(range.anchor.row, range.end.row) ? Math.max(range.anchor.col, range.end.col) : -1}
-                selected={selected.has(row.key)}
-                onSelect={toggleSelected}
-                blockedColumn={blockedFor(row)?.column}
-                blockedShort={blockedFor(row)?.short}
-                blockedMessage={blockedFor(row) ? blockedLine(blockedFor(row)!) : undefined}
-                activeCol={isActiveRow ? current.col : -1}
-                editing={isActiveRow ? editing : null}
-                error={isActiveRow ? error : null}
-                combo={isActiveRow ? comboData : null}
-                linksNode={isActiveRow ? linksNode : null}
-                panelNode={isActiveRow ? panelNode : null}
-                pendingCols={pendingByRow.get(row.key)}
-                onFinish={isActiveRow ? finish : undefined}
-                onInvalid={isActiveRow ? setError : undefined}
-                onInput={isActiveRow && editing ? (value) => setInputChanged(value !== editing.original) : undefined}
-                scopeNote={isActiveRow && editing?.scope ? (row.draft ? `${row.draft.vintageName ?? "Vintage"} vintage (new) · 1 bottle` : noteText(editing.scope, row, context)) : null}
-                onStep={isActiveRow && editing?.scope && scopesFor(row, VALUE_FIELD[columns[current!.col]?.id ?? ""]).length > 1 ? stepScope : undefined}
-              />
-            );
-          })}
-        </TableBody>
+        <ContextMenu>
+          {/* While a cell editor is open the browser's own menu stays, so Paste is there. */}
+          <ContextMenuTrigger asChild disabled={editing !== null}>
+                <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onCopy={onCopy} onPaste={onPaste} onMouseDown={onMouseDown} onClick={onClick} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
+                  {rows.map((row, rowIndex) => {
+                    const isActiveRow = current?.row === rowIndex;
+                    return (
+                      <SheetRowView
+                        key={row.key}
+                        row={row}
+                        rowIndex={rowIndex}
+                        columns={columns}
+                        view={view}
+                        context={context}
+                        rowEdits={edits[row.key]}
+                        labelEdits={labelEditsOf(edits, row)}
+                        unlocked={unlocked}
+                        status={statusOf(row)}
+                        flash={flashKey === row.key}
+                        rangeFrom={range && rowIndex >= Math.min(range.anchor.row, range.end.row) && rowIndex <= Math.max(range.anchor.row, range.end.row) ? Math.min(range.anchor.col, range.end.col) : -1}
+                        rangeTo={range && rowIndex >= Math.min(range.anchor.row, range.end.row) && rowIndex <= Math.max(range.anchor.row, range.end.row) ? Math.max(range.anchor.col, range.end.col) : -1}
+                        selected={selected.has(row.key)}
+                        onSelect={toggleSelected}
+                        blockedColumn={blockedFor(row)?.column}
+                        blockedShort={blockedFor(row)?.short}
+                        blockedMessage={blockedFor(row) ? blockedLine(blockedFor(row)!) : undefined}
+                        activeCol={isActiveRow ? current.col : -1}
+                        editing={isActiveRow ? editing : null}
+                        error={isActiveRow ? error : null}
+                        combo={isActiveRow ? comboData : null}
+                        linksNode={isActiveRow ? linksNode : null}
+                        panelNode={isActiveRow ? panelNode : null}
+                        pendingCols={pendingByRow.get(row.key)}
+                        onFinish={isActiveRow ? finish : undefined}
+                        onInvalid={isActiveRow ? setError : undefined}
+                        onInput={isActiveRow && editing ? (value) => setInputChanged(value !== editing.original) : undefined}
+                        scopeNote={isActiveRow && editing?.scope ? (row.draft ? `${row.draft.vintageName ?? "Vintage"} vintage (new) · 1 bottle` : noteText(editing.scope, row, context)) : null}
+                        onStep={isActiveRow && editing?.scope && scopesFor(row, VALUE_FIELD[columns[current!.col]?.id ?? ""]).length > 1 ? stepScope : undefined}
+                      />
+                    );
+                  })}
+                </TableBody>
+          </ContextMenuTrigger>
+          <RowMenuContent items={menuItems} handlers={menuHandlers} onCloseAutoFocus={menuCloseFocus} />
+        </ContextMenu>
       </Table>
         {/* The Details pane lies over the right edge of the sheet's scroll box, stopping short of its scrollbars. Display only, and not a live region (it changes on every cell move). Clicks in it are not clicks away from the sheet. */}
         <aside data-bulk-editor-panel="" aria-label="Row details" className="pointer-events-none absolute bottom-[var(--sbh,0px)] right-[var(--sbw,0px)] top-0 z-20 hidden md:block">
@@ -2048,6 +2121,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground md:hidden">
         <Shortcuts />
       </p>
+      <DeleteDialog onCloseAutoFocus={deleteDialogCloseFocus} open={deleteAsk !== null} onOpenChange={(open) => { if (!open) setDeleteAsk(null); }} ids={deleteAsk ?? { labelIds: [], bottleIds: [] }} onDone={afterDelete} />
       {/* Present before anything is in it, so a screen reader announces the text when it appears. It never takes focus. */}
       <div aria-live="polite" aria-atomic="false" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
         <Notices notices={notices} onDismiss={dismissNotice} />
