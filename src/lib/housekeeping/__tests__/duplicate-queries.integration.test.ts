@@ -153,6 +153,8 @@ describe.skipIf(!url)("duplicate candidates against a real database", () => {
     expect(pair!.a.detail).toBe("Frankfort");
     expect(pair!.a.uses).toBe(2);
     expect(pair!.b.uses).toBe(1);
+    // A distillery with no place of its own is not described by the column's default country.
+    expect(pair!.b.detail).toBe("");
     expect(pair!.a.fields).toMatchObject({ city: "Frankfort" });
     expect(pair!.b.fields).toMatchObject({ city: null });
   });

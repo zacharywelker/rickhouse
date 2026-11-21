@@ -5,6 +5,7 @@ import { PerPageSelect } from "@/components/housekeeping/per-page-select";
 import { PhotoPager } from "@/components/housekeeping/photo-pager";
 import { SavedCountProvider } from "@/components/housekeeping/saved-count";
 import { Section, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
+import type { DuplicateKind } from "@/lib/housekeeping/duplicate-kinds";
 import { PER_PAGE_OPTIONS, PHOTO_TABS, photoHref, type PhotoTab } from "@/lib/housekeeping/photo-params";
 import type { MissingPhoto } from "@/lib/housekeeping/photo-queries";
 import { cn } from "@/lib/utils";
@@ -25,12 +26,15 @@ export function PhotosSection({
   counts,
   items,
   window,
+  dup,
 }: {
   tab: PhotoTab;
   per: number;
   counts: Record<PhotoTab, number>;
   items: MissingPhoto[];
   window: { offset: number; from: number; to: number; hasPrev: boolean; hasNext: boolean };
+  /** The Duplicates tab, carried in every link so this section never resets that one. */
+  dup?: DuplicateKind;
 }) {
   const total = counts[tab];
   return (
@@ -48,7 +52,7 @@ export function PhotosSection({
           return (
             <Link
               key={key}
-              href={photoHref(key, per, 0) as Route}
+              href={photoHref(key, per, 0, dup) as Route}
               aria-current={current ? "page" : undefined}
               className={cn(
                 "-mb-px border-b-2 px-3 py-2 text-sm",
@@ -81,7 +85,7 @@ export function PhotosSection({
             ))}
           </div>
         )}
-        <PhotoPager tab={tab} per={per} total={total} window={window} />
+        <PhotoPager tab={tab} per={per} total={total} window={window} dup={dup} />
       </SavedCountProvider>
     </Section>
   );

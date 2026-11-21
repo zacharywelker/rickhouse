@@ -21,7 +21,7 @@ import {
   tags,
 } from "@/db/schema";
 import { describeMashbill, mashbillTitle, recipeKey } from "@/lib/mashbills";
-import { formatPlace, normalizeLocation } from "@/lib/places";
+import { formatPlace, HOME_COUNTRY, normalizeLocation } from "@/lib/places";
 import { ADOPTABLE } from "./adoption";
 import { duplicateScope, listDismissed, pairKey } from "./dismissals";
 import { DUPLICATE_KINDS, type DuplicateKind } from "./duplicate-kinds";
@@ -52,6 +52,10 @@ type Loaded = {
   row: Record<string, unknown>;
 };
 
+/** A place for display. The default country alone says nothing, so a row with no city or state shows no place. */
+const placeText = (row: { city?: string | null; state?: string | null; country?: string | null }) =>
+  !row.city && !row.state && (!row.country || row.country === HOME_COUNTRY) ? "" : (formatPlace(row) ?? "");
+
 const usesMap = (rows: Array<{ id: number | null; n: number }>) =>
   new Map(rows.flatMap((row) => (row.id === null ? [] : [[row.id, row.n] as const])));
 
@@ -79,7 +83,7 @@ async function load(ownerId: number, kind: DuplicateKind): Promise<Loaded[]> {
           .where(eq(distilleries.ownerId, ownerId))
           .groupBy(expressionDistilleries.distilleryId),
       );
-      return rows.map((row) => ({ id: row.id, name: row.name, detail: formatPlace(row) ?? "", uses: uses.get(row.id) ?? 0, row: { ...row } }));
+      return rows.map((row) => ({ id: row.id, name: row.name, detail: placeText(row), uses: uses.get(row.id) ?? 0, row: { ...row } }));
     }
     case "companies": {
       const rows = await db.select().from(companies).where(eq(companies.ownerId, ownerId));
@@ -90,7 +94,7 @@ async function load(ownerId: number, kind: DuplicateKind): Promise<Loaded[]> {
       return rows.map((row) => ({
         id: row.id,
         name: row.name,
-        detail: formatPlace(row) ?? "",
+        detail: placeText(row),
         uses: (byBrand.get(row.id) ?? 0) + (byDistillery.get(row.id) ?? 0),
         row: { ...row },
       }));
@@ -166,7 +170,7 @@ async function load(ownerId: number, kind: DuplicateKind): Promise<Loaded[]> {
         // Unknown when there is no city or state; the same name in two known places is two stores.
         const location = normalizeLocation(row);
         const place = location.city || location.state ? [location.city, location.state, location.country].map((part) => (part ?? "").toLowerCase()).join("|") : null;
-        return { id: row.id, name: row.name, place, detail: row.isOnline ? "Online" : (formatPlace(row) ?? ""), uses: uses.get(row.id) ?? 0, row: { ...row } };
+        return { id: row.id, name: row.name, place, detail: row.isOnline ? "Online" : placeText(row), uses: uses.get(row.id) ?? 0, row: { ...row } };
       });
     }
     case "tags": {
