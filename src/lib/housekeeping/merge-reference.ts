@@ -9,7 +9,10 @@ import {
   companies,
   cooperages,
   distilleries,
+  distilleryNames,
+  expressionDistilleries,
   expressionIngredients,
+  expressionMashbills,
   expressions,
   finishes,
   groups,
@@ -155,7 +158,38 @@ const HANDLERS: Record<DuplicateKind, Handler> = {
       await tx.delete(expressionIngredients).where(eq(expressionIngredients.ingredientId, removedId));
     },
   },
-  distilleries: unavailable,
+  distilleries: {
+    count: async (ex, ownerId, removedId) =>
+      nonZero([
+        ["labels", await countOf(ex, expressionDistilleries, eq(expressionDistilleries.distilleryId, removedId))],
+        ["mashbill links", await countOf(ex, expressionMashbills, eq(expressionMashbills.distilleryId, removedId))],
+        ["other names", await countOf(ex, distilleryNames, eq(distilleryNames.distilleryId, removedId))],
+      ]),
+    relink: async (tx, _ownerId, survivorId, removedId) => {
+      // A label that already has the survivor keeps that row; the rest move, keeping their "inferred" flag.
+      await tx.execute(
+        sql`insert into expression_distilleries (expression_id, distillery_id, position, share_pct, is_inferred)
+            select expression_id, ${survivorId}, position, share_pct, is_inferred from expression_distilleries where distillery_id = ${removedId}
+            on conflict do nothing`,
+      );
+      await tx.delete(expressionDistilleries).where(eq(expressionDistilleries.distilleryId, removedId));
+      await tx.update(expressionMashbills).set({ distilleryId: survivorId }).where(eq(expressionMashbills.distilleryId, removedId));
+      // The removed distillery's other names, minus any the survivor already has or answers to as its own name,
+      // then the removed distillery's own name, so an import or a search still finds it.
+      await tx.execute(
+        sql`insert into distillery_names (distillery_id, name, year_from, year_to, position)
+            select ${survivorId}, name, year_from, year_to, position from distillery_names
+            where distillery_id = ${removedId} and name <> (select name from distilleries where id = ${survivorId})
+            on conflict do nothing`,
+      );
+      await tx.execute(
+        sql`insert into distillery_names (distillery_id, name, position)
+            select ${survivorId}, name, (select coalesce(max(position), -1) + 1 from distillery_names where distillery_id = ${survivorId})
+            from distilleries where id = ${removedId}
+            on conflict do nothing`,
+      );
+    },
+  },
   finishes: unavailable,
   mashbills: unavailable,
 };

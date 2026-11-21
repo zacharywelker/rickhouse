@@ -8,12 +8,16 @@ import {
   companies,
   cooperages,
   distilleries,
+  distilleryNames,
+  expressionDistilleries,
   expressionIngredients,
+  expressionMashbills,
   expressions,
   groups,
   housekeepingDismissals,
   housekeepingMerges,
   ingredients,
+  mashbills,
   stores,
   tags,
   users,
@@ -49,7 +53,7 @@ describe.skipIf(!url)("merging reference rows against a real database", () => {
   let n = 0;
   const mine = {
     brands: [] as number[], labels: [] as number[], stores: [] as number[], bottles: [] as number[], tags: [] as number[],
-    companies: [] as number[], cooperages: [] as number[], ingredients: [] as number[], groups: [] as number[], distilleries: [] as number[],
+    companies: [] as number[], cooperages: [] as number[], ingredients: [] as number[], groups: [] as number[], distilleries: [] as number[], mashbills: [] as number[],
   };
   const name = (base: string) => `${base} ${++n}`;
   const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -111,6 +115,7 @@ describe.skipIf(!url)("merging reference rows against a real database", () => {
     if (mine.bottles.length) await db.delete(bottles).where(inArray(bottles.id, mine.bottles));
     if (mine.labels.length) await db.delete(expressions).where(inArray(expressions.id, mine.labels));
     if (mine.distilleries.length) await db.delete(distilleries).where(inArray(distilleries.id, mine.distilleries));
+    if (mine.mashbills.length) await db.delete(mashbills).where(inArray(mashbills.id, mine.mashbills));
     if (mine.brands.length) await db.delete(brands).where(inArray(brands.id, mine.brands));
     if (mine.stores.length) await db.delete(stores).where(inArray(stores.id, mine.stores));
     if (mine.tags.length) await db.delete(tags).where(inArray(tags.id, mine.tags));
@@ -259,6 +264,66 @@ describe.skipIf(!url)("merging reference rows against a real database", () => {
       const b = await ingredient("distillate", name("Agave"));
       await expect(m.mergeReference(owner, "ingredients", a.id, b.id, [])).rejects.toMatchObject({ code: "blocked" });
       expect((await db.select().from(ingredients).where(eq(ingredients.id, b.id))).length).toBe(1);
+    });
+  });
+
+
+  describe("distilleries", () => {
+    const distillery = async (extra: Partial<typeof distilleries.$inferInsert> = {}) => {
+      const value = name("Distillery");
+      const [row] = await db.insert(distilleries).values({ ownerId: owner, name: value, slug: slug(value), ...extra }).returning();
+      mine.distilleries.push(row!.id);
+      return row!;
+    };
+
+    it("moves labels, mashbill links and other names, keeps the survivor's row on a label that had both, and keeps the removed name as another name", async () => {
+      const survivor = await distillery({ city: null });
+      const removed = await distillery({ city: "Bardstown" });
+      await db.insert(distilleryNames).values([
+        { distilleryId: removed.id, name: "Old Name", position: 0 },
+        { distilleryId: removed.id, name: "Shared Name", position: 1 },
+      ]);
+      await db.insert(distilleryNames).values({ distilleryId: survivor.id, name: "Shared Name", position: 0 });
+      const b = await brand();
+      const onlyRemoved = await label(b.id);
+      const both = await label(b.id);
+      await db.insert(expressionDistilleries).values([
+        { expressionId: onlyRemoved.id, distilleryId: removed.id, position: 2, isInferred: true },
+        { expressionId: both.id, distilleryId: survivor.id, position: 0 },
+        { expressionId: both.id, distilleryId: removed.id, position: 1 },
+      ]);
+      const [mb] = await db.insert(mashbills).values({ ownerId: owner }).returning();
+      mine.mashbills.push(mb!.id);
+      await db.insert(expressionMashbills).values({ expressionId: both.id, mashbillId: mb!.id, distilleryId: removed.id });
+      const [g] = await db.insert(groups).values({ ownerId: owner, name: name("Group"), slug: slug(name("group")), filterQuery: `distillery=${removed.id}` }).returning();
+      mine.groups.push(g!.id);
+
+      const summary = await m.mergeReference(owner, "distilleries", survivor.id, removed.id, ["city"]);
+
+      const links = await db.select().from(expressionDistilleries).where(inArray(expressionDistilleries.expressionId, [onlyRemoved.id, both.id]));
+      expect(links.map((row) => `${row.expressionId}:${row.distilleryId}:${row.position}:${row.isInferred}`).sort()).toEqual(
+        [`${onlyRemoved.id}:${survivor.id}:2:true`, `${both.id}:${survivor.id}:0:false`].sort(),
+      );
+      expect((await db.select().from(expressionMashbills).where(eq(expressionMashbills.expressionId, both.id)))[0]!.distilleryId).toBe(survivor.id);
+      const names = (await db.select().from(distilleryNames).where(eq(distilleryNames.distilleryId, survivor.id))).map((row) => row.name).sort();
+      expect(names).toEqual(["Old Name", removed.name, "Shared Name"].sort());
+      expect((await db.select().from(distilleries).where(eq(distilleries.id, removed.id))).length).toBe(0);
+      expect((await db.select().from(distilleries).where(eq(distilleries.id, survivor.id)))[0]!.city).toBe("Bardstown");
+      expect((await db.select().from(groups).where(eq(groups.id, g!.id)))[0]!.filterQuery).toBe(`distillery=${survivor.id}`);
+      expect(moved(summary, "labels")).toBe(2);
+      expect(moved(summary, "mashbill links")).toBe(1);
+      expect(moved(summary, "other names")).toBe(2);
+      expect(moved(summary, "smart groups")).toBe(1);
+      expect(summary.adopted).toEqual(["city"]);
+    });
+
+    it("does not list the removed name twice when the survivor already has it as another name", async () => {
+      const survivor = await distillery();
+      const removed = await distillery();
+      await db.insert(distilleryNames).values({ distilleryId: survivor.id, name: removed.name, position: 0 });
+      await m.mergeReference(owner, "distilleries", survivor.id, removed.id, []);
+      const names = await db.select().from(distilleryNames).where(eq(distilleryNames.distilleryId, survivor.id));
+      expect(names.map((row) => row.name)).toEqual([removed.name]);
     });
   });
 
