@@ -1369,3 +1369,51 @@ export const tournamentHeatEntries = pgTable(
     uniqueIndex("tournament_heat_entries_glass_unique").on(t.heatId, t.glass).where(sql`${t.glass} IS NOT NULL`),
   ],
 );
+
+// ------------------------------------------------------------
+// Housekeeping
+// ------------------------------------------------------------
+
+/**
+ * What the owner decided on the Housekeeping page, so a question is not asked again. `scope` names the question
+ * ('duplicate:brands', later 'ttb' and 'gap:...'); `key` names the thing ('3:9' for a pair, an id for a record).
+ */
+export const housekeepingDismissals = pgTable(
+  "housekeeping_dismissals",
+  {
+    id: serial("id").primaryKey(),
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull(),
+    key: text("key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("housekeeping_dismissals_unique").on(t.ownerId, t.scope, t.key),
+    index("housekeeping_dismissals_owner_scope_idx").on(t.ownerId, t.scope),
+  ],
+);
+
+/**
+ * A record of each merge: what was kept, what was removed, what moved. A merge cannot be undone; this is what a
+ * mistaken one is repaired from. Names are copied because the removed row is gone.
+ */
+export const housekeepingMerges = pgTable(
+  "housekeeping_merges",
+  {
+    id: serial("id").primaryKey(),
+    ownerId: integer("owner_id")
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    survivorId: integer("survivor_id").notNull(),
+    survivorName: text("survivor_name").notNull(),
+    removedId: integer("removed_id").notNull(),
+    removedName: text("removed_name").notNull(),
+    moved: jsonb("moved").$type<Array<{ label: string; count: number }>>().notNull().default(sql`'[]'::jsonb`),
+    adopted: jsonb("adopted").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("housekeeping_merges_owner_idx").on(t.ownerId, t.createdAt.desc())],
+);
