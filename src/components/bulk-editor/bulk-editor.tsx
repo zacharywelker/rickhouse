@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import type { Route } from "next";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { Check, Circle, CircleAlert, Lock, LoaderCircle } from "lucide-react";
 import { ArrowDown, ArrowUp, PanelRightClose, PanelRightOpen } from "lucide-react";
@@ -15,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { abvToProof, proofToAbv } from "@/lib/bottles/proof";
 import type { FieldGroup } from "@/db/schema";
 import {
-  brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, isBlank, labelCandidates, withBlankRow, withBrand, withCategory, withLabel,
+  brandCandidates, categoryCandidates, draftSheetRow, emptyDraft, insertionDraft, isBlank, labelCandidates, orderRows, withBlankRow, withBrand, withCategory, withLabel,
   type CategoryChoice, type DraftRow,
 } from "@/lib/bulk-editor/drafts";
 import { applyVintageEdits, arrange, editKey, withDraftVintages, labelEditsOf, moveCandidates, setMove, type Moves } from "@/lib/bulk-editor/changes";
@@ -38,8 +39,12 @@ import {
   type SheetVintage,
 } from "@/lib/bulk-editor/sheet";
 import { cn, humanise } from "@/lib/utils";
-import { blockedLine, draftNeeds, draftTitle, noticeText, type Blocked } from "@/lib/bulk-editor/save";
+import { blockedLine, draftNeeds, draftTitle, nextDraftKey, noticeText, type Blocked } from "@/lib/bulk-editor/save";
 import { idsOfKeys, type DeleteIds } from "@/lib/bulk-editor/delete";
+import { quickCreateAction } from "@/app/(app)/admin/actions";
+import { expandPrefill, expandSteps, expandStepsForDraft } from "@/lib/bulk-editor/expand";
+import { clearPrefill, writePrefill } from "@/lib/popup/prefill";
+import { chain, POPUP_SAVED_EVENT, type PopupSaved } from "@/lib/bulk-editor/popup-nav";
 import { menuDeleteIds, rowMenuItems, type MenuItemId } from "@/lib/bulk-editor/row-menu";
 import type { DeleteOutcome } from "@/lib/bulk-editor/rows";
 import { railFor } from "@/lib/bulk-editor/rail";
@@ -54,7 +59,7 @@ import { patchBottleRowAction, patchLabelRowAction } from "@/app/(wide)/bulk-edi
 import { columnFor, defaultScope, nextScope, noteText, scopeSentence, scopesFor } from "@/lib/bulk-editor/scope";
 import { platformKeyName } from "@/lib/platform";
 import { copyValue } from "@/lib/bulk-editor/value-cells";
-import { EXISTING_LABEL_REQUIRES_BOTTLES, pastedDraftConflict, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
+import { EXISTING_LABEL_REQUIRES_BOTTLES, linesForNewRows, pastedDraftConflict, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
 import { ComboEditor } from "./combo-editor";
 import { LinksEditor, type LinkOptions } from "./links-editor";
 import { PanelEditor } from "./panel-editor";
@@ -629,6 +634,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   // New rows: typed into the empty row at the bottom. Only the ones that have been started are kept here; the empty
   // one is made fresh each time (see `withBlankRow`).
   const [drafts, setDrafts] = React.useState<DraftRow[]>([]);
+  /** New rows being expanded in the popup (see `useRowSaver`'s `held`). */
+  const [held, setHeld] = React.useState<ReadonlySet<string>>(new Set());
   const editingDraft = React.useRef<string | null>(null);
   /** Bottles that have just been given a status that takes them off the shelf: said once, so the row going is not a surprise. */
   const [gone, setGone] = React.useState<Array<{ key: string; text: string; jump?: boolean }>>([]);
@@ -694,6 +701,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     setMoves,
     setDrafts,
     onLanded: touch,
+    held,
     onLeftShelf: leftShelf,
     onLabelCreated: (labelId) => createdLabels.current.add(labelId),
     onMoved: (key, moved) => {
@@ -714,7 +722,12 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   // after it: for a moment both would be there, and a cursor on the row below would land on the wrong one.
   const savedKeys = React.useMemo(() => new Set(savedRows.map((r) => r.key)), [savedRows]);
   const rowsFor = React.useCallback(
-    (list: DraftRow[]) => [...savedRows, ...withDraftVintages(list.filter((d) => !(createdAs[d.key] && savedKeys.has(createdAs[d.key]!))).map((draft) => draftSheetRow(draft, draftContext)), edits)],
+    (list: DraftRow[]) => {
+      const shown = list.filter((d) => !(createdAs[d.key] && savedKeys.has(createdAs[d.key]!)));
+      const draftRows = withDraftVintages(shown.map((draft) => draftSheetRow(draft, draftContext)), edits);
+      // New rows follow the saved ones, except one inserted below another, which sits directly under it (see `orderRows`).
+      return orderRows(savedRows, draftRows.map((row, i) => ({ row, after: shown[i]!.insertAfter })));
+    },
     [savedRows, savedKeys, createdAs, draftContext, edits],
   );
   const rows = React.useMemo(() => rowsFor(allDrafts), [rowsFor, allDrafts]);
@@ -1435,8 +1448,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     // Lines that land on a new row, or past the last row, become new rows.
     let added = 0;
     if (!(range && single)) {
-      const newStart = Math.max(0, rows.findIndex((r) => r.draft));
-      const lines = grid.map((cells, i) => ({ cells, rowIndex: at.row + i })).filter((l) => l.rowIndex >= newStart).map((l) => l.cells);
+      const lines = linesForNewRows(rows, at.row, grid.length).map((i) => grid[i]!);
       if (lines.length > 0) {
         const made = makeNewRows(lines.slice(0, MAX_NEW_ROWS), at.col, today, skipped);
         added = made.rows;
@@ -1807,7 +1819,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   const menuTarget = () => (menuRowKey === null ? undefined : rows.find((r) => r.key === menuRowKey));
   const menuRow = menuTarget();
   const menuItems = menuRow
-    ? rowMenuItems(menuRow, view, { blank: menuRow.draft ? isBlank(allDrafts.find((d) => d.key === menuRow.key) ?? emptyDraft(menuRow.key), edits, pendingByRow.has(menuRow.key)) : false })
+    ? rowMenuItems(menuRow, view, { blank: menuRow.draft !== undefined && !drafts.some((d) => d.key === menuRow.key) })
     : [];
   function onContextMenu(event: React.MouseEvent<HTMLTableSectionElement>) {
     // While a cell is being edited the browser's menu stays (Paste); see the trigger's `disabled`.
@@ -1821,6 +1833,13 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     }
     place(hit.pos);
     setMenuRowKey(row.key);
+  }
+  // A touch or pen long-press opens the menu without a contextmenu event, so the row is taken from the press itself.
+  function onPointerDown(event: React.PointerEvent<HTMLTableSectionElement>) {
+    if (event.pointerType === "mouse" || editing) return;
+    const hit = cellOf(event.target);
+    const row = hit ? rows[hit.pos.row] : undefined;
+    if (row) setMenuRowKey(row.key);
   }
   /** Takes a new row that is not saved away, with everything typed into it. */
   function discardDraft(key: string) {
@@ -1839,7 +1858,101 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     askedDelete.current = true;
     setDeleteAsk(menuDeleteIds(id, row));
   };
+  /** A new row directly below the clicked one, starting with its brand (and label), and the cursor on its first empty cell that can be typed in. */
+  function insertBelow() {
+    const source = menuTarget();
+    if (!source) return;
+    const key = nextDraftKey(drafts, keyFloor);
+    // Reserved like every other new row's key: a key given out again after its row was discarded would be one the saver treats as gone.
+    keepKeys(key);
+    const made = insertionDraft(key, source, view, source.draft ? drafts.find((d) => d.key === source.key) : undefined);
+    const nextDrafts = [...drafts, made];
+    const nextRows = rowsFor(withBlankRow(nextDrafts, keyFloor));
+    setDrafts(nextDrafts);
+    const at = nextRows.findIndex((r) => r.key === key);
+    if (at < 0) return;
+    const empty = columns.findIndex((_, col) => {
+      const editor = editorIn(nextRows, { row: at, col });
+      return editor !== null && editor.initial(nextRows[at]!) === "";
+    });
+    const col = empty >= 0 ? empty : Math.max(0, columns.findIndex((c) => c.id === "name"));
+    go({ pos: { row: at, col }, anchorCol: col }, nextRows);
+  }
+  /** Opens one of the app's real pages in the popup over the sheet (the `@modal` slot renders it). */
+  const openPopup = (url: string) => router.push(url as Route);
+  /**
+   * Expand record on a saved row: what is waiting to be saved on it is saved first (the popup reads the database, so it
+   * would show old values and its own save would clash with the cells still waiting), and if that fails the popup does
+   * not open: the failure is already on the cell.
+   */
+  async function expandRow() {
+    const row = menuTarget();
+    if (row?.draft) {
+      await expandDraft(row);
+      return;
+    }
+    const steps = row && !row.draft ? expandSteps(row, view) : null;
+    if (!row || !steps) return;
+    const keys = [row.key, `l${row.label.id}`, vintageKeyOf(row)].filter((key): key is string => Boolean(key));
+    for (const key of keys) {
+      if (Object.keys(edits[key] ?? {}).length === 0 && moves[key] === undefined) continue;
+      if ((await saver.settle(key))?.kind === "blocked") return;
+    }
+    openPopup(chain(steps));
+  }
+  /**
+   * Expand record on a new row: its typed values go to the real form through the prefill, and the row is held back from
+   * saving until the popup is over (the popup takes focus, which would otherwise save a finished row behind its back). A
+   * brand that does not exist yet is made first, as the Brand picker's own "create" would.
+   */
+  async function expandDraft(row: SheetRow) {
+    const draft = allDrafts.find((d) => d.key === row.key);
+    if (!draft) return;
+    if (saver.draftSaving(draft.key)) {
+      pushNotice("This row is saving. Try again in a moment.");
+      return;
+    }
+    const prefill = expandPrefill(draft, edits[draft.key], pendingByRow.get(draft.key), view);
+    let target = draft;
+    if (prefill.newBrand !== null) {
+      const made = await quickCreateAction("brands", prefill.newBrand);
+      if (!made.ok) {
+        pushNotice(`Could not make the brand "${prefill.newBrand}": ${made.error}`);
+        return;
+      }
+      prefill.label.brandId = Number(made.option.value);
+      const brand = { kind: "existing" as const, id: Number(made.option.value), name: made.option.label };
+      // The row now names a brand that exists; its label and category are its own and stay.
+      if (draft.brand?.kind === "new") {
+        target = { ...draft, brand };
+        setDrafts((prev) => prev.map((d) => (d.key === draft.key ? { ...d, brand } : d)));
+      }
+      prefill.newBrand = null;
+    }
+    const token = writePrefill(prefill);
+    const steps = expandStepsForDraft(target, view, token);
+    if (!steps) {
+      clearPrefill(token);
+      return;
+    }
+    // What was typed there is gone once the form saves and the row is replaced, so say so before the form opens.
+    if (prefill.dropped.length > 0) pushNotice(`Not carried into the form: ${prefill.dropped.join(", ")}. Add them there, or cancel and switch the view; they are lost once it saves.`);
+    heldRef.current = { key: draft.key, token };
+    heldAway.current = false;
+    setHeld((prev) => new Set(prev).add(draft.key));
+    openPopup(chain(steps));
+  }
   const menuHandlers: Partial<Record<MenuItemId, () => void>> = {
+    expand: () => void expandRow(),
+    insert: insertBelow,
+    duplicateLabel: () => {
+      const row = menuTarget();
+      if (row && !row.draft) openPopup(`/expressions/new?duplicate=${row.label.id}`);
+    },
+    duplicateBottle: () => {
+      const row = menuTarget();
+      if (row?.bottle && !row.draft) openPopup(`/bottles/new?duplicate=${row.bottle.id}`);
+    },
     deleteLabel: () => askDelete("deleteLabel"),
     deleteBottle: () => askDelete("deleteBottle"),
     discard: () => {
@@ -1847,6 +1960,65 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       if (row?.draft) discardDraft(row.key);
     },
   };
+  // A new row being expanded: held back from saving while its popup is open, and let go (or replaced by what the popup made) when it is over.
+  const pathname = usePathname();
+  const heldRef = React.useRef<{ key: string; token: string } | null>(null);
+  /** The popup's url has been seen since the hold began, so being back on the sheet means it is over. */
+  const heldAway = React.useRef(false);
+  const releaseHeld = React.useCallback((): string | null => {
+    const now = heldRef.current;
+    if (!now) return null;
+    heldRef.current = null;
+    heldAway.current = false;
+    clearPrefill(now.token);
+    setHeld((prev) => {
+      const next = new Set(prev);
+      next.delete(now.key);
+      return next;
+    });
+    return now.key;
+  }, []);
+  const onHeldSaved = React.useRef<() => void>(() => {});
+  React.useLayoutEffect(() => {
+    onHeldSaved.current = () => {
+      const key = releaseHeld();
+      if (key) discardDraft(key);
+    };
+  });
+  // Back on the sheet without a save having been reported: the popup was cancelled, and the row is as it was.
+  React.useEffect(() => {
+    const now = heldRef.current;
+    if (!now) return;
+    // A ref written from an effect, which is what it is for: no render depends on it.
+    // eslint-disable-next-line react-hooks/immutability
+    if (pathname !== "/bulk-editor") heldAway.current = true;
+    else if (heldAway.current) releaseHeld();
+  }, [pathname, releaseHeld]);
+
+  // The popup over the sheet saved a label or a bottle: once the reloaded data has it, keep it on screen, flash it and scroll to it.
+  const popupLanded = React.useRef<PopupSaved | null>(null);
+  React.useEffect(() => {
+    const onSaved = (event: Event) => {
+      const saved = (event as CustomEvent<PopupSaved>).detail;
+      if (!saved || (saved.bottleId === undefined && saved.labelId === undefined)) return;
+      // The popup made what a new row was for: the row is replaced by the saved one.
+      onHeldSaved.current();
+      popupLanded.current = saved;
+      // A label's id keeps every row of that label from being filtered out, a bottle's keeps just that row.
+      setTouched((prev) => new Set(prev).add(saved.bottleId !== undefined ? `b${saved.bottleId}` : `l${saved.labelId}`));
+    };
+    window.addEventListener(POPUP_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(POPUP_SAVED_EVENT, onSaved);
+  }, []);
+  React.useEffect(() => {
+    const saved = popupLanded.current;
+    if (!saved) return;
+    const at = rows.findIndex((r) => !r.draft && (saved.bottleId !== undefined ? r.key === `b${saved.bottleId}` : r.label.id === saved.labelId));
+    if (at < 0) return;
+    popupLanded.current = null;
+    flashRow(rows[at]!.key);
+    sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${at}"]`)?.scrollIntoView({ block: "center", inline: "nearest" });
+  }, [rows]);
   /** The dialog the menu's delete items open has no trigger to return focus to, so it goes back to the cursor's cell. */
   const deleteDialogCloseFocus = (event: Event) => {
     event.preventDefault();
@@ -2044,10 +2216,11 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
             })}
           </TableRow>
         </TableHeader>
-        <ContextMenu>
+        {/* The row is forgotten when the menu closes, so a menu can never open on an earlier row's items. */}
+        <ContextMenu onOpenChange={(open) => { if (!open) setMenuRowKey(null); }}>
           {/* While a cell editor is open the browser's own menu stays, so Paste is there. */}
           <ContextMenuTrigger asChild disabled={editing !== null}>
-                <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onCopy={onCopy} onPaste={onPaste} onMouseDown={onMouseDown} onClick={onClick} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
+                <TableBody onKeyDown={onKeyDown} onFocus={onFocus} onCopy={onCopy} onPaste={onPaste} onMouseDown={onMouseDown} onClick={onClick} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu} onPointerDown={onPointerDown}>
                   {rows.map((row, rowIndex) => {
                     const isActiveRow = current?.row === rowIndex;
                     return (

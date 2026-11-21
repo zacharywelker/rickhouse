@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Inferred } from "@/components/ui/inferred";
 import { initialFieldValues } from "@/components/forms/field";
+import { usePopup } from "@/components/popup/popup";
+import { usePrefill } from "@/components/popup/use-prefill";
 import {
   EMPTY_LINKS,
   ExpressionFields,
@@ -97,6 +99,7 @@ export function CatalogBottle({
   labelDates: Record<number, LabelDates>;
 }) {
   const router = useRouter();
+  const popup = usePopup();
   const formRef = React.useRef<HTMLFormElement>(null);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
@@ -211,11 +214,16 @@ export function CatalogBottle({
     }
     const category = categoryId ?? (code ? null : guess.categoryId);
     if (category !== null) values.categoryId = String(category);
+    beginNew(values, code?.kind === "ttb" ? [code.value] : []);
+  };
+
+  /** A new label with these values, and nothing else carried over. */
+  const beginNew = (values: ReturnType<typeof initialFieldValues>, ttb: string[]) => {
     setLabelValues(values);
     setLabelLinks(EMPTY_LINKS);
     setLabelPhotoFile(null);
     setLabelPhotoLink("");
-    setPendingTtb(code?.kind === "ttb" ? [code.value] : []);
+    setPendingTtb(ttb);
     setColaKey((key) => key + 1);
     setVintageRows([]);
     focusLater(values.brandId ? "expression-name" : "expression-brandId");
@@ -251,6 +259,24 @@ export function CatalogBottle({
     photosRef.current = photos;
   }, [photos]);
   React.useEffect(() => () => photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.url)), []);
+
+  // From the bulk editor's Expand on a new row: its bottle values, and (when it names no label that exists) a new label
+  // started with its values. Applied once, after mount, since the values are in this tab's storage.
+  const prefill = usePrefill();
+  const prefilled = React.useRef(false);
+  React.useEffect(() => {
+    if (!prefill || prefilled.current) return;
+    prefilled.current = true;
+    const bottle = initialFieldValues(BOTTLE_FIELDS, prefill.bottle as Record<string, string | number | boolean | null>);
+    setBottleValues((prev) => {
+      const next = { ...prev };
+      for (const name of Object.keys(prefill.bottle)) if (name in bottle) next[name] = bottle[name]!;
+      return next;
+    });
+    if (!initialLabel) beginNew(initialFieldValues(LABEL_FIELDS, prefill.label as Record<string, string | number | boolean | null>), []);
+    // Applied once; beginNew is made fresh each render and reads nothing that changes what it does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill]);
 
   const addPhotos = (files: FileList | null) => {
     if (!files) return;
@@ -343,6 +369,11 @@ export function CatalogBottle({
       if (!uploaded?.ok) params.set("labelPhoto", "failed");
     }
 
+    // In the bulk editor's popup the save is reported to it (an upload that failed is not shown there; the bottle's page says so).
+    if (popup) {
+      popup.saved({ labelId: result.expressionId, bottleId: result.bottleId });
+      return;
+    }
     router.push(`/bottles/${result.bottleId}${params.size ? `?${params}` : ""}`);
     router.refresh();
   };
@@ -566,9 +597,15 @@ export function CatalogBottle({
       ) : null}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-        <Button type="button" variant="outline" asChild>
-          <Link href="/bottles">Cancel</Link>
-        </Button>
+        {popup ? (
+          <Button type="button" variant="outline" onClick={popup.close}>
+            Cancel
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" asChild>
+            <Link href="/bottles">Cancel</Link>
+          </Button>
+        )}
         {phase.kind !== "search" ? (
           <Button type="submit" disabled={saving}>
             {saving ? <Loader2 className="size-4 animate-spin" /> : null}

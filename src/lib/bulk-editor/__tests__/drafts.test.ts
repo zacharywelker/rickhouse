@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  brandCandidates, categoryCandidates, countNewRows, draftSheetRow, emptyDraft, isBlank, labelCandidates, pickOf, samePick, withBlankRow, withBrand, withCategory, withLabel,
+  brandCandidates, categoryCandidates, countNewRows, draftSheetRow, emptyDraft, insertionDraft, isBlank, labelCandidates, orderRows, pickOf, samePick, withBlankRow, withBrand, withCategory, withLabel,
   type DraftRow, type Pick,
 } from "../drafts";
-import { SHEET_COLUMNS, type SheetLabel } from "../sheet";
+import { SHEET_COLUMNS, type SheetLabel, type SheetRow } from "../sheet";
 
 const existing = (id: number, name: string): Pick => ({ kind: "existing", id, name });
 const fresh = (name: string): Pick => ({ kind: "new", name });
@@ -127,5 +127,74 @@ describe("a draft as a sheet row", () => {
   });
   it("a category not yet chosen shows as empty", () => {
     expect(cellText(draftSheetRow(draft({ brand: fresh("B"), label: fresh("L") }), ctx()), "category")).toEqual({ text: "—", muted: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Insert record below
+// ---------------------------------------------------------------------------
+
+const savedBottleRow = (key: string, l: SheetLabel): SheetRow => ({ key, label: l, bottle: { id: Number(key.slice(1)) } }) as unknown as SheetRow;
+const BOTH = { labels: true, bottles: true };
+const LABELS_ONLY = { labels: true, bottles: false };
+const plain = (key: string): SheetRow => ({ key }) as unknown as SheetRow;
+const keys = (rows: SheetRow[]) => rows.map((r) => r.key);
+
+describe("a row inserted below another", () => {
+  it("in the Both view starts with the clicked row's brand, label and category, below it, and has nothing of its own yet", () => {
+    const made = insertionDraft("d3", savedBottleRow("b1", labels[0]!), BOTH);
+    expect(made).toEqual({ key: "d3", brand: existing(10, "Four Roses"), label: existing(1, "Single Barrel"), categoryId: 5, insertAfter: "b1", prefilled: true });
+  });
+  it("in the Labels-only view starts with only the brand", () => {
+    const made = insertionDraft("d3", savedBottleRow("l1", labels[0]!), LABELS_ONLY);
+    expect(made).toMatchObject({ brand: existing(10, "Four Roses"), label: null, categoryId: null, insertAfter: "l1", prefilled: true });
+  });
+  it("below a new row copies that row's picks, new ones included", () => {
+    const source = draft({ key: "d1", brand: fresh("Zed"), label: fresh("Zed Batch"), categoryId: 6 });
+    const made = insertionDraft("d2", draftSheetRow(source, ctx()), BOTH, source);
+    expect(made).toMatchObject({ brand: fresh("Zed"), label: fresh("Zed Batch"), categoryId: 6, insertAfter: "d1", prefilled: true });
+  });
+  it("is blank while it has only what it started with, so it is never saved or counted by itself", () => {
+    const made = insertionDraft("d3", savedBottleRow("b1", labels[0]!), BOTH);
+    expect(isBlank(made, {})).toBe(true);
+    expect(countNewRows([made], {})).toBe(0);
+  });
+  it("stops being blank once something is typed in it or is waiting to be chosen", () => {
+    const made = insertionDraft("d3", savedBottleRow("b1", labels[0]!), BOTH);
+    expect(isBlank(made, { d3: { pricePaid: "30" } })).toBe(false);
+    expect(isBlank(made, {}, true)).toBe(false);
+  });
+  it("stops being blank once its brand, label or category is changed", () => {
+    const made = insertionDraft("d3", savedBottleRow("b1", labels[0]!), BOTH);
+    expect(isBlank(withBrand(made, existing(11, "Weller")), {})).toBe(false);
+    expect(isBlank(withLabel(made, existing(2, "Small Batch"), 5), {})).toBe(false);
+    expect(isBlank(withCategory(made, 6), {})).toBe(false);
+    expect(withBrand(made, existing(11, "Weller")).prefilled).toBeUndefined();
+  });
+  it("keeps its place when its brand is changed", () => {
+    const made = insertionDraft("d3", savedBottleRow("b1", labels[0]!), BOTH);
+    expect(withBrand(made, existing(11, "Weller")).insertAfter).toBe("b1");
+  });
+});
+
+describe("where the rows go", () => {
+  const [A, B, C] = [plain("b1"), plain("b2"), plain("b3")];
+  it("a new row sits directly below the row it was inserted after", () => {
+    expect(keys(orderRows([A, B, C], [{ row: plain("d1"), after: "b2" }]))).toEqual(["b1", "b2", "d1", "b3"]);
+  });
+  it("inserting twice under one row puts the newest nearest it", () => {
+    expect(keys(orderRows([A, B, C], [{ row: plain("d1"), after: "b2" }, { row: plain("d2"), after: "b2" }]))).toEqual(["b1", "b2", "d2", "d1", "b3"]);
+  });
+  it("a row inserted below another new row lands directly below that one", () => {
+    expect(keys(orderRows([A, B, C], [{ row: plain("d1"), after: "b2" }, { row: plain("d2"), after: "d1" }]))).toEqual(["b1", "b2", "d1", "d2", "b3"]);
+  });
+  it("a row whose anchor is gone goes to the end, ahead of the empty row", () => {
+    expect(keys(orderRows([A, B], [{ row: plain("d1"), after: "b9" }, { row: plain("d2") }]))).toEqual(["b1", "b2", "d1", "d2"]);
+  });
+  it("rows with no anchor keep their order after every saved row, as before", () => {
+    expect(keys(orderRows([A, B], [{ row: plain("d1") }, { row: plain("d2") }]))).toEqual(["b1", "b2", "d1", "d2"]);
+  });
+  it("a row inserted below a new row at the bottom stays directly below it, not after the empty row", () => {
+    expect(keys(orderRows([A], [{ row: plain("d1") }, { row: plain("d3") }, { row: plain("d2"), after: "d1" }]))).toEqual(["b1", "d1", "d2", "d3"]);
   });
 });

@@ -115,6 +115,21 @@ test("Delete label from a bottle row names the bottles that go with it, deletes 
   await expect(rowOf(page, "Brevard")).toHaveCount(0);
 });
 
+test("a long-press on a touch screen opens the menu for the row pressed, not for one right-clicked before", async ({ page }) => {
+  // Open and close the menu on a saved row first, so a stale row would show.
+  await (await labelCell(page, "Tamsin")).click({ button: "right" });
+  await expect(menu(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu(page)).toHaveCount(0);
+  const target = sheet(page).locator("tbody tr").last().locator("td").first();
+  const box = (await target.boundingBox())!;
+  // The browser's long-press is a pointer press that is held; Radix opens the menu from it after 700 ms, with no contextmenu event.
+  await target.dispatchEvent("pointerdown", { pointerType: "touch", isPrimary: true, button: 0, buttons: 1, clientX: box.x + 12, clientY: box.y + 8 });
+  await expect(menu(page)).toBeVisible({ timeout: 4000 });
+  await expect(menu(page).getByRole("menuitem", { name: "Discard new row" })).toBeVisible();
+  await expect(menu(page).getByRole("menuitem", { name: /Delete label/ })).toHaveCount(0);
+});
+
 test("the empty row at the bottom shows Discard new row, dimmed, and no deletes", async ({ page }) => {
   const last = sheet(page).locator("tbody tr").last();
   await last.locator("td").first().click({ button: "right" });
@@ -137,6 +152,83 @@ test("Discard new row removes a started new row and leaves the saved ones alone"
   await menu(page).getByRole("menuitem", { name: "Discard new row" }).click();
   await expect(rows).toHaveCount(started - 1);
   expect(await inDatabase("Tamsin")).toEqual({ labels: 1, bottles: 1 });
+});
+
+// ---------------------------------------------------------------------------
+// Insert record below
+// ---------------------------------------------------------------------------
+
+const insertBelow = async (page: Page, label: string, nth = 0) => {
+  await (await labelCell(page, label)).nth(nth).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Insert record below" }).click();
+};
+const rowIndex = async (row: Locator) => Number(await row.locator("td").first().getAttribute("data-r"));
+
+test("Insert record below puts a new row directly under the clicked one, with its brand and label, and the cursor on it", async ({ page }) => {
+  const rows = rowOf(page, "Penhall");
+  const at = await rowIndex(rows);
+  const before = await sheet(page).locator("tbody tr").count();
+  await insertBelow(page, "Penhall");
+  await expect(sheet(page).locator("tbody tr")).toHaveCount(before + 1);
+  await expect(rows).toHaveCount(2);
+  expect(await rowIndex(rows.nth(1))).toBe(at + 1);
+  // The new row is a draft: it has no checkbox. Its brand is the same.
+  await expect(rows.nth(0).locator('input[type="checkbox"]')).toHaveCount(1);
+  await expect(rows.nth(1).locator('input[type="checkbox"]')).toHaveCount(0);
+  await expect(rows.nth(1)).toContainText("Tz");
+  expect((await active(page))?.row).toBe(at + 1);
+});
+
+test("in the Labels-only view Insert fills only the brand", async ({ page }) => {
+  await page.getByRole("group", { name: "What the sheet shows" }).getByRole("button", { name: "Bottles", exact: true }).click();
+  const at = await rowIndex(rowOf(page, "Ravenel"));
+  await insertBelow(page, "Ravenel");
+  const created = sheet(page).locator(`tbody tr:has(td[data-r="${at + 1}"])`);
+  await expect(created).toContainText("Tz");
+  await expect(created).not.toContainText("Ravenel");
+});
+
+test("a row inserted and never typed in is not saved, and does not count as unsaved", async ({ page }) => {
+  expect(await inDatabase("Marlow")).toEqual({ labels: 1, bottles: 1 });
+  await insertBelow(page, "Marlow");
+  // Leave it: a new row that has what it needs saves when the cursor goes.
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await page.waitForTimeout(2500);
+  expect(await inDatabase("Marlow")).toEqual({ labels: 1, bottles: 1 });
+  await expect(page.getByText(/not saved yet/)).toHaveCount(0);
+});
+
+test("typing a value in an inserted row saves a new bottle of that label, which sits with its label after a reload", async ({ page }) => {
+  expect(await inDatabase("Ostrava")).toEqual({ labels: 1, bottles: 1 });
+  const at = await rowIndex(rowOf(page, "Ostrava"));
+  await insertBelow(page, "Ostrava");
+  await sheet(page).locator(`td[data-r="${at + 1}"][data-c="${await col(page, "Price paid")}"]`).click();
+  await page.keyboard.type("45");
+  await page.keyboard.press("Enter");
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await expect.poll(() => inDatabase("Ostrava")).toEqual({ labels: 1, bottles: 2 });
+  await page.reload();
+  const rows = rowOf(page, "Ostrava");
+  await expect(rows).toHaveCount(2);
+  expect((await rowIndex(rows.nth(1))) - (await rowIndex(rows.nth(0)))).toBe(1);
+});
+
+test("inserting twice under one row puts both directly below it", async ({ page }) => {
+  const rows = rowOf(page, "Tamsin");
+  const at = await rowIndex(rows);
+  await insertBelow(page, "Tamsin");
+  await insertBelow(page, "Tamsin");
+  await expect(rows).toHaveCount(3);
+  expect([await rowIndex(rows.nth(0)), await rowIndex(rows.nth(1)), await rowIndex(rows.nth(2))]).toEqual([at, at + 1, at + 2]);
+});
+
+test("an inserted row stays directly below its row while the sheet is sorted", async ({ page }) => {
+  await sheet(page).locator("thead").getByRole("button", { name: /Proof/ }).first().click();
+  const rows = rowOf(page, "Corbett");
+  const at = await rowIndex(rows);
+  await insertBelow(page, "Corbett");
+  await expect(rows).toHaveCount(2);
+  expect(await rowIndex(rows.nth(1))).toBe(at + 1);
 });
 
 // ---------------------------------------------------------------------------
@@ -174,4 +266,36 @@ test("cancelling the delete dialog opened from the menu puts the cursor back on 
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect.poll(() => active(page)).toEqual({ row: r, col: c });
   expect(await inDatabase("Penhall")).toEqual({ labels: 1, bottles: 1 });
+});
+
+test("a row inserted after another inserted row was discarded can still be saved", async ({ page }) => {
+  expect(await inDatabase("Corbett")).toEqual({ labels: 1, bottles: 1 });
+  const price = await col(page, "Price paid");
+  const at = await rowIndex(rowOf(page, "Corbett"));
+  await insertBelow(page, "Corbett");
+  await rowOf(page, "Corbett").nth(1).locator("td").nth(await col(page, "Brand")).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Discard new row" }).click();
+  await expect(rowOf(page, "Corbett")).toHaveCount(1);
+  // The second insert must not be given the key the discarded row had: the sheet remembers that one as gone and would never save it.
+  await insertBelow(page, "Corbett");
+  await sheet(page).locator(`td[data-r="${at + 1}"][data-c="${price}"]`).click();
+  await page.keyboard.type("55");
+  await page.keyboard.press("Enter");
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await expect.poll(() => inDatabase("Corbett"), { timeout: 15000 }).toEqual({ labels: 1, bottles: 2 });
+});
+
+test("a paste at the empty row after inserting makes a new row of its own, not one that shares an inserted row's keys", async ({ page }) => {
+  await insertBelow(page, "Ravenel");
+  await insertBelow(page, "Ravenel");
+  const before = await sheet(page).locator("tbody tr").count();
+  await sheet(page).locator("tbody tr").last().locator("td").nth(await col(page, "Brand")).click();
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData("text/plain", "Tz\tPasted After Inserts");
+    document.activeElement!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  // One new row in the empty row's place; the two inserted rows are untouched, so the label shows once.
+  await expect(sheet(page).locator("tbody tr")).toHaveCount(before + 1);
+  await expect(rowOf(page, "Pasted After Inserts")).toHaveCount(1);
 });

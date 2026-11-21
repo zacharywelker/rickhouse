@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { Field, initialFieldValues, type FieldValue } from "@/components/forms/field";
 import { saveBottleAction } from "@/app/(app)/bottles/actions";
+import { usePopup } from "@/components/popup/popup";
 import { BOTTLE_FIELDS, BOTTLE_SECTIONS, BOTTLE_STATE_SECTION } from "@/lib/expressions/bottle-fields";
 import { fieldVisible, sectionVisible } from "@/lib/expressions/fields";
 import type { FieldGroup } from "@/db/schema";
@@ -351,6 +352,7 @@ export function BottleForm({
   initialTagIds?: number[];
 }) {
   const router = useRouter();
+  const popup = usePopup();
   const [values, setValues] = React.useState<Record<string, FieldValue>>(() => ({ ...initialFieldValues(BOTTLE_FIELDS, initialValues), ageYearsSource: initialValues?.ageYearsSource === "derived" ? "derived" : "entered" }));
   const [copyState, setCopyState] = React.useState(() => initialFieldValues(BOTTLE_STATE_SECTION.fields, initialValues));
   const [life, setLife] = React.useState(SEALED);
@@ -363,11 +365,20 @@ export function BottleForm({
 
   const saved = state.ok && state.message !== "";
   const createdId = state.ok ? state.createdId : undefined;
+  // In the bulk editor's popup a save is reported to the popup (once, even if the effect runs twice) instead of navigating away.
+  const reported = React.useRef(false);
   React.useEffect(() => {
-    if (!saved || createdId === undefined) return;
+    if (!saved) return;
+    if (popup) {
+      if (reported.current) return;
+      reported.current = true;
+      popup.saved({ bottleId: createdId ?? bottleId ?? undefined });
+      return;
+    }
+    if (createdId === undefined) return;
     router.push(`/bottles/${createdId}`);
     router.refresh();
-  }, [saved, createdId, router]);
+  }, [saved, createdId, bottleId, router, popup]);
 
   const fieldErrors = !state.ok && state.fieldErrors ? state.fieldErrors : {};
   // Changing the label drops a version or release picked for the previous one.
@@ -439,9 +450,15 @@ export function BottleForm({
       ) : null}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" asChild>
-          <Link href={bottleId ? `/bottles/${bottleId}` : "/bottles"}>Cancel</Link>
-        </Button>
+        {popup ? (
+          <Button type="button" variant="outline" onClick={popup.close}>
+            Cancel
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" asChild>
+            <Link href={bottleId ? `/bottles/${bottleId}` : "/bottles"}>Cancel</Link>
+          </Button>
+        )}
         <Button type="submit" disabled={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
           {bottleId ? "Save bottle" : "Add bottle"}

@@ -10,6 +10,7 @@ import { searchCatalogLabelsAction, type CatalogHit, type CatalogSearch } from "
 import type { FieldGroup } from "@/db/schema";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import type { Option } from "@/lib/admin/types";
+import { usePrefill } from "@/components/popup/use-prefill";
 
 type Links = React.ComponentProps<typeof ExpressionForm>["initialLinks"];
 
@@ -35,7 +36,15 @@ export function NewLabelStart({
   const [query, setQuery] = React.useState("");
   const [categoryId, setCategoryId] = React.useState<number | null>(null);
   const [answer, setAnswer] = React.useState<{ key: string; search: CatalogSearch } | null>(null);
-  const [form, setForm] = React.useState<Record<string, string | number | boolean | null> | null>(null);
+  const [started, setStarted] = React.useState<Record<string, string | number | boolean | null> | null>(null);
+  // From the bulk editor's Expand on a new row: straight to the form, filled with what was typed, until the person goes back to the search.
+  const prefill = usePrefill();
+  const [backedOut, setBackedOut] = React.useState(false);
+  const form = started ?? (prefill && !backedOut ? (prefill.label as Record<string, string | number | boolean | null>) : null);
+  const setForm = (next: Record<string, string | number | boolean | null> | null) => {
+    setStarted(next);
+    if (next === null) setBackedOut(true);
+  };
   const searchRef = React.useRef<HTMLInputElement>(null);
 
   const searchKey = `${categoryId ?? ""}|${query}`;
