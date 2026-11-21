@@ -11,6 +11,8 @@ import {
   distilleries,
   distilleryNames,
   expressionDistilleries,
+  expressionFinishes,
+  expressionFinishMashbills,
   expressionIngredients,
   expressionMashbills,
   expressions,
@@ -18,6 +20,7 @@ import {
   groups,
   housekeepingMerges,
   ingredients,
+  mashbillGrains,
   mashbills,
   stores,
   tags,
@@ -25,6 +28,7 @@ import {
 import { allowedAdoptions, planAdoption, type Adoptable } from "./adoption";
 import { clearDismissalsFor } from "./dismissals";
 import type { DuplicateKind } from "./duplicate-kinds";
+import { describeMashbill, mashbillTitle, recipeKey } from "@/lib/mashbills";
 import { swapIdInFilterQuery } from "./group-filter";
 
 /**
@@ -74,13 +78,12 @@ async function countOf(ex: Executor, table: PgTable, where: SQL | undefined): Pr
   return row?.n ?? 0;
 }
 
-const unavailable: Handler = {
-  blocked: async () => "Merging this kind is not available yet.",
-  count: async () => [],
-  relink: async () => {
-    throw new HousekeepingMergeError("blocked", "Merging this kind is not available yet.");
-  },
-};
+async function grainsOf(ex: Executor, mashbillId: number) {
+  return ex
+    .select({ grain: mashbillGrains.grain, percent: mashbillGrains.percent, position: mashbillGrains.position })
+    .from(mashbillGrains)
+    .where(eq(mashbillGrains.mashbillId, mashbillId));
+}
 
 const HANDLERS: Record<DuplicateKind, Handler> = {
   companies: {
@@ -190,8 +193,56 @@ const HANDLERS: Record<DuplicateKind, Handler> = {
       );
     },
   },
-  finishes: unavailable,
-  mashbills: unavailable,
+  finishes: {
+    count: async (ex, _ownerId, removedId) =>
+      nonZero([["labels", await countOf(ex, expressionFinishes, eq(expressionFinishes.finishId, removedId))]]),
+    relink: async (tx, _ownerId, survivorId, removedId) => {
+      // Pairings (which finish went on which mashbill) point at a label's finish through a composite key, so the
+      // survivor's row must exist first, colliding pairings go, the rest are re-pointed, and only then the old rows go.
+      await tx.execute(
+        sql`insert into expression_finishes (expression_id, finish_id, position, months, share_pct)
+            select expression_id, ${survivorId}, position, months, share_pct from expression_finishes where finish_id = ${removedId}
+            on conflict do nothing`,
+      );
+      await tx.execute(
+        sql`delete from expression_finish_mashbills f where f.finish_id = ${removedId} and exists (
+              select 1 from expression_finish_mashbills g
+              where g.expression_id = f.expression_id and g.mashbill_id = f.mashbill_id and g.finish_id = ${survivorId})`,
+      );
+      await tx.update(expressionFinishMashbills).set({ finishId: survivorId }).where(eq(expressionFinishMashbills.finishId, removedId));
+      await tx.delete(expressionFinishes).where(eq(expressionFinishes.finishId, removedId));
+    },
+  },
+  mashbills: {
+    blocked: async (ex, _ownerId, survivor, removed) => {
+      if (survivor.isPartial || removed.isPartial) return "A partial mashbill is not a full recipe, so it cannot be merged.";
+      const same = recipeKey(await grainsOf(ex, survivor.id)) === recipeKey(await grainsOf(ex, removed.id));
+      return same ? null : "Those mashbills have different recipes, so they are not the same thing.";
+    },
+    count: async (ex, _ownerId, removedId) =>
+      nonZero([["labels", await countOf(ex, expressionMashbills, eq(expressionMashbills.mashbillId, removedId))]]),
+    relink: async (tx, _ownerId, survivorId, removedId) => {
+      // Same order as finishes: the survivor's row first, colliding pairings out, the rest re-pointed, old rows last.
+      await tx.execute(
+        sql`insert into expression_mashbills (expression_id, mashbill_id, position, share_pct, distillery_id)
+            select expression_id, ${survivorId}, position, share_pct, distillery_id from expression_mashbills where mashbill_id = ${removedId}
+            on conflict do nothing`,
+      );
+      await tx.execute(
+        sql`delete from expression_finish_mashbills f where f.mashbill_id = ${removedId} and exists (
+              select 1 from expression_finish_mashbills g
+              where g.expression_id = f.expression_id and g.mashbill_id = ${survivorId} and coalesce(g.finish_id, 0) = coalesce(f.finish_id, 0))`,
+      );
+      await tx.update(expressionFinishMashbills).set({ mashbillId: survivorId }).where(eq(expressionFinishMashbills.mashbillId, removedId));
+      await tx.delete(expressionMashbills).where(eq(expressionMashbills.mashbillId, removedId));
+    },
+    // A mashbill with no name is known by its recipe.
+    name: async (ex, row) =>
+      mashbillTitle(
+        { isSecret: Boolean(row.isSecret), isGeneric: Boolean(row.isGeneric), name: typeof row.name === "string" ? row.name : null },
+        describeMashbill(await grainsOf(ex, row.id)),
+      ),
+  },
 };
 
 /** The Collection filter each kind appears under, so smart groups can follow a merge. */

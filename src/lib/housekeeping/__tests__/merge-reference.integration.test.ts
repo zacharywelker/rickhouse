@@ -10,13 +10,17 @@ import {
   distilleries,
   distilleryNames,
   expressionDistilleries,
+  expressionFinishes,
+  expressionFinishMashbills,
   expressionIngredients,
   expressionMashbills,
   expressions,
+  finishes,
   groups,
   housekeepingDismissals,
   housekeepingMerges,
   ingredients,
+  mashbillGrains,
   mashbills,
   stores,
   tags,
@@ -53,7 +57,7 @@ describe.skipIf(!url)("merging reference rows against a real database", () => {
   let n = 0;
   const mine = {
     brands: [] as number[], labels: [] as number[], stores: [] as number[], bottles: [] as number[], tags: [] as number[],
-    companies: [] as number[], cooperages: [] as number[], ingredients: [] as number[], groups: [] as number[], distilleries: [] as number[], mashbills: [] as number[],
+    companies: [] as number[], cooperages: [] as number[], ingredients: [] as number[], groups: [] as number[], distilleries: [] as number[], mashbills: [] as number[], finishes: [] as number[],
   };
   const name = (base: string) => `${base} ${++n}`;
   const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -115,6 +119,7 @@ describe.skipIf(!url)("merging reference rows against a real database", () => {
     if (mine.bottles.length) await db.delete(bottles).where(inArray(bottles.id, mine.bottles));
     if (mine.labels.length) await db.delete(expressions).where(inArray(expressions.id, mine.labels));
     if (mine.distilleries.length) await db.delete(distilleries).where(inArray(distilleries.id, mine.distilleries));
+    if (mine.finishes.length) await db.delete(finishes).where(inArray(finishes.id, mine.finishes));
     if (mine.mashbills.length) await db.delete(mashbills).where(inArray(mashbills.id, mine.mashbills));
     if (mine.brands.length) await db.delete(brands).where(inArray(brands.id, mine.brands));
     if (mine.stores.length) await db.delete(stores).where(inArray(stores.id, mine.stores));
@@ -324,6 +329,127 @@ describe.skipIf(!url)("merging reference rows against a real database", () => {
       await m.mergeReference(owner, "distilleries", survivor.id, removed.id, []);
       const names = await db.select().from(distilleryNames).where(eq(distilleryNames.distilleryId, survivor.id));
       expect(names.map((row) => row.name)).toEqual([removed.name]);
+    });
+  });
+
+
+  describe("finishes and mashbills, whose pairings point at each other through composite keys", () => {
+    const finish = async (finishType: "wood" | "wine" | "other" = "other") => {
+      const value = name("Finish");
+      const [row] = await db.insert(finishes).values({ ownerId: owner, name: value, slug: slug(value), finishType }).returning();
+      mine.finishes.push(row!.id);
+      return row!;
+    };
+    const mashbill = async (grains: Array<[string, string]>, isPartial = false) => {
+      const [row] = await db.insert(mashbills).values({ ownerId: owner, isPartial }).returning();
+      mine.mashbills.push(row!.id);
+      await db.insert(mashbillGrains).values(grains.map(([grain, percent], position) => ({ mashbillId: row!.id, grain, percent, position })));
+      return row!;
+    };
+    const RECIPE: Array<[string, string]> = [["Corn", "75"], ["Rye", "13"], ["Malted barley", "12"]];
+    const pairs = async (expressionIds: number[]) =>
+      (await db.select().from(expressionFinishMashbills).where(inArray(expressionFinishMashbills.expressionId, expressionIds)))
+        .map((row) => `${row.expressionId}:${row.mashbillId}:${row.finishId ?? "none"}`)
+        .sort();
+
+    it("merges finishes: a label with only the removed finish gets the survivor, a label with both keeps one, and pairings follow without colliding", async () => {
+      const survivor = await finish("other");
+      const removed = await finish("wood");
+      const b = await brand();
+      const onlyRemoved = await label(b.id);
+      const both = await label(b.id);
+      const m1 = await mashbill(RECIPE);
+      const m2 = await mashbill([["Corn", "60"], ["Rye", "40"]]);
+      const m3 = await mashbill([["Corn", "70"], ["Rye", "30"]]);
+      await db.insert(expressionMashbills).values([
+        { expressionId: onlyRemoved.id, mashbillId: m1.id },
+        { expressionId: both.id, mashbillId: m2.id },
+        { expressionId: both.id, mashbillId: m3.id },
+      ]);
+      await db.insert(expressionFinishes).values([
+        { expressionId: onlyRemoved.id, finishId: removed.id, position: 3, months: 18 },
+        { expressionId: both.id, finishId: survivor.id, position: 0 },
+        { expressionId: both.id, finishId: removed.id, position: 1 },
+      ]);
+      await db.insert(expressionFinishMashbills).values([
+        { expressionId: onlyRemoved.id, mashbillId: m1.id, finishId: removed.id },
+        { expressionId: both.id, mashbillId: m2.id, finishId: survivor.id },
+        { expressionId: both.id, mashbillId: m2.id, finishId: removed.id }, // would collide once re-pointed
+        { expressionId: both.id, mashbillId: m3.id, finishId: removed.id },
+        { expressionId: both.id, mashbillId: m3.id, finishId: null }, // the unfinished portion stays as it is
+      ]);
+
+      const summary = await m.mergeReference(owner, "finishes", survivor.id, removed.id, ["finishType"]);
+
+      const links = await db.select().from(expressionFinishes).where(inArray(expressionFinishes.expressionId, [onlyRemoved.id, both.id]));
+      expect(links.map((row) => `${row.expressionId}:${row.finishId}:${row.position}:${row.months}`).sort()).toEqual(
+        [`${onlyRemoved.id}:${survivor.id}:3:18`, `${both.id}:${survivor.id}:0:null`].sort(),
+      );
+      expect(await pairs([onlyRemoved.id, both.id])).toEqual(
+        [
+          `${onlyRemoved.id}:${m1.id}:${survivor.id}`,
+          `${both.id}:${m2.id}:${survivor.id}`,
+          `${both.id}:${m3.id}:${survivor.id}`,
+          `${both.id}:${m3.id}:none`,
+        ].sort(),
+      );
+      expect((await db.select().from(finishes).where(eq(finishes.id, removed.id))).length).toBe(0);
+      expect((await db.select().from(finishes).where(eq(finishes.id, survivor.id)))[0]!.finishType).toBe("wood");
+      expect(moved(summary, "labels")).toBe(2);
+    });
+
+    it("merges mashbills with the same recipe: labels, pairings and the survivor's own row on a label with both", async () => {
+      const survivor = await mashbill(RECIPE);
+      const removed = await mashbill([["corn", "75"], ["rye", "13"], ["malted barley", "12"]]);
+      const f = await finish();
+      const b = await brand();
+      const onlyRemoved = await label(b.id);
+      const both = await label(b.id);
+      await db.insert(expressionMashbills).values([
+        { expressionId: onlyRemoved.id, mashbillId: removed.id, position: 4, sharePct: "100" },
+        { expressionId: both.id, mashbillId: survivor.id, position: 0 },
+        { expressionId: both.id, mashbillId: removed.id, position: 1 },
+      ]);
+      await db.insert(expressionFinishes).values([
+        { expressionId: onlyRemoved.id, finishId: f.id },
+        { expressionId: both.id, finishId: f.id },
+      ]);
+      await db.insert(expressionFinishMashbills).values([
+        { expressionId: onlyRemoved.id, mashbillId: removed.id, finishId: f.id },
+        { expressionId: onlyRemoved.id, mashbillId: removed.id, finishId: null },
+        { expressionId: both.id, mashbillId: survivor.id, finishId: f.id },
+        { expressionId: both.id, mashbillId: removed.id, finishId: f.id }, // would collide
+        { expressionId: both.id, mashbillId: removed.id, finishId: null },
+      ]);
+
+      const summary = await m.mergeReference(owner, "mashbills", survivor.id, removed.id, []);
+
+      const links = await db.select().from(expressionMashbills).where(inArray(expressionMashbills.expressionId, [onlyRemoved.id, both.id]));
+      expect(links.map((row) => `${row.expressionId}:${row.mashbillId}:${row.position}`).sort()).toEqual(
+        [`${onlyRemoved.id}:${survivor.id}:4`, `${both.id}:${survivor.id}:0`].sort(),
+      );
+      expect(await pairs([onlyRemoved.id, both.id])).toEqual(
+        [
+          `${onlyRemoved.id}:${survivor.id}:${f.id}`,
+          `${onlyRemoved.id}:${survivor.id}:none`,
+          `${both.id}:${survivor.id}:${f.id}`,
+          `${both.id}:${survivor.id}:none`,
+        ].sort(),
+      );
+      expect((await db.select().from(mashbills).where(eq(mashbills.id, removed.id))).length).toBe(0);
+      expect((await db.select().from(mashbillGrains).where(eq(mashbillGrains.mashbillId, removed.id))).length).toBe(0);
+      expect(moved(summary, "labels")).toBe(2);
+      expect(summary.survivorName.toLowerCase()).toBe("75% corn · 13% rye · 12% malted barley");
+    });
+
+    it("refuses mashbills whose recipes differ, or either of which is partial, and changes nothing", async () => {
+      const a = await mashbill(RECIPE);
+      const different = await mashbill([["Corn", "60"], ["Rye", "28"], ["Malted barley", "12"]]);
+      const partial = await mashbill(RECIPE, true);
+      await expect(m.mergeReference(owner, "mashbills", a.id, different.id, [])).rejects.toMatchObject({ code: "blocked" });
+      await expect(m.mergeReference(owner, "mashbills", a.id, partial.id, [])).rejects.toMatchObject({ code: "blocked" });
+      expect((await db.select().from(mashbills).where(inArray(mashbills.id, [a.id, different.id, partial.id]))).length).toBe(3);
+      expect((await m.previewMerge(owner, "mashbills", a.id, different.id)).blocked).toContain("different recipes");
     });
   });
 
