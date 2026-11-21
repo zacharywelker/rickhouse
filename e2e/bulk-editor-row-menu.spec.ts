@@ -267,3 +267,35 @@ test("cancelling the delete dialog opened from the menu puts the cursor back on 
   await expect.poll(() => active(page)).toEqual({ row: r, col: c });
   expect(await inDatabase("Penhall")).toEqual({ labels: 1, bottles: 1 });
 });
+
+test("a row inserted after another inserted row was discarded can still be saved", async ({ page }) => {
+  expect(await inDatabase("Corbett")).toEqual({ labels: 1, bottles: 1 });
+  const price = await col(page, "Price paid");
+  const at = await rowIndex(rowOf(page, "Corbett"));
+  await insertBelow(page, "Corbett");
+  await rowOf(page, "Corbett").nth(1).locator("td").nth(await col(page, "Brand")).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Discard new row" }).click();
+  await expect(rowOf(page, "Corbett")).toHaveCount(1);
+  // The second insert must not be given the key the discarded row had: the sheet remembers that one as gone and would never save it.
+  await insertBelow(page, "Corbett");
+  await sheet(page).locator(`td[data-r="${at + 1}"][data-c="${price}"]`).click();
+  await page.keyboard.type("55");
+  await page.keyboard.press("Enter");
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await expect.poll(() => inDatabase("Corbett"), { timeout: 15000 }).toEqual({ labels: 1, bottles: 2 });
+});
+
+test("a paste at the empty row after inserting makes a new row of its own, not one that shares an inserted row's keys", async ({ page }) => {
+  await insertBelow(page, "Ravenel");
+  await insertBelow(page, "Ravenel");
+  const before = await sheet(page).locator("tbody tr").count();
+  await sheet(page).locator("tbody tr").last().locator("td").nth(await col(page, "Brand")).click();
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData("text/plain", "Tz\tPasted After Inserts");
+    document.activeElement!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  // One new row in the empty row's place; the two inserted rows are untouched, so the label shows once.
+  await expect(sheet(page).locator("tbody tr")).toHaveCount(before + 1);
+  await expect(rowOf(page, "Pasted After Inserts")).toHaveCount(1);
+});

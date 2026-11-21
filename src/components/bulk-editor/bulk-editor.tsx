@@ -1855,6 +1855,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     const source = menuTarget();
     if (!source) return;
     const key = nextDraftKey(drafts, keyFloor);
+    // Reserved like every other new row's key: a key given out again after its row was discarded would be one the saver treats as gone.
+    keepKeys(key);
     const made = insertionDraft(key, source, view, source.draft ? drafts.find((d) => d.key === source.key) : undefined);
     const nextDrafts = [...drafts, made];
     const nextRows = rowsFor(withBlankRow(nextDrafts, keyFloor));
