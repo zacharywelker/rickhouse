@@ -23,6 +23,7 @@ const LINKS = [
   { href: "/tournaments", label: "Tournaments" },
   { href: "/groups", label: "Groups" },
   { href: "/numbers", label: "Numbers" },
+  { href: "/housekeeping", label: "Housekeeping" },
   { href: "/admin", label: "Configuration" },
 ] as const;
 
