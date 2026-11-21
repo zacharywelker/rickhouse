@@ -69,7 +69,8 @@ export function DuplicatePairCard({ pair, previews }: { pair: PairView; previews
     });
   }
 
-  if (done) return <p role="status" className="border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">{done}</p>;
+  // The notice list above the cards announces the result; this stays on screen only until the refresh removes the card.
+  if (done) return <p className="border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">{done}</p>;
 
   return (
     <div role="group" aria-label={`Likely duplicates: ${pair.a.name} and ${pair.b.name}`} className="border border-border bg-card">
