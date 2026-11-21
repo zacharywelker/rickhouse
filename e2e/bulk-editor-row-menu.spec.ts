@@ -230,3 +230,72 @@ test("an inserted row stays directly below its row while the sheet is sorted", a
   await expect(rows).toHaveCount(2);
   expect(await rowIndex(rows.nth(1))).toBe(at + 1);
 });
+
+// ---------------------------------------------------------------------------
+// From the review of this branch
+// ---------------------------------------------------------------------------
+
+test("a new row typed after another was discarded can still be saved", async ({ page }) => {
+  expect(await inDatabase("Tamsin")).toEqual({ labels: 1, bottles: 1 });
+  const brand = await col(page, "Brand");
+  const typeComplete = async () => {
+    await sheet(page).locator("tbody tr").last().locator("td").nth(brand).click();
+    await page.keyboard.type("Tz");
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("Tamsin");
+    await page.keyboard.press("Tab");
+  };
+  // A finished new row (an existing brand and label), discarded from the menu before the cursor leaves it.
+  await typeComplete();
+  await sheet(page).locator("tbody tr").nth(-2).locator("td").nth(brand).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Discard new row" }).click();
+  expect(await inDatabase("Tamsin")).toEqual({ labels: 1, bottles: 1 });
+  // The next row typed in the empty row at the bottom must save as any other does, even though it starts with the key the discarded one had.
+  await typeComplete();
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await expect.poll(() => inDatabase("Tamsin"), { timeout: 15000 }).toEqual({ labels: 1, bottles: 2 });
+});
+
+test("cancelling the delete dialog opened from the menu puts the cursor back on the cell", async ({ page }) => {
+  const cell = await labelCell(page, "Penhall");
+  const [r, c] = [Number(await cell.getAttribute("data-r")), Number(await cell.getAttribute("data-c"))];
+  await cell.click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: /Delete bottle/ }).click();
+  await expect(page.getByRole("dialog")).toContainText("Delete 1 bottle?");
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect.poll(() => active(page)).toEqual({ row: r, col: c });
+  expect(await inDatabase("Penhall")).toEqual({ labels: 1, bottles: 1 });
+});
+
+test("a row inserted after another inserted row was discarded can still be saved", async ({ page }) => {
+  expect(await inDatabase("Corbett")).toEqual({ labels: 1, bottles: 1 });
+  const price = await col(page, "Price paid");
+  const at = await rowIndex(rowOf(page, "Corbett"));
+  await insertBelow(page, "Corbett");
+  await rowOf(page, "Corbett").nth(1).locator("td").nth(await col(page, "Brand")).click({ button: "right" });
+  await menu(page).getByRole("menuitem", { name: "Discard new row" }).click();
+  await expect(rowOf(page, "Corbett")).toHaveCount(1);
+  // The second insert must not be given the key the discarded row had: the sheet remembers that one as gone and would never save it.
+  await insertBelow(page, "Corbett");
+  await sheet(page).locator(`td[data-r="${at + 1}"][data-c="${price}"]`).click();
+  await page.keyboard.type("55");
+  await page.keyboard.press("Enter");
+  await sheet(page).locator('tbody tr td[data-r="0"]').first().click();
+  await expect.poll(() => inDatabase("Corbett"), { timeout: 15000 }).toEqual({ labels: 1, bottles: 2 });
+});
+
+test("a paste at the empty row after inserting makes a new row of its own, not one that shares an inserted row's keys", async ({ page }) => {
+  await insertBelow(page, "Ravenel");
+  await insertBelow(page, "Ravenel");
+  const before = await sheet(page).locator("tbody tr").count();
+  await sheet(page).locator("tbody tr").last().locator("td").nth(await col(page, "Brand")).click();
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData("text/plain", "Tz\tPasted After Inserts");
+    document.activeElement!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  // One new row in the empty row's place; the two inserted rows are untouched, so the label shows once.
+  await expect(sheet(page).locator("tbody tr")).toHaveCount(before + 1);
+  await expect(rowOf(page, "Pasted After Inserts")).toHaveCount(1);
+});

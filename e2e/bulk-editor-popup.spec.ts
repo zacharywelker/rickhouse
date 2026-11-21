@@ -176,3 +176,26 @@ test("duplicating a label that is not there is a not-found page", async ({ page 
   const response = await page.goto("/expressions/new?duplicate=99999999");
   expect(response?.status()).toBe(404);
 });
+
+/** Picks an option from a reference picker's list by clicking it, without typing a search (typing would mark the form changed by itself). */
+async function pickFromPicker(page: Page, name: string, option: string) {
+  await popup(page).getByRole("combobox", { name }).click();
+  await page.locator('[cmdk-item]:not([data-value="__create__"])').filter({ hasText: option }).first().click();
+}
+
+test("choosing from a picker and then closing the popup asks first, as typing does", async ({ page }) => {
+  await chooseFromMenu(page, "Tamsin", "Duplicate bottle");
+  await expect(popup(page)).toBeVisible({ timeout: 12_000 });
+  await pickFromPicker(page, "Label", "Marlow");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Discard what you entered?" })).toBeVisible({ timeout: 12_000 });
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(popup(page)).toHaveCount(0, { timeout: 12_000 });
+});
+
+test("a popup opened and closed without touching anything closes at once", async ({ page }) => {
+  await chooseFromMenu(page, "Quillon", "Duplicate bottle");
+  await expect(popup(page)).toBeVisible({ timeout: 12_000 });
+  await page.keyboard.press("Escape");
+  await expect(popup(page)).toHaveCount(0, { timeout: 12_000 });
+});
