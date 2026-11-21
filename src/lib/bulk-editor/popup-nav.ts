@@ -31,6 +31,13 @@ export function chain(steps: string[]): string {
 export function nextOf(search: URLSearchParams): string | null {
   const next = search.get("next");
   if (next === null || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return null;
+  // The browser drops a tab or newline inside a url, so "/<tab>/host" would become "//host": refuse control characters, and check what the url really is.
+  if (/[\u0000-\u001f\u007f]/.test(next)) return null;
+  try {
+    if (new URL(next, "http://popup.invalid").origin !== "http://popup.invalid") return null;
+  } catch {
+    return null;
+  }
   return next;
 }
 

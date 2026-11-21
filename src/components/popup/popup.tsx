@@ -17,6 +17,14 @@ const PopupContext = React.createContext<PopupApi | null>(null);
 export const usePopup = (): PopupApi | null => React.useContext(PopupContext);
 
 /**
+ * Choosing in a picker, flipping a switch or clearing a choice changes the form without an `input` event (typing and
+ * ticking do fire one), so these are recognised by what was clicked. A click on one that changes nothing asks needlessly,
+ * which costs a click; missing a change would lose it.
+ */
+const CHANGES_THE_FORM = '[cmdk-item], [role="switch"], [role="checkbox"], [role="radio"], [aria-label="Clear selection"]';
+const changesForm = (target: EventTarget): boolean => target instanceof Element && target.closest(CHANGES_THE_FORM) !== null;
+
+/**
  * The real label and bottle pages, shown in a large dialog over the bulk editor (the `@modal` slot renders them through
  * intercepting routes). Closing it with something typed in the form asks first, however it is closed.
  */
@@ -56,7 +64,7 @@ export function PopupFrame({ children }: { children: React.ReactNode }) {
   return (
     <PopupContext.Provider value={api}>
       <Dialog open onOpenChange={(open) => { if (!open) close(); }}>
-        <DialogContent className="max-w-4xl" onInput={() => setTypedIn(stepKey)} data-popup>
+        <DialogContent className="max-w-4xl" onInput={() => setTypedIn(stepKey)} onClick={(event) => { if (changesForm(event.target)) setTypedIn(stepKey); }} onKeyDown={(event) => { if (event.key === "Enter" && (event.target as Element).closest?.("[cmdk-root]")) setTypedIn(stepKey); }} data-popup>
           {step ? (
             <DialogHeader className="px-6 py-3">
               <DialogTitle className="text-base">Step {step.step} of {step.of}</DialogTitle>
