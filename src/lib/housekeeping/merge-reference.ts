@@ -96,6 +96,18 @@ const HANDLERS: Record<DuplicateKind, Handler> = {
     relink: async (tx, ownerId, survivorId, removedId) => {
       await tx.update(brands).set({ companyId: survivorId }).where(and(eq(brands.companyId, removedId), eq(brands.ownerId, ownerId)));
       await tx.update(distilleries).set({ companyId: survivorId }).where(and(eq(distilleries.companyId, removedId), eq(distilleries.ownerId, ownerId)));
+      // If the survivor sits somewhere below the removed company, it takes the removed company's place first. Otherwise
+      // the company between them would end up under the survivor while the survivor is still under it: a loop.
+      let at: number | null = survivorId;
+      for (let step = 0; step < 100 && at !== null; step += 1) {
+        const [row] = await tx.select({ parentId: companies.parentId }).from(companies).where(and(eq(companies.id, at), eq(companies.ownerId, ownerId)));
+        at = row?.parentId ?? null;
+        if (at === removedId) {
+          const [removedRow] = await tx.select({ parentId: companies.parentId }).from(companies).where(and(eq(companies.id, removedId), eq(companies.ownerId, ownerId)));
+          await tx.update(companies).set({ parentId: removedRow?.parentId ?? null }).where(and(eq(companies.id, survivorId), eq(companies.ownerId, ownerId)));
+          break;
+        }
+      }
       // A child of the removed company follows the survivor, unless the survivor is that child.
       await tx
         .update(companies)
@@ -162,6 +174,11 @@ const HANDLERS: Record<DuplicateKind, Handler> = {
     },
   },
   distilleries: {
+    // A placeholder ("Undisclosed (Kentucky)") stands for a place a label admits to; the page never offers one.
+    blocked: async (_ex, _ownerId, survivor, removed) =>
+      survivor.disclosure === "named" && removed.disclosure === "named"
+        ? null
+        : "An undisclosed distillery stands for a place a label admits to, not a real distillery, so it cannot be merged.",
     count: async (ex, ownerId, removedId) =>
       nonZero([
         ["labels", await countOf(ex, expressionDistilleries, eq(expressionDistilleries.distilleryId, removedId))],

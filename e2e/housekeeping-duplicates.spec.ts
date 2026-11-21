@@ -55,8 +55,11 @@ test("Merge asks once, Cancel leaves everything, and Yes merge carries over the 
   await marlow.getByText("Marlow Springs Distillery", { exact: true }).click();
   await marlow.getByRole("button", { name: "Merge", exact: true }).click();
   await expect(marlow).toContainText("This can’t be undone.");
+  // Focus moves with the button: to Cancel, the safe choice, and back to Merge if the owner cancels.
+  await expect(marlow.getByRole("button", { name: "Cancel" })).toBeFocused();
   await marlow.getByRole("button", { name: "Cancel" }).click();
   await expect(marlow).not.toContainText("This can’t be undone.");
+  await expect(marlow.getByRole("button", { name: "Merge", exact: true })).toBeFocused();
   expect(await rowId("distilleries", "Marlow Springs")).not.toBeNull();
 
   await marlow.getByRole("button", { name: "Merge", exact: true }).click();

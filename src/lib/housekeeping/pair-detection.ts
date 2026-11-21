@@ -31,6 +31,8 @@ export function findNamePairs(kind: Exclude<DuplicateKind, "mashbills">, rows: N
     for (const char of squished) counts[parseInt(char, 36)]! += 1;
     return {
       row, squished, counts,
+      // A number is part of a name (a proof, a batch, a year), so a typo match must agree on every digit.
+      digits: squished.replace(/\D/g, ""),
       stripped: words.filter((word) => !fillers.has(word)).join(""),
       dropped: words.filter((word) => fillers.has(word)),
     };
@@ -65,6 +67,7 @@ export function findNamePairs(kind: Exclude<DuplicateKind, "mashbills">, rows: N
             difference += Math.abs(a.counts[k]! - b.counts[k]!);
           }
           if (difference > allowed * 2) continue;
+          if (a.digits !== b.digits) continue;
           const slips = distance(a.squished, b.squished);
           if (slips > allowed) continue;
           score = 2;

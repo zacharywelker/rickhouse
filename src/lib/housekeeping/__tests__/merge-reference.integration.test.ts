@@ -159,6 +159,22 @@ describe.skipIf(!url)("merging reference rows against a real database", () => {
     });
   });
 
+  describe("company ownership chains", () => {
+    it("does not leave two companies each other's parent when the survivor sits below the removed company", async () => {
+      const top = await company();
+      const removed = await company({ parentId: top.id });
+      const middle = await company({ parentId: removed.id });
+      const survivor = await company({ parentId: middle.id });
+      await m.mergeReference(owner, "companies", survivor.id, removed.id, []);
+      const rows = await db.select().from(companies).where(inArray(companies.id, [top.id, middle.id, survivor.id]));
+      const parent = new Map(rows.map((row) => [row.id, row.parentId]));
+      // The survivor takes the removed company's place, and the company that was between them now sits under it.
+      expect(parent.get(survivor.id)).toBe(top.id);
+      expect(parent.get(middle.id)).toBe(survivor.id);
+      expect(parent.get(top.id)).toBeNull();
+    });
+  });
+
   describe("brands", () => {
     it("moves the removed brand's labels, follows smart groups, and keeps the survivor's own facts", async () => {
       const survivor = await brand();
@@ -272,6 +288,18 @@ describe.skipIf(!url)("merging reference rows against a real database", () => {
     });
   });
 
+
+  describe("placeholder distilleries", () => {
+    it("refuses an undisclosed placeholder on either side, which the page never offers", async () => {
+      const real = await db.insert(distilleries).values({ ownerId: owner, name: name("Real"), slug: slug(name("real")) }).returning();
+      const placeholder = await db.insert(distilleries).values({ ownerId: owner, name: name("Undisclosed (Kentucky)"), slug: slug(name("undisclosed-ky")), disclosure: "undisclosed" }).returning();
+      mine.distilleries.push(real[0]!.id, placeholder[0]!.id);
+      await expect(m.mergeReference(owner, "distilleries", real[0]!.id, placeholder[0]!.id, [])).rejects.toMatchObject({ code: "blocked" });
+      await expect(m.mergeReference(owner, "distilleries", placeholder[0]!.id, real[0]!.id, [])).rejects.toMatchObject({ code: "blocked" });
+      expect((await db.select().from(distilleries).where(inArray(distilleries.id, [real[0]!.id, placeholder[0]!.id]))).length).toBe(2);
+      expect((await m.previewMerge(owner, "distilleries", real[0]!.id, placeholder[0]!.id)).blocked).toContain("undisclosed");
+    });
+  });
 
   describe("distilleries", () => {
     const distillery = async (extra: Partial<typeof distilleries.$inferInsert> = {}) => {

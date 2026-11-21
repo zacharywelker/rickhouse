@@ -30,6 +30,8 @@ describe("findNamePairs", () => {
     ["Rye", "Rum"], ["Rye", "Ryes"], ["The", "The Co"], ["", "!!!"],
     ["Abcdef", "Abcxyf"], // Six letters allow only one slip, even against a longer name.
     ["Abcdef", "Abcdxyf"],
+    // Names that differ only in a number are different things, not typos: a merge cannot be undone.
+    ["Old Forester 86", "Old Forester 96"], ["Batch 1", "Batch 2"], ["1792", "1791"], ["Single Barrel 12", "Single Barrel 13"],
   ])("does not pair %s / %s", (a, b) => {
     expect(findNamePairs("brands", rows(a, b))).toEqual([]);
   });
@@ -64,6 +66,11 @@ describe("findNamePairs", () => {
       [4, 5, 0], [4, 6, 0], [5, 6, 0], [7, 8, 0], [2, 3, 1], [1, 3, 2],
     ]);
     expect(findNamePairs("distilleries", input.reverse())).toEqual(pairs);
+  });
+
+  it("still pairs numbered names that agree on their numbers", () => {
+    expect(findNamePairs("brands", rows("Maker’s Mark 46", "Makers Mark 46"))).toHaveLength(1);
+    expect(findNamePairs("brands", rows("Old Forester 1920", "Old Forrester 1920"))).toHaveLength(1);
   });
 
   it("handles 2,000 synthetic names well under a second", () => {

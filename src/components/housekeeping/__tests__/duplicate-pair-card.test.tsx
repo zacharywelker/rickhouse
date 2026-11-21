@@ -69,6 +69,18 @@ describe("DuplicatePairCard", () => {
     expect(html).toContain("Not a duplicate");
   });
 
+  it("states a blocked reason as plain text, so a page of blocked pairs does not announce them all at once", () => {
+    const blocked = { moves: [], adoptable: [], blocked: "Both brands have a label called “X”. Merge those labels first." };
+    const html = renderToStaticMarkup(<DuplicatePairCard pair={{ ...distilleries, kind: "brands" }} previews={{ aKeeps: blocked, bKeeps: blocked }} />);
+    expect(html).not.toContain('role="alert"');
+  });
+
+  it("groups the two keep choices under a name", () => {
+    const html = renderToStaticMarkup(<DuplicatePairCard pair={distilleries} previews={previews} />);
+    expect(html).toContain('role="radiogroup"');
+    expect(html).toContain('aria-label="Which one to keep"');
+  });
+
   it("says when nothing points at the removed row", () => {
     const html = renderToStaticMarkup(
       <DuplicatePairCard pair={{ ...distilleries, kind: "tags" }} previews={{ aKeeps: ok([]), bKeeps: ok([]) }} />,

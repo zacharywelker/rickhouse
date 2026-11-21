@@ -41,6 +41,18 @@ export function DuplicatePairCard({ pair, previews }: { pair: PairView; previews
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
+  // Pressing Merge swaps its button for the confirm pair: keyboard focus follows, to Cancel (the safe one), and returns
+  // to Merge if the owner cancels.
+  const mergeButton = React.useRef<HTMLButtonElement>(null);
+  const cancelButton = React.useRef<HTMLButtonElement>(null);
+  const cancelled = React.useRef(false);
+  React.useEffect(() => {
+    if (confirming) cancelButton.current?.focus();
+    else if (cancelled.current) {
+      cancelled.current = false;
+      mergeButton.current?.focus();
+    }
+  }, [confirming]);
 
   const survivor: SideView = keep === "a" ? pair.a : pair.b;
   const removed: SideView = keep === "a" ? pair.b : pair.a;
@@ -77,7 +89,7 @@ export function DuplicatePairCard({ pair, previews }: { pair: PairView; previews
       <div className="border-b border-border bg-muted px-4 py-2 text-sm">
         <b className="font-semibold">{pair.score <= 1 ? "Very likely" : "Likely"}</b> · {pair.reason}
       </div>
-      <div className="grid sm:grid-cols-2">
+      <div role="radiogroup" aria-label="Which one to keep" className="grid sm:grid-cols-2">
         {(["a", "b"] as const).map((side) => {
           const item = pair[side];
           return (
@@ -103,9 +115,7 @@ export function DuplicatePairCard({ pair, previews }: { pair: PairView; previews
 
       <div className="flex flex-col gap-2 border-t border-border px-4 py-3 text-sm">
         {preview.blocked ? (
-          <p role="alert" className="text-destructive">
-            {preview.blocked}
-          </p>
+          <p className="text-destructive">{preview.blocked}</p>
         ) : (
           <>
             <p className="text-muted-foreground">
@@ -155,7 +165,17 @@ export function DuplicatePairCard({ pair, previews }: { pair: PairView; previews
           {confirming ? (
             <>
               <span className="mr-auto text-muted-foreground">This can’t be undone.</span>
-              <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={() => setConfirming(false)}>
+              <Button
+                ref={cancelButton}
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={pending}
+                onClick={() => {
+                  cancelled.current = true;
+                  setConfirming(false);
+                }}
+              >
                 Cancel
               </Button>
               <Button
@@ -181,7 +201,7 @@ export function DuplicatePairCard({ pair, previews }: { pair: PairView; previews
               >
                 Not a duplicate
               </Button>
-              <Button type="button" size="sm" disabled={pending || preview.blocked !== null} onClick={() => setConfirming(true)}>
+              <Button ref={mergeButton} type="button" size="sm" disabled={pending || preview.blocked !== null} onClick={() => setConfirming(true)}>
                 Merge
               </Button>
             </>
