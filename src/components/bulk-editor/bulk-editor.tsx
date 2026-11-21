@@ -1442,8 +1442,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     if (!(range && single)) {
       const lines = linesForNewRows(rows, at.row, grid.length).map((i) => grid[i]!);
       if (lines.length > 0) {
-        const made = makeNewRows(lines.slice(0, MAX_NEW_ROWS), at.col, today, skipped);
-        added = made.rows;
+        const made = fillNewRows(lines.slice(0, MAX_NEW_ROWS).map((cells) => ({ cells, into: null })), at.col, today, skipped);
+        added = made.made;
         toChoose += made.waiting;
         beyondColumns += made.beyondColumns;
         if (lines.length > MAX_NEW_ROWS) skipped.push(`only the first ${MAX_NEW_ROWS} new rows were added`);
@@ -1466,20 +1466,21 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   const MAX_NEW_ROWS = 300;
 
   /**
-   * New rows from the lines a paste has below the last saved row. Each is a new row as if typed: a brand, label and
+   * New rows from the pasted rows that do not land on a saved row. Each is a new row as if typed: a brand, label and
    * category that are complete names that exist are chosen, the rest wait to be picked, and every other value is kept
-   * in the row (a label's facts are sent only if the label turns out to be a new one).
+   * in the row (a label's facts are sent only if the label turns out to be a new one). `into` is the new row a pasted
+   * row lands on, or null for one past the last row, which makes a row of its own.
    */
-  function makeNewRows(lines: string[][], startCol: number, today: string, skipped: string[]): { rows: number; waiting: number; beyondColumns: number } {
+  function fillNewRows(routes: Array<{ cells: string[]; into: string | null }>, startCol: number, today: string, skipped: string[]): { made: number; filled: number; cells: number; waiting: number; beyondColumns: number } {
     let floor = keyFloor;
     let waiting = 0;
     let beyondColumns = 0;
     const made: DraftRow[] = [];
     const newEdits: Record<string, Record<string, string>> = {};
     const newPending: Record<string, string> = {};
-    lines.forEach((cells, n) => {
-      const key = `d${floor}`;
-      floor += 1;
+    routes.forEach(({ cells, into }, n) => {
+      const key = into ?? `d${floor}`;
+      if (into === null) floor += 1;
       const texts: RowTexts = {};
       const typed: Record<string, string> = {};
       cells.forEach((text, j) => {
@@ -1529,7 +1530,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     setKeyFloor((prev) => Math.max(prev, floor));
     setEdits((prev) => ({ ...prev, ...newEdits }));
     setPending((prev) => ({ ...prev, ...newPending }));
-    return { rows: made.length, waiting, beyondColumns };
+    return { made: made.length, filled: 0, cells: 0, waiting, beyondColumns };
   }
 
   /** After a choice on a new row: what it was waiting for that the choice now allows (a label for its brand, a category for its label). */
