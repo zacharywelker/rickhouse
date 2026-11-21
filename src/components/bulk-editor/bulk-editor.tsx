@@ -1863,6 +1863,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     const source = menuTarget();
     if (!source) return;
     const key = nextDraftKey(drafts, keyFloor);
+    // Reserved like every other new row's key: a key given out again after its row was discarded would be one the saver treats as gone.
+    keepKeys(key);
     const made = insertionDraft(key, source, view, source.draft ? drafts.find((d) => d.key === source.key) : undefined);
     const nextDrafts = [...drafts, made];
     const nextRows = rowsFor(withBlankRow(nextDrafts, keyFloor));
@@ -2017,6 +2019,11 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     flashRow(rows[at]!.key);
     sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${at}"]`)?.scrollIntoView({ block: "center", inline: "nearest" });
   }, [rows]);
+  /** The dialog the menu's delete items open has no trigger to return focus to, so it goes back to the cursor's cell. */
+  const deleteDialogCloseFocus = (event: Event) => {
+    event.preventDefault();
+    if (current) sheetRef.current?.querySelector<HTMLElement>(`td[data-r="${current.row}"][data-c="${current.col}"]`)?.focus({ preventScroll: true });
+  };
   const menuCloseFocus = (event: Event) => {
     event.preventDefault();
     // An item that opened the delete dialog leaves focus to the dialog.
@@ -2287,7 +2294,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground md:hidden">
         <Shortcuts />
       </p>
-      <DeleteDialog open={deleteAsk !== null} onOpenChange={(open) => { if (!open) setDeleteAsk(null); }} ids={deleteAsk ?? { labelIds: [], bottleIds: [] }} onDone={afterDelete} />
+      <DeleteDialog onCloseAutoFocus={deleteDialogCloseFocus} open={deleteAsk !== null} onOpenChange={(open) => { if (!open) setDeleteAsk(null); }} ids={deleteAsk ?? { labelIds: [], bottleIds: [] }} onDone={afterDelete} />
       {/* Present before anything is in it, so a screen reader announces the text when it appears. It never takes focus. */}
       <div aria-live="polite" aria-atomic="false" className={cn("pointer-events-none fixed right-4 z-40 w-[min(24rem,calc(100vw-2rem))]", ticked.length > 0 ? "bottom-24" : "bottom-4")}>
         <Notices notices={notices} onDismiss={dismissNotice} />

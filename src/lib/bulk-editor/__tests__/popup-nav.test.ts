@@ -37,7 +37,8 @@ describe("reading a url's parameters", () => {
     expect(nextOf(new URLSearchParams("next=%2Fbottles%2F12%2Fedit"))).toBe("/bottles/12/edit");
   });
   it("refuses a next that leaves the site, so it cannot be an open redirect", () => {
-    for (const bad of ["https://evil.example/x", "//evil.example/x", "/\\evil.example", "javascript:alert(1)", "bottles/12"]) {
+    // The browser strips a tab or newline inside a url, which would turn "/<tab>/host" into "//host".
+    for (const bad of ["https://evil.example/x", "//evil.example/x", "/\\evil.example", "javascript:alert(1)", "bottles/12", "/\t/evil.example/x", "/\n/evil.example/x", "/\r/evil.example/x", "/\u0000/x"]) {
       expect(nextOf(new URLSearchParams({ next: bad })), bad).toBeNull();
     }
   });

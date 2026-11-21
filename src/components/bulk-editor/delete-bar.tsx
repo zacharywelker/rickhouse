@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  * numbers in it come from the server when it opens, so they are what will be deleted, not what the sheet guesses. It is
  * used by the bar below (rows ticked) and by the row menu (one label or one bottle); `ids` is read once, as it opens.
  */
-export function DeleteDialog({ open, onOpenChange, ids, onDone }: { open: boolean; onOpenChange: (open: boolean) => void; ids: DeleteIds; onDone: (outcome: DeleteOutcome) => void }) {
+export function DeleteDialog({ open, onOpenChange, ids, onDone, onCloseAutoFocus }: { open: boolean; onOpenChange: (open: boolean) => void; ids: DeleteIds; onDone: (outcome: DeleteOutcome) => void; /** Where focus goes when it closes: a dialog with no trigger has nowhere to return it. */ onCloseAutoFocus?: (event: Event) => void }) {
   const [asked, setAsked] = React.useState<DeleteIds>(ids);
   const [impact, setImpact] = React.useState<Awaited<ReturnType<typeof deleteImpactAction>> | null>(null);
   const [deleting, setDeleting] = React.useState(false);
@@ -62,7 +62,7 @@ export function DeleteDialog({ open, onOpenChange, ids, onDone }: { open: boolea
   const sentence = impact ? deleteSentence(asked, impact) : null;
   return (
     <Dialog open={open} onOpenChange={(next) => !deleting && onOpenChange(next)}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{sentence?.title ?? "Delete…"}</DialogTitle>
           <DialogDescription>This cannot be undone.</DialogDescription>
