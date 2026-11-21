@@ -1,5 +1,6 @@
 "use client";
 
+import { Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { platformKeyName } from "@/lib/platform";
@@ -15,33 +16,20 @@ export function Shortcuts() {
   );
 }
 
-function Key({ children }: { children: React.ReactNode }) {
-  return <kbd className="border border-border bg-muted px-1 font-sans text-[11px] text-foreground">{children}</kbd>;
-}
-
-/** From `md` up: the basics on one line under the sheet, and the full help a click away. */
-export function ShortcutsFooter() {
+/** From `md` up: a small keyboard button at the end of the toolbar that shows the full help, so the page has no footer. */
+export function ShortcutsButton() {
   return (
-    <div className="hidden items-center gap-4 text-xs text-muted-foreground md:flex">
-      <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden whitespace-nowrap">
-        <span>Arrow keys move. Type or press Enter to edit.</span>
-        <span><Key>Tab</Key> next cell</span>
-        <span><Key>Esc</Key> cancels</span>
-        <span><Key>{platformKeyName() === "Option" ? "Cmd" : "Ctrl"}</Key>+<Key>Z</Key> undo</span>
-        <span><Key>Alt</Key>+<Key>Shift</Key>+<Key>&larr;</Key><Key>&rarr;</Key> resize a column</span>
-      </div>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button type="button" variant="ghost" size="sm" className="shrink-0">
-            All shortcuts
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent side="top" align="end" className="w-[min(44rem,calc(100vw-2rem))] p-3 text-xs text-muted-foreground">
-          <p>
-            <Shortcuts />
-          </p>
-        </PopoverContent>
-      </Popover>
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="ghost" size="sm" aria-label="Keyboard shortcuts" title="Keyboard shortcuts" className="hidden px-2 text-muted-foreground md:inline-flex">
+          <Keyboard aria-hidden className="size-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="end" className="w-[min(44rem,calc(100vw-2rem))] p-3 text-xs text-muted-foreground">
+        <p>
+          <Shortcuts />
+        </p>
+      </PopoverContent>
+    </Popover>
   );
 }

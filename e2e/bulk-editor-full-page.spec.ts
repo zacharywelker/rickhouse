@@ -98,15 +98,32 @@ test("the pane lies over the sheet's right edge, and showing or hiding it moves 
   const box = (await scrollBox(page).boundingBox())!;
   const bar = await scrollBox(page).evaluate((el) => (el as HTMLElement).offsetWidth - (el as HTMLElement).clientWidth);
   const p = (await pane(page).boundingBox())!;
-  // Over the right edge of the sheet's scroll box, level with its top, and not covering its scrollbar.
-  expect(Math.abs(p.x + p.width - (box.x + box.width - bar))).toBeLessThanOrEqual(2);
-  expect(Math.abs(p.y - box.y)).toBeLessThanOrEqual(2);
+  // Floating over the sheet's scroll box: inset from its right edge (and clear of its scrollbar) and from its top, with a shadow.
+  const rightGap = box.x + box.width - bar - (p.x + p.width);
+  expect(rightGap).toBeGreaterThanOrEqual(8);
+  expect(rightGap).toBeLessThanOrEqual(16);
+  expect(p.y - box.y).toBeGreaterThanOrEqual(8);
+  expect(p.y - box.y).toBeLessThanOrEqual(16);
   expect(p.width).toBeLessThanOrEqual(300);
+  const card = pane(page).locator("> div").first();
+  expect(await card.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe("none");
 
   await hidePane(page);
   await expect(pane(page).getByRole("button", { name: "Show the details panel" })).toBeVisible();
   const after = { grid: await grid(page).boundingBox(), brand: await grid(page).locator("thead tr:last-child th").first().boundingBox(), row: await grid(page).locator("tbody tr").first().boundingBox() };
   expect(after).toEqual(before);
+});
+
+test("showing or hiding the pane resizes no column", async ({ page }) => {
+  await page.setViewportSize({ width: 2560, height: 1000 }); // wide enough that the columns would stretch to fill the room the pane leaves
+  await page.goto("/bulk-editor");
+  await expect(grid(page)).toBeVisible();
+  await expect(pane(page)).toBeVisible();
+  const widths = async () => grid(page).locator("thead tr:last-child th").evaluateAll((ths) => ths.map((th) => Math.round(th.getBoundingClientRect().width)));
+  const open = await widths();
+  await hidePane(page);
+  await expect(pane(page).getByRole("button", { name: "Show the details panel" })).toBeVisible();
+  expect(await widths()).toEqual(open);
 });
 
 test("the last column scrolls fully clear of the pane, and to the edge when the pane is hidden", async ({ page }) => {
@@ -177,14 +194,15 @@ test("ticking a row shows the delete bar without shrinking the sheet or going un
 /** The long help where it is showing: it is also in the page, hidden, from md up. */
 const longHelp = (page: Page) => page.getByText(/Enter takes the highlighted match or creates/).locator("visible=true");
 
-test("from md up the help is a one-line footer with the full text behind All shortcuts", async ({ page }) => {
+test("from md up there is no footer: the sheet runs to the window's bottom and the shortcuts are a button in the toolbar", async ({ page }) => {
   await openLaptop(page);
-  const button = page.getByRole("button", { name: "All shortcuts" });
-  await expect(button).toBeVisible();
-  const footer = (await button.locator("xpath=..").boundingBox())!;
-  expect(footer.height).toBeLessThan(40);
+  await expect(page.getByRole("button", { name: "All shortcuts" })).toHaveCount(0);
+  const m = await measures(page);
+  expect(m.frameBottom).toBeGreaterThan(768 - 40);
   await expect(longHelp(page)).toBeHidden();
 
+  const button = page.getByRole("button", { name: "Keyboard shortcuts" });
+  await expect(button).toBeVisible();
   await button.click();
   await expect(longHelp(page)).toBeVisible();
   await expect(page.getByText(/Drag the edge of a column header to resize it/).locator("visible=true")).toBeVisible();
@@ -196,7 +214,7 @@ test("below md the page is as before: the long help under the sheet and no foote
   await page.setViewportSize({ width: 700, height: 900 });
   await page.goto("/bulk-editor");
   await expect(grid(page)).toBeVisible();
-  await expect(page.getByRole("button", { name: "All shortcuts" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Keyboard shortcuts" })).toBeHidden();
   await expect(longHelp(page)).toBeVisible();
 });
 
@@ -207,7 +225,7 @@ test("showing the pane over the selected cell scrolls the cell clear of it", asy
   await hidePane(page);
   await scrollToEnd(page);
   const lastCol = (await grid(page).locator("thead tr:last-child th").count()) - 1;
-  await grid(page).locator(`td[data-r='0'][data-c='${lastCol}']`).click();
+  await grid(page).locator(`td[data-r='4'][data-c='${lastCol}']`).click(); // below the show-pane tab, which floats over the first rows
   await page.getByRole("button", { name: "Show the details panel" }).click();
   await expect(pane(page).getByRole("button", { name: "Hide the details panel" })).toBeVisible();
   await page.waitForTimeout(300);
