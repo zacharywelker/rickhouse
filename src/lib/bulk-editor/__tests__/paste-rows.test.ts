@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyDraft } from "../drafts";
-import { linesForNewRows, pastedDraftConflict, settleDraft, type SettleData } from "../paste-rows";
+import { linesForNewRows, routePasteRows, pastedDraftConflict, settleDraft, type SettleData } from "../paste-rows";
 import type { SheetLabel } from "../sheet";
 
 const label = (id: number, brandId: number, name: string, categoryId: number) => ({ id, brandId, name, categoryId }) as unknown as SheetLabel;
@@ -97,5 +97,35 @@ describe("which pasted lines become new rows", () => {
   it("with every new row at the bottom it matches what pasting always did", () => {
     expect(linesForNewRows([saved, saved, saved, fresh], 0, 6)).toEqual([3, 4, 5]);
     expect(linesForNewRows([saved, saved, saved, fresh], 0, 2)).toEqual([]);
+  });
+});
+
+describe("which new row each pasted line lands on", () => {
+  const rows = [
+    { key: "b1", draft: undefined },
+    { key: "b2", draft: undefined },
+    { key: "d1", draft: {} },
+    { key: "b3", draft: undefined },
+    { key: "b4", draft: undefined },
+    { key: "d2", draft: {} },
+  ];
+
+  it("skips saved rows below an insert, then fills the empty row and goes past the end", () => {
+    expect(routePasteRows(rows, 3, 4)).toEqual([{ line: 2, into: "d2" }, { line: 3, into: null }]);
+  });
+  it("routes only the line that lands on the inserted row", () => {
+    expect(routePasteRows(rows, 0, 4)).toEqual([{ line: 2, into: "d1" }]);
+  });
+  it("skips the final saved row before filling the empty row and going past the end", () => {
+    expect(routePasteRows(rows, 4, 3)).toEqual([{ line: 1, into: "d2" }, { line: 2, into: null }]);
+  });
+  it("returns no routes for a paste over saved rows only", () => {
+    expect(routePasteRows(rows, 0, 2)).toEqual([]);
+  });
+  it("starts on the empty row and routes the next line past the end", () => {
+    expect(routePasteRows(rows, 5, 2)).toEqual([{ line: 0, into: "d2" }, { line: 1, into: null }]);
+  });
+  it("returns no routes for zero pasted rows", () => {
+    expect(routePasteRows(rows, 0, 0)).toEqual([]);
   });
 });

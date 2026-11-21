@@ -92,3 +92,14 @@ export function linesForNewRows(rows: ReadonlyArray<{ draft?: unknown }>, atRow:
   }
   return made;
 }
+
+export type PasteRoute = { line: number; into: string | null };
+/** For each pasted row that does not land on a saved row, in order: `into` is the key of the new row it lands on, or null when it is past the last row. */
+export function routePasteRows(rows: ReadonlyArray<{ key: string; draft?: unknown }>, atRow: number, count: number): PasteRoute[] {
+  const routes: PasteRoute[] = [];
+  for (let line = 0; line < count; line += 1) {
+    const target = rows[atRow + line];
+    if (!target || target.draft) routes.push({ line, into: target?.key ?? null });
+  }
+  return routes;
+}
