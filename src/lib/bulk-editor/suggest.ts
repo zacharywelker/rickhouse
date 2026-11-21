@@ -56,7 +56,7 @@ export function distance(a: string, b: string): number {
 }
 
 /** How many slips still count as "close": none for very short text, where nearly everything would be. */
-const slipsAllowed = (length: number) => (length <= 3 ? 0 : length <= 6 ? 1 : 2);
+export const slipsAllowed = (length: number) => (length <= 3 ? 0 : length <= 6 ? 1 : 2);
 
 /** 0 for the best kind of match, up to 3, or null for no match. */
 function matchTier(typed: string, candidate: string): number | null {
