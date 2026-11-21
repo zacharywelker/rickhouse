@@ -1906,6 +1906,10 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   async function expandDraft(row: SheetRow) {
     const draft = allDrafts.find((d) => d.key === row.key);
     if (!draft) return;
+    if (saver.draftSaving(draft.key)) {
+      pushNotice("This row is saving. Try again in a moment.");
+      return;
+    }
     const prefill = expandPrefill(draft, edits[draft.key], pendingByRow.get(draft.key), view);
     let target = draft;
     if (prefill.newBrand !== null) {

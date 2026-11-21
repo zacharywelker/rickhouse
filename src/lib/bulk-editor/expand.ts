@@ -1,7 +1,7 @@
-import { BOTTLE_FIELDS, BOTTLE_STATE_SECTION } from "@/lib/expressions/bottle-fields";
+import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { EXPRESSION_SECTIONS } from "@/lib/expressions/fields";
 import type { DraftRow } from "./drafts";
-import { cellFields, columnOfField } from "./save";
+import { cellFields, columnOfField, routeMarkedLiquid } from "./save";
 import { SHEET_COLUMNS, type SheetRow, type SheetView } from "./sheet";
 
 /**
@@ -28,7 +28,7 @@ export function expandSteps(row: SheetRow, view: SheetView): string[] | null {
 export type Prefill = { label: Record<string, unknown>; bottle: Record<string, unknown>; dropped: string[]; newBrand: string | null };
 
 const LABEL_FIELD_NAMES: ReadonlySet<string> = new Set(EXPRESSION_SECTIONS.flatMap((section) => section.fields.map((field) => field.name)));
-const BOTTLE_FIELD_NAMES: ReadonlySet<string> = new Set([...BOTTLE_FIELDS, ...BOTTLE_STATE_SECTION.fields].map((field) => field.name));
+const BOTTLE_FIELD_NAMES: ReadonlySet<string> = new Set(BOTTLE_FIELDS.map((field) => field.name));
 
 /** What to hand the form for a new row: its picks, its typed cells (through the same mapping the saver uses) and its waiting text. */
 export function expandPrefill(draft: DraftRow, cells: Readonly<Record<string, string>> | undefined, pending: Readonly<Record<string, string>> | undefined, view: SheetView): Prefill {
@@ -49,6 +49,7 @@ export function expandPrefill(draft: DraftRow, cells: Readonly<Record<string, st
   }
 
   const { facts, bottle: bottleFields } = cellFields(cells);
+  routeMarkedLiquid(facts, bottleFields, draft);
   const columnName = (field: string, scope: "label" | "bottle") => {
     const id = columnOfField(field, scope);
     return SHEET_COLUMNS.find((column) => column.id === id)?.label ?? id;

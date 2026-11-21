@@ -59,6 +59,36 @@ describe("what a new row hands to the form", () => {
     expect(prefill.bottle).toEqual({ pricePaid: "45", notes: "n" });
     expect(prefill.dropped).toEqual([]);
   });
+  it("names typed bottle state cells the creation form cannot carry", () => {
+    const prefill = expandPrefill(newRow(), {
+      isOpen: "true", fillPct: "50", dateOpened: "2026-01-01", dateKilled: "2026-02-01", isFavorite: "true", pricePaid: "45",
+    }, undefined, BOTH);
+    expect(prefill.bottle).toEqual({ pricePaid: "45" });
+    expect(prefill.dropped).toEqual(["Opened", "Fill", "Date Opened", "Date Killed", "Favorite"]);
+  });
+  it.each(["singleBarrel", "privateSelection"])("routes typed proof and age to the bottle when %s is marked", (column) => {
+    const prefill = expandPrefill(newRow(), { proof: "101", ageYears: "8", sizeMl: "700", [column]: "true" }, undefined, BOTH);
+    expect(prefill.label).toEqual({ sizeMl: "700" });
+    expect(prefill.bottle).toEqual({ proof: "101", ageYears: "8", [column === "singleBarrel" ? "isSingleBarrel" : "isSingleBarrelPick"]: true });
+    expect(prefill.dropped).toEqual([]);
+  });
+  it.each(["singleBarrel", "privateSelection"])("keeps typed proof and age on the label when keepOnLabel is set with %s", (column) => {
+    const prefill = expandPrefill(newRow({ keepOnLabel: true }), { proof: "101", ageYears: "8", [column]: "true" }, undefined, BOTH);
+    expect(prefill.label).toEqual({ proof: "101", ageYears: "8" });
+    expect(prefill.bottle).toEqual({ [column === "singleBarrel" ? "isSingleBarrel" : "isSingleBarrelPick"]: true });
+    expect(prefill.dropped).toEqual([]);
+  });
+  it("keeps typed proof and age on the label when neither marking is set", () => {
+    const prefill = expandPrefill(newRow(), { proof: "101", ageYears: "8", singleBarrel: "false", privateSelection: "false" }, undefined, BOTH);
+    expect(prefill.label).toEqual({ proof: "101", ageYears: "8" });
+    expect(prefill.bottle).toEqual({ isSingleBarrel: false, isSingleBarrelPick: false });
+    expect(prefill.dropped).toEqual([]);
+  });
+  it("carries a marked row's typed vintage name as the bottle's batch", () => {
+    const prefill = expandPrefill(newRow(), { releaseId: "new:Batch 032", privateSelection: "true" }, undefined, BOTH);
+    expect(prefill.bottle).toEqual({ batch: "Batch 032", isSingleBarrelPick: true });
+    expect(prefill.dropped).toEqual([]);
+  });
   it("carries only the bottle's cells for a label that exists: the page opens with that label chosen", () => {
     const prefill = expandPrefill(newRow({ brand: existing(10, "Four Roses"), label: existing(1, "Single Barrel"), categoryId: 5 }), { pricePaid: "45" }, undefined, BOTH);
     expect(prefill.label).toEqual({});

@@ -146,13 +146,8 @@ export function cellFields(cells: Readonly<Record<string, string>> | undefined):
   return { facts, bottle };
 }
 
-/**
- * The body for a new row. An existing brand or label goes by id (and an existing label takes no facts: they are not the
- * row's to change). A new label carries its category and the facts typed into the row. The bottle is included when the
- * view is of bottles, or when anything was typed into a bottle cell, so typed values are never dropped.
- */
-export function createBody(draft: DraftRow, cells: Readonly<Record<string, string>> | undefined, bottleView: boolean): Record<string, unknown> {
-  const { facts, bottle } = cellFields(cells);
+/** Routes a marked new row's liquid values and typed vintage name to its bottle, unless kept on the label. */
+export function routeMarkedLiquid(facts: Record<string, unknown>, bottle: Record<string, unknown>, draft: DraftRow): void {
   // A row marked a single barrel or private selection: the proof and age typed are the bottle's, and no vintage is made for it
   // (the name typed in its Vintage cell is the bottle's batch, as a pick's batch is).
   const marked = bottle.isSingleBarrel === true || bottle.isSingleBarrelPick === true;
@@ -165,6 +160,16 @@ export function createBody(draft: DraftRow, cells: Readonly<Record<string, strin
       delete bottle.releaseName;
     }
   }
+}
+
+/**
+ * The body for a new row. An existing brand or label goes by id (and an existing label takes no facts: they are not the
+ * row's to change). A new label carries its category and the facts typed into the row. The bottle is included when the
+ * view is of bottles, or when anything was typed into a bottle cell, so typed values are never dropped.
+ */
+export function createBody(draft: DraftRow, cells: Readonly<Record<string, string>> | undefined, bottleView: boolean): Record<string, unknown> {
+  const { facts, bottle } = cellFields(cells);
+  routeMarkedLiquid(facts, bottle, draft);
   // A vintage made in this row takes the proof and age typed into it, and the label does not: they are the vintage's.
   let vintage: { name: string; facts: Record<string, string> } | undefined;
   if (typeof bottle.releaseName === "string") {
