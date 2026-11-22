@@ -4,23 +4,20 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useSavedCount } from "@/components/housekeeping/saved-count";
 import { Button } from "@/components/ui/button";
-import type { DuplicateKind } from "@/lib/housekeeping/duplicate-kinds";
-import { nextOffset, photoHref, previousOffset, type PhotoTab } from "@/lib/housekeeping/photo-params";
+import { pageHref, type PageState } from "@/lib/housekeeping/page-state";
+import { nextOffset, previousOffset } from "@/lib/housekeeping/photo-params";
 
 /** The range line with Previous and Next. Next steps forward by a page less the cards saved on this one. */
 export function PhotoPager({
-  tab,
-  per,
+  state,
   total,
   window,
-  dup,
 }: {
-  tab: PhotoTab;
-  per: number;
+  state: PageState;
   total: number;
   window: { offset: number; from: number; to: number; hasPrev: boolean; hasNext: boolean };
-  dup?: DuplicateKind;
 }) {
+  const { per } = state;
   const { saved } = useSavedCount();
   return (
     <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm text-muted-foreground">
@@ -31,7 +28,7 @@ export function PhotoPager({
       <span className="flex gap-2">
         {window.hasPrev ? (
           <Button asChild variant="outline" size="sm">
-            <Link href={photoHref(tab, per, previousOffset(window.offset, per), dup) as Route}>Previous</Link>
+            <Link href={pageHref(state, { offset: previousOffset(window.offset, per) }) as Route}>Previous</Link>
           </Button>
         ) : (
           <Button variant="outline" size="sm" disabled>
@@ -40,7 +37,7 @@ export function PhotoPager({
         )}
         {window.hasNext ? (
           <Button asChild variant="outline" size="sm">
-            <Link href={photoHref(tab, per, nextOffset(window.offset, per, saved), dup) as Route}>Next</Link>
+            <Link href={pageHref(state, { offset: nextOffset(window.offset, per, saved) }) as Route}>Next</Link>
           </Button>
         ) : (
           <Button variant="outline" size="sm" disabled>

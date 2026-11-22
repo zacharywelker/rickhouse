@@ -1,12 +1,12 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { DuplicateNoticeList, DuplicateNoticesProvider } from "@/components/housekeeping/duplicate-notices";
+import { SectionNoticeList, SectionNoticesProvider } from "@/components/housekeeping/section-notices";
 import { DuplicatePairCard } from "@/components/housekeeping/duplicate-pair-card";
 import { Section, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { DUPLICATE_KINDS, KIND_LABELS, type DuplicateKind } from "@/lib/housekeeping/duplicate-kinds";
 import type { PairView } from "@/lib/housekeeping/duplicate-queries";
 import type { MergePreview } from "@/lib/housekeeping/merge-reference";
-import { photoHref, type PhotoTab } from "@/lib/housekeeping/photo-params";
+import { pageHref, type PageState } from "@/lib/housekeeping/page-state";
 import { cn } from "@/lib/utils";
 
 /** How many pairs of a kind are shown at once; merging or dismissing one brings the next into view. */
@@ -20,12 +20,13 @@ export function DuplicatesSection({
   kind,
   counts,
   shown,
-  photo,
+  state,
 }: {
   kind: DuplicateKind;
   counts: Record<DuplicateKind, number>;
   shown: Array<{ pair: PairView; previews: { aKeeps: MergePreview; bKeeps: MergePreview } }>;
-  photo: { tab: PhotoTab; per: number; offset: number };
+  /** The whole page's place in the address, so a link here keeps the other sections' tabs and windows. */
+  state: PageState;
 }) {
   const total = counts[kind];
   return (
@@ -43,7 +44,7 @@ export function DuplicatesSection({
           return (
             <Link
               key={key}
-              href={photoHref(photo.tab, photo.per, photo.offset, key) as Route}
+              href={pageHref(state, { dup: key }) as Route}
               aria-current={current ? "page" : undefined}
               className={cn(
                 "-mb-px border-b-2 px-3 py-2 text-sm",
@@ -58,8 +59,8 @@ export function DuplicatesSection({
         })}
       </nav>
 
-      <DuplicateNoticesProvider>
-        <DuplicateNoticeList />
+      <SectionNoticesProvider>
+        <SectionNoticeList />
         {shown.length === 0 ? (
           <p className="border border-border bg-card px-4 py-5 text-sm text-muted-foreground">
             Nothing to merge in {KIND_LABELS[kind].toLowerCase()}. New candidates show up here after you add or import more.
@@ -71,7 +72,7 @@ export function DuplicatesSection({
             ))}
           </div>
         )}
-      </DuplicateNoticesProvider>
+      </SectionNoticesProvider>
 
       {total > shown.length ? (
         <p className="mt-3 text-sm text-muted-foreground">

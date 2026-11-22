@@ -48,14 +48,6 @@ export function previousOffset(offset: number, per: number): number {
   return Math.max(0, offset - per);
 }
 
-/**
- * The address of a window of a tab, with the Duplicates tab (when one is chosen) carried along, so a link in one
- * section never resets the other. The offset is left out at the start so the first page has a clean address.
- */
-export function photoHref(tab: PhotoTab, per: number, offset: number, dup?: DuplicateKind): string {
-  return `/housekeeping?tab=${tab}&per=${per}${offset > 0 ? `&offset=${offset}` : ""}${dup ? `&dup=${dup}` : ""}`;
-}
-
 /** The Duplicates tab named in the address, or null when there is none or it is not a kind. */
 export function parseDuplicateKind(sp: Record<string, string | string[] | undefined>): DuplicateKind | null {
   const value = Array.isArray(sp.dup) ? sp.dup[0] : sp.dup;

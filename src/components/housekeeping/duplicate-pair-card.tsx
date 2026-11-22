@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { dismissPairAction, mergePairAction } from "@/app/(app)/housekeeping/duplicate-actions";
-import { useDuplicateNotices } from "@/components/housekeeping/duplicate-notices";
+import { useSectionNotices } from "@/components/housekeeping/section-notices";
 import { Button } from "@/components/ui/button";
 import type { DuplicateKind } from "@/lib/housekeeping/duplicate-kinds";
 import type { PairView, SideView } from "@/lib/housekeeping/duplicate-queries";
@@ -34,7 +34,7 @@ const valueText = (field: string, value: unknown) => (field.endsWith("Id") ? "" 
  * has (offered, ticked), and the two answers: merge, or "not a duplicate". A merge cannot be undone, so it asks once.
  */
 export function DuplicatePairCard({ pair, previews }: { pair: PairView; previews: { aKeeps: MergePreview; bKeeps: MergePreview } }) {
-  const notices = useDuplicateNotices();
+  const notices = useSectionNotices();
   const [keep, setKeep] = React.useState<"a" | "b">(pair.b.uses > pair.a.uses ? "b" : "a");
   const [unticked, setUnticked] = React.useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = React.useState(false);

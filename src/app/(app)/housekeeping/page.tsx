@@ -5,7 +5,8 @@ import { requireSession } from "@/lib/auth";
 import { DUPLICATE_KINDS } from "@/lib/housekeeping/duplicate-kinds";
 import { countDuplicatePairs, listDuplicatePairs } from "@/lib/housekeeping/duplicate-queries";
 import { previewMerge } from "@/lib/housekeeping/merge-reference";
-import { pageWindow, parseDuplicateKind, parsePhotoParams } from "@/lib/housekeeping/photo-params";
+import { parsePageState } from "@/lib/housekeeping/page-state";
+import { pageWindow } from "@/lib/housekeeping/photo-params";
 import { countMissingPhotos, listMissingPhotos } from "@/lib/housekeeping/photo-queries";
 
 export const metadata: Metadata = { title: "Housekeeping" };
@@ -19,7 +20,8 @@ export default async function HousekeepingPage({
 }) {
   const user = await requireSession();
   const params = await searchParams;
-  const { tab, per, offset } = parsePhotoParams(params);
+  const state = parsePageState(params);
+  const { tab, per, offset } = state;
   const counts = await countMissingPhotos(user.id);
   const window = pageWindow(counts[tab], per, offset);
   const items = await listMissingPhotos(user.id, tab, window.offset, per);
@@ -27,7 +29,7 @@ export default async function HousekeepingPage({
 
   // With no tab chosen the Duplicates section opens on the first kind that has something to show.
   const pairCounts = await countDuplicatePairs(user.id);
-  const dup = parseDuplicateKind(params) ?? DUPLICATE_KINDS.find((kind) => pairCounts[kind] > 0) ?? "brands";
+  const dup = state.dup ?? DUPLICATE_KINDS.find((kind) => pairCounts[kind] > 0) ?? "brands";
   const pairs = await listDuplicatePairs(user.id, dup, PAIRS_SHOWN);
   const shown = await Promise.all(
     pairs.map(async (pair) => ({
@@ -52,8 +54,8 @@ export default async function HousekeepingPage({
           {photosText}, and {pairsText}.
         </p>
       </div>
-      <PhotosSection tab={tab} per={per} counts={counts} items={items} window={window} dup={dup} />
-      <DuplicatesSection kind={dup} counts={pairCounts} shown={shown} photo={{ tab, per, offset: window.offset }} />
+      <PhotosSection state={state} counts={counts} items={items} window={window} />
+      <DuplicatesSection kind={dup} counts={pairCounts} shown={shown} state={state} />
     </div>
   );
 }

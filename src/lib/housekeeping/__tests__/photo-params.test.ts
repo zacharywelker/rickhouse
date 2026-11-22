@@ -7,7 +7,6 @@ import {
   pageWindow,
   parseDuplicateKind,
   parsePhotoParams,
-  photoHref,
   previousOffset,
 } from "@/lib/housekeeping/photo-params";
 
@@ -85,18 +84,6 @@ describe("moving between windows", () => {
     expect(previousOffset(16, 8)).toBe(8);
     expect(previousOffset(5, 8)).toBe(0);
     expect(previousOffset(0, 8)).toBe(0);
-  });
-});
-
-describe("photoHref", () => {
-  it("keeps the tab and page size and leaves the offset out at the start", () => {
-    expect(photoHref("labels", 8, 0)).toBe("/housekeeping?tab=labels&per=8");
-    expect(photoHref("barrels", 24, 5)).toBe("/housekeeping?tab=barrels&per=24&offset=5");
-  });
-
-  it("carries the Duplicates tab along, so one section's links do not reset the other's", () => {
-    expect(photoHref("labels", 8, 0, "brands")).toBe("/housekeeping?tab=labels&per=8&dup=brands");
-    expect(photoHref("barrels", 24, 5, "stores")).toBe("/housekeeping?tab=barrels&per=24&offset=5&dup=stores");
   });
 });
 
