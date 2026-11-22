@@ -49,7 +49,7 @@ export function withBrand(draft: DraftRow, brand: Pick): DraftRow {
 }
 
 /** A choice the row makes itself ends what it started with: it is no longer only a copy of its neighbour. */
-function ownChoice(draft: DraftRow): DraftRow {
+export function ownChoice(draft: DraftRow): DraftRow {
   const { prefilled: _, ...rest } = draft;
   return rest;
 }
