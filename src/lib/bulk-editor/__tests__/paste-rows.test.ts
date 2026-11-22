@@ -120,8 +120,12 @@ describe("what a paste replaces on a new row that has already chosen", () => {
   });
   it("the same brand, in any case, changes nothing, and is not waited on", () => {
     const out = replaceChosen(chosen, { brand: "four roses" }, data);
-    expect(out.draft).toEqual(chosen);
+    expect(out.draft).toMatchObject({ brand: chosen.brand, label: chosen.label, categoryId: 5 });
     expect(out.texts).toEqual({});
+  });
+  it("a pasted name equal to the copied one is the row's own choice, so it stops counting as blank", () => {
+    expect(replaceChosen(chosen, { brand: "Four Roses", name: "Single Barrel" }, data).draft.prefilled).toBeUndefined();
+    expect(replaceChosen(chosen, { brand: "" }, data).draft.prefilled).toBe(true);
   });
   it("a different label drops its category but keeps the brand", () => {
     const out = replaceChosen(chosen, { name: "Small Batch" }, data);
@@ -130,7 +134,7 @@ describe("what a paste replaces on a new row that has already chosen", () => {
   });
   it("the same label changes nothing, and is not waited on", () => {
     const out = replaceChosen(chosen, { name: "single barrel" }, data);
-    expect(out.draft).toEqual(chosen);
+    expect(out.draft).toMatchObject({ brand: chosen.brand, label: chosen.label, categoryId: 5 });
     expect(out.texts).toEqual({});
   });
   it("a text for a level that was never chosen is left for settleDraft", () => {

@@ -75,17 +75,23 @@ export function replaceChosen(draft: DraftRow, texts: RowTexts, data: Pick<Settl
   const filled = (t: string | undefined): t is string => t !== undefined && t.trim() !== "";
 
   if (next.brand && filled(rest.brand)) {
-    if (sameName(rest.brand, next.brand.name)) delete rest.brand;
-    else next = { ...ownChoice(next), brand: null, label: null, categoryId: null };
+    if (sameName(rest.brand, next.brand.name)) {
+      delete rest.brand;
+      next = ownChoice(next);
+    } else next = { ...ownChoice(next), brand: null, label: null, categoryId: null };
   }
   if (next.label && filled(rest.name)) {
-    if (sameName(rest.name, next.label.name)) delete rest.name;
-    else next = { ...ownChoice(next), label: null, categoryId: null };
+    if (sameName(rest.name, next.label.name)) {
+      delete rest.name;
+      next = ownChoice(next);
+    } else next = { ...ownChoice(next), label: null, categoryId: null };
   }
   if (next.label?.kind === "new" && next.categoryId !== null && filled(rest.category)) {
     const current = data.categories.find((c) => c.id === next.categoryId);
-    if (current && sameName(rest.category, current.name)) delete rest.category;
-    else next = { ...ownChoice(next), categoryId: null };
+    if (current && sameName(rest.category, current.name)) {
+      delete rest.category;
+      next = ownChoice(next);
+    } else next = { ...ownChoice(next), categoryId: null };
   }
   return { draft: next, texts: rest };
 }
