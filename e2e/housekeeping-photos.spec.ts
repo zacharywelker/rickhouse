@@ -31,6 +31,8 @@ test.beforeEach(async ({ page }) => {
   await signIn(page);
 });
 
+/** The Photos section; the page has other sections with their own pagers and per-page choices. */
+const photos = (page: Page) => page.getByRole("region", { name: "Photos", exact: true });
 /** The cards on the page, saved or not. */
 const cards = (page: Page) => page.locator("div[tabindex='0']").filter({ hasText: /No photo yet|Photo added\./ });
 const waiting = (page: Page) => page.locator("div[tabindex='0']").filter({ hasText: "No photo yet" });
@@ -76,17 +78,17 @@ test("lists eight cards at first and pages through the rest", async ({ page }) =
   expect(await tabCount(page, /^Labels/)).toBe(LABELS);
   expect(LABELS).toBeGreaterThan(16);
   await expect(cards(page)).toHaveCount(8);
-  await expect(page.getByText(`1–8 of ${LABELS}`)).toBeVisible();
-  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await expect(photos(page).getByText(`1–8 of ${LABELS}`)).toBeVisible();
+  await photos(page).getByRole("link", { name: "Next", exact: true }).click();
   await expect(cards(page)).toHaveCount(8);
-  await expect(page.getByText(`9–16 of ${LABELS}`)).toBeVisible();
-  await page.getByRole("link", { name: "Previous" }).click();
-  await expect(page.getByText(`1–8 of ${LABELS}`)).toBeVisible();
+  await expect(photos(page).getByText(`9–16 of ${LABELS}`)).toBeVisible();
+  await photos(page).getByRole("link", { name: "Previous" }).click();
+  await expect(photos(page).getByText(`1–8 of ${LABELS}`)).toBeVisible();
 });
 
 test("the per-page choice changes the address and shows more cards", async ({ page }) => {
   await page.goto("/housekeeping");
-  await page.getByLabel("Per page").selectOption("12");
+  await photos(page).getByLabel("Per page", { exact: true }).selectOption("12");
   await expect(page).toHaveURL(/per=12/);
   await expect(cards(page)).toHaveCount(Math.min(12, LABELS));
 });
@@ -124,12 +126,12 @@ test("after saving every card on a page, Next shows the items that came next, no
     await expect(page.getByText("Photo added.")).toHaveCount(i);
   }
   await expect(page.getByText("8 saved just now")).toBeVisible();
-  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await photos(page).getByRole("link", { name: "Next", exact: true }).click();
   await expect(names(page)).toHaveText(following);
   // The next batch took the same offset; leaving it alone and pressing Next must still move on, not repeat it.
   const remaining = LABELS - 8;
   await expect(page.getByText(`1–8 of ${remaining}`)).toBeVisible();
-  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await photos(page).getByRole("link", { name: "Next", exact: true }).click();
   await expect(page.getByText(`9–${remaining} of ${remaining}`)).toBeVisible();
   LABELS -= 8;
 });
