@@ -32,6 +32,8 @@ function revalidateLabel(expressionId: number) {
   revalidatePath(`/expressions/${expressionId}/edit`);
   // Bottle pages show their label's approvals.
   revalidatePath("/bottles/[id]", "page");
+  // Housekeeping lists labels with no approval, so a label that just got one must leave that list.
+  revalidatePath("/housekeeping");
 }
 
 const BAD_ID = "A TTB ID is 14 digits, like 21132001000620. Paste the number or the registry link.";

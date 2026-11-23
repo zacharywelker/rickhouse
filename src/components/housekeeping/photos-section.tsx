@@ -5,7 +5,8 @@ import { PerPageSelect } from "@/components/housekeeping/per-page-select";
 import { PhotoPager } from "@/components/housekeeping/photo-pager";
 import { SavedCountProvider } from "@/components/housekeeping/saved-count";
 import { Section, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
-import { PER_PAGE_OPTIONS, PHOTO_TABS, photoHref, type PhotoTab } from "@/lib/housekeeping/photo-params";
+import { pageHref, type PageState } from "@/lib/housekeeping/page-state";
+import { PER_PAGE_OPTIONS, PHOTO_TABS, type PhotoTab } from "@/lib/housekeeping/photo-params";
 import type { MissingPhoto } from "@/lib/housekeeping/photo-queries";
 import { cn } from "@/lib/utils";
 
@@ -20,18 +21,18 @@ const TAB_LABELS: Record<PhotoTab, string> = {
  * cards at a time. The tab, page size and page live in the address, so a reload or a shared link lands in the same place.
  */
 export function PhotosSection({
-  tab,
-  per,
+  state,
   counts,
   items,
   window,
 }: {
-  tab: PhotoTab;
-  per: number;
+  /** The whole page's place in the address, so a link here keeps the other sections' tabs and windows. */
+  state: PageState;
   counts: Record<PhotoTab, number>;
   items: MissingPhoto[];
   window: { offset: number; from: number; to: number; hasPrev: boolean; hasNext: boolean };
 }) {
+  const { tab, per } = state;
   const total = counts[tab];
   return (
     <Section aria-labelledby="photos-heading">
@@ -48,7 +49,7 @@ export function PhotosSection({
           return (
             <Link
               key={key}
-              href={photoHref(key, per, 0) as Route}
+              href={pageHref(state, { tab: key, offset: 0 }) as Route}
               aria-current={current ? "page" : undefined}
               className={cn(
                 "-mb-px border-b-2 px-3 py-2 text-sm",
@@ -81,7 +82,7 @@ export function PhotosSection({
             ))}
           </div>
         )}
-        <PhotoPager tab={tab} per={per} total={total} window={window} />
+        <PhotoPager state={state} total={total} window={window} />
       </SavedCountProvider>
     </Section>
   );

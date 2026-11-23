@@ -5,8 +5,8 @@ import {
   PHOTO_TABS,
   nextOffset,
   pageWindow,
+  parseDuplicateKind,
   parsePhotoParams,
-  photoHref,
   previousOffset,
 } from "@/lib/housekeeping/photo-params";
 
@@ -87,9 +87,12 @@ describe("moving between windows", () => {
   });
 });
 
-describe("photoHref", () => {
-  it("keeps the tab and page size and leaves the offset out at the start", () => {
-    expect(photoHref("labels", 8, 0)).toBe("/housekeeping?tab=labels&per=8");
-    expect(photoHref("barrels", 24, 5)).toBe("/housekeeping?tab=barrels&per=24&offset=5");
+describe("parseDuplicateKind", () => {
+  it("reads a known kind, the first of several, and nothing else", () => {
+    expect(parseDuplicateKind({ dup: "stores" })).toBe("stores");
+    expect(parseDuplicateKind({ dup: ["tags", "brands"] })).toBe("tags");
+    expect(parseDuplicateKind({ dup: "categories" })).toBeNull();
+    expect(parseDuplicateKind({ dup: "" })).toBeNull();
+    expect(parseDuplicateKind({})).toBeNull();
   });
 });

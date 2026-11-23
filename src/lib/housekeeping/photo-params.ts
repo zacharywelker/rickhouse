@@ -1,3 +1,5 @@
+import { DUPLICATE_KINDS, type DuplicateKind } from "./duplicate-kinds";
+
 export const PHOTO_TABS = ["labels", "barrels", "vintages"] as const;
 export type PhotoTab = (typeof PHOTO_TABS)[number];
 export const PER_PAGE_OPTIONS = [8, 12, 24, 48] as const;
@@ -46,7 +48,8 @@ export function previousOffset(offset: number, per: number): number {
   return Math.max(0, offset - per);
 }
 
-/** The address of a window of a tab. The offset is left out at the start so the first page has a clean address. */
-export function photoHref(tab: PhotoTab, per: number, offset: number): string {
-  return `/housekeeping?tab=${tab}&per=${per}${offset > 0 ? `&offset=${offset}` : ""}`;
+/** The Duplicates tab named in the address, or null when there is none or it is not a kind. */
+export function parseDuplicateKind(sp: Record<string, string | string[] | undefined>): DuplicateKind | null {
+  const value = Array.isArray(sp.dup) ? sp.dup[0] : sp.dup;
+  return DUPLICATE_KINDS.find((kind) => kind === value) ?? null;
 }
