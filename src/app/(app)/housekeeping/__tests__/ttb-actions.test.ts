@@ -48,7 +48,8 @@ describe("dismissTtbAction", () => {
     labelBelongsTo.mockResolvedValue(false);
     expect(await call({})).toEqual({ ok: false, error: "That label is gone." });
     expect(dismiss).not.toHaveBeenCalled();
-    expect(revalidatePath).not.toHaveBeenCalled();
+    // The dead row should leave the list, so the page is refreshed even though nothing was stored.
+    expect(revalidatePath).toHaveBeenCalledWith("/housekeeping");
   });
 
   it("only echoes the name, tidied and capped, and copes with a missing one", async () => {

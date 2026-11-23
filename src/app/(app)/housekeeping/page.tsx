@@ -23,8 +23,8 @@ export default async function HousekeepingPage({
 }) {
   const user = await requireSession();
   const params = await searchParams;
-  const state = parsePageState(params);
-  const { tab, per, offset } = state;
+  const parsed = parsePageState(params);
+  const { tab, per, offset } = parsed;
   const counts = await countMissingPhotos(user.id);
   const window = pageWindow(counts[tab], per, offset);
   const items = await listMissingPhotos(user.id, tab, window.offset, per);
@@ -32,7 +32,9 @@ export default async function HousekeepingPage({
 
   // With no tab chosen the Duplicates section opens on the first kind that has something to show.
   const pairCounts = await countDuplicatePairs(user.id);
-  const dup = state.dup ?? DUPLICATE_KINDS.find((kind) => pairCounts[kind] > 0) ?? "brands";
+  const dup = parsed.dup ?? DUPLICATE_KINDS.find((kind) => pairCounts[kind] > 0) ?? "brands";
+  // Links in the other sections carry the kind that is showing, so they do not make Duplicates pick again.
+  const state = { ...parsed, dup };
   const pairs = await listDuplicatePairs(user.id, dup, PAIRS_SHOWN);
   const shown = await Promise.all(
     pairs.map(async (pair) => ({

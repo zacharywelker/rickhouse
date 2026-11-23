@@ -98,7 +98,7 @@ test("a bad address falls back instead of failing", async ({ page }) => {
   expect(response?.status()).toBe(200);
   // Past the end falls back to the last full window of eight.
   await expect(cards(page)).toHaveCount(8);
-  await expect(page.getByText(`${LABELS - 7}–${LABELS} of ${LABELS}`)).toBeVisible();
+  await expect(photos(page).getByText(`${LABELS - 7}–${LABELS} of ${LABELS}`)).toBeVisible();
 });
 
 test("a photo under 600 px is turned down and the card stays", async ({ page }) => {
@@ -130,9 +130,9 @@ test("after saving every card on a page, Next shows the items that came next, no
   await expect(names(page)).toHaveText(following);
   // The next batch took the same offset; leaving it alone and pressing Next must still move on, not repeat it.
   const remaining = LABELS - 8;
-  await expect(page.getByText(`1–8 of ${remaining}`)).toBeVisible();
+  await expect(photos(page).getByText(`1–8 of ${remaining}`)).toBeVisible();
   await photos(page).getByRole("link", { name: "Next", exact: true }).click();
-  await expect(page.getByText(`9–${remaining} of ${remaining}`)).toBeVisible();
+  await expect(photos(page).getByText(`9–${remaining} of ${remaining}`)).toBeVisible();
   LABELS -= 8;
 });
 

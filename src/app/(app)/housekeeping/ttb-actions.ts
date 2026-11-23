@@ -20,7 +20,10 @@ export async function dismissTtbAction(input: { expressionId: number; name?: str
   const name = (typeof input.name === "string" ? input.name : "").replace(/\s+/g, " ").trim().slice(0, 200) || "that label";
 
   try {
-    if (!(await labelBelongsTo(user.id, expressionId))) return { ok: false, error: "That label is gone." };
+    if (!(await labelBelongsTo(user.id, expressionId))) {
+      revalidatePath("/housekeeping"); // the dead row should leave the list
+      return { ok: false, error: "That label is gone." };
+    }
     await dismiss(user.id, TTB_SCOPE, String(expressionId));
     revalidatePath("/housekeeping");
     return { ok: true, message: `Marked “${name}” as not on TTB. It won’t be listed again.` };

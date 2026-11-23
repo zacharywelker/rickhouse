@@ -109,6 +109,28 @@ test("marking a label already marked in another tab is harmless", async ({ page,
   await expect(notice(page, /Marked “Ttb Home Ttb Lab 04”/)).toBeVisible();
   // The other tab still shows the row; the label is still there, so marking again changes nothing.
   await row(other, `${LAB} 04`).getByRole("button", { name: "Not on TTB" }).click();
-  await expect(notice(other, /Ttb Lab 04/).or(row(other, `${LAB} 04`).getByRole("alert"))).toBeVisible();
+  await expect(notice(other, /Marked “Ttb Home Ttb Lab 04”/)).toBeVisible();
   expect(await isMarkedNotOnTtb("Ttb Lab 04")).toBe(true);
+});
+
+test("changing one section's page size keeps the other sections' places", async ({ page }) => {
+  await page.goto("/housekeeping?tab=barrels&per=12&offset=8&dup=stores&to=8");
+  await section(page).getByLabel("TTB per page").selectOption("12");
+  // Its own window starts over; everything else stays.
+  await expect(page).toHaveURL(/tp=12/);
+  await expect(page).not.toHaveURL(/to=/);
+  for (const kept of [/tab=barrels/, /per=12/, /offset=8/, /dup=stores/]) await expect(page).toHaveURL(kept);
+
+  await page.getByRole("region", { name: "Photos", exact: true }).getByLabel("Per page", { exact: true }).selectOption("24");
+  await expect(page).toHaveURL(/per=24/);
+  await expect(page).not.toHaveURL(/offset=/);
+  for (const kept of [/tab=barrels/, /dup=stores/, /tp=12/]) await expect(page).toHaveURL(kept);
+});
+
+test("a link in another section keeps the Duplicates kind that was showing", async ({ page }) => {
+  await page.goto("/housekeeping");
+  const showing = await page.getByRole("navigation", { name: "Kinds of duplicate" }).locator("a[aria-current=page]").first().getAttribute("href");
+  await section(page).getByRole("link", { name: "Next" }).click();
+  await expect(page).toHaveURL(/dup=/);
+  expect(showing).toContain(new URL(page.url()).searchParams.get("dup")!);
 });
