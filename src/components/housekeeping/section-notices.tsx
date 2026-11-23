@@ -10,7 +10,9 @@ const Notices = React.createContext<{ notices: string[]; add: (message: string) 
 
 export function SectionNoticesProvider({ children }: { children: React.ReactNode }) {
   const [notices, setNotices] = React.useState<string[]>([]);
-  const value = React.useMemo(() => ({ notices, add: (message: string) => setNotices((all) => [message, ...all].slice(0, 5)) }), [notices]);
+  // Stable on purpose: the paste-an-ID field calls its callback again whenever the callback changes.
+  const add = React.useCallback((message: string) => setNotices((all) => [message, ...all].slice(0, 5)), []);
+  const value = React.useMemo(() => ({ notices, add }), [notices, add]);
   return <Notices.Provider value={value}>{children}</Notices.Provider>;
 }
 
