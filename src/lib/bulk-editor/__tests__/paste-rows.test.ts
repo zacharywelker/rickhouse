@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyDraft } from "../drafts";
-import { linesForNewRows, pastedDraftConflict, settleDraft, type SettleData } from "../paste-rows";
+import { replaceChosen, routePasteRows, pastedDraftConflict, settleDraft, type SettleData } from "../paste-rows";
 import type { SheetLabel } from "../sheet";
 
 const label = (id: number, brandId: number, name: string, categoryId: number) => ({ id, brandId, name, categoryId }) as unknown as SheetLabel;
@@ -78,24 +78,93 @@ describe("what a pasted brand, label and category become on a new row", () => {
   });
 });
 
-describe("which pasted lines become new rows", () => {
-  const saved = { draft: undefined };
-  const fresh = { draft: {} };
-  // Two saved rows, a row inserted below them, two more saved rows, then the empty row at the bottom.
-  const rows = [saved, saved, fresh, saved, saved, fresh];
+describe("which new row each pasted line lands on", () => {
+  const rows = [
+    { key: "b1", draft: undefined },
+    { key: "b2", draft: undefined },
+    { key: "d1", draft: {} },
+    { key: "b3", draft: undefined },
+    { key: "b4", draft: undefined },
+    { key: "d2", draft: {} },
+  ];
 
-  it("a line that lands on a saved row below an inserted row is written there and does not also become a new row", () => {
-    expect(linesForNewRows(rows, 3, 4)).toEqual([2, 3]);
+  it("skips saved rows below an insert, then fills the empty row and goes past the end", () => {
+    expect(routePasteRows(rows, 3, 4)).toEqual([{ line: 2, into: "d2" }, { line: 3, into: null }]);
   });
-  it("a block pasted across an inserted row makes a new row only for the line that landed on it", () => {
-    expect(linesForNewRows(rows, 0, 4)).toEqual([2]);
+  it("routes only the line that lands on the inserted row", () => {
+    expect(routePasteRows(rows, 0, 4)).toEqual([{ line: 2, into: "d1" }]);
   });
-  it("lines past the last row and on the empty row become new rows, as before", () => {
-    expect(linesForNewRows([saved, saved, fresh], 1, 4)).toEqual([1, 2, 3]);
-    expect(linesForNewRows([saved, saved], 1, 3)).toEqual([1, 2]);
+  it("skips the final saved row before filling the empty row and going past the end", () => {
+    expect(routePasteRows(rows, 4, 3)).toEqual([{ line: 1, into: "d2" }, { line: 2, into: null }]);
   });
-  it("with every new row at the bottom it matches what pasting always did", () => {
-    expect(linesForNewRows([saved, saved, saved, fresh], 0, 6)).toEqual([3, 4, 5]);
-    expect(linesForNewRows([saved, saved, saved, fresh], 0, 2)).toEqual([]);
+  it("returns no routes for a paste over saved rows only", () => {
+    expect(routePasteRows(rows, 0, 2)).toEqual([]);
+  });
+  it("starts on the empty row and routes the next line past the end", () => {
+    expect(routePasteRows(rows, 5, 2)).toEqual([{ line: 0, into: "d2" }, { line: 1, into: null }]);
+  });
+  it("returns no routes for zero pasted rows", () => {
+    expect(routePasteRows(rows, 0, 0)).toEqual([]);
+  });
+});
+
+describe("what a paste replaces on a new row that has already chosen", () => {
+  const existing = (id: number, name: string) => ({ kind: "existing" as const, id, name });
+  const chosen = { ...emptyDraft("d4"), brand: existing(1, "Four Roses"), label: existing(10, "Single Barrel"), categoryId: 5, insertAfter: "b9", prefilled: true as const };
+
+  it("a different brand drops the label and category that belonged to the old one, and the row keeps its place", () => {
+    const out = replaceChosen(chosen, { brand: "Pursuit Spirits" }, data);
+    expect(out.draft).toMatchObject({ key: "d4", brand: null, label: null, categoryId: null, insertAfter: "b9" });
+    expect(out.draft.prefilled).toBeUndefined();
+    expect(out.texts).toEqual({ brand: "Pursuit Spirits" });
+  });
+  it("the same brand, in any case, changes nothing, and is not waited on", () => {
+    const out = replaceChosen(chosen, { brand: "four roses" }, data);
+    expect(out.draft).toMatchObject({ brand: chosen.brand, label: chosen.label, categoryId: 5 });
+    expect(out.texts).toEqual({});
+  });
+  it("a pasted name equal to the copied one is the row's own choice, so it stops counting as blank", () => {
+    expect(replaceChosen(chosen, { brand: "Four Roses", name: "Single Barrel" }, data).draft.prefilled).toBeUndefined();
+    expect(replaceChosen(chosen, { brand: "" }, data).draft.prefilled).toBe(true);
+  });
+  it("a different label drops its category but keeps the brand", () => {
+    const out = replaceChosen(chosen, { name: "Small Batch" }, data);
+    expect(out.draft).toMatchObject({ brand: existing(1, "Four Roses"), label: null, categoryId: null });
+    expect(out.texts).toEqual({ name: "Small Batch" });
+  });
+  it("the same label changes nothing, and is not waited on", () => {
+    const out = replaceChosen(chosen, { name: "single barrel" }, data);
+    expect(out.draft).toMatchObject({ brand: chosen.brand, label: chosen.label, categoryId: 5 });
+    expect(out.texts).toEqual({});
+  });
+  it("a text for a level that was never chosen is left for settleDraft", () => {
+    const bare = { ...emptyDraft("d5"), brand: existing(1, "Four Roses") };
+    const out = replaceChosen(bare, { name: "Small Batch", category: "Rye" }, data);
+    expect(out.draft).toEqual(bare);
+    expect(out.texts).toEqual({ name: "Small Batch", category: "Rye" });
+  });
+  it("a new label's category is replaced by a different one, and kept when it is the same", () => {
+    const fresh = { ...emptyDraft("d6"), brand: existing(1, "Four Roses"), label: { kind: "new" as const, name: "Zed" }, categoryId: 5 };
+    expect(replaceChosen(fresh, { category: "Rye" }, data).draft.categoryId).toBeNull();
+    expect(replaceChosen(fresh, { category: "Rye" }, data).texts).toEqual({ category: "Rye" });
+    const same = replaceChosen(fresh, { category: "bourbon" }, data);
+    expect(same.draft.categoryId).toBe(5);
+    expect(same.texts).toEqual({});
+  });
+  it("an existing label's category is not the row's to replace", () => {
+    const out = replaceChosen(chosen, { category: "Rye" }, data);
+    expect(out.draft.categoryId).toBe(5);
+    expect(out.texts).toEqual({ category: "Rye" });
+  });
+  it("a new label given the same name again keeps it", () => {
+    const fresh = { ...emptyDraft("d7"), brand: existing(1, "Four Roses"), label: { kind: "new" as const, name: "Zed" }, categoryId: 5 };
+    const out = replaceChosen(fresh, { name: "zed" }, data);
+    expect(out.draft).toEqual(fresh);
+    expect(out.texts).toEqual({});
+  });
+  it("with nothing pasted nothing changes", () => {
+    const out = replaceChosen(chosen, {}, data);
+    expect(out.draft).toEqual(chosen);
+    expect(out.texts).toEqual({});
   });
 });

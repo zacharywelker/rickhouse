@@ -1,5 +1,5 @@
 import { matchName } from "./clipboard";
-import { categoryCandidates, labelCandidates, brandCandidates, pickOf, withBrand, withCategory, withLabel, type CategoryChoice, type DraftRow } from "./drafts";
+import { categoryCandidates, labelCandidates, brandCandidates, ownChoice, pickOf, withBrand, withCategory, withLabel, type CategoryChoice, type DraftRow } from "./drafts";
 import type { SheetLabel } from "./sheet";
 
 /**
@@ -61,6 +61,41 @@ export function settleDraft(draft: DraftRow, texts: RowTexts, data: SettleData):
   return { draft: next, left };
 }
 
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * A paste onto a new row that has already chosen replaces the choice, as choosing again would: a different brand empties
+ * the label and category, a different label empties its category (a new label's only), a different category on a new
+ * label empties it. The empty level then waits for the pasted text, which `settleDraft` takes. A pasted name equal to
+ * what the row already has changes nothing and is not waited on. Existing labels keep their own category.
+ */
+export function replaceChosen(draft: DraftRow, texts: RowTexts, data: Pick<SettleData, "categories">): { draft: DraftRow; texts: RowTexts } {
+  let next = draft;
+  const rest: RowTexts = { ...texts };
+  const filled = (t: string | undefined): t is string => t !== undefined && t.trim() !== "";
+
+  if (next.brand && filled(rest.brand)) {
+    if (sameName(rest.brand, next.brand.name)) {
+      delete rest.brand;
+      next = ownChoice(next);
+    } else next = { ...ownChoice(next), brand: null, label: null, categoryId: null };
+  }
+  if (next.label && filled(rest.name)) {
+    if (sameName(rest.name, next.label.name)) {
+      delete rest.name;
+      next = ownChoice(next);
+    } else next = { ...ownChoice(next), label: null, categoryId: null };
+  }
+  if (next.label?.kind === "new" && next.categoryId !== null && filled(rest.category)) {
+    const current = data.categories.find((c) => c.id === next.categoryId);
+    if (current && sameName(rest.category, current.name)) {
+      delete rest.category;
+      next = ownChoice(next);
+    } else next = { ...ownChoice(next), categoryId: null };
+  }
+  return { draft: next, texts: rest };
+}
+
 /** Explains why a pasted value needs attention when its cell cannot resolve it through the usual picker. */
 export function pastedDraftConflict(draft: DraftRow, pending: RowTexts, data: Pick<SettleData, "bottles" | "labels" | "categories">): { column: "name" | "category"; message: string } | null {
   if (!data.bottles) {
@@ -79,16 +114,13 @@ export function pastedDraftConflict(draft: DraftRow, pending: RowTexts, data: Pi
   return null;
 }
 
-/**
- * Which of a paste's lines make new rows: the ones that land on a new row or past the last row. A line that lands on a
- * saved row is written there, even when a new row inserted above it sits between it and the paste's first line. Returns
- * the lines' positions in the paste.
- */
-export function linesForNewRows(rows: ReadonlyArray<{ draft?: unknown }>, atRow: number, lineCount: number): number[] {
-  const made: number[] = [];
-  for (let i = 0; i < lineCount; i += 1) {
-    const target = rows[atRow + i];
-    if (!target || target.draft) made.push(i);
+export type PasteRoute = { line: number; into: string | null };
+/** For each pasted row that does not land on a saved row, in order: `into` is the key of the new row it lands on, or null when it is past the last row. */
+export function routePasteRows(rows: ReadonlyArray<{ key: string; draft?: unknown }>, atRow: number, count: number): PasteRoute[] {
+  const routes: PasteRoute[] = [];
+  for (let line = 0; line < count; line += 1) {
+    const target = rows[atRow + line];
+    if (!target || target.draft) routes.push({ line, into: target?.key ?? null });
   }
-  return made;
+  return routes;
 }

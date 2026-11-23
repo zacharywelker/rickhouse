@@ -59,7 +59,7 @@ import { patchBottleRowAction, patchLabelRowAction } from "@/app/(wide)/bulk-edi
 import { columnFor, defaultScope, nextScope, noteText, scopeSentence, scopesFor } from "@/lib/bulk-editor/scope";
 import { platformKeyName } from "@/lib/platform";
 import { copyValue } from "@/lib/bulk-editor/value-cells";
-import { EXISTING_LABEL_REQUIRES_BOTTLES, linesForNewRows, pastedDraftConflict, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
+import { EXISTING_LABEL_REQUIRES_BOTTLES, pastedDraftConflict, replaceChosen, routePasteRows, settleDraft, type RowTexts } from "@/lib/bulk-editor/paste-rows";
 import { ComboEditor } from "./combo-editor";
 import { LinksEditor, type LinkOptions } from "./links-editor";
 import { PanelEditor } from "./panel-editor";
@@ -1445,16 +1445,17 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       pasted += 1;
     }
 
-    // Lines that land on a new row, or past the last row, become new rows.
+    // A pasted row that lands on a new row fills it; one past the last row makes a new row. (A saved row's cells were written above.)
     let added = 0;
     if (!(range && single)) {
-      const lines = linesForNewRows(rows, at.row, grid.length).map((i) => grid[i]!);
-      if (lines.length > 0) {
-        const made = makeNewRows(lines.slice(0, MAX_NEW_ROWS), at.col, today, skipped);
-        added = made.rows;
+      const routes = routePasteRows(rows, at.row, grid.length);
+      if (routes.length > 0) {
+        const made = fillNewRows(routes.slice(0, MAX_NEW_ROWS).map((route) => ({ cells: grid[route.line]!, into: route.into })), at.col, today, skipped);
+        added = made.made;
+        pasted += made.cells;
         toChoose += made.waiting;
         beyondColumns += made.beyondColumns;
-        if (lines.length > MAX_NEW_ROWS) skipped.push(`only the first ${MAX_NEW_ROWS} new rows were added`);
+        if (routes.length > MAX_NEW_ROWS) skipped.push(`only the first ${MAX_NEW_ROWS} new rows were added`);
       }
     }
 
@@ -1474,22 +1475,35 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
   const MAX_NEW_ROWS = 300;
 
   /**
-   * New rows from the lines a paste has below the last saved row. Each is a new row as if typed: a brand, label and
-   * category that are complete names that exist are chosen, the rest wait to be picked, and every other value is kept
-   * in the row (a label's facts are sent only if the label turns out to be a new one).
+   * Pasted rows that do not land on a saved row, as new rows as if typed: a brand, label and category that are complete
+   * names that exist are chosen, the rest wait to be picked, and every other value is kept in the row (a label's facts
+   * are sent only if the label turns out to be a new one). `into` is the new row a pasted row lands on, which is filled
+   * in place (its key, place and what it has are kept; a blank pasted cell leaves its value, a pasted one replaces it),
+   * or null for one past the last row, which makes a row of its own. The empty row at the bottom is one that is made.
+   * `made` counts rows that were not new rows before, `filled` those that were, `cells` the values put into those.
    */
-  function makeNewRows(lines: string[][], startCol: number, today: string, skipped: string[]): { rows: number; waiting: number; beyondColumns: number } {
-    let floor = keyFloor;
+  function fillNewRows(routes: Array<{ cells: string[]; into: string | null }>, startCol: number, today: string, skipped: string[]): { made: number; filled: number; cells: number; waiting: number; beyondColumns: number } {
+    // Keys for rows made here start past every key in use and every key this paste fills.
+    let floor = Math.max(Number(nextDraftKey(drafts, keyFloor).slice(1)), ...routes.flatMap((r) => (r.into === null ? [] : [Number(r.into.slice(1)) + 1])));
     let waiting = 0;
     let beyondColumns = 0;
+    let filled = 0;
+    let cellsFilled = 0;
     const made: DraftRow[] = [];
+    const filledRows = new Map<string, DraftRow>();
     const newEdits: Record<string, Record<string, string>> = {};
     const newPending: Record<string, string> = {};
-    lines.forEach((cells, n) => {
-      const key = `d${floor}`;
-      floor += 1;
+    const stalePending: string[] = [];
+    routes.forEach(({ cells, into }, n) => {
+      const key = into ?? `d${floor}`;
+      if (into === null) floor += 1;
+      const existing = into === null ? undefined : drafts.find((d) => d.key === into);
+      // A row that is being created (or was, and has not been replaced yet) saves the values it was sent with; a fill now would be lost.
+      if (existing && saver.draftSaving(key)) return void skipped.push(`New row ${n + 1}: it is being saved, so nothing was pasted into it`);
       const texts: RowTexts = {};
       const typed: Record<string, string> = {};
+      /** The columns whose pasted value was taken (or is waiting to be chosen): what they were waiting for is replaced. */
+      const taken: string[] = [];
       cells.forEach((text, j) => {
         const column = columns[startCol + j];
         if (!column) {
@@ -1499,7 +1513,10 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         const where = `New row ${n + 1} · ${column.band ? `${column.band} ${column.label}` : column.label}`;
         const blank = matchName(text, []).kind === "blank";
         if (column.id === "brand" || column.id === "name" || column.id === "category") {
-          if (!blank) texts[column.id === "name" ? "name" : (column.id as "brand" | "category")] = text.trim();
+          if (!blank) {
+            texts[column.id === "name" ? "name" : (column.id as "brand" | "category")] = text.trim();
+            taken.push(column.id);
+          }
           return;
         }
         if (blank) return;
@@ -1514,6 +1531,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
             newPending[pendKey(key, column.id)] = text.trim();
             waiting += 1;
           }
+          taken.push(column.id);
           return;
         }
         if (editor.combo) return;
@@ -1524,20 +1542,29 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
         if (checked.value === "") return;
         if (column.id === "abv") typed.proof ??= abvToProof(checked.value);
         else typed[column.id] = checked.value;
+        taken.push(column.id);
       });
-      const settled = settleDraft(emptyDraft(key), texts, { bottles: view.bottles, brands, labels, categories, drafts: [...drafts, ...made] });
-      made.push(settled.draft);
+      stalePending.push(...taken.map((id) => pendKey(key, id)));
+      const others = [...drafts.map((d) => filledRows.get(d.key) ?? d).filter((d) => d.key !== key), ...made];
+      const prepared = existing ? replaceChosen(existing, texts, { categories }) : { draft: emptyDraft(key), texts };
+      const settled = settleDraft(prepared.draft, prepared.texts, { bottles: view.bottles, brands, labels, categories, drafts: others });
+      if (existing) {
+        filledRows.set(key, settled.draft);
+        filled += 1;
+        cellsFilled += Object.keys(typed).length + Object.keys(texts).length - Object.keys(settled.left).length;
+      } else made.push(settled.draft);
       for (const [name, text] of Object.entries(settled.left)) {
         newPending[pendKey(key, name)] = text;
         waiting += 1;
       }
-      if (Object.keys(typed).length > 0) newEdits[key] = typed;
+      if (Object.keys(typed).length > 0) newEdits[key] = { ...(existing ? edits[key] : undefined), ...typed };
     });
-    setDrafts((prev) => [...prev, ...made]);
+    setDrafts((prev) => [...prev.map((d) => filledRows.get(d.key) ?? d), ...made]);
     setKeyFloor((prev) => Math.max(prev, floor));
     setEdits((prev) => ({ ...prev, ...newEdits }));
-    setPending((prev) => ({ ...prev, ...newPending }));
-    return { rows: made.length, waiting, beyondColumns };
+    // What a pasted column was waiting for is replaced by what this paste says about it.
+    setPending((prev) => ({ ...Object.fromEntries(Object.entries(prev).filter(([k]) => !stalePending.includes(k))), ...newPending }));
+    return { made: made.length, filled, cells: cellsFilled, waiting, beyondColumns };
   }
 
   /** After a choice on a new row: what it was waiting for that the choice now allows (a label for its brand, a category for its label). */
