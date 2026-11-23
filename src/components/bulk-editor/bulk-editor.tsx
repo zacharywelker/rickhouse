@@ -1490,6 +1490,8 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
       const key = into ?? `d${floor}`;
       if (into === null) floor += 1;
       const existing = into === null ? undefined : drafts.find((d) => d.key === into);
+      // A row that is being created (or was, and has not been replaced yet) saves the values it was sent with; a fill now would be lost.
+      if (existing && saver.draftSaving(key)) return void skipped.push(`New row ${n + 1}: it is being saved, so nothing was pasted into it`);
       const texts: RowTexts = {};
       const typed: Record<string, string> = {};
       /** The columns whose pasted value was taken (or is waiting to be chosen): what they were waiting for is replaced. */
