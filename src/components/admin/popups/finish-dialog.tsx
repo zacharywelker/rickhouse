@@ -56,8 +56,11 @@ export function FinishDialog({
     setNotes("");
     setShowNotes(false);
     setServerError(null);
+    setExisting([]);
     let current = true;
-    void referenceOptionsAction("finishes").then((rows) => current && setExisting(rows));
+    void referenceOptionsAction("finishes")
+      .then((rows) => current && setExisting(rows))
+      .catch(() => undefined);
     return () => {
       current = false;
     };
@@ -81,26 +84,30 @@ export function FinishDialog({
   if (serverError) problems.push({ text: serverError, blocking: true });
 
   async function save() {
-    if (type === null) return;
+    if (type === null || saving) return;
     setSaving(true);
     setServerError(null);
-    const form = new FormData();
-    form.set("name", tidy);
-    form.set("finishType", type);
-    if (notes.trim() !== "") form.set("notes", notes.trim());
-    const result = await saveResourceAction("finishes", null, IDLE_RESULT, form);
-    if (!result.ok) {
+    try {
+      const form = new FormData();
+      form.set("name", tidy);
+      form.set("finishType", type);
+      if (notes.trim() !== "") form.set("notes", notes.trim());
+      const result = await saveResourceAction("finishes", null, IDLE_RESULT, form);
+      if (!result.ok) {
+        setServerError(result.error);
+        return;
+      }
+      const created = result.createdId === undefined ? null : await createdOptionAction("finishes", result.createdId);
+      if (created?.ok) {
+        onCreated(created.option);
+        onOpenChange(false);
+      } else {
+        setServerError("It was saved, but could not be chosen here. Close this and pick it from the list.");
+      }
+    } catch {
+      setServerError("Could not reach the server. Try again.");
+    } finally {
       setSaving(false);
-      setServerError(result.error);
-      return;
-    }
-    const created = result.createdId === undefined ? null : await createdOptionAction("finishes", result.createdId);
-    setSaving(false);
-    if (created?.ok) {
-      onCreated(created.option);
-      onOpenChange(false);
-    } else {
-      setServerError("It was saved, but could not be chosen here. Pick it from the list.");
     }
   }
 
@@ -138,7 +145,10 @@ export function FinishDialog({
                 key={option}
                 type="button"
                 aria-pressed={on}
-                onClick={() => setPicked(option)}
+                onClick={() => {
+                  setPicked(option);
+                  setServerError(null);
+                }}
                 className={cn(
                   "inline-flex h-7 items-center gap-1.5 rounded-full border border-foreground px-3 text-xs",
                   on ? "bg-foreground text-background" : "bg-card hover:bg-muted",
@@ -158,7 +168,10 @@ export function FinishDialog({
       </Row>
       <Row label="More">
         {showNotes ? (
-          <Textarea aria-label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Where it comes from, what it adds" />
+          <Textarea aria-label="Notes" value={notes} onChange={(event) => {
+              setNotes(event.target.value);
+              setServerError(null);
+            }} placeholder="Where it comes from, what it adds" />
         ) : (
           <button type="button" onClick={() => setShowNotes(true)} className="text-sm underline underline-offset-2">
             Notes

@@ -42,6 +42,8 @@ export function PopupShell({
         onKeyDown={(event) => {
           const target = event.target as HTMLElement;
           if (event.key !== "Enter" || target.tagName !== "INPUT" || event.defaultPrevented) return;
+          // Enter that confirms an IME candidate, or a held key, is not a request to save.
+          if (event.nativeEvent.isComposing || event.repeat) return;
           if (!blocked && !saving) {
             event.preventDefault();
             onSave();

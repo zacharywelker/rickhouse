@@ -147,6 +147,8 @@ export function OrderedPicker({
   };
 
   const addRow = (option: Option) => {
+    // "Use it" in an add-details popup can hand back a row this label already has.
+    if (value.some((row) => row.id === option.value)) return;
     setOptionNotice("");
     const distilleryId = soloDistillery ? soloDistillery.id : null;
     onChange([

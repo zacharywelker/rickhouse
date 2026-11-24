@@ -87,3 +87,17 @@ test("creating by name only files the finish under the type its name suggests", 
     await db.end();
   }
 });
+
+test("Use it for a finish the label already has does not add it twice", async ({ page }) => {
+  await page.getByRole("combobox", { name: "Add finishes" }).click();
+  await page.locator("[cmdk-input]").fill("Port");
+  await page.locator('[cmdk-item]:not([data-value="__create__"])').filter({ has: page.getByText("Port", { exact: true }) }).first().click();
+  await expect(page.getByRole("button", { name: "Remove Port" })).toHaveCount(1);
+  // Port is on the label now, so the picker offers "Create with details" for the name again.
+  await openPopup(page, "Port");
+  const dialog = page.getByRole("dialog", { name: "Add finish" });
+  await expect(dialog).toContainText("already in your collection");
+  await dialog.getByRole("button", { name: "Use it" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("button", { name: "Remove Port" })).toHaveCount(1);
+});
