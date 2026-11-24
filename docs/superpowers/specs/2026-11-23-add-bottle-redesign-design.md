@@ -1,6 +1,6 @@
 # Add bottle: one page, label then bottle
 
-Status: design record, in progress. Mockups only; nothing is built and the design is not yet approved for a build plan. Written 2026-11-23 from a long design conversation with the owner. Open questions are listed in section 11.
+Status: design record, in progress. Mockups only; nothing is built and the design is not yet approved for a build plan. Written 2026-11-23 from a long design conversation with the owner. Open questions are listed in section 12. Photos are section 11.
 
 The clickable mockups are in [`2026-11-23-add-bottle-redesign/`](2026-11-23-add-bottle-redesign/). Open `form-by-category.html` in a browser, pick any subcategory, and the form redraws with the fields this record allows. Screenshots are embedded below so they read on GitHub.
 
@@ -26,7 +26,7 @@ Goals:
 - Nothing the owner can already record is lost: stated / inferred / not disclosed, shares, mashbill and finish as separate things, mashbill and distillery suggesting each other.
 - Values that can be worked out are worked out (an age sets the class or designation, and so on).
 
-Non-goals (separate work, see section 12): a wizard or stepper, an accordion (parked for the bottle and label display pages), the popups for adding a distillery, finish or mashbill, the Configuration page, the Labels page, the photo flow.
+Non-goals (separate work, see section 13): a wizard or stepper, an accordion (parked for the bottle and label display pages), the popups for adding a distillery, finish or mashbill, the Configuration page, the Labels page.
 
 Anti-goals: hiding data the user has entered, "Unknown" as a default value, a loud TTB call to action, rounded-card soup (see DESIGN.md).
 
@@ -41,7 +41,7 @@ Chosen over a wizard, an accordion with a live bottle card, and a "printed on th
 - Anything with several entries (distilleries, mashbills, grapes, fruit) is a small table with a Share column.
 - Rare things live on a **More:** line of links, on the label and on the bottle.
 - **Save** is pinned at the top right. A "Save and add another" button was floated but is not decided.
-- One photo slot, on the label, framed in the category colour (DESIGN.md section 4). The photo flow itself is still to be designed.
+- One photo slot, on the label, framed in the category colour (DESIGN.md section 4). How a photo gets in, and how photos are shared between a label, its vintages and its bottles, is section 11.
 
 ## 4. Decisions that apply to every spirit
 
@@ -211,7 +211,63 @@ Generated from `form-by-category.html`. Notes in yellow in the HTML mark decisio
 | ![Pisco, Chile](2026-11-23-add-bottle-redesign/screenshots/13-pisco-chile.png) | ![Cream liqueur](2026-11-23-add-bottle-redesign/screenshots/14-cream-liqueur.png) |
 | ![Amaro](2026-11-23-add-bottle-redesign/screenshots/15-amaro.png) | ![Absinthe](2026-11-23-add-bottle-redesign/screenshots/16-absinthe.png) |
 
-## 11. Open questions
+The photo screens are in section 11.
+
+## 11. Photos
+
+Scope: getting a photo onto a label or a bottle **from a file or a link**. Removing a background is out of scope. A photo that still has its background loads and is shown as it is; the server keeps deciding once, at upload, whether it is a cutout (see the 2026-10-08 cutout flag spec), and only cutouts get the plate. The mockup is [`photo-flow.html`](2026-11-23-add-bottle-redesign/photo-flow.html).
+
+### 11.1 The slot on the add page
+
+![A new label with two photos and a warning](2026-11-23-add-bottle-redesign/screenshots/17-photos-add-new-label.png)
+
+- The orange frame (category colour) says just **"+ Photo"**. Under it: **"Ctrl+V to paste"** (⌘V on a Mac). Users are assumed to know that a drop, a click to pick a file, and a right-click all work.
+- **Ways in:** right-click, then *Paste link or image*; press ⌘V / Ctrl+V; drop a file; click to choose a file. A pasted link or a pasted image both work.
+- ⌘V is **ignored while a text field has the cursor**, so pasting into Brand or Name never touches the photo.
+- Right-click **Paste** reads the clipboard with the async Clipboard API, which needs a secure context (HTTPS) and a permission (Chrome asks once, Safari shows a Paste button each time). Rickhouse is also reachable over plain HTTP on the LAN (`http://<server>:1964`), so ⌘V must always work. The page detects this with **`window.isSecureContext`**, which reports what the browser sees, so it is right behind a reverse proxy or a Cloudflare Tunnel. (The server's own `sentOverHttps()` in `src/lib/auth/request-url.ts` reads `X-Forwarded-Proto` or an https `APP_URL`; this feature does not need it.) On plain HTTP the page says so **up front**: the menu shows a greyed "To paste, press ⌘V", and nothing is offered that then fails.
+- The first photo fills the frame. More photos are small thumbnails under it, each tagged **label** or **bottle**, plus a dashed "+" to add another.
+- **Right-click a photo:** *Attach to the label* (ticked by default), *Attach to this bottle only*, *Make hero photo*, and *Remove* (for a photo just added). On an existing label's photo, *Hide for this bottle* replaces Remove.
+
+![The right-click menu on a photo](2026-11-23-add-bottle-redesign/screenshots/18-photos-add-menu.png)
+
+### 11.2 Checking a link, and keeping the download until Save
+
+- When a link is added, the **server checks it** and the page shows a warning right under the slot if it is not a valid photo. Warnings: not a link; could not download the link; the link is a web page, not a photo; the file is not an image.
+- The check reuses `src/lib/remote-image.ts`, which already allows only http(s), refuses private addresses (including after redirects), and has a timeout and a size cap.
+- The downloaded bytes are **kept (staged) until Save**, and the preview comes from the server, so what you see is what is stored. At Save the staged photo is stored with no second download. A staged photo that is never saved expires. A file chosen from disk can stay in the browser until Save, as it does today.
+
+### 11.3 The model
+
+- A **label has a gallery**: several photos, one of them the **hero photo**. Today a label has a single photo column (`expressions.photo_path`), so this is new data. The existing photo becomes the first gallery photo.
+- A **vintage's photos** are a third layer (`expression_releases` already has one photo column). They show on the label's page with a note naming the vintage, and on a bottle's page **only if the bottle is from that vintage**.
+- A **bottle shows its label's photos automatically**, by reference with no copies, and can have **its own photos** (the existing bottle photos, including the "catalog" ones, stay on the bottle's page). It can **hide** individual label or vintage photos, per bottle and reversibly.
+- **Order on a bottle's page:** its own photos first, then its vintage's, then the label's, and the user can **drag them into any order**. The order is **remembered per bottle**. The **first photo is the bottle's hero photo** (the one on its card), so reordering also chooses the hero photo; *Make hero photo* is a shortcut that moves a photo to the front.
+- On the **label's page**: the label's own photos, then each vintage's photos, each with a "Vintage 2023" note.
+
+![A bottle's page](2026-11-23-add-bottle-redesign/screenshots/20-photos-bottle-page.png)
+
+![After reordering and hiding](2026-11-23-add-bottle-redesign/screenshots/21-photos-bottle-page-reordered-hidden.png)
+
+![The label's page](2026-11-23-add-bottle-redesign/screenshots/22-photos-label-page.png)
+
+### 11.4 Edge cases decided
+
+- A **new label's first photo is the label's hero photo**. If that photo is attached to the bottle only, the label has no photo yet.
+- **Vintage photos are not shown on the add page**, since the bottle's vintage is not known yet.
+- A photo added to a label later **appears at the end of every bottle's order**. A deleted label photo disappears from every bottle, along with any "hidden" record for it.
+- **Attach to the label instead** (from a bottle's own photo) moves the photo between the bottle's photos and the label's gallery.
+
+![An existing label, one photo hidden for this bottle](2026-11-23-add-bottle-redesign/screenshots/19-photos-add-existing-label.png)
+
+### 11.5 What it needs
+
+- A table of label photos (file, thumbnail, cutout flag, caption, hero flag, order).
+- A per-bottle record of hidden label and vintage photos.
+- A per-bottle order that mixes the bottle's own photos with inherited ones by reference.
+- A staging area for checked links, with a time limit and cleanup, and a "check this link" call. The bottle's hero photo in `bottle_list` follows the bottle's order. The iOS app follows the server as a separate piece of work.
+- The bottles and labels pages are redesigned later; the functionality above is what the owner wants to keep.
+
+## 12. Open questions
 
 1. **Retired fields are stored columns** (Still proof, Chill filtered, Colour added, Char level, Bottle count, amaro / liqueur Country and Region). Drop them, or leave them dormant? Saved values would leave the label and bottle pages, along with the Char Level stave drawing.
 2. How is **Martinique** recorded on a distillery (country "Martinique", or France with a region)? The pre-select needs something to match.
@@ -223,12 +279,13 @@ Generated from `form-by-category.html`. Notes in yellow in the HTML mark decisio
 8. **Colours** for the new subcategories are placeholders.
 9. **Not yet reviewed in detail:** Irish, Canadian, Japanese, International and Flavored whisky, Vodka, Absinthe, Akvavit, Shochu, Amaro, Apple brandy, Eau de Vie.
 10. Two data-model asks are parked as separate work: **several cooperages** per label (a blend can come from three) and **a per-distillery age** (a blend of 5- and 6-year components).
+11. **Photos:** nothing is open in the design. The bottles and labels pages, and the iOS camera flow, are revisited later.
 
-## 12. Not yet designed
+## 13. Not yet designed
 
-Next, in order: the **photo flow** from this page, then the **popups** (add distillery, add finish, add mashbill and the rest) in this style ("How Known" goes, since "not disclosed" replaced it), then the **Configuration** and **Labels** pages. An accordion with a live bottle card (mockup option B) is parked for the **bottle and label display pages**.
+Next, in order: the **popups** (add distillery, add finish, add mashbill and the rest) in this style ("How Known" goes, since "not disclosed" replaced it), then the **Configuration** and **Labels** pages. The photo flow is done as a design (section 11); the bottles and labels pages that show photos are redesigned later, keeping the behaviour in section 11. The iOS photo flow follows the server as separate work. An accordion with a live bottle card (mockup option B) is parked for the **bottle and label display pages**.
 
-## 13. Known problems found in the walkthrough
+## 14. Known problems found in the walkthrough
 
 These are separate from the redesign and could be filed as their own issues:
 
@@ -241,8 +298,8 @@ These are separate from the redesign and could be filed as their own issues:
 - TTB: pasting an ID from the real registry does not fill approval date, name, class and permit number (the in-app search does), and the in-app search returned nothing newer than April 2023.
 - Chill filtered, Colour added and Char level are defined but hidden for every whiskey, so they never show.
 
-## 14. Where this touches the code
+## 15. Where this touches the code
 
-For the plan, not a commitment: `src/lib/expressions/fields.ts` and `rules.ts` (field groups, kinds, hidden fields), `bottle-fields.ts` and `bottle-applicability.ts`, `spirit-details.ts` and `gin-details.ts`, `src/components/expressions/expression-form.tsx`, `bottle-form.tsx` and `label-link-pickers.tsx`, `src/components/catalog/catalog-bottle.tsx` (the search-first page, which would become the default Add bottle), `STILL_TYPES` and the field groups in `src/db/schema.ts`, `scripts/seed.ts` (the category tree), and a migration for categories that move or are retired.
+For the plan, not a commitment: `src/lib/expressions/fields.ts` and `rules.ts` (field groups, kinds, hidden fields), `bottle-fields.ts` and `bottle-applicability.ts`, `spirit-details.ts` and `gin-details.ts`, `src/components/expressions/expression-form.tsx`, `bottle-form.tsx` and `label-link-pickers.tsx`, `src/components/catalog/catalog-bottle.tsx` (the search-first page, which would become the default Add bottle), `STILL_TYPES` and the field groups in `src/db/schema.ts`, `scripts/seed.ts` (the category tree), and a migration for categories that move or are retired. For photos (section 11): `src/lib/remote-image.ts` (the link check, reused), the photo routes under `src/app/api/` (`bottles/[id]/images`, `expressions/[id]/photo`), `src/lib/images.ts` (storing and the cutout decision), `PhotoBox` in `expression-form.tsx` and the "Bottle photos" section in `catalog-bottle.tsx` (both replaced by the one slot), the `bottle_list` view that picks a bottle's photo, and `src/db/schema.ts` for the label photos, hidden photos and per-bottle order.
 
 **Relationship to earlier specs.** The October per-spirit specs (spirit-specific, American whiskey, Canadian, Irish, Scotch, vodka, amaro, liqueur label and bottle fields) describe the current form. Where a rule here differs (for example Dairy placement, amaro and liqueur country and region, which whiskey fields apply), this record is the newer direction, and the two should be reconciled when the plan is written. DESIGN.md still describes the visual language.

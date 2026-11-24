@@ -7,3 +7,7 @@ Throwaway design mockups for [`../2026-11-23-add-bottle-redesign-design.md`](../
 - `screenshots/`: stills of both, so they read on GitHub.
 
 Open the HTML files directly in a browser. Fonts fall back to system fonts if Inter and Source Serif 4 are not installed. The values are examples, and the category colours are placeholders.
+
+Photos (section 11 of the design record):
+
+- `photo-flow.html`: a clickable prototype of the photo slot on the add page, a bottle's Photos section (drag to reorder, hide, remembered order, a vintage selector), and a label's gallery. Paste a link (any text with a dot; one with "bad" or "page" shows a warning), choose or drop a file, and right-click any photo. The right-click Paste item needs the page to be on HTTPS; the page says so when it is not.
