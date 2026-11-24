@@ -104,6 +104,7 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
       field("isNas"),
     ],
   },
+  { id: "still", title: "Still", section: section("still"), columns: all("still") },
   { id: "process", title: "Process", section: section("process"), columns: all("process") },
   { id: "rum", title: "Rum detail", section: section("rum"), columns: all("rum") },
   { id: "gin", title: "Gin detail", section: section("gin"), columns: all("gin") },

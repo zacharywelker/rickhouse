@@ -144,6 +144,20 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     ],
   },
   {
+    id: "still",
+    title: "Still",
+    description: "Optional. How it was distilled, when it is known.",
+    fields: [
+      {
+        kind: "select",
+        name: "stillType",
+        label: "Still Type",
+        options: [{ value: "", label: "Unknown" }, ...STILL_TYPES.map((t) => ({ value: t, label: titleCase(t) }))],
+        width: "md",
+      },
+    ],
+  },
+  {
     id: "process",
     title: "Process",
     fieldGroups: ["whiskey"],
@@ -178,17 +192,10 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     title: "Rum detail",
     fieldGroups: ["rum"],
     rows: [
-      ["stillType", "marque"],
+      ["marque"],
       ["esterGl", "sugarGPerL"],
     ],
     fields: [
-      {
-        kind: "select",
-        name: "stillType",
-        label: "Still Type",
-        options: [{ value: "", label: "Unknown" }, ...STILL_TYPES.map((t) => ({ value: t, label: titleCase(t) }))],
-        width: "md",
-      },
       { kind: "text", name: "marque", label: "Marque", placeholder: "LROK, DOK", width: "md" },
       { kind: "number", name: "esterGl", label: "Esters (g/hLAA)", min: 0, step: 0.01, width: "sm" },
       { kind: "number", name: "sugarGPerL", label: "Added Sugar (g/L)", min: 0, step: 0.01, width: "sm" },

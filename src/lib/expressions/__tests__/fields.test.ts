@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { EXPRESSION_SECTIONS, fieldVisible, sectionVisible, writableFields } from "../fields";
 import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "../bottle-fields";
+import { expressionSchema } from "../schema";
+import { FIELD_GROUPS } from "@/db/schema";
 
 const bottleSection = (id: string) => {
   const found = BOTTLE_SECTIONS.find((s) => s.id === id);
@@ -156,5 +158,27 @@ describe("Description help", () => {
     }
     expect(description.help).not.toContain("live here");
     expect(description.help).toContain("Distilled by");
+  });
+});
+
+describe("the Still field", () => {
+  it("is writable for every spirit", () => {
+    for (const group of FIELD_GROUPS) {
+      expect(writableFields(group).has("stillType"), `stillType for ${group}`).toBe(true);
+    }
+  });
+
+  it("is drawn in a section with no field group, so every spirit shows it", () => {
+    expect(section("still").fieldGroups).toBeUndefined();
+    expect(section("still").showWhenAny).toBeUndefined();
+    expect(section("still").fields.map((f) => f.name)).toEqual(["stillType"]);
+  });
+
+  it("accepts the five still types and rejects anything else on the label", () => {
+    const shape = { brandId: "1", categoryId: "2", name: "X" };
+    for (const stillType of ["pot", "column", "blend", "coffey", "3-chamber"]) {
+      expect(expressionSchema.parse({ ...shape, stillType })).toMatchObject({ stillType });
+    }
+    expect(expressionSchema.safeParse({ ...shape, stillType: "kettle" }).success).toBe(false);
   });
 });
