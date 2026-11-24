@@ -101,26 +101,34 @@ export function ProofAbvFields({
         <Label htmlFor={abvId} className={labelClassName}>
           ABV
         </Label>
-        <Input
-          id={abvId}
-          type="number"
-          min={0}
-          max={100}
-          step={0.01}
-          value={abvText}
-          disabled={abvDisabled}
-          readOnly={greyed}
-          aria-readonly={greyed || undefined}
-          title={greyed ? "Triple-click to edit" : undefined}
-          onClick={unlock}
-          className={cn(greyedClass)}
-          onChange={(e) => {
-            const next = e.target.value;
-            setSource(next === "" ? null : "abv");
-            setTypedAbv(next);
-            onChange(abvToProof(next));
-          }}
-        />
+        <div className="relative">
+          <Input
+            id={abvId}
+            type="number"
+            min={0}
+            max={100}
+            step={0.01}
+            value={abvText}
+            disabled={abvDisabled}
+            readOnly={greyed}
+            aria-readonly={greyed || undefined}
+            title={greyed ? "Triple-click to edit" : undefined}
+            onClick={unlock}
+            className={cn("pr-8", greyedClass)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setSource(next === "" ? null : "abv");
+              setTypedAbv(next);
+              onChange(abvToProof(next));
+            }}
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground"
+          >
+            %
+          </span>
+        </div>
         {hint ? (
           <p className="text-xs text-muted-foreground">
             {locked ? "Bottled In Bond is always 100 proof." : "Half of proof, with a % sign. Calculates the other way too."}
