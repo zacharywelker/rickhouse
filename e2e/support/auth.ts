@@ -29,5 +29,5 @@ export async function signIn(page: Page, username = ADMIN.username, password = P
   await asFreshClient(page);
   await page.goto("/login");
   await fillSignIn(page, username, password);
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
 }

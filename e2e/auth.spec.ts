@@ -43,7 +43,7 @@ test("the right password signs in and lands on the collection", async ({ page, c
   await page.goto("/login");
   await fillSignIn(page, ADMIN.username, PASSWORD);
 
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
   await expect(page.getByText("Double Oak Spirit")).toBeVisible();
 
   const session = (await context.cookies()).find((c) => c.name === SESSION_COOKIE);
@@ -54,7 +54,7 @@ test("the right password signs in and lands on the collection", async ({ page, c
 test("the email address works as well as the username", async ({ page }) => {
   await page.goto("/login");
   await fillSignIn(page, ADMIN.email.toUpperCase(), PASSWORD);
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
 });
 
 test("a deep link is preserved across sign-in", async ({ page }) => {
@@ -67,7 +67,7 @@ test("a deep link is preserved across sign-in", async ({ page }) => {
 test("a crafted next= cannot send you off-site after sign-in", async ({ page }) => {
   await page.goto("/login?next=/%5Cexample.com");
   await fillSignIn(page, ADMIN.username, PASSWORD);
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
 });
 
 test("signing out revokes access", async ({ page }) => {
@@ -92,7 +92,7 @@ test("sign-in attempts are rate limited per client", async ({ page }) => {
   // Someone else is unaffected.
   await asFreshClient(page);
   await fillSignIn(page, ADMIN.username, PASSWORD);
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
 });
 
 test("members don't see or reach the admin-only sections", async ({ page }) => {
@@ -131,7 +131,7 @@ test("the header shows only the first name, and profile edits show up there", as
   await fillSignIn(page, MEMBER.username, PASSWORD);
   await expect(page.locator("#login-error")).toBeVisible();
   await fillSignIn(page, "morgan", PASSWORD);
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
 
   // Put it back for the tests after this one.
   await page.goto("/account");
@@ -173,14 +173,14 @@ test("a new account signs in with its temporary password, then must choose its o
   await other.getByLabel("New password", { exact: true }).fill("a brand new password");
   await other.getByLabel("Confirm new password").fill("a brand new password");
   await other.getByRole("button", { name: "Save and continue" }).click();
-  await expect(other).toHaveURL("/");
+  await expect(other).toHaveURL("/bottles");
 
   // The temporary password is gone for good.
   await other.getByRole("button", { name: "Sign out" }).click();
   await fillSignIn(other, "newbie", temporary);
   await expect(other.locator("#login-error")).toBeVisible();
   await fillSignIn(other, "newbie", "a brand new password");
-  await expect(other).toHaveURL("/");
+  await expect(other).toHaveURL("/bottles");
   await other.close();
 });
 
@@ -252,7 +252,7 @@ test("an earlier password can't be chosen again", async ({ page, browser }) => {
   await other.getByLabel("New password", { exact: true }).fill("the first chosen one");
   await other.getByLabel("Confirm new password").fill("the first chosen one");
   await other.getByRole("button", { name: "Save and continue" }).click();
-  await expect(other).toHaveURL("/");
+  await expect(other).toHaveURL("/bottles");
 
   const change = async (current: string, next: string) => {
     await other.goto("/account");
