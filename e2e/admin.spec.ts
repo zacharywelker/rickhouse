@@ -13,7 +13,9 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("every configuration section is reachable and lists its rows", async ({ page }) => {
-  await page.getByRole("link", { name: "Configuration" }).click();
+  // Configuration lives in the Library section of the account menu.
+  await page.getByRole("button", { name: /Account menu/ }).click();
+  await page.getByRole("navigation", { name: "Library" }).getByRole("link", { name: "Configuration" }).click();
   await expect(page).toHaveURL("/admin");
 
   for (const name of ["Categories", "Companies", "Brands", "Distilleries", "Mashbills", "Finishes", "Stores", "Tags"]) {
@@ -245,4 +247,31 @@ test("rejects a duplicate name with a readable message", async ({ page }) => {
   await page.getByRole("button", { name: "Add finish" }).last().click();
 
   await expect(page.getByRole("alert").filter({ hasText: /already/i }).first()).toBeVisible();
+});
+
+test("currency is set on Account and no longer on Configuration", async ({ page }) => {
+  const currency = page.getByLabel("Currency", { exact: true });
+  // The select saves as soon as it changes; wait for that request before reloading.
+  const choose = async (code: string) => {
+    await Promise.all([
+      page.waitForResponse((response) => response.request().method() === "POST"),
+      currency.selectOption(code),
+    ]);
+    await expect(currency).toBeEnabled();
+  };
+
+  await page.goto("/account");
+  await choose("GBP");
+  await page.reload();
+  await expect(currency).toHaveValue("GBP");
+
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "Configuration", level: 1 })).toBeVisible();
+  await expect(currency).toHaveCount(0);
+
+  // Put the throwaway account back on the default currency for the rest of the file.
+  await page.goto("/account");
+  await choose("USD");
+  await page.reload();
+  await expect(currency).toHaveValue("USD");
 });
