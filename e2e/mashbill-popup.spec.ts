@@ -121,7 +121,7 @@ test("a bourbon recipe under 51% corn warns but still saves, and is kept off the
   const dialog = await openPopup(page);
   await fillRows(dialog, [["Corn", "40"], ["Rye", "30"], ["Malted Barley", "30"]]);
   await expect(dialog).toContainText("A bourbon mashbill is at least 51% corn.");
-  await expect(dialog).toContainText("It will still save.");
+  await expect(dialog).toContainText("It will still save, but it is not added to this label.");
   await expect(save(dialog)).toBeEnabled();
   await save(dialog).click();
   await expect(dialog).toBeHidden();

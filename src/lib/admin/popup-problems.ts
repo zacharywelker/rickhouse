@@ -27,7 +27,8 @@ function titleWord(word: string): string {
   if (KEEP_UPPER.has(upper)) return upper;
   return word
     .split("-")
-    .map((part) => (part === "" ? part : part[0]!.toUpperCase() + part.slice(1).toLowerCase()))
+    // The first letter, not the first character: "(low" becomes "(Low".
+    .map((part) => part.toLowerCase().replace(/[a-z]/, (letter) => letter.toUpperCase()))
     .join("-");
 }
 

@@ -214,7 +214,7 @@ export function mashbillProblems(input: {
   }
 
   const grains = input.grains.filter(({ grain, percent }) => grain.trim() || String(percent).trim());
-  if (grains.some(({ grain, percent }) => !grain.trim() && Number(percent) > 0)) {
+  if (grains.some(({ grain, percent }) => !grain.trim() && String(percent).trim() !== "")) {
     problems.push({ text: "Name every ingredient.", blocking: true });
   }
   if (grains.some(({ grain, percent }) => grain.trim() && (!Number.isFinite(Number(percent)) || Number(percent) <= 0))) {
@@ -249,10 +249,12 @@ export function mashbillProblems(input: {
   }
   if (!matchesMashbillCategory(grains, input.category)) {
     problems.push({
-      text: input.category === "bourbon"
+      // The label's own picker keeps such a recipe out of its list, so "it will still save" needs saying fully.
+      text: `${input.category === "bourbon"
         ? "A bourbon mashbill is at least 51% corn."
-        : "A rye mashbill is at least 51% rye.",
+        : "A rye mashbill is at least 51% rye."} It will still save, but it is not added to this label.`,
       blocking: false,
+      notice: true,
     });
   }
   return problems;

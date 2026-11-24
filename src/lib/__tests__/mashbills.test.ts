@@ -183,6 +183,16 @@ describe("matchesMashbillCategory", () => {
   });
 });
 
+describe("mashbillProblems: a share with no ingredient name", () => {
+  it("is flagged whatever the share, so a secret or partial mashbill cannot send it to the server", () => {
+    const base = { isSecret: true, isGeneric: false, isPartial: true, name: "Secret", category: null };
+    for (const percent of ["0", "-5", "abc", "12"]) {
+      const problems = mashbillProblems({ ...base, grains: [{ grain: "", percent }] });
+      expect(problems.some((problem) => problem.text === "Name every ingredient." && problem.blocking)).toBe(true);
+    }
+  });
+});
+
 describe("mashbillProblems", () => {
   const check = (overrides: Partial<Parameters<typeof mashbillProblems>[0]> = {}) => mashbillProblems({
     isSecret: false,
@@ -261,14 +271,14 @@ describe("mashbillProblems", () => {
 
   it("warns without blocking a 40/30/30 bourbon", () => {
     expect(check({ grains: recipe(40, 30, 30), category: "bourbon" })).toEqual([
-      { text: "A bourbon mashbill is at least 51% corn.", blocking: false },
+      { text: "A bourbon mashbill is at least 51% corn. It will still save, but it is not added to this label.", blocking: false, notice: true },
     ]);
   });
 
   it("warns about rye below 51% even when the total also blocks", () => {
     expect(check({ grains: [{ grain: "Rye", percent: 40 }], category: "rye" })).toEqual([
       { text: "The grains add up to 40%, not 100%. That is 60 short.", blocking: true },
-      { text: "A rye mashbill is at least 51% rye.", blocking: false },
+      { text: "A rye mashbill is at least 51% rye. It will still save, but it is not added to this label.", blocking: false, notice: true },
     ]);
   });
 
@@ -317,7 +327,7 @@ describe("mashbillProblems", () => {
       "Give every ingredient a share.",
       "rye is in there twice. Combine them into one row.",
       "The grains add up to 20%, not 100%. That is 80 short.",
-      "A bourbon mashbill is at least 51% corn.",
+      "A bourbon mashbill is at least 51% corn. It will still save, but it is not added to this label.",
     ]);
   });
 });
