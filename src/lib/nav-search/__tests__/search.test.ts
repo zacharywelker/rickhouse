@@ -127,3 +127,20 @@ describe("newLabelHref", () => {
     expect(newLabelHref("  a & b ")).toBe("/expressions/new?name=a%20%26%20b");
   });
 });
+
+describe("proof in a result's detail line", () => {
+  it("drops the database's trailing zeros", () => {
+    const data: NavSearchData = {
+      labels: [],
+      ownedBottles: [
+        { id: 1, expressionId: 1, brand: "Elijah Craig", name: "Barrel Proof", category: "Bourbon", proof: "125.60", isOpen: false, fillPct: 100 },
+      ],
+      brands: [],
+      distilleries: [],
+      groups: [],
+    };
+    const base = { id: 1, brand: "Elijah Craig", name: "Barrel Proof", categoryId: 1, category: "Bourbon", categoryPath: [], distilleries: [], finishes: [], upc: null, ttbIds: [], proof: "125.60", bottles: 1 };
+    const result = navSearch({ ...data, labels: [base] }, "elijah");
+    expect(result.bottles[0]?.detail).toBe("Bourbon · 125.6 proof · sealed");
+  });
+});

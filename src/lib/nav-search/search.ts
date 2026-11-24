@@ -17,8 +17,15 @@ function counts(ref: BrandRef): string {
   return `${ref.labels} ${ref.labels === 1 ? "label" : "labels"} · ${ref.bottles} ${ref.bottles === 1 ? "bottle" : "bottles"}`;
 }
 
+/** The database holds proof as "125.60"; people read "125.6". */
+function proofText(proof: string | null): string | null {
+  const value = proof === null ? NaN : Number(proof);
+  return Number.isFinite(value) ? String(value) : null;
+}
+
 function categoryDetail(item: { category: string; proof: string | null }): string {
-  return item.category + (item.proof ? ` · ${item.proof} proof` : "");
+  const proof = proofText(item.proof);
+  return item.category + (proof ? ` · ${proof} proof` : "");
 }
 
 function matching<T extends { name: string }>(refs: T[], terms: string[]): T[] {
