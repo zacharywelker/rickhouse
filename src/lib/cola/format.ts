@@ -1,6 +1,27 @@
 /**
  * Display helpers for COLA records (SPEC M11).
  */
+import type { ColaRecord, ColaSearchRow } from "./parse";
+
+/** What New Label shows for an approval it has not saved yet. */
+export type PendingColaFields = Pick<ColaSearchRow, "ttbId" | "completedOn" | "brandName" | "fancifulName" | "classType" | "permitNumber">;
+
+/** A registry record as the row New Label shows. */
+export function pendingFromRecord(record: ColaRecord): PendingColaFields {
+  return {
+    ttbId: record.ttbId,
+    completedOn: record.approvedOn,
+    brandName: record.brandName,
+    fancifulName: record.fancifulName,
+    classType: record.classType,
+    permitNumber: record.permitNumber,
+  };
+}
+
+/** A pasted ID that has not been read yet: nothing but the number. */
+export function isStubCola(row: PendingColaFields): boolean {
+  return row.completedOn === null && row.brandName === null && row.fancifulName === null && row.classType === null && row.permitNumber === null;
+}
 
 /** Tokens the registry's capitals should keep: age marks, grades, numerals. */
 const KEEP_UPPER = new Set(["YO", "YR", "YRS", "BIB", "VS", "VSOP", "XO", "XXO", "NAS", "USA", "II", "III", "IV", "VI", "VII", "VIII", "IX", "XI", "XII"]);

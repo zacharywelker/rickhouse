@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MAX_PENDING_COLAS, normalizeTtbId, pendingTtbIds, registryUrl } from "../ids";
-import { nameMatch, rankResults, registryCase, searchWindow } from "../format";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { isStubCola, nameMatch, pendingFromRecord, rankResults, registryCase, searchWindow } from "../format";
+import { parseColaDetail } from "../parse";
 
 describe("normalizeTtbId", () => {
   it("accepts the bare number, with or without separators", () => {
@@ -129,5 +132,26 @@ describe("pendingTtbIds", () => {
     expect(pendingTtbIds("")).toEqual([]);
     expect(pendingTtbIds("{not json")).toEqual([]);
     expect(pendingTtbIds('{"a":1}')).toEqual([]);
+  });
+});
+
+describe("pendingFromRecord", () => {
+  // A TTB ID pasted on New Label is only a stub until its record is read; this is what fills it in.
+  it("turns a registry record into the row New Label shows", () => {
+    const html = readFileSync(path.join(__dirname, "fixtures", "21132001000620-detail.html"), "latin1");
+    const row = pendingFromRecord(parseColaDetail(html, "21132001000620"));
+    expect(row).toEqual({
+      ttbId: "21132001000620",
+      completedOn: "2021-05-14",
+      brandName: "OLD POTRERO",
+      fancifulName: "6 YO",
+      classType: "STRAIGHT RYE WHISKY",
+      permitNumber: "DSP-CA-267",
+    });
+    expect(isStubCola(row)).toBe(false);
+  });
+
+  it("knows a bare ID is a stub", () => {
+    expect(isStubCola({ ttbId: "21132001000620", completedOn: null, brandName: null, fancifulName: null, classType: null, permitNumber: null })).toBe(true);
   });
 });

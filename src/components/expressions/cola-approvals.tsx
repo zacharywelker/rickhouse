@@ -8,13 +8,14 @@ import { useRouter } from "next/navigation";
 import {
   copyColaImageToBottleAction,
   featureColaAction,
+  previewColaAction,
   refreshColaAction,
   removeColaAction,
 } from "@/app/(app)/expressions/cola-actions";
 import { IDLE_RESULT, type ActionResult } from "@/lib/admin/types";
 import { colaDetailUrl, colaFormUrl } from "@/lib/cola/ids";
 import { PrintableLink } from "./cola-printable-link";
-import { registryCase } from "@/lib/cola/format";
+import { isStubCola, registryCase } from "@/lib/cola/format";
 import { cn, formatDate } from "@/lib/utils";
 import { AddById, ColaSearchDialog, PendingIdField, stubCola, type PendingCola } from "./cola-search-dialog";
 import { MAX_PENDING_COLAS } from "@/lib/cola/ids";
@@ -228,6 +229,20 @@ export function PendingColas({
 }) {
   const [pending, setPending] = React.useState<PendingCola[]>(() => initialTtbIds.map(stubCola));
   const pendingIds = React.useMemo(() => new Set(pending.map((cola) => cola.ttbId)), [pending]);
+  // A pasted ID is only a number; read its record so the row shows what it is. Each ID is tried once, and a
+  // failed read leaves the row as it was: the ID is still attached, and fetched in full, when the label is saved.
+  const previewed = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    if (!lookupEnabled) return;
+    for (const cola of pending) {
+      if (!isStubCola(cola) || previewed.current.has(cola.ttbId)) continue;
+      previewed.current.add(cola.ttbId);
+      void previewColaAction(cola.ttbId).then((result) => {
+        if (!result.ok) return;
+        setPending((prev) => prev.map((row) => (row.ttbId === result.cola.ttbId && isStubCola(row) ? result.cola : row)));
+      });
+    }
+  }, [pending, lookupEnabled]);
   const full = pending.length >= MAX_PENDING_COLAS;
 
   const add = (rows: PendingCola[]) =>

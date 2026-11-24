@@ -9,9 +9,9 @@ import { mapDbError } from "@/lib/db-errors";
 import { copyToBottleImage, ImageError } from "@/lib/images";
 import type { ActionResult } from "@/lib/admin/types";
 import { isClassTypeCode, normalizeTtbId, permitKey } from "@/lib/cola/ids";
-import { ColaLookupError, ColaParseError, ColaSearchError, searchColas } from "@/lib/cola/client";
-import { rankResults, searchWindow } from "@/lib/cola/format";
-import type { ColaSearchRow } from "@/lib/cola/parse";
+import { ColaLookupError, ColaParseError, ColaSearchError, previewCola, searchColas } from "@/lib/cola/client";
+import { pendingFromRecord, rankResults, searchWindow, type PendingColaFields } from "@/lib/cola/format";
+import { ColaNotFoundError, type ColaSearchRow } from "@/lib/cola/parse";
 import {
   attachCola,
   featureCola,
@@ -37,6 +37,26 @@ function revalidateLabel(expressionId: number) {
 }
 
 const BAD_ID = "A TTB ID is 14 digits, like 21132001000620. Paste the number or the registry link.";
+
+/**
+ * What a pasted TTB ID is (approval date, name, class, permit), read from the registry's record page, so New
+ * Label can show it before the label is saved. Nothing is stored. Best effort: the ID is still attached on save.
+ */
+export async function previewColaAction(ttbId: string): Promise<{ ok: true; cola: PendingColaFields } | { ok: false; error: string }> {
+  await requireSession();
+  const id = normalizeTtbId(ttbId);
+  if (!id) return { ok: false, error: BAD_ID };
+  if (!colaLookupEnabled()) return { ok: false, error: "COLA lookups are turned off on this server (COLA_LOOKUP)." };
+  try {
+    return { ok: true, cola: pendingFromRecord(await previewCola(id)) };
+  } catch (error: unknown) {
+    if (error instanceof ColaNotFoundError || error instanceof ColaParseError || error instanceof ColaLookupError) {
+      return { ok: false, error: error.message };
+    }
+    console.warn("[rickhouse] COLA preview failed", id, error);
+    return { ok: false, error: "The COLA lookup failed." };
+  }
+}
 
 /** Adds a TTB ID to a label and, when lookups are on, fetches it straight away. */
 export async function addColaAction(expressionId: number, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
