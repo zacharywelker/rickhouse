@@ -1,8 +1,9 @@
 -- The category tree of the add-bottle redesign (design record, section 5).
 --
--- Every existing row keeps its id and slug, so no label, bottle or saved group is re-pointed: this only moves three
--- rows to the top level, renames the old top row, adds rows and sets the sort order. It is safe to run twice, and does
--- nothing harmful on an empty table (a fresh install: the seed builds the tree from src/lib/categories/tree.ts).
+-- Every existing row keeps its id and slug, so no label or bottle is re-pointed: this moves three rows to the top
+-- level, renames the old top row, adds rows, sets the sort order and rewrites saved smart groups. The tree steps are safe
+-- to run twice (the smart-group step would add the three ids again to a group that lists only Whisky, so run it once,
+-- as the migrator does), and it does nothing harmful on an empty table (a fresh install: the seed builds the tree from src/lib/categories/tree.ts).
 -- `ON CONFLICT DO NOTHING` has no target on purpose: an admin-made category with the same name under the same parent
 -- must not stop the migration, it just means that row is not added.
 
@@ -32,7 +33,7 @@ FROM (VALUES
   ('Akvavit', 'akvavit', 'other', 'other', 2),
   ('Shochu', 'shochu', 'other', 'other', 3)
 ) AS child(name, slug, parent_slug, field_group, sort_order)
-JOIN categories parent ON parent.slug = child.parent_slug
+JOIN categories parent ON parent.slug = child.parent_slug AND (child.parent_slug <> 'other' OR parent.parent_id IS NULL)
 ON CONFLICT DO NOTHING;
 --> statement-breakpoint
 -- Sort order, as in src/lib/categories/tree.ts.
@@ -56,9 +57,11 @@ FROM (VALUES
 ) AS v(slug, sort_order)
 WHERE c.slug = v.slug;
 --> statement-breakpoint
--- A saved smart group stores the Collection's filters as a query string ("category=12,40&store=3"), and a category
--- filter matches the category and everything under it. The old Whiskey row used to hold American, Scotch and Irish, so
--- a group that listed it also lists the three rows that moved out, and keeps matching the same bottles.
+-- A saved smart group stores the Collection's filters as a query string, written by serialiseFilters, which percent-encodes
+-- the comma: "category=12%2C40&store=3". A category filter matches the category and everything under it. The old Whiskey
+-- row used to hold American, Scotch and Irish, so a group that listed it also lists the three rows that moved out, and
+-- keeps matching the same bottles. Both "%2C" and a literal comma are read; the list is written back with "%2C", as the
+-- app writes it.
 DO $$
 DECLARE
   umbrella integer;
@@ -73,9 +76,12 @@ BEGIN
   IF umbrella IS NULL OR moved IS NULL THEN
     RETURN;
   END IF;
-  FOR r IN SELECT id, filter_query FROM groups WHERE filter_query ~ '(^|&)category=[0-9,]+' LOOP
-    m := regexp_match(r.filter_query, '(^|&)category=([0-9,]+)');
-    ids := string_to_array(m[2], ',');
+  FOR r IN SELECT id, filter_query FROM groups WHERE filter_query ~ '(^|&)category=[0-9]' LOOP
+    m := regexp_match(r.filter_query, '(^|&)category=([0-9]+(?:(?:,|%2[Cc])[0-9]+)*)');
+    IF m IS NULL THEN
+      CONTINUE;
+    END IF;
+    ids := regexp_split_to_array(m[2], ',|%2[Cc]');
     IF umbrella::text = ANY (ids) THEN
       FOREACH x IN ARRAY moved LOOP
         IF NOT (x = ANY (ids)) THEN
@@ -83,7 +89,7 @@ BEGIN
         END IF;
       END LOOP;
       UPDATE groups
-         SET filter_query = regexp_replace(filter_query, '(^|&)category=[0-9,]+', '\1category=' || array_to_string(ids, ','))
+         SET filter_query = regexp_replace(filter_query, '(^|&)category=[0-9]+(?:(?:,|%2[Cc])[0-9]+)*', '\1category=' || array_to_string(ids, '%2C'))
        WHERE id = r.id;
     END IF;
   END LOOP;

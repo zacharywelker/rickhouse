@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { DEFAULT_FILTERS, parseFilters, serialiseFilters } from "@/lib/bottles/filters";
 import { categoryKinds } from "@/lib/expressions/rules";
 import { CATEGORY_TREE } from "../tree";
 import { OLD_TREE } from "./old-tree";
@@ -80,13 +81,17 @@ describe.skipIf(!url)("migration 0055 on the old category tree", () => {
     const whiskey = idBySlug.get("whiskey")!;
     const rum = idBySlug.get("rum")!;
     const bourbon = idBySlug.get("bourbon")!;
+    // Stored the way the app stores them: serialiseFilters percent-encodes the comma ("category=12%2C40").
+    const saved = (categoryIds: number[], storeIds: number[] = []) => serialiseFilters({ ...DEFAULT_FILTERS, categoryIds, storeIds });
     await sql`INSERT INTO groups (name, slug, owner_id, filter_query) VALUES
-      ('g1', 'g1', ${ownerId}, ${`category=${whiskey}`}),
-      ('g2', 'g2', ${ownerId}, ${`category=${whiskey},${rum}&pick=1`}),
-      ('g3', 'g3', ${ownerId}, 'store=3'),
-      ('g4', 'g4', ${ownerId}, ${`category=${bourbon}`}),
-      ('g5', 'g5', ${ownerId}, ${`pick=1&category=${whiskey}`}),
-      ('g6', 'g6', ${ownerId}, NULL)`;
+      ('g1', 'g1', ${ownerId}, ${saved([whiskey])}),
+      ('g2', 'g2', ${ownerId}, ${saved([whiskey, rum], [3])}),
+      ('g3', 'g3', ${ownerId}, ${saved([], [3])}),
+      ('g4', 'g4', ${ownerId}, ${saved([bourbon])}),
+      ('g5', 'g5', ${ownerId}, ${`store=3&category=${whiskey}`}),
+      ('g6', 'g6', ${ownerId}, NULL),
+      ('g7', 'g7', ${ownerId}, ${saved([rum, whiskey])}),
+      ('g8', 'g8', ${ownerId}, ${`category=${whiskey},${rum}`})`;
     const labelsBefore = await sql<{ slug: string; category_id: number }[]>`SELECT slug, category_id FROM expressions ORDER BY slug`;
     const kindsBefore = categoryKinds(before);
 
@@ -109,14 +114,24 @@ describe.skipIf(!url)("migration 0055 on the old category tree", () => {
     expect(top.name).toBe("Whisky");
     expect(after.filter((r) => r.parentId === top.id).map((r) => r.slug).sort()).toEqual(["canadian-whisky", "flavored-whisky", "international", "japanese"]);
 
-    const q = Object.fromEntries(await groupQueries());
-    const moved = ["american-whiskey", "scotch", "irish-whiskey"].map((s) => idBySlug.get(s)!).sort((a, b) => a - b).join(",");
-    expect(q.g1).toBe(`category=${whiskey},${moved}`);
-    expect(q.g2).toBe(`category=${whiskey},${rum},${moved}&pick=1`);
-    expect(q.g3).toBe("store=3");
-    expect(q.g4).toBe(`category=${bourbon}`);
-    expect(q.g5).toBe(`pick=1&category=${whiskey},${moved}`);
+    const q = Object.fromEntries(await groupQueries()) as Record<string, string | null>;
+    const moved = ["american-whiskey", "scotch", "irish-whiskey"].map((slug) => idBySlug.get(slug)!);
+    const read = (name: string) => parseFilters(Object.fromEntries(new URLSearchParams(q[name]!)));
+    const sorted = (ids: number[]) => [...ids].sort((a, b) => a - b);
+    // The app reads these back: the original ids are kept, the three moved ids are added once, the rest is untouched.
+    expect(sorted(read("g1").categoryIds)).toEqual(sorted([whiskey, ...moved]));
+    expect(sorted(read("g2").categoryIds)).toEqual(sorted([whiskey, rum, ...moved]));
+    expect(read("g2").storeIds).toEqual([3]);
+    expect(sorted(read("g7").categoryIds)).toEqual(sorted([rum, whiskey, ...moved]));
+    expect(sorted(read("g8").categoryIds)).toEqual(sorted([whiskey, rum, ...moved]));
+    expect(sorted(read("g5").categoryIds)).toEqual(sorted([whiskey, ...moved]));
+    expect(read("g5").storeIds).toEqual([3]);
+    // A group without the umbrella, without a category, or hand-picked is left exactly as it was.
+    expect(q.g3).toBe(saved([], [3]));
+    expect(q.g4).toBe(saved([bourbon]));
     expect(q.g6).toBeNull();
+    // Written back the way the app writes it.
+    expect(q.g1).toContain("%2C");
   });
 
   it("changes nothing when it is run again", async () => {
@@ -138,6 +153,11 @@ describe.skipIf(!url)("migration 0055 on the old category tree", () => {
     for (const slug of NEW_SLUGS) expect(back.some((r) => r.slug === slug), slug).toBe(false);
     for (const [, slug, parent] of OLD_TREE) expect(back.find((r) => r.slug === slug)!.parent, slug).toBe(parent);
     expect(back.find((r) => r.slug === "whiskey")!.name).toBe("Whiskey");
+    // And the order the seed made: American, Scotch, Irish, Canadian; Herbal first among the liqueurs.
+    const sortOf = (slug: string) => back.find((r) => r.slug === slug)!.sort;
+    expect(["american-whiskey", "scotch", "irish-whiskey", "canadian-whisky"].map(sortOf)).toEqual([1, 2, 3, 4]);
+    expect(["herbal-liqueur", "fruit-liqueur"].map(sortOf)).toEqual([1, 7]);
+    for (const [, slug, , , sort] of OLD_TREE) expect(sortOf(slug), slug).toBe(sort);
   });
 });
 
