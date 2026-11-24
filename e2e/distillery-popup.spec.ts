@@ -165,3 +165,25 @@ test("creating by name only on a tequila label files it under Mexico", async ({ 
     await db.end();
   }
 });
+
+test("Enter in the nested Add company popup does not save the distillery behind it", async ({ page }) => {
+  await newLabel(page, "Bourbon");
+  await openPopup(page, "Nested Works");
+  const dialog = page.getByRole("dialog", { name: "Add distillery" });
+  await dialog.getByRole("combobox").click();
+  await page.locator("[cmdk-input]").fill("Nested Holdings");
+  await page.locator('[cmdk-item][data-value="__details__"]').click();
+  const company = page.getByRole("dialog", { name: /Add company/i });
+  await expect(company).toBeVisible();
+  await company.getByLabel("Name").press("Enter");
+  await expect(company).toBeHidden();
+  // The company was made and chosen; the distillery popup is still open and has not been saved.
+  await expect(dialog).toBeVisible();
+  const db = sql();
+  try {
+    const rows = await db`SELECT 1 FROM distilleries WHERE name = 'Nested Works'`;
+    expect(rows.length).toBe(0);
+  } finally {
+    await db.end();
+  }
+});

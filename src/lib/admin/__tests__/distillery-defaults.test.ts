@@ -40,6 +40,13 @@ describe("placeIdentifier", () => {
     ["american", "Mexico", "nom"],
     ["scotch", "Mexico", "nom"],
     ["cognac", "France", null],
+    // Countries are typed by hand: case, accents and common aliases must not hide the chip.
+    ["american", "mexico", "nom"],
+    ["cognac", "México", "nom"],
+    ["american", "scotland", "region"],
+    ["american", "UK", "region"],
+    ["cognac", "us", "dsp"],
+    ["cognac", "  usa ", "dsp"],
   ])("selects the identifier for %s in %s", (kind, country, identifier) => {
     expect(placeIdentifier(kind, country)).toBe(identifier);
   });

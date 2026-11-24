@@ -1,5 +1,6 @@
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { isAgaveKind } from "@/lib/expressions/spirit-details";
+import { isScotchCountry, normalizeCountry } from "@/lib/places";
 
 export function countryForKind(kind: CategoryKind): string | null {
   if (isAgaveKind(kind)) return "Mexico";
@@ -12,10 +13,14 @@ export function countryForKind(kind: CategoryKind): string | null {
   return null;
 }
 
+/** Lower case, no accents, single spaces: how a hand-typed country is compared. */
+const plain = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLowerCase();
+
 export function placeIdentifier(kind: CategoryKind, country: string): "dsp" | "nom" | "region" | null {
-  if (isAgaveKind(kind) || country === "Mexico") return "nom";
-  if (kind === "scotch" || country === "Scotland") return "region";
-  if (country === "USA") return "dsp";
+  const typed = plain(country);
+  if (isAgaveKind(kind) || typed === "mexico" || typed === "mx") return "nom";
+  if (kind === "scotch" || isScotchCountry(typed)) return "region";
+  if (normalizeCountry(country) === "USA") return "dsp";
   return null;
 }
 

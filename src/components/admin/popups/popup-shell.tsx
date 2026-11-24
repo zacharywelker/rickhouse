@@ -41,6 +41,9 @@ export function PopupShell({
         // Enter in a single-line field saves, as it does in the other forms, unless something blocks it.
         onKeyDown={(event) => {
           const target = event.target as HTMLElement;
+          // A dialog opened from inside this one (add company, in the distillery popup) is a React child of it, so its
+          // keys bubble here; only keys typed in this dialog's own DOM count.
+          if (!event.currentTarget.contains(target)) return;
           if (event.key !== "Enter" || target.tagName !== "INPUT" || event.defaultPrevented) return;
           // Enter that confirms an IME candidate, or a held key, is not a request to save.
           if (event.nativeEvent.isComposing || event.repeat) return;
