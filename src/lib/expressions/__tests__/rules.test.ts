@@ -263,12 +263,12 @@ describe("strength tier", () => {
 describe("designations a label ticks for itself", () => {
   const ctx = { group: "agave", kind: null, values: {}, ginAged: false } as const;
 
-  it("offers Still Proof to unaged agave only", () => {
+  it("keeps Still Proof's rule for unaged agave, but no form writes it any more", () => {
     expect(hiddenFields(ctx).has("isStillProof")).toBe(false);
     expect(hiddenFields({ ...ctx, values: { ageYears: "2" } }).has("isStillProof")).toBe(true);
     expect(hiddenFields({ ...ctx, values: { ageStatement: "Reposado" } }).has("isStillProof")).toBe(true);
     expect(hiddenFields({ ...ctx, group: "rum" }).has("isStillProof")).toBe(true);
-    expect(writableFields("agave").has("isStillProof")).toBe(true);
+    expect(writableFields("agave").has("isStillProof")).toBe(false);
     expect(writableFields("rum").has("isStillProof")).toBe(false);
   });
 

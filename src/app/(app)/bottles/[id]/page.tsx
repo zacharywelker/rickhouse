@@ -259,8 +259,6 @@ export default async function BottlePage({
             {kind === "gin" ? <Spec label="Style" value={e.ginStyle} /> : null}
             {group === "amaro" ? <Spec label="Style" value={e.amaroStyle} /> : null}
             {group === "amaro" || group === "liqueur" ? <Spec label="Aged" value={e.isAged ? "Yes" : null} /> : null}
-            {group === "amaro" || group === "liqueur" ? <Spec label="Country" value={e.originCountry} /> : null}
-            {group === "amaro" || group === "liqueur" ? <Spec label="Region" value={e.originRegion} /> : null}
             {group === "liqueur" && ["liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? <Spec label="Dairy" value={e.dairyStatus === "unknown" ? null : e.dairyStatus} /> : null}
             {peatKindFor({ kind, slug: row.category.slug }) && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
             <Spec label="Size" value={formatSize(row.bottle.sizeMl ?? e.sizeMl)} />

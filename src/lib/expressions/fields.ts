@@ -83,7 +83,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
       "As the product is normally sold; a bottle can override both. Proof and ABV calculate each other — enter " +
       "either one. Straight and Bottled In Bond fill in the age, and an age filled in greys out the age statement.",
     rows: [
-      ["proof", "isCaskStrength", "isBottledInBond", "isStillProof", "@tier"],
+      ["proof", "isCaskStrength", "isBottledInBond", "@tier"],
       ["barrelFilledOn", "bottledOn", "@dates"],
       ["tequilaClass", "brandyGrade", "isAgedGin", "isAged", "ageYears", "ageStatement", "isNas", "isStraight"],
       ["tropicalYears", "continentalYears", "isSolera", "soleraRange"],
@@ -92,7 +92,6 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
       // Proof renders as two linked cells (Proof, ABV). Bottled In Bond is drawn after Cask Strength, from the Process section.
       { kind: "number", name: "proof", label: "Proof", min: 0, max: 200, step: 0.01, width: "xs" },
       { kind: "checkbox", name: "isCaskStrength", label: "Cask Strength", width: "auto" },
-      { kind: "checkbox", name: "isStillProof", label: "Still Proof", help: "Still Proof — bottled undiluted from the still", width: "auto" },
       { kind: "checkbox", name: "isAgedGin", label: "Aged", width: "auto" },
       { kind: "checkbox", name: "isAged", label: "Aged", width: "auto" },
       // The two dates sit above the age, and offer to work it out (see `DeriveAge`).
@@ -248,8 +247,6 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     fieldGroups: ["amaro"],
     fields: [
       { kind: "select", name: "amaroStyle", label: "Style", options: [{ value: "", label: "Not specified" }, ...AMARO_STYLES.map((value) => ({ value, label: value }))], span: "half" },
-      { kind: "text", name: "originCountry", label: "Country", span: "half" },
-      { kind: "text", name: "originRegion", label: "Region", span: "half" },
     ],
   },
   {
@@ -257,8 +254,6 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     title: "Liqueur detail",
     fieldGroups: ["liqueur"],
     fields: [
-      { kind: "text", name: "originCountry", label: "Country", span: "half" },
-      { kind: "text", name: "originRegion", label: "Region", span: "half" },
       { kind: "select", name: "dairyStatus", label: "Dairy", options: DAIRY_STATUSES.map((value) => ({ value, label: value === "unknown" ? "Unknown" : value === "dairy" ? "Dairy" : "Non-dairy" })), span: "half" },
     ],
   },

@@ -98,7 +98,6 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
       // Navy Strength or Overproof, worked out from the proof and the category.
       { id: "strength", label: "Strength", specs: [] },
       field("isCaskStrength"),
-      field("isStillProof"),
       field("barrelFilledOn"),
       field("bottledOn"),
       field("isStraight"),

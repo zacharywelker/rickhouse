@@ -23,7 +23,7 @@ import { withOption } from "@/lib/forms/values";
 import { AgeFields } from "./age-fields";
 import { releaseUnit } from "@/lib/bottles/terminology";
 import { bottleFieldNotUsed, type LabelFacts } from "@/lib/expressions/bottle-applicability";
-import { BRANDY_MINIMUM_YEARS, isAgaveKind } from "@/lib/expressions/spirit-details";
+import { isAgaveKind } from "@/lib/expressions/spirit-details";
 import { isGinKind } from "@/lib/expressions/gin-details";
 import { withStatementAge } from "@/lib/expressions/whiskey-age";
 
@@ -262,10 +262,7 @@ export function BottleFields({
             const control = (
               <Field
                 key={field.name}
-                spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` }
-                  : field.name === "brandyGrade" && BRANDY_MINIMUM_YEARS[categoryKind] && values.brandyGrade
-                    ? { ...field, help: `At least ${BRANDY_MINIMUM_YEARS[categoryKind]![String(values.brandyGrade) as "VS" | "VSOP" | "XO"]} years. Leave age blank unless exact age is known.` }
-                    : field}
+                spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } : field}
                 idPrefix={idPrefix}
                 value={values[field.name] ?? ""}
                 onChange={(next) => onChange(field.name, next)}

@@ -13,10 +13,4 @@ export const KNOWN_GAPS: ReadonlyArray<GapGroup & { phase4: string }> = [
   { matrix: "label", row: "Aged toggle", expected: "A", found: "no-field", groups: ["rum"], phase4: "Add the Aged toggle to rum (section 9, Rum); it also drives the bottle's rum fields and the rum cells the check cannot evaluate yet." },
   { matrix: "label", row: "Barrel type", expected: "A", found: "no-field", groups: ["agave"], phase4: "Add Barrel type for agave (the Finish data renamed on the page; not Madurado en Vidrio), Corn and Light whiskey, and aged gin." },
   { matrix: "label", row: "Still type", expected: "A", found: "hidden", groups: ["whiskey", "agave", "brandy", "gin", "vodka", "amaro", "liqueur", "other"], phase4: "Show the optional Still link under More for every spirit; today only the rum section has it." },
-  { matrix: "label", row: "Still proof", expected: "N", found: "shown", groups: ["agave"], phase4: "Retired: take Still proof out of the agave form (the column stays dormant)." },
-  { matrix: "label", row: "Country (amaro, liqueur)", expected: "N", found: "shown", groups: ["amaro", "liqueur"], phase4: "Retired: take Country out of the amaro and liqueur forms; the distillery supplies it." },
-  { matrix: "label", row: "Region (amaro, liqueur)", expected: "N", found: "shown", groups: ["amaro", "liqueur"], phase4: "Retired: take Region out of the amaro and liqueur forms; the distillery supplies it." },
-  { matrix: "bottle", row: "Brandy designation", expected: "N", found: "mixed", groups: ["brandy"], detail: ["brandy: shown for cognac, armagnac, calvados"], phase4: "Retired from the bottle: the label keeps VS / VSOP / XO (section 4)." },
-  { matrix: "bottle", row: "Bottle count", expected: "N", found: "shown", groups: ["whiskey", "rum", "agave", "brandy", "vodka", "amaro", "liqueur", "other"], phase4: "Retired: take Bottle count out of every bottle form." },
-  { matrix: "bottle", row: "Bottle count", expected: "N", found: "mixed", groups: ["gin"], detail: ["gin: shown for gin (aged), genever (aged)"], phase4: "Retired: take Bottle count out of every bottle form." },
 ];

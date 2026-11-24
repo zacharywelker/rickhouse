@@ -250,7 +250,6 @@ function generatedLabelColumns(): Generated[] {
 const HAND_MADE_BOTTLE = new Set(["ageYears", "ageMonths", "ageDays", "ageStatement", "status", "storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName"]);
 /** A bottle's field of the same name as a label's (its own value, overriding the label's) gets its own column id. */
 const BOTTLE_ID: Readonly<Record<string, string>> = {
-  bottleCount: "releaseBottleCount",
   barrelFilledOn: "ownBarrelFilledOn",
   bottledOn: "ownBottledOn",
   isSingleBarrel: "singleBarrel",

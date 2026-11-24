@@ -165,9 +165,6 @@ export function ExpressionFields({
   const says = nameSays(values.name, nameContext);
   const entryGreyed = followsProof(values.name, nameContext) && !forced.has("entry");
   const change = (name: string, value: FieldValue) => {
-    if ((name === "originCountry" || name === "originRegion") && (fieldGroup === "amaro" || fieldGroup === "liqueur")) {
-      onChange(`${name}Manual`, String(value ?? "").trim() !== "");
-    }
     if (name === "isNas") setForced((now) => new Set([...now].filter((g) => g !== "age" && g !== "statement")));
     if (name === "isCaskStrength") setForced((now) => (now.has("proof") ? new Set([...now].filter((g) => g !== "proof")) : now));
     if (name === "amaroStyle") {
@@ -224,21 +221,6 @@ export function ExpressionFields({
   /** A linked distillery brings its Scotch region along. */
   const changeLinks = (next: LabelLinks) => {
     onLinksChange(next);
-    if (fieldGroup === "amaro" || fieldGroup === "liqueur") {
-      const selected = next.distilleries.map((row) => options.distilleryLinks?.find((option) => option.value === row.id));
-      if (selected.length > 0 && selected.every((row) => row?.country) && values.originCountryManual !== true) {
-        const countries = [...new Set(selected.map((row) => row!.country!.trim()))];
-        onChange("originCountry", countries.length === 1 ? countries[0]! : "");
-      } else if (values.originCountryManual !== true) {
-        onChange("originCountry", "");
-      }
-      if (selected.length > 0 && selected.every((row) => row?.region) && values.originRegionManual !== true) {
-        const originRegions = [...new Set(selected.map((row) => row!.region!.trim()))];
-        onChange("originRegion", originRegions.length === 1 ? originRegions[0]! : "");
-      } else if (values.originRegionManual !== true) {
-        onChange("originRegion", "");
-      }
-    }
     if (!showsRegions(context)) return;
     const known = new Set(links.distilleries.map((row) => row.id));
     const brought = next.distilleries

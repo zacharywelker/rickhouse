@@ -70,12 +70,12 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Regions", "regions", "C N N N N N N N N", "Scotch only. Shown by the form component, not by hiddenFields."),
   row("Cooking method", "cookingMethod", "N N C N N N N N N", "Agave, optional (tequila and mezcal)."),
   row("Extraction", "extraction", "N N C N N N N N N", "Agave, optional (tequila and mezcal)."),
-  row("Still proof", "isStillProof", "N N N N N N N N N", "Retired."),
+  row("Still proof", null, "N N N N N N N N N", "Retired."),
   row("Chill filtered", "isChillFiltered", "N N N N N N N N N", "Retired."),
   row("Colour added", "colorAdded", "N N N N N N N N N", "Retired."),
   row("Char level", "charLevel", "N N N N N N N N N", "Retired."),
-  row("Country (amaro, liqueur)", "originCountry", "N N N N N N N N N", "Retired: the distillery supplies it."),
-  row("Region (amaro, liqueur)", "originRegion", "N N N N N N N N N", "Retired: the distillery supplies it."),
+  row("Country (amaro, liqueur)", null, "N N N N N N N N N", "Retired: the distillery supplies it."),
+  row("Region (amaro, liqueur)", null, "N N N N N N N N N", "Retired: the distillery supplies it."),
 ];
 
 /** Section 8: what a bottle shows. */
@@ -99,8 +99,8 @@ export const BOTTLE_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Vintage choice", "releaseId", "A A C A N N N N A", "Mezcal only for agave: tequila and gin lose it (section 8)."),
   row("Tequila class", "tequilaClass", "N N C N N N N N N"),
   row("Gin NAS", "ginIsNas", "N N N N C N N N N"),
-  row("Brandy designation", "brandyGrade", "N N N N N N N N N", "Off the bottle; the label keeps it (section 4)."),
-  row("Bottle count", "bottleCount", "N N N N N N N N N", "Retired."),
+  row("Brandy designation", null, "N N N N N N N N N", "Off the bottle; the label keeps it (section 4)."),
+  row("Bottle count", null, "N N N N N N N N N", "Retired."),
   row("Size override", "sizeMl", "A A A A A A A A A"),
 ];
 
