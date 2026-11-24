@@ -107,7 +107,15 @@ export function Field({
           type={spec.kind === "number" ? "number" : spec.kind === "date" ? "date" : "text"}
           value={String(value ?? "")}
           onChange={(e) => onChange(spec.kind === "number" && spec.money ? capDecimals(e.target.value, 2) : e.target.value)}
-          onBlur={spec.kind === "number" && spec.money ? () => onChange(padDecimals(String(value ?? ""), 2)) : undefined}
+          onBlur={
+            spec.kind === "number" && spec.money
+              ? () => {
+                  const text = String(value ?? "");
+                  const padded = padDecimals(text, 2);
+                  if (padded !== text) onChange(padded);
+                }
+              : undefined
+          }
           placeholder={"placeholder" in spec ? spec.placeholder : undefined}
           readOnly={locked}
           aria-readonly={locked || undefined}
