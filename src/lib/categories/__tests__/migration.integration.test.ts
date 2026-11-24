@@ -73,6 +73,10 @@ describe.skipIf(!url)("migration 0055 on the old category tree", () => {
   });
 
   it("keeps every id, every label's category and every old category's kind, and reaches the target tree", async () => {
+    // An admin made "Tennessee" before the deployment, with the slug and name the migration would give it: the migration
+    // skips its own insert, and the rollback must not delete the admin's row.
+    await sql`INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
+              VALUES ('Tennessee', 'tennessee', (SELECT id FROM categories WHERE slug = 'american-whiskey'), 'whiskey', 99)`;
     const before = await rows();
     const idBySlug = new Map(before.map((r) => [r.slug, r.id]));
     for (const r of before) {
@@ -143,14 +147,17 @@ describe.skipIf(!url)("migration 0055 on the old category tree", () => {
   });
 
   it("is undone by the down script, which refuses while a label uses a new category", async () => {
-    const [tennessee] = await sql<{ id: number }[]>`SELECT id FROM categories WHERE slug = 'tennessee'`;
-    await sql`INSERT INTO expressions (brand_id, category_id, name, slug, owner_id) VALUES (${brandId}, ${tennessee!.id}, 'T', 'l-tennessee', ${ownerId})`;
+    const [japanese] = await sql<{ id: number }[]>`SELECT id FROM categories WHERE slug = 'japanese'`;
+    await sql`INSERT INTO expressions (brand_id, category_id, name, slug, owner_id) VALUES (${brandId}, ${japanese!.id}, 'J', 'l-japanese', ${ownerId})`;
     await expect(run("drizzle/rollback/0055_category_tree_down.sql")).rejects.toThrow(/Cannot roll back/);
-    await sql`DELETE FROM expressions WHERE slug = 'l-tennessee'`;
+    await sql`DELETE FROM expressions WHERE slug = 'l-japanese'`;
     await run("drizzle/rollback/0055_category_tree_down.sql");
 
     const back = await rows();
-    for (const slug of NEW_SLUGS) expect(back.some((r) => r.slug === slug), slug).toBe(false);
+    // The rows the migration added are gone; the admin's own Tennessee, which the migration did not add, stays.
+    for (const slug of NEW_SLUGS.filter((slug) => slug !== "tennessee")) expect(back.some((r) => r.slug === slug), slug).toBe(false);
+    expect(back.some((r) => r.slug === "tennessee")).toBe(true);
+    expect((await sql`SELECT to_regclass('category_migration_0055_added') AS t`)[0]!.t).toBeNull();
     for (const [, slug, parent] of OLD_TREE) expect(back.find((r) => r.slug === slug)!.parent, slug).toBe(parent);
     expect(back.find((r) => r.slug === "whiskey")!.name).toBe("Whiskey");
     // And the order the seed made: American, Scotch, Irish, Canadian; Herbal first among the liqueurs.
@@ -158,6 +165,7 @@ describe.skipIf(!url)("migration 0055 on the old category tree", () => {
     expect(["american-whiskey", "scotch", "irish-whiskey", "canadian-whisky"].map(sortOf)).toEqual([1, 2, 3, 4]);
     expect(["herbal-liqueur", "fruit-liqueur"].map(sortOf)).toEqual([1, 7]);
     for (const [, slug, , , sort] of OLD_TREE) expect(sortOf(slug), slug).toBe(sort);
+    expect(back.find((r) => r.slug === "tennessee")!.parent).toBe("american-whiskey");
   });
 });
 

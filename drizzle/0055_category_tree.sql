@@ -7,16 +7,24 @@
 -- `ON CONFLICT DO NOTHING` has no target on purpose: an admin-made category with the same name under the same parent
 -- must not stop the migration, it just means that row is not added.
 
+-- The ids of the rows this migration adds, so that the rollback deletes those and nothing an admin made before it.
+CREATE TABLE IF NOT EXISTS category_migration_0055_added (category_id integer PRIMARY KEY);
+--> statement-breakpoint
 -- American Whiskey, Scotch Whisky and Irish Whiskey become top-level categories.
 UPDATE categories SET parent_id = NULL WHERE slug IN ('american-whiskey', 'scotch', 'irish-whiskey');
 --> statement-breakpoint
 -- The old umbrella keeps its id and slug and is now "Whisky": Canadian plus the new international rows.
 UPDATE categories SET name = 'Whisky' WHERE slug = 'whiskey';
 --> statement-breakpoint
-INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
-VALUES ('Other', 'other', NULL, 'other', 12)
-ON CONFLICT DO NOTHING;
+WITH added AS (
+  INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
+  VALUES ('Other', 'other', NULL, 'other', 12)
+  ON CONFLICT DO NOTHING
+  RETURNING id
+)
+INSERT INTO category_migration_0055_added (category_id) SELECT id FROM added ON CONFLICT DO NOTHING;
 --> statement-breakpoint
+WITH added AS (
 INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
 SELECT child.name, child.slug, parent.id, child.field_group, child.sort_order
 FROM (VALUES
@@ -34,7 +42,10 @@ FROM (VALUES
   ('Shochu', 'shochu', 'other', 'other', 3)
 ) AS child(name, slug, parent_slug, field_group, sort_order)
 JOIN categories parent ON parent.slug = child.parent_slug AND (child.parent_slug <> 'other' OR parent.parent_id IS NULL)
-ON CONFLICT DO NOTHING;
+ON CONFLICT DO NOTHING
+RETURNING id
+)
+INSERT INTO category_migration_0055_added (category_id) SELECT id FROM added ON CONFLICT DO NOTHING;
 --> statement-breakpoint
 -- Sort order, as in src/lib/categories/tree.ts.
 UPDATE categories c SET sort_order = v.sort_order

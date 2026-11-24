@@ -10,9 +10,7 @@ DECLARE
 BEGIN
   SELECT count(*) INTO used
     FROM expressions e
-    JOIN categories c ON c.id = e.category_id
-   WHERE c.slug IN ('tennessee', 'japanese', 'international', 'flavored-whisky', 'cachaca', 'agricole', 'spiced-rum',
-                    'apple', 'eau-de-vie', 'absinthe', 'akvavit', 'shochu', 'other');
+    WHERE e.category_id IN (SELECT category_id FROM category_migration_0055_added);
   IF used > 0 THEN
     RAISE EXCEPTION 'Cannot roll back: % label(s) use a category the migration added. Move them first.', used;
   END IF;
@@ -23,16 +21,19 @@ UPDATE categories SET parent_id = (SELECT id FROM categories WHERE slug = 'whisk
 --> statement-breakpoint
 UPDATE categories SET name = 'Whiskey' WHERE slug = 'whiskey';
 --> statement-breakpoint
--- Only rows with the names the migration gave them, so an admin-made row with the same slug and another name stays.
+-- Only the rows the migration itself added (it recorded their ids), so a category an admin made before the migration,
+-- even with the same slug and name as one of ours, stays. A row that still has a child is not deleted, because
+-- categories.parent_id is ON DELETE SET NULL and would orphan the child. The delete runs twice: the first pass removes
+-- Absinthe, Akvavit and Shochu, which leaves Other childless for the second.
 DELETE FROM categories
- WHERE (slug, name) IN (
-   ('tennessee', 'Tennessee'), ('japanese', 'Japanese Whisky'), ('international', 'Other International Whisky'),
-   ('flavored-whisky', 'Flavored Whisky'), ('cachaca', 'Cachaça'), ('agricole', 'Rhum Agricole'),
-   ('spiced-rum', 'Flavored / Spiced Rum'), ('apple', 'Apple Brandy'), ('eau-de-vie', 'Eau de Vie'),
-   ('absinthe', 'Absinthe'), ('akvavit', 'Akvavit'), ('shochu', 'Shochu'));
+ WHERE id IN (SELECT category_id FROM category_migration_0055_added)
+   AND NOT EXISTS (SELECT 1 FROM categories child WHERE child.parent_id = categories.id);
 --> statement-breakpoint
-DELETE FROM categories WHERE slug = 'other' AND name = 'Other' AND parent_id IS NULL
-  AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.parent_id = categories.id);
+DELETE FROM categories
+ WHERE id IN (SELECT category_id FROM category_migration_0055_added)
+   AND NOT EXISTS (SELECT 1 FROM categories child WHERE child.parent_id = categories.id);
+--> statement-breakpoint
+DROP TABLE IF EXISTS category_migration_0055_added;
 --> statement-breakpoint
 -- The sort order the seed made before the redesign.
 UPDATE categories c SET sort_order = v.sort_order
