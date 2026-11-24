@@ -482,7 +482,7 @@ export function ExpressionFields({
           <DistilleryPicker fieldGroup={fieldGroup} kind={kind} options={distilleryOptions} links={links} changeLinks={changeLinks} brand={brand}
             onOptionCreated={(option) => onOptionCreated("distilleryLinks", option)} renderRowExtra={mashbillsForDistillery} />
           <IngredientPickers fieldGroup={fieldGroup} kind={kind} links={links} onLinksChange={onLinksChange} />
-          <MashbillPicker fieldGroup={fieldGroup} kind={kind} singleMalt={singleMalt} categoryName={options.categoryId?.find((option) => option.value === categoryId)?.label} options={options.mashbillLinks ?? []} links={links} onLinksChange={onLinksChange}
+          <MashbillPicker fieldGroup={fieldGroup} kind={kind} singleMalt={singleMalt} categoryName={options.categoryId?.find((option) => option.value === categoryId)?.label} mashbillCategory={mashbillCategory} options={options.mashbillLinks ?? []} links={links} onLinksChange={onLinksChange}
             matchesOption={matchesRecipe} onOptionCreated={(option) => onOptionCreated("mashbillLinks", option)} renderRowExtra={distilleriesForMashbill} />
           <FinishPickers kind={kind} shown={showsFinishes(context)} options={options.finishLinks ?? []} links={links} onLinksChange={onLinksChange} fieldGroup={fieldGroup} />
         </SectionContent>

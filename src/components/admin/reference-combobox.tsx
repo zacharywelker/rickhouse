@@ -46,6 +46,8 @@ type Props = {
   detailNoun?: string;
   /** A distillery's label spirit, for the add-distillery popup. */
   detailKind?: CategoryKind;
+  /** "bourbon" or "rye", for the add-mashbill popup. */
+  detailCategory?: string;
 };
 
 /**
@@ -72,6 +74,7 @@ export function ReferenceCombobox({
   defaultCountry,
   detailNoun,
   detailKind,
+  detailCategory,
   brand,
 }: Props) {
   const searchPlaceholder = placeholder ?? (resource === null ? "Search…" : "Search or create…");
@@ -254,6 +257,7 @@ export function ReferenceCombobox({
           {...(defaultCountry ? { defaultCountry } : {})}
           {...(detailNoun ? { noun: detailNoun } : {})}
           {...(detailKind ? { kind: detailKind } : {})}
+          {...(detailCategory ? { category: detailCategory } : {})}
           onCreated={(option) => {
             onOptionCreated(option);
             onChange(option.value);

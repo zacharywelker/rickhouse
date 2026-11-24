@@ -67,6 +67,7 @@ export function OrderedPicker({
   defaultCountry,
   detailNoun,
   detailKind,
+  detailCategory,
   brand,
   matchesOption,
   renderRowExtra,
@@ -84,6 +85,8 @@ export function OrderedPicker({
   detailNoun?: string;
   /** The label's spirit, passed to the add-details popup. */
   detailKind?: CategoryKind;
+  /** "bourbon" or "rye" for a mashbill picker, passed to the add-mashbill popup's recipe warning. */
+  detailCategory?: string;
   brand?: Option;
   matchesOption?: (option: Option) => boolean;
   emptyHint?: string;
@@ -327,6 +330,7 @@ export function OrderedPicker({
         {...(defaultCountry ? { defaultCountry } : {})}
         {...(detailNoun ? { detailNoun } : {})}
         {...(detailKind ? { detailKind } : {})}
+        {...(detailCategory ? { detailCategory } : {})}
         value={null}
         onChange={(next) => {
           if (next === null) return;

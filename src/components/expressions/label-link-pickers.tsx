@@ -98,7 +98,7 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange }: Co
   return null;
 }
 
-export function MashbillPicker({ fieldGroup, singleMalt, categoryName, options, links, onLinksChange, matchesOption, onOptionCreated, renderRowExtra }: Common & PickerExtras & { singleMalt: boolean; categoryName: string | undefined; options: Option[]; matchesOption?: (option: Option) => boolean }) {
+export function MashbillPicker({ fieldGroup, singleMalt, categoryName, mashbillCategory, options, links, onLinksChange, matchesOption, onOptionCreated, renderRowExtra }: Common & PickerExtras & { singleMalt: boolean; categoryName: string | undefined; /** "bourbon" or "rye" when the label is one, for the popup's recipe warning. */ mashbillCategory?: string | null; options: Option[]; matchesOption?: (option: Option) => boolean }) {
   if (fieldGroup === "gin") return null;
   if (fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") {
     // Older mashbill links remain stored while the relevant spirit uses ingredients.
@@ -130,6 +130,7 @@ export function MashbillPicker({ fieldGroup, singleMalt, categoryName, options, 
         description="One per contributing recipe. A blend of three has three. With more than one distillery above, say which one made each."
         resource={null}
         emptyHint="No mashbills yet — add a new one from here."
+        {...(mashbillCategory ? { detailCategory: mashbillCategory } : {})}
         options={options}
         {...(matchesOption ? { matchesOption } : {})}
         {...(onOptionCreated ? { onOptionCreated } : {})}

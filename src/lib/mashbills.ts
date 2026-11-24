@@ -2,6 +2,8 @@
  * Mashbill display. Pure — no database, no React.
  */
 
+import type { Problem } from "@/lib/admin/popup-problems";
+
 export type Grain = { grain: string; percent: string | number; position?: number };
 
 /**
@@ -185,4 +187,75 @@ export function matchesMashbillCategory(grains: readonly Grain[], category: stri
     return matches ? total + Number(percent) : total;
   }, 0);
   return share >= 51;
+}
+
+/** Validation and category warnings for the mashbill popup, in display order. */
+export function mashbillProblems(input: {
+  isSecret: boolean;
+  isGeneric: boolean;
+  isPartial: boolean;
+  name: string;
+  grains: readonly { grain: string; percent: string | number }[];
+  /** Lower-case category name ("bourbon", "rye") or null. */
+  category: string | null;
+}): Problem[] {
+  const problems: Problem[] = [];
+  if (input.isGeneric) {
+    if (!input.name.trim()) {
+      problems.push({ text: "Name the style, such as High Rye.", blocking: true });
+    }
+    return problems;
+  }
+  if (input.isSecret && !input.name.trim()) {
+    problems.push({
+      text: "Give a secret mashbill a reference name, such as Buffalo Trace Wheated.",
+      blocking: true,
+    });
+  }
+
+  const grains = input.grains.filter(({ grain, percent }) => grain.trim() || String(percent).trim());
+  if (grains.some(({ grain, percent }) => !grain.trim() && String(percent).trim() !== "")) {
+    problems.push({ text: "Name every ingredient.", blocking: true });
+  }
+  if (grains.some(({ grain, percent }) => grain.trim() && (!Number.isFinite(Number(percent)) || Number(percent) <= 0))) {
+    problems.push({ text: "Give every ingredient a share.", blocking: true });
+  }
+
+  const seen = new Set<string>();
+  for (const row of grains) {
+    const key = normalizeGrainName(row.grain).toLowerCase();
+    if (!key) continue;
+    if (seen.has(key)) {
+      problems.push({ text: `${row.grain} is in there twice. Combine them into one row.`, blocking: true });
+      break;
+    }
+    seen.add(key);
+  }
+
+  if (grains.length === 0) {
+    if (!input.isSecret) problems.push({ text: "Add at least one ingredient.", blocking: true });
+    return problems;
+  }
+  const total = sumGrains(grains);
+  if (total > GRAIN_TOTAL.max || (!input.isPartial && total < GRAIN_TOTAL.min)) {
+    const rounded = Number(total.toFixed(2));
+    const distance = Number(Math.abs(GRAIN_TOTAL.exact - total).toFixed(2));
+    problems.push({
+      text: input.isPartial
+        ? `The disclosed grains exceed 100% (${rounded}%).`
+        : `The grains add up to ${rounded}%, not 100%. That is ${distance} ${total > GRAIN_TOTAL.exact ? "over" : "short"}.`,
+      blocking: true,
+    });
+  }
+  if (!matchesMashbillCategory(grains, input.category)) {
+    problems.push({
+      // The label's own picker keeps such a recipe out of its list, so "it will still save" needs saying fully.
+      text: `${input.category === "bourbon"
+        ? "A bourbon mashbill is at least 51% corn."
+        : "A rye mashbill is at least 51% rye."} It will still save, but it is not added to this label.`,
+      blocking: false,
+      notice: true,
+    });
+  }
+  return problems;
 }

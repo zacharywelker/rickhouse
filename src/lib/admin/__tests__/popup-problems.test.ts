@@ -23,6 +23,17 @@ describe("titleCase", () => {
     expect(titleCase("mckenna DeKuyper McKenna")).toBe("Mckenna DeKuyper McKenna");
   });
 
+  it("capitalises the first letter after an opening bracket", () => {
+    expect(titleCase("weller (low rye)")).toBe("Weller (Low Rye)");
+  });
+
+  it("capitalises an accented first letter, not a later one", () => {
+    expect(titleCase("élan")).toBe("Élan");
+    expect(titleCase("ÉLAN vital")).toBe("Élan Vital");
+    expect(titleCase("áñejo reserva")).toBe("Áñejo Reserva");
+    expect(titleCase("(élan)")).toBe("(Élan)");
+  });
+
   it("returns an empty string for blanks", () => {
     expect(titleCase("   ")).toBe("");
   });
