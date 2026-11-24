@@ -31,7 +31,7 @@ import {
   stores,
   tags,
 } from "@/db/schema";
-import { HOME_COUNTRY, formatPlace, isScotchCountry, normalizeLocation, normalizePlace } from "@/lib/places";
+import { HOME_COUNTRY, formatPlace, isScotchCountry, normalizeCountry, normalizeLocation, normalizePlace } from "@/lib/places";
 import { otherNamesText, parseOtherNames } from "@/lib/other-names";
 import { syncDistilleryNames } from "@/lib/other-names-store";
 import { resolveSlug } from "@/lib/slug";
@@ -533,7 +533,6 @@ const distilleriesConfig: ResourceConfig = {
     nameColumn,
     { key: "company", label: "Company", secondary: true },
     { key: "where", label: "Location" },
-    { key: "disclosure", label: "Known As", secondary: true },
     { key: "dspNumber", label: "DSP", secondary: true },
     { key: "nomNumber", label: "NOM", secondary: true },
     { key: "isDefunct", label: "Defunct" },
@@ -557,18 +556,6 @@ const distilleriesConfig: ResourceConfig = {
     },
     { kind: "text", name: "dspNumber", label: "DSP Number", placeholder: "DSP-KY-95", span: "half" },
     { kind: "text", name: "nomNumber", label: "NOM", placeholder: "1234", span: "half" },
-    {
-      kind: "select",
-      name: "disclosure",
-      label: "How Known",
-      required: true,
-      options: [
-        { value: "named", label: "Named on the label" },
-        { value: "undisclosed", label: "Undisclosed — only a place is given" },
-      ],
-      help: "For a bottle that says only \"Distilled in Indiana\", add \"Undisclosed (Indiana)\" and set the state. Guessing who really made it is marked on each label, next to the distillery, not here.",
-      span: "full",
-    },
     {
       kind: "textarea",
       name: "otherNames",
@@ -627,7 +614,6 @@ const distilleriesConfig: ResourceConfig = {
         nomNumber: r.nomNumber,
         isDefunct: r.isDefunct,
         uses: r.uses,
-        disclosure: DISCLOSURE_LABELS[r.disclosure],
       },
       values: {
         name: r.name,
@@ -669,11 +655,14 @@ const distilleriesConfig: ResourceConfig = {
       companyId: input.companyId,
       ...normalizePlace(input),
       region: isScotchCountry(input.country) ? input.region : null,
-      dspNumber: ["us", "usa", "united states", "united states of america"].includes(input.country.trim().toLocaleLowerCase()) ? input.dspNumber : null,
-      nomNumber: ["mx", "mexico", "méxico"].includes(input.country.trim().toLocaleLowerCase()) ? input.nomNumber : null,
+      dspNumber: normalizeCountry(input.country) === HOME_COUNTRY ? input.dspNumber : null,
+      nomNumber: normalizeCountry(input.country) === "Mexico" ? input.nomNumber : null,
       founded: input.founded,
       isDefunct: input.isDefunct,
-      disclosure: input.disclosure,
+      // How a distillery is known (named or undisclosed) is no longer a field on the web form. It is set only when
+      // the caller sends it (the phone, the undisclosed flow); otherwise a new one is "named" by the column default
+      // and an edit leaves it as it was, so editing "Undisclosed (Indiana)" does not turn it into a named one.
+      ...(raw.disclosure !== undefined && raw.disclosure !== "" ? { disclosure: input.disclosure } : {}),
       notes: input.notes,
     };
 
@@ -731,7 +720,7 @@ async function distilleryOptions(ownerId: number): Promise<Option[]> {
     ].filter(Boolean).join(" · ");
     return {
       value: r.value,
-      label: ["mx", "mexico", "méxico"].includes(r.country.trim().toLocaleLowerCase()) && r.nomNumber
+      label: normalizeCountry(r.country) === "Mexico" && r.nomNumber
         ? `NOM-${r.nomNumber.replace(/^NOM-?/i, "")}: ${r.label}` : r.label,
       country: r.country,
       ...(hint ? { hint } : {}),

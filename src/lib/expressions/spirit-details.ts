@@ -1,3 +1,4 @@
+import { normalizeCountry } from "@/lib/places";
 import type { CategoryKind } from "./rules";
 import { isGinKind } from "./gin-details";
 
@@ -39,12 +40,12 @@ export const hidesWarehouse = (group: string, kind: CategoryKind | null) =>
   kind === "canadian" || kind === "irish" || kind === "scotch" || isAgaveKind(kind);
 
 export function countryForDistillery(kind: CategoryKind | null, country: string): boolean {
-  const normalized = country.trim().toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  if (isAgaveKind(kind)) return normalized === "mx" || normalized === "mexico";
-  if (isFrenchBrandy(kind)) return normalized === "fr" || normalized === "france";
-  if (kind === "pisco") return ["pe", "peru", "cl", "chile"].includes(normalized);
-  if (kind === "canadian") return normalized === "ca" || normalized === "canada";
-  if (kind === "irish") return ["ie", "ireland", "northern ireland", "uk", "united kingdom", "gb"].includes(normalized);
+  const normalized = normalizeCountry(country);
+  if (isAgaveKind(kind)) return normalized === "Mexico";
+  if (isFrenchBrandy(kind)) return normalized === "France";
+  if (kind === "pisco") return normalized === "Peru" || normalized === "Chile";
+  if (kind === "canadian") return normalized === "Canada";
+  if (kind === "irish") return ["Ireland", "Northern Ireland", "United Kingdom"].includes(normalized);
   return true;
 }
 

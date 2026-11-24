@@ -219,3 +219,22 @@ test("the identifier follows the country the way the save keeps it, not the spir
     await db.end();
   }
 });
+
+test("the usual spellings of a country are folded as you leave the field", async ({ page }) => {
+  await newLabel(page, "Bourbon");
+  await openPopup(page, "Spelling Works");
+  const dialog = page.getByRole("dialog", { name: "Add distillery" });
+  const country = dialog.getByLabel("Country");
+  await country.fill("united states of america");
+  await country.blur();
+  await expect(country).toHaveValue("USA");
+  await country.fill("méxico");
+  await country.blur();
+  await expect(country).toHaveValue("Mexico");
+  // Mexico brings the NOM field with it, whatever the spirit.
+  await expect(dialog.getByLabel("NOM")).toBeVisible();
+  await country.fill("uk");
+  await country.blur();
+  await expect(country).toHaveValue("United Kingdom");
+  await expect(dialog.getByLabel("Region")).toBeVisible();
+});
