@@ -16,3 +16,5 @@ Popups (section 16 of the design record):
 
 - `mashbill-popup.html`, `distillery-popup.html`, `finish-popup.html`: clickable prototypes of the three popups, each with the form behind it. The demo bar at the top of each changes the spirit (and, for finish, the number of mashbills).
 - `screenshots/23` to `25`: stills of the three popups.
+
+The popups are built (see section 16 of the design record, "As built" notes). Where the build differs from these mockups (for example the distillery's identifier follows the country, not the spirit), the design record is the newer source.

@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-23-add-bottle-redesign-design.md` (section 14 for phase 1, section 16 and the mockups `mashbill-popup.html`, `distillery-popup.html`, `finish-popup.html` for phase 2).
 
+**Status (2026-11-24): phases 1 and 2 are built.** The tasks below are kept as written; the "As built" section at the end records what differed and what was learned. Not built: the "Distillery not disclosed" popup (Task 7 Step 5).
+
 ## Global Constraints
 
 - Nothing the app can record today is lost. Phase 2 hides "How Known" from the form; the column and its data stay.
@@ -187,3 +189,35 @@ This one is investigate-first: the cause is not yet known.
 - **Verified in code while planning:** finish and distillery names are unique per owner (`schema.ts`); popups today are the generic `ResourceForm` inside `CreateWithDetailsDialog`; `places.ts` and `mashbills.ts` already hold most of the rules the popups need.
 - **Not verified, marked in the tasks:** the cause of the TTB paste gap (Task 4 diagnoses first), whether the ABV `%` is already drawn (Task 3), how undisclosed distilleries are stored (Task 7, Step 5), and whether a rule-breaking recipe is hidden from the label's list (Task 8, Step 4).
 - **Proportion:** the tasks give signatures, test cases and values from the spec and leave bodies to the implementer.
+
+
+---
+
+## As built
+
+| Task | PR | Written by | Reviewed by |
+|---|---|---|---|
+| 1 Decimals | #397 | Haiku | Sonnet, then Codex on GitHub |
+| 2 Bottled in Bond | #398 | Codex | Sonnet |
+| 3 Copy and ABV `%` | #396 | Haiku | Sonnet |
+| 4 TTB paste | #399 | main session | Codex on GitHub |
+| 5 Popup shell, 6 Finish popup | #402 | main session, `inferFinishType` by Codex | Sonnet, Codex on GitHub |
+| 7 Distillery popup | #403 | main session, defaults by Codex | Sonnet, Codex on GitHub |
+| 8 Mashbill popup | #404 | main session, `mashbillProblems` by Codex | Sonnet, Codex on GitHub |
+| 9 Close-out | this update | | |
+
+**Where the build differs from the tasks**
+
+- **Task 4:** the cause was not on the server. A pasted ID on New Label is held as a bare stub (`stubCola`), so the Approved, Name, Class and Permit cells showed dashes until the label was saved; both paths already fetched the record the same way afterwards. The fix reads the record page for a stub (`previewColaAction`, `previewCola`) and fills the row. It was **not run against the live registry** (this machine cannot reach ttbonline.gov), only against saved registry pages. The search returning nothing newer than April 2023 is issue #400.
+- **Task 1:** `capDecimals` leaves exponent form (`1.25e2`) alone; cutting it changed the number's value (Codex review).
+- **Task 5 and 6** shipped together: the shell had no user until the finish popup. The shell's e2e check is part of `e2e/finish-popup.spec.ts`. `Problem` gained a `notice` flag, and the popup body is mounted only while open (a lint rule forbids setting state in an effect).
+- **Task 7:** `placeIdentifier` takes the country only, not the spirit (the plan's `(kind, country)` signature did not match what the save keeps). The `label-link-pickers` country ternary was replaced only together with the dialog, because a picker with a default country used to turn name-only create off. "How Known" was **not** hidden in `registry.ts` (Step 4): the popup omits `disclosure` and the schema saves it as "named". Step 5 (the not-disclosed popup) was not done.
+- **Task 8:** `mashbillProblems` takes `{ isSecret, isGeneric, isPartial, name, grains, category }` instead of one `kind`, because the three states are separate toggles. The category warning says the recipe is not added to the label.
+- **A reset guard:** every new e2e spec calls `assertThrowawayDatabase()` (from `e2e/support/tournament-field.ts`) **before** `resetDatabase()`. Older specs (for example `finish-pairs.spec.ts`) check afterwards and are still to be fixed.
+
+**Running the work (for the next plan)**
+
+- Codex can only write inside the worktree that was the session's working directory when it started, cannot write `.git`, and has no localhost: give it pure functions and vitest only, start it with the shell already in its worktree, and commit its files from the main session.
+- Run `npm run lint` as well as `tsc` and vitest before every push; CI runs all three (a setState-in-effect error was only caught there).
+- Throwaway database for e2e: never source the main `.env` in a shell that later runs `reset.ts`; print the database name from the `DATABASE_URL` the script will see and stop unless it names the throwaway one (see the note on `--env-file` not overriding the environment).
+- Each Sonnet review found at least one real bug that the author's own tests had missed (a stuck Save after a thrown save, a DSP number saved as a NOM, Enter in a nested popup saving the one behind it, a nameless row reaching the server), so the review step is worth keeping.
