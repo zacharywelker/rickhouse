@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { capDecimals, padDecimals } from "@/lib/decimals";
 
 describe("capDecimals", () => {
+  it("leaves exponent form alone, so it never changes the number's value", () => {
+    expect(capDecimals("1.25e2", 2)).toBe("1.25e2");
+    expect(capDecimals("9.9e1", 2)).toBe("9.9e1");
+    expect(capDecimals("1.5E-3", 2)).toBe("1.5E-3");
+    expect(capDecimals("1.234567e2", 2)).toBe("1.234567e2");
+  });
+
   it("drops digits past two places after the dot", () => {
     expect(capDecimals("99.999", 2)).toBe("99.99");
   });

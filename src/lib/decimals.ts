@@ -1,5 +1,9 @@
-/** Keeps at most `places` digits after the first dot; anything else is left alone. */
+/**
+ * Keeps at most `places` digits after the first dot; anything else is left alone. Exponent form (1.25e2) is left
+ * alone too: cutting it would change the number (to 1.25) or break it (1.5e), and the field still accepts it.
+ */
 export function capDecimals(value: string, places: number): string {
+  if (/e/i.test(value)) return value;
   const dot = value.indexOf(".");
   return dot < 0 ? value : value.slice(0, dot + 1 + places);
 }
