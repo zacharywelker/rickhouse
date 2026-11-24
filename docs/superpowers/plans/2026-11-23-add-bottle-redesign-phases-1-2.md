@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-23-add-bottle-redesign-design.md` (section 14 for phase 1, section 16 and the mockups `mashbill-popup.html`, `distillery-popup.html`, `finish-popup.html` for phase 2).
 
-**Status (2026-11-24): phases 1 and 2 are built.** The tasks below are kept as written; the "As built" section at the end records what differed and what was learned. Not built: the "Distillery not disclosed" popup (Task 7 Step 5).
+**Status (2026-11-24): phases 1 and 2 are built.** The tasks below are kept as written; the "As built" section at the end records what differed and what was learned. Not built: the "Distillery not disclosed" popup (Task 7 Step 5). Follow-up decisions: #405.
 
 ## Global Constraints
 
@@ -205,12 +205,14 @@ This one is investigate-first: the cause is not yet known.
 | 7 Distillery popup | #403 | main session, defaults by Codex | Sonnet, Codex on GitHub |
 | 8 Mashbill popup | #404 | main session, `mashbillProblems` by Codex | Sonnet, Codex on GitHub |
 | 9 Close-out | this update | | |
+| Follow-ups: recipe-less mashbills, How Known, country spellings | #405 | main session | Sonnet |
 
 **Where the build differs from the tasks**
 
 - **Task 4:** the cause was not on the server. A pasted ID on New Label is held as a bare stub (`stubCola`), so the Approved, Name, Class and Permit cells showed dashes until the label was saved; both paths already fetched the record the same way afterwards. The fix reads the record page for a stub (`previewColaAction`, `previewCola`) and fills the row. It was **not run against the live registry** (this machine cannot reach ttbonline.gov), only against saved registry pages. The search returning nothing newer than April 2023 is issue #400.
 - **Task 1:** `capDecimals` leaves exponent form (`1.25e2`) alone; cutting it changed the number's value (Codex review).
 - **Task 5 and 6** shipped together: the shell had no user until the finish popup. The shell's e2e check is part of `e2e/finish-popup.spec.ts`. `Problem` gained a `notice` flag, and the popup body is mounted only while open (a lint rule forbids setting state in an effect).
+- **Follow-ups (#405):** three owner decisions made after Task 8. A mashbill with no recipe is linked to bourbon and rye labels (`matchesMashbillCategory` returns true for no grains). "How Known" is dropped from the web form and list; the column stays because the phone API and the undisclosed flow use it, and `RESOURCES.distilleries.save` sets it only when sent. `normalizeCountry` folds about 55 countries' usual spellings, and NOM, DSP, region and the spirit-to-country checks use it. This replaced Task 7's "hide How Known in `registry.ts`" step.
 - **Task 7:** `placeIdentifier` takes the country only, not the spirit (the plan's `(kind, country)` signature did not match what the save keeps). The `label-link-pickers` country ternary was replaced only together with the dialog, because a picker with a default country used to turn name-only create off. "How Known" was **not** hidden in `registry.ts` (Step 4): the popup omits `disclosure` and the schema saves it as "named". Step 5 (the not-disclosed popup) was not done.
 - **Task 8:** `mashbillProblems` takes `{ isSecret, isGeneric, isPartial, name, grains, category }` instead of one `kind`, because the three states are separate toggles. The category warning says the recipe is not added to the label.
 - **A reset guard:** every new e2e spec calls `assertThrowawayDatabase()` (from `e2e/support/tournament-field.ts`) **before** `resetDatabase()`. Older specs (for example `finish-pairs.spec.ts`) check afterwards and are still to be fixed.
