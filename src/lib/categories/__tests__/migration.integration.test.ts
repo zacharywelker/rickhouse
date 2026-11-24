@@ -102,8 +102,10 @@ describe.skipIf(!url)("migration 0055 on the old category tree", () => {
       await sql`INSERT INTO categories (name, slug, parent_id, field_group, sort_order)
                 VALUES (${name}, ${slug}, (SELECT id FROM categories WHERE slug = ${parent}), ${group}, ${sort})`;
     }
-    [{ id: ownerId }] = await sql<{ id: number }[]>`INSERT INTO users (name, email, username) VALUES ('T', 't@example.test', 'tester') RETURNING id`;
-    [{ id: brandId }] = await sql<{ id: number }[]>`INSERT INTO brands (name, slug, owner_id) VALUES ('B', 'b', ${ownerId}) RETURNING id`;
+    const [owner] = await sql<{ id: number }[]>`INSERT INTO users (name, email, username) VALUES ('T', 't@example.test', 'tester') RETURNING id`;
+    ownerId = owner!.id;
+    const [brand] = await sql<{ id: number }[]>`INSERT INTO brands (name, slug, owner_id) VALUES ('B', 'b', ${ownerId}) RETURNING id`;
+    brandId = brand!.id;
   }, 120_000);
 
   afterAll(async () => {
