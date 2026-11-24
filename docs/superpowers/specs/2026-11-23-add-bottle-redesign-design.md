@@ -87,6 +87,8 @@ Retired from every form: **Still proof, Chill filtered, Colour added, Char level
 
 The owner confirmed this is a **target** to migrate to, not the current tree. Amaro stays its own field group.
 
+**Status (2026-11-24): built** in PRs #408 and #409 (migration `0055_category_tree.sql`, seed from `src/lib/categories/tree.ts`). Every existing category keeps its id and slug, so no label moved. Decisions taken: the Whiskey umbrella goes (its row, id kept, is renamed **Whisky** and holds Canadian, Japanese, Other International and Flavored); names stay as they are (Wheat Whiskey, Corn Whiskey, Light Whiskey); Amaro stays a top category with no children; the new rows use slugs equal to their kinds (`tennessee`, `japanese`, `international`, `flavored-whisky`, `cachaca`, `agricole`, `spiced-rum`, `apple`, `eau-de-vie`, `absinthe`, `akvavit`, `shochu`) under a new top `other`. The field matrix of sections 7 and 8 is data in `src/lib/expressions/field-matrix.ts`, and `field-matrix-gaps.ts` lists the 32 places today's rules differ from it (PR #410).
+
 | Top category | Subcategories | Field group |
 |---|---|---|
 | Agave | Tequila, Mezcal | agave |
@@ -269,7 +271,7 @@ Scope: getting a photo onto a label or a bottle **from a file or a link**. Remov
 
 ## 12. Open questions
 
-1. **Retired fields are stored columns** (Still proof, Chill filtered, Colour added, Char level, Bottle count, amaro / liqueur Country and Region). Drop them, or leave them dormant? Saved values would leave the label and bottle pages, along with the Char Level stave drawing.
+1. **Retired fields are stored columns** (Still proof, Chill filtered, Colour added, Char level, Bottle count, amaro / liqueur Country and Region). **Decided (2026-11-24): leave the columns dormant now and drop them in a later migration.** Saved values leave the forms in phase 4; the phone API still reads them until it is updated. Still open: the Char Level stave drawing leaves the label and bottle pages with them.
 2. How is **Martinique** recorded on a distillery (country "Martinique", or France with a region)? The pre-select needs something to match.
 3. **Mezcal:** Production, Class and Flavor are selectors here. Confirm they should not be subcategories. Mezcal keeps the bottle's Vintage choice (only gin and tequila lose it).
 4. **To verify later:** the mezcal production rules, the Armagnac minimum ages, and Cristalino's 1-year floor (not used, since nothing is prefilled).
@@ -287,7 +289,7 @@ Scope: getting a photo onto a label or a bottle **from a file or a link**. Remov
 
 ## 13. Not yet designed
 
-Next, in order: the **Configuration** and **Labels** pages (each has its own GitHub issue, #393 and #394). The popups (add mashbill, distillery and finish) are designed (section 16) and built; the "Distillery not disclosed" popup is the one popup left (open question 12). The photo flow is done as a design (section 11); the bottles and labels pages that show photos are redesigned later, keeping the behaviour in section 11. The iOS photo flow follows the server as separate work. An accordion with a live bottle card (mockup option B) is parked for the **bottle and label display pages**.
+Phase 3 (the tree, the kinds and the matrix as data) is built (section 5). Phase 4 is planned in `docs/superpowers/plans/2026-11-24-add-bottle-redesign-phase-4-overview.md`. After the forms: the **Configuration** and **Labels** pages (each has its own GitHub issue, #393 and #394). The popups (add mashbill, distillery and finish) are designed (section 16) and built; the "Distillery not disclosed" popup is the one popup left (open question 12). The photo flow is done as a design (section 11); the bottles and labels pages that show photos are redesigned later, keeping the behaviour in section 11. The iOS photo flow follows the server as separate work. An accordion with a live bottle card (mockup option B) is parked for the **bottle and label display pages**.
 
 ## 14. Known problems found in the walkthrough
 
