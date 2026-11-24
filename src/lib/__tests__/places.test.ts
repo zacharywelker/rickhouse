@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatPlace,
+  isScotchCountry,
   normalizeCountry,
   normalizeLocation,
   normalizePlace,
@@ -42,6 +43,46 @@ describe("normalizeCountry", () => {
 
   it("keeps other countries as typed", () => {
     expect(normalizeCountry(" Scotland ")).toBe("Scotland");
+    expect(normalizeCountry("Côte d'Ivoire")).toBe("Côte d'Ivoire");
+  });
+
+  it("folds the usual spellings of the other countries a spirit comes from", () => {
+    const same: Array<[string, string[]]> = [
+      ["Mexico", ["mexico", "MEXICO", "México", "mx", "MX"]],
+      ["Scotland", ["scotland", "SCOTLAND", " scotland "]],
+      ["United Kingdom", ["uk", "U.K.", "gb", "Great Britain", "united kingdom", "Britain"]],
+      ["Ireland", ["ireland", "Eire", "Éire", "republic of ireland", "ie"]],
+      ["Canada", ["canada", "ca", "CANADA"]],
+      ["France", ["france", "fr", "FRANCE"]],
+      ["Peru", ["peru", "Perú", "pe"]],
+      ["Japan", ["japan", "jp"]],
+      ["Netherlands", ["holland", "the netherlands", "nl"]],
+      ["Trinidad and Tobago", ["trinidad", "Trinidad & Tobago", "trinidad and tobago"]],
+      ["South Korea", ["korea", "south korea", "republic of korea"]],
+    ];
+    for (const [canonical, spellings] of same) {
+      for (const spelling of spellings) expect(normalizeCountry(spelling), spelling).toBe(canonical);
+    }
+  });
+
+  it("capitalises an unknown country typed all in one case, and leaves mixed case alone", () => {
+    expect(normalizeCountry("norway")).toBe("Norway");
+    expect(normalizeCountry("NEW CALEDONIA")).toBe("New Caledonia");
+    expect(normalizeCountry("Sri Lanka")).toBe("Sri Lanka");
+    expect(normalizeCountry("UAE")).toBe("United Arab Emirates");
+    expect(normalizeCountry("uae")).toBe("United Arab Emirates");
+    expect(normalizeCountry("isle of man")).toBe("Isle of Man");
+    expect(normalizeCountry("bosnia and herzegovina")).toBe("Bosnia and Herzegovina");
+    expect(normalizeCountry("côte d'ivoire")).toBe("Côte d'Ivoire");
+    expect(normalizeCountry("guinea-bissau")).toBe("Guinea-Bissau");
+    expect(normalizeCountry("turkey")).toBe("Turkey");
+  });
+});
+
+describe("isScotchCountry", () => {
+  it("accepts every spelling of Scotland and the UK, and nothing else", () => {
+    for (const value of ["Scotland", "scotland", "UK", "u.k.", "United Kingdom", "Great Britain"]) expect(isScotchCountry(value), value).toBe(true);
+    for (const value of ["USA", "Ireland", "France", ""]) expect(isScotchCountry(value), value).toBe(false);
   });
 });
 

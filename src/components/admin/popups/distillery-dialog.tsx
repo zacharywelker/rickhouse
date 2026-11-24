@@ -82,7 +82,7 @@ function DistilleryDialogBody({ onOpenChange, initialName, defaultCountry, kind,
     if (chip !== null) setIdentifiers((prev) => ({ ...prev, [chip]: value }));
   };
   const expected = kind ? countryForKind(kind) : null;
-  const countryFits = expected === null || place.toLowerCase() === expected.toLowerCase() || (expected === "Scotland" && isScotchCountry(place));
+  const countryFits = expected === null || place === normalizeCountry(expected) || (expected === "Scotland" && isScotchCountry(place));
   const duplicate = tidy === "" ? undefined : existing.find((option) => distilleryNameOf(option.label).toLowerCase() === tidy.toLowerCase());
 
   const problems: Problem[] = [];

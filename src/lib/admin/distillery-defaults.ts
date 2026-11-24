@@ -1,6 +1,6 @@
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { isAgaveKind } from "@/lib/expressions/spirit-details";
-import { isScotchCountry, normalizeCountry } from "@/lib/places";
+import { HOME_COUNTRY, isScotchCountry, normalizeCountry } from "@/lib/places";
 
 export function countryForKind(kind: CategoryKind): string | null {
   if (isAgaveKind(kind)) return "Mexico";
@@ -13,19 +13,16 @@ export function countryForKind(kind: CategoryKind): string | null {
   return null;
 }
 
-/** Lower case, no accents, single spaces: how a hand-typed country is compared. */
-const plain = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLowerCase();
-
 /**
  * The identifier that goes with a country, by the same rules the save keeps it by (distilleriesConfig in registry.ts):
  * a NOM only for Mexico, a Scotch region only for Scotland and the UK, a DSP number only for the USA. The label's
  * spirit does not decide it: it only sets the country the popup starts with (countryForKind).
  */
 export function placeIdentifier(country: string): "dsp" | "nom" | "region" | null {
-  const typed = plain(country);
-  if (typed === "mexico" || typed === "mx") return "nom";
-  if (isScotchCountry(typed)) return "region";
-  if (normalizeCountry(country) === "USA") return "dsp";
+  const normalized = normalizeCountry(country);
+  if (normalized === "Mexico") return "nom";
+  if (isScotchCountry(normalized)) return "region";
+  if (normalized === HOME_COUNTRY) return "dsp";
   return null;
 }
 
