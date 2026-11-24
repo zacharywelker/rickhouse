@@ -177,9 +177,11 @@ export function recipeKey(grains: readonly Grain[]): string {
     .join("|");
 }
 
-/** Bourbon and rye pickers require at least 51% of their defining grain. */
+/** Bourbon and rye pickers require at least 51% of their defining grain from a mashbill that has a recipe. */
 export function matchesMashbillCategory(grains: readonly Grain[], category: string | null): boolean {
   if (category !== "bourbon" && category !== "rye") return true;
+  // No recipe, no violation: a secret mashbill or a generic style (High Rye) has no grains to check.
+  if (grains.length === 0) return true;
   const grainName = category === "bourbon" ? "corn" : "rye";
   const share = grains.reduce((total, { grain, percent }) => {
     const name = grain.trim().toLowerCase();

@@ -179,7 +179,9 @@ describe("matchesMashbillCategory", () => {
   it("keeps unknown and mixed recipes available in American Whiskey", () => {
     expect(matchesMashbillCategory([], "american-whiskey")).toBe(true);
     expect(matchesMashbillCategory([{ grain: "Corn", percent: 20 }], "american-whiskey")).toBe(true);
-    expect(matchesMashbillCategory([], "rye")).toBe(false);
+    // A mashbill with no recipe (a secret one, or a generic style such as High Rye) has nothing to break the rule.
+    expect(matchesMashbillCategory([], "rye")).toBe(true);
+    expect(matchesMashbillCategory([], "bourbon")).toBe(true);
   });
 });
 

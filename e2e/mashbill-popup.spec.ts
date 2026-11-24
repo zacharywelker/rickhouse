@@ -79,8 +79,7 @@ test("partial disclosure lets the shares add up to less than 100", async ({ page
 });
 
 test("a secret mashbill needs a name but not ingredients", async ({ page }) => {
-  // Not a Bourbon label: bourbon and rye pickers keep a mashbill with no recipe out of the list.
-  await newLabel(page, "American Whiskey");
+  await newLabel(page, "Bourbon");
   const dialog = await openPopup(page);
   await dialog.getByRole("button", { name: "Secret" }).click();
   await expect(dialog).toContainText("Give a secret mashbill a reference name");
@@ -95,8 +94,7 @@ test("a secret mashbill needs a name but not ingredients", async ({ page }) => {
 });
 
 test("a generic style hides the ingredients and needs only a name", async ({ page }) => {
-  // Not a Bourbon label: bourbon and rye pickers keep a mashbill with no recipe out of the list.
-  await newLabel(page, "American Whiskey");
+  await newLabel(page, "Bourbon");
   const dialog = await openPopup(page);
   await dialog.getByRole("button", { name: "Generic style" }).click();
   await expect(dialog.getByRole("button", { name: "Add an ingredient" })).toHaveCount(0);
