@@ -18,7 +18,7 @@ type Page = import("@playwright/test").Page;
 
 /** ⌘K right after a page load can land before the page has hydrated; press until the field really has focus. */
 async function openSearch(page: Page): Promise<void> {
-  const field = page.getByRole("combobox", { name: "Search bottles and labels" });
+  const field = page.getByRole("combobox", { name: "Quick search" });
   await expect(async () => {
     await page.keyboard.press("Control+k");
     await expect(field).toBeFocused({ timeout: 500 });
@@ -70,8 +70,8 @@ test("choosing a result that only changes the query string still closes the sear
   await results(page).getByRole("option").filter({ hasText: "Show in Collection" }).first().click();
   await expect(page).toHaveURL(/\/bottles\?brand=\d+/);
   await expect(results(page)).toHaveCount(0);
-  await expect(page.getByRole("combobox", { name: "Search bottles and labels" })).toHaveValue("");
-  await expect(page.getByRole("combobox", { name: "Search bottles and labels" })).not.toBeFocused();
+  await expect(page.getByRole("combobox", { name: "Quick search" })).toHaveValue("");
+  await expect(page.getByRole("combobox", { name: "Quick search" })).not.toBeFocused();
 });
 
 test("nothing found offers to add the typed words as a new label", async ({ page }) => {
@@ -119,13 +119,18 @@ test("when the first search is slow, the answer on screen is still for the lates
 });
 
 test("/ focuses the Collection's filter box, and opens the search on a page without one", async ({ page }) => {
+  // A key pressed right after a page load can land before hydration; press until it takes.
   await page.goto("/bottles");
-  await page.keyboard.press("/");
-  await expect(page.locator("#grid-search")).toBeFocused();
+  await expect(async () => {
+    await page.keyboard.press("/");
+    await expect(page.locator("#grid-search")).toBeFocused({ timeout: 500 });
+  }).toPass({ timeout: 10_000 });
 
   await page.goto("/journal");
-  await page.keyboard.press("/");
-  await expect(page.getByRole("combobox", { name: "Search bottles and labels" })).toBeFocused();
+  await expect(async () => {
+    await page.keyboard.press("/");
+    await expect(page.getByRole("combobox", { name: "Quick search" })).toBeFocused({ timeout: 500 });
+  }).toPass({ timeout: 10_000 });
 });
 
 test("the Groups rail starts hidden at half-screen, opens, and the choice is remembered", async ({ page }) => {
@@ -152,7 +157,7 @@ test("the bulk editor has no Groups rail or button", async ({ page }) => {
   await expect(page.getByRole("navigation", { name: "Groups" })).toHaveCount(0);
   // The bar and the search are still there.
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Collection" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Search bottles and labels" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Quick search" })).toBeVisible();
 });
 
 test("the account menu lists Library, You and Sign out; Admin only for admins", async ({ page }) => {

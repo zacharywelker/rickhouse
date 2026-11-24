@@ -170,7 +170,7 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
           ref={inputRef}
           type="text"
           role="combobox"
-          aria-label="Search bottles and labels"
+          aria-label="Quick search"
           aria-expanded={showPanel}
           aria-controls={showPanel ? listId : undefined}
           aria-activedescendant={showPanel ? options[active]?.id : undefined}

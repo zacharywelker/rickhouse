@@ -39,6 +39,11 @@ test.beforeEach(async ({ page }) => {
   await signIn(page);
 });
 
+/** The theme choice lives in the You section of the account menu (the menu under the user's name). */
+async function openAccountMenu(page: import("@playwright/test").Page): Promise<void> {
+  await page.getByRole("button", { name: /Account menu/ }).click();
+}
+
 test.describe("theme", () => {
   test.use({ colorScheme: "dark" });
 
@@ -46,6 +51,7 @@ test.describe("theme", () => {
     await page.goto("/bottles");
     expect(await background(page)).toBe(DARK);
 
+    await openAccountMenu(page);
     await page.getByRole("radio", { name: "Light" }).click();
     await expect.poll(() => background(page)).toBe(LIGHT);
 
@@ -54,6 +60,7 @@ test.describe("theme", () => {
     expect(await page.locator("html").getAttribute("data-theme")).toBe("light");
     expect(await background(page)).toBe(LIGHT);
 
+    await openAccountMenu(page);
     await page.getByRole("radio", { name: "System" }).click();
     await expect.poll(() => background(page)).toBe(DARK);
     expect(await page.locator("html").getAttribute("data-theme")).toBeNull();
@@ -61,6 +68,7 @@ test.describe("theme", () => {
 
   test("a stored choice is applied before the page renders, not after", async ({ page }) => {
     await page.goto("/bottles");
+    await openAccountMenu(page);
     await page.getByRole("radio", { name: "Light" }).click();
     await expect.poll(() => background(page)).toBe(LIGHT);
 
@@ -164,9 +172,20 @@ test.describe("keyboard shortcuts", () => {
     await pressUntilAt(page, "n", "/bottles/new");
   });
 
-  test("slash from a page without a search box goes where searching happens", async ({ page }) => {
+  test("slash from a page without a filter box opens the nav search", async ({ page }) => {
     await page.goto("/numbers");
-    await pressUntilAt(page, "/", "/bottles");
+    const search = page.getByRole("combobox", { name: "Quick search" });
+    await expect
+      .poll(
+        async () => {
+          if (await search.evaluate((el) => el === document.activeElement)) return true;
+          await page.keyboard.press("/");
+          return search.evaluate((el) => el === document.activeElement);
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+    await expect(page).toHaveURL(/\/numbers$/);
   });
 });
 
