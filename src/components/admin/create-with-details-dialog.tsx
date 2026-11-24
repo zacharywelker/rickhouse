@@ -5,6 +5,8 @@ import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createdOptionAction, resourceFormSpecAction } from "@/app/(app)/admin/actions";
 import type { DetailedResource, Option, ResourceFormSpec } from "@/lib/admin/types";
+import type { CategoryKind } from "@/lib/expressions/rules";
+import { DistilleryDialog } from "./popups/distillery-dialog";
 import { FinishDialog } from "./popups/finish-dialog";
 import { ResourceForm } from "./resource-form";
 
@@ -24,6 +26,7 @@ export function CreateWithDetailsDialog({
   defaultCountry,
   defaultCompanyId,
   noun,
+  kind,
   onCreated,
 }: {
   resource: DetailedResource;
@@ -37,12 +40,14 @@ export function CreateWithDetailsDialog({
   defaultCompanyId?: number;
   /** What a finish is called here: "finish", or "cask type" for the spirits that call it that. */
   noun?: string;
+  /** The label's spirit; the distillery popup uses it to pick its identifier (DSP, NOM or Scotch region). */
+  kind?: CategoryKind;
   onCreated: (option: Option) => void;
 }) {
   const [spec, setSpec] = React.useState<ResourceFormSpec | null>(null);
 
-  // A finish has its own, smaller popup; it does not load the generic form.
-  const bespoke = resource === "finishes" && recordId === undefined;
+  // A finish and a distillery have their own popups; it does not load the generic form.
+  const bespoke = (resource === "finishes" || resource === "distilleries") && recordId === undefined;
   React.useEffect(() => {
     if (!open || bespoke) return;
     let current = true;
@@ -63,6 +68,20 @@ export function CreateWithDetailsDialog({
     },
     [onOpenChange, onCreated, resource],
   );
+
+  if (bespoke && resource === "distilleries") {
+    return (
+      <DistilleryDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        initialName={initialName}
+        {...(defaultCountry ? { defaultCountry } : {})}
+        {...(kind ? { kind } : {})}
+        {...(defaultCompanyId !== undefined ? { defaultCompanyId } : {})}
+        onCreated={onCreated}
+      />
+    );
+  }
 
   if (bespoke) {
     return (

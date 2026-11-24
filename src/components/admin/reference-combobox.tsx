@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { words } from "@/lib/expressions/label-search";
 import { quickCreateAction } from "@/app/(app)/admin/actions";
 import { DETAILED_RESOURCES, type DetailedResource, type Option, type ReferenceResource } from "@/lib/admin/types";
+import { companyPrefill } from "@/lib/admin/distillery-defaults";
+import type { CategoryKind } from "@/lib/expressions/rules";
 import { CreateWithDetailsDialog } from "./create-with-details-dialog";
 
 type Props = {
@@ -42,6 +44,8 @@ type Props = {
   brand?: Option;
   /** What a finish is called here ("cask type" for some spirits); only the finish popup reads it. */
   detailNoun?: string;
+  /** A distillery's label spirit, for the add-distillery popup. */
+  detailKind?: CategoryKind;
 };
 
 /**
@@ -67,6 +71,7 @@ export function ReferenceCombobox({
   placeholder,
   defaultCountry,
   detailNoun,
+  detailKind,
   brand,
 }: Props) {
   const searchPlaceholder = placeholder ?? (resource === null ? "Search…" : "Search or create…");
@@ -86,9 +91,7 @@ export function ReferenceCombobox({
   const selected = React.useMemo(() => options.find((o) => o.value === value) ?? null, [options, value]);
 
   const needle = query.trim().toLowerCase();
-  const brandName = brand?.label.trim().toLowerCase();
-  const defaultCompanyId = brandName && (needle === brandName || needle === `${brandName} distillery`)
-    ? brand?.companyId : undefined;
+  const defaultCompanyId = companyPrefill(query, brand?.label ?? null) ? brand?.companyId : undefined;
   // Each typed word on its own, anywhere in the option: "Pursuit Double Oak"
   // finds "Pursuit Spirits Double Oak", which a whole-phrase match misses.
   const matches = React.useMemo(() => {
@@ -101,7 +104,7 @@ export function ReferenceCombobox({
   }, [selectable, needle]);
 
   const exactExists = selectable.some((o) => o.label.toLowerCase() === needle);
-  const canCreate = resource !== null && !defaultCountry && needle.length > 0 && !exactExists;
+  const canCreate = resource !== null && needle.length > 0 && !exactExists;
   // A mashbill has no name to type, so its form is always on offer.
   const canDetail = detailed !== null && !exactExists && (needle.length > 0 || resource === null);
 
@@ -110,7 +113,7 @@ export function ReferenceCombobox({
     if (resource === null || name === "" || creating) return;
     setCreating(true);
     setError(null);
-    const result = await quickCreateAction(resource, name, defaultCompanyId);
+    const result = await quickCreateAction(resource, name, defaultCompanyId, defaultCountry);
     setCreating(false);
     if (!result.ok) {
       setError(result.error);
@@ -250,6 +253,7 @@ export function ReferenceCombobox({
           defaultCompanyId={defaultCompanyId}
           {...(defaultCountry ? { defaultCountry } : {})}
           {...(detailNoun ? { noun: detailNoun } : {})}
+          {...(detailKind ? { kind: detailKind } : {})}
           onCreated={(option) => {
             onOptionCreated(option);
             onChange(option.value);

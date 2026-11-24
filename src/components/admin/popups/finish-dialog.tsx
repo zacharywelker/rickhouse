@@ -9,7 +9,7 @@ import { titleCase, type Problem } from "@/lib/admin/popup-problems";
 import { IDLE_RESULT, type Option } from "@/lib/admin/types";
 import { FINISH_TYPES, type FinishType } from "@/db/schema";
 import { cn } from "@/lib/utils";
-import { PopupShell } from "./popup-shell";
+import { PopupRow as Row, PopupShell } from "./popup-shell";
 
 const TYPE_LABEL: Record<FinishType, string> = { wood: "Wood", wine: "Wine", fortified: "Fortified", beer: "Beer", spirit: "Spirit", other: "Other" };
 const TYPE_MEANS: Record<FinishType, string> = {
@@ -180,16 +180,5 @@ function FinishDialogBody({ open, onOpenChange, initialName, noun = "finish", on
         )}
       </Row>
     </PopupShell>
-  );
-}
-
-function Row({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[88px_1fr] items-start gap-3 border-b border-border py-2.5 last:border-b-0">
-      <label htmlFor={htmlFor} className="pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </label>
-      <div>{children}</div>
-    </div>
   );
 }
