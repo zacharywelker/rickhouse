@@ -14,13 +14,13 @@
 
 The phases 1 and 2 summary called this phase "the real risk" because every label would have to be remapped. That is not so. Because ids and slugs stay, a label on Bourbon is still on Bourbon and still the `american` kind afterwards. The risks that remain are listed under **Review Focus**: consumers that assume the old parent chain, saved smart groups, and old iOS builds.
 
-## Decisions needed before Task 3 (my recommendation first)
+## Decisions (taken 2026-11-24)
 
-1. **The "Whiskey" umbrella goes away.** The target has American Whiskey, Irish Whiskey and Scotch as top categories, and **Whisky** (Canadian, Japanese, Other International, Flavored) beside them. The existing top row (id kept, slug `whiskey`) is renamed Whisky and keeps only Canadian. A filter on "Whiskey" used to match every whiskey; it will match only those four. *Recommend:* accept, and rewrite saved smart groups (Task 4) so they keep matching what they matched.
-2. **Names.** The design table says Wheat, Corn, Light; the rows are called Wheat Whiskey, Corn Whiskey, Light Whiskey. *Recommend:* keep the current names (the table is shorthand) and add Tennessee.
-3. **Amaro.** The table lists a subcategory "Amaro" under Amaro. A second row with the slug `amaro` is not possible and a same-name child adds nothing. *Recommend:* leave Amaro as it is, a top category with no children.
-4. **Slugs for the new rows**, chosen to equal their kinds so `SPECIAL_KINDS` in `rules.ts` already finds them: `tennessee` (kind `american`, under American Whiskey), `japanese`, `international`, `flavored-whisky`, `cachaca`, `agricole`, `spiced-rum`, `apple`, `eau-de-vie`, `absinthe`, `akvavit`, `shochu`, and a top `other` (group `other`). Display names as in the table.
-5. **Retired fields** (Still proof, Chill filtered, Colour added, Char level, Bottle count) are **not touched here**; they leave the forms in phase 4. Recommend dormant columns now, a drop migration later.
+1. **The Whiskey umbrella goes away.** The owner was content either way. Keeping it would put a Whiskey row above Whisky (Canadian, Japanese, Other International, Flavored), a three-level tree that contradicts section 5 and reads oddly ("Whiskey > Whisky > Canadian"). It is not needed for the rewrite either: Task 4 rewrites saved smart groups so they keep matching. The existing top row (id kept, slug `whiskey`) is renamed Whisky and keeps Canadian plus the three new children. If an "all whiskey" filter is wanted later, it can come from the `whiskey` **field group** in the filter UI instead of a category row.
+2. **Names stay as they are** (Wheat Whiskey, Corn Whiskey, Light Whiskey); only Tennessee is added. The design table's short names are shorthand.
+3. **Amaro stays a top category with no children.**
+4. **Slugs** as proposed: `tennessee` (kind `american`, under American Whiskey), `japanese`, `international`, `flavored-whisky`, `cachaca`, `agricole`, `spiced-rum`, `apple`, `eau-de-vie`, `absinthe`, `akvavit`, `shochu`, and a top `other` (group `other`).
+5. **Retired fields** (Still proof, Chill filtered, Colour added, Char level, Bottle count) are not touched here: they leave the forms in phase 4, their columns stay dormant, and a later migration drops them.
 
 ## Global Constraints
 
