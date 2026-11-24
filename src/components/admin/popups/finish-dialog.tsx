@@ -47,10 +47,15 @@ export function FinishDialog({
   const [existing, setExisting] = React.useState<Option[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
+  // Which opening a save belongs to, so a save finishing after the popup was closed and reopened is ignored.
+  const opening = React.useRef(0);
 
   // Each opening starts from what was typed in the picker.
   React.useEffect(() => {
+    // Opening and closing both end any save still in flight.
+    opening.current += 1;
     if (!open) return;
+    setSaving(false);
     setName(initialName);
     setPicked(null);
     setNotes("");
@@ -81,10 +86,13 @@ export function FinishDialog({
       action: { label: "Use it", onClick: () => { onCreated(duplicate); onOpenChange(false); } },
     });
   }
-  if (serverError) problems.push({ text: serverError, blocking: true });
+  // A failed save does not block trying again: the cause may have been a dropped connection.
+  if (serverError) problems.push({ text: serverError, blocking: false, notice: true });
 
   async function save() {
     if (type === null || saving) return;
+    const mine = opening.current;
+    const stale = () => opening.current !== mine;
     setSaving(true);
     setServerError(null);
     try {
@@ -93,11 +101,13 @@ export function FinishDialog({
       form.set("finishType", type);
       if (notes.trim() !== "") form.set("notes", notes.trim());
       const result = await saveResourceAction("finishes", null, IDLE_RESULT, form);
+      if (stale()) return;
       if (!result.ok) {
         setServerError(result.error);
         return;
       }
       const created = result.createdId === undefined ? null : await createdOptionAction("finishes", result.createdId);
+      if (stale()) return;
       if (created?.ok) {
         onCreated(created.option);
         onOpenChange(false);
@@ -105,9 +115,9 @@ export function FinishDialog({
         setServerError("It was saved, but could not be chosen here. Close this and pick it from the list.");
       }
     } catch {
-      setServerError("Could not reach the server. Try again.");
+      if (!stale()) setServerError("Could not reach the server. Try again.");
     } finally {
-      setSaving(false);
+      if (opening.current === mine) setSaving(false);
     }
   }
 

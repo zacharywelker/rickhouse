@@ -3,6 +3,7 @@ import postgres from "postgres";
 import { signIn } from "./support/auth";
 import { resetDatabase } from "./support/db";
 import { openNewLabelForm } from "./support/new-label";
+import { assertThrowawayDatabase } from "./support/tournament-field";
 
 /** Add finish: the popup that opens from a finish picker's "Create with details", and the name-only create beside it. */
 
@@ -13,7 +14,8 @@ function sql() {
 }
 
 test.beforeAll(async () => {
-  expect(url, "DATABASE_URL must name the throwaway database the app is running against").not.toBe("");
+  // Before resetDatabase(), which wipes whatever DATABASE_URL names.
+  assertThrowawayDatabase();
   await resetDatabase();
   const db = sql();
   try {

@@ -63,7 +63,7 @@ export function PopupShell({
                 className="border border-warning bg-warning/15 px-2 py-1 text-xs leading-snug text-foreground"
               >
                 {problem.text}
-                {problem.blocking ? null : " It will still save."}
+                {problem.blocking || problem.notice ? null : " It will still save."}
                 {problem.action ? (
                   <>
                     {" "}

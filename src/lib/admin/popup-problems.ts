@@ -5,6 +5,8 @@
 export type Problem = {
   text: string;
   blocking: boolean;
+  /** A message that is neither a block nor a warning about the data ("Could not reach the server"): no "It will still save." ending. */
+  notice?: boolean;
   /** A link-style button after the text, such as "Use it". */
   action?: { label: string; onClick: () => void };
 };
