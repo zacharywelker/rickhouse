@@ -69,7 +69,13 @@ describe("normalizeCountry", () => {
     expect(normalizeCountry("norway")).toBe("Norway");
     expect(normalizeCountry("NEW CALEDONIA")).toBe("New Caledonia");
     expect(normalizeCountry("Sri Lanka")).toBe("Sri Lanka");
-    expect(normalizeCountry("UAE")).toBe("UAE");
+    expect(normalizeCountry("UAE")).toBe("United Arab Emirates");
+    expect(normalizeCountry("uae")).toBe("United Arab Emirates");
+    expect(normalizeCountry("isle of man")).toBe("Isle of Man");
+    expect(normalizeCountry("bosnia and herzegovina")).toBe("Bosnia and Herzegovina");
+    expect(normalizeCountry("côte d'ivoire")).toBe("Côte d'Ivoire");
+    expect(normalizeCountry("guinea-bissau")).toBe("Guinea-Bissau");
+    expect(normalizeCountry("turkey")).toBe("Turkey");
   });
 });
 

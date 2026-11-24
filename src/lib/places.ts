@@ -127,6 +127,9 @@ const COUNTRY_ALIASES: Readonly<Record<string, readonly string[]>> = {
   Peru: ["pe"],
   Chile: ["cl"],
   Argentina: [],
+  "United Arab Emirates": ["uae", "emirates"],
+  Turkey: ["turkiye"],
+  Israel: [],
 };
 
 /** Lower case, no accents or dots, "&" as "and", single spaces: how a typed country is looked up. */
@@ -139,6 +142,8 @@ const countryKey = (value: string): string =>
     .trim()
     .replace(/\s+/g, " ")
     .toLowerCase();
+
+const COUNTRY_SMALL_WORDS: ReadonlySet<string> = new Set(["of", "and", "the", "de", "del", "la", "le", "du"]);
 
 const COUNTRY_BY_KEY: ReadonlyMap<string, string> = new Map(
   Object.entries(COUNTRY_ALIASES).flatMap(([canonical, aliases]) =>
@@ -161,9 +166,19 @@ export function normalizeCountry(input: string | null | undefined): string {
   const known = COUNTRY_BY_KEY.get(countryKey(value));
   if (known) return known;
   const oneCase = value === value.toLowerCase() || (value === value.toUpperCase() && value.length > 3);
-  return oneCase
-    ? value.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, gap: string, letter: string) => gap + letter.toUpperCase())
-    : value;
+  if (!oneCase) return value;
+  // Words of a country typed in one case: capitalised, except the small ones inside a name ("Isle of Man") and a
+  // leading "d'" ("Côte d'Ivoire"), where the letter after the apostrophe is the one that is capitalised.
+  return value
+    .toLowerCase()
+    .split(" ")
+    .map((word, index) => {
+      if (index > 0 && COUNTRY_SMALL_WORDS.has(word)) return word;
+      // "d'ivoire" keeps its d and capitalises the i; every other word, and each part after a hyphen, starts with a capital.
+      if (/^\p{L}'\p{L}/u.test(word)) return word.replace(/^(\p{L}')(\p{L})/u, (_, lead: string, letter: string) => lead + letter.toUpperCase());
+      return word.replace(/(^|-)(\p{L})/gu, (_, gap: string, letter: string) => gap + letter.toUpperCase());
+    })
+    .join(" ");
 }
 
 /**
