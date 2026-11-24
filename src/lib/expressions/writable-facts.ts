@@ -2,7 +2,7 @@ import type { FieldGroup } from "@/db/schema";
 import { writableFields } from "./fields";
 import type { CategoryKind } from "./rules";
 import { isGinKind } from "./gin-details";
-import { BRANDY_MINIMUM_YEARS, isAgaveKind } from "./spirit-details";
+import { BRANDY_MINIMUM_YEARS, isAgaveKind, isFrenchBrandy } from "./spirit-details";
 
 /**
  * The label facts a spirit can have: what a save of a label of that spirit writes, and so what the sheet lets a person
@@ -27,6 +27,10 @@ export function writableLabelFacts(fieldGroup: FieldGroup | "other", kind: Categ
     allowed.delete("isNas");
   }
   if (kind === "tequila") allowed.delete("ageStatement");
+  // Cask strength is not offered for agave and gin, and NAS not for Cognac, Armagnac and Calvados (the matrix, section 7);
+  // the web form hides them and the phone and the sheet must not write them either.
+  if (isAgaveKind(kind) || isGinKind(kind)) allowed.delete("isCaskStrength");
+  if (isFrenchBrandy(kind)) allowed.delete("isNas");
   // Regions belong to Scotch (the web form only shows them there); anything sent for another kind is ignored.
   if (kind !== "scotch") allowed.delete("regions");
   return allowed;

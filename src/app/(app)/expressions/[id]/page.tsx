@@ -30,7 +30,8 @@ import { categoryBackdropClass, categoryTextClass } from "@/lib/bottles/category
 import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/lib/cola/store";
 import { ageLabel } from "@/lib/expressions/display";
 import { bottlesOfLabel, categoryKindsById, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
-import { spiritAgeLabel, whiskeyCategoryGrains } from "@/lib/expressions/spirit-details";
+import { isGinKind } from "@/lib/expressions/gin-details";
+import { isAgaveKind, spiritAgeLabel, whiskeyCategoryGrains } from "@/lib/expressions/spirit-details";
 import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { provenanceOf, provenanceTags, type ProvenanceInput } from "@/lib/provenance";
 import { STRENGTH_TIER_LABELS, proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
@@ -121,7 +122,9 @@ export default async function LabelPage({
   const title = `${row.brand.name} ${e.name}`;
   // A cask-strength label has no one proof: show what its releases and bottles span. Navy Strength and Overproof
   // come from the proof itself.
-  const spread = e.isCaskStrength && !e.proof ? proofSpread(releases.map((r) => r.proof), owned.map((b) => b.proof)) : null;
+  // Cask strength is not offered for agave and gin; an old tick stays in the data but is not shown.
+  const caskStrength = e.isCaskStrength && !isAgaveKind(kind) && !isGinKind(kind);
+  const spread = caskStrength && !e.proof ? proofSpread(releases.map((r) => r.proof), owned.map((b) => b.proof)) : null;
   const tier = strengthTier(group, e.proof);
   const heroPath = e.photoPath ?? owned.find((bottle) => bottle.filePath !== null)?.filePath ?? null;
 
@@ -133,7 +136,7 @@ export default async function LabelPage({
 
   const stamps: StampSpec[] = [
     { kind: "bottled-in-bond", ownerId: e.id, active: kind === "american" && e.isBottledInBond },
-    { kind: "cask-strength", ownerId: e.id, active: !["vodka", "amaro", "liqueur"].includes(group) && e.isCaskStrength, detail: e.proof ? `${formatNumeric(e.proof)}°` : undefined },
+    { kind: "cask-strength", ownerId: e.id, active: !["vodka", "amaro", "liqueur"].includes(group) && caskStrength, detail: e.proof ? `${formatNumeric(e.proof)}°` : undefined },
     { kind: "straight", ownerId: e.id, active: kind === "american" && e.isStraight },
     { kind: "nas", ownerId: e.id, active: e.isNas && (group === "whiskey" || (group === "gin" && e.isAgedGin) || ((group === "amaro" || group === "liqueur") && e.isAged)) },
   ];
@@ -219,7 +222,7 @@ export default async function LabelPage({
             <Spec
               label="Proof"
               value={
-                e.isCaskStrength && !e.proof ? spreadLabel(spread) : formatNumeric(e.proof)
+                caskStrength && !e.proof ? spreadLabel(spread) : formatNumeric(e.proof)
               }
             />
             <Spec label="ABV" value={e.abv ? `${formatNumeric(e.abv)}%` : null} />

@@ -128,7 +128,7 @@ export default async function BottlePage({
 
   const stamps: StampSpec[] = [
     { kind: "bottled-in-bond", ownerId: e.id, active: kind === "american" && e.isBottledInBond },
-    { kind: "cask-strength", ownerId: e.id, active: !["vodka", "amaro", "liqueur"].includes(group) && e.isCaskStrength, detail: proof ? `${formatNumeric(proof)}°` : undefined },
+    { kind: "cask-strength", ownerId: e.id, active: !["vodka", "amaro", "liqueur"].includes(group) && !isAgaveKind(kind) && !isGinKind(kind) && e.isCaskStrength, detail: proof ? `${formatNumeric(proof)}°` : undefined },
     { kind: "straight", ownerId: e.id, active: kind === "american" && e.isStraight },
     { kind: "nas", ownerId: e.id, active: group === "whiskey" ? e.isNas : isGinKind(kind) ? e.isAgedGin && (b.ginIsNas ?? e.isNas) : (group === "amaro" || group === "liqueur") && e.isAged && e.isNas },
     {

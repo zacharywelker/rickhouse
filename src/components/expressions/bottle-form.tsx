@@ -164,7 +164,9 @@ export function BottleFields({
                 ? { ...originalField, label: `${unitTitle} Number`, placeholder: `${unitTitle} 24` }
                 : originalField;
             // One function decides which bottle fields a label's spirit has (and the bulk editor asks the same one).
-            if (bottleFieldNotUsed(field.name, labelFacts, { tequilaClass: effectiveTequilaClass || null }) !== null) return null;
+            // A vintage already chosen stays visible even where the spirit no longer offers the choice (gin, tequila), so it can be cleared.
+            const keptVintage = field.name === "releaseId" && String(values.releaseId ?? "") !== "";
+            if (bottleFieldNotUsed(field.name, labelFacts, { tequilaClass: effectiveTequilaClass || null }) !== null && !keptVintage) return null;
             if (!fieldVisible(field, values) || omit.includes(field.name)) return null;
             // Proof/ABV and the age triplet render as linked composites
             // rather than the generic field; see the label form for the same
