@@ -9,10 +9,12 @@ export function groupHref(group: RailGroup): string {
 }
 
 export function currentGroup(filters: BottleFilters, groups: RailGroup[]): RailGroup | null {
+  // An explicit group id decides it: the bottles shown are that group's, whatever other filters are also on.
+  // (smartGroupQuery drops the id, so matching smart groups first could name the wrong one.)
+  if (filters.groupId !== null) return groups.find((group) => group.filterQuery === null && group.id === filters.groupId) ?? null;
   const query = smartGroupQuery(filters);
-  return groups.find((group) => group.filterQuery === null
-    ? filters.groupId === group.id
-    : query !== "" && group.filterQuery === query) ?? null;
+  if (query === "") return null;
+  return groups.find((group) => group.filterQuery !== null && group.filterQuery === query) ?? null;
 }
 
 export const RAIL_MIN_WIDTH = 1100;

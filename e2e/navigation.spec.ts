@@ -68,6 +68,25 @@ test("Enter right after changing the text does not open a result from the previo
   await expect(page).toHaveURL(/\/bottles$/);
 });
 
+test("arrowing down to a result below the fold scrolls it into view (Codex review)", async ({ page }) => {
+  // A short window, so the "pursuit" results (bottle, brand, and the Add row) overflow the panel.
+  await page.setViewportSize({ width: 864, height: 250 });
+  await openSearch(page);
+  await page.keyboard.type("pursuit");
+  const options = results(page).getByRole("option");
+  await expect(options.first()).toBeVisible();
+  const count = await options.count();
+  for (let i = 0; i < count - 1; i++) await page.keyboard.press("ArrowDown");
+
+  const last = options.nth(count - 1);
+  await expect(last).toContainText("as a new label");
+  const panel = results(page).locator("xpath=..");
+  await expect(async () => {
+    const [a, p] = await Promise.all([last.boundingBox(), panel.boundingBox()]);
+    expect(a && p && a.y >= p.y - 1 && a.y + a.height <= p.y + p.height + 1).toBe(true);
+  }).toPass({ timeout: 3000 });
+});
+
 test("a brand result opens the Collection filtered to that brand", async ({ page }) => {
   await openSearch(page);
   await page.keyboard.type("pursuit");

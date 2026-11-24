@@ -47,6 +47,19 @@ describe("currentGroup", () => {
   });
 });
 
+describe("currentGroup with an explicit group id", () => {
+  it("names the hand-picked group even when the other filters match a smart group (Codex review)", () => {
+    // ?group=7&pick=1: a smart group whose query is `pick=1` sorts first, but the bottles shown are group 7's.
+    const both = { ...DEFAULT_FILTERS, groupId: 7, pick: true };
+    expect(currentGroup(both, [{ ...smart, id: 3, name: "Aardvark picks" }, handPicked])?.id).toBe(7);
+  });
+
+  it("names no group when the id is not in the list, rather than falling back to a smart match", () => {
+    const stray = { ...DEFAULT_FILTERS, groupId: 99, pick: true };
+    expect(currentGroup(stray, [smart, handPicked])).toBeNull();
+  });
+});
+
 describe("railInitiallyOpen", () => {
   it("uses a 1100px minimum width", () => {
     expect(RAIL_MIN_WIDTH).toBe(1100);

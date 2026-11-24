@@ -91,6 +91,12 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
     return () => clearTimeout(timer);
   }, [query, hasWords]);
 
+  // Arrow keys move the highlight while focus stays in the field, so keep the highlighted row in view.
+  const activeId = showPanel ? options[active]?.id : undefined;
+  React.useEffect(() => {
+    if (activeId) document.getElementById(activeId)?.scrollIntoView({ block: "nearest" });
+  }, [activeId]);
+
   // ⌘K / "/" (see keyboard-shortcuts.tsx).
   React.useEffect(() => {
     const focus = () => {
@@ -175,7 +181,7 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
           aria-label="Quick search"
           aria-expanded={showPanel}
           aria-controls={showPanel ? listId : undefined}
-          aria-activedescendant={showPanel ? options[active]?.id : undefined}
+          aria-activedescendant={activeId}
           aria-autocomplete="list"
           autoComplete="off"
           spellCheck={false}
@@ -212,7 +218,7 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
         <div
           className={cn(
             "z-30 border border-foreground bg-card shadow-lg",
-            takeover ? "absolute inset-x-0 top-full max-h-[calc(100dvh-68px)] overflow-y-auto border-x-0" : "absolute right-0 top-full mt-1 w-[26rem] max-w-[calc(100vw-2rem)]",
+            takeover ? "absolute inset-x-0 top-full max-h-[calc(100dvh-68px)] overflow-y-auto border-x-0" : "absolute right-0 top-full mt-1 max-h-[calc(100dvh-5rem)] w-[26rem] max-w-[calc(100vw-2rem)] overflow-y-auto",
           )}
           onMouseDown={(event) => event.preventDefault()}
         >
