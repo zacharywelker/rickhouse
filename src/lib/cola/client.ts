@@ -203,6 +203,12 @@ export async function lookupCola(ttbId: string, options: { images: boolean }): P
   return { record: { ...record, ...codes }, images, skipped };
 }
 
+/** Reads one COLA's record page only (no label form, no images): enough to show what a pasted ID is. */
+export async function previewCola(ttbId: string): Promise<ColaRecord> {
+  const session = new RegistrySession();
+  return parseColaDetail(await session.page(colaDetailUrl(ttbId)), ttbId);
+}
+
 /** The registry's search is capped at a 15-year window of completion dates. */
 export const SEARCH_WINDOW_YEARS = 15;
 const MAX_SEARCH_PAGES = 3;
