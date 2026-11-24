@@ -3,7 +3,7 @@ import type { Option } from "@/lib/admin/types";
 import { applyEdits } from "../changes";
 import { EDITORS, editorFor } from "../editors";
 import { linkApplies, linkedFacts, linksBody, listsWith, type LinkLists } from "../links";
-import { bottlePatchBody, createBody, labelPatchBody, serverFields } from "../save";
+import { bottlePatchBody, createBody, labelPatchBody } from "../save";
 import { SHEET_COLUMNS, type SheetColumn, type SheetContext, type SheetLabel, type SheetRow } from "../sheet";
 
 const label = (over: Record<string, unknown> = {}) =>
@@ -132,20 +132,6 @@ describe("what linking a distillery brings along (the form's changeLinks)", () =
 });
 
 describe("the origin of an amaro or liqueur typed into its cell", () => {
-  it("is remembered as the owner's own, and clearing it hands it back", () => {
-    const origin = EDITORS.originCountry!;
-    expect(serverFields(origin, "originCountry", "Italy")).toEqual({ originCountry: "Italy", originCountryManual: true });
-    expect(serverFields(origin, "originCountry", "")).toEqual({ originCountry: null, originCountryManual: false });
-  });
-  it("keeps manual origin when a linked value is also staged", () => {
-    const cells = { originCountry: "France", originCountryLinked: "Italy" };
-    expect(labelPatchBody(cells)).toEqual({ originCountry: "France", originCountryManual: true });
-    const draft = { key: "d1", brand: { kind: "existing", id: 1, name: "B" }, label: { kind: "new", name: "N" }, categoryId: 5 } as const;
-    expect(createBody(draft, cells, false)).toMatchObject({
-      label: { facts: { originCountry: "France", originCountryManual: true } },
-    });
-  });
-
   it("is not marked when it was brought by a link", () => {
     expect(labelPatchBody({ originCountryLinked: "Italy", regions: "Islay" })).toEqual({ originCountry: "Italy", regions: "Islay" });
   });

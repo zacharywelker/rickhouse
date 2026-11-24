@@ -255,7 +255,6 @@ const BOTTLE_ID: Readonly<Record<string, string>> = {
   isSingleBarrel: "singleBarrel",
   isSingleBarrelPick: "privateSelection",
   tequilaClass: "ownTequilaClass",
-  brandyGrade: "ownBrandyGrade",
 };
 const BOTTLE_HEADER: Readonly<Record<string, string>> = {
   releaseId: "Vintage",
@@ -264,7 +263,6 @@ const BOTTLE_HEADER: Readonly<Record<string, string>> = {
   barrelFilledOn: "This bottle's distilled / barrel filled",
   bottledOn: "This bottle's bottled date",
   tequilaClass: "This bottle's tequila class",
-  brandyGrade: "This bottle's age designation",
 };
 
 /** The bottle columns that are part of how a bottle is entered, so they are not hidden until switched on. */

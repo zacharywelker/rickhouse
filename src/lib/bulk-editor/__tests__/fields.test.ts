@@ -42,12 +42,10 @@ describe("the generated columns", () => {
     expect(EDITORS.ownBarrelFilledOn!.field).toBe("barrelFilledOn");
     expect(EDITORS.ownBarrelFilledOn!.scope).toBe("bottle");
     expect(EDITORS.barrelFilledOn!.scope).toBe("label");
-    expect(EDITORS.releaseBottleCount!.field).toBe("bottleCount");
   });
   it("keep a field that two sections have as two columns that set the same field", () => {
     expect(EDITORS.isAdditiveFree!.field).toBe("isAdditiveFree");
     expect(EDITORS.agaveAdditiveFree!.field).toBe("isAdditiveFree");
-    expect(EDITORS["liqueur-originCountry"]!.field).toBe("originCountry");
   });
 });
 

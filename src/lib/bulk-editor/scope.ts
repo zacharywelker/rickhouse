@@ -41,7 +41,6 @@ const OWN: Readonly<Record<string, string>> = {
   ageDays: "ownAgeDays",
   ageStatement: "ownAgeStatement",
   tequilaClass: "ownTequilaClass",
-  brandyGrade: "ownBrandyGrade",
   // The label's NAS flag and a gin bottle's own (`ginIsNas`) are one cell.
   isNas: "ginIsNas",
 };
