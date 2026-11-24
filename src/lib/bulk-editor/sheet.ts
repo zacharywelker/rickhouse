@@ -218,7 +218,6 @@ export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = (() => {
   const asValue = (c: SheetColumn): SheetColumn => {
     const one = spirit[c.id];
     if (!one) return c;
-    const own = editorOf(one.own);
     const labelEditor = editorOf(c.id);
     return {
       ...c,

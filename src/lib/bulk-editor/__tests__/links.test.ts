@@ -103,12 +103,6 @@ describe("what linking a distillery brings along (the form's changeLinks)", () =
     expect(linkedFacts(l, "scotch", options, [d(1, "D1")], [d(1, "D1")])).toEqual({});
     expect(linkedFacts(l, "american", options, [], [d(1, "D1")])).toEqual({});
   });
-  it("gives an amaro the origin of its distilleries, and blanks it where they differ or one has none", () => {
-    const amaro = label({ fieldGroup: "amaro" });
-    expect(linkedFacts(amaro, "amaro", options, [], [d(3, "D3")])).toEqual({ originCountryLinked: "Italy", originRegionLinked: "Piedmont" });
-    expect(linkedFacts(amaro, "amaro", options, [], [d(1, "D1"), d(3, "D3")])).toEqual({ originCountryLinked: "", originRegionLinked: "" });
-    expect(linkedFacts(amaro, "amaro", options, [], [d(4, "D4")])).toEqual({ originCountryLinked: "Spain", originRegionLinked: "" });
-  });
   it("adds regions to the staged selection before the sheet refreshes", () => {
     const l = label({ fieldGroup: "whiskey", regions: [] });
     const first = [d(1, "D1")];
@@ -116,24 +110,6 @@ describe("what linking a distillery brings along (the form's changeLinks)", () =
     const staged = linkedFacts(l, "scotch", options, [], first);
     expect(linkedFacts(l, "scotch", options, first, both, staged)).toEqual({ regions: "Islay, Speyside" });
     expect(linkedFacts(l, "scotch", options, [], [d(2, "D2")], { regions: "Islay" })).toEqual({ regions: "Islay, Speyside" });
-  });
-
-  it("uses a staged manual origin, including an explicit clear", () => {
-    const l = label({ fieldGroup: "amaro", originCountryManual: false, originRegionManual: true });
-    expect(linkedFacts(l, "amaro", options, [], [d(3, "D3")], { originCountry: "France", originRegion: "" })).toEqual({
-      originRegionLinked: "Piedmont",
-    });
-  });
-
-  it("leaves an origin the owner typed alone", () => {
-    const typed = label({ fieldGroup: "liqueur", originCountryManual: true, originRegionManual: false });
-    expect(linkedFacts(typed, "liqueur", options, [], [d(3, "D3")])).toEqual({ originRegionLinked: "Piedmont" });
-  });
-});
-
-describe("the origin of an amaro or liqueur typed into its cell", () => {
-  it("is not marked when it was brought by a link", () => {
-    expect(labelPatchBody({ originCountryLinked: "Italy", regions: "Islay" })).toEqual({ originCountry: "Italy", regions: "Islay" });
   });
 });
 

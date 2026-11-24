@@ -23,4 +23,9 @@ describe("writableLabelFacts follows the matrix for cask strength and NAS", () =
     for (const kind of ["cognac", "armagnac", "calvados"] as const) expect(can("brandy", kind, "isNas"), kind).toBe(false);
     for (const kind of ["pisco", "apple", "eau-de-vie"] as const) expect(can("brandy", kind, "isNas"), kind).toBe(true);
   });
+
+  it("keeps taking Still Proof for agave, which the phone still sends, and for no other spirit", () => {
+    expect(can("agave", "tequila", "isStillProof")).toBe(true);
+    expect(can("whiskey", "american", "isStillProof")).toBe(false);
+  });
 });

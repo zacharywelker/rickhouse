@@ -90,4 +90,13 @@ describe.skipIf(!url)("adding a bottle opened, against a real database", () => {
     const res = await post({ isOpen: true, dateOpened: "2999-01-01" });
     expect(res.status).toBe(422);
   });
+
+  it("form: saving an existing bottle leaves the retired bottle count and brandy designation alone", async () => {
+    const created = await form.saveBottleAction(null, idle, formData({}));
+    const id = (created as { createdId: number }).createdId;
+    await m.sql(`UPDATE bottles SET bottle_count = 6, brandy_grade = 'VS' WHERE id = $1`, id);
+    const saved = await form.saveBottleAction(id, idle, formData({ notes: "kept" }));
+    expect(saved, JSON.stringify(saved)).toMatchObject({ ok: true });
+    expect((await m.sql<{ bottle_count: number | null; brandy_grade: string | null }>(`SELECT bottle_count, brandy_grade FROM bottles WHERE id = $1`, id))[0]).toEqual({ bottle_count: 6, brandy_grade: "VS" });
+  });
 });

@@ -33,5 +33,7 @@ export function writableLabelFacts(fieldGroup: FieldGroup | "other", kind: Categ
   if (isFrenchBrandy(kind)) allowed.delete("isNas");
   // Regions belong to Scotch (the web form only shows them there); anything sent for another kind is ignored.
   if (kind !== "scotch") allowed.delete("regions");
+  // Still proof is off the forms (retired) but the phone still sends it for agave until it is updated: keep taking it.
+  if (fieldGroup === "agave") allowed.add("isStillProof");
   return allowed;
 }

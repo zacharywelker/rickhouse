@@ -127,8 +127,7 @@ export function linksBody(cells: Readonly<Record<string, string>>, loaded: LinkL
 
 /**
  * What linking a distillery brings along, as the label form's `changeLinks` does it: a linked distillery adds its Scotch
- * region to a Scotch label, and gives an amaro or liqueur its origin country and region, unless the owner typed those
- * (`originCountryManual`). Returned as edits under the names `save.ts` sends without marking them typed.
+ * region to a Scotch label. Returned as an edit under the name `save.ts` sends.
  */
 export function linkedFacts(
   label: SheetLabel,
@@ -139,20 +138,6 @@ export function linkedFacts(
   staged?: Readonly<Record<string, string>>,
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  const chosen = after.map((row) => options.find((option) => option.value === row.id));
-  if (label.fieldGroup === "amaro" || label.fieldGroup === "liqueur") {
-    const one = (field: "country" | "region", manual: boolean | undefined, name: "originCountryLinked" | "originRegionLinked") => {
-      if (manual === true) return;
-      if (chosen.length > 0 && chosen.every((option) => option?.[field])) {
-        const values = [...new Set(chosen.map((option) => option![field]!.trim()))];
-        out[name] = values.length === 1 ? values[0]! : "";
-      } else out[name] = "";
-    };
-    const manual = (field: "originCountry" | "originRegion", saved: boolean | undefined) =>
-      staged?.[field] === undefined ? saved : staged[field].trim() !== "";
-    one("country", manual("originCountry", label.originCountryManual), "originCountryLinked");
-    one("region", manual("originRegion", label.originRegionManual), "originRegionLinked");
-  }
   if (showsRegions({ kind })) {
     const regions = staged?.regions === undefined ? (label.regions ?? []) : parseRegions(staged.regions);
     const known = new Set(before.map((row) => row.id));

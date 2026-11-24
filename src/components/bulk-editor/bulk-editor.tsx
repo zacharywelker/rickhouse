@@ -851,17 +851,11 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     const storedAs = level ? columnFor(column.id, level) : storedId(column.id);
     // ABV is typed as a percentage and kept as proof.
     const stored = column.id === "abv" ? abvToProof(value) : value;
-    const linkedOrigin = column.id === "originCountry" || column.id === "originRegion" ? `${column.id}Linked` : undefined;
-    const withoutLinkedOrigin = (prev: Edits): Edits => {
-      if (!linkedOrigin || prev[key]?.[linkedOrigin] === undefined) return prev;
-      const { [linkedOrigin]: _linked, ...rest } = prev[key];
-      return { ...prev, [key]: rest };
-    };
     if (row.draft) {
       if (saver.draftSaving(row.key)) return;
       keepKeys(row.key);
       // A new row's cells are forgotten when put back to empty: there is nothing to send.
-      setEdits((prev) => setEdit(withoutLinkedOrigin(prev), key, storedAs, stored, EDITORS[storedAs]?.initial(row) ?? editor.initial(row)));
+      setEdits((prev) => setEdit(prev, key, storedAs, stored, EDITORS[storedAs]?.initial(row) ?? editor.initial(row)));
       // Marked a single barrel or private selection after its proof and age were typed: they are the bottle's now, and the notice says so.
       if ((column.id === "singleBarrel" || column.id === "privateSelection") && value === "true") {
         const typed = LIQUID_FIELDS.filter((field) => (edits[row.key]?.[field] ?? "") !== "");
@@ -885,7 +879,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     }
     // A saved row saves as soon as a cell of it is committed. An edit that is already here is kept even when it is put
     // back to what the sheet shows: the earlier value may already be saved, and the sheet has not read it back yet.
-    const had = edits[key]?.[storedAs] !== undefined || (linkedOrigin !== undefined && edits[key]?.[linkedOrigin] !== undefined);
+    const had = edits[key]?.[storedAs] !== undefined;
     // A level that was stepped to is a decision: the same number written at another level is a change, not a no-op.
     const field = VALUE_FIELD[column.id];
     const stepped = field !== undefined && openEditor?.rowKey === row.key && openEditor.columnId === column.id && openEditor.scope !== null && openEditor.scope !== defaultScope(row, field);
@@ -896,7 +890,7 @@ export function BulkEditor({ labels, bottles, vintages, brands, categories, grou
     touch(key);
     // Marked a single barrel or private selection on a label made on this visit that has only this bottle: ask for its proof and age to move too (the server checks the count).
     const net = (column.id === "singleBarrel" || column.id === "privateSelection") && value === "true" && row.bottle !== null && createdLabels.current.has(row.label.id) && row.label.bottleCount === 1;
-    setEdits((prev) => ({ ...prev, [key]: { ...withoutLinkedOrigin(prev)[key], [storedAs]: stored, ...(net ? { moveLiquidFromLabel: "true" } : {}) } }));
+    setEdits((prev) => ({ ...prev, [key]: { ...prev[key], [storedAs]: stored, ...(net ? { moveLiquidFromLabel: "true" } : {}) } }));
     saver.request(key);
     return { level, key };
   }
