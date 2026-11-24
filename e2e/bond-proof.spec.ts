@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "./support/auth";
 
-/** Bottled In Bond forces 100 proof; unticking it brings back the proof you had, unless you changed it meanwhile. */
+/** Bottled In Bond forces 100 proof and locks the proof cells; unticking it brings back the proof you had. */
 
 test.beforeEach(async ({ page }) => {
   await signIn(page);
@@ -23,13 +23,4 @@ test("unticking Bottled In Bond restores the earlier proof", async ({ page }) =>
   await expect(proof).toHaveValue("100");
   await page.getByLabel("Bottled in bond").uncheck();
   await expect(proof).toHaveValue("117.9");
-});
-
-test("a proof edited after ticking Bottled In Bond is kept when it is unticked", async ({ page }) => {
-  const proof = page.locator('input[name="proof"]').first();
-  await proof.fill("117.9");
-  await page.getByLabel("Bottled in bond").check();
-  await proof.fill("101");
-  await page.getByLabel("Bottled in bond").uncheck();
-  await expect(proof).toHaveValue("101");
 });
