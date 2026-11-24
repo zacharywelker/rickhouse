@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import type { FieldGroup } from "@/db/schema";
+import { countryForKind } from "@/lib/admin/distillery-defaults";
 import type { Option } from "@/lib/admin/types";
 import { effectiveRows, totalsOf } from "@/lib/expressions/finish-picker-model";
 import { isGinKind } from "@/lib/expressions/gin-details";
 import type { CategoryKind } from "@/lib/expressions/rules";
-import { countryForDistillery, isAgaveKind, type IngredientChoice } from "@/lib/expressions/spirit-details";
+import { countryForDistillery, type IngredientChoice } from "@/lib/expressions/spirit-details";
 import { FinishPicker } from "./finish-picker";
 import { IngredientPicker } from "./ingredient-picker";
 import { OrderedPicker, serializeLinks, type LinkedRow } from "./ordered-picker";
@@ -36,6 +37,7 @@ type PickerExtras = {
 };
 
 export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks, brand, onOptionCreated, renderRowExtra }: Omit<Common, "onLinksChange"> & PickerExtras & { options: Option[]; changeLinks: (next: LabelLinks) => void; brand?: Option }) {
+  const defaultCountry = kind ? countryForKind(kind) : null;
   return (
     <OrderedPicker
       name="distilleryLinks"
@@ -43,7 +45,8 @@ export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks
       description="Every distillery that contributed, in the order you would list them. Tick Inferred when the label does not name it and you worked it out elsewhere."
       resource="distilleries"
       options={options.filter((option) => !option.country || countryForDistillery(kind, option.country))}
-      {...(isAgaveKind(kind) ? { defaultCountry: "Mexico" } : kind === "cognac" || kind === "armagnac" || kind === "calvados" ? { defaultCountry: "France" } : kind === "pisco" ? { defaultCountry: "Peru" } : kind === "canadian" ? { defaultCountry: "Canada" } : kind === "irish" ? { defaultCountry: "Ireland" } : {})}
+      {...(defaultCountry !== null ? { defaultCountry } : {})}
+      {...(kind ? { detailKind: kind } : {})}
       amountLabel="Share"
       amountSuffix="%"
       amountMax={100}

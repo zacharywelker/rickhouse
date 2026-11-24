@@ -89,3 +89,15 @@ export function PopupShell({
     </Dialog>
   );
 }
+
+/** One labelled row of a popup's body: small-caps label on the left, the field on the right. */
+export function PopupRow({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[88px_1fr] items-start gap-3 border-b border-border py-2.5 last:border-b-0">
+      <label htmlFor={htmlFor} className="pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </label>
+      <div>{children}</div>
+    </div>
+  );
+}

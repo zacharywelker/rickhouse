@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { AdminRuleError } from "@/lib/admin/errors";
 import { inferFinishType } from "@/lib/admin/finish-type";
+import { normalizeCountry } from "@/lib/places";
 import { REFERENCE_OPTION_LOADERS, RESOURCES, isResourceKey } from "@/lib/admin/registry";
 import { quickCreateSchema } from "@/lib/admin/schemas";
 import {
@@ -100,7 +101,7 @@ function isReferenceResource(value: string): value is ReferenceResource {
 }
 
 /** Creates a lookup row from just a name, without leaving the form you are on. */
-export async function quickCreateAction(resource: string, name: string, defaultCompanyId?: number): Promise<QuickCreateResult> {
+export async function quickCreateAction(resource: string, name: string, defaultCompanyId?: number, country?: string): Promise<QuickCreateResult> {
   const user = await requireSession();
   if (!isReferenceResource(resource)) return { ok: false, error: "That is not something this app manages." };
   if (resource === "categories" && user.role !== "admin") return { ok: false, error: SHARED_ONLY_ADMIN_EDITS };
@@ -116,6 +117,8 @@ export async function quickCreateAction(resource: string, name: string, defaultC
     if (resource === "finishes") {
       defaults.finishType = inferFinishType(parsed.data.name) ?? "other";
     }
+    // A distillery made from just a name takes the country its spirit is made in, when the picker knows it.
+    if (resource === "distilleries" && country !== undefined && country.trim() !== "") defaults.country = normalizeCountry(country);
     if (resource === "distilleries" && defaultCompanyId !== undefined) {
       const { companyId } = await config.optionsFor(user.id);
       if (!companyId?.some((option) => option.value === defaultCompanyId)) {

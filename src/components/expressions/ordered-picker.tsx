@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { linksPayload } from "@/lib/expressions/links";
 import { UndisclosedTick } from "./undisclosed-tick";
+import type { CategoryKind } from "@/lib/expressions/rules";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
 import { CreateWithDetailsDialog } from "@/components/admin/create-with-details-dialog";
 
@@ -65,6 +66,7 @@ export function OrderedPicker({
   onOptionCreated,
   defaultCountry,
   detailNoun,
+  detailKind,
   brand,
   matchesOption,
   renderRowExtra,
@@ -80,6 +82,8 @@ export function OrderedPicker({
   defaultCountry?: string;
   /** "cask type" where a finish is called that; passed to the add-details popup. */
   detailNoun?: string;
+  /** The label's spirit, passed to the add-details popup. */
+  detailKind?: CategoryKind;
   brand?: Option;
   matchesOption?: (option: Option) => boolean;
   emptyHint?: string;
@@ -322,6 +326,7 @@ export function OrderedPicker({
         brand={brand}
         {...(defaultCountry ? { defaultCountry } : {})}
         {...(detailNoun ? { detailNoun } : {})}
+        {...(detailKind ? { detailKind } : {})}
         value={null}
         onChange={(next) => {
           if (next === null) return;
