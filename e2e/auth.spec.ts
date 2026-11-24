@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 async function createMember(page: Page, username: string): Promise<string> {
   await page.goto("/system/users");
   await page.getByLabel("Name", { exact: true }).fill(`Test ${username}`);
-  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Username", { exact: true }).fill(username);
   await page.getByLabel("Email").fill(`${username}@example.com`);
   await page.getByRole("button", { name: "Create account" }).click();
   const password = page.getByRole("status").locator("code");
@@ -114,7 +114,7 @@ test("admins reach Users and Backups from the menu under their name", async ({ p
   await expect(admin.getByRole("link", { name: "Backups" })).toBeVisible();
   await admin.getByRole("link", { name: "Users" }).click();
   await expect(page).toHaveURL("/system/users");
-  await expect(page.getByRole("heading", { name: "Users", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Users & sign-in", level: 1 })).toBeVisible();
 });
 
 test("the header shows only the first name, and profile edits show up there", async ({ page }) => {

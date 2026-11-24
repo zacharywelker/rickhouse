@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { asc } from "drizzle-orm";
+import { EmailSettingsSection } from "@/components/system/email-settings";
+import { SsoSettingsSection } from "@/components/system/sso-settings";
 import { CreateUserForm } from "@/components/system/users/create-user-form";
 import { UserActions } from "@/components/system/users/user-actions";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +11,7 @@ import { db, schema } from "@/db";
 import { requireAdmin } from "@/lib/auth";
 import { emailEnabled } from "@/lib/email/settings";
 
-export const metadata: Metadata = { title: "Users" };
+export const metadata: Metadata = { title: "Users & sign-in" };
 export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
@@ -31,7 +33,7 @@ export default async function UsersPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="max-w-2xl">
-        <h1 className="text-3xl text-accent">Users</h1>
+        <h1 className="text-3xl text-accent">Users & sign-in</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Everyone who can sign in. Admins manage accounts and settings; they can&rsquo;t see into anyone else&rsquo;s
           collection.
@@ -101,6 +103,13 @@ export default async function UsersPage() {
           <CreateUserForm canInvite={canEmail} />
         </SectionContent>
       </Section>
+
+      <section id="sso" className="flex flex-col gap-8">
+        <SsoSettingsSection />
+      </section>
+      <section id="email" className="flex flex-col gap-8">
+        <EmailSettingsSection />
+      </section>
     </div>
   );
 }

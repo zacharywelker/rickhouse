@@ -34,11 +34,11 @@ export function SmtpForm({ current }: { current: SmtpSummary | null }) {
           <Input id="smtp-port" name="port" type="number" defaultValue={current?.port ?? 587} required />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="smtp-username">Username</Label>
+          <Label htmlFor="smtp-username">SMTP username</Label>
           <Input id="smtp-username" name="username" defaultValue={current?.username ?? ""} autoComplete="off" />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="smtp-password">Password</Label>
+          <Label htmlFor="smtp-password">SMTP password</Label>
           <Input
             id="smtp-password"
             name="password"

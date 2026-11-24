@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { signIn } from "./support/auth";
+import { MEMBER, signIn, signOut } from "./support/auth";
 import { resetDatabase } from "./support/db";
 
 /** Unique per run, so repeated runs against the same database do not collide. */
@@ -274,4 +274,23 @@ test("currency is set on Account and no longer on Configuration", async ({ page 
   await choose("USD");
   await page.reload();
   await expect(currency).toHaveValue("USD");
+});
+
+test("the old SSO and Email pages redirect to their sections on Users & sign-in", async ({ page }) => {
+  await page.goto("/system/sso");
+  await expect(page).toHaveURL(/\/system\/users/);
+  await expect(page.getByRole("heading", { name: "Single sign-on", level: 2 })).toBeVisible();
+
+  await page.goto("/system/email");
+  await expect(page).toHaveURL(/\/system\/users/);
+  await expect(page.getByRole("heading", { name: "Email", level: 2 })).toBeVisible();
+});
+
+test("members get 404 for the merged sign-in sections and their old URLs", async ({ page }) => {
+  await signOut(page);
+  await signIn(page, MEMBER.username);
+  for (const path of ["/system/sso", "/system/email"]) {
+    const response = await page.goto(path);
+    expect(response?.status()).toBe(404);
+  }
 });
