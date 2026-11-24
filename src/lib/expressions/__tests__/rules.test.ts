@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CATEGORY_TREE } from "@/lib/categories/tree";
 import { categoryKinds, hiddenFields, proofAfterBondToggle, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
 import { writableFields } from "../fields";
 import { expressionSchema } from "../schema";
@@ -13,6 +14,53 @@ const tree = [
 ];
 
 describe("categoryKinds", () => {
+  it("derives the expected kinds from the shared category tree", () => {
+    const idBySlug = new Map(CATEGORY_TREE.map((node, index) => [node.slug, index + 1]));
+    const rows = CATEGORY_TREE.map((node, index) => ({
+      id: index + 1,
+      slug: node.slug,
+      parentId: node.parent === null ? null : idBySlug.get(node.parent)!,
+    }));
+    const kinds = categoryKinds(rows);
+    const expected: Record<string, string[]> = {
+      american: ["american-whiskey", "bourbon", "rye", "wheat-whiskey", "corn-whiskey", "american-single-malt", "light-whiskey", "tennessee"],
+      irish: ["irish-whiskey", "pot-still-irish-whiskey", "malt-irish-whiskey", "grain-irish-whiskey", "blended-irish-whiskey"],
+      scotch: ["scotch", "single-malt-scotch", "single-grain-scotch", "blended-scotch", "blended-grain-scotch", "blended-malt-scotch"],
+      canadian: ["canadian-whisky"],
+      japanese: ["japanese"],
+      international: ["international"],
+      "flavored-whisky": ["flavored-whisky"],
+      cachaca: ["cachaca"],
+      agricole: ["agricole"],
+      "spiced-rum": ["spiced-rum"],
+      apple: ["apple"],
+      "eau-de-vie": ["eau-de-vie"],
+      cognac: ["cognac"],
+      armagnac: ["armagnac"],
+      calvados: ["calvados"],
+      pisco: ["pisco"],
+      absinthe: ["absinthe"],
+      akvavit: ["akvavit"],
+      shochu: ["shochu"],
+      tequila: ["tequila"],
+      mezcal: ["mezcal"],
+      genever: ["genever"],
+      "flavored-vodka": ["flavored-vodka"],
+      "chocolate-liqueur": ["chocolate-liqueur"],
+      "cream-liqueur": ["cream-liqueur"],
+      gin: ["gin"],
+      liqueur: ["liqueur", "fruit-liqueur", "anise-liqueur", "nut-liqueur", "herbal-liqueur", "coffee-liqueur"],
+      vodka: ["vodka"],
+      amaro: ["amaro"],
+      other: ["whiskey", "rum", "brandy", "other", "agave"],
+    };
+    const expectedBySlug = Object.fromEntries(
+      Object.entries(expected).flatMap(([kind, slugs]) => slugs.map((slug) => [slug, kind])),
+    );
+    expect(rows.map((row) => row.slug).sort()).toEqual(Object.keys(expectedBySlug).sort());
+    for (const row of rows) expect(kinds[row.id], row.slug).toBe(expectedBySlug[row.slug]);
+  });
+
   it("reads the kind from the nearest named ancestor", () => {
     const kinds = categoryKinds(tree);
     expect(kinds[3]).toBe("american");

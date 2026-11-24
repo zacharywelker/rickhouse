@@ -11,9 +11,13 @@ import { isGinKind, NAVY_GIN_PROOF } from "./gin-details";
  * kind below says which whiskey, because "Straight" is an American
  * designation and Scotch has regions instead.
  */
-export type CategoryKind = "american" | "canadian" | "irish" | "scotch" | "tequila" | "mezcal" | "cognac" | "armagnac" | "calvados" | "pisco" | "gin" | "genever" | "vodka" | "flavored-vodka" | "amaro" | "liqueur" | "chocolate-liqueur" | "cream-liqueur" | "other";
+export type CategoryKind = "american" | "canadian" | "irish" | "scotch" | "tequila" | "mezcal" | "cognac" | "armagnac" | "calvados" | "pisco" | "gin" | "genever" | "vodka" | "flavored-vodka" | "amaro" | "liqueur" | "chocolate-liqueur" | "cream-liqueur" | "other" | "japanese" | "international" | "flavored-whisky" | "cachaca" | "agricole" | "spiced-rum" | "apple" | "eau-de-vie" | "absinthe" | "akvavit" | "shochu";
 
-const SPECIAL_KINDS = new Set<CategoryKind>(["tequila", "mezcal", "cognac", "armagnac", "calvados", "pisco", "genever"]);
+const SPECIAL_KINDS = new Set<CategoryKind>([
+  "tequila", "mezcal", "cognac", "armagnac", "calvados", "pisco", "genever",
+  "japanese", "international", "flavored-whisky", "cachaca", "agricole", "spiced-rum",
+  "apple", "eau-de-vie", "absinthe", "akvavit", "shochu",
+]);
 
 /** Each category's kind, by walking up its parents: Bourbon is American, Blended Scotch is Scotch. */
 export function categoryKinds(
