@@ -7,58 +7,13 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { categoryKinds } from "@/lib/expressions/rules";
 import { CATEGORY_TREE } from "../tree";
+import { OLD_TREE } from "./old-tree";
 
 /**
  * Migration 0055 against the tree as it was before it. Opt-in: needs TOURNAMENT_TEST_DATABASE_URL naming a local
  * database on a server where this test may create and drop a database of its own (the name contains "test").
  */
 const url = process.env.TOURNAMENT_TEST_DATABASE_URL;
-
-/** The category rows the seed made before the redesign (scripts/seed.ts on 2026-11-24). */
-const OLD_TREE: ReadonlyArray<[name: string, slug: string, parent: string | null, group: string, sort: number]> = [
-  ["Whiskey", "whiskey", null, "whiskey", 1],
-  ["Rum", "rum", null, "rum", 2],
-  ["Agave", "agave", null, "agave", 3],
-  ["Brandy", "brandy", null, "brandy", 4],
-  ["Gin", "gin", null, "gin", 5],
-  ["Genever", "genever", "gin", "gin", 1],
-  ["Vodka", "vodka", null, "vodka", 6],
-  ["Flavored Vodka", "flavored-vodka", "vodka", "vodka", 1],
-  ["Amaro", "amaro", null, "amaro", 7],
-  ["Liqueur", "liqueur", null, "liqueur", 8],
-  ["Herbal Liqueur", "herbal-liqueur", "liqueur", "liqueur", 1],
-  ["Nut Liqueur", "nut-liqueur", "liqueur", "liqueur", 2],
-  ["Chocolate Liqueur", "chocolate-liqueur", "liqueur", "liqueur", 3],
-  ["Coffee Liqueur", "coffee-liqueur", "liqueur", "liqueur", 4],
-  ["Cream Liqueur", "cream-liqueur", "liqueur", "liqueur", 5],
-  ["Anise Liqueur", "anise-liqueur", "liqueur", "liqueur", 6],
-  ["Fruit Liqueur", "fruit-liqueur", "liqueur", "liqueur", 7],
-  ["Tequila", "tequila", "agave", "agave", 1],
-  ["Mezcal", "mezcal", "agave", "agave", 2],
-  ["Cognac", "cognac", "brandy", "brandy", 1],
-  ["Armagnac", "armagnac", "brandy", "brandy", 2],
-  ["Calvados", "calvados", "brandy", "brandy", 3],
-  ["Pisco", "pisco", "brandy", "brandy", 4],
-  ["American Whiskey", "american-whiskey", "whiskey", "whiskey", 1],
-  ["Scotch Whisky", "scotch", "whiskey", "whiskey", 2],
-  ["Irish Whiskey", "irish-whiskey", "whiskey", "whiskey", 3],
-  ["Canadian Whisky", "canadian-whisky", "whiskey", "whiskey", 4],
-  ["Pot Still Irish Whiskey", "pot-still-irish-whiskey", "irish-whiskey", "whiskey", 1],
-  ["Malt Irish Whiskey", "malt-irish-whiskey", "irish-whiskey", "whiskey", 2],
-  ["Grain Irish Whiskey", "grain-irish-whiskey", "irish-whiskey", "whiskey", 3],
-  ["Blended Irish Whiskey", "blended-irish-whiskey", "irish-whiskey", "whiskey", 4],
-  ["Single Malt Scotch Whisky", "single-malt-scotch", "scotch", "whiskey", 1],
-  ["Single Grain Scotch Whisky", "single-grain-scotch", "scotch", "whiskey", 2],
-  ["Blended Scotch Whisky", "blended-scotch", "scotch", "whiskey", 3],
-  ["Blended Grain Scotch Whisky", "blended-grain-scotch", "scotch", "whiskey", 4],
-  ["Blended Malt Scotch Whisky", "blended-malt-scotch", "scotch", "whiskey", 5],
-  ["Bourbon", "bourbon", "american-whiskey", "whiskey", 1],
-  ["Rye", "rye", "american-whiskey", "whiskey", 2],
-  ["Wheat Whiskey", "wheat-whiskey", "american-whiskey", "whiskey", 3],
-  ["Corn Whiskey", "corn-whiskey", "american-whiskey", "whiskey", 4],
-  ["American Single Malt", "american-single-malt", "american-whiskey", "whiskey", 5],
-  ["Light Whiskey", "light-whiskey", "american-whiskey", "whiskey", 6],
-];
 
 const NEW_SLUGS = ["tennessee", "japanese", "international", "flavored-whisky", "cachaca", "agricole", "spiced-rum", "apple", "eau-de-vie", "absinthe", "akvavit", "shochu", "other"];
 
