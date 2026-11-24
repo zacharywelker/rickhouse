@@ -20,6 +20,8 @@ export function smartGroupQuery(filters: BottleFilters): string {
     pageSize: DEFAULT_PAGE_SIZE,
     view: DEFAULT_FILTERS.view,
     hidden: [],
+    // A hand-picked group is not a filter vocabulary; saving from a group's view must not freeze `group=<id>` into a smart group.
+    groupId: null,
   });
 }
 

@@ -205,9 +205,13 @@ describe("the group filter", () => {
   });
 
   it("accepts only a positive whole number", () => {
-    for (const bad of ["abc", "-1", "0", "1.5", "", "3,4"]) {
+    for (const bad of ["abc", "-1", "0", "1.5", "", "3,4", "2147483648", "9999999999"]) {
       expect(parse(`group=${bad}`).groupId, `group=${bad}`).toBeNull();
     }
+  });
+
+  it("keeps the largest id a database serial can hold", () => {
+    expect(parse("group=2147483647").groupId).toBe(2147483647);
   });
 
   it("counts as one active filter and leaves a plain URL clean", () => {

@@ -168,9 +168,14 @@ function isoDate(raw: string | null): string | null {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === raw ? raw : null;
 }
 
-/** A positive whole number, else null: `group=abc`, `group=0` and `group=3,4` are all "no group". */
+/** The largest id Postgres's serial (int4) holds; anything bigger would make the query throw instead of matching nothing. */
+const MAX_ID = 2147483647;
+
+/** A positive whole number a serial id can be, else null: `group=abc`, `group=0`, `group=3,4` and `group=9999999999` are all "no group". */
 function positiveId(raw: string | null): number | null {
-  return raw !== null && /^[1-9]\d{0,9}$/.test(raw) ? Number(raw) : null;
+  if (raw === null || !/^[1-9]\d{0,9}$/.test(raw)) return null;
+  const id = Number(raw);
+  return id <= MAX_ID ? id : null;
 }
 
 function acquisitionList(raw: string | null): Acquisition[] {
