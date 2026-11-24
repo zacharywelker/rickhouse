@@ -39,15 +39,16 @@ Failure modes the spec implies that no single task's happy path covers, most lik
 
 **Files:**
 - Create: `src/components/nav/nav-items.ts`, `src/components/nav/__tests__/nav-items.test.ts`, `src/app/(app)/journal/page.tsx`
-- Modify: `src/components/app-nav.tsx`, `src/app/(app)/page.tsx`, `src/app/(app)/tournaments/page.tsx` (h1 and `metadata.title`)
+- Modify: `src/components/app-nav.tsx`, `src/app/(app)/page.tsx`, `src/app/(app)/tournaments/page.tsx` (h1 and `metadata.title`), `e2e/support/auth.ts` (line 32), `e2e/auth.spec.ts`
 
 **Interfaces:**
 - Produces: `PLACES: readonly { href: Route; label: string }[]` (Collection, Journal, Flights, Numbers); `isCurrent(pathname: string, href: string): boolean` (exact or subtree match; no Home special case); `NARROW_QUERY = "(max-width: 719px)"`.
 
 - [ ] **Step 1: Write the failing test** `nav-items.test.ts`: `PLACES` labels equal `["Collection","Journal","Flights","Numbers"]`; `isCurrent("/journal","/journal")` is true; `isCurrent("/bottles/12","/bottles")` is true; `isCurrent("/bottlesx","/bottles")` is false; `isCurrent("/expressions","/bottles")` is false.
 - [ ] **Step 2: Run** `npx vitest run src/components/nav` — expect FAIL (module missing).
-- [ ] **Step 3: Implement** `nav-items.ts`. In `app-nav.tsx` drop the `LINKS` array, `xl:` breakpoints, and the Home/Housekeeping/Configuration/Labels/Groups links; render `PLACES` inline from 720px up (use `min-[720px]:`), and keep a Menu button below it with the existing disclosure behaviour (Escape closes, navigating closes, closes on resize past 720). The logo links to `/bottles`. Keep the `wide` prop. Props become `{ userMenu: React.ReactNode; accountPanel: React.ReactNode; wide?: boolean }` (Task 2 supplies the two nodes; until then pass the existing `userMenu` and an empty fragment).
+- [ ] **Step 3: Implement** `nav-items.ts`. In `app-nav.tsx` drop the `LINKS` array, `xl:` breakpoints, and the Home/Housekeeping/Configuration/Labels/Groups links; render `PLACES` inline from 720px up (use `min-[720px]:`), and keep a Menu button below it with the existing disclosure behaviour (Escape closes, navigating closes, closes on resize past 720). The logo links to `/bottles`. Keep the `wide` prop. Add an optional `accountPanel?: React.ReactNode` prop (unused until Task 2). **Ruling:** until Task 2, keep the existing `signOut` prop, the sign-out icon and the bar's `ThemeToggle` exactly as they are, so nothing disappears between tasks; Task 2 removes them and drops the `signOut` prop.
 - [ ] **Step 4: Replace** `src/app/(app)/page.tsx` with a server component that calls `redirect("/bottles")` (delete the Home queries and stat code with it; remove any now-unused imports repo-wide with `npm run lint`).
+- [ ] **Step 4a: Fix the sign-in landing in e2e.** Signing in lands on `/`, which now redirects to `/bottles`. Update `e2e/support/auth.ts:32` and each *post-sign-in* `toHaveURL("/")` in `e2e/auth.spec.ts` (around lines 46, 57, 70, 95, 134, 176, 183, 255) to expect `/bottles`. Read each one: `page.goto("/")` calls stay, and an assertion that checks being sent to the login page is not touched.
 - [ ] **Step 4b: Create** `src/app/(app)/journal/page.tsx`: a server component with `metadata.title` "Journal", an `<h1>` "Journal" and one line "Coming soon." in the app's existing page-header style (see `account/page.tsx`). It is a page, not a redirect.
 - [ ] **Step 5: Rename** the tournaments page `<h1>` and `metadata.title` to "Flights". Leave in-body wording and URLs alone.
 - [ ] **Step 6: Run** `npx vitest run src/components/nav`, `npm run typecheck`, `npm run lint` — all pass.
@@ -133,23 +134,36 @@ Failure modes the spec implies that no single task's happy path covers, most lik
 - [ ] **Step 5: Run** unit tests, typecheck, lint — pass.
 - [ ] **Step 6: Commit** `feat(collection): hideable Groups rail`.
 
-### Task 7: Search core
+### Task 7a: Search core (pure)
 
 **Files:**
-- Create: `src/lib/nav-search/search.ts`, `src/lib/nav-search/load.ts`, `src/lib/nav-search/__tests__/search.test.ts`
+- Create: `src/lib/nav-search/search.ts`, `src/lib/nav-search/__tests__/search.test.ts`
 
 **Interfaces:**
 - Consumes: `searchLabels`, `words`, `LabelDoc` (`src/lib/expressions/label-search.ts`); `loadLabelDocs(ownerId)` (`label-search-docs.ts`); `groupHref`, `RailGroup` (Task 6).
 - Produces (`search.ts`): `PER_GROUP = 3`; `type OwnedBottle = { id: number; expressionId: number; brand: string; name: string; category: string; proof: string | null; isOpen: boolean; fillPct: number }`; `type BrandRef = { id: number; name: string; labels: number; bottles: number }`; `type DistilleryRef = BrandRef & { place: string | null }`; `type NavSearchData = { labels: LabelDoc[]; ownedBottles: OwnedBottle[]; brands: BrandRef[]; distilleries: DistilleryRef[]; groups: RailGroup[] }`; `type NavRow = { key: string; title: string; detail: string; href: string }`; `type NavSearchResult = { bottles: NavRow[]; labels: NavRow[]; brands: NavRow[]; distilleries: NavRow[]; groups: NavRow[]; newLabelHref: string | null }`; `navSearch(data: NavSearchData, query: string): NavSearchResult`; `newLabelHref(query: string): string` (`/expressions/new?name=` + `encodeURIComponent` of the trimmed query).
-- Produces (`load.ts`): `loadNavSearchData(ownerId: number): Promise<NavSearchData>` (labels from `loadLabelDocs`; owned bottles from `bottleList` where `isOwnedNow`; brand and distillery rows with label and owned-bottle counts; groups). `// ponytail:` comment that it loads everything per query, fine at a few thousand labels, cache if it measures slow.
-
 Rules `navSearch` enforces: a label with an owned bottle appears under bottles (via its bottle row, href `/bottles/<id>`) and not under labels (href `/expressions/<id>`); brand href `/bottles?brand=<id>`; distillery href `/bottles?distillery=<id>`; brand, distillery and group names match when every typed word is contained in the name's `words()` text; at most `PER_GROUP` rows per group; an empty or no-word query returns all-empty groups and `newLabelHref: null`; otherwise `newLabelHref` is always set.
 
 - [ ] **Step 1: Write failing tests** with a fixture of Elijah Craig Barrel Proof (owned), Elijah Craig Small Batch (no bottle), Buffalo Trace (brand and distillery) and two groups. Assert: query `"elijah"` → bottles has Barrel Proof only, labels has Small Batch only, neither in both; `""`, `"   "` and `"!!"` → every group empty, `newLabelHref` null; `"Blanton's"`, `"blantons"` and `"BLANTON’S"` return the same label; a typed UPC of a fixture label returns it as the first row; five matching labels → three rows; `newLabelHref("elijah craig")` is `/expressions/new?name=elijah%20craig`; a 500-character query does not throw.
 - [ ] **Step 2: Run** `npx vitest run src/lib/nav-search` — expect FAIL.
-- [ ] **Step 3: Implement** `navSearch` over `searchLabels(data.labels, query, { limit: Number.POSITIVE_INFINITY })`, guarding the empty case before calling it. Implement `loadNavSearchData`.
+- [ ] **Step 3: Implement** `navSearch` over `searchLabels(data.labels, query, { limit: Number.POSITIVE_INFINITY })`, guarding the empty case before calling it.
 - [ ] **Step 4: Run** unit tests, typecheck, lint — pass.
-- [ ] **Step 5: Commit** `feat(search): nav search core and loader`.
+- [ ] **Step 5: Commit** `feat(search): nav search core`.
+
+### Task 7b: Search loader
+
+**Files:**
+- Create: `src/lib/nav-search/load.ts`, `src/lib/nav-search/__tests__/load.integration.test.ts`
+
+**Interfaces:**
+- Consumes: `NavSearchData` (Task 7a), `loadLabelDocs` (`src/lib/expressions/label-search-docs.ts`).
+- Produces: `loadNavSearchData(ownerId: number): Promise<NavSearchData>` — labels from `loadLabelDocs`; owned bottles from `bottleList` where `isOwnedNow` (`src/lib/bottles/grid.ts`); brand and distillery rows with label counts and owned-bottle counts; the owner's groups (`id`, `name`, `filterQuery`). Add a `// ponytail:` comment that it loads everything per query, fine at a few thousand labels, cache if it measures slow.
+
+- [ ] **Step 1: Write the integration test** following the opt-in pattern of `src/lib/bottles/__tests__/add-open.integration.test.ts`: seed one owned bottle, one label with no bottle, one brand, one distillery and one group for owner A, plus a label and a group for owner B; assert A's result has exactly A's rows (counts included) and none of B's.
+- [ ] **Step 2: Run** it on the throwaway DB — expect FAIL (module missing).
+- [ ] **Step 3: Implement** `loadNavSearchData`.
+- [ ] **Step 4: Run** the integration test on the throwaway DB, plus typecheck and lint — pass.
+- [ ] **Step 5: Commit** `feat(search): nav search loader`.
 
 ### Task 8: Search UI, shortcuts, narrow takeover
 
@@ -173,7 +187,7 @@ Rules `navSearch` enforces: a label with an owned bottle appears under bottles (
 
 **Files:**
 - Create: `e2e/navigation.spec.ts`
-- Modify: `e2e/polish.spec.ts` (~line 117), `e2e/tournaments.spec.ts` (~lines 245-259), `e2e/admin.spec.ts` (~line 16), `docs/DESIGN.md` §7 (and the root `DESIGN.md` §7 if it carries the same section)
+- Modify: `e2e/polish.spec.ts` (~line 117), `e2e/tournaments.spec.ts` (~lines 245-259), `e2e/admin.spec.ts` (~line 16), `DESIGN.md` §7 (the root file; there is no `docs/DESIGN.md`, though some code comments still cite that path)
 
 - [ ] **Step 1: Update** the three existing specs: "Open menu" stays the narrow Menu button's accessible name, now below 720px; the tournaments spec becomes "the Flights link is in the bar at 864px and in the menu below 720px" and asserts the page heading "Flights"; the admin spec reaches Configuration through the account menu's Library section.
 - [ ] **Step 2: Write** `navigation.spec.ts`: at 864px Collection, Journal, Flights and Numbers are visible and no Menu button exists; clicking Journal lands on `/journal` showing "Coming soon" with Journal marked current; `/` redirects to `/bottles`; `⌘K` opens search, typing a seeded brand shows Brands with a count, Enter on a bottle row opens `/bottles/<id>`; the footer link reaches `/expressions/new?name=…`; the Groups rail starts hidden at 864px, "Groups: All ›" shows it, and the choice survives a reload; the bulk editor at 864px has no rail and no Groups button; the account menu lists Library, You and Sign out, and Admin only for the admin; below 720px the magnifier opens the takeover and Cancel closes it.
