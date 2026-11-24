@@ -11,7 +11,7 @@ import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 import { FinishPairsInvalid, resolveFinishPairs, type FinishRowInput } from "./finish-pairs";
 import { ingredientAllowed, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
-import { categoryKindsById } from "./queries";
+import { categoryKindsById, categorySlugById } from "./queries";
 import { isGinKind } from "./gin-details";
 
 /**
@@ -367,7 +367,7 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
   }
   // A hidden field is not an edit. Keep previously recorded facts when a
   // category switch hides them, including legacy process facts.
-  const hidden = hiddenFields({ group, kind, values: input, ginAged: input.isAgedGin });
+  const hidden = hiddenFields({ group, kind, slug: (await categorySlugById(query))[input.categoryId] ?? null, values: input, ginAged: input.isAgedGin });
   for (const name of hidden) delete values[name];
   if (kind === "tequila" || kind === "mezcal") {
     delete values.barrelFilledOn; delete values.bottledOn; delete values.isNas;

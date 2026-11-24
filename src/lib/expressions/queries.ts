@@ -550,6 +550,12 @@ export async function categoryKindsById(query: Pick<typeof db, "select"> = db): 
   return categoryKinds(rows);
 }
 
+/** Each category's own slug, by category id (peat for American Single Malt is keyed by it). */
+export async function categorySlugById(query: Pick<typeof db, "select"> = db): Promise<Record<number, string>> {
+  const rows = await query.select({ id: categories.id, slug: categories.slug }).from(categories);
+  return Object.fromEntries(rows.map((row) => [row.id, row.slug]));
+}
+
 export async function categoryKindForExpression(expressionId: number): Promise<CategoryKind> {
   const [row] = await db.select({ categoryId: expressions.categoryId }).from(expressions)
     .where(eq(expressions.id, expressionId)).limit(1);

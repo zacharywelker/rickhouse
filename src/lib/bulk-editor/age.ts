@@ -49,7 +49,7 @@ const oneDecimal = (value: string, field: Field) => (field === "ageYears" && !/^
 // ---------------------------------------------------------------------------
 
 const labelHidden = (row: SheetRow, kinds: Kinds) =>
-  hiddenFields({ group: row.label.fieldGroup, kind: kinds[row.label.categoryId] ?? null, values: row.label as unknown as Record<string, unknown>, ginAged: row.label.isAgedGin === true });
+  hiddenFields({ group: row.label.fieldGroup, kind: kinds[row.label.categoryId] ?? null, slug: row.label.categorySlug ?? null, values: row.label as unknown as Record<string, unknown>, ginAged: row.label.isAgedGin === true });
 
 function labelLock(field: Field, label: SheetLabel): string | null {
   if (label.isNas) return "NAS: there is no age to enter.";

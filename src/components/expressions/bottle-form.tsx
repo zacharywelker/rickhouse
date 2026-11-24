@@ -22,7 +22,8 @@ import { OpenedLevel, SEALED } from "@/components/bottles/opened-level";
 import { withOption } from "@/lib/forms/values";
 import { AgeFields } from "./age-fields";
 import { releaseUnit } from "@/lib/bottles/terminology";
-import { BRANDY_MINIMUM_YEARS, hidesWarehouse, isAgaveKind } from "@/lib/expressions/spirit-details";
+import { bottleFieldNotUsed, type LabelFacts } from "@/lib/expressions/bottle-applicability";
+import { BRANDY_MINIMUM_YEARS, isAgaveKind } from "@/lib/expressions/spirit-details";
 import { isGinKind } from "@/lib/expressions/gin-details";
 import { withStatementAge } from "@/lib/expressions/whiskey-age";
 
@@ -138,6 +139,7 @@ export function BottleFields({
   const effectiveTequilaClass = String(values.tequilaClass || inheritedTequilaClass || "");
   const labelOption = options.expressionId?.find((option) => option.value === Number(values.expressionId));
   const ginAged = isGinKind(categoryKind) && (inheritedGinAged ?? labelOption?.isAgedGin) === true;
+  const labelFacts: LabelFacts = { group: fieldGroup, kind: categoryKind, isAgedGin: ginAged, tequilaClass: inheritedTequilaClass };
   const ginNas = values.ginIsNas === "true" || values.ginIsNas === true || ((values.ginIsNas === "" || values.ginIsNas == null) && (inheritedGinNas ?? labelOption?.isNas) === true);
   return (
     <>
@@ -161,17 +163,8 @@ export function BottleFields({
               : originalField.name === "barrelNumber"
                 ? { ...originalField, label: `${unitTitle} Number`, placeholder: `${unitTitle} 24` }
                 : originalField;
-            if ((field.name === "warehouse" || field.name === "rickFloor") && hidesWarehouse(fieldGroup, categoryKind)) return null;
-            if (fieldGroup === "vodka" && ["barrelFilledOn", "bottledOn", "ageYears", "ageMonths", "ageDays", "ageStatement"].includes(field.name)) return null;
-            if ((fieldGroup === "amaro" || fieldGroup === "liqueur") && ["proof", "barrelFilledOn", "bottledOn", "ageYears", "ageMonths", "ageDays", "ageStatement"].includes(field.name)) return null;
-            if ((field.name === "barrelFilledOn" || field.name === "bottledOn") && (isAgaveKind(categoryKind) || isGinKind(categoryKind))) return null;
-            if (["isSingleBarrel", "isSingleBarrelPick"].includes(field.name) && isGinKind(categoryKind) && !ginAged) return null;
-            if (field.name === "tequilaClass" && categoryKind !== "tequila") return null;
-            if (field.name === "brandyGrade" && !BRANDY_MINIMUM_YEARS[categoryKind]) return null;
-            if (field.name === "ageStatement" && (categoryKind === "tequila" || isGinKind(categoryKind))) return null;
-            if (field.name === "ginIsNas" && !ginAged) return null;
-            if (["ageYears", "ageMonths", "ageDays"].includes(field.name) && isGinKind(categoryKind) && !ginAged) return null;
-            if (["ageYears", "ageMonths", "ageDays"].includes(field.name) && categoryKind === "tequila" && effectiveTequilaClass === "blanco") return null;
+            // One function decides which bottle fields a label's spirit has (and the bulk editor asks the same one).
+            if (bottleFieldNotUsed(field.name, labelFacts, { tequilaClass: effectiveTequilaClass || null }) !== null) return null;
             if (!fieldVisible(field, values) || omit.includes(field.name)) return null;
             // Proof/ABV and the age triplet render as linked composites
             // rather than the generic field; see the label form for the same

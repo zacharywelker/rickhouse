@@ -26,10 +26,11 @@ const AGED_STATES: Record<FieldGroup, ReadonlyArray<boolean>> = {
   whiskey: [false], rum: [false], agave: [false], brandy: [false], gin: [false, true], vodka: [false], amaro: [false, true], liqueur: [false, true], other: [false],
 };
 
-/** Bottle fields `bottleFieldNotUsed` knows about; the other bottle rules live in the bottle form component. */
+/** Bottle fields `bottleFieldNotUsed` decides (the bottle form and the bulk editor both ask it). */
 const BOTTLE_FUNCTION_FIELDS = new Set([
   "barrelFilledOn", "bottledOn", "warehouse", "rickFloor", "ginIsNas", "tequilaClass", "brandyGrade", "ageStatement", "ageYears", "ageMonths",
-  "ageDays", "isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "bottleCount",
+  "ageDays", "isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "bottleCount", "batch", "releaseYear", "releaseId",
+  "proof", "sizeMl",
 ]);
 
 export type Gap = {

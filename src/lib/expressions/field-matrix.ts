@@ -140,9 +140,8 @@ export const LABEL_CONDITIONS: ReadonlyArray<Condition> = [
   { row: "Gin style", group: "gin", shown: ["gin"], hidden: ["genever"] },
 ];
 
-/** Conditions the check cannot decide from the kind alone, and what they wait on. */
+/** Conditions the check cannot decide from the kind alone, and what they wait on. (Peat for American Single Malt is decided by the category slug and pinned in rules.test.ts, not here.) */
 export const UNDECIDABLE: ReadonlyArray<{ row: string; why: string }> = [
-  { row: "Peat", why: "American Single Malt is a subcategory of kind american, so peat for it needs a key finer than the kind (section 6)." },
   { row: "Cask strength", why: "Rum shows it only when aged, and rum has no Aged toggle yet." },
   { row: "Barrel type", why: "No such field yet." },
 ];

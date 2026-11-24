@@ -152,7 +152,7 @@ export function LabelTableBody({
       {rows.map((row) => {
         const fieldGroup = row.fieldGroup;
         const kind = categoryKinds[row.categoryId] ?? "other";
-        const hidden = hiddenFields({ group: fieldGroup, kind, values: row as unknown as Record<string, unknown>, ginAged: row.isAgedGin === true });
+        const hidden = hiddenFields({ group: fieldGroup, kind, slug: row.categorySlug ?? null, values: row as unknown as Record<string, unknown>, ginAged: row.isAgedGin === true });
         return (
           <TableRow key={row.id} onDoubleClick={(event) => openOnDoubleClick(event, router, row.id)} className="cursor-pointer">
             {shown.map(({ column, group }) => {

@@ -144,12 +144,13 @@ export function ExpressionFields({
   const categoryRaw = values.categoryId;
   const categoryId = typeof categoryRaw === "string" && categoryRaw !== "" ? Number(categoryRaw) : null;
   const fieldGroup: FieldGroup = (categoryId !== null ? categoryGroups[categoryId] : undefined) ?? "other";
-  const singleMalt = isSingleMaltCategory(options.categoryId?.find((option) => option.value === categoryId)?.slug);
+  const categorySlug = options.categoryId?.find((option) => option.value === categoryId)?.slug;
+  const singleMalt = isSingleMaltCategory(categorySlug);
   const kind: CategoryKind | null = categoryKinds ? (categoryId !== null ? (categoryKinds[categoryId] ?? "other") : "other") : null;
 
   // A gin is unaged until it is marked aged; one that already has an age opens as aged.
   const ginAged = values.isAgedGin === true || (values.isAgedGin == null && looksAged(values, links.finishes.length));
-  const context = { group: fieldGroup, kind, values, ginAged };
+  const context = { group: fieldGroup, kind, slug: categorySlug ?? null, values, ginAged };
   const hidden = hiddenFields(context);
   const regions = parseRegions(values.regions);
   // NAS greys out the age and its statement, and an age filled in greys out the statement; Cask Strength greys out
