@@ -4,10 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
-import { Menu, X } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NARROW_QUERY, PLACES, isCurrent } from "@/components/nav/nav-items";
+import { NavSearch } from "@/components/nav/nav-search";
+import { OPEN_SEARCH_EVENT } from "@/lib/nav-search/shortcuts";
 
 /**
  * The header nav (DESIGN.md §7, docs/superpowers/specs/2026-11-23-web-navigation-redesign-design.md).
@@ -36,6 +38,20 @@ export function AppNav({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+  // Below 720px the search takes over the bar.
+  const [searchOpen, setSearchOpen] = React.useState(false);
+
+  // ⌘K or "/" on a narrow screen opens the takeover; on a wide one the inline field answers the same event itself.
+  React.useEffect(() => {
+    const onOpenSearch = () => {
+      if (window.matchMedia(NARROW_QUERY).matches) {
+        setOpen(false);
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener(OPEN_SEARCH_EVENT, onOpenSearch);
+    return () => window.removeEventListener(OPEN_SEARCH_EVENT, onOpenSearch);
+  }, []);
 
   // Navigating closes the panel, including from a link inside the account sections.
   const [prevPathname, setPrevPathname] = React.useState(pathname);
@@ -99,8 +115,13 @@ export function AppNav({
   );
 
   return (
-    <header className="border-b border-border">
-      <div className={cn("mx-auto flex w-full items-center gap-6 px-4 py-3 sm:px-6", !wide && "max-w-page")}>
+    <header className="relative border-b border-border">
+      {searchOpen ? (
+        <div className={cn("mx-auto flex w-full items-center px-4 py-2 sm:px-6 min-[720px]:hidden", !wide && "max-w-page")}>
+          <NavSearch variant="takeover" onClose={() => setSearchOpen(false)} />
+        </div>
+      ) : null}
+      <div className={cn("mx-auto flex w-full items-center gap-6 px-4 py-3 sm:px-6", !wide && "max-w-page", searchOpen && "max-[719px]:hidden")}>
         <Link href="/bottles" className="text-lg font-bold uppercase tracking-wide text-foreground">
           Rickhouse
         </Link>
@@ -110,6 +131,23 @@ export function AppNav({
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <div className="hidden min-[720px]:block">
+            <NavSearch variant="inline" />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-11 min-w-11 min-[720px]:hidden"
+            aria-label="Search"
+            title="Search"
+            onClick={() => {
+              setOpen(false);
+              setSearchOpen(true);
+            }}
+          >
+            <Search className="size-4" aria-hidden />
+          </Button>
           <div className="hidden min-[720px]:block">{userMenu}</div>
           <Button
             type="button"
