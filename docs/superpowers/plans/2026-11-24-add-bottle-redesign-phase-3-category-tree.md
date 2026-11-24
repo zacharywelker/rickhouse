@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status (2026-11-24): built** as PRs #408 (tree and kinds), #409 (migration, seed, smart groups, consumer tests) and #410 (the field matrix); the "As built" section at the end records what differed. Not merged at the time of writing.
+
 **Goal:** Move the shared category tree to the target in the design record (section 5), give every new subcategory its own kind (section 6), and encode the field matrix (sections 7 and 8) as data with a test that shows where today's rules differ from it. No form changes: those are phase 4.
 
 **Architecture:** Every existing category keeps its `id` and `slug`, so **no label, bottle or smart group is re-pointed**: the migration only changes parents, names and sort order, and adds new rows. One module, `src/lib/categories/tree.ts`, becomes the single source for the tree (the seed and the tests import it). Kinds are still derived from slugs by walking parents (`categoryKinds`), extended with the new kinds. The only data that references the old shape is saved smart groups (a `category=` id list in `groups.filter_query`), which a step in the migration rewrites.
@@ -136,3 +138,37 @@ Codex (pure functions, vitest only): Task 1, and the `shownBy` helper and the ma
 - **Spec coverage:** section 5 is Tasks 1 to 3; section 6 is Task 1; sections 7 and 8 are Task 6 (data and gaps only; the rule changes are phase 4); the retired columns of section 12 are explicitly deferred. The photo model, the category colours and the unreviewed categories (Irish, Canadian, Japanese, International and Flavored rules) are not part of this phase.
 - **Not verified while planning:** how the iOS app handles an unknown `kind` and a changed `parent` (Review Focus 4, read in Task 5); that `categoryWheelMap` depends only on slug and parent (read in Task 5); how many saved groups exist (the dev database has none worth counting); whether an old build of the app caches the category list.
 - **Proportion:** each task gives signatures, test cases and the values the spec fixes; the SQL and the bodies are left to the implementer.
+
+
+---
+
+## As built
+
+| Task | PR | Written by | Reviewed by |
+|---|---|---|---|
+| 1 Shared tree and kinds | #408 | Codex (committed from the main session) | Sonnet, Codex on GitHub |
+| 2 Migration `0055`, rollback | #409 | main session | Sonnet, Codex on GitHub |
+| 3 Seed | #409 | main session | same |
+| 4 Smart groups | #409 | main session | same |
+| 5 Consumers of the parent chain | #409 | main session | same |
+| 6 Field matrix as data | #410 | main session | Sonnet |
+
+**Where the build differs from the tasks**
+
+- **The smart-group rewrite had to read `%2C`.** The app stores a saved group with `serialiseFilters`, which percent-encodes the comma (`category=12%2C40`). The first version of the SQL read only a literal comma and would have kept one id, or skipped a group where Whiskey was not first. The test now stores groups with `serialiseFilters` and reads them back with `parseFilters`, and it fails against the first version.
+- **A fresh database is not empty after the migrations**: `0047` inserts Amaro and Liqueur and `0055` inserts `other` and its children. The seed test therefore runs the whole migration sequence and then the seed and checks the result equals `CATEGORY_TREE`, in a database the test creates and drops.
+- **The rollback deletes only rows the migration inserted.** The migration records their ids in `category_migration_0055_added` (left in place after the forward migration; the rollback drops it), because matching on slug and name would delete an admin's own row (Codex review). The rollback also restores the old sort order.
+- **Task 5 needed no code change.** Kinds, tasting wheels, the grid and roulette category subtree and the grid's whiskey kind all go by slug and parent and give an old category the same answer in both trees (`consumers.test.ts`, pure). Category colours were left alone: new categories take the default colour or one their name already matches.
+- **Task 6 found 32 differences, not the 29 first counted.** The first version skipped every conditional cell. The check now also evaluates the conditions the record gives by kind (`LABEL_CONDITIONS`), which added NAS for Cognac, Armagnac and Calvados and Peat for Japanese and International. About half the bottle differences exist only in `bottleFieldNotUsed`, which the bulk editor reads; the bottle form component already hides those fields, and the list says which is which. A coverage test requires every form field to be a row, an always-field or listed as unmentioned (rum's tropical and continental aging years).
+
+**Known and open**
+
+- **Old iOS builds** group the category picker by parent name, so American Whiskey, Scotch Whisky and Irish Whiskey appear under "Other" until the app is updated. An unknown `kind` string is treated as other.
+- **Existing rows are not rewritten** for the migration's sort order beyond what it sets; an admin-made category that collides on name under the same parent makes a new row skip silently.
+- **Colours** for the new categories are the owner's later job.
+
+**Lessons for the next plan**
+
+- Test a data migration against data written the way the app writes it, not the way the migration's author expects: use the app's own serialiser and parser.
+- Do not assume a fresh install is empty; run the real sequence.
+- A test that creates and drops its own database keeps opt-in database tests from interfering with each other.
