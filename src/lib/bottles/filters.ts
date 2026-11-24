@@ -70,6 +70,8 @@ export type BottleFilters = {
   ingredientIds: number[];
   storeIds: number[];
   tagIds: number[];
+  /** One of the owner's groups: only the bottles in it. The Groups rail on Collection sets this for a hand-picked group. */
+  groupId: number | null;
   statuses: BottleStatus[];
   open: OpenState;
   favorite: boolean;
@@ -103,6 +105,7 @@ export const DEFAULT_FILTERS: BottleFilters = {
   ingredientIds: [],
   storeIds: [],
   tagIds: [],
+  groupId: null,
   statuses: DEFAULT_STATUSES,
   open: "any",
   favorite: false,
@@ -165,6 +168,11 @@ function isoDate(raw: string | null): string | null {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === raw ? raw : null;
 }
 
+/** A positive whole number, else null: `group=abc`, `group=0` and `group=3,4` are all "no group". */
+function positiveId(raw: string | null): number | null {
+  return raw !== null && /^[1-9]\d{0,9}$/.test(raw) ? Number(raw) : null;
+}
+
 function acquisitionList(raw: string | null): Acquisition[] {
   if (raw === null) return [];
   const seen = new Set<Acquisition>();
@@ -192,6 +200,7 @@ export function parseFilters(params: Params): BottleFilters {
     ingredientIds: idList(params, "ingredient"),
     storeIds: idList(params, "store"),
     tagIds: idList(params, "tag"),
+    groupId: positiveId(first(params, "group")),
     statuses: parseStatuses(first(params, "status")),
     open: (OPEN_STATES as readonly string[]).includes(openRaw ?? "") ? (openRaw as OpenState) : "any",
     favorite: first(params, "fav") === "1",
@@ -234,6 +243,7 @@ export function serialiseFilters(filters: BottleFilters): string {
   ids("ingredient", filters.ingredientIds);
   ids("store", filters.storeIds);
   ids("tag", filters.tagIds);
+  if (filters.groupId !== null) params.set("group", String(filters.groupId));
   if (!isDefaultStatuses(filters.statuses)) params.set("status", filters.statuses.length > 0 ? filters.statuses.join(",") : "all");
   if (filters.open !== "any") params.set("open", filters.open);
   if (filters.favorite) params.set("fav", "1");
@@ -277,6 +287,7 @@ export function activeFilterCount(filters: BottleFilters): number {
   count += filters.ingredientIds.length > 0 ? 1 : 0;
   count += filters.storeIds.length > 0 ? 1 : 0;
   count += filters.tagIds.length > 0 ? 1 : 0;
+  count += filters.groupId !== null ? 1 : 0;
   count += isDefaultStatuses(filters.statuses) ? 0 : 1;
   count += filters.open !== "any" ? 1 : 0;
   count += filters.favorite ? 1 : 0;

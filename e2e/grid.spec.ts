@@ -138,3 +138,30 @@ test("sorting is server-side and reflected in the URL", async ({ page }) => {
   await page.getByRole("button", { name: "Sort by Proof" }).click();
   await expect(page).toHaveURL(/dir=asc/);
 });
+
+test("a hand-picked group's id in the URL shows only its bottles, and an id that is not yours shows none", async ({ page }) => {
+  await page.goto("/groups/new");
+  await page.getByLabel("Name").fill("Shelf one");
+  await page.getByRole("button", { name: "Create group" }).click();
+  await expect(page).toHaveURL(/\/groups\/\d+/);
+  const groupId = new URL(page.url()).pathname.match(/\/groups\/(\d+)/)![1];
+  const bottle = page.getByRole("link", { name: "Double Oak Spirit" });
+
+  // An empty group shows nothing.
+  await page.goto(`/bottles?group=${groupId}`);
+  await expect(bottle).toHaveCount(0);
+
+  // Put the seeded bottle in it, from the bottle's own page.
+  await page.goto("/bottles");
+  await bottle.click();
+  await page.getByRole("button", { name: "Add to group" }).click();
+  await page.getByText("Shelf one").click();
+  await expect(page.getByRole("link", { name: "Shelf one" })).toBeVisible();
+
+  await page.goto(`/bottles?group=${groupId}`);
+  await expect(bottle).toBeVisible();
+
+  // A group id that does not exist for this account matches nothing.
+  await page.goto("/bottles?group=999999");
+  await expect(bottle).toHaveCount(0);
+});

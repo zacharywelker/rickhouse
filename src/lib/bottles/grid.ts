@@ -108,6 +108,14 @@ function buildWhere(filters: BottleFilters, ownerId: number): SQL | undefined {
   if (filters.categoryIds.length > 0) clauses.push(categorySubtree(filters.categoryIds));
   if (filters.brandIds.length > 0) clauses.push(inArray(bottleList.brandId, filters.brandIds));
   if (filters.storeIds.length > 0) clauses.push(inArray(bottleList.storeId, filters.storeIds));
+  // A hand-picked group's members. The group must be the caller's own, so someone else's (or a deleted) group id matches nothing.
+  if (filters.groupId !== null) {
+    clauses.push(sql`${bottleList.id} IN (
+      SELECT gb.bottle_id FROM group_bottles gb
+        JOIN groups g ON g.id = gb.group_id
+       WHERE gb.group_id = ${filters.groupId} AND g.owner_id = ${ownerId}
+    )`);
+  }
   if (filters.statuses.length > 0) {
     clauses.push(
       or(
