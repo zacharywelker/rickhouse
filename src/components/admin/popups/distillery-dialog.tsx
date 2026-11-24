@@ -48,7 +48,8 @@ function DistilleryDialogBody({ onOpenChange, initialName, defaultCountry, kind,
   const [city, setCity] = React.useState("");
   const [state, setState] = React.useState("");
   const [country, setCountry] = React.useState(defaultCountry ?? "USA");
-  const [identifier, setIdentifier] = React.useState("");
+  // One value per kind of identifier, so changing the country after typing never files a DSP number as a NOM.
+  const [identifiers, setIdentifiers] = React.useState<Record<"dsp" | "nom" | "region", string>>({ dsp: "", nom: "", region: "" });
   const [founded, setFounded] = React.useState("");
   const [defunct, setDefunct] = React.useState(false);
   const [otherNames, setOtherNames] = React.useState("");
@@ -77,6 +78,10 @@ function DistilleryDialogBody({ onOpenChange, initialName, defaultCountry, kind,
   const place = normalizeCountry(country);
   const kindOrOther: CategoryKind = kind ?? "other";
   const chip = placeIdentifier(kindOrOther, place);
+  const identifier = chip === null ? "" : identifiers[chip];
+  const setIdentifier = (value: string) => {
+    if (chip !== null) setIdentifiers((prev) => ({ ...prev, [chip]: value }));
+  };
   const expected = kind ? countryForKind(kind) : null;
   const countryFits = expected === null || place.toLowerCase() === expected.toLowerCase() || (expected === "Scotland" && isScotchCountry(place));
   const duplicate = tidy === "" ? undefined : existing.find((option) => option.label.toLowerCase() === tidy.toLowerCase());
@@ -108,7 +113,7 @@ function DistilleryDialogBody({ onOpenChange, initialName, defaultCountry, kind,
       const stateValue = normalizeState(state, place);
       if (stateValue !== "") form.set("state", stateValue);
       form.set("country", place);
-      if (identifier.trim() !== "") {
+      if (chip !== null && identifier.trim() !== "") {
         form.set(chip === "dsp" ? "dspNumber" : chip === "nom" ? "nomNumber" : "region", identifier.trim());
       }
       if (founded.trim() !== "") form.set("founded", founded.trim());

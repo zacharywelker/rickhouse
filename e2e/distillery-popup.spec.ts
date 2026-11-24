@@ -115,6 +115,24 @@ test("a name that already exists blocks Save and offers Use it", async ({ page }
   await expect(page.getByRole("button", { name: "Remove Far North Spirits" })).toBeVisible();
 });
 
+test("an identifier typed for one country is not saved under another kind", async ({ page }) => {
+  await newLabel(page, "Bourbon");
+  await openPopup(page, "Border Works");
+  const dialog = page.getByRole("dialog", { name: "Add distillery" });
+  await dialog.getByLabel("DSP").fill("DSP-KY-1");
+  await dialog.getByLabel("Country").fill("Mexico");
+  await expect(dialog.getByLabel("NOM")).toHaveValue("");
+  await dialog.getByRole("button", { name: "Save distillery" }).click();
+  await expect(dialog).toBeHidden();
+  const db = sql();
+  try {
+    const [row] = await db<{ dsp_number: string | null; nom_number: string | null }[]>`SELECT dsp_number, nom_number FROM distilleries WHERE name = 'Border Works'`;
+    expect(row).toEqual({ dsp_number: null, nom_number: null });
+  } finally {
+    await db.end();
+  }
+});
+
 test("a country that does not fit the spirit warns but still saves", async ({ page }) => {
   await newLabel(page, "Bourbon");
   await openPopup(page, "Odd Country Works");
