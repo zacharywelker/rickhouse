@@ -187,10 +187,29 @@ Tape and marker appear only for facts a person would write on a real bottle:
 
 # 7. Navigation
 
-**Desktop:** Collection, Labels, Tournaments, Groups, Numbers, and a user menu
-containing Settings (Config moves into it). On the web the header row needs
-about 1050px with Tournaments in it, so it collapses to the menu disclosure
-below `xl` (1280px) rather than scrolling sideways at 1024px.
+**Web (top bar):** four places, **Collection, Journal, Flights, Numbers**
+(Flights is the web name for Tournaments), then a search and the account menu
+under the user's name. The bar is typographic: uppercase links, the current page
+marked by a rule beneath it, no icons but the search magnifier. It fits at
+~864px (half of a 16" laptop screen), so nothing hides behind a menu there.
+Design record: `docs/superpowers/specs/2026-11-23-web-navigation-redesign-design.md`.
+
+- **Collection** is the landing page; there is no Home. Its Groups sit in a
+  hideable rail on the Collection page only (never on the bulk editor). The rail
+  starts hidden under ~1100px and the choice is remembered. Picking a group stays
+  on the Collection, filtered.
+- **Journal** is the web tasting log; until it is designed it is a "Coming soon"
+  page.
+- **Search** (`⌘K` anywhere; `/` focuses the Collection's filter box, or opens
+  search on pages without one): grouped results, top three each — Your bottles,
+  Labels (only labels with no owned bottle), Brands, Distilleries, Groups — and
+  "Add … as a new label" when nothing fits. It searches the user's own data.
+  Tastings and "Log tasting" arrive with the Journal.
+- **Account menu:** Library (Labels, Housekeeping, Configuration), You (Account
+  settings with the currency preference, Appearance: System / Light / Dark, Sign
+  out), and Admin for admins (Users & sign-in, Backups).
+- **Under 720px:** logo, a search button and a Menu button; the menu holds the
+  four places and the account sections, and search takes over the bar.
 
 **Mobile tab bar,** five icon-only slots (iOS SF Symbols shown):
 
