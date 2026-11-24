@@ -53,6 +53,24 @@ export function GroupsRail({
     }
   };
 
+  // The narrow dropdown closes on Escape or a click elsewhere, like the app's other disclosures.
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    const onPointer = (event: MouseEvent) => {
+      if (!dropdownRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [menuOpen]);
+
   const current = groups.find((group) => group.id === currentId) ?? null;
   const label = current?.name ?? "All";
 
@@ -103,7 +121,7 @@ export function GroupsRail({
 
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         {/* On a wide screen the button only shows while the rail is hidden; below 720px it is always the way in. */}
-        <div className={cn("relative", open && "min-[720px]:hidden")}>
+        <div ref={dropdownRef} className={cn("relative", open && "min-[720px]:hidden")}>
           <button
             type="button"
             aria-expanded={menuOpen}

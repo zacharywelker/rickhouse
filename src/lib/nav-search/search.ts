@@ -43,10 +43,13 @@ export function navSearch(data: NavSearchData, query: string): NavSearchResult {
   if (terms.length === 0) return result;
   result.newLabelHref = newLabelHref(query);
 
+  const ownedByLabel = new Map<number, OwnedBottle[]>();
+  for (const bottle of data.ownedBottles) ownedByLabel.set(bottle.expressionId, [...(ownedByLabel.get(bottle.expressionId) ?? []), bottle]);
+
   const hits = searchLabels(data.labels, query, { limit: Number.POSITIVE_INFINITY }).hits;
   for (const { doc, group } of hits) {
     if (group !== "label") continue;
-    const owned = data.ownedBottles.filter((bottle) => bottle.expressionId === doc.id);
+    const owned = ownedByLabel.get(doc.id) ?? [];
     if (owned.length > 0) {
       for (const bottle of owned) {
         result.bottles.push({

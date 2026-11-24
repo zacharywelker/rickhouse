@@ -24,14 +24,14 @@ type Option = { id: string; heading: string | null; row: NavRow; action: string 
 /** Anything worth searching has a letter or digit in it. */
 const HAS_WORDS = /[\p{L}\p{N}]/u;
 
-function optionsFor(result: NavSearchResult | null, query: string): Option[] {
+function optionsFor(result: NavSearchResult | null, query: string, variant: string): Option[] {
   if (!result) return [];
   const options: Option[] = GROUPS.flatMap(([heading, key, action]) =>
-    result[key].map((row, index) => ({ id: `nav-search-${row.key}`, heading: index === 0 ? heading : null, row, action })),
+    result[key].map((row, index) => ({ id: `nav-search-${variant}-${row.key}`, heading: index === 0 ? heading : null, row, action })),
   );
   if (result.newLabelHref) {
     options.push({
-      id: "nav-search-new",
+      id: `nav-search-${variant}-new`,
       heading: null,
       row: { key: "new", title: `Add “${query.trim()}” as a new label`, detail: "", href: result.newLabelHref },
       action: null,
@@ -59,13 +59,14 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
   const latest = React.useRef(0);
 
   const [query, setQuery] = React.useState("");
-  const [answer, setAnswer] = React.useState<NavSearchResult | null>(null);
+  // The answer keeps the query it was for, so the "Add ..." row says what its link actually carries.
+  const [answer, setAnswer] = React.useState<{ query: string; result: NavSearchResult } | null>(null);
   const [focused, setFocused] = React.useState(variant === "takeover");
   const [active, setActive] = React.useState(0);
 
   const hasWords = HAS_WORDS.test(query);
-  const result = hasWords ? answer : null;
-  const options = optionsFor(result, query);
+  const result = hasWords ? (answer?.result ?? null) : null;
+  const options = optionsFor(result, answer?.query ?? query, variant);
   const showPanel = focused && result !== null;
   const listId = `nav-search-list-${variant}`;
 
@@ -76,10 +77,14 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
     }
     const mine = ++latest.current;
     const timer = setTimeout(async () => {
-      const next = await navSearchAction(query);
-      if (mine !== latest.current) return;
-      setAnswer(next);
-      setActive(0);
+      try {
+        const next = await navSearchAction(query);
+        if (mine !== latest.current) return;
+        setAnswer({ query, result: next });
+        setActive(0);
+      } catch {
+        // A failed request (an expired session, a network blip) leaves the last answer in place.
+      }
     }, 150);
     return () => clearTimeout(timer);
   }, [query, hasWords]);
@@ -112,9 +117,20 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
     if (variant === "inline") inputRef.current?.blur();
   }, [pathname, variant]);
 
+  // Choosing a result closes the search. Keying this on the path alone is not enough: a brand, distillery or
+  // group result from the Collection only changes the query string.
+  const dismiss = () => {
+    setQuery("");
+    setAnswer(null);
+    setFocused(variant === "takeover");
+    inputRef.current?.blur();
+    onClose?.();
+  };
+
   const go = (option: Option | undefined) => {
     if (!option) return;
     router.push(option.row.href as Route);
+    dismiss();
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -156,7 +172,7 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
           role="combobox"
           aria-label="Search bottles and labels"
           aria-expanded={showPanel}
-          aria-controls={listId}
+          aria-controls={showPanel ? listId : undefined}
           aria-activedescendant={showPanel ? options[active]?.id : undefined}
           aria-autocomplete="list"
           autoComplete="off"
@@ -199,7 +215,6 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
           onMouseDown={(event) => event.preventDefault()}
         >
           <ul id={listId} role="listbox" aria-label="Search results">
-            {options.length === 0 ? <li className="px-3 py-3 text-sm text-muted-foreground">Nothing found.</li> : null}
             {options.map((option, index) => (
               <React.Fragment key={option.id}>
                 {option.heading ? (
@@ -213,7 +228,7 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
                   aria-selected={index === active}
                   className={cn(
                     "border-t border-border/60",
-                    option.id === "nav-search-new" && "border-t-foreground bg-muted",
+                    option.row.key === "new" && "border-t-foreground bg-muted",
                     index === active && option.id !== "nav-search-new" && "bg-muted",
                   )}
                 >
@@ -221,10 +236,11 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
                     href={option.row.href as Route}
                     tabIndex={-1}
                     onMouseEnter={() => setActive(index)}
+                    onClick={dismiss}
                     className="flex min-h-11 items-center justify-between gap-3 px-3 py-2 text-sm"
                   >
                     <span className="min-w-0">
-                      <span className={cn("block truncate", option.id === "nav-search-new" ? "font-medium" : "")}>{option.row.title}</span>
+                      <span className={cn("block truncate", option.row.key === "new" ? "font-medium" : "")}>{option.row.title}</span>
                       {option.row.detail ? <span className="block truncate text-xs text-muted-foreground">{option.row.detail}</span> : null}
                     </span>
                     {option.action ? <span className="shrink-0 border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">{option.action}</span> : null}
