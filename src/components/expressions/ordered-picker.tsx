@@ -64,6 +64,7 @@ export function OrderedPicker({
   undisclosable = false,
   onOptionCreated,
   defaultCountry,
+  detailNoun,
   brand,
   matchesOption,
   renderRowExtra,
@@ -77,6 +78,8 @@ export function OrderedPicker({
   resource: ReferenceResource | null;
   options: Option[];
   defaultCountry?: string;
+  /** "cask type" where a finish is called that; passed to the add-details popup. */
+  detailNoun?: string;
   brand?: Option;
   matchesOption?: (option: Option) => boolean;
   emptyHint?: string;
@@ -144,6 +147,8 @@ export function OrderedPicker({
   };
 
   const addRow = (option: Option) => {
+    // "Use it" in an add-details popup can hand back a row this label already has.
+    if (value.some((row) => row.id === option.value)) return;
     setOptionNotice("");
     const distilleryId = soloDistillery ? soloDistillery.id : null;
     onChange([
@@ -316,6 +321,7 @@ export function OrderedPicker({
         options={selectable}
         brand={brand}
         {...(defaultCountry ? { defaultCountry } : {})}
+        {...(detailNoun ? { detailNoun } : {})}
         value={null}
         onChange={(next) => {
           if (next === null) return;
