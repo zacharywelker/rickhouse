@@ -19,7 +19,7 @@ export function hasBlocking(problems: readonly Problem[]): boolean {
 const KEEP_UPPER = new Set(["PX", "NAS", "XO", "VS", "VSOP", "USA", "UK", "IPA", "BIB", "II", "III", "IV"]);
 
 /** A letter followed later in the word by a capital ("McKenna", "DeKuyper") was typed that way on purpose. */
-const INTERNAL_CAPITAL = /[a-z][A-Z]/;
+const INTERNAL_CAPITAL = /\p{Ll}\p{Lu}/u;
 
 function titleWord(word: string): string {
   if (INTERNAL_CAPITAL.test(word)) return word;
@@ -28,7 +28,7 @@ function titleWord(word: string): string {
   return word
     .split("-")
     // The first letter, not the first character: "(low" becomes "(Low".
-    .map((part) => part.toLowerCase().replace(/[a-z]/, (letter) => letter.toUpperCase()))
+    .map((part) => part.toLowerCase().replace(/\p{L}/u, (letter) => letter.toUpperCase()))
     .join("-");
 }
 
