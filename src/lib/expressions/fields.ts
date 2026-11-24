@@ -72,7 +72,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         kind: "textarea",
         name: "description",
         label: "Description",
-        help: "Anything worth knowing, including what the bottle label says as printed: \"Distilled in Indiana\", \"Bottled by …\". Bottlers and places live here, not in their own fields.",
+        help: "Anything worth knowing that has no field of its own, including what the label says as printed. Who distilled it goes in Distilled by.",
       },
     ],
   },

@@ -125,3 +125,14 @@ describe("writableFields", () => {
     expect([...everyField].filter((name) => !union.has(name))).toEqual([]);
   });
 });
+
+describe("Description help", () => {
+  it("no longer says bottlers live here, and points at Distilled by", () => {
+    const description = EXPRESSION_SECTIONS.flatMap((s) => s.fields).find((f) => f.name === "description");
+    if (!description || !("help" in description) || typeof description.help !== "string") {
+      throw new Error("no description field with help");
+    }
+    expect(description.help).not.toContain("live here");
+    expect(description.help).toContain("Distilled by");
+  });
+});
