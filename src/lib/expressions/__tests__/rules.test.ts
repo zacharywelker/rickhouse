@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categoryKinds, hiddenFields, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
+import { categoryKinds, hiddenFields, proofAfterBondToggle, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
 import { writableFields } from "../fields";
 import { expressionSchema } from "../schema";
 
@@ -286,5 +286,27 @@ describe("withBondProof", () => {
     expect(withBondProof({ proof: "90" }, false)).toEqual({ proof: "90" });
     expect(withBondProof({ isBottledInBond: false, proof: "90" }, true)).toEqual({ isBottledInBond: false, proof: "90" });
     expect(withBondProof({ name: "x" }, true)).toEqual({ name: "x" });
+  });
+});
+
+describe("proofAfterBondToggle", () => {
+  it("stashes the earlier proof when Bottled in Bond is ticked", () => {
+    expect(proofAfterBondToggle({ bonded: true, proof: "117.9", stashed: null })).toEqual({ proof: "100", stashed: "117.9" });
+  });
+
+  it("restores the earlier proof when Bottled in Bond is unticked", () => {
+    expect(proofAfterBondToggle({ bonded: false, proof: "100", stashed: "117.9" })).toEqual({ proof: "117.9", stashed: null });
+  });
+
+  it("keeps a hand-edited proof when Bottled in Bond is unticked and clears the stash", () => {
+    expect(proofAfterBondToggle({ bonded: false, proof: "101", stashed: "117.9" })).toEqual({ proof: "101", stashed: null });
+  });
+
+  it("keeps the proof when Bottled in Bond is unticked without a stash", () => {
+    expect(proofAfterBondToggle({ bonded: false, proof: "100", stashed: null })).toEqual({ proof: "100", stashed: null });
+  });
+
+  it("keeps an existing stash when ticking with proof already at 100", () => {
+    expect(proofAfterBondToggle({ bonded: true, proof: "100", stashed: "117.9" })).toEqual({ proof: "100", stashed: "117.9" });
   });
 });

@@ -28,6 +28,7 @@ import {
   nameContextFor,
   nameSays,
   parseRegions,
+  proofAfterBondToggle,
   proofSpread,
   spreadLabel,
   showsFinishes,
@@ -139,6 +140,7 @@ export function ExpressionFields({
   errors: Record<string, string>;
   idPrefix?: string;
 }) {
+  const stashedProof = React.useRef<string | null>(null);
   const categoryRaw = values.categoryId;
   const categoryId = typeof categoryRaw === "string" && categoryRaw !== "" ? Number(categoryRaw) : null;
   const fieldGroup: FieldGroup = (categoryId !== null ? categoryGroups[categoryId] : undefined) ?? "other";
@@ -174,6 +176,13 @@ export function ExpressionFields({
       const manual = (links.ingredients ?? []).filter((item) => item.kind !== "botanical" || item.isManual !== false);
       const present = botanical && manual.some((item) => item.kind === "botanical" && item.name.toLocaleLowerCase() === botanical.toLocaleLowerCase());
       onLinksChange({ ...links, ingredients: botanical && !present ? [...manual, { name: botanical, kind: "botanical", isManual: false }] : manual });
+    }
+    if (name === "isBottledInBond") {
+      const next = proofAfterBondToggle({ bonded: value === true, proof: String(values.proof ?? ""), stashed: stashedProof.current });
+      stashedProof.current = next.stashed;
+      onChange(name, value);
+      if (next.proof !== String(values.proof ?? "")) onChange("proof", next.proof);
+      return;
     }
     onChange(name, value);
   };

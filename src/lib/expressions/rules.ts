@@ -263,6 +263,17 @@ export const showsRegions = (context: Pick<FormContext, "kind">) => context.kind
 /** Bottled in Bond is 100 proof, always: 50% ABV. */
 export const BOND_PROOF = "100";
 
+/** Restore the pre-bond proof on untick unless it has since been edited by hand. */
+export function proofAfterBondToggle(input: {
+  bonded: boolean;
+  proof: string;
+  stashed: string | null;
+}): { proof: string; stashed: string | null } {
+  const { bonded, proof, stashed } = input;
+  if (bonded) return { proof: BOND_PROOF, stashed: proof === BOND_PROOF ? stashed : proof };
+  return { proof: proof === BOND_PROOF && stashed !== null ? stashed : proof, stashed: null };
+}
+
 /**
  * A partial edit (the phone's) with the bond rule applied: a label that is, or is being made, Bottled In Bond is
  * 100 proof whenever the edit touches proof or the tick. A proof sent alone for a bonded label is overridden too.
