@@ -13,6 +13,10 @@ export type LabelFacts = { group: FieldGroup | null; kind: CategoryKind; isAgedG
  */
 export function bottleFieldNotUsed(name: string, label: LabelFacts, own: { tequilaClass?: string | null } = {}): string | null {
   const { group, kind } = label;
+  if ((group === "vodka" || group === "amaro" || group === "liqueur") && ["batch", "releaseYear", "releaseId", "isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "barrelFilledOn", "bottledOn", "ageYears", "ageMonths", "ageDays", "ageStatement"].includes(name)) return "Not used for this spirit";
+  if (name === "proof" && (group === "amaro" || group === "liqueur")) return "Not used for this spirit";
+  if (name === "releaseId" && isGinKind(kind)) return "Not used for this spirit";
+  if (name === "releaseId" && kind === "tequila") return "Only for mezcal";
   if ((name === "barrelFilledOn" || name === "bottledOn") && (isAgaveKind(kind) || isGinKind(kind))) return "Not used for this spirit";
   if ((name === "warehouse" || name === "rickFloor") && hidesWarehouse(group ?? "", kind)) return "Not used for this spirit";
   if (isGinKind(kind) && !label.isAgedGin && ["isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "bottleCount", "ageYears", "ageMonths", "ageDays", "ginIsNas"].includes(name)) return "Only for aged gin";

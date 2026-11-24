@@ -36,7 +36,7 @@ export const BRANDY_MINIMUM_YEARS: Partial<Record<CategoryKind, Record<BrandyGra
 export const isAgaveKind = (kind: CategoryKind | null) => kind === "tequila" || kind === "mezcal";
 export const isFrenchBrandy = (kind: CategoryKind | null) => kind === "cognac" || kind === "armagnac" || kind === "calvados";
 export const hidesWarehouse = (group: string, kind: CategoryKind | null) =>
-  group === "rum" || group === "brandy" || group === "gin" || group === "vodka" || group === "amaro" || group === "liqueur" ||
+  group === "rum" || group === "brandy" || group === "gin" || group === "vodka" || group === "amaro" || group === "liqueur" || group === "other" ||
   kind === "canadian" || kind === "irish" || kind === "scotch" || isAgaveKind(kind);
 
 export function countryForDistillery(kind: CategoryKind | null, country: string): boolean {
