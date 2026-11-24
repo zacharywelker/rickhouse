@@ -31,3 +31,9 @@ export async function signIn(page: Page, username = ADMIN.username, password = P
   await fillSignIn(page, username, password);
   await expect(page).toHaveURL("/bottles");
 }
+
+/** Sign out is the last row of the You section in the account menu (the menu under the name, from 720px up). */
+export async function signOut(page: Page): Promise<void> {
+  await page.getByRole("button", { name: /Account menu/ }).click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+}

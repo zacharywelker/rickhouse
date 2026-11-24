@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import type { Route } from "next";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { NARROW_QUERY, PLACES, isCurrent } from "@/components/nav/nav-items";
 
@@ -25,19 +24,25 @@ import { NARROW_QUERY, PLACES, isCurrent } from "@/components/nav/nav-items";
  */
 /** `wide`: the bar spans the whole window instead of the page column, for a page that does (the bulk editor). */
 export function AppNav({
-  signOut,
   userMenu,
   accountPanel,
   wide = false,
 }: {
-  signOut: React.ReactNode;
+  /** The name and its popover, from 720px up. */
   userMenu: React.ReactNode;
-  /** Rendered under the places in the narrow menu panel (Task 2 supplies it). */
-  accountPanel?: React.ReactNode;
+  /** The same account sections, rendered under the places in the narrow menu panel. */
+  accountPanel: React.ReactNode;
   wide?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+
+  // Navigating closes the panel, including from a link inside the account sections.
+  const [prevPathname, setPrevPathname] = React.useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setOpen(false);
+  }
 
   // Escape closes, matching every other dismissable surface in the app.
   React.useEffect(() => {
@@ -105,13 +110,7 @@ export function AppNav({
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* On a phone the three-way toggle moves into the menu panel, so the
-              name and sign-out still fit beside the logo at 390px. */}
-          <div className="hidden sm:block">
-            <ThemeToggle />
-          </div>
-          {userMenu}
-          {signOut}
+          <div className="hidden min-[720px]:block">{userMenu}</div>
           <Button
             type="button"
             variant="outline"
@@ -129,17 +128,12 @@ export function AppNav({
       </div>
 
       {open ? (
-        <nav
-          id="mobile-nav"
-          aria-label="Main"
-          className={cn("mx-auto flex w-full flex-col gap-1 border-t border-border px-4 py-3 min-[720px]:hidden", !wide && "max-w-page")}
-        >
-          {PLACES.map((item) => mobileLink(item.href, item.label))}
-          <div className="mt-2 border-t border-border pt-3 sm:hidden">
-            <ThemeToggle />
-          </div>
-          {accountPanel}
-        </nav>
+        <div id="mobile-nav" className={cn("mx-auto w-full border-t border-border min-[720px]:hidden", !wide && "max-w-page")}>
+          <nav aria-label="Main" className="flex flex-col gap-1 px-4 py-3">
+            {PLACES.map((item) => mobileLink(item.href, item.label))}
+          </nav>
+          <div className="border-t border-border px-4 py-3">{accountPanel}</div>
+        </div>
       ) : null}
     </header>
   );
