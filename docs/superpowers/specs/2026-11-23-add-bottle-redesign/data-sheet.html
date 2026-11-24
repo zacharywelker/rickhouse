@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add bottle: the data sheet layout</title>
+<style>
+ body{margin:0;padding:20px 16px 60px;background:#f4f4f6;color:#14213D;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+ body>h2{font:600 18px "Source Serif 4",Georgia,serif;margin:0 0 4px;max-width:864px;margin-left:auto;margin-right:auto}
+ body>.subtitle{color:#5b6478;max-width:864px;margin:0 auto 12px;font-size:13px}
+ .banner{max-width:864px;margin:0 auto 14px;padding:8px 12px;border:1px solid #14213D;background:#fff;font-size:12.5px}
+</style></head><body>
+<div class="banner"><b>Design mockup, not the app.</b> A throwaway prototype for the add-bottle redesign. See <code>2026-11-23-add-bottle-redesign-design.md</code> next to this folder. Values are examples.</div>
+<style>
+  .rk{--paper:#FFF8E7;--ink:#14213D;--mute:#5b6478;--hair:#d9d0b8;--bourbon:#FC9350;
+      font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);font-size:13px;line-height:1.35}
+  .rk *{box-sizing:border-box}
+  .rk .opt{max-width:864px;margin:0 auto}
+  .rk .page{background:var(--paper);border:1px solid var(--hair);padding:0 20px 14px}
+  .rk .bar{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--hair);margin-bottom:10px}
+  .rk h1{font:600 24px/1.1 "Source Serif 4",Georgia,serif;margin:0}
+  .rk h2{font:600 16px/1.2 "Source Serif 4",Georgia,serif;margin:0}
+  .rk h2 .n{color:var(--mute);font-family:Inter,sans-serif;margin-right:6px}
+  .rk .btn{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:5px 11px;font:600 12px Inter,sans-serif;cursor:pointer}
+  .rk .btn.primary{background:var(--ink);color:var(--paper)}
+  .rk .sub{color:var(--mute);font-size:12px}
+  .rk .link{text-decoration:underline;cursor:pointer;color:var(--ink)}
+  .rk .panel{border-top:2px solid var(--ink);padding-top:8px}
+  .rk .sec{display:flex;justify-content:space-between;align-items:baseline;margin:12px 0 6px}
+  .rk input.in{height:28px;border:1px solid var(--ink);background:#fff;padding:0 7px;font:500 13px Inter,sans-serif;color:var(--ink);min-width:0}
+  .rk .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .rk .chip{display:inline-flex;align-items:center;gap:6px;height:25px;border:1px solid var(--ink);background:#fff;padding:0 8px;font-size:12px;white-space:nowrap}
+  .rk .chip .k{color:var(--mute)}
+  .rk .chip .v{font-weight:600}
+  .rk .chip input{border:0;background:transparent;width:54px;font:600 12px Inter,sans-serif;color:var(--ink);padding:0;outline:none;border-bottom:1px dotted var(--ink)}
+  .rk .chip.add{border-style:dashed;color:var(--mute);background:transparent;cursor:pointer}
+  .rk .chip.cat .sw{width:10px;height:10px;background:var(--bourbon);border:1px solid var(--ink)}
+  .rk .chip.sug{border-style:dashed;background:#fffdf5;cursor:pointer}
+  .rk .chip.sug:before{content:"+";color:var(--mute)}
+  .rk .tog{display:inline-flex;align-items:center;gap:5px;height:25px;border:1px solid var(--ink);border-radius:13px;padding:0 10px;font-size:12px;cursor:pointer;user-select:none}
+  .rk .tog.on{background:var(--ink);color:var(--paper)}
+  .rk .tog.on:before{content:"\2713";font-size:11px}
+  .rk .seg{display:inline-flex;border:1px solid var(--ink)}
+  .rk .seg span{padding:0 9px;height:23px;display:inline-flex;align-items:center;font-size:11.5px;cursor:pointer;user-select:none}
+  .rk .seg span.on{background:var(--ink);color:var(--paper)}
+  .rk .frame{background:var(--bourbon);border:1px solid var(--ink);box-shadow:2px 2px 0 rgba(20,33,61,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;padding:6px;cursor:pointer}
+  .rk .frame .plus{font-size:24px;line-height:1}
+  .rk .r{display:grid;grid-template-columns:104px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--hair);align-items:start}
+  .rk .r>.k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);padding-top:7px}
+  .rk table.t{border-collapse:collapse;width:100%;font-size:12.5px}
+  .rk table.t th{font:600 10px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);text-align:left;padding:0 8px 2px 0;border-bottom:1px solid var(--ink)}
+  .rk table.t td{padding:3px 8px 3px 0;border-bottom:1px solid var(--hair);vertical-align:middle}
+  .rk table.t td.num input{width:42px;text-align:right}
+  .rk table.t tr.sugrow td{padding:0 0 5px 0;font-size:11.5px;color:var(--mute)}
+  .rk table.t tr.addrow td{border-bottom:0;padding-top:5px}
+  .rk .addin{display:flex;align-items:center;gap:8px;border:1px dashed var(--ink);height:27px;padding:0 8px;color:var(--mute);background:transparent}
+  .rk .addin .alt{margin-left:auto;color:var(--ink);text-decoration:underline;cursor:pointer;white-space:nowrap}
+  .rk .okc{color:#1c6b3a;font-weight:600;font-size:12px}
+  .rk .quiet{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);padding:7px 0}
+  .rk .cost{max-width:864px;margin:12px auto 0;font-size:12.5px;color:var(--mute)}
+  .rk .cost b{color:var(--ink)}
+  .rk .cost ul{margin:4px 0 0;padding-left:18px}
+  .rk .cost li{margin:0 0 4px}
+</style>
+
+<h2>The data sheet, round 2 (clickable)</h2>
+<p class="subtitle">“Not disclosed” now lives in the add-distillery row. Dates are dotted-line boxes. “How it's made” and the single-barrel options are tucked under “More”. Share numbers and suggestion names are placeholders.</p>
+
+<div class="rk">
+<div class="opt"><div class="page">
+  <div class="bar"><h1>Add a bottle</h1><div style="display:flex;gap:8px"><button class="btn">Cancel</button><button class="btn primary">Save label and bottle</button></div></div>
+  <div class="sec"><h2><span class="n">1</span>The label <span class="sub" style="font-family:Inter">· new, from “Lost Lantern Farmer's Field Bourbon” · <span class="link">Back to search</span></span></h2></div>
+  <div class="panel" style="display:grid;grid-template-columns:1fr 100px;gap:14px">
+   <div>
+    <div class="r"><span class="k">Name</span><div class="chips"><input class="in" value="Lost Lantern" style="width:130px"><input class="in" value="Farmer's Field Bourbon" style="width:190px"><span class="chip cat"><span class="sw"></span><span class="v">Bourbon</span> ▾</span></div></div>
+
+    <div class="r"><span class="k">Strength</span><div class="chips">
+      <span class="chip"><span class="k">Proof</span><input value="117.9"></span><span class="chip"><span class="k">ABV</span><input value="58.95%"></span>
+      <span class="tog on" onclick="this.classList.toggle('on')">Cask strength</span><span class="tog" onclick="this.classList.toggle('on')">Bottled in Bond</span><span class="tog on" onclick="this.classList.toggle('on')">Straight</span><span class="tog" onclick="this.classList.toggle('on')">Still proof</span></div></div>
+
+    <div class="r"><span class="k">Size and price</span><div class="chips"><span class="chip"><span class="k">Size</span><span class="v">750 mL</span> ▾</span><span class="chip"><span class="k">MSRP</span><input value="$100.00"></span><span class="chip add">+ UPC</span></div></div>
+
+    <div class="r"><span class="k">Age</span><div class="chips"><span class="chip"><span class="k">Years</span><input value="5" style="width:24px"></span><span class="chip add">+ mo / days</span><span class="chip"><span class="k">Statement</span><input value="5–6 years" style="width:76px"></span><span class="tog" onclick="this.classList.toggle('on')">NAS</span><span class="tog" onclick="this.classList.toggle('on')">Age inferred</span><span class="chip add">+ Distilled / filled date</span><span class="chip add">+ Bottled date</span></div></div>
+
+    <div class="r"><span class="k">Distilled by</span><div>
+      <table class="t"><tr><th>Distillery</th><th style="text-align:right">Share</th><th>Source</th><th></th></tr>
+       <tr><td>Far North Spirits</td><td class="num"><input class="in" value="33"> %</td><td><span class="seg"><span class="on" onclick="this.parentNode.querySelectorAll('span').forEach(s=>s.classList.remove('on'));this.classList.add('on')">Stated</span><span onclick="this.parentNode.querySelectorAll('span').forEach(s=>s.classList.remove('on'));this.classList.add('on')">Inferred</span></span></td><td class="sub">✕</td></tr>
+       <tr class="sugrow"><td colspan="4">Common mashbills at Far North: <span class="chip sug" style="height:21px">Far North bourbon recipe</span></td></tr>
+       <tr><td>Whiskey Acres</td><td class="num"><input class="in" value="33"> %</td><td><span class="seg"><span class="on" onclick="this.parentNode.querySelectorAll('span').forEach(s=>s.classList.remove('on'));this.classList.add('on')">Stated</span><span onclick="this.parentNode.querySelectorAll('span').forEach(s=>s.classList.remove('on'));this.classList.add('on')">Inferred</span></span></td><td class="sub">✕</td></tr>
+       <tr><td>Frey Ranch</td><td class="num"><input class="in" value="34"> %</td><td><span class="seg"><span class="on" onclick="this.parentNode.querySelectorAll('span').forEach(s=>s.classList.remove('on'));this.classList.add('on')">Stated</span><span onclick="this.parentNode.querySelectorAll('span').forEach(s=>s.classList.remove('on'));this.classList.add('on')">Inferred</span></span></td><td class="sub">✕</td></tr>
+       <tr class="addrow"><td colspan="3"><div class="addin"><span>+ Add distillery: type a name</span><span class="alt">or not disclosed (pick the place)</span></div></td><td class="okc">100% ✓</td></tr>
+      </table>
+    </div></div>
+
+    <div class="r"><span class="k">Mashbill</span><div>
+      <table class="t"><tr><th>Recipe</th><th style="text-align:right">Share</th><th>Made by</th><th></th></tr>
+       <tr><td>Bourbon mashbill (matched ✓)</td><td class="num"><input class="in" value="100"> %</td><td><span class="chip" style="height:23px"><span class="v">Not tied to one</span> ▾</span></td><td class="sub">✕</td></tr>
+       <tr class="sugrow"><td colspan="4">Common distilleries for this recipe: <span class="chip sug" style="height:21px">Frey Ranch</span> <span class="chip sug" style="height:21px">Whiskey Acres</span></td></tr>
+       <tr class="addrow"><td colspan="4"><div class="addin"><span>+ Add mashbill</span><span class="alt" style="color:var(--mute);text-decoration:none">with more than one, tie each to the distillery that made it</span></div></td></tr>
+      </table></div></div>
+
+    <div class="r"><span class="k">Finish</span><div class="chips"><span class="chip"><span class="v">None</span> ✓</span><span class="chip add">+ Finish (in order, with months and which mashbill)</span></div></div>
+
+    <div class="quiet"><span>More:</span><span class="link">How it's made</span><span class="link">Description</span><span class="link">Vintage</span><span class="link">Regions</span><span class="link">TTB approval (none yet)</span></div>
+   </div>
+   <div><div class="frame" style="width:100px;height:134px"><div class="plus">+</div>Photo or link</div><div class="sub" style="font-size:11px;text-align:center;margin-top:3px">only photo slot</div></div>
+  </div>
+
+  <div class="sec"><h2><span class="n">2</span>The bottle in your hand</h2></div>
+  <div class="panel">
+    <div class="r"><span class="k">Bought</span><div class="chips"><span class="chip"><span class="k">Price</span><input value="$99.99"></span><span class="chip"><span class="k">Store</span><span class="v">Seelbach's</span> ▾</span><span class="chip"><span class="k">Acquired</span><span class="v">Today</span> ▾</span><span class="chip add">+ Where it lives</span></div></div>
+    <div class="r"><span class="k">Which one</span><div class="chips"><span class="chip"><span class="k">Batch</span><input value="FRMB-1" style="width:62px"></span><span class="chip"><span class="k">Year</span><input value="2025" style="width:40px"></span><span class="seg"><span class="on" onclick="this.parentNode.querySelectorAll('span').forEach(s=>s.classList.remove('on'));this.classList.add('on')">Sealed</span><span onclick="this.parentNode.querySelectorAll('span').forEach(s=>s.classList.remove('on'));this.classList.add('on')">Opened</span></span></div></div>
+    <div class="quiet"><span>More:</span><span class="link">Single barrel</span><span class="link">Private selection</span><span class="link">Notes</span><span class="link">This bottle differs from the label</span></div>
+  </div>
+</div></div>
+
+<div class="cost">
+  <b>What changed</b>
+  <ul>
+   <li><b>Not disclosed</b> is part of the add-distillery row: type a name, or click “or not disclosed” and pick the place. There's no separate checkbox.</li>
+   <li><b>Dates</b> are dotted-line boxes on the Age row, like “+ mo / days”.</li>
+   <li><b>“How it's made”</b> (non-chill filtered, additive free, entry proof, peat, colour, char, cooperage) is now one link under “More”.</li>
+   <li><b>Single barrel and Private selection</b> are under “More” on the bottle, with Notes and “differs from the label”. Picking one reveals its own fields (pick name, barrel number and so on) below it.</li>
+  </ul>
+</div>
+</div>
+</body></html>

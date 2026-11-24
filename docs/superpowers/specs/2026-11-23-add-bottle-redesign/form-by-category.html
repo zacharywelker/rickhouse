@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add bottle: the form by category</title>
+<style>
+ body{margin:0;padding:20px 16px 60px;background:#f4f4f6;color:#14213D;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+ body>h2{font:600 18px "Source Serif 4",Georgia,serif;margin:0 0 4px;max-width:864px;margin-left:auto;margin-right:auto}
+ body>.subtitle{color:#5b6478;max-width:864px;margin:0 auto 12px;font-size:13px}
+ .banner{max-width:864px;margin:0 auto 14px;padding:8px 12px;border:1px solid #14213D;background:#fff;font-size:12.5px}
+</style></head><body>
+<div class="banner"><b>Design mockup, not the app.</b> A throwaway prototype for the add-bottle redesign. See <code>2026-11-23-add-bottle-redesign-design.md</code> next to this folder. Values are examples.</div>
+<style>
+  .rk{--paper:#FFF8E7;--ink:#14213D;--mute:#5b6478;--hair:#d9d0b8;
+      font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);font-size:13px;line-height:1.35}
+  .rk *{box-sizing:border-box}
+  .rk .opt{max-width:864px;margin:0 auto}
+  .rk .picker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--ink);padding:8px 10px;margin-bottom:10px;position:sticky;top:0;z-index:5}
+  .rk .picker select{height:30px;border:1px solid var(--ink);background:#fff;font:600 13px Inter,sans-serif;padding:0 6px;color:var(--ink)}
+  .rk .picker .meta{color:var(--mute);font-size:12px}
+  .rk .page{background:var(--paper);border:1px solid var(--hair);padding:0 20px 14px}
+  .rk .bar{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--hair);margin-bottom:10px}
+  .rk h1{font:600 24px/1.1 "Source Serif 4",Georgia,serif;margin:0}
+  .rk h2{font:600 16px/1.2 "Source Serif 4",Georgia,serif;margin:0}
+  .rk h2 .n{color:var(--mute);font-family:Inter,sans-serif;margin-right:6px}
+  .rk .btn{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:5px 11px;font:600 12px Inter,sans-serif;cursor:pointer}
+  .rk .btn.primary{background:var(--ink);color:var(--paper)}
+  .rk .sub{color:var(--mute);font-size:12px}
+  .rk .link{text-decoration:underline;cursor:pointer;color:var(--ink)}
+  .rk .panel{border-top:2px solid var(--ink);padding-top:8px}
+  .rk .sec{display:flex;justify-content:space-between;align-items:baseline;margin:12px 0 6px}
+  .rk input.in{height:28px;border:1px solid var(--ink);background:#fff;padding:0 7px;font:500 13px Inter,sans-serif;color:var(--ink);min-width:0}
+  .rk .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .rk .chip{display:inline-flex;align-items:center;gap:6px;height:25px;border:1px solid var(--ink);background:#fff;padding:0 8px;font-size:12px;white-space:nowrap}
+  .rk .chip .k{color:var(--mute)} .rk .chip .v{font-weight:600}
+  .rk .chip input{border:0;background:transparent;width:54px;font:600 12px Inter,sans-serif;color:var(--ink);padding:0;outline:none;border-bottom:1px dotted var(--ink)}
+  .rk .chip select{border:0;background:transparent;font:600 12px Inter,sans-serif;color:var(--ink);padding:0;outline:none}
+  .rk .chip.add{border-style:dashed;color:var(--mute);background:transparent;cursor:pointer}
+  .rk .chip.plain{background:#f1ead2}
+  .rk .chip.lock{background:#f1ead2}
+  .rk .chip.lock:after{content:"locked";font-size:9.5px;color:var(--mute);margin-left:2px;text-transform:uppercase;letter-spacing:.04em}
+  .rk .chip.auto{background:#e4f2e0;border-color:#1c6b3a}
+  .rk .chip.cat .sw{width:10px;height:10px;border:1px solid var(--ink)}
+  .rk .tog{display:inline-flex;align-items:center;gap:5px;height:25px;border:1px solid var(--ink);border-radius:13px;padding:0 10px;font-size:12px;cursor:pointer;user-select:none}
+  .rk .tog.on{background:var(--ink);color:var(--paper)}
+  .rk .tog.on:before{content:"\2713";font-size:11px}
+  .rk .seg{display:inline-flex;border:1px solid var(--ink)}
+  .rk .seg span{padding:0 9px;height:23px;display:inline-flex;align-items:center;font-size:11.5px;cursor:pointer;user-select:none}
+  .rk .seg span.on{background:var(--ink);color:var(--paper)}
+  .rk .frame{border:1px solid var(--ink);box-shadow:2px 2px 0 rgba(20,33,61,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;padding:6px;cursor:pointer}
+  .rk .frame .plus{font-size:24px;line-height:1}
+  .rk .r{display:grid;grid-template-columns:104px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--hair);align-items:start}
+  .rk .r>.k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);padding-top:7px}
+  .rk .r .line+.line{margin-top:6px}
+  .rk .lbl{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);margin:0 4px 0 0}
+  .rk table.t{border-collapse:collapse;width:100%;font-size:12.5px}
+  .rk table.t th{font:600 10px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);text-align:left;padding:0 8px 2px 0;border-bottom:1px solid var(--ink)}
+  .rk table.t td{padding:3px 8px 3px 0;border-bottom:1px solid var(--hair);vertical-align:middle}
+  .rk table.t td.num input{width:42px;text-align:right;height:26px}
+  .rk .addin{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border:1px dashed var(--ink);min-height:27px;padding:3px 8px;color:var(--mute);margin-top:4px}
+  .rk .addin .alt{margin-left:auto;color:var(--ink);text-decoration:underline;white-space:nowrap}
+  .rk .quiet{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);padding:7px 0}
+  .rk .note{font-size:11.5px;color:var(--mute);margin-top:3px}
+  .rk .hot{background:#fff3c4;padding:0 4px}
+  .rk .warn{display:none;background:#ffe3c2;border:1px solid #c26a00;color:#7a3f00;padding:2px 8px;margin-top:4px;font-size:12px}
+  .rk .warn.show{display:block}
+</style>
+
+<h2>Label and bottle form, by category (clickable), round 5</h2>
+<p class="subtitle">Round 5 changes are marked in yellow. Rum (Aged, then Solera) now takes a low and a high age in years. Earlier rounds: Pisco (Peru gives an Acholado from two grapes, Chile doesn't), Calvados (fill the apple types and pears), Mezcal (Production after Maguey, Flavor under More).</p>
+
+<div class="rk"><div class="opt">
+  <div class="picker">
+    <span class="sub">Category</span><select id="top"></select>
+    <span class="sub">Subcategory</span><select id="sub"></select>
+    <span class="meta" id="meta"></span>
+  </div>
+  <div id="form"></div>
+</div></div>
+
+<script>
+(function(){
+var C=[
+ {top:"Agave",name:"Tequila",g:"agave",k:"tequila",col:"#50A684"},
+ {top:"Agave",name:"Mezcal",g:"agave",k:"mezcal",col:"#50A684"},
+ {top:"American Whiskey",name:"Bourbon",g:"whiskey",k:"american",col:"#FC9350"},
+ {top:"American Whiskey",name:"Rye",g:"whiskey",k:"american",col:"#1CAA3D"},
+ {top:"American Whiskey",name:"American Single Malt",g:"whiskey",k:"american",col:"#CA9A8E",sm:1,peat:1},
+ {top:"American Whiskey",name:"Corn Whiskey",g:"whiskey",k:"american",col:"#CA9A8E",barrel:1},
+ {top:"American Whiskey",name:"Wheat Whiskey",g:"whiskey",k:"american",col:"#CA9A8E"},
+ {top:"American Whiskey",name:"Light Whiskey",g:"whiskey",k:"american",col:"#CA9A8E",barrel:1},
+ {top:"American Whiskey",name:"Tennessee Whiskey",g:"whiskey",k:"american",col:"#FFB36B"},
+ {top:"Irish Whiskey",name:"Pot Still",g:"whiskey",k:"irish",col:"#A6DD45",peat:1},
+ {top:"Irish Whiskey",name:"Malt",g:"whiskey",k:"irish",col:"#A6DD45",sm:1,peat:1},
+ {top:"Irish Whiskey",name:"Grain",g:"whiskey",k:"irish",col:"#A6DD45",peat:1},
+ {top:"Irish Whiskey",name:"Blended",g:"whiskey",k:"irish",col:"#A6DD45",peat:1},
+ {top:"Scotch",name:"Single Malt",g:"whiskey",k:"scotch",col:"#F4633A",sm:1,peat:1},
+ {top:"Scotch",name:"Single Grain",g:"whiskey",k:"scotch",col:"#F4633A",peat:1},
+ {top:"Scotch",name:"Blended",g:"whiskey",k:"scotch",col:"#F4633A",peat:1},
+ {top:"Scotch",name:"Blended Grain",g:"whiskey",k:"scotch",col:"#F4633A",peat:1},
+ {top:"Scotch",name:"Blended Malt",g:"whiskey",k:"scotch",col:"#F4633A",sm:1,peat:1},
+ {top:"Whisky",name:"Canadian",g:"whiskey",k:"canadian",col:"#5461C8"},
+ {top:"Whisky",name:"Japanese",g:"whiskey",k:"japanese",col:"#BA0C2F",peat:1},
+ {top:"Whisky",name:"Other International",g:"whiskey",k:"international",col:"#EAB8E4",peat:1},
+ {top:"Whisky",name:"Flavored",g:"whiskey",k:"flavored-whisky",col:"#D68FD3",flav:1},
+ {top:"Vodka",name:"Vodka (any)",g:"vodka",k:"vodka",col:"#56B7E6"},
+ {top:"Vodka",name:"Flavored Vodka",g:"vodka",k:"flavored-vodka",col:"#8ACFF0",flav:1},
+ {top:"Gin",name:"Gin (any)",g:"gin",k:"gin",col:"#48D597"},
+ {top:"Gin",name:"Genever",g:"gin",k:"genever",col:"#8CE6BE"},
+ {top:"Rum",name:"Rum (any)",g:"rum",k:"rum",col:"#9678D3"},
+ {top:"Rum",name:"Cachaça",g:"rum",k:"cachaca",col:"#B7A2E8"},
+ {top:"Rum",name:"Rhum Agricole",g:"rum",k:"agricole",col:"#7B5CC4"},
+ {top:"Rum",name:"Flavored / Spiced Rum",g:"rum",k:"spiced-rum",col:"#8B6BCF",flav:1},
+ {top:"Brandy",name:"Cognac",g:"brandy",k:"cognac",col:"#61007D"},
+ {top:"Brandy",name:"Armagnac",g:"brandy",k:"armagnac",col:"#61007D"},
+ {top:"Brandy",name:"Calvados",g:"brandy",k:"calvados",col:"#61007D"},
+ {top:"Brandy",name:"Pisco",g:"brandy",k:"pisco",col:"#61007D"},
+ {top:"Brandy",name:"Apple",g:"brandy",k:"apple",col:"#8A3FA3"},
+ {top:"Brandy",name:"Eau de Vie",g:"brandy",k:"eau-de-vie",col:"#A25BBA"},
+ {top:"Liqueur",name:"Fruit",g:"liqueur",k:"liqueur",col:"#E93CAC"},
+ {top:"Liqueur",name:"Anise",g:"liqueur",k:"liqueur",col:"#E93CAC"},
+ {top:"Liqueur",name:"Cream",g:"liqueur",k:"cream-liqueur",col:"#E93CAC"},
+ {top:"Liqueur",name:"Nut",g:"liqueur",k:"liqueur",col:"#E93CAC"},
+ {top:"Liqueur",name:"Herbal",g:"liqueur",k:"liqueur",col:"#E93CAC"},
+ {top:"Liqueur",name:"Chocolate",g:"liqueur",k:"chocolate-liqueur",col:"#E93CAC"},
+ {top:"Liqueur",name:"Coffee",g:"liqueur",k:"liqueur",col:"#E93CAC"},
+ {top:"Amaro",name:"Amaro",g:"amaro",k:"amaro",col:"#EF426F"},
+ {top:"Other",name:"Absinthe",g:"other",k:"absinthe",col:"#8BD24F"},
+ {top:"Other",name:"Akvavit",g:"other",k:"akvavit",col:"#E8D65A"},
+ {top:"Other",name:"Shochu",g:"other",k:"shochu",col:"#F7EA48"}
+];
+var TEQ=[['blanco','Blanco'],['joven','Joven'],['reposado','Reposado'],['anejo','Añejo'],['extra-anejo','Extra Añejo'],['cristalino','Cristalino']];
+var MZC=[['blanco','Blanco / Joven'],['reposado','Reposado'],['anejo','Añejo'],['vidrio','Madurado en Vidrio']];
+var DES={
+ cognac:[['VS',2],['VSOP',4],['XO',10]],
+ armagnac:[['Blanche (unaged)',0],['VS / Three-Star',1],['VSOP',4],['Napoléon',6],['XO',10],["Hors d'Âge",10],['Vintage / Millésimé',null]],
+ calvados:[['Fine',2],['Vieux / Réserve',3],['VSOP / VO / Vieille Réserve',4],['XO / Napoléon / Hors d\'Âge',6],['Millésime',null]]
+};
+var GR={
+ cogMain:['Ugni Blanc','Folle Blanche','Colombard'],
+ cogExtra:['Montils','Folignan','Sémillon','Jurançon Blanc','Meslier St-François','Sélect'],
+ armMajor:['Ugni Blanc','Baco 22A','Folle Blanche','Colombard'],
+ armMinor:['Clairette de Gascogne','Plant de Graisse','Meslier Saint-François','Jurançon Blanc','Blanquette de Saint-Gaudens','Mauzac'],
+ peru:['Quebranta','Mollar','Uvina','Negra Criolla','Italia','Moscatel','Torontel','Albilla'],
+ chile:['Moscatel de Alejandría','Moscatel Rosada','Torontel','Moscatel de Austria','Pedro Jiménez']
+};
+var S={i:2,aged:false,pick:false,mart:true,solera:false,appel:'aoc',
+ tclass:'reposado',tY:'',tM:'',tD:'',mclass:'blanco',mprod:'mezcal',mflav:'',
+ grapes:[],gshare:{},pc:'pe',mosto:false,apples:[],pears:'',ageY:'',mflavOpen:false,fruit:{}};
+var tops=[];C.forEach(function(c){if(tops.indexOf(c.top)<0)tops.push(c.top);});
+var topSel=document.getElementById('top'),subSel=document.getElementById('sub');
+tops.forEach(function(t){var o=document.createElement('option');o.textContent=t;topSel.appendChild(o);});
+function fillSub(){subSel.innerHTML='';C.forEach(function(c,i){if(c.top===topSel.value){var o=document.createElement('option');o.value=i;o.textContent=c.name;subSel.appendChild(o);}});}
+function reset(){S.aged=false;S.solera=false;S.appel='aoc';S.pick=false;S.tclass='reposado';S.tY='';S.tM='';S.tD='';S.mclass='blanco';S.mprod='mezcal';S.mflav='';S.grapes=[];S.gshare={};S.pc='pe';S.mosto=false;S.apples=[];S.pears='';S.ageY='';S.mflavOpen=false;S.fruit={};}
+topSel.onchange=function(){fillSub();S.i=+subSel.value;reset();draw();};
+subSel.onchange=function(){S.i=+subSel.value;reset();draw();};
+var W=window;
+W.rkAged=function(){S.aged=!S.aged;if(!S.aged)S.solera=false;draw();};
+W.rkSolera=function(){S.solera=!S.solera;draw();};
+W.rkTclass=function(v){S.tclass=v;draw();};
+W.rkMclass=function(v){S.mclass=v;draw();};
+W.rkMprod=function(v){S.mprod=v;draw();};
+W.rkMflav=function(v){S.mflav=(S.mflav===v?'':v);draw();};
+W.rkFlavOpen=function(){S.mflavOpen=!S.mflavOpen;if(!S.mflavOpen)S.mflav='';draw();};
+W.rkAppel=function(v){S.appel=v;draw();};
+W.rkPick=function(){S.pick=!S.pick;draw();};
+W.rkMart=function(){S.mart=!S.mart;draw();};
+W.rkPc=function(v){S.pc=v;S.grapes=[];S.gshare={};S.mosto=false;draw();};
+W.rkMosto=function(){S.mosto=!S.mosto;draw();};
+W.rkGrape=function(n){var i=S.grapes.indexOf(n);if(i<0)S.grapes.push(n);else S.grapes.splice(i,1);draw();};
+W.rkShare=function(n,v){S.gshare[n]=v;};
+W.rkApple=function(n){var i=S.apples.indexOf(n);if(i<0)S.apples.push(n);else S.apples.splice(i,1);draw();};
+// age -> class (tequila and mezcal): floors work backwards. 3 months means Reposado.
+function months(y,m,d){return (parseFloat(y)||0)*12+(parseFloat(m)||0)+(parseFloat(d)||0)/30;}
+function classOf(mo,k){if(mo<2)return 'blanco';if(mo<12)return 'reposado';if(k==='tequila'&&mo>=36)return 'extra-anejo';return 'anejo';}
+W.rkTeqAge=function(){
+ var y=document.getElementById('tY'),m=document.getElementById('tM'),d=document.getElementById('tD');
+ S.tY=y?y.value:'';S.tM=m?m.value:'';S.tD=d?d.value:'';
+ var k=C[S.i].k,mo=months(S.tY,S.tM,S.tD);
+ var any=(S.tY!==''||S.tM!==''||S.tD!=='');
+ var cur=k==='tequila'?S.tclass:S.mclass;
+ if(any&&cur!=='joven'&&cur!=='cristalino'&&cur!=='vidrio'){
+  var nc=classOf(mo,k);
+  if(k==='tequila')S.tclass=nc;else S.mclass=nc;
+  var s=document.getElementById('cls');if(s)s.value=nc;
+ }
+};
+var busy=false;
+W.rkTeqDone=function(){ // on blur: fold 12+ months into years and redraw the right fields
+ if(busy)return;
+ var k=C[S.i].k;var mo=Math.round(months(S.tY,S.tM,S.tD)*10)/10;
+ if(mo>=12){S.tY=String(Math.floor(mo/12));S.tM=String(Math.round(mo%12)||'');S.tD='';}
+ draw();
+};
+W.rkDes=function(){
+ var k=C[S.i].k,list=DES[k];var y=document.getElementById('ageY'),d=document.getElementById('des');
+ if(y)S.ageY=y.value;
+ if(list&&y&&d){var v=parseFloat(y.value);var pick='';
+  if(!isNaN(v)){list.forEach(function(x){if(x[1]!==null&&x[1]>0&&v>=x[1])pick=x[0];});if(k==='armagnac'&&v>=10)pick='XO';}
+  d.value=pick;var m=document.getElementById('desnote');if(m)m.textContent=pick?'Filled in from the age. Change it if the label says otherwise.':'';}
+ var w=document.getElementById('wdom');
+ if(w){var v2=parseFloat(y&&y.value);w.className='warn'+((S.appel==='domfrontais'&&!isNaN(v2)&&v2<3)?' show':'');}
+};
+W.rkStmt=function(el){
+ var d=document.getElementById('des');if(!d)return;var t=el.value.toLowerCase();var pick='';
+ if(/vsop|v\.s\.o\.p/.test(t))pick='VSOP';else if(/\bxo\b/.test(t))pick='XO';else if(/\bvs\b/.test(t))pick='VS';
+ if(pick){for(var i=0;i<d.options.length;i++){if(d.options[i].value.indexOf(pick)===0){d.value=d.options[i].value;break;}}}
+};
+W.rkPears=function(el){
+ S.pears=el.value;var v=parseFloat(el.value);var w=document.getElementById('wpear');if(!w)return;
+ var bad=false,msg='';
+ if(!isNaN(v)){if(S.appel==='auge'&&v>30){bad=true;msg="Warning: Pays d'Auge allows at most 30% pears.";}
+  if(S.appel==='domfrontais'&&v<30){bad=true;msg='Warning: Domfrontais needs at least 30% pears.';}}
+ w.textContent=msg;w.className='warn'+(bad?' show':'');
+};
+W.rkFruit=function(){
+ var ks=['bs','bt','sw','ac','pe'],v={};
+ ks.forEach(function(k){var e=document.getElementById('f_'+k);v[k]=e?(parseFloat(e.value)||0):0;if(e)S.fruit[k]=e.value;});
+ var ap=v.bs+v.bt+v.sw+v.ac,pe=v.pe,tot=ap+pe;
+ var a=document.getElementById('apsum');if(a)a.textContent=ap+'%';
+ var t=document.getElementById('ftot');if(t)t.innerHTML='<span class="k">Total</span><span class="v">'+tot+'%'+(tot===100?' ✓':'')+'</span>';
+ var w=document.getElementById('wpear'),pin=document.getElementById('f_pe');
+ if(w){var bad=false,msg='';
+  if(pin&&pin.value!==''){
+   if(S.appel==='auge'&&pe>30){bad=true;msg="Warning: Pays d'Auge allows at most 30% pears.";}
+   if(S.appel==='domfrontais'&&pe<30){bad=true;msg='Warning: Domfrontais needs at least 30% pears.';}}
+  w.textContent=msg;w.className='warn'+(bad?' show':'');}
+};
+W.rkAbv=function(el){
+ var v=parseFloat(el.value);var c=document.getElementById('pcls');if(!c)return;
+ var t='';if(!isNaN(v)){if(v>=43)t='Gran Pisco';else if(v>=40)t='Pisco Reservado';else if(v>=35)t='Pisco Especial';else if(v>=30)t='Pisco Tradicional';}
+ c.innerHTML=t?'<span class="k">Class</span><span class="v">'+t+'</span> <span class="k">from ABV</span>':'<span class="k">Class</span><span class="v">set from ABV</span>';
+ c.className='chip'+(t?' auto':'');
+};
+function lum(h){var r=parseInt(h.substr(1,2),16),g=parseInt(h.substr(3,2),16),b=parseInt(h.substr(5,2),16);return(0.299*r+0.587*g+0.114*b)/255;}
+function chip(k,v,arrow){return '<span class="chip"><span class="k">'+k+'</span><span class="v">'+v+'</span>'+(arrow?' ▾':'')+'</span>';}
+function inp(k,v,w,id,oninput,onchange){return '<span class="chip"><span class="k">'+k+'</span><input'+(id?' id="'+id+'"':'')+(oninput?' oninput="'+oninput+'"':'')+(onchange?' onchange="'+onchange+'"':'')+' value="'+v+'"'+(w?' style="width:'+w+'px"':'')+'></span>';}
+function add(t){return '<span class="chip add">+ '+t+'</span>';}
+function plain(t){return '<span class="chip plain"><span class="v">'+t+'</span></span>';}
+function tog(t,on,fn){return '<span class="tog'+(on?' on':'')+'" onclick="'+(fn||'this.classList.toggle(\'on\')')+'">'+t+'</span>';}
+function seg(opts,cur,fn){return '<span class="seg">'+opts.map(function(o){return '<span class="'+(o[0]===cur?'on':'')+'" onclick="'+fn+'(\''+o[0]+'\')">'+o[1]+'</span>';}).join('')+'</span>';}
+function row(k,inner){return '<div class="r"><span class="k">'+k+'</span><div>'+inner+'</div></div>';}
+function chips(a){return '<div class="chips">'+a.join('')+'</div>';}
+function line(lbl,a){return '<div class="chips line"><span class="lbl">'+lbl+'</span>'+a.join('')+'</div>';}
+function note(t,hot){return '<div class="note">'+(hot?'<span class="hot">'+t+'</span>':t)+'</div>';}
+function sel(opts,cur,onch,id){return '<select'+(id?' id="'+id+'"':'')+(onch?' onchange="'+onch+'"':'')+'>'+opts.map(function(o){return '<option value="'+o[0]+'"'+(o[0]===cur?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>';}
+function table(cols,rows,addHtml){
+ return '<table class="t"><tr>'+cols.map(function(c,i){return '<th'+(i===1?' style="text-align:right"':'')+'>'+c+'</th>';}).join('')+'</tr>'+rows.join('')+'</table>'+addHtml;
+}
+function grapeRows(){return S.grapes.map(function(n){
+ var v=S.gshare[n]||'';
+ return '<tr><td>'+n+'</td><td class="num"><input class="in" value="'+v+'" oninput="rkShare(\''+n.replace(/'/g,"\\'")+'\',this.value)"> %</td><td class="sub" style="cursor:pointer" onclick="rkGrape(\''+n.replace(/'/g,"\\'")+'\')">✕</td></tr>';});}
+function grapeAdd(groups){
+ var h='<div class="addin"><span>+ Add grape:</span>';
+ groups.forEach(function(g){
+  var avail=g[1].filter(function(n){return S.grapes.indexOf(n)<0;});
+  if(!avail.length)return;
+  h+='<span class="lbl" style="margin-left:6px">'+g[0]+'</span>'+avail.map(function(n){return '<span class="chip add" onclick="rkGrape(\''+n.replace(/'/g,"\\'")+'\')">'+n+'</span>';}).join('');
+ });
+ return h+'</div>';
+}
+
+function draw(){
+ var c=C[S.i],g=c.g,k=c.k,L=[];
+ var agedToggle=['rum','gin','amaro','liqueur'].indexOf(g)>=0;
+ var unaged=g==='vodka'||(agedToggle&&!S.aged);
+ var fr=(k==='cognac'||k==='armagnac'||k==='calvados');
+ var isTeq=k==='tequila',isMez=k==='mezcal';
+ var tc=isTeq?S.tclass:S.mclass;
+ var young=(isTeq||isMez)&&(tc==='blanco'||tc==='reposado');
+ var solera=g==='rum'&&S.aged&&S.solera;
+ var domf=k==='calvados'&&S.appel==='domfrontais',auge=k==='calvados'&&S.appel==='auge';
+ var word=g==='agave'?'lot':(g==='whiskey'&&k!=='american')?'cask':'barrel';
+ var text=lum(c.col)<0.45?'#FFF8E7':'#14213D';
+ var ancestral=isMez&&S.mprod==='ancestral',artesanal=isMez&&S.mprod==='artesanal';
+ document.getElementById('meta').textContent='field group: '+g+' · kind: '+k;
+
+ L.push(row('Name',chips(['<input class="in" placeholder="Brand" style="width:130px"><input class="in" placeholder="Label name" style="width:190px">','<span class="chip cat"><span class="sw" style="background:'+c.col+'"></span><span class="v">'+c.name+'</span> ▾</span>'])));
+
+ var st=[inp('Proof','',44),inp('ABV','',44,'abv',k==='pisco'&&S.pc==='cl'?'rkAbv(this)':'')];
+ if(k==='pisco'&&S.pc==='cl')st.push('<span class="chip" id="pcls"><span class="k">Class</span><span class="v">set from ABV</span></span>');
+ if(!unaged&&['agave','gin','vodka','amaro','liqueur'].indexOf(g)<0)st.push(tog('Cask strength',false));
+ if(k==='american'){st.push(tog('Bottled in Bond',false));st.push(tog('Straight',false));}
+ var sr=chips(st);
+ if(g==='rum'||g==='gin')sr+=note('Navy strength'+(g==='rum'?' and overproof show':' shows')+' by itself from the proof.');
+ if(k==='pisco'&&S.pc==='cl')sr+=note('Chile: Tradicional 30%+, Especial 35%+, Reservado 40%+, Gran Pisco 43%+. Type an ABV and the class fills in.',1);
+ L.push(row('Strength',sr));
+ L.push(row('Size and price',chips([chip('Size','750 mL',1),inp('MSRP','',60),add('UPC')])));
+
+ // ---- AGE ----
+ if(g!=='vodka'){
+  var a=[],extra='';
+  if(agedToggle)a.push(tog('Aged',S.aged,'rkAged()'));
+  if(isTeq)a.push('<span class="chip"><span class="k">Class</span>'+sel(TEQ,S.tclass,'rkTclass(this.value)','cls')+'</span>');
+  if(isMez)a.push('<span class="chip"><span class="k">Class</span>'+sel(MZC,S.mclass,'rkMclass(this.value)','cls')+'</span>');
+  if(g==='rum'&&S.aged)a.push(tog('Solera',S.solera,'rkSolera()'));
+  if(k==='calvados')a.push('<span class="chip"><span class="k">Appellation</span>'+sel([['aoc','AOC Calvados'],['auge',"Pays d'Auge"],['domfrontais','Domfrontais']],S.appel,'rkAppel(this.value)')+'</span>');
+  if(!unaged){
+   if(solera){
+     a.push('<span class="chip"><span class="k">Solera age</span><input style="width:30px" placeholder="low"> – <input style="width:30px" placeholder="high"> <span class="k">years</span></span>');
+     a.push('<span class="chip"><span class="k">Statement</span><input placeholder="e.g. 5 to 12 years" style="width:110px"></span>');
+     extra=note('Solera takes a low and a high age, measured in years (like 5 to 12 years), instead of one age. No months or days, and no distilled / filled date. The age statement stays.',1);
+   }else if(isTeq||isMez){
+     if(!(isMez&&tc==='vidrio')){
+       if(young){a.push(inp('Months',S.tM,30,'tM','rkTeqAge()','rkTeqDone()'));a.push(inp('Days',S.tD,30,'tD','rkTeqAge()','rkTeqDone()'));}
+       else{a.push(inp('Years',S.tY,30,'tY','rkTeqAge()','rkTeqDone()'));a.push(inp('Months',S.tM,30,'tM','rkTeqAge()','rkTeqDone()'));a.push(inp('Days',S.tD,30,'tD','rkTeqAge()','rkTeqDone()'));}
+     }
+     if(isMez)a.push('<span class="chip"><span class="k">Statement</span><input placeholder="e.g. 2 years" style="width:84px"></span>');
+   }else{
+     a.push('<span class="chip"><span class="k">Years</span><input id="ageY" oninput="rkDes()" value="'+S.ageY+'" style="width:30px"></span>');a.push(add('months / days'));
+     if(g!=='gin')a.push('<span class="chip"><span class="k">Statement</span><input oninput="rkStmt(this)" placeholder="e.g. 4 years" style="width:84px"></span>');
+     if(!fr)a.push(tog('NAS',false));
+     if(fr){
+       var opts=[['','—']].concat(DES[k].map(function(x){return [x[0],x[0]+(x[1]?' · '+x[1]+'+ yr':'')];}));
+       a.push('<span class="chip"><span class="k">Designation</span>'+sel(opts,'',null,'des')+'</span>');
+     }
+     if(k==='armagnac'||k==='calvados')a.push(add('Vintage year'));
+     if(['gin','amaro','liqueur'].indexOf(g)<0){a.push(add('Distilled / filled date'));a.push(add('Bottled date'));}
+     if(g==='rum')a.push(add('Tropical / continental years'));
+   }
+   if(g==='agave'&&!(isMez&&tc==='vidrio'))a.push(add('Barrel type'));
+   if(g==='gin'||c.barrel)a.push(add('Barrel type'));
+  }
+  var ar=chips(a);
+  if(isTeq||isMez){
+   ar+=note('Type an age and the class follows: under 2 months is Blanco, 2 months to under a year is Reposado, a year or more is Añejo'+(isTeq?', 3 years or more is Extra Añejo':'')+'. Nothing is filled in for you. Joven and Cristalino stay manual.',1);
+   if(isMez&&tc==='vidrio')ar+=note('Madurado en Vidrio is rested in glass for at least 12 months, so there is no barrel and no age to type.',1);
+   else ar+=note('Barrel type uses the same options as Finish on whiskey, shown here under another name.',1);
+  }
+  if(fr){ar+='<div class="note" id="desnote"></div>'+note('Type an age and the designation fills in.',1);}
+  if(domf)ar+='<div class="warn" id="wdom">Warning: Domfrontais needs at least 3 years.</div>';
+  if(g==='rum'&&!S.aged)ar+=note('Solera, dates and finishes only show when Aged is on.');
+  if(g==='gin')ar+=note('When Aged, Barrel type replaces Finish (same options as Finish, under another name).',1);
+  if(c.barrel)ar+=note('Barrel type for '+c.name+': Uncharred or Used.',1);
+  ar+=extra;
+  L.push(row('Age',ar));
+ }
+
+ // ---- DISTILLED BY ----
+ var dnote={agave:'Only Mexican distilleries are offered.',brandy:fr?'Only French distilleries are offered.':(k==='pisco'?(S.pc==='pe'?'Peruvian distilleries. The country sets the grape list below.':'Chilean distilleries. The country sets the grape list below.'):''),whiskey:k==='canadian'?'Only Canadian distilleries are offered.':(k==='irish'?'Only Irish and UK distilleries are offered.':'')}[g]||'';
+ var dist='<div class="addin"><span>+ Add distillery: type a name</span><span class="alt">or not disclosed (pick the place)</span></div>';
+ if(dnote)dist+=note(dnote);
+ if(k==='pisco')dist+='<div class="note">demo: <span class="lbl">distillery country</span> '+seg([['pe','Peru'],['cl','Chile']],S.pc,'rkPc')+'</div>';
+ if(g==='amaro'||g==='liqueur')dist+=note('Country and region come from the distillery.');
+ L.push(row('Distilled by',dist));
+
+ // ---- MASHBILL / INGREDIENTS (grapes and fruit sit like a mashbill) ----
+ if(g==='whiskey'){
+  if(c.sm)L.push(row('Mashbill',table(['Recipe','Share'],['<tr><td>100% malted barley</td><td class="num"><input class="in" value="100"> %</td><td></td></tr>'],'')));
+  else L.push(row('Mashbill',table(['Recipe','Share','Made by'],[],'<div class="addin"><span>+ Add mashbill</span><span class="alt" style="color:var(--mute);text-decoration:none">common recipes suggested from the distilleries you add</span></div>')));
+ }
+ else if(k==='tequila')L.push(row('Maguey',chips([plain('Blue Weber')])));
+ else if(isMez)L.push(row('Maguey',chips([add('Maguey (Espadín, Tobalá…)')])));
+ else if(g==='rum')L.push(row('Base',(k==='agricole'||k==='cachaca')?chips([plain('Sugarcane juice')]):chips([add('Base')])));
+ else if(k==='cognac'||k==='armagnac'){
+   var gs=k==='cognac'?[['Main',GR.cogMain],['Extra',GR.cogExtra]]:[['Major',GR.armMajor],['Minor',GR.armMinor]];
+   L.push(row('Grapes',table(['Grape','Share'],grapeRows(),grapeAdd(gs))+note('Grapes only, entered like a mashbill: each grape with its share.',1)));
+ }
+ else if(k==='calvados'){
+   var fr2=function(label,key,indent){return '<tr><td'+(indent?' style="padding-left:16px"':'')+'>'+label+'</td><td class="num"><input class="in" id="f_'+key+'" value="'+(S.fruit[key]||'')+'" oninput="rkFruit()"> %</td><td></td></tr>';};
+   var rowsF=['<tr><td><b>Apples</b> <span class="sub" id="apsum">0%</span></td><td></td><td></td></tr>',fr2('Bittersweet','bs',1),fr2('Bitter','bt',1),fr2('Sweet','sw',1),fr2('Acidic / tart','ac',1),fr2('<b>Pears</b>','pe',0)];
+   L.push(row('Fruit',table(['Fruit','Share of the mix'],rowsF,'<div class="chips" style="margin-top:4px"><span class="chip" id="ftot"><span class="k">Total</span><span class="v">0%</span></span></div>')+'<div class="warn" id="wpear"></div>'+note(auge?"Pays d'Auge: pears should be at most 30%. A warning shows if they aren't.":domf?'Domfrontais: pears should be at least 30%. A warning shows if they aren\'t.':'Apples or pears only. Each apple type gets its own share of the mix, like the grains in a mashbill.',1)));
+ }
+ else if(k==='pisco'){
+   var list=S.pc==='pe'?GR.peru:GR.chile;
+   var type=S.pc==='pe'?(S.grapes.length>=2?'Acholado (a blend)':(S.grapes.length===1?'Puro (one grape)':'')):'';
+   var inner=table(['Grape','Share'],grapeRows(),grapeAdd([[S.pc==='pe'?'Peru':'Chile',list]]));
+   if(S.pc==='pe'){
+     inner+='<div class="chips" style="margin-top:6px">'+(type?'<span class="chip auto"><span class="k">Type</span><span class="v">'+type+'</span> <span class="k">set from the grapes</span></span>':'<span class="chip"><span class="k">Type</span><span class="v">set from the grapes</span></span>')+tog('Mosto Verde',S.mosto,'rkMosto()')+'</div>';
+     inner+=note('Grapes only. Two or more grapes makes it an Acholado by itself. This is a Peruvian rule.',1);
+     inner+=note('Mosto Verde is a style made from partly fermented must, not a grape. I put it next to the grapes as a toggle.');
+   }else{
+     inner+=note('Grapes only. Chile has no Acholado: a blend stays a blend, and the class comes from the ABV.',1);
+   }
+   L.push(row('Grapes',inner));
+ }
+ else if(k==='apple')L.push(row('Fruit',chips([plain('Apple')])));
+ else if(k==='eau-de-vie')L.push(row('Fruit',chips([add('Fruit')])));
+ else if(g==='gin'){
+   L.push(row('Botanicals',chips([plain('Juniper'),add('Botanical')])+note('Juniper is always listed first, then whatever else you add.')));
+   L.push(row('Base',chips([add('Base')])));
+ }
+ else if(g==='vodka')L.push(row('Base',chips([add('Base')])));
+ else if(g==='amaro')L.push(row('Botanicals',chips([add('Botanical')])));
+ else if(g==='liqueur')L.push(row('Base',chips([add('Base')])));
+ else if(k==='shochu')L.push(row('Base',chips([add('Base (sweet potato, barley, rice…)')])));
+ else if(g==='other')L.push(row('Botanicals',chips([add('Botanical')])));
+
+ if(c.flav||g==='liqueur')L.push(row('Flavors',chips([add('Flavor')])+note('The same Flavors list vodka already uses.')));
+ // ---- FINISH (not for agave and gin: they use Barrel type in Age) ----
+ var finishOk=!unaged&&g!=='vodka'&&g!=='agave'&&g!=='gin';
+ if(finishOk)L.push(row('Finish',chips([plain('None ✓'),add('Finish (in order, with months)')])));
+
+ // ---- MEZCAL PRODUCTION (right after Maguey) ----
+ if(isMez){
+  var cook=ancestral?'<span class="chip lock"><span class="k">Cooking</span><span class="v">Pit oven</span></span>':add('Cooking method'+(artesanal?' (pit, masonry oven, autoclave)':''));
+  var ext=ancestral?add('Extraction (tahona, Egyptian mill, mallet)'):artesanal?add('Extraction (no diffuser)'):add('Extraction');
+  var still=ancestral?'<span class="chip lock"><span class="k">Still</span><span class="v">Pot (clay)</span></span>':artesanal?add('Still (pot only, no column)'):null;
+  var mr=chips([seg([['mezcal','Mezcal'],['artesanal','Artesanal'],['ancestral','Ancestral']],S.mprod,'rkMprod'),cook,ext].concat(still?[still]:[]).concat([add('Additive free')]));
+  mr+=note('The production category sets the rules: Ancestral pre-selects pit-oven cooking and a clay pot still and limits extraction to hand methods. Artesanal rules out the column still and the diffuser. Plain Mezcal allows everything. These follow my reading of the mezcal standard, to be verified.',1);
+  L.push(row('Production',mr));
+  if(S.mflavOpen)L.push(row('Flavor',chips([seg([['abocado','Abocado con'],['destilado','Destilado con']],S.mflav,'rkMflav')].concat(S.mflav?[add('Ingredient (damiana, fruit, herbs…)')]:[]))+note('Optional. Abocado con: flavored by adding ingredients after distilling. Destilado con: distilled with the ingredients in the still.',1)));
+ }
+
+ // ---- ABOUT IT ----
+ var sp=[],still2=null;
+ if(auge)still2='<span class="chip lock"><span class="k">Still</span><span class="v">Pot</span></span>';
+ else if(domf)still2='<span class="chip lock"><span class="k">Still</span><span class="v">Column</span></span>';
+ else if(k==='agricole'&&S.mart)still2='<span class="chip"><span class="k">Still</span><span class="v">Column</span> ▾</span>';
+ if(still2)sp.push(still2);
+ if(g==='rum'){sp.push(add('Marque'));sp.push(add('Esters'));if(k!=='agricole')sp.push(add('Added sugar'));}
+ if(g==='gin'&&k!=='genever')sp.push(add('Style (London Dry…)'));
+ if(k==='genever')sp.push('<span class="lbl">Class</span>'+seg([['jonge','Jonge'],['oude','Oude'],['korenwijn','Korenwijn']],'','rkNone'));
+ if(isTeq){sp.push(add('Cooking method'));sp.push(add('Extraction'));sp.push(add('Additive free'));}
+ if(g==='amaro')sp.push(add('Style (Aperitivo, Fernet, Alpine…)'));
+ if(k==='cream-liqueur')sp.push(tog('Dairy',true));
+ if(sp.length){
+  var spr=chips(sp);
+  if(k==='agricole')spr+=note('Added sugar is hidden for Agricole. A linked distillery in Martinique pre-selects Column still.')+'<div class="note"><span class="link" onclick="rkMart()">toggle: Martinique distillery '+(S.mart?'linked':'not linked')+'</span></div>';
+  if(auge)spr+=note("Pays d'Auge is always pot-still, so the still is selected for you.");
+  if(domf)spr+=note('Domfrontais is always column-still, so the still is selected for you.');
+  if(k==='cream-liqueur')spr+=note('Dairy is on by default for cream liqueur. Untick it if it isn\'t.',1);
+  L.push(row('About it',spr));
+ }
+
+ // ---- HOW IT'S MADE (whiskey) ----
+ if(g==='whiskey'){
+  var h=[tog('Non-chill filtered',false)];
+  if(k!=='american'&&k!=='scotch')h.push(tog('Additive free',false));
+  if(k!=='scotch')h.push(add('Entry proof'));
+  if(c.peat)h.push(add('Peat'));
+  h.push(add('Cooperage'));
+  if(k==='scotch')h.push(add('Regions'));
+  var hr=chips(h);
+  if(c.name==='Tennessee Whiskey')hr+=note('Tennessee copies bourbon exactly. The charcoal filtering is assumed.');
+  L.push(row('How it\'s made',hr+note('(opens from “More” on the real page)')));
+ }
+
+ var photo='<div class="frame" style="width:100px;height:134px;background:'+c.col+';color:'+text+'"><div class="plus">+</div>Photo or link</div><div class="sub" style="font-size:11px;text-align:center;margin-top:3px">only photo slot</div>';
+ var moreL=['<span class="link">Still</span>','<span class="link">Description</span>','<span class="link">Vintage</span>'];
+ if(isMez)moreL.splice(1,0,'<span class="link" onclick="rkFlavOpen()">Flavor</span>');
+ if(g==='liqueur'&&k!=='cream-liqueur')moreL.unshift('<span class="link">Dairy</span>');
+ moreL.push('<span class="link">TTB approval (none yet)</span>');
+ var labelHtml='<div class="panel" style="display:grid;grid-template-columns:1fr 100px;gap:14px"><div>'+L.join('')+'<div class="quiet"><span>More:</span>'+moreL.join('')+'</div>'+note('Still opens a choice of Pot, Column, Coffey (a kind of column still) or 3-chamber. It is optional on every spirit.',1)+(g==='liqueur'&&k!=='cream-liqueur'?note('Dairy is under More. It never shows as “Dairy: Unknown”.'):'')+'</div><div>'+photo+'</div></div>';
+
+ // ---- BOTTLE ----
+ var B=[];
+ B.push(row('Bought',chips([inp('Price','',56),chip('Store','Seelbach\'s',1),chip('Acquired','Today',1),add('Where it lives')])));
+ var w=[];
+ var noBatch=['vodka','amaro','liqueur'].indexOf(g)>=0;
+ if(!noBatch){
+  if(k!=='tequila'&&g!=='gin')w.push('<span class="chip"><span class="k">Vintage</span><span class="v">if the label has any</span> ▾</span>');
+  w.push(inp(g==='agave'?'Lot #':'Batch','',64));w.push(inp('Year','',40));
+ }
+ w.push('<span class="seg"><span class="on" onclick="this.parentNode.querySelectorAll(\'span\').forEach(function(s){s.classList.remove(\'on\')});this.classList.add(\'on\')">Sealed</span><span onclick="this.parentNode.querySelectorAll(\'span\').forEach(function(s){s.classList.remove(\'on\')});this.classList.add(\'on\')">Opened</span></span>');
+ B.push(row('Which one',chips(w)));
+ var canPick=!noBatch&&!((g==='gin'||g==='rum')&&!S.aged);
+ var mm2=[];
+ if(canPick){mm2.push('<span class="link" onclick="rkPick()">Single '+word+'</span>');mm2.push('<span class="link" onclick="rkPick()">Private selection</span>');}
+ if(g==='whiskey'&&['american','japanese','international','flavored-whisky'].indexOf(k)>=0)mm2.push('<span class="link">Warehouse / rick</span>');
+ mm2.push('<span class="link">Notes</span>');mm2.push('<span class="link">This bottle differs from the label</span>');
+ var bm='<div class="quiet"><span>More:</span>'+mm2.join('')+'</div>';
+ if(canPick&&S.pick)bm+='<div class="chips" style="margin-bottom:6px">'+add('Pick name')+add('Picked by')+add(word[0].toUpperCase()+word.slice(1)+' number')+'</div>';
+ if((g==='gin'||g==='rum')&&!S.aged)bm+=note('Single '+word+' and Private selection follow the label: they appear when the label is Aged.');
+ B.push(bm);
+ busy=true;
+ document.getElementById('form').innerHTML='<div class="page"><div class="bar"><h1>Add a bottle</h1><div style="display:flex;gap:8px"><button class="btn">Cancel</button><button class="btn primary">Save label and bottle</button></div></div>'
+  +'<div class="sec"><h2><span class="n">1</span>The label <span class="sub" style="font-family:Inter">· '+c.top+' › '+c.name+'</span></h2></div>'+labelHtml
+  +'<div class="sec"><h2><span class="n">2</span>The bottle in your hand</h2></div><div class="panel">'+B.join('')+'</div></div>';
+ busy=false;
+ if(document.getElementById('f_pe'))rkFruit();
+}
+W.rkNone=function(v){};
+topSel.value=C[S.i].top;fillSub();subSel.value=S.i;draw();
+W.rkSet=function(name){C.forEach(function(c,i){if(c.name===name){S.i=i;reset();topSel.value=c.top;fillSub();subSel.value=i;draw();}});};
+})();
+</script>
+</body></html>
