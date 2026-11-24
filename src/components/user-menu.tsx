@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
+import { NARROW_QUERY } from "@/components/nav/nav-items";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /** "Zach Welker" -> "Zach"; the username stands in for an empty name. */
@@ -26,6 +27,16 @@ export function UserMenu({ name, username, content }: { name: string; username: 
     setPrevPathname(pathname);
     setOpen(false);
   }
+
+  // Shrinking into the narrow layout hides the trigger; the portalled popover would be left open beside the narrow panel.
+  React.useEffect(() => {
+    const query = window.matchMedia(NARROW_QUERY);
+    const onChange = () => {
+      if (query.matches) setOpen(false);
+    };
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

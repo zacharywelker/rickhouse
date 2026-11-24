@@ -27,7 +27,7 @@ export async function AppShell({ children, wide = false }: { children: React.Rea
 
   const signOut = (
     <form action={logout}>
-      <Button type="submit" variant="ghost" size="sm" className="w-full justify-start px-2 text-sm text-muted-foreground hover:text-foreground">
+      <Button type="submit" variant="ghost" size="sm" className="h-11 w-full justify-start px-2 text-sm text-muted-foreground hover:text-foreground">
         Sign out
       </Button>
     </form>

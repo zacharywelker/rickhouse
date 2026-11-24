@@ -242,21 +242,21 @@ test("a sticky round header never covers a control that takes focus", async ({ p
   expect(top).toBeGreaterThanOrEqual(bottom - 1);
 });
 
-test("the Tournaments link is in the header on a wide screen and in the menu below it", async ({ page }) => {
+test("the Flights link is in the bar at half-screen width and in the menu below 720px", async ({ page }) => {
   const main = page.getByRole("navigation", { name: "Main" });
 
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize({ width: 864, height: 800 });
   await page.goto("/");
-  await expect(main.getByRole("link", { name: "Tournaments" })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Flights" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open menu" })).toBeHidden();
 
-  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.setViewportSize({ width: 700, height: 800 });
   await expect(main).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole("button", { name: "Open menu" }).click();
-  await main.getByRole("link", { name: "Tournaments" }).click();
+  await main.getByRole("link", { name: "Flights" }).click();
   await expect(page).toHaveURL(/\/tournaments$/);
-  await expect(page.getByRole("heading", { name: "Tournaments", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Flights", level: 1 })).toBeVisible();
 });
 
 // ---- The feedback round: facts in the draft, flights of six, remove a bottle, smart titles, drag and drop. ----

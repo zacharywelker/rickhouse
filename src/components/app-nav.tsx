@@ -115,7 +115,7 @@ export function AppNav({
             type="button"
             variant="outline"
             size="sm"
-            className="min-[720px]:hidden"
+            className="h-11 min-w-11 min-[720px]:hidden"
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={open ? "Close menu" : "Open menu"}

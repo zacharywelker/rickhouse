@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
+import { isCurrent } from "./nav-items";
 import type { MenuSection } from "./account-menu-sections";
 
 /**
@@ -35,10 +36,10 @@ export function AccountSections({
             <Link
               key={href}
               href={href}
-              aria-current={pathname === href ? "page" : undefined}
+              aria-current={isCurrent(pathname, href) ? "page" : undefined}
               className={cn(
-                "block border-l-2 px-3 py-2.5 text-sm transition-colors",
-                pathname === href
+                "flex min-h-11 items-center border-l-2 px-3 text-sm transition-colors",
+                isCurrent(pathname, href)
                   ? "border-foreground text-foreground"
                   : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
               )}
