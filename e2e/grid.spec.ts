@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openNewLabelForm } from "./support/new-label";
-import { signIn } from "./support/auth";
+import { MEMBER, signIn, signOut } from "./support/auth";
 import { resetDatabase } from "./support/db";
 
 const stamp = () => Math.random().toString(36).slice(2, 8);
@@ -173,4 +173,21 @@ test("a hand-picked group's id in the URL shows only its bottles, and an id that
   await page.goto("/bottles?group=9999999999");
   await expect(collection).toBeVisible();
   await expect(bottle).toBeVisible();
+});
+
+test("another account's real group id shows none of your bottles and no error", async ({ page }) => {
+  // The member makes a group; the admin (who owns the seeded bottle) then asks for it by id.
+  await signOut(page);
+  await signIn(page, MEMBER.username);
+  await page.goto("/groups/new");
+  await page.getByLabel("Name").fill("Member shelf");
+  await page.getByRole("button", { name: "Create group" }).click();
+  await expect(page).toHaveURL(/\/groups\/\d+/);
+  const theirGroup = new URL(page.url()).pathname.match(/\/groups\/(\d+)/)![1];
+
+  await signOut(page);
+  await signIn(page);
+  await page.goto(`/bottles?group=${theirGroup}`);
+  await expect(page.getByRole("heading", { name: "Collection", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Double Oak Spirit", exact: true })).toHaveCount(0);
 });

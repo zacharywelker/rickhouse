@@ -56,6 +56,18 @@ test("⌘K opens the search, results are grouped, and Enter opens the bottle", a
   await expect(page).toHaveURL(/\/bottles\/\d+$/);
 });
 
+test("Enter right after changing the text does not open a result from the previous text", async ({ page }) => {
+  await openSearch(page);
+  await page.keyboard.type("pursuit");
+  await expect(results(page).getByText("Your bottles")).toBeVisible();
+
+  // The list on screen is for "pursuit"; the new text has no answer yet, so Enter must do nothing.
+  await page.keyboard.type(" zzqx");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(600);
+  await expect(page).toHaveURL(/\/bottles$/);
+});
+
 test("a brand result opens the Collection filtered to that brand", async ({ page }) => {
   await openSearch(page);
   await page.keyboard.type("pursuit");

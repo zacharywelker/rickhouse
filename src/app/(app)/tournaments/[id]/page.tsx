@@ -47,7 +47,7 @@ export default async function TournamentPage({ params }: { params: Promise<{ id:
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <Link href={"/tournaments" as Route} className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          Tournaments
+          Flights
         </Link>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <h1 className="text-3xl text-accent">{view.name}</h1>

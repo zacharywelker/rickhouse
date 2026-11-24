@@ -1,8 +1,8 @@
 import { requireAdmin } from "@/lib/auth";
 
 /**
- * Admin-only settings: accounts and backups, later email and single sign-on.
- * Reached from the admin section of the user menu, not the main nav; each
+ * Admin-only settings: Users & sign-in (users, single sign-on and email, one page) and backups.
+ * Reached from the admin section of the account menu, not the main nav; each
  * page and action still calls requireAdmin() itself.
  */
 export default async function SystemLayout({ children }: { children: React.ReactNode }) {

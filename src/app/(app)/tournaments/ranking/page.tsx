@@ -34,7 +34,7 @@ export default async function RankingPage({ searchParams }: { searchParams: Prom
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <Link href={LIST} className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          Tournaments
+          Flights
         </Link>
         <h1 className="text-3xl text-accent">Ranking and audit</h1>
         <p className="text-sm text-muted-foreground">
@@ -87,7 +87,7 @@ export default async function RankingPage({ searchParams }: { searchParams: Prom
         <div className="flex flex-col items-start gap-3 border-t border-border pt-6">
           <p>{categoryId === null ? "No decided flights yet. Play a tournament to build a ranking." : "No decided flights in this category yet."}</p>
           <Button className="min-h-11" asChild>
-            <Link href={LIST}>Tournaments</Link>
+            <Link href={LIST}>Flights</Link>
           </Button>
         </div>
       ) : view === "ranking" ? (

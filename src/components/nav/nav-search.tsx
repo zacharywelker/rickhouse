@@ -67,6 +67,8 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
   const hasWords = HAS_WORDS.test(query);
   const result = hasWords ? (answer?.result ?? null) : null;
   const options = optionsFor(result, answer?.query ?? query, variant);
+  // The list on screen may still be for the previous text while the next answer is in flight; Enter must not open from it.
+  const fresh = answer !== null && answer.query.trim() === query.trim();
   const showPanel = focused && result !== null;
   const listId = `nav-search-list-${variant}`;
 
@@ -140,7 +142,7 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
       setActive((i) => (event.key === "ArrowDown" ? (i + 1) % options.length : (i - 1 + options.length) % options.length));
     } else if (event.key === "Enter") {
       event.preventDefault();
-      go(options[active]);
+      if (fresh) go(options[active]);
     } else if (event.key === "Escape") {
       event.preventDefault();
       setFocused(false);
@@ -228,8 +230,8 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
                   aria-selected={index === active}
                   className={cn(
                     "border-t border-border/60",
-                    option.row.key === "new" && "border-t-foreground bg-muted",
-                    index === active && option.id !== "nav-search-new" && "bg-muted",
+                    option.row.key === "new" && "border-t-foreground",
+                    index === active && "bg-muted",
                   )}
                 >
                   <Link
