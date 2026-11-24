@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CategoryKind } from "@/lib/expressions/rules";
-import { companyPrefill, countryForKind, placeIdentifier } from "../distillery-defaults";
+import { companyPrefill, countryForKind, distilleryNameOf, placeIdentifier } from "../distillery-defaults";
 
 describe("countryForKind", () => {
   it.each<[CategoryKind, string | null]>([
@@ -29,26 +29,33 @@ describe("countryForKind", () => {
 });
 
 describe("placeIdentifier", () => {
-  it.each<[CategoryKind, string, "dsp" | "nom" | "region" | null]>([
-    ["tequila", "Mexico", "nom"],
-    ["mezcal", "USA", "nom"],
-    ["tequila", "Scotland", "nom"],
-    ["american", "USA", "dsp"],
-    ["scotch", "Scotland", "region"],
-    ["scotch", "USA", "region"],
-    ["american", "Scotland", "region"],
-    ["american", "Mexico", "nom"],
-    ["scotch", "Mexico", "nom"],
-    ["cognac", "France", null],
-    // Countries are typed by hand: case, accents and common aliases must not hide the chip.
-    ["american", "mexico", "nom"],
-    ["cognac", "México", "nom"],
-    ["american", "scotland", "region"],
-    ["american", "UK", "region"],
-    ["cognac", "us", "dsp"],
-    ["cognac", "  usa ", "dsp"],
-  ])("selects the identifier for %s in %s", (kind, country, identifier) => {
-    expect(placeIdentifier(kind, country)).toBe(identifier);
+  it.each<[string, "dsp" | "nom" | "region" | null]>([
+    ["Mexico", "nom"],
+    ["mexico", "nom"],
+    ["México", "nom"],
+    ["MX", "nom"],
+    ["Scotland", "region"],
+    ["scotland", "region"],
+    ["UK", "region"],
+    ["USA", "dsp"],
+    ["us", "dsp"],
+    ["  usa ", "dsp"],
+    ["France", null],
+    ["Canada", null],
+  ])("selects the identifier for %s", (country, identifier) => {
+    expect(placeIdentifier(country)).toBe(identifier);
+  });
+});
+
+describe("distilleryNameOf", () => {
+  it("removes the NOM prefix a picker adds", () => {
+    expect(distilleryNameOf("NOM-1234: Casa Prueba")).toBe("Casa Prueba");
+    expect(distilleryNameOf("NOM-1234A: Casa: Prueba")).toBe("Casa: Prueba");
+  });
+
+  it("leaves other names alone", () => {
+    expect(distilleryNameOf("Far North Spirits")).toBe("Far North Spirits");
+    expect(distilleryNameOf("Nomad: Works")).toBe("Nomad: Works");
   });
 });
 

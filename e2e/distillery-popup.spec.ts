@@ -18,6 +18,8 @@ test.beforeAll(async () => {
   try {
     const [admin] = await db<{ id: number }[]>`SELECT id FROM users WHERE username = 'admin'`;
     await db`INSERT INTO distilleries (owner_id, name, slug, country) VALUES (${admin!.id}, 'Far North Spirits', 'far-north-spirits', 'USA')`;
+    // The pickers show a Mexican distillery with its NOM in front of the name.
+    await db`INSERT INTO distilleries (owner_id, name, slug, country, nom_number) VALUES (${admin!.id}, 'Casa Prueba Existente', 'casa-prueba-existente', 'Mexico', '1234')`;
   } finally {
     await db.end();
   }
@@ -183,6 +185,36 @@ test("Enter in the nested Add company popup does not save the distillery behind 
   try {
     const rows = await db`SELECT 1 FROM distilleries WHERE name = 'Nested Works'`;
     expect(rows.length).toBe(0);
+  } finally {
+    await db.end();
+  }
+});
+
+test("a duplicate is found even when the picker shows the name with its NOM in front", async ({ page }) => {
+  await newLabel(page, "Tequila");
+  await openPopup(page, "Casa Prueba");
+  const dialog = page.getByRole("dialog", { name: "Add distillery" });
+  await dialog.getByLabel("Name").fill("casa prueba existente");
+  await expect(dialog).toContainText("already in your collection");
+  await expect(dialog.getByRole("button", { name: "Save distillery" })).toBeDisabled();
+});
+
+test("the identifier follows the country the way the save keeps it, not the spirit", async ({ page }) => {
+  await newLabel(page, "Tequila");
+  await openPopup(page, "Texas Agave Works");
+  const dialog = page.getByRole("dialog", { name: "Add distillery" });
+  await expect(dialog.getByLabel("NOM")).toBeVisible();
+  await dialog.getByLabel("Country").fill("USA");
+  // A NOM would be dropped for a US distillery, so the popup offers the DSP number instead.
+  await expect(dialog.getByLabel("NOM")).toHaveCount(0);
+  await expect(dialog.getByLabel("DSP")).toBeVisible();
+  await dialog.getByLabel("DSP").fill("DSP-TX-77");
+  await dialog.getByRole("button", { name: "Save distillery" }).click();
+  await expect(dialog).toBeHidden();
+  const db = sql();
+  try {
+    const [row] = await db<{ dsp_number: string | null; nom_number: string | null }[]>`SELECT dsp_number, nom_number FROM distilleries WHERE name = 'Texas Agave Works'`;
+    expect(row).toEqual({ dsp_number: "DSP-TX-77", nom_number: null });
   } finally {
     await db.end();
   }

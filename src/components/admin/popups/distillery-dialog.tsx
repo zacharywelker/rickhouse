@@ -11,7 +11,7 @@ import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SCOTCH_REGIONS } from "@/db/schema";
-import { countryForKind, placeIdentifier } from "@/lib/admin/distillery-defaults";
+import { countryForKind, distilleryNameOf, placeIdentifier } from "@/lib/admin/distillery-defaults";
 import { titleCase, type Problem } from "@/lib/admin/popup-problems";
 import { IDLE_RESULT, type Option } from "@/lib/admin/types";
 import type { CategoryKind } from "@/lib/expressions/rules";
@@ -76,21 +76,20 @@ function DistilleryDialogBody({ onOpenChange, initialName, defaultCountry, kind,
 
   const tidy = titleCase(name);
   const place = normalizeCountry(country);
-  const kindOrOther: CategoryKind = kind ?? "other";
-  const chip = placeIdentifier(kindOrOther, place);
+  const chip = placeIdentifier(place);
   const identifier = chip === null ? "" : identifiers[chip];
   const setIdentifier = (value: string) => {
     if (chip !== null) setIdentifiers((prev) => ({ ...prev, [chip]: value }));
   };
   const expected = kind ? countryForKind(kind) : null;
   const countryFits = expected === null || place.toLowerCase() === expected.toLowerCase() || (expected === "Scotland" && isScotchCountry(place));
-  const duplicate = tidy === "" ? undefined : existing.find((option) => option.label.toLowerCase() === tidy.toLowerCase());
+  const duplicate = tidy === "" ? undefined : existing.find((option) => distilleryNameOf(option.label).toLowerCase() === tidy.toLowerCase());
 
   const problems: Problem[] = [];
   if (tidy === "") problems.push({ text: "Give it a name.", blocking: true });
   if (duplicate) {
     problems.push({
-      text: `A distillery named “${duplicate.label}” is already in your collection.`,
+      text: `A distillery named “${distilleryNameOf(duplicate.label)}” is already in your collection.`,
       blocking: true,
       action: { label: "Use it", onClick: () => { onCreated(duplicate); onOpenChange(false); } },
     });
