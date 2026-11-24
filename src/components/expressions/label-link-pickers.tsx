@@ -157,6 +157,7 @@ export function FinishPickers({ kind, shown, options, links, onLinksChange }: Co
       label={caskTypes ? "Cask Types" : "Finishes"}
       description={caskTypes ? "Known casks, without assuming a finishing order or duration." : "In sequence, for a double or triple finish."}
       resource="finishes"
+      {...(caskTypes ? { detailNoun: "cask type" } : {})}
       options={options}
       amountLabel="Months"
       amountSuffix="mo"

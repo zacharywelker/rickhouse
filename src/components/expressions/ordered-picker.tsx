@@ -64,6 +64,7 @@ export function OrderedPicker({
   undisclosable = false,
   onOptionCreated,
   defaultCountry,
+  detailNoun,
   brand,
   matchesOption,
   renderRowExtra,
@@ -77,6 +78,8 @@ export function OrderedPicker({
   resource: ReferenceResource | null;
   options: Option[];
   defaultCountry?: string;
+  /** "cask type" where a finish is called that; passed to the add-details popup. */
+  detailNoun?: string;
   brand?: Option;
   matchesOption?: (option: Option) => boolean;
   emptyHint?: string;
@@ -316,6 +319,7 @@ export function OrderedPicker({
         options={selectable}
         brand={brand}
         {...(defaultCountry ? { defaultCountry } : {})}
+        {...(detailNoun ? { detailNoun } : {})}
         value={null}
         onChange={(next) => {
           if (next === null) return;

@@ -40,6 +40,8 @@ type Props = {
   /** A country-bound picker uses the full create form so its country is recorded. */
   defaultCountry?: string;
   brand?: Option;
+  /** What a finish is called here ("cask type" for some spirits); only the finish popup reads it. */
+  detailNoun?: string;
 };
 
 /**
@@ -64,6 +66,7 @@ export function ReferenceCombobox({
   emptyHint,
   placeholder,
   defaultCountry,
+  detailNoun,
   brand,
 }: Props) {
   const searchPlaceholder = placeholder ?? (resource === null ? "Search…" : "Search or create…");
@@ -246,6 +249,7 @@ export function ReferenceCombobox({
           initialName={query}
           defaultCompanyId={defaultCompanyId}
           {...(defaultCountry ? { defaultCountry } : {})}
+          {...(detailNoun ? { noun: detailNoun } : {})}
           onCreated={(option) => {
             onOptionCreated(option);
             onChange(option.value);

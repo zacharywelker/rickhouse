@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { mapDbError } from "@/lib/db-errors";
 import { AdminRuleError } from "@/lib/admin/errors";
+import { inferFinishType } from "@/lib/admin/finish-type";
 import { REFERENCE_OPTION_LOADERS, RESOURCES, isResourceKey } from "@/lib/admin/registry";
 import { quickCreateSchema } from "@/lib/admin/schemas";
 import {
@@ -11,6 +12,7 @@ import {
   type ActionResult,
   DETAILED_RESOURCES,
   type DetailedResource,
+  type Option,
   type QuickCreateResult,
   type ResourceFormSpec,
   type ReferenceResource,
@@ -111,6 +113,9 @@ export async function quickCreateAction(resource: string, name: string, defaultC
   const config = RESOURCES[resource];
   try {
     const defaults = { ...QUICK_CREATE_DEFAULTS[resource] };
+    if (resource === "finishes") {
+      defaults.finishType = inferFinishType(parsed.data.name) ?? "other";
+    }
     if (resource === "distilleries" && defaultCompanyId !== undefined) {
       const { companyId } = await config.optionsFor(user.id);
       if (!companyId?.some((option) => option.value === defaultCompanyId)) {
@@ -141,6 +146,13 @@ export async function resourceFormSpecAction(resource: string, id?: number): Pro
   const row = id === undefined ? undefined : rows.find((item) => item.id === id);
   if (id !== undefined && !row) return { ok: false, error: "That item could not be found." };
   return { ok: true, singular: config.singular, fields: config.fields, options, ...(row ? { row } : {}) };
+}
+
+/** Every row of one lookup the signed-in account has, so a popup can tell that a name is already taken. */
+export async function referenceOptionsAction(resource: string): Promise<Option[]> {
+  const user = await requireSession();
+  if (!isDetailedResource(resource)) return [];
+  return REFERENCE_OPTION_LOADERS[resource](user.id);
 }
 
 /** A row just made with its full form, as the option a picker chooses. */

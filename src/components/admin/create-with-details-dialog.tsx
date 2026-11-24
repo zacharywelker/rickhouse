@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createdOptionAction, resourceFormSpecAction } from "@/app/(app)/admin/actions";
 import type { DetailedResource, Option, ResourceFormSpec } from "@/lib/admin/types";
+import { FinishDialog } from "./popups/finish-dialog";
 import { ResourceForm } from "./resource-form";
 
 /**
@@ -22,6 +23,7 @@ export function CreateWithDetailsDialog({
   recordId,
   defaultCountry,
   defaultCompanyId,
+  noun,
   onCreated,
 }: {
   resource: DetailedResource;
@@ -33,19 +35,23 @@ export function CreateWithDetailsDialog({
   recordId?: number;
   defaultCountry?: string;
   defaultCompanyId?: number;
+  /** What a finish is called here: "finish", or "cask type" for the spirits that call it that. */
+  noun?: string;
   onCreated: (option: Option) => void;
 }) {
   const [spec, setSpec] = React.useState<ResourceFormSpec | null>(null);
 
+  // A finish has its own, smaller popup; it does not load the generic form.
+  const bespoke = resource === "finishes" && recordId === undefined;
   React.useEffect(() => {
-    if (!open) return;
+    if (!open || bespoke) return;
     let current = true;
     void resourceFormSpecAction(resource, recordId).then((next) => current && setSpec(next));
     return () => {
       current = false;
       setSpec(null);
     };
-  }, [open, resource, recordId]);
+  }, [open, resource, recordId, bespoke]);
 
   const handleSaved = React.useCallback(
     (createdId?: number) => {
@@ -57,6 +63,18 @@ export function CreateWithDetailsDialog({
     },
     [onOpenChange, onCreated, resource],
   );
+
+  if (bespoke) {
+    return (
+      <FinishDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        initialName={initialName}
+        {...(noun ? { noun } : {})}
+        onCreated={onCreated}
+      />
+    );
+  }
 
   const singular = spec?.ok ? spec.singular : resource === "companies" ? "Company" : "New";
   const hasName = recordId === undefined && resource !== "mashbills" && initialName.trim() !== "";
