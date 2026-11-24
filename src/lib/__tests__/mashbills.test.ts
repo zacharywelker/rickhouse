@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   describeMashbill,
   ingredientColor,
+  mashbillProblems,
   mashbillTitle,
   matchesMashbillCategory,
   normalizeGrainName,
@@ -179,5 +180,144 @@ describe("matchesMashbillCategory", () => {
     expect(matchesMashbillCategory([], "american-whiskey")).toBe(true);
     expect(matchesMashbillCategory([{ grain: "Corn", percent: 20 }], "american-whiskey")).toBe(true);
     expect(matchesMashbillCategory([], "rye")).toBe(false);
+  });
+});
+
+describe("mashbillProblems", () => {
+  const check = (overrides: Partial<Parameters<typeof mashbillProblems>[0]> = {}) => mashbillProblems({
+    isSecret: false,
+    isGeneric: false,
+    isPartial: false,
+    name: "",
+    grains: [],
+    category: null,
+    ...overrides,
+  });
+  const recipe = (corn: number, rye: number, barley: number) => [
+    { grain: "Corn", percent: corn },
+    { grain: "Rye", percent: rye },
+    { grain: "Malted Barley", percent: barley },
+  ];
+
+  it("accepts a 75/13/12 bourbon", () => {
+    expect(check({ grains: recipe(75, 13, 12), category: "bourbon" })).toEqual([]);
+  });
+
+  it("explains how far a 75/13/10 recipe falls short", () => {
+    expect(check({ grains: recipe(75, 13, 10) })).toEqual([
+      { text: "The grains add up to 98%, not 100%. That is 2 short.", blocking: true },
+    ]);
+  });
+
+  it("explains how far a 60/30/20 recipe goes over", () => {
+    expect(check({ grains: recipe(60, 30, 20) })).toEqual([
+      { text: "The grains add up to 110%, not 100%. That is 10 over.", blocking: true },
+    ]);
+  });
+
+  it("accepts a partial disclosure of 30/20", () => {
+    expect(check({ isPartial: true, grains: [{ grain: "Corn", percent: 30 }, { grain: "Rye", percent: 20 }] })).toEqual([]);
+  });
+
+  it("blocks a partial disclosure of 60/50", () => {
+    expect(check({ isPartial: true, grains: [{ grain: "Corn", percent: 60 }, { grain: "Rye", percent: 50 }] })).toEqual([
+      { text: "The disclosed grains exceed 100% (110%).", blocking: true },
+    ]);
+  });
+
+  it("requires only a reference name for a secret without rows", () => {
+    expect(check({ isSecret: true, name: "  ", category: "bourbon" })).toEqual([
+      { text: "Give a secret mashbill a reference name, such as Buffalo Trace Wheated.", blocking: true },
+    ]);
+  });
+
+  it("requires only a style name for an unnamed generic", () => {
+    expect(check({ isGeneric: true, isSecret: true, name: "  " })).toEqual([
+      { text: "Name the style, such as High Rye.", blocking: true },
+    ]);
+  });
+
+  it("ignores invalid grains for a named generic", () => {
+    expect(check({ isGeneric: true, name: "High Rye", grains: [{ grain: "", percent: 150 }], category: "rye" })).toEqual([]);
+  });
+
+  it("requires at least one ingredient for a public recipe", () => {
+    expect(check({ category: "rye" })).toEqual([{ text: "Add at least one ingredient.", blocking: true }]);
+  });
+
+  it("requires a name for a row with a share", () => {
+    expect(check({ grains: [{ grain: "", percent: "12" }] })[0]).toEqual({ text: "Name every ingredient.", blocking: true });
+  });
+
+  it("requires a share for a named row", () => {
+    expect(check({ grains: [{ grain: "Corn", percent: "" }] })[0]).toEqual({ text: "Give every ingredient a share.", blocking: true });
+  });
+
+  it("reports duplicate names using the later row's spelling", () => {
+    expect(check({ grains: [{ grain: "Corn", percent: 50 }, { grain: "corn ", percent: 50 }] })).toEqual([
+      { text: "corn  is in there twice. Combine them into one row.", blocking: true },
+    ]);
+  });
+
+  it("warns without blocking a 40/30/30 bourbon", () => {
+    expect(check({ grains: recipe(40, 30, 30), category: "bourbon" })).toEqual([
+      { text: "A bourbon mashbill is at least 51% corn.", blocking: false },
+    ]);
+  });
+
+  it("warns about rye below 51% even when the total also blocks", () => {
+    expect(check({ grains: [{ grain: "Rye", percent: 40 }], category: "rye" })).toEqual([
+      { text: "The grains add up to 40%, not 100%. That is 60 short.", blocking: true },
+      { text: "A rye mashbill is at least 51% rye.", blocking: false },
+    ]);
+  });
+
+  it("accepts decimal shares totaling 100", () => {
+    expect(check({ grains: [{ grain: "Rye", percent: "12.5" }, { grain: "Corn", percent: 87.5 }] })).toEqual([]);
+  });
+
+  it("ignores a completely empty extra row", () => {
+    expect(check({ grains: [...recipe(75, 13, 12), { grain: "  ", percent: "  " }], category: "bourbon" })).toEqual([]);
+  });
+
+  it.each(["  ", "abc", "Infinity", 0, -5, NaN])("rejects invalid share %s", (percent) => {
+    expect(check({ grains: [{ grain: "Corn", percent }] })[0]).toEqual({ text: "Give every ingredient a share.", blocking: true });
+  });
+
+  it("finds only the first duplicate, ignoring extra internal spaces", () => {
+    expect(check({ grains: [
+      { grain: "Malted Barley", percent: 25 },
+      { grain: "malted   BARLEY", percent: 25 },
+      { grain: "Malted Barley", percent: 50 },
+    ] })).toEqual([{ text: "malted   BARLEY is in there twice. Combine them into one row.", blocking: true }]);
+  });
+
+  it.each([99, 101])("accepts the total tolerance boundary %s", (percent) => {
+    expect(check({ grains: [{ grain: "Corn", percent }] })).toEqual([]);
+  });
+
+  it("rounds total and distance to two decimals without trailing zeros", () => {
+    expect(check({ grains: [{ grain: "Corn", percent: 97.895 }] })).toEqual([
+      { text: "The grains add up to 97.89%, not 100%. That is 2.11 short.", blocking: true },
+    ]);
+  });
+
+  it("also checks totals for secret partial recipes", () => {
+    expect(check({ isSecret: true, isPartial: true, name: "Reference", grains: [{ grain: "Corn", percent: 110 }] })).toEqual([
+      { text: "The disclosed grains exceed 100% (110%).", blocking: true },
+    ]);
+  });
+
+  it("orders name, row, duplicate, total and category problems", () => {
+    expect(check({ isSecret: true, category: "bourbon", grains: [
+      { grain: "", percent: 10 }, { grain: "Rye", percent: "" }, { grain: "rye", percent: 10 },
+    ] }).map(({ text }) => text)).toEqual([
+      "Give a secret mashbill a reference name, such as Buffalo Trace Wheated.",
+      "Name every ingredient.",
+      "Give every ingredient a share.",
+      "rye is in there twice. Combine them into one row.",
+      "The grains add up to 20%, not 100%. That is 80 short.",
+      "A bourbon mashbill is at least 51% corn.",
+    ]);
   });
 });

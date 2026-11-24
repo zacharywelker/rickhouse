@@ -8,6 +8,7 @@ import type { DetailedResource, Option, ResourceFormSpec } from "@/lib/admin/typ
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { DistilleryDialog } from "./popups/distillery-dialog";
 import { FinishDialog } from "./popups/finish-dialog";
+import { MashbillDialog } from "./popups/mashbill-dialog";
 import { ResourceForm } from "./resource-form";
 
 /**
@@ -27,6 +28,7 @@ export function CreateWithDetailsDialog({
   defaultCompanyId,
   noun,
   kind,
+  category,
   onCreated,
 }: {
   resource: DetailedResource;
@@ -42,12 +44,14 @@ export function CreateWithDetailsDialog({
   noun?: string;
   /** The label's spirit; the distillery popup uses it to pick its identifier (DSP, NOM or Scotch region). */
   kind?: CategoryKind;
+  /** "bourbon" or "rye" when the label is one; the mashbill popup warns when a recipe does not fit. */
+  category?: string;
   onCreated: (option: Option) => void;
 }) {
   const [spec, setSpec] = React.useState<ResourceFormSpec | null>(null);
 
-  // A finish and a distillery have their own popups; it does not load the generic form.
-  const bespoke = (resource === "finishes" || resource === "distilleries") && recordId === undefined;
+  // A finish, a distillery and a mashbill have their own popups; it does not load the generic form.
+  const bespoke = (resource === "finishes" || resource === "distilleries" || resource === "mashbills") && recordId === undefined;
   React.useEffect(() => {
     if (!open || bespoke) return;
     let current = true;
@@ -68,6 +72,10 @@ export function CreateWithDetailsDialog({
     },
     [onOpenChange, onCreated, resource],
   );
+
+  if (bespoke && resource === "mashbills") {
+    return <MashbillDialog open={open} onOpenChange={onOpenChange} category={category ?? null} onCreated={onCreated} />;
+  }
 
   if (bespoke && resource === "distilleries") {
     return (

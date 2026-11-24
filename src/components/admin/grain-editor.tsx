@@ -118,11 +118,14 @@ export function GrainEditor({
   onChange,
   error,
   isPartial = false,
+  inPopup = false,
 }: {
   rows: GrainRow[];
   onChange: (next: GrainRow[]) => void;
   error?: string;
   isPartial?: boolean;
+  /** In a popup the footer says what is wrong, so the total's own sentence and the error line are left out. */
+  inPopup?: boolean;
 }) {
   const id = React.useId();
   const total = sumGrains(rows as Grain[]);
@@ -140,7 +143,7 @@ export function GrainEditor({
   return (
     <div className="col-span-full flex flex-col gap-3">
       <div className="flex flex-col gap-2">
-        <Label htmlFor={`${id}-0-grain`}>Ingredients</Label>
+        <Label htmlFor={`${id}-0-grain`} className={inPopup ? "sr-only" : undefined}>Ingredients</Label>
         {empty ? (
           <p className="text-sm text-muted-foreground">
             No ingredients yet. A secret mashbill can stay empty until you have inferred its recipe; a style
@@ -240,7 +243,7 @@ export function GrainEditor({
               </li>
             ))}
           </ul>
-          <p className={cn("text-xs", acceptable ? "text-muted-foreground" : "text-destructive")} aria-live="polite">
+          {inPopup ? null : <p className={cn("text-xs", acceptable ? "text-muted-foreground" : "text-destructive")} aria-live="polite">
             {exact
               ? "Adds up to 100%."
               : isPartial && rounded < GRAIN_TOTAL.min
@@ -250,7 +253,7 @@ export function GrainEditor({
                 : rounded < GRAIN_TOTAL.min
                   ? `${Number((100 - rounded).toFixed(2))}% short of 100%.`
                   : `${Number((rounded - 100).toFixed(2))}% over 100%.`}
-          </p>
+          </p>}
           {rows.length > 1 ? (
             <p className="text-xs text-muted-foreground">
               Reads as <span className="text-foreground">{orderGrains(rows as Grain[]).map((g) => g.grain).filter(Boolean).join(", ")}</span> — the dominant grain first, then the order a mashbill is normally written in.
@@ -259,7 +262,7 @@ export function GrainEditor({
         </div>
       ) : null}
 
-      {error ? (
+      {error && !inPopup ? (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
