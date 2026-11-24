@@ -283,7 +283,7 @@ Scope: getting a photo onto a label or a bottle **from a file or a link**. Remov
 
 ## 13. Not yet designed
 
-Next, in order: the **popups** (add distillery, add finish, add mashbill and the rest) in this style ("How Known" goes, since "not disclosed" replaced it), then the **Configuration** and **Labels** pages. The photo flow is done as a design (section 11); the bottles and labels pages that show photos are redesigned later, keeping the behaviour in section 11. The iOS photo flow follows the server as separate work. An accordion with a live bottle card (mockup option B) is parked for the **bottle and label display pages**.
+Next, in order: the **Configuration** and **Labels** pages (each has its own GitHub issue). The popups (add mashbill, distillery and finish) are done as designs, in section 16. The photo flow is done as a design (section 11); the bottles and labels pages that show photos are redesigned later, keeping the behaviour in section 11. The iOS photo flow follows the server as separate work. An accordion with a live bottle card (mockup option B) is parked for the **bottle and label display pages**.
 
 ## 14. Known problems found in the walkthrough
 
@@ -303,3 +303,36 @@ These are separate from the redesign and could be filed as their own issues:
 For the plan, not a commitment: `src/lib/expressions/fields.ts` and `rules.ts` (field groups, kinds, hidden fields), `bottle-fields.ts` and `bottle-applicability.ts`, `spirit-details.ts` and `gin-details.ts`, `src/components/expressions/expression-form.tsx`, `bottle-form.tsx` and `label-link-pickers.tsx`, `src/components/catalog/catalog-bottle.tsx` (the search-first page, which would become the default Add bottle), `STILL_TYPES` and the field groups in `src/db/schema.ts`, `scripts/seed.ts` (the category tree), and a migration for categories that move or are retired. For photos (section 11): `src/lib/remote-image.ts` (the link check, reused), the photo routes under `src/app/api/` (`bottles/[id]/images`, `expressions/[id]/photo`), `src/lib/images.ts` (storing and the cutout decision), `PhotoBox` in `expression-form.tsx` and the "Bottle photos" section in `catalog-bottle.tsx` (both replaced by the one slot), the `bottle_list` view that picks a bottle's photo, and `src/db/schema.ts` for the label photos, hidden photos and per-bottle order.
 
 **Relationship to earlier specs.** The October per-spirit specs (spirit-specific, American whiskey, Canadian, Irish, Scotch, vodka, amaro, liqueur label and bottle fields) describe the current form. Where a rule here differs (for example Dairy placement, amaro and liqueur country and region, which whiskey fields apply), this record is the newer direction, and the two should be reconciled when the plan is written. DESIGN.md still describes the visual language.
+
+## 16. Popups
+
+Three popups, opened from a picker's "Add details…" (or "or create a new one"). Mockups: `mashbill-popup.html`, `distillery-popup.html`, `finish-popup.html`. They are clickable, not the app.
+
+**Shared rules**
+
+- A dialog of about 600 to 660px with a serif title, the page dimmed behind it and a sticky footer. It saves to the collection and selects the result in the picker.
+- **Every warning is in the footer, left of Cancel, in one amber style.** A message is either blocking (Save is disabled) or says "It will still save".
+- Names are tidied (title-cased) when you leave the field. Typeahead suggestions open as a popover; arrow keys and Enter pick one.
+- Booleans are toggle chips. Optional fields live under a "More" line. Nothing is shown as "Unknown".
+- "Create “name”" (name only) stays in every picker. "Add details…" opens the popup with the name prefilled.
+
+**Add mashbill** (`screenshots/23-mashbill-popup.png`)
+
+- Secret, Generic style and Partial disclosure are toggle chips with one explanatory line. The Name field shows only for Secret and Generic.
+- Ingredients are a table (Ingredient, Share) with a colour dot. "+ Add an ingredient" is a plain dashed button that adds a blank row; typing suggests common ingredients.
+- Total, bar, legend and "Reads as…" as today. Notes sit under More.
+- Footer, blocking: shares over or short of 100%, a missing name or ingredient. Warning only: the category rule (bourbon at least 51% corn, rye at least 51% rye, single malt 100% malted barley).
+
+**Add distillery** (`screenshots/24-distillery-popup.png`)
+
+- Fields: Name, Company, then **Place on one line**: City, State, Country, plus one chip that depends on the spirit: DSP (US), NOM (agave and Mexico), Region (Scotch and Scotland). Founded, Defunct, Other old names and Notes are under More. "How Known" is gone.
+- "Create “name”" is offered for all spirits and fills Country from the category (agave Mexico, French brandies France, Canadian whisky Canada, Irish Ireland, Scotch Scotland, bourbon USA). Company is prefilled only when the typed name equals the brand, or "<brand> distillery".
+- **Distillery not disclosed** is a small popup (City optional, State, Country). It saves as "Undisclosed (Indiana)" and reuses an existing one.
+- Names are unique per owner: a duplicate blocks Save with a "Use it" link. A country that does not fit the spirit is an amber warning, not a block. "KY" becomes "Kentucky" on leaving the field (US only).
+
+**Add finish** (`screenshots/25-finish-popup.png`)
+
+- Titled "Add finish", or "Add cask type" for Canadian, Irish and Scotch whisky, amaro and liqueur (as today).
+- Name, then **Type as toggle chips** (Wood, Wine, Fortified, Beer, Spirit, Other). The type is **suggested from the name** ("port" or "sherry" suggest Fortified, "oak" Wood, "cognac" Spirit, and so on) and marked "suggested" until you choose. Name-only create uses the same guess, where today it files the finish as Other. Notes are under More.
+- Footer, blocking: no name, no type, or a name already in the collection ("Use it"). Names are unique per owner (the rule is assumed and still to be checked against the code).
+- The Finish table behind it keeps the pairing rules from `2026-11-08-whiskey-finish-mashbill-pairing-design.md`: months optional; a Mashbill column with two or more mashbills, **never preselected** (it starts on "Choose…", with no warning); a Share column with two or more finishes or an unfinished portion; one line per mashbill when a finish is on several; running total that must be 100 once any share is entered.

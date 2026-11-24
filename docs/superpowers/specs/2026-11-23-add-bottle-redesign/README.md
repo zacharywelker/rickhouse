@@ -11,3 +11,8 @@ Open the HTML files directly in a browser. Fonts fall back to system fonts if In
 Photos (section 11 of the design record):
 
 - `photo-flow.html`: a clickable prototype of the photo slot on the add page, a bottle's Photos section (drag to reorder, hide, remembered order, a vintage selector), and a label's gallery. Paste a link (any text with a dot; one with "bad" or "page" shows a warning), choose or drop a file, and right-click any photo. The right-click Paste item needs the page to be on HTTPS; the page says so when it is not.
+
+Popups (section 16 of the design record):
+
+- `mashbill-popup.html`, `distillery-popup.html`, `finish-popup.html`: clickable prototypes of the three popups, each with the form behind it. The demo bar at the top of each changes the spirit (and, for finish, the number of mashbills).
+- `screenshots/23` to `25`: stills of the three popups.

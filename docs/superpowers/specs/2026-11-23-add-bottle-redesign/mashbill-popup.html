@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add mashbill popup</title>
+<style>body{margin:0;padding:20px 16px 60px;background:#f4f4f6;color:#14213D;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}body>h2,.subtitle{max-width:864px;margin-left:auto;margin-right:auto}h2{font:600 18px "Source Serif 4",Georgia,serif;margin-bottom:4px}.subtitle{color:#5b6478;font-size:13px;margin-bottom:12px}</style></head><body>
+<style>
+  .rk{--paper:#FFF8E7;--ink:#14213D;--mute:#5b6478;--hair:#d9d0b8;
+      font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);font-size:13px;line-height:1.35}
+  .rk *{box-sizing:border-box}
+  .rk .opt{max-width:864px;margin:0 auto}
+  .rk .demo{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--ink);padding:8px 10px;margin-bottom:10px;font-size:12px}
+  .rk .demo select{height:28px;border:1px solid var(--ink);background:#fff;font:600 12.5px Inter,sans-serif;padding:0 6px;color:var(--ink)}
+  .rk .stage{background:var(--paper);border:1px solid var(--hair);padding:12px 20px 16px;position:relative;min-height:640px;overflow:hidden}
+  .rk .h1{font:600 22px/1.1 "Source Serif 4",Georgia,serif;margin:0 0 8px}
+  .rk .r{display:grid;grid-template-columns:104px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--hair);align-items:start}
+  .rk .r>.k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);padding-top:7px}
+  .rk .fake{height:25px;border:1px dashed #c9bf9f;color:#a79e80;display:flex;align-items:center;padding:0 8px;font-size:12px}
+  .rk table.t{border-collapse:collapse;width:100%;font-size:12.5px}
+  .rk table.t th{font:600 10px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);text-align:left;padding:0 8px 2px 0;border-bottom:1px solid var(--ink)}
+  .rk table.t td{padding:3px 8px 3px 0;border-bottom:1px solid var(--hair);vertical-align:middle}
+  .rk table.t td.num input{width:42px;text-align:right}
+  .rk input.in{height:28px;border:1px solid var(--ink);background:#fff;padding:0 7px;font:500 13px Inter,sans-serif;color:var(--ink);min-width:0}
+  .rk .addin{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px dashed var(--ink);min-height:27px;padding:3px 8px;color:var(--mute);margin-top:4px}
+  .rk .addin .alt{margin-left:auto;color:var(--ink);text-decoration:underline;white-space:nowrap;cursor:pointer}
+  .rk .chip{display:inline-flex;align-items:center;gap:6px;height:25px;border:1px solid var(--ink);background:#fff;padding:0 8px;font-size:12px;white-space:nowrap}
+  .rk .chip.add{border-style:dashed;color:var(--mute);background:transparent;cursor:pointer}
+  .rk .tog{display:inline-flex;align-items:center;gap:5px;height:25px;border:1px solid var(--ink);border-radius:13px;padding:0 10px;font-size:12px;cursor:pointer;user-select:none;background:#fff}
+  .rk .tog.on{background:var(--ink);color:var(--paper)} .rk .tog.on:before{content:"\2713";font-size:11px}
+  .rk .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .rk .sub{color:var(--mute);font-size:12px}
+  .rk .link{text-decoration:underline;cursor:pointer;color:var(--ink)}
+  .rk .newtag{font:700 9px Inter,sans-serif;letter-spacing:.05em;text-transform:uppercase;color:#1c6b3a;border:1px solid #1c6b3a;padding:0 4px;margin-left:6px}
+  /* overlay + dialog */
+  .rk .scrim{position:absolute;inset:0;background:rgba(20,33,61,.38);display:none;z-index:5}
+  .rk .scrim.open{display:block}
+  .rk .dlg{position:absolute;left:50%;top:28px;transform:translateX(-50%);width:600px;max-width:calc(100% - 24px);background:var(--paper);border:1px solid var(--ink);box-shadow:4px 4px 0 rgba(20,33,61,.25);z-index:6;display:none;max-height:calc(100% - 40px);overflow:auto}
+  .rk .dlg.open{display:block}
+  .rk .dh{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px 8px;border-bottom:2px solid var(--ink)}
+  .rk .dh h3{font:600 20px/1.1 "Source Serif 4",Georgia,serif;margin:0}
+  .rk .dh .x{cursor:pointer;color:var(--mute);font-size:16px}
+  .rk .db{padding:4px 16px 8px}
+  .rk .df{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-top:1px solid var(--hair);position:sticky;bottom:0;background:var(--paper)}
+  .rk .df .fw{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+  .rk .amber{font-size:11.5px;color:#7a3f00;background:#ffe9c9;border:1px solid #c26a00;padding:3px 8px;line-height:1.3}
+  .rk .btn{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:5px 12px;font:600 12.5px Inter,sans-serif;cursor:pointer}
+  .rk .btn.primary{background:var(--ink);color:var(--paper)} .rk .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .rk .dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid var(--ink);vertical-align:-1px;margin-right:6px}
+  .rk .tot{display:flex;align-items:center;gap:12px;margin:8px 0 4px}
+  .rk .tot .n{font:600 16px Inter,sans-serif;font-variant-numeric:tabular-nums}
+  .rk .tot .ok{color:#1c6b3a} .rk .tot .bad{color:#b3261e} .rk .tot .mid{color:#a35a00}
+  .rk .bar{display:flex;height:10px;border:1px solid var(--ink);background:#fff;overflow:hidden}
+  .rk .legend{display:flex;flex-wrap:wrap;gap:2px 14px;font-size:11.5px;color:var(--mute);margin-top:5px}
+  .rk .msg{font-size:11.5px;color:var(--mute);margin-top:4px}
+  .rk .warn{font-size:11.5px;color:#7a3f00;background:#ffe9c9;border:1px solid #c26a00;padding:3px 8px;margin-top:5px}
+  .rk .hint{font-size:11.5px;color:var(--mute);margin-top:3px}
+  .rk .hot{background:#fff3c4;padding:0 4px}
+  .rk textarea{width:100%;min-height:54px;border:1px solid var(--ink);background:#fff;padding:6px 8px;font:500 13px Inter,sans-serif;color:var(--ink)}
+  .rk .sug{position:absolute;z-index:10;background:#fff;border:1px solid var(--ink);box-shadow:3px 3px 0 rgba(20,33,61,.2);min-width:220px;max-height:200px;overflow:auto}
+  .rk .sug div{padding:6px 10px;display:flex;gap:8px;align-items:center;cursor:pointer;font-size:12.5px}
+  .rk .sug div.on,.rk .sug div:hover{background:var(--ink);color:var(--paper)}
+  .rk .sug .dot{margin:0}
+  .rk .notes{max-width:864px;margin:12px auto 0;border:1px solid var(--ink);background:#fffdf5;padding:10px 14px;font-size:12.5px}
+  .rk .notes ul{margin:4px 0 0;padding-left:18px} .rk .notes li{margin:0 0 4px}
+</style>
+
+<h2>Add mashbill: the popup in the data-sheet style (clickable)</h2>
+<p class="subtitle">Click “or create a new one” on the Mashbill row to open it. Change a share, remove an ingredient, press Add an ingredient and start typing to see suggestions, flip Secret, Generic and Partial, and Save to see the new mashbill land in the row behind. Yellow notes are new in this version.</p>
+
+<div class="rk"><div class="opt">
+ <div class="demo"><span class="sub">Demo: the label being added is a</span>
+  <select id="cat"><option value="bourbon">Bourbon</option><option value="rye">Rye</option><option value="malt">Scotch Single Malt</option><option value="none">(no category yet)</option></select>
+  <span class="sub">Pick Bourbon, then change Corn to 40 to see the category warning.</span></div>
+
+ <div class="stage" id="stage">
+  <div class="h1">Add a bottle</div>
+  <div class="r"><span class="k">Name</span><div class="fake">Brand · Label name · Bourbon</div></div>
+  <div class="r"><span class="k">Distilled by</span><div class="fake">Far North Spirits · 100% · Stated</div></div>
+  <div class="r"><span class="k">Mashbill</span><div id="mbRow"></div></div>
+  <div class="r"><span class="k">Finish</span><div class="fake">None</div></div>
+  <div class="scrim" id="scrim"></div>
+  <div class="dlg" id="dlg" role="dialog" aria-label="Add mashbill"></div>
+ </div>
+
+ <div class="notes"><b>What changed, and what stayed</b>
+  <ul>
+   <li><b>Everything the current popup does is kept:</b> Secret, Generic style and Partial disclosure, the Name that only shows for Secret or Generic, free-text ingredients with suggestions and a colour dot, the total that must land within 99 to 101%, the coloured bar and legend, “Reads as…”, and Notes.</li>
+   <li><b>The three checkboxes became toggle chips,</b> with their explanations moved into one line under the row that follows what's switched on.</li>
+   <li><b>Ingredients are a table with a Share column,</b> the same shape as the grapes and Calvados fruit tables. <span class="hot">“+ Add an ingredient” adds one blank line</span> (an empty ingredient and an empty %), and suggestions appear under the box as you type, as they do today. Arrow keys and Enter pick one.</li>
+   <li><b>The popup is 600px</b> (it was 672px), with the title in the serif, a sticky footer, and the page dimmed behind so you can see where the new mashbill will land.</li>
+   <li><span class="hot">Warnings live in the footer, left of Cancel,</span> all in one amber style: over or short of 100%, a missing name or ingredient, and the category rule (Bourbon at least 51% corn, Rye at least 51% rye, Single Malt 100% malted barley). The first kinds stop Save; the category rule is only a warning.</li>
+   <li><span class="hot">To check in the code:</span> the label's mashbill list already filters recipes by category, so a recipe that breaks the rule may not appear in that label's list after you create it. The warning would explain why.</li>
+  </ul></div>
+</div></div>
+
+<script>
+(function(){
+var COMMON=['Corn','Rye','Wheat','Malted Barley','Oats','Triticale','Sugarcane','Molasses'];
+var COLORS={'corn':'#E8B73C','rye':'#B5533C','wheat':'#D9C28A','malted barley':'#8A9A5B','oats':'#C9B79C','triticale':'#A58B5B','sugarcane':'#7FB77E','molasses':'#5C3D2E'};
+function color(g){var k=(g||'').trim().toLowerCase();if(!k)return '#fff';if(COLORS[k])return COLORS[k];var h=0;for(var i=0;i<k.length;i++)h=(h*31+k.charCodeAt(i))%360;return 'hsl('+h+' 40% 62%)';}
+function title(s){return s.trim().replace(/(^|[\s-])(\p{L})/gu,function(m,b,l){return b+l.toUpperCase();});}
+var S;function reset(){S={secret:false,generic:false,partial:false,name:'',rows:[{g:'Corn',p:'75'},{g:'Rye',p:'13'},{g:'Malted Barley',p:'12'}],notes:false,notesText:'',typed:''};}
+reset();
+var made=[];  // mashbills created in this demo, shown in the row behind
+var dlg=document.getElementById('dlg'),scrim=document.getElementById('scrim');
+function catSel(){return document.getElementById('cat').value;}
+function total(){return S.rows.reduce(function(t,r){var n=parseFloat(r.p);return t+(isFinite(n)?n:0);},0);}
+function share(g){var r=S.rows.filter(function(x){return x.g.trim().toLowerCase()===g;})[0];var n=r?parseFloat(r.p):0;return isFinite(n)?n:0;}
+function reads(){var rows=S.rows.filter(function(r){return r.g.trim();}).slice().sort(function(a,b){return (parseFloat(b.p)||0)-(parseFloat(a.p)||0);});return rows.map(function(r){return r.g.trim();});}
+function describe(){return S.rows.filter(function(r){return r.g.trim();}).map(function(r){return r.g.trim()+' '+(parseFloat(r.p)||0)+'%';}).join(' · ');}
+function categoryWarn(){var c=catSel();if(S.generic||c==='none')return '';
+  if(c==='bourbon'&&share('corn')<51&&S.rows.length)return 'A bourbon mashbill is at least 51% corn (this one has '+share('corn')+'%). It will still save.';
+  if(c==='rye'&&share('rye')<51&&S.rows.length)return 'A rye mashbill is at least 51% rye (this one has '+share('rye')+'%). It will still save.';
+  if(c==='malt'&&S.rows.length&&share('malted barley')<99)return 'A single malt is 100% malted barley (this one has '+share('malted barley')+'%). It will still save.';
+  return '';}
+function validity(){
+  var t=Math.round(total()*100)/100;
+  if(S.generic)return S.name.trim()?{ok:true}:{ok:false,why:'A generic style needs a name.'};
+  if(S.secret&&!S.name.trim())return {ok:false,why:'A secret mashbill needs a name.'};
+  if(!S.rows.length)return S.secret?{ok:true}:{ok:false,why:'Add at least one ingredient.'};
+  if(S.rows.some(function(r){return !r.g.trim();}))return {ok:false,why:'Every row needs an ingredient name.'};
+  if(t>101)return {ok:false,why:'Over 100% by '+(Math.round((t-100)*100)/100)+'%. Lower a share.'};
+  if(!S.partial&&t<99)return {ok:false,why:(Math.round((100-t)*100)/100)+'% short of 100%. Tick Partial disclosure if the rest is unknown.'};
+  return {ok:true};}
+function render(){
+ // tidy every ingredient name except the one being typed in, so the fix never depends on timing
+ var act=document.activeElement,typing=(act&&act.getAttribute&&act.getAttribute('data-g')!==null)?+act.getAttribute('data-g'):-1;
+ S.rows.forEach(function(r,i){if(i!==typing&&r.g.trim())r.g=title(r.g);});
+ var h='<div class="dh"><h3>Add mashbill</h3><span class="x" id="dx">✕</span></div><div class="db">';
+ h+='<div class="sub" style="margin:8px 0 6px">Saved to your collection, and chosen here when you are done.</div>';
+ h+='<div class="r"><span class="k">Kind</span><div><div class="chips">'+
+   '<span class="tog'+(S.secret?' on':'')+'" data-t="secret">Secret</span><span class="tog'+(S.generic?' on':'')+'" data-t="generic">Generic style</span><span class="tog'+(S.partial?' on':'')+'" data-t="partial">Partial disclosure</span></div>'+
+   '<div class="hint">'+(S.secret?'<b>Secret:</b> the distillery does not publish it, so the recipe is inferred. ':'')+(S.generic?'<b>Generic style:</b> a style such as High Rye or Wheated, with no recipe. ':'')+(S.partial?'<b>Partial:</b> only some shares are known, so the rest stays unknown instead of filling to 100%. ':'')+(!S.secret&&!S.generic&&!S.partial?'A recipe with its grains and shares. Switch one on if it is secret, only a style, or partly known.':'')+'</div></div></div>';
+ if(S.secret||S.generic)h+='<div class="r"><span class="k">Name</span><div><input class="in" id="nm" style="width:100%" placeholder="Buffalo Trace Wheated, High Rye" value="'+S.name.replace(/"/g,'&quot;')+'"><div class="hint">Shown in place of the recipe. A trailing style such as (Low Rye) is tagged for tournament matching.</div></div></div>';
+ if(!S.generic){
+  var t=Math.round(total()*100)/100,exact=t===100,acc=t<=101&&(S.partial||t>=99);
+  var rowsH=S.rows.map(function(r,i){return '<tr><td><span class="dot" style="background:'+color(r.g)+'"></span><input class="in" data-g="'+i+'" value="'+r.g.replace(/"/g,'&quot;')+'" style="width:230px" placeholder="Corn"></td><td class="num"><input class="in" data-p="'+i+'" value="'+r.p+'" inputmode="decimal"> %</td><td class="sub" style="cursor:pointer" data-rm="'+i+'">✕</td></tr>';}).join('');
+  var unused=COMMON.filter(function(c){return !S.rows.some(function(r){return r.g.trim().toLowerCase()===c.toLowerCase();});});
+  h+='<div class="r"><span class="k">Ingredients</span><div><table class="t"><tr><th>Ingredient</th><th style="text-align:right">Share</th><th></th></tr>'+rowsH+'</table>'+
+    (S.rows.length?'':'<div class="msg">No ingredients yet. A secret mashbill can stay empty until you have inferred its recipe; a style such as High Rye is a generic one, with none.</div>')+
+    '<div style="margin-top:6px"><span class="chip add" data-addrow="1">+ Add an ingredient</span></div>';
+  if(S.rows.length){
+   var cls=exact?'ok':(acc?'mid':'bad');
+   h+='<div class="tot"><span class="sub">Total</span><span class="n '+cls+'">'+t+'%'+(exact?' ✓':'')+'</span></div>';
+   h+='<div class="bar">'+S.rows.slice().sort(function(a,b){return (parseFloat(b.p)||0)-(parseFloat(a.p)||0);}).map(function(r){var n=parseFloat(r.p);return (isFinite(n)&&n>0)?'<div style="width:'+(n/Math.max(100,t)*100)+'%;background:'+color(r.g)+'" title="'+r.g+' '+n+'%"></div>':'';}).join('')+'</div>';
+   h+='<div class="legend">'+S.rows.filter(function(r){return r.g.trim();}).map(function(r){return '<span><span class="dot" style="background:'+color(r.g)+';width:9px;height:9px"></span>'+r.g.trim()+' '+(parseFloat(r.p)||0)+'%</span>';}).join('')+'</div>';
+   h+='<div class="msg">'+(exact?'Adds up to 100%.':(S.partial&&t<99)?(Math.round((100-t)*100)/100)+'% remains undisclosed.':acc?'Within the rounding allowed (99 to 101%).':'')+'</div>';
+   if(reads().length>1)h+='<div class="msg">Reads as <b style="color:#14213D">'+reads().join(', ')+'</b>, the largest first.</div>';
+  }
+  h+='</div></div>';
+ }
+ h+='<div class="r"><span class="k">More</span><div>'+(S.notes?'<textarea id="nt" placeholder="Where this recipe came from, who confirmed it">'+S.notesText+'</textarea>':'<span class="link" data-more="1">Notes</span>')+'</div></div>';
+ h+='</div>';
+ var v=validity();var warns=[];if(!v.ok)warns.push(v.why);var cw=categoryWarn();if(cw)warns.push(cw);
+ h+='<div class="df"><div class="fw" id="fw">'+warns.map(function(w){return '<div class="amber">'+w+'</div>';}).join('')+'</div><span style="display:flex;gap:8px"><button class="btn" id="cancel">Cancel</button><button class="btn primary" id="save"'+(v.ok?'':' disabled')+'>Save mashbill</button></span></div>';
+ rendering=true;dlg.innerHTML=h;rendering=false;
+}
+function bind(){
+ dlg.onclick=function(e){var t=e.target;
+  var tg=t.getAttribute('data-t');if(tg){S[tg]=!S[tg];render();return;}
+  if(t.getAttribute('data-addrow')){S.rows.push({g:'',p:''});render();var ne=dlg.querySelector('[data-g="'+(S.rows.length-1)+'"]');if(ne){ne.focus();ne.scrollIntoView({block:'nearest'});}return;}
+  var rm=t.getAttribute('data-rm');if(rm!==null){S.rows.splice(+rm,1);render();return;}
+  if(t.getAttribute('data-more')){S.notes=true;render();return;}
+  if(t.id==='dx'||t.id==='cancel')close();
+  if(t.id==='save'&&!t.disabled)save();};
+ dlg.oninput=function(e){var t=e.target;
+  if(t.id==='nm'){S.name=t.value;refresh();return;}
+  if(t.id==='nt'){S.notesText=t.value;return;}
+  var gi=t.getAttribute('data-g'),pi=t.getAttribute('data-p');
+  if(gi!==null){S.rows[+gi].g=t.value;refresh();}
+  if(pi!==null){var v=t.value.replace(/[^0-9.]/g,'');var m=/^(\d*)(\.\d{0,2})?/.exec(v);S.rows[+pi].p=m?(m[1]+(m[2]||'')):'';refresh();}};
+ dlg.onkeydown=function(e){var sg=dlg.querySelector('.sug');
+  if(sg){var items=[].slice.call(sg.children);
+   if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();sugIdx=e.key==='ArrowDown'?Math.min(sugIdx+1,items.length-1):Math.max(sugIdx-1,0);items.forEach(function(x,k){x.classList.toggle('on',k===sugIdx);});return;}
+   if(e.key==='Enter'&&sugIdx>=0){e.preventDefault();pick(+e.target.getAttribute('data-g'),items[sugIdx].getAttribute('data-pick'));return;}
+   if(e.key==='Escape'){e.stopPropagation();hideSug();return;}}
+  if(e.key==='Escape')close();};
+ dlg.addEventListener('focusin',function(e){if(rendering)return;var gi=e.target.getAttribute&&e.target.getAttribute('data-g');if(gi!==null&&gi!==undefined)showSuggest(e.target);});
+ dlg.addEventListener('focusout',function(e){if(rendering)return;var gi=e.target.getAttribute&&e.target.getAttribute('data-g');
+  if(gi!==null&&gi!==undefined){var i=+gi,raw=e.target.value;
+   setTimeout(function(){hideSug();if(!S.rows[i])return;var v=title(raw);if(v!==S.rows[i].g){S.rows[i].g=v;refresh();}},0);}});
+}
+var sugIdx=-1,rendering=false;
+function hideSug(){var x=dlg.querySelector('.sug');if(x)x.remove();sugIdx=-1;}
+function pick(i,name){S.rows[i].g=name;render();var el=dlg.querySelector('[data-p="'+i+'"]');if(el)el.focus();}
+function showSuggest(inp){hideSug();var i=+inp.getAttribute('data-g');var q=inp.value.trim().toLowerCase();
+ var used=S.rows.map(function(r,j){return j===i?'':r.g.trim().toLowerCase();});
+ var m=COMMON.filter(function(c){var l=c.toLowerCase();return used.indexOf(l)<0&&l.indexOf(q)>=0&&l!==q;});
+ if(!m.length)return;
+ var d=document.createElement('div');d.className='sug';
+ d.innerHTML=m.map(function(c){return '<div data-pick="'+c+'"><span class="dot" style="background:'+color(c)+'"></span>'+c+'</div>';}).join('');
+ var r=inp.getBoundingClientRect(),dr=dlg.getBoundingClientRect();
+ d.style.left=(r.left-dr.left+dlg.scrollLeft)+'px';d.style.top=(r.bottom-dr.top+dlg.scrollTop)+'px';
+ dlg.appendChild(d);
+ d.onmousedown=function(e){e.preventDefault();var t=e.target.closest('[data-pick]');if(t)pick(i,t.getAttribute('data-pick'));};}
+// re-render without losing focus: remember the active element
+function refresh(){var a=document.activeElement,key=null,pos=0;
+ if(a&&a.getAttribute){key=a.id?('#'+a.id):(a.getAttribute('data-g')!==null?'[data-g="'+a.getAttribute('data-g')+'"]':(a.getAttribute('data-p')!==null?'[data-p="'+a.getAttribute('data-p')+'"]':null));pos=a.selectionStart||0;}
+ render();if(key){var el=dlg.querySelector(key);if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(e){}if(el.getAttribute('data-g')!==null)showSuggest(el);}}}
+function open(){reset();render();dlg.classList.add('open');scrim.classList.add('open');}
+function close(){dlg.classList.remove('open');scrim.classList.remove('open');}
+function save(){
+ var label=(S.generic||S.secret)?S.name.trim():describe();
+ var tags=[S.secret?'secret':'',S.generic?'generic':'',S.partial?'partial':''].filter(Boolean);
+ made.push({label:label,tags:tags,share:made.length===0?'100':''});close();mbRow();}
+function mbRow(){var h='<table class="t"><tr><th>Recipe</th><th style="text-align:right">Share</th><th>Made by</th><th></th></tr>';
+ h+=made.map(function(m,i){return '<tr><td>'+m.label+(m.tags.length?' <span class="sub">('+m.tags.join(', ')+')</span>':'')+(i===made.length-1?'<span class="newtag">new</span>':'')+'</td><td class="num"><input class="in" value="'+m.share+'"> %</td><td class="sub">Far North Spirits</td><td class="sub">✕</td></tr>';}).join('');
+ h+='</table><div class="addin"><span>+ Add mashbill: type to find one</span><span class="alt" id="openDlg">or create a new one</span></div>';
+ document.getElementById('mbRow').innerHTML=h;document.getElementById('openDlg').onclick=open;}
+scrim.onclick=close;document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
+document.getElementById('cat').onchange=function(){if(dlg.classList.contains('open'))render();};
+bind();mbRow();
+window.MBv1={S:function(){return S;},made:made,open:open};
+})();
+</script>
+
+</body></html>
