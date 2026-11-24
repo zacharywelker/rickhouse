@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add distillery popup</title>
+<style>body{margin:0;padding:20px 16px 60px;background:#f4f4f6;color:#14213D;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}body>h2,.subtitle{max-width:864px;margin-left:auto;margin-right:auto}h2{font:600 18px "Source Serif 4",Georgia,serif;margin-bottom:4px}.subtitle{color:#5b6478;font-size:13px;margin-bottom:12px}</style></head><body>
+<style>
+  .rk{--paper:#FFF8E7;--ink:#14213D;--mute:#5b6478;--hair:#d9d0b8;
+      font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);font-size:13px;line-height:1.35}
+  .rk *{box-sizing:border-box}
+  .rk .opt{max-width:864px;margin:0 auto}
+  .rk .demo{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--ink);padding:8px 10px;margin-bottom:10px;font-size:12px}
+  .rk .demo select{height:28px;border:1px solid var(--ink);background:#fff;font:600 12.5px Inter,sans-serif;padding:0 6px;color:var(--ink)}
+  .rk .stage{background:var(--paper);border:1px solid var(--hair);padding:12px 20px 16px;position:relative;min-height:700px;overflow:hidden}
+  .rk .h1{font:600 22px/1.1 "Source Serif 4",Georgia,serif;margin:0 0 8px}
+  .rk .r{display:grid;grid-template-columns:104px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--hair);align-items:start}
+  .rk .r>.k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);padding-top:7px}
+  .rk .fake{height:25px;border:1px dashed #c9bf9f;color:#a79e80;display:flex;align-items:center;padding:0 8px;font-size:12px}
+  .rk table.t{border-collapse:collapse;width:100%;font-size:12.5px}
+  .rk table.t th{font:600 10px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);text-align:left;padding:0 8px 2px 0;border-bottom:1px solid var(--ink)}
+  .rk table.t td{padding:3px 8px 3px 0;border-bottom:1px solid var(--hair);vertical-align:middle}
+  .rk table.t td.num input{width:42px;text-align:right}
+  .rk input.in,.rk select.in{height:28px;border:1px solid var(--ink);background:#fff;padding:0 7px;font:500 13px Inter,sans-serif;color:var(--ink);min-width:0}
+  .rk .addin{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px dashed var(--ink);min-height:30px;padding:3px 8px;color:var(--mute);margin-top:4px;position:relative}
+  .rk .addin input{border:0;background:transparent;font:500 13px Inter,sans-serif;color:var(--ink);outline:none;min-width:240px;flex:1}
+  .rk .addin .alt{margin-left:auto;color:var(--ink);text-decoration:underline;white-space:nowrap;cursor:pointer}
+  .rk .chip{display:inline-flex;align-items:center;gap:6px;height:27px;border:1px solid var(--ink);background:#fff;padding:0 8px;font-size:12px;white-space:nowrap}
+  .rk .chip .k{color:var(--mute)}
+  .rk .chip input,.rk .chip select{border:0;background:transparent;font:600 12.5px Inter,sans-serif;color:var(--ink);padding:0;outline:none;border-bottom:1px dotted var(--ink)}
+  .rk .chip select{border-bottom:0}
+  .rk .chip.add{border-style:dashed;color:var(--mute);background:transparent;cursor:pointer}
+  .rk .tog{display:inline-flex;align-items:center;gap:5px;height:25px;border:1px solid var(--ink);border-radius:13px;padding:0 10px;font-size:12px;cursor:pointer;user-select:none;background:#fff}
+  .rk .tog.on{background:var(--ink);color:var(--paper)} .rk .tog.on:before{content:"\2713";font-size:11px}
+  .rk .seg{display:inline-flex;border:1px solid var(--ink)} .rk .seg span{padding:0 9px;height:23px;display:inline-flex;align-items:center;font-size:11.5px;cursor:pointer;user-select:none}
+  .rk .seg span.on{background:var(--ink);color:var(--paper)}
+  .rk .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .rk .sub{color:var(--mute);font-size:12px}
+  .rk .link{text-decoration:underline;cursor:pointer;color:var(--ink)}
+  .rk .newtag{font:700 9px Inter,sans-serif;letter-spacing:.05em;text-transform:uppercase;color:#1c6b3a;border:1px solid #1c6b3a;padding:0 4px;margin-left:6px}
+  .rk .scrim{position:absolute;inset:0;background:rgba(20,33,61,.38);display:none;z-index:5} .rk .scrim.open{display:block}
+  .rk .dlg{position:absolute;left:50%;top:26px;transform:translateX(-50%);width:660px;max-width:calc(100% - 24px);background:var(--paper);border:1px solid var(--ink);box-shadow:4px 4px 0 rgba(20,33,61,.25);z-index:6;display:none;max-height:calc(100% - 40px);overflow:auto}
+  .rk .dlg.open{display:block} .rk .dlg.small{width:520px}
+  .rk .dh{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px 8px;border-bottom:2px solid var(--ink)}
+  .rk .dh h3{font:600 20px/1.1 "Source Serif 4",Georgia,serif;margin:0} .rk .dh .x{cursor:pointer;color:var(--mute);font-size:16px}
+  .rk .db{padding:4px 16px 8px}
+  .rk .df{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-top:1px solid var(--hair);position:sticky;bottom:0;background:var(--paper)}
+  .rk .df .fw{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+  .rk .amber{font-size:11.5px;color:#7a3f00;background:#ffe9c9;border:1px solid #c26a00;padding:3px 8px;line-height:1.3}
+  .rk .btn{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:5px 12px;font:600 12.5px Inter,sans-serif;cursor:pointer}
+  .rk .btn.primary{background:var(--ink);color:var(--paper)} .rk .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .rk .hint{font-size:11.5px;color:var(--mute);margin-top:3px} .rk .hint b{color:var(--ink)}
+  .rk .hot{background:#fff3c4;padding:0 4px}
+  .rk .sug{position:absolute;z-index:20;background:#fff;border:1px solid var(--ink);box-shadow:3px 3px 0 rgba(20,33,61,.2);min-width:300px;max-height:230px;overflow:auto}
+  .rk .sug div{padding:6px 10px;display:flex;gap:8px;justify-content:space-between;align-items:center;cursor:pointer;font-size:12.5px}
+  .rk .sug div.on,.rk .sug div:hover{background:var(--ink);color:var(--paper)} .rk .sug div .p{color:var(--mute);font-size:11.5px} .rk .sug div.on .p,.rk .sug div:hover .p{color:#ddd}
+  .rk .sug hr{border:0;border-top:1px solid var(--hair);margin:2px 0}
+  .rk textarea{width:100%;min-height:58px;border:1px solid var(--ink);background:#fff;padding:6px 8px;font:500 13px Inter,sans-serif;color:var(--ink)}
+  .rk .notes{max-width:864px;margin:12px auto 0;border:1px solid var(--ink);background:#fffdf5;padding:10px 14px;font-size:12.5px}
+  .rk .notes ul{margin:4px 0 0;padding-left:18px} .rk .notes li{margin:0 0 4px}
+</style>
+
+<h2>Add distillery: the popup in the data-sheet style (clickable)</h2>
+<p class="subtitle">Type a name in the Distilled by row. Pick an existing distillery, or choose “Add details…” to open the popup. “or not disclosed” opens a small place popup. The demo bar changes which kind of spirit is being added, which changes the country, the offered list and the identifier fields.</p>
+
+<div class="rk"><div class="opt">
+ <div class="demo"><span class="sub">Demo: the label being added is a</span>
+  <select id="cat"><option value="bourbon">Bourbon (brand: Lost Lantern)</option><option value="tequila">Tequila</option><option value="mezcal">Mezcal</option><option value="cognac">Cognac</option><option value="scotch">Scotch Single Malt</option></select>
+  <span class="sub">Try the name “Far North Spirits” (already exists), or “Lost Lantern Distillery” (matches the brand).</span></div>
+
+ <div class="stage" id="stage">
+  <div class="h1">Add a bottle</div>
+  <div class="r"><span class="k">Name</span><div class="fake">Brand · Label name · category</div></div>
+  <div class="r"><span class="k">Distilled by</span><div id="dRow"></div></div>
+  <div class="r"><span class="k">Mashbill</span><div class="fake">Added after the distilleries, with “Common mashbills at …” suggestions</div></div>
+  <div class="scrim" id="scrim"></div>
+  <div class="dlg" id="dlg" role="dialog" aria-label="Add distillery"></div>
+  <div class="dlg small" id="ndlg" role="dialog" aria-label="Distillery not disclosed"></div>
+ </div>
+
+ <div class="notes"><b>What changed, and what stayed</b>
+  <ul>
+   <li><b>Kept:</b> Name (required), Company, City, State, Country (required, set from the label's category when it has a rule), Founded, Defunct, Scotch Region, DSP number, NOM, Other / Old Names, and Notes. A US state typed as “KY” is tidied to “Kentucky”, as today. A distillery's company is pre-filled when the name you typed matches the label's brand.</li>
+   <li><b>“How Known” is gone,</b> since “not disclosed” has its own path (below).</li>
+   <li><b>“Or not disclosed (pick the place)”</b> opens a small popup for a place only. It keeps one “Undisclosed (place)” entry per place and reuses it when it exists.</li>
+   <li><span class="hot">Place is one line:</span> City, State, Country, and then <b>only the identifier that applies</b>, next to Country: <b>DSP</b> for the USA, <b>NOM</b> for any agave label (tequila or mezcal) or a Mexican distillery, <b>Region</b> for a Scotch label or a Scottish distillery. Today all three always show. Founded, Defunct, old names and notes sit under More.</li>
+   <li><b>Warnings are in the footer, left of Cancel,</b> in the same amber style as the mashbill popup. A name that already exists blocks Save and offers “Use it”, because names must be unique.</li>
+   <li><span class="hot">“Create …” (name only) stays for every spirit,</span> and fills in the country from the label's category: Mexico for agave, France for the French brandies, Canada, Ireland and so on (Scotland for Scotch is my addition). The rest can be added later.</li>
+   <li><span class="hot">My proposal:</span> when the country doesn't fit the spirit (a tequila distillery outside Mexico), an amber warning says it won't be offered for this label. It doesn't block.</li>
+  </ul></div>
+</div></div>
+
+<script>
+(function(){
+var US={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming'};
+var REGIONS=['Speyside','Highland','Lowland','Islay','Campbeltown','Islands'];
+var COMPANIES=['Far North Distillers LLC','Whiskey Acres LLC','Frey Ranch Estate LLC','Lost Lantern LLC','Sazerac Company','Diageo'];
+var EXIST=[ // name, city, state, country
+ ['Far North Spirits','Hallock','Minnesota','USA'],['Whiskey Acres','DeKalb','Illinois','USA'],['Frey Ranch','Fallon','Nevada','USA'],['Buffalo Trace','Frankfort','Kentucky','USA'],
+ ['La Alteña','Arandas','Jalisco','Mexico'],['Destilería Tres Mujeres','Tequila','Jalisco','Mexico'],
+ ['Hine','Jarnac','','France'],['Camus','Cognac','','France'],
+ ['Glenfarclas','Ballindalloch','Speyside','Scotland'],['Ardbeg','Port Ellen','Islay','Scotland']];
+var UNDISC=[['Indiana',''],['New York','']];  // existing "Undisclosed (place)" entries: state, city
+var CAT={bourbon:{label:'bourbon',country:'USA',only:null,quick:true,brand:'Lost Lantern',brandCo:'Lost Lantern LLC'},
+ tequila:{label:'tequila',country:'Mexico',only:'Mexico',quick:true,agave:true},
+ mezcal:{label:'mezcal',country:'Mexico',only:'Mexico',quick:true,agave:true},
+ cognac:{label:'cognac',country:'France',only:'France',quick:true},
+ scotch:{label:'Scotch',country:'Scotland',only:null,quick:true,scotch:true}};
+function cat(){return CAT[document.getElementById('cat').value];}
+var rows=[],mine=[]; // rows in the table; distilleries created in this demo
+var stage=document.getElementById('stage'),dlg=document.getElementById('dlg'),ndlg=document.getElementById('ndlg'),scrim=document.getElementById('scrim');
+function esc(s){return String(s).replace(/"/g,'&quot;');}
+function allDist(){return EXIST.concat(mine);}
+function allowed(d){var c=cat();return !c.only||d[3]===c.only;}
+function place(d){return [d[1],d[2],d[3]].filter(Boolean).join(', ');}
+// ---------- generic suggestion popover ----------
+var sugEl=null,sugIdx=-1,sugPick=null;
+function hideSug(){if(sugEl){sugEl.remove();sugEl=null;}sugIdx=-1;sugPick=null;}
+function showSug(inp,host,items,onPick){hideSug();if(!items.length)return;
+ var d=document.createElement('div');d.className='sug';
+ d.innerHTML=items.map(function(it,i){return it==='-'?'<hr>':'<div data-i="'+i+'"><span>'+it.t+'</span><span class="p">'+(it.p||'')+'</span></div>';}).join('');
+ var r=inp.getBoundingClientRect(),hr=host.getBoundingClientRect();
+ d.style.left=(r.left-hr.left+host.scrollLeft)+'px';d.style.top=(r.bottom-hr.top+host.scrollTop+2)+'px';
+ host.appendChild(d);sugEl=d;sugPick=function(i){var it=items[i];hideSug();onPick(it);};
+ d.onmousedown=function(e){e.preventDefault();var t=e.target.closest('[data-i]');if(t)sugPick(+t.getAttribute('data-i'));};}
+function sugKey(e){if(!sugEl)return false;var els=[].slice.call(sugEl.querySelectorAll('[data-i]'));
+ if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();sugIdx=e.key==='ArrowDown'?Math.min(sugIdx+1,els.length-1):Math.max(sugIdx-1,0);els.forEach(function(x,k){x.classList.toggle('on',k===sugIdx);});return true;}
+ if(e.key==='Enter'&&sugIdx>=0){e.preventDefault();sugPick(+els[sugIdx].getAttribute('data-i'));return true;}
+ if(e.key==='Escape'){e.stopPropagation();hideSug();return true;}return false;}
+// ---------- the table on the page ----------
+function dRow(){
+ var h='';
+ if(rows.length){h+='<table class="t"><tr><th>Distillery</th><th style="text-align:right">Share</th><th>Source</th><th></th></tr>'+rows.map(function(r,i){
+  var src=r.und?'<span class="sub">Undisclosed</span>':'<span class="seg"><span class="on">Stated</span><span>Inferred</span></span>';
+  return '<tr><td>'+(r.und?'<i>'+r.name+'</i>':r.name)+(r.pl?' <span class="sub">'+r.pl+'</span>':'')+(r.isNew?'<span class="newtag">new</span>':'')+'</td><td class="num"><input class="in" value="'+(i===0&&rows.length===1?'100':'')+'"> %</td><td>'+src+'</td><td class="sub" style="cursor:pointer" data-rm="'+i+'">✕</td></tr>';}).join('')+'</table>';}
+ h+='<div class="addin" id="addin"><input id="dq" placeholder="+ Add distillery: type a name" autocomplete="off"><span class="alt" id="nd">or not disclosed (pick the place)</span></div>';
+ document.getElementById('dRow').innerHTML=h;
+ var q=document.getElementById('dq');
+ q.oninput=function(){suggestRow();};q.onfocus=function(){suggestRow();};q.onblur=function(){setTimeout(hideSug,0);};q.onkeydown=function(e){sugKey(e);};
+ document.getElementById('nd').onclick=openND;
+ [].forEach.call(document.querySelectorAll('[data-rm]'),function(n){n.onclick=function(){rows.splice(+n.getAttribute('data-rm'),1);dRow();};});
+}
+function suggestRow(){var q=document.getElementById('dq'),v=q.value.trim(),needle=v.toLowerCase(),c=cat();
+ var terms=needle.split(/\s+/).filter(Boolean);
+ var used=rows.map(function(r){return r.name.toLowerCase();});
+ var m=allDist().filter(allowed).filter(function(d){var h=d[0].toLowerCase();return used.indexOf(h)<0&&terms.every(function(t){return h.indexOf(t)>=0;});});
+ var items=m.map(function(d){return {t:d[0],p:place(d),d:d};});
+ var exact=allDist().some(function(d){return d[0].toLowerCase()===needle;});
+ if(v&&!exact){items.push('-');if(c.quick)items.push({t:'Create “'+v+'”',p:'country: '+c.country+', the rest later',create:v});items.push({t:'Add details for “'+v+'”…',p:'opens the popup',details:v});}
+ else if(v&&exact&&!allowedExact(needle))items.push({t:'“'+v+'” isn\'t offered for this label',p:'wrong country',dis:true});
+ showSug(q,stage,items.filter(function(x){return !x.dis;}),function(it){
+  if(it.d){rows.push({name:it.d[0],pl:place(it.d)});dRow();}
+  else if(it.create){var nd=[it.create,'','',c.country];mine.push(nd);rows.push({name:it.create,pl:c.country,isNew:true});dRow();}
+  else if(it.details){q.value='';openDlg(it.details);}});}
+function allowedExact(n){return allDist().filter(function(d){return d[0].toLowerCase()===n;}).some(allowed);}
+// ---------- Add distillery dialog ----------
+var D=null;
+function defaultCountry(){return cat().country;}
+function normState(){if((D.country||'').trim().toLowerCase()==='usa'||D.country.trim().toLowerCase()==='united states'){var k=D.state.trim().toUpperCase();if(US[k])D.state=US[k];}}
+function idKind(){var c=(D.country||'').trim().toLowerCase();if(cat().agave)return 'nom';if(cat().scotch)return 'region';if(c==='usa'||c==='united states')return 'dsp';if(c==='mexico')return 'nom';if(c==='scotland')return 'region';return '';}
+function openDlg(name){
+ var c=cat();var co='';var coNote=false;
+ if(c.brand&&(name.toLowerCase()===c.brand.toLowerCase()||name.toLowerCase()===(c.brand+' distillery').toLowerCase())){co=c.brandCo;coNote=true;}
+ D={name:name,company:co,coNote:coNote,city:'',state:'',country:defaultCountry(),dsp:'',nom:'',region:'',founded:'',defunct:false,old:'',notes:'',m:{fd:false,old:false,notes:false},dfault:cat().country!=='USA'};
+ buildDlg();dlg.classList.add('open');scrim.classList.add('open');hideSug();var ni=dlg.querySelector('#fn');if(ni)ni.focus();}
+function closeAll(){dlg.classList.remove('open');ndlg.classList.remove('open');scrim.classList.remove('open');hideSug();}
+function idChip(){var k=idKind();if(!k)return '';
+ return k==='dsp'?'<span class="chip"><span class="k">DSP</span><input id="fdsp" value="'+esc(D.dsp)+'" placeholder="DSP-KY-95" style="width:72px"></span>':
+   k==='nom'?'<span class="chip"><span class="k">NOM</span><input id="fnom" value="'+esc(D.nom)+'" placeholder="1234" style="width:48px"></span>':
+   '<span class="chip"><span class="k">Region</span><select id="freg" style="width:72px"><option value="">None</option>'+REGIONS.map(function(r){return '<option'+(D.region===r?' selected':'')+'>'+r+'</option>';}).join('')+'</select></span>';}
+function moreRows(){var h='';
+ if(D.m.fd)h+='<div class="r"><span class="k">Founded</span><div class="chips"><span class="chip"><span class="k">Year</span><input id="ffd" value="'+esc(D.founded)+'" style="width:50px"></span><span class="tog'+(D.defunct?' on':'')+'" data-defunct="1">Defunct</span></div><div></div></div>';
+ if(D.m.old)h+='<div class="r"><span class="k">Old names</span><div><textarea id="fold" placeholder="Bernheim (1999–2005)&#10;I.W. Harper Distillery (until 1999)">'+D.old+'</textarea><div class="hint">One per line. Years in brackets are optional. A search finds its labels under any of them.</div></div></div>';
+ if(D.m.notes)h+='<div class="r"><span class="k">Notes</span><div><textarea id="fnotes">'+D.notes+'</textarea></div></div>';
+ var links=[];if(!D.m.fd)links.push('<span class="link" data-m="fd">Founded or defunct</span>');if(!D.m.old)links.push('<span class="link" data-m="old">Other / old names</span>');if(!D.m.notes)links.push('<span class="link" data-m="notes">Notes</span>');
+ if(links.length)h+='<div class="r"><span class="k">More</span><div class="chips" style="gap:14px;font-size:12px;padding-top:4px">'+links.join('')+'</div></div>';
+ return h;}
+function buildDlg(){
+ var h='<div class="dh"><h3>Add distillery</h3><span class="x" data-x="1">✕</span></div><div class="db">';
+ h+='<div class="sub" style="margin:8px 0 6px">Saved to your collection, and chosen here when you are done.</div>';
+ h+='<div class="r"><span class="k">Name</span><div><input class="in" id="fn" style="width:100%" value="'+esc(D.name)+'" placeholder="Far North Spirits"></div></div>';
+ h+='<div class="r"><span class="k">Company</span><div><div class="chips"><span class="chip"><input id="fco" value="'+esc(D.company)+'" placeholder="Search or add a company" style="width:230px;border-bottom:0" autocomplete="off"></span></div><div class="hint" id="conote">'+(D.coNote?'<span class="hot">Filled in because the name matches the label\'s brand.</span> Change it if the distillery is owned by someone else.':'')+'</div></div></div>';
+ h+='<div class="r"><span class="k">Place</span><div><div class="chips" style="flex-wrap:nowrap;gap:5px"><span class="chip"><span class="k">City</span><input id="fcity" value="'+esc(D.city)+'" placeholder="Louisville" style="width:62px"></span><span class="chip"><span class="k">State</span><input id="fst" value="'+esc(D.state)+'" placeholder="KY" style="width:52px"></span><span class="chip"><span class="k">Country</span><input id="fcn" value="'+esc(D.country)+'" style="width:62px"></span><span id="idslot">'+idChip()+'</span></div><div class="hint" id="cnote"><span id="dnote">'+(D.dfault?'<span class="hot">Country set to '+esc(D.country)+' from the label\'s category.</span> ':'')+'</span><span id="idhint">'+(idKind()==='region'?'Linking this distillery to a Scotch label adds its region to the label.':'')+'</span></div></div></div>';
+ h+='<div id="more">'+moreRows()+'</div></div>';
+ h+='<div class="df"><div class="fw" id="fw"></div><span style="display:flex;gap:8px"><button class="btn" data-x="1">Cancel</button><button class="btn primary" id="dsave">Save distillery</button></span></div>';
+ dlg.innerHTML=h;footer();}
+function dup(){var n=D.name.trim().toLowerCase();if(!n)return null;return allDist().filter(function(d){return d[0].toLowerCase()===n;})[0]||null;}
+function footer(){var w=[],block=false,d=dup();
+ if(!D.name.trim()){w.push('Give it a name.');block=true;}
+ if(!D.country.trim()){w.push('A distillery needs a country.');block=true;}
+ if(d){w.push('A distillery named “'+d[0]+'” is already in your collection'+(d[2]?' ('+d[2]+')':'')+'. <span class="link" data-use="1">Use it</span>');block=true;}
+ var c=cat();if(c.only&&D.country.trim()&&D.country.trim().toLowerCase()!==c.only.toLowerCase())w.push('A '+c.label+' distillery is in '+c.only+'. With another country it won\'t be offered for this label.');
+ var f=dlg.querySelector('#fw');if(f)f.innerHTML=w.map(function(x){return '<div class="amber">'+x+'</div>';}).join('');
+ var s=dlg.querySelector('#dsave');if(s)s.disabled=block;}
+dlg.addEventListener('click',function(e){var t=e.target;
+ if(t.getAttribute('data-x')){closeAll();return;}
+ var m=t.getAttribute('data-m');if(m){D.m[m]=true;dlg.querySelector('#more').innerHTML=moreRows();return;}
+ if(t.getAttribute('data-defunct')){D.defunct=!D.defunct;t.classList.toggle('on',D.defunct);return;}
+ if(t.getAttribute('data-use')){var d=dup();if(d){rows.push({name:d[0],pl:place(d)});closeAll();dRow();}return;}
+ if(t.id==='dsave'&&!t.disabled)saveDlg();});
+dlg.addEventListener('input',function(e){var t=e.target,id=t.id;
+ if(id==='fn')D.name=t.value;else if(id==='fco'){D.company=t.value;showSug(t,dlg,COMPANIES.filter(function(c){return c.toLowerCase().indexOf(t.value.trim().toLowerCase())>=0&&c.toLowerCase()!==t.value.trim().toLowerCase();}).map(function(c){return {t:c};}).concat(t.value.trim()&&!COMPANIES.some(function(c){return c.toLowerCase()===t.value.trim().toLowerCase();})?['-',{t:'Add company “'+t.value.trim()+'”',p:'new'}]:[]),function(it){var m=/^Add company “(.*)”$/.exec(it.t);D.company=m?m[1]:it.t;dlg.querySelector('#fco').value=D.company;});}
+ else if(id==='fcity')D.city=t.value;else if(id==='fst')D.state=t.value;
+ else if(id==='fcn'){D.country=t.value;D.dfault=false;dlg.querySelector('#dnote').innerHTML='';dlg.querySelector('#idslot').innerHTML=idChip();dlg.querySelector('#idhint').innerHTML=idKind()==='region'?'Linking this distillery to a Scotch label adds its region to the label.':'';}
+ else if(id==='fdsp')D.dsp=t.value;else if(id==='fnom')D.nom=t.value;else if(id==='ffd')D.founded=t.value.replace(/[^0-9]/g,'');
+ else if(id==='fold')D.old=t.value;else if(id==='fnotes')D.notes=t.value;
+ footer();});
+dlg.addEventListener('change',function(e){if(e.target.id==='freg')D.region=e.target.value;});
+dlg.addEventListener('focusin',function(e){if(e.target.id==='fco'){e.target.dispatchEvent(new Event('input',{bubbles:true}));}});
+dlg.addEventListener('focusout',function(e){var t=e.target;if(t.id==='fco')setTimeout(hideSug,0);
+ if(t.id==='fst'){var before=D.state;normState();if(D.state!==before){t.value=D.state;}}});
+dlg.addEventListener('keydown',function(e){if(e.target.id==='fco'&&sugKey(e))return;if(e.key==='Escape'){if(sugEl){hideSug();e.stopPropagation();return;}closeAll();}});
+function saveDlg(){normState();var nd=[D.name.trim(),D.city.trim(),D.state.trim(),D.country.trim()];mine.push(nd);rows.push({name:nd[0],pl:place(nd),isNew:true});closeAll();dRow();}
+// ---------- Not disclosed popup ----------
+var N=null;
+function openND(){N={city:'',state:'',country:'USA'};buildND();ndlg.classList.add('open');scrim.classList.add('open');hideSug();var s=ndlg.querySelector('#nst');if(s)s.focus();}
+function ndState(){var c=N.country.trim().toLowerCase();var s=N.state.trim();if(c==='usa'||c==='united states'){var k=s.toUpperCase();if(US[k])s=US[k];else s=s.replace(/\b\w/g,function(m){return m.toUpperCase();});}return s;}
+function ndName(){var parts=[N.city.trim(),ndState()].filter(Boolean);if(!parts.length&&N.country.trim()&&N.country.trim().toLowerCase()!=='usa')parts=[N.country.trim()];return parts.length?'Undisclosed ('+parts.join(', ')+')':'';}
+function ndExists(){var st=ndState().toLowerCase(),ci=N.city.trim().toLowerCase();return UNDISC.some(function(u){return u[0].toLowerCase()===st&&u[1].toLowerCase()===ci;})||rows.some(function(r){return r.und&&r.name.toLowerCase()===ndName().toLowerCase();});}
+function buildND(){
+ var h='<div class="dh"><h3>Distillery not disclosed</h3><span class="x" data-x="1">✕</span></div><div class="db">';
+ h+='<div class="sub" style="margin:8px 0 6px">The label names only a place, such as “Distilled in Indiana”. Rickhouse keeps one “Undisclosed (place)” entry per place and reuses it.</div>';
+ h+='<div class="r"><span class="k">Place</span><div><div class="chips"><span class="chip"><span class="k">City</span><input id="ncity" placeholder="optional" style="width:80px"></span><span class="chip"><span class="k">State</span><input id="nst" placeholder="IN or Indiana" style="width:100px"></span><span class="chip"><span class="k">Country</span><input id="ncn" value="USA" style="width:70px"></span></div><div class="hint" id="npv"></div></div></div></div>';
+ h+='<div class="df"><div class="fw" id="nfw"></div><span style="display:flex;gap:8px"><button class="btn" data-x="1">Cancel</button><button class="btn primary" id="nadd">Add</button></span></div>';
+ ndlg.innerHTML=h;ndFooter();}
+function ndFooter(){var nm=ndName(),w=[];
+ if(!nm)w.push('Give at least a state or a country.');
+ ndlg.querySelector('#nfw').innerHTML=w.map(function(x){return '<div class="amber">'+x+'</div>';}).join('');
+ ndlg.querySelector('#nadd').disabled=!nm;
+ ndlg.querySelector('#npv').innerHTML=nm?'Will be saved as <b>'+nm+'</b>. '+(ndExists()?'<span class="hot">It is already in your collection, so it is reused.</span>':'It is new, so it is created.'):'';}
+ndlg.addEventListener('click',function(e){var t=e.target;if(t.getAttribute('data-x')){closeAll();return;}
+ if(t.id==='nadd'&&!t.disabled){var nm=ndName();rows.push({name:nm,und:true,pl:'',isNew:!ndExists()});closeAll();dRow();}});
+ndlg.addEventListener('input',function(e){var id=e.target.id;if(id==='ncity')N.city=e.target.value;else if(id==='nst')N.state=e.target.value;else if(id==='ncn')N.country=e.target.value;ndFooter();});
+ndlg.addEventListener('keydown',function(e){if(e.key==='Escape')closeAll();if(e.key==='Enter'&&e.target.tagName==='INPUT'){var b=ndlg.querySelector('#nadd');if(!b.disabled)b.click();}});
+scrim.onclick=closeAll;
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!sugEl)closeAll();});
+document.getElementById('cat').onchange=function(){rows=[];mine=[];dRow();closeAll();};
+dRow();
+window.DPv1={rows:function(){return rows;},mine:function(){return mine;}};
+})();
+</script>
+
+</body></html>

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add finish popup</title>
+<style>body{margin:0;padding:20px 16px 60px;background:#f4f4f6;color:#14213D;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}body>h2,.subtitle{max-width:864px;margin-left:auto;margin-right:auto}h2{font:600 18px "Source Serif 4",Georgia,serif;margin-bottom:4px}.subtitle{color:#5b6478;font-size:13px;margin-bottom:12px}</style></head><body>
+<style>
+  .rk{--paper:#FFF8E7;--ink:#14213D;--mute:#5b6478;--hair:#d9d0b8;
+      font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);font-size:13px;line-height:1.35}
+  .rk *{box-sizing:border-box}
+  .rk .opt{max-width:864px;margin:0 auto}
+  .rk .demo{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--ink);padding:8px 10px;margin-bottom:10px;font-size:12px}
+  .rk .demo select{height:28px;border:1px solid var(--ink);background:#fff;font:600 12.5px Inter,sans-serif;padding:0 6px;color:var(--ink)}
+  .rk .stage{background:var(--paper);border:1px solid var(--hair);padding:12px 20px 16px;position:relative;min-height:720px;overflow:hidden}
+  .rk .h1{font:600 22px/1.1 "Source Serif 4",Georgia,serif;margin:0 0 8px}
+  .rk .r{display:grid;grid-template-columns:104px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--hair);align-items:start}
+  .rk .r>.k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);padding-top:7px}
+  .rk .fake{height:25px;border:1px dashed #c9bf9f;color:#a79e80;display:flex;align-items:center;padding:0 8px;font-size:12px}
+  .rk table.t{border-collapse:collapse;width:100%;font-size:12.5px}
+  .rk table.t th{font:600 10px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);text-align:left;padding:0 8px 2px 0;border-bottom:1px solid var(--ink)}
+  .rk table.t td{padding:3px 8px 3px 0;border-bottom:1px solid var(--hair);vertical-align:middle}
+  .rk table.t td.num input{width:44px;text-align:right}
+  .rk input.in,.rk select.in{height:28px;border:1px solid var(--ink);background:#fff;padding:0 7px;font:500 13px Inter,sans-serif;color:var(--ink);min-width:0}
+  .rk .addin{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px dashed var(--ink);min-height:30px;padding:3px 8px;color:var(--mute);margin-top:4px;position:relative}
+  .rk .addin input{border:0;background:transparent;font:500 13px Inter,sans-serif;color:var(--ink);outline:none;min-width:230px;flex:1}
+  .rk .addin .alt{margin-left:auto;color:var(--ink);text-decoration:underline;white-space:nowrap;cursor:pointer}
+  .rk .chip{display:inline-flex;align-items:center;gap:6px;height:27px;border:1px solid var(--ink);background:#fff;padding:0 8px;font-size:12px;white-space:nowrap}
+  .rk .chip .k{color:var(--mute)}
+  .rk .tog{display:inline-flex;align-items:center;gap:5px;height:25px;border:1px solid var(--ink);border-radius:13px;padding:0 10px;font-size:12px;cursor:pointer;user-select:none;background:#fff}
+  .rk .tog.on{background:var(--ink);color:var(--paper)} .rk .tog.on:before{content:"\2713";font-size:11px}
+  .rk .tog.sg:after{content:"suggested";font-size:9px;text-transform:uppercase;letter-spacing:.05em;margin-left:4px;opacity:.75}
+  .rk .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .rk .sub{color:var(--mute);font-size:12px}
+  .rk .link{text-decoration:underline;cursor:pointer;color:var(--ink)}
+  .rk .newtag{font:700 9px Inter,sans-serif;letter-spacing:.05em;text-transform:uppercase;color:#1c6b3a;border:1px solid #1c6b3a;padding:0 4px;margin-left:6px}
+  .rk .scrim{position:absolute;inset:0;background:rgba(20,33,61,.38);display:none;z-index:5} .rk .scrim.open{display:block}
+  .rk .dlg{position:absolute;left:50%;top:60px;transform:translateX(-50%);width:640px;max-width:calc(100% - 24px);background:var(--paper);border:1px solid var(--ink);box-shadow:4px 4px 0 rgba(20,33,61,.25);z-index:6;display:none;max-height:calc(100% - 70px);overflow:auto}
+  .rk .dlg.open{display:block}
+  .rk .dh{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px 8px;border-bottom:2px solid var(--ink)}
+  .rk .dh h3{font:600 20px/1.1 "Source Serif 4",Georgia,serif;margin:0} .rk .dh .x{cursor:pointer;color:var(--mute);font-size:16px}
+  .rk .db{padding:4px 16px 8px}
+  .rk .df{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-top:1px solid var(--hair);position:sticky;bottom:0;background:var(--paper)}
+  .rk .df .fw{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+  .rk .amber{font-size:11.5px;color:#7a3f00;background:#ffe9c9;border:1px solid #c26a00;padding:3px 8px;line-height:1.3}
+  .rk .btn{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:5px 12px;font:600 12.5px Inter,sans-serif;cursor:pointer}
+  .rk .btn.primary{background:var(--ink);color:var(--paper)} .rk .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .rk .hint{font-size:11.5px;color:var(--mute);margin-top:3px} .rk .hint b{color:var(--ink)}
+  .rk .hot{background:#fff3c4;padding:0 4px}
+  .rk .sug{position:absolute;z-index:20;background:#fff;border:1px solid var(--ink);box-shadow:3px 3px 0 rgba(20,33,61,.2);min-width:290px;max-height:230px;overflow:auto}
+  .rk .sug div{padding:6px 10px;display:flex;gap:8px;justify-content:space-between;align-items:center;cursor:pointer;font-size:12.5px}
+  .rk .sug div.on,.rk .sug div:hover{background:var(--ink);color:var(--paper)} .rk .sug div .p{color:var(--mute);font-size:11.5px} .rk .sug div.on .p,.rk .sug div:hover .p{color:#ddd}
+  .rk .sug hr{border:0;border-top:1px solid var(--hair);margin:2px 0}
+  .rk textarea{width:100%;min-height:58px;border:1px solid var(--ink);background:#fff;padding:6px 8px;font:500 13px Inter,sans-serif;color:var(--ink)}
+  .rk .notes{max-width:864px;margin:12px auto 0;border:1px solid var(--ink);background:#fffdf5;padding:10px 14px;font-size:12.5px}
+  .rk .notes ul{margin:4px 0 0;padding-left:18px} .rk .notes li{margin:0 0 4px}
+</style>
+
+<h2>Add finish: the popup, and the Finish row behind it (clickable)</h2>
+<p class="subtitle">Type a name in the Finish row. Pick an existing finish, or choose “Add details…” for the popup. The row behind it follows your pairing rules: months, which mashbill, a share only when there is something to share, an unfinished portion, and a total of 100. The demo bar changes the spirit (finish or cask type) and how many mashbills the label has.</p>
+
+<div class="rk"><div class="opt">
+ <div class="demo"><span class="sub">Demo: the label is a</span>
+  <select id="kind"><option value="finish">Bourbon (Finish)</option><option value="cask">Scotch Single Malt (Cask type)</option></select>
+  <span class="sub">and has</span>
+  <select id="mbn"><option value="1">1 mashbill</option><option value="2" selected>2 mashbills</option><option value="3">3 mashbills</option></select>
+  <span class="sub">Try the name “Port” (exists), “Tawny port cask” (suggests Fortified), or “Winter Bock”.</span></div>
+
+ <div class="stage" id="stage">
+  <div class="h1">Add a bottle</div>
+  <div class="r"><span class="k">Mashbill</span><div id="mbRow"></div></div>
+  <div class="r"><span class="k" id="fkey">Finish</span><div id="fRow"></div></div>
+  <div class="scrim" id="scrim"></div>
+  <div class="dlg" id="dlg" role="dialog" aria-label="Add finish"></div>
+ </div>
+
+ <div class="notes"><b>What changed, and what stayed</b>
+  <ul>
+   <li><b>Kept:</b> a finish or cask type has a Name (required), a Type (required: Wood, Wine, Fortified, Beer, Spirit, Other) and Notes. It's reusable, so a Port you make once is offered on every label. The title and the table heading say “Cask type” for Canadian, Irish and Scotch whisky, amaro and liqueur, as today.</li>
+   <li><b>Type is a row of toggle chips,</b> one on, with a line under it saying what the chosen type means (my wording). It was a dropdown.</li>
+   <li><span class="hot">My proposal:</span> <b>the type is suggested from the name</b> (“oak” suggests Wood, “port” or “sherry” Fortified, “cognac” Spirit, and so on). It shows as a chip marked “suggested” until you choose one yourself. <b>Create “…” (name only)</b> uses the same suggestion. Today it files the finish as “Other”.</li>
+   <li><b>Warnings are in the footer,</b> left of Cancel, in the same amber style: a missing name or type, and a name that already exists (names are unique, so Save is blocked and “Use it” adds the existing one).</li>
+   <li><b>No mashbill is preselected</b> when the label has two or more: each finish starts on “Choose…”, with no warning. With one mashbill it is implied.</li>
+   <li><b>The row behind follows your pairing rules,</b> unchanged: months are optional, a Mashbill column appears with two or more mashbills, a Share column with two or more finishes (or an unfinished portion), a finish on several mashbills gets one line per mashbill with a read-only total, and a total other than 100% is flagged. Mashbill shares are computed from the pairs and shown read-only.</li>
+  </ul></div>
+</div></div>
+
+<script>
+(function(){
+var MBN=['70/21/9','84/8/8','70/22/8'];
+var EXIST=[['French Oak','wood'],['Port','fortified'],['Sherry','fortified'],['PX Sherry','fortified'],['Madeira','fortified'],['Cognac','spirit'],['Apricot Brandy','spirit'],['Vino de Naranja','wine'],['Cabernet','wine'],['Winter Bock','beer']];
+var TYPES=[['wood','Wood'],['wine','Wine'],['fortified','Fortified'],['beer','Beer'],['spirit','Spirit'],['other','Other']];
+var MEANS={wood:'Oak or another wood: French oak, new charred oak.',wine:'A wine cask: red, white, sweet.',fortified:'A fortified-wine cask: port, sherry, madeira.',beer:'A beer cask: stout, bock, IPA.',spirit:'A cask that held another spirit: cognac, rum, brandy.',other:'Anything else. You can change the type later.'};
+var RULES=[['spirit',/cognac|brandy|armagnac|calvados|rum|tequila|mezcal|bourbon cask|whisk/i],['beer',/beer|stout|ipa|bock|ale\b|porter|lager/i],['fortified',/port\b|sherry|madeira|marsala|oloroso|pedro|px\b|vermouth|fortified/i],['wine',/wine|bordeaux|burgundy|sauternes|rioja|cabernet|merlot|zinfandel|pinot|champagne|naranja/i],['wood',/oak|wood|cherry|maple|acacia|chestnut|cedar/i]];
+function infer(n){for(var i=0;i<RULES.length;i++)if(RULES[i][1].test(n))return RULES[i][0];return '';}
+var rows=[],unf=null,mine=[];
+var stage=document.getElementById('stage'),dlg=document.getElementById('dlg'),scrim=document.getElementById('scrim'),mbnSel=document.getElementById('mbn'),kindSel=document.getElementById('kind');
+function esc(s){return String(s).replace(/"/g,'&quot;');}
+function isCask(){return kindSel.value==='cask';}
+function word(){return isCask()?'cask type':'finish';}
+function nMB(){return +mbnSel.value;}
+function dm(){return nMB()>=2?-1:0;}
+var prevN=2;
+function typeName(t){return TYPES.filter(function(x){return x[0]===t;})[0][1];}
+function allFin(){return EXIST.concat(mine);}
+// ---------- suggestion popover ----------
+var sugEl=null,sugIdx=-1,sugPick=null;
+function hideSug(){if(sugEl){sugEl.remove();sugEl=null;}sugIdx=-1;sugPick=null;}
+function showSug(inp,host,items,onPick){hideSug();if(!items.length)return;var d=document.createElement('div');d.className='sug';
+ d.innerHTML=items.map(function(it,i){return it==='-'?'<hr>':'<div data-i="'+i+'"><span>'+it.t+'</span><span class="p">'+(it.p||'')+'</span></div>';}).join('');
+ var r=inp.getBoundingClientRect(),hr=host.getBoundingClientRect();d.style.left=(r.left-hr.left+host.scrollLeft)+'px';d.style.top=(r.bottom-hr.top+host.scrollTop+2)+'px';
+ host.appendChild(d);sugEl=d;sugPick=function(i){var it=items[i];hideSug();onPick(it);};
+ d.onmousedown=function(e){e.preventDefault();var t=e.target.closest('[data-i]');if(t)sugPick(+t.getAttribute('data-i'));};}
+function sugKey(e){if(!sugEl)return false;var els=[].slice.call(sugEl.querySelectorAll('[data-i]'));
+ if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();sugIdx=e.key==='ArrowDown'?Math.min(sugIdx+1,els.length-1):Math.max(sugIdx-1,0);els.forEach(function(x,k){x.classList.toggle('on',k===sugIdx);});return true;}
+ if(e.key==='Enter'&&sugIdx>=0){e.preventDefault();sugPick(+els[sugIdx].getAttribute('data-i'));return true;}
+ if(e.key==='Escape'){e.stopPropagation();hideSug();return true;}return false;}
+// ---------- the Mashbill row (read-only roll-up) ----------
+function sumLines(r){return r.lines.reduce(function(t,L){var n=parseFloat(L.share);return t+(isFinite(n)?n:0);},0);}
+function lineShares(){var out=[];rows.forEach(function(r){r.lines.forEach(function(L){out.push(L);});});if(unf)unf.lines.forEach(function(L){out.push(L);});return out;}
+function anyShare(){return lineShares().some(function(L){return L.share!=='';});}
+function total(){return lineShares().reduce(function(t,L){var n=parseFloat(L.share);return t+(isFinite(n)?n:0);},0);}
+function mbRoll(){var n=nMB(),out=[];for(var i=0;i<n;i++){var s=0;lineShares().forEach(function(L){if(L.mb===i){var v=parseFloat(L.share);if(isFinite(v))s+=v;}});out.push({n:MBN[i],s:s});}return out;}
+function mbRowHtml(){var n=nMB(),h='<div class="chips">';for(var i=0;i<n;i++)h+='<span class="chip">'+MBN[i]+'</span>';h+='</div>';
+ if(anyShare()&&n>=1&&(rows.length+(unf?1:0))>=1){var roll=mbRoll().map(function(x){return x.n+' '+(Math.round(x.s*100)/100)+'%';}).join(' · ');h+='<div class="hint">Shares are computed from the finishes below: <b>'+roll+'</b></div>';}return h;}
+// ---------- the Finish row ----------
+function mbSel(i,j,cur,unfin){var n=nMB(),h='<select class="in" data-mb="'+(unfin?'u':i)+'.'+j+'">'+(cur<0?'<option value="-1" selected>Choose…</option>':'');for(var k=0;k<n;k++)h+='<option value="'+k+'"'+(k===cur?' selected':'')+'>'+MBN[k]+'</option>';return h+'</select>';}
+function fRow(){
+ document.getElementById('fkey').textContent=isCask()?'Cask types':'Finish';
+ var n=nMB(),mbCol=n>=2,shareCol=(rows.length+(unf?1:0))>=2,h='';
+ if(rows.length||unf){
+  h+='<table class="t"><tr><th>'+(isCask()?'Cask type':'Finish')+'</th><th>Months</th>'+(mbCol?'<th>Mashbill</th>':'')+(shareCol?'<th style="text-align:right">Share</th>':'')+'<th></th></tr>';
+  rows.forEach(function(r,i){
+   var multi=r.lines.length>1;
+   h+='<tr><td>'+esc(r.name)+' <span class="sub">'+typeName(r.type)+'</span>'+(r.isNew?'<span class="newtag">new</span>':'')+'</td><td class="num"><input class="in" data-mo="'+i+'" value="'+esc(r.months)+'"></td>';
+   if(mbCol)h+='<td>'+(multi?'<span class="sub">on '+r.lines.length+' mashbills</span>':mbSel(i,0,r.lines[0].mb))+'</td>';
+   if(shareCol)h+='<td class="num">'+(multi?'<span class="sub" data-tot="'+i+'">'+(Math.round(sumLines(r)*100)/100)+'</span> %':'<input class="in" data-sh="'+i+'.0" value="'+esc(r.lines[0].share)+'"> %')+'</td>';
+   h+='<td class="sub"><span style="cursor:pointer" data-rmf="'+i+'">✕</span></td></tr>';
+   if(multi)r.lines.forEach(function(L,j){h+='<tr><td class="sub" style="padding-left:14px">↳ on</td><td></td>'+(mbCol?'<td>'+mbSel(i,j,L.mb)+'</td>':'')+(shareCol?'<td class="num"><input class="in" data-sh="'+i+'.'+j+'" value="'+esc(L.share)+'"> %</td>':'')+'<td class="sub"><span style="cursor:pointer" data-rml="'+i+'.'+j+'">✕</span></td></tr>';});
+   if(mbCol&&r.lines.length<n)h+='<tr><td colspan="5" style="border-bottom:0;padding:0 0 4px 14px"><span class="link sub" data-addl="'+i+'">+ Add mashbill</span></td></tr>';
+  });
+  if(unf){h+='<tr><td><i>Unfinished portion</i> <span class="sub">no finish</span></td><td></td>'+(mbCol?'<td>'+mbSel(0,0,unf.lines[0].mb,true)+'</td>':'')+(shareCol?'<td class="num"><input class="in" data-sh="u.0" value="'+esc(unf.lines[0].share)+'"> %</td>':'')+'<td class="sub"><span style="cursor:pointer" data-rmu="1">✕</span></td></tr>';}
+  h+='</table>';}
+ h+='<div id="ftail"></div>';
+ h+='<div class="addin"><input id="fq" placeholder="+ Add '+word()+': type a name" autocomplete="off">'+((rows.length>=1&&!unf)?'<span class="alt" id="addunf">+ Unfinished portion</span>':'')+'</div>';
+ document.getElementById('fRow').innerHTML=h;
+ var q=document.getElementById('fq');q.oninput=suggestRow;q.onfocus=suggestRow;q.onblur=function(){setTimeout(hideSug,0);};q.onkeydown=function(e){sugKey(e);};
+ var au=document.getElementById('addunf');if(au)au.onclick=function(){unf={lines:[{mb:dm(),share:''}]};fRow();};
+ derive();}
+function derive(){var shareCol=(rows.length+(unf?1:0))>=2,t=Math.round(total()*100)/100,tail=document.getElementById('ftail');if(!tail)return;
+ var h='';if(anyShare()){var ok=t===100;h+='<div class="chips" style="margin-top:6px"><span class="chip"><span class="k">Total</span><b style="color:'+(ok?'#1c6b3a':'#b3261e')+'">'+t+'%'+(ok?' ✓':'')+'</b></span></div>';if(!ok)h+='<div class="amber" style="margin-top:5px">Shares add to '+t+'%, not 100%. '+(t<100?(Math.round((100-t)*100)/100)+'% short.':(Math.round((t-100)*100)/100)+'% over.')+' Fill every share, or clear them all.</div>';}
+ tail.innerHTML=h;
+ [].forEach.call(document.querySelectorAll('[data-tot]'),function(n){n.textContent=Math.round(sumLines(rows[+n.getAttribute('data-tot')])*100)/100;});
+ document.getElementById('mbRow').innerHTML=mbRowHtml();}
+function suggestRow(){var q=document.getElementById('fq'),v=q.value.trim(),needle=v.toLowerCase();var terms=needle.split(/\s+/).filter(Boolean);
+ var used=rows.map(function(r){return r.name.toLowerCase();});
+ var m=allFin().filter(function(d){var h=d[0].toLowerCase();return used.indexOf(h)<0&&terms.every(function(t){return h.indexOf(t)>=0;});});
+ var items=m.map(function(d){return {t:d[0],p:typeName(d[1]),d:d};});
+ var exact=allFin().some(function(d){return d[0].toLowerCase()===needle;});
+ if(v&&!exact){items.push('-');var ty=infer(v)||'other';items.push({t:'Create “'+v+'”',p:typeName(ty)+(infer(v)?' (suggested)':''),create:v,ty:ty});items.push({t:'Add details for “'+v+'”…',p:'opens the popup',details:v});}
+ showSug(q,stage,items,function(it){
+  if(it.d){rows.push({name:it.d[0],type:it.d[1],months:'',lines:[{mb:dm(),share:''}]});fRow();}
+  else if(it.create){mine.push([it.create,it.ty]);rows.push({name:it.create,type:it.ty,months:'',isNew:true,lines:[{mb:dm(),share:''}]});fRow();}
+  else if(it.details){q.value='';openDlg(it.details);}});}
+// table events
+stage.addEventListener('input',function(e){var t=e.target;
+ var mo=t.getAttribute&&t.getAttribute('data-mo');if(mo!==null&&mo!==undefined){t.value=t.value.replace(/[^0-9]/g,'');rows[+mo].months=t.value;return;}
+ var sh=t.getAttribute&&t.getAttribute('data-sh');if(sh){var p=sh.split('.'),v=t.value.replace(/[^0-9.]/g,'');var m=/^(\d*)(\.\d{0,2})?/.exec(v);v=m?(m[1]+(m[2]||'')):'';t.value=v;(p[0]==='u'?unf:rows[+p[0]]).lines[+p[1]].share=v;derive();}});
+stage.addEventListener('change',function(e){var t=e.target,mb=t.getAttribute&&t.getAttribute('data-mb');if(mb){var p=mb.split('.');(p[0]==='u'?unf:rows[+p[0]]).lines[+p[1]].mb=+t.value;derive();}});
+stage.addEventListener('click',function(e){var t=e.target;
+ var a=t.getAttribute('data-rmf');if(a!==null){rows.splice(+a,1);if(!rows.length)unf=null;fRow();return;}
+ a=t.getAttribute('data-rml');if(a){var p=a.split('.');rows[+p[0]].lines.splice(+p[1],1);fRow();return;}
+ a=t.getAttribute('data-addl');if(a!==null){var r=rows[+a];var used=r.lines.map(function(L){return L.mb;});r.lines.push({mb:-1,share:''});fRow();return;}
+ if(t.getAttribute('data-rmu')){unf=null;fRow();}});
+// ---------- the popup ----------
+var D=null;
+function openDlg(name){D={name:name,type:'',suggested:infer(name),touched:false,notes:'',moreNotes:false};build();dlg.classList.add('open');scrim.classList.add('open');hideSug();var n=dlg.querySelector('#fn');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}}
+function closeAll(){dlg.classList.remove('open');scrim.classList.remove('open');hideSug();}
+function effType(){return D.type||D.suggested||'';}
+function typeRow(){var cur=effType();var h='<div class="chips">'+TYPES.map(function(t){var on=cur===t[0];return '<span class="tog'+(on?' on':'')+((on&&!D.type&&D.suggested)?' sg':'')+'" data-ty="'+t[0]+'">'+t[1]+'</span>';}).join('')+'</div>';
+ h+='<div class="hint" id="tyhint">'+(cur?MEANS[cur]+((!D.type&&D.suggested)?' <span class="hot">Suggested from the name. Change it if it\'s wrong.</span>':''):'Pick the kind of cask.')+'</div>';return h;}
+function build(){
+ var title=isCask()?'Add cask type':'Add finish';
+ var h='<div class="dh"><h3>'+title+'</h3><span class="x" data-x="1">✕</span></div><div class="db">';
+ h+='<div class="sub" style="margin:8px 0 6px">Saved to your collection, and chosen here when you are done.'+(isCask()?' A cask type implies no finishing order or duration.':'')+'</div>';
+ h+='<div class="r"><span class="k">Name</span><div><input class="in" id="fn" style="width:100%" value="'+esc(D.name)+'" placeholder="French oak, PX sherry"></div></div>';
+ h+='<div class="r"><span class="k">Type</span><div id="tyrow">'+typeRow()+'</div></div>';
+ h+='<div id="more">'+moreHtml()+'</div></div>';
+ h+='<div class="df"><div class="fw" id="fw"></div><span style="display:flex;gap:8px"><button class="btn" data-x="1">Cancel</button><button class="btn primary" id="fsave">Save '+word()+'</button></span></div>';
+ dlg.innerHTML=h;footer();}
+function moreHtml(){return D.moreNotes?'<div class="r"><span class="k">Notes</span><div><textarea id="fnotes" placeholder="Where it comes from, what it adds">'+D.notes+'</textarea></div></div>':'<div class="r"><span class="k">More</span><div style="padding-top:4px"><span class="link" data-more="1">Notes</span></div></div>';}
+function dup(){var n=D.name.trim().toLowerCase();if(!n)return null;return allFin().filter(function(d){return d[0].toLowerCase()===n;})[0]||null;}
+function footer(){var w=[],block=false,d=dup();
+ if(!D.name.trim()){w.push('Give it a name.');block=true;}
+ if(!effType()){w.push('Pick a type.');block=true;}
+ if(d){w.push('A '+word()+' named “'+d[0]+'” is already in your collection ('+typeName(d[1])+'). <span class="link" data-use="1">Use it</span>');block=true;}
+ var f=dlg.querySelector('#fw');if(f)f.innerHTML=w.map(function(x){return '<div class="amber">'+x+'</div>';}).join('');var s=dlg.querySelector('#fsave');if(s)s.disabled=block;}
+dlg.addEventListener('click',function(e){var t=e.target;
+ if(t.getAttribute('data-x')){closeAll();return;}
+ var ty=t.getAttribute('data-ty');if(ty){D.type=ty;D.touched=true;dlg.querySelector('#tyrow').innerHTML=typeRow();footer();return;}
+ if(t.getAttribute('data-more')){D.moreNotes=true;dlg.querySelector('#more').innerHTML=moreHtml();return;}
+ if(t.getAttribute('data-use')){var d=dup();if(d){rows.push({name:d[0],type:d[1],months:'',lines:[{mb:dm(),share:''}]});closeAll();fRow();}return;}
+ if(t.id==='fsave'&&!t.disabled){var ty2=effType();mine.push([D.name.trim(),ty2]);rows.push({name:D.name.trim(),type:ty2,months:'',isNew:true,lines:[{mb:dm(),share:''}]});closeAll();fRow();}});
+dlg.addEventListener('input',function(e){var t=e.target;
+ if(t.id==='fn'){D.name=t.value;if(!D.touched){D.suggested=infer(D.name);}dlg.querySelector('#tyrow').innerHTML=typeRow();footer();}
+ else if(t.id==='fnotes')D.notes=t.value;});
+dlg.addEventListener('keydown',function(e){if(e.key==='Escape')closeAll();if(e.key==='Enter'&&e.target.id==='fn'){var s=dlg.querySelector('#fsave');if(s&&!s.disabled)s.click();}});
+scrim.onclick=closeAll;document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!sugEl)closeAll();});
+mbnSel.onchange=function(){var n=nMB();function fix(L){if(n===1)L.mb=0;else if(L.mb>=n||prevN===1)L.mb=-1;}rows.forEach(function(r){r.lines.forEach(fix);r.lines=r.lines.slice(0,Math.max(1,n));});if(unf)fix(unf.lines[0]);prevN=n;fRow();};
+kindSel.onchange=function(){rows=[];unf=null;fRow();closeAll();};
+fRow();
+window.FPv1={rows:function(){return rows;},unf:function(){return unf;}};
+})();
+</script>
+
+</body></html>

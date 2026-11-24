@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add bottle: photos on the add page, the bottle page and the label page</title>
+<style>
+ body{margin:0;padding:20px 16px 60px;background:#f4f4f6;color:#14213D;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+ body>h2{font:600 18px "Source Serif 4",Georgia,serif;margin:0 0 4px;max-width:864px;margin-left:auto;margin-right:auto}
+ body>.subtitle{color:#5b6478;max-width:864px;margin:0 auto 12px;font-size:13px}
+ .banner{max-width:864px;margin:0 auto 14px;padding:8px 12px;border:1px solid #14213D;background:#fff;font-size:12.5px}
+</style></head><body>
+<div class="banner"><b>Design mockup, not the app.</b> A throwaway prototype for the add-bottle redesign. See <code>2026-11-23-add-bottle-redesign-design.md</code> next to this folder. The photos are drawn samples, and nothing is uploaded.</div>
+<style>
+  .rk{--paper:#FFF8E7;--ink:#14213D;--mute:#5b6478;--hair:#d9d0b8;--bourbon:#FC9350;
+      font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);font-size:13px;line-height:1.35}
+  .rk *{box-sizing:border-box}
+  .rk .opt{max-width:864px;margin:0 auto}
+  .rk .sechd{display:flex;align-items:baseline;gap:10px;margin:26px auto 6px;max-width:864px}
+  .rk .sechd .big{font:700 18px Inter,sans-serif} .rk .sechd .tag{color:var(--mute);font-size:13px}
+  .rk .page{background:var(--paper);border:1px solid var(--hair);padding:12px 20px 16px;outline:none;position:relative}
+  .rk .bar{display:flex;gap:8px;align-items:center;margin-bottom:8px;font-size:12px;color:var(--mute)}
+  .rk .seg{display:inline-flex;border:1px solid var(--ink)}
+  .rk .seg span{padding:0 10px;height:24px;display:inline-flex;align-items:center;font-size:12px;cursor:pointer;user-select:none;color:var(--ink)}
+  .rk .seg span.on{background:var(--ink);color:var(--paper)}
+  .rk .ctx{display:grid;grid-template-columns:1fr 112px;gap:14px;align-items:start}
+  .rk .fake{display:grid;grid-template-columns:104px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--hair);align-items:center}
+  .rk .fake .k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+  .rk .fake .v{height:25px;border:1px dashed #c9bf9f;color:#a79e80;display:flex;align-items:center;padding:0 8px;font-size:12px}
+  .rk input.in{height:28px;border:1px solid var(--ink);background:#fff;padding:0 7px;font:500 13px Inter,sans-serif;color:var(--ink);min-width:0;width:240px}
+  .rk .frame{background:var(--bourbon);border:1px solid var(--ink);box-shadow:2px 2px 0 rgba(20,33,61,.18);display:flex;align-items:center;justify-content:center;text-align:center;font:600 13px Inter,sans-serif;cursor:pointer;height:134px;width:100px;overflow:hidden;position:relative;outline:none}
+  .rk .frame:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .rk .frame img{width:100%;height:100%;object-fit:contain;background:#fff;display:block}
+  .rk .frame.drag,.rk .tile.drag{outline:2px dashed var(--ink);outline-offset:-5px}
+  .rk .strip{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;width:104px}
+  .rk .th{width:31px;height:41px;border:1px solid var(--ink);background:#fff;position:relative;cursor:pointer;overflow:hidden}
+  .rk .th img{width:100%;height:100%;object-fit:cover;display:block}
+  .rk .th.prim{outline:2px solid var(--ink);outline-offset:1px}
+  .rk .th.hid{opacity:.35}
+  .rk .th .b{position:absolute;left:0;bottom:0;background:var(--ink);color:var(--paper);font:700 7.5px Inter,sans-serif;padding:0 2px;letter-spacing:.03em;text-transform:uppercase}
+  .rk .th.plus{border-style:dashed;display:flex;align-items:center;justify-content:center;color:var(--mute);font-size:16px;background:transparent}
+  .rk .tip{font-size:10.5px;color:var(--mute);margin-top:6px;line-height:1.35;width:104px}
+  .rk .warn{font-size:11.5px;color:#7a3f00;background:#ffe9c9;border:1px solid #c26a00;padding:3px 6px;margin-top:5px;width:104px}
+  .rk .spin{font-size:11px;color:var(--mute);margin-top:5px}
+  .rk .menu{position:fixed;z-index:60;background:#fff;border:1px solid var(--ink);box-shadow:3px 3px 0 rgba(20,33,61,.2);min-width:240px;padding:3px 0;font-size:12.5px}
+  .rk .menu div{padding:6px 12px;display:flex;justify-content:space-between;gap:18px;cursor:pointer}
+  .rk .menu div:hover{background:var(--ink);color:var(--paper)}
+  .rk .menu div.dis{color:#8d8f98;cursor:default} .rk .menu div.dis:hover{background:transparent;color:#8d8f98}
+  .rk .menu .kb{color:var(--mute);font-size:11.5px} .rk .menu div:hover .kb{color:#ddd}
+  .rk .menu hr{border:0;border-top:1px solid var(--hair);margin:3px 0}
+  .rk .grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+  .rk .tile{width:108px;cursor:grab}
+  .rk .tile .pic{width:108px;height:144px;border:1px solid var(--ink);background:#fff;position:relative;overflow:hidden;box-shadow:2px 2px 0 rgba(20,33,61,.15)}
+  .rk .tile .pic img{width:100%;height:100%;object-fit:contain;display:block}
+  .rk .tile .card{position:absolute;left:0;top:0;background:var(--ink);color:var(--paper);font:700 9px Inter,sans-serif;padding:1px 5px;letter-spacing:.04em;text-transform:uppercase}
+  .rk .tile .cap{font-size:11px;color:var(--mute);margin-top:4px;line-height:1.3}
+  .rk .tile .cap b{color:var(--ink)}
+  .rk .tile.dragging{opacity:.4}
+  .rk .tile.add .pic{border:1px dashed var(--ink);box-shadow:none;background:transparent;display:flex;align-items:center;justify-content:center;font:600 13px Inter,sans-serif;color:var(--mute);cursor:pointer}
+  .rk .hidbox{margin-top:12px;border-top:1px solid var(--hair);padding-top:8px;font-size:12px;color:var(--mute)}
+  .rk .hidbox .row{display:flex;gap:10px;align-items:center;margin-top:6px;color:var(--ink)}
+  .rk .hidbox img{width:28px;height:38px;border:1px solid var(--ink);object-fit:cover}
+  .rk .link{text-decoration:underline;cursor:pointer;color:var(--ink)}
+  .rk .vtag{display:inline-block;border:1px solid var(--ink);background:#fff;font:600 10.5px Inter,sans-serif;padding:0 5px;margin-top:3px}
+  .rk .toast{display:inline-block;background:#e4f2e0;border:1px solid #1c6b3a;color:#1c6b3a;font-size:11.5px;padding:2px 8px;margin-left:8px}
+  .rk .cost{max-width:864px;margin:6px auto 0;font-size:12.5px;color:var(--mute)} .rk .cost b{color:var(--ink)}
+  .rk .hot{background:#fff3c4;padding:0 4px}
+  .rk .secure{max-width:864px;margin:0 auto 10px;padding:6px 12px;border:1px solid #c9bf9f;background:#fff;font-size:12px;color:var(--mute)}
+</style>
+
+<h2>Photos across the add page, the bottle page and the label page</h2>
+<p class="subtitle">One sample set of photos, three places. The orange box just says “+ Photo”. Try: paste a link (any text with a dot, or one with “bad” or “page” to see warnings), choose or drop a file, right-click any photo, and drag the tiles on the bottle page to reorder them. The bottle page remembers your order.</p>
+
+<div class="rk">
+ <div class="secure" id="sec"></div>
+
+ <!-- ===== 1 ADD PAGE ===== -->
+ <div class="sechd"><span class="big">1 · On the add page</span><span class="tag">the slot on the label</span></div>
+ <div class="opt"><div class="page" id="pAdd" tabindex="0">
+  <div class="bar">Label: <span class="seg" id="addMode"><span class="on" data-m="new">New</span><span data-m="existing">Existing, has photos</span></span></div>
+  <div class="ctx">
+   <div>
+    <div class="fake"><span class="k">Name</span><span><input class="in" placeholder="Brand (paste text here: the photo stays untouched)"></span></div>
+    <div class="fake"><span class="k">Strength</span><span class="v">Proof · ABV · designations</span></div>
+    <div class="fake"><span class="k">Size and price</span><span class="v">…</span></div>
+    <div class="fake"><span class="k">Bottle</span><span class="v">Price · Store · Batch · Vintage</span></div>
+   </div>
+   <div id="addSlot"></div>
+  </div>
+ </div></div>
+ <div class="cost"><b>Idea:</b> every photo goes to the label's gallery by default. Right-click a photo to attach it to this bottle only, make it the hero photo, hide an inherited one for this bottle, or remove one you just added. The link is checked by the server and a warning shows right under the slot. <b>Kept until you save:</b> nothing is stored until Save.</div>
+
+ <!-- ===== 2 BOTTLE PAGE ===== -->
+ <div class="sechd"><span class="big">2 · On a bottle's page</span><span class="tag">Photos</span></div>
+ <div class="opt"><div class="page" id="pBottle" tabindex="0">
+  <div class="bar">This bottle is: <span class="seg" id="vintSel"><span data-v="2022">Vintage 2022</span><span class="on" data-v="2023">Vintage 2023</span><span data-v="none">No vintage</span></span> <span id="toast"></span></div>
+  <div id="bGrid"></div>
+  <div id="bHidden"></div>
+ </div></div>
+ <div class="cost"><b>Idea:</b> the bottle's own photos first, then its vintage's, then the label's, and you can drag them into any order. The order is remembered. The first photo is the hero photo, the one on the bottle's card. Label and vintage photos can be hidden for this bottle and shown again. <b>Vintage photos</b> appear here only when the bottle is from that vintage.</div>
+
+ <!-- ===== 3 LABEL PAGE ===== -->
+ <div class="sechd"><span class="big">3 · On the label's page</span><span class="tag">Gallery</span></div>
+ <div class="opt"><div class="page"><div id="lGrid"></div></div></div>
+ <div class="cost"><b>Idea:</b> the label's gallery shows its own photos and every vintage's photos, each vintage photo with a note saying which vintage it belongs to. Photos you attach to a label from a bottle appear here.</div>
+</div>
+
+<script>
+(function(){
+var isMac=/Mac|iPhone|iPad/.test(navigator.platform),KB=isMac?'⌘V':'Ctrl+V';
+var secure=window.isSecureContext&&!!(navigator.clipboard&&navigator.clipboard.read);
+document.getElementById('sec').innerHTML=secure?'Demo note: this page is on HTTPS, so the right-click Paste item reads your clipboard.':'Demo note: this page is on plain HTTP, so the menu says “To paste, press '+KB+'”. Open the https:// address to try the right-click Paste.';
+function svg(bg,txt,glass){return 'data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160"><rect width="120" height="160" fill="'+bg+'"/><rect y="118" width="120" height="42" fill="#00000012"/><rect x="52" y="14" width="16" height="30" fill="'+(glass||'#2b2926')+'"/><rect x="48" y="10" width="24" height="8" fill="#8a6a2f"/><path d="M52 44 L38 62 L38 124 Q38 128 42 128 L78 128 Q82 128 82 124 L82 62 L68 44 Z" fill="'+(glass||'#2b2926')+'"/><rect x="42" y="78" width="36" height="34" fill="#f1e7cd"/><text x="60" y="99" font-size="9" text-anchor="middle" fill="#5a4a2a" font-family="sans-serif">'+txt+'</text></svg>');}
+var IMG={front:svg('#e8e3d9','FRONT'),back:svg('#dfe6ea','BACK'),shelf:svg('#ead9c6','SHELF','#3a2a1c'),prod:svg('#f3f3f3','PRODUCT'),v22:svg('#e6e0ef','2022'),v23:svg('#dcefe3','2023'),
+  pool:[svg('#efe6d4','NEW 1'),svg('#e4ecef','NEW 2'),svg('#efdcdc','NEW 3'),svg('#e1efdc','NEW 4'),svg('#e9e0f0','NEW 5')]};
+var pi=0;function nextImg(){var s=IMG.pool[pi%IMG.pool.length];pi++;return s;}
+function host(u){try{return new URL(/^https?:/i.test(u)?u:'https://'+u).hostname.replace(/^www\./,'');}catch(e){return 'link';}}
+// ---------- shared menu ----------
+var menu=null;function closeMenu(){if(menu){menu.remove();menu=null;}}
+function openMenu(x,y,items){closeMenu();menu=document.createElement('div');menu.className='menu';
+ items.forEach(function(it){if(it==='-'){menu.appendChild(document.createElement('hr'));return;}
+  var d=document.createElement('div');if(it.dis)d.className='dis';d.innerHTML='<span>'+it.t+'</span><span class="kb">'+(it.kb||'')+'</span>';
+  if(!it.dis)d.onclick=function(){closeMenu();it.fn();};menu.appendChild(d);});
+ menu.style.left=Math.min(x,window.innerWidth-250)+'px';menu.style.top=Math.min(y,window.innerHeight-menu.childNodes.length*30-20)+'px';document.querySelector('.rk').appendChild(menu);}
+document.addEventListener('click',function(e){if(menu&&!menu.contains(e.target))closeMenu();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeMenu();});
+// ---------- shared: check a link like the server would ----------
+function checkLink(t,done){t=(t||'').trim();
+ if(!t||/\s/.test(t)||!/[.\/]/.test(t))return done({warn:"That doesn't look like a link."});
+ setTimeout(function(){
+  if(/bad/i.test(t))return done({warn:"Couldn't download that link. Check it, or save the image and choose the file."});
+  if(/page|html/i.test(t))return done({warn:"That link is a web page, not a photo."});
+  done({src:nextImg(),source:'link · '+host(t)});},550);}
+function fileOk(f){if(!f||!f.type||f.type.indexOf('image/')!==0)return {warn:"That file isn't an image."};return {src:URL.createObjectURL(f),source:'file · '+f.name};}
+function clipboardRead(cb){
+ if(!secure)return;
+ navigator.clipboard.read().then(async function(items){
+  for(var i=0;i<items.length;i++){var it=items[i];var img=it.types.filter(function(t){return t.indexOf('image/')===0;})[0];
+   if(img){var b=await it.getType(img);return cb({file:new File([b],'pasted-image.'+img.split('/')[1],{type:img})});}
+   if(it.types.indexOf('text/plain')>=0){var tb=await it.getType('text/plain');return cb({text:await tb.text()});}}
+  cb({warn:'Nothing to paste. Copy a link or an image first.'});}).catch(function(){cb({warn:'The browser blocked reading your clipboard. Allow it, or press '+KB+'.'});});}
+var activeSection='add';
+['pAdd','pBottle'].forEach(function(id){var n=document.getElementById(id);n.addEventListener('mouseenter',function(){activeSection=id==='pAdd'?'add':'bottle';});n.addEventListener('focusin',function(){activeSection=id==='pAdd'?'add':'bottle';});});
+var intake={add:null,bottle:null};
+document.addEventListener('paste',function(e){var a=document.activeElement;if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable))return;
+ var cd=e.clipboardData;if(!cd)return;var f=cd.files&&cd.files[0];
+ if(f&&f.type.indexOf('image/')===0){e.preventDefault();intake[activeSection]({file:f});return;}
+ var t=cd.getData('text');if(t){e.preventDefault();intake[activeSection]({text:t});}});
+
+// ---------- 1. ADD PAGE ----------
+var AP={mode:'new',photos:[],seq:1,checking:false,warn:''};
+var addEl=document.getElementById('addSlot');
+var fileAdd=document.createElement('input');fileAdd.type='file';fileAdd.accept='image/*';fileAdd.style.display='none';document.body.appendChild(fileAdd);
+function addMode(m){AP.mode=m;AP.warn='';AP.checking=false;
+ AP.photos=m==='existing'?[{id:'L1',src:IMG.front,scope:'label',prim:true,src2:'label',inh:true,hidden:false},{id:'L2',src:IMG.back,scope:'label',prim:false,src2:'label',inh:true,hidden:false}]:[];renderAdd();
+ [].forEach.call(document.querySelectorAll('#addMode span'),function(s){s.classList.toggle('on',s.getAttribute('data-m')===m);});}
+function addPhoto(src,source){var p={id:'N'+(AP.seq++),src:src,scope:'label',prim:AP.photos.filter(function(x){return !x.hidden;}).length===0,src2:source,inh:false,hidden:false};AP.photos.push(p);}
+intake.add=function(r){AP.warn='';
+ if(r.warn){AP.warn=r.warn;renderAdd();return;}
+ if(r.file){var x=fileOk(r.file);if(x.warn){AP.warn=x.warn;}else addPhoto(x.src,x.source);renderAdd();return;}
+ AP.checking=true;renderAdd();checkLink(r.text,function(x){AP.checking=false;if(x.warn)AP.warn=x.warn;else addPhoto(x.src,x.source);renderAdd();});};
+fileAdd.onchange=function(){var f=fileAdd.files[0];fileAdd.value='';intake.add({file:f});};
+function addMenu(e,p){e.preventDefault();var items=[];
+ if(p){
+  items.push({t:(p.scope==='label'?'✓ ':'')+'Attach to the label',fn:function(){p.scope='label';renderAdd();}});
+  items.push({t:(p.scope==='bottle'?'✓ ':'')+'Attach to this bottle only',fn:function(){p.scope='bottle';renderAdd();}});
+  items.push('-');
+  if(!p.prim)items.push({t:'Make hero photo',fn:function(){AP.photos.forEach(function(x){x.prim=false;});p.prim=true;p.hidden=false;renderAdd();}});
+  if(p.inh)items.push({t:p.hidden?'Show for this bottle':'Hide for this bottle',fn:function(){p.hidden=!p.hidden;if(p.hidden&&p.prim){p.prim=false;var n=AP.photos.filter(function(x){return !x.hidden;})[0];if(n)n.prim=true;}renderAdd();}});
+  else items.push({t:'Remove',fn:function(){AP.photos=AP.photos.filter(function(x){return x!==p;});if(p.prim&&AP.photos[0]){AP.photos.forEach(function(x){x.prim=false;});var n=AP.photos.filter(function(x){return !x.hidden;})[0];if(n)n.prim=true;}renderAdd();}});
+ }else{
+  items.push(secure?{t:'Paste link or image',kb:KB,fn:function(){clipboardRead(function(r){intake.add(r);});}}:{t:'To paste, press '+KB,dis:true});
+  items.push({t:'Choose a file…',fn:function(){fileAdd.click();}});
+ }
+ openMenu(e.clientX,e.clientY,items);}
+function renderAdd(){
+ var prim=AP.photos.filter(function(x){return x.prim&&!x.hidden;})[0]||AP.photos.filter(function(x){return !x.hidden;})[0];
+ var h='';
+ h+='<div class="frame" tabindex="0" id="addFrame">'+(prim?'<img src="'+prim.src+'" alt="">':'+ Photo')+'</div>';
+ if(AP.photos.length){h+='<div class="strip">'+AP.photos.map(function(p,i){return '<div class="th'+(p===prim?' prim':'')+(p.hidden?' hid':'')+'" data-i="'+i+'"><img src="'+p.src+'" alt=""><span class="b">'+(p.hidden?'hidden':p.scope==='bottle'?'bottle':'label')+'</span></div>';}).join('')+'<div class="th plus" id="addMore">+</div></div>';}
+ if(AP.checking)h+='<div class="spin">Checking the link…</div>';
+ if(AP.warn)h+='<div class="warn">'+AP.warn+'</div>';
+ h+='<div class="tip">'+KB+' to paste'+(AP.photos.length?' · kept until you save':'')+'</div>';
+ addEl.innerHTML=h;
+ var fr=document.getElementById('addFrame');
+ fr.onclick=function(){if(!prim)fileAdd.click();};
+ fr.oncontextmenu=function(e){addMenu(e,prim||null);};
+ [fr].concat([].slice.call(addEl.querySelectorAll('.th'))).forEach(function(n){n.ondragover=function(e){e.preventDefault();n.classList.add('drag');};n.ondragleave=function(){n.classList.remove('drag');};
+  n.ondrop=function(e){e.preventDefault();n.classList.remove('drag');var f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)intake.add({file:f});else{var t=e.dataTransfer.getData('text');if(t)intake.add({text:t});}};});
+ [].forEach.call(addEl.querySelectorAll('.th[data-i]'),function(n){var p=AP.photos[+n.getAttribute('data-i')];n.oncontextmenu=function(e){addMenu(e,p);};n.onclick=function(){if(p.hidden)return;AP.photos.forEach(function(x){x.prim=false;});p.prim=true;renderAdd();};});
+ var more=document.getElementById('addMore');if(more)more.onclick=function(){fileAdd.click();};
+}
+document.getElementById('addMode').onclick=function(e){var m=e.target.getAttribute('data-m');if(m)addMode(m);};
+
+// ---------- 2 + 3. BOTTLE PAGE and LABEL PAGE (shared data) ----------
+var D={own:[{id:'B1',src:IMG.shelf,cap:'<b>Yours</b> · on the shelf'},{id:'B2',src:IMG.prod,cap:'<b>Yours</b> · product shot'}],
+ vint:{'2022':{id:'V22',src:IMG.v22},'2023':{id:'V23',src:IMG.v23}},
+ label:[{id:'L1',src:IMG.front},{id:'L2',src:IMG.back}],hidden:{},vsel:'2023'};
+var ORDER_KEY='rk-photo-order-demo-v3';
+function loadOrder(){try{return JSON.parse(localStorage.getItem(ORDER_KEY)||'[]');}catch(e){return [];}}
+function saveOrder(o){try{localStorage.setItem(ORDER_KEY,JSON.stringify(o));}catch(e){}}
+function bVisible(){var def=[];D.own.forEach(function(p){def.push({id:p.id,src:p.src,cap:p.cap,own:true});});
+ if(D.vsel!=='none'){var v=D.vint[D.vsel];def.push({id:v.id,src:v.src,cap:'From the <b>'+D.vsel+' vintage</b>',vint:true});}
+ D.label.forEach(function(p){def.push({id:p.id,src:p.src,cap:'From the <b>label</b>',lab:true});});
+ var vis=def.filter(function(p){return !D.hidden[p.id];});var hid=def.filter(function(p){return D.hidden[p.id];});
+ var saved=loadOrder();var byId={};vis.forEach(function(p){byId[p.id]=p;});
+ var out=[];saved.forEach(function(id){if(byId[id]){out.push(byId[id]);delete byId[id];}});
+ vis.forEach(function(p){if(byId[p.id])out.push(p);});
+ return {vis:out,hid:hid};}
+var toastT=null;function toast(t){var el=document.getElementById('toast');el.innerHTML='<span class="toast">'+t+'</span>';clearTimeout(toastT);toastT=setTimeout(function(){el.innerHTML='';},2200);}
+var drag=null;
+var fileB=document.createElement('input');fileB.type='file';fileB.accept='image/*';fileB.style.display='none';document.body.appendChild(fileB);
+function addOwn(src,source){var id='N'+Math.random().toString(36).slice(2,6);D.own.push({id:id,src:src,cap:'<b>Yours</b> · '+source});var o=bVisible().vis.map(function(p){return p.id;});saveOrder(o);}
+intake.bottle=function(r){if(r.warn){toast(r.warn);return;}
+ if(r.file){var x=fileOk(r.file);if(x.warn)toast(x.warn);else{addOwn(x.src,x.source);renderBottle();}return;}
+ toast('Checking the link…');checkLink(r.text,function(x){if(x.warn)toast(x.warn);else{addOwn(x.src,x.source);toast('Photo added');renderBottle();}});};
+fileB.onchange=function(){var f=fileB.files[0];fileB.value='';intake.bottle({file:f});};
+function renderBottle(){var v=bVisible();var h='<div class="grid">';
+ v.vis.forEach(function(p,i){h+='<div class="tile" draggable="true" data-id="'+p.id+'"><div class="pic"><img src="'+p.src+'" alt="">'+(i===0?'<span class="card">Hero photo</span>':'')+'</div><div class="cap">'+p.cap+'</div></div>';});
+ h+='<div class="tile add" id="bAdd"><div class="pic">+ Photo</div><div class="cap">'+KB+' to paste</div></div></div>';
+ h+='<div class="cap" style="margin-top:8px;font-size:11.5px;color:#5b6478">Drag to reorder. Your order is remembered for this bottle. <span class="link" id="resetOrder">Reset order</span></div>';
+ document.getElementById('bGrid').innerHTML=h;
+ var hb='';if(v.hid.length){hb='<div class="hidbox">Hidden from this bottle ('+v.hid.length+')'+v.hid.map(function(p){return '<div class="row"><img src="'+p.src+'" alt=""><span>'+p.cap+'</span><span class="link" data-show="'+p.id+'">Show again</span></div>';}).join('')+'</div>';}
+ document.getElementById('bHidden').innerHTML=hb;
+ [].forEach.call(document.querySelectorAll('#bGrid .tile[data-id]'),function(t){var id=t.getAttribute('data-id');var p=v.vis.filter(function(x){return x.id===id;})[0];
+  t.ondragstart=function(e){drag=id;t.classList.add('dragging');e.dataTransfer.setData('text/plain','');};
+  t.ondragend=function(){t.classList.remove('dragging');};
+  t.ondragover=function(e){e.preventDefault();};
+  t.ondrop=function(e){e.preventDefault();var f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f){intake.bottle({file:f});return;}
+   if(!drag||drag===id)return;var ids=bVisible().vis.map(function(x){return x.id;});var from=ids.indexOf(drag),to=ids.indexOf(id);ids.splice(to,0,ids.splice(from,1)[0]);saveOrder(ids);drag=null;toast('Order saved for this bottle');renderBottle();};
+  t.oncontextmenu=function(e){e.preventDefault();var items=[];
+   items.push({t:'Make hero photo',fn:function(){var ids=bVisible().vis.map(function(x){return x.id;});ids.splice(ids.indexOf(id),1);ids.unshift(id);saveOrder(ids);toast('Order saved for this bottle');renderBottle();}});
+   items.push('-');
+   if(p.own){items.push({t:'Attach to the label instead',fn:function(){var o=D.own.filter(function(x){return x.id===id;})[0];D.own=D.own.filter(function(x){return x.id!==id;});D.label.push({id:o.id,src:o.src});toast('Moved to the label\'s gallery');renderBottle();renderLabel();}});
+    items.push({t:'Remove photo',fn:function(){D.own=D.own.filter(function(x){return x.id!==id;});renderBottle();}});}
+   else items.push({t:'Hide from this bottle',fn:function(){D.hidden[id]=true;toast('Hidden from this bottle');renderBottle();}});
+   openMenu(e.clientX,e.clientY,items);};});
+ [].forEach.call(document.querySelectorAll('#bHidden [data-show]'),function(n){n.onclick=function(){delete D.hidden[n.getAttribute('data-show')];renderBottle();};});
+ var add=document.getElementById('bAdd');add.onclick=function(){fileB.click();};
+ add.oncontextmenu=function(e){e.preventDefault();openMenu(e.clientX,e.clientY,[secure?{t:'Paste link or image',kb:KB,fn:function(){clipboardRead(function(r){intake.bottle(r);});}}:{t:'To paste, press '+KB,dis:true},{t:'Choose a file…',fn:function(){fileB.click();}}]);};
+ add.ondragover=function(e){e.preventDefault();};add.ondrop=function(e){e.preventDefault();var f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)intake.bottle({file:f});else{var t=e.dataTransfer.getData('text');if(t)intake.bottle({text:t});}};
+ document.getElementById('resetOrder').onclick=function(){saveOrder([]);toast('Order reset');renderBottle();};
+}
+function renderLabel(){var h='<div class="sub" style="color:#5b6478;font-size:12px;margin-bottom:6px">Farmer\'s Field Bourbon · gallery</div><div class="grid">';
+ D.label.forEach(function(p,i){h+='<div class="tile" style="cursor:default"><div class="pic"><img src="'+p.src+'" alt="">'+(i===0?'<span class="card">Hero photo</span>':'')+'</div><div class="cap"><b>Label</b> photo</div></div>';});
+ ['2022','2023'].forEach(function(y){var v=D.vint[y];h+='<div class="tile" style="cursor:default"><div class="pic"><img src="'+v.src+'" alt=""></div><div class="cap"><span class="vtag">Vintage '+y+'</span><br>Only on bottles of this vintage</div></div>';});
+ document.getElementById('lGrid').innerHTML=h+'</div>';}
+document.getElementById('vintSel').onclick=function(e){var v=e.target.getAttribute('data-v');if(!v)return;D.vsel=v;[].forEach.call(document.querySelectorAll('#vintSel span'),function(s){s.classList.toggle('on',s.getAttribute('data-v')===v);});renderBottle();};
+addMode('new');renderBottle();renderLabel();
+window.PFv3={AP:AP,D:D,addMode:addMode,renderBottle:renderBottle};
+})();
+</script>
+</body></html>
