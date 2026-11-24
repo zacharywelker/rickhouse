@@ -26,20 +26,24 @@ const TYPE_MEANS: Record<FinishType, string> = {
  * type, with the type guessed from the name until you pick one. Saved to the collection and handed back to the
  * picker that opened it.
  */
-export function FinishDialog({
-  open,
-  onOpenChange,
-  initialName,
-  noun = "finish",
-  onCreated,
-}: {
+type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialName: string;
   /** "finish" or "cask type". */
   noun?: string;
   onCreated: (option: Option) => void;
-}) {
+};
+
+/**
+ * The popup's contents are mounted only while it is open, so every opening starts fresh from what was typed in the
+ * picker, and closing ends any save still in flight (its result is ignored once the body is gone).
+ */
+export function FinishDialog(props: Props) {
+  return props.open ? <FinishDialogBody {...props} /> : null;
+}
+
+function FinishDialogBody({ open, onOpenChange, initialName, noun = "finish", onCreated }: Props) {
   const [name, setName] = React.useState(initialName);
   const [picked, setPicked] = React.useState<FinishType | null>(null);
   const [notes, setNotes] = React.useState("");
@@ -47,29 +51,17 @@ export function FinishDialog({
   const [existing, setExisting] = React.useState<Option[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
-  // Which opening a save belongs to, so a save finishing after the popup was closed and reopened is ignored.
-  const opening = React.useRef(0);
+  const mounted = React.useRef(true);
 
-  // Each opening starts from what was typed in the picker.
   React.useEffect(() => {
-    // Opening and closing both end any save still in flight.
-    opening.current += 1;
-    if (!open) return;
-    setSaving(false);
-    setName(initialName);
-    setPicked(null);
-    setNotes("");
-    setShowNotes(false);
-    setServerError(null);
-    setExisting([]);
-    let current = true;
+    mounted.current = true;
     void referenceOptionsAction("finishes")
-      .then((rows) => current && setExisting(rows))
+      .then((rows) => mounted.current && setExisting(rows))
       .catch(() => undefined);
     return () => {
-      current = false;
+      mounted.current = false;
     };
-  }, [open, initialName]);
+  }, []);
 
   const tidy = titleCase(name);
   const suggested = inferFinishType(tidy);
@@ -91,8 +83,7 @@ export function FinishDialog({
 
   async function save() {
     if (type === null || saving) return;
-    const mine = opening.current;
-    const stale = () => opening.current !== mine;
+    const stale = () => !mounted.current;
     setSaving(true);
     setServerError(null);
     try {
@@ -117,7 +108,7 @@ export function FinishDialog({
     } catch {
       if (!stale()) setServerError("Could not reach the server. Try again.");
     } finally {
-      if (opening.current === mine) setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   }
 
