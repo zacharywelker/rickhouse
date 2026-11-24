@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORY_TREE } from "@/lib/categories/tree";
-import { categoryKinds, hiddenFields, proofAfterBondToggle, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
+import { categoryKinds, hiddenFields, peatKindFor, proofAfterBondToggle, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type FormContext, type NameContext } from "../rules";
 import { writableFields } from "../fields";
 import { expressionSchema } from "../schema";
 
@@ -12,6 +12,32 @@ const tree = [
   { id: 5, slug: "blended-scotch", parentId: 4 },
   { id: 6, slug: "irish-whiskey", parentId: 1 },
 ];
+
+const makeContext = (overrides: Partial<FormContext> = {}): FormContext => ({
+  group: "whiskey", kind: "american", values: {}, ginAged: false, ...overrides,
+});
+
+const peatCases: Array<{ kind: FormContext["kind"]; slug?: string | null; shown: boolean }> = [
+  { kind: "japanese", shown: true },
+  { kind: "international", shown: true },
+  { kind: "irish", shown: true },
+  { kind: "scotch", shown: true },
+  { kind: "american", slug: "american-single-malt", shown: true },
+  { kind: "american", slug: "bourbon", shown: false },
+  { kind: "canadian", shown: false },
+  { kind: "flavored-whisky", shown: false },
+  { kind: "american", shown: false },
+  { kind: "american", slug: null, shown: false },
+  { kind: null, shown: false },
+  { kind: null, slug: null, shown: false },
+  { kind: null, slug: "american-single-malt", shown: true },
+];
+
+describe("peatKindFor", () => {
+  it.each(peatCases)("returns $shown for kind $kind and slug $slug", ({ kind, slug, shown }) => {
+    expect(peatKindFor({ kind, slug })).toBe(shown);
+  });
+});
 
 describe("categoryKinds", () => {
   it("derives the expected kinds from the shared category tree", () => {
@@ -85,6 +111,47 @@ describe("Single Malt", () => {
 
 describe("hiddenFields", () => {
   const base = { group: "whiskey" as const, kind: "american" as const, values: {}, ginAged: false };
+
+  it.each([
+    { group: "agave", kind: "tequila", ginAged: false, hidden: true },
+    { group: "agave", kind: "mezcal", ginAged: false, hidden: true },
+    { group: "gin", kind: "gin", ginAged: false, hidden: true },
+    { group: "gin", kind: "gin", ginAged: true, hidden: true },
+    { group: "gin", kind: "genever", ginAged: false, hidden: true },
+    { group: "gin", kind: "genever", ginAged: true, hidden: true },
+    { group: "whiskey", kind: "american", ginAged: false, hidden: false },
+    { group: "brandy", kind: "cognac", ginAged: false, hidden: false },
+  ] satisfies Array<Pick<FormContext, "group" | "kind" | "ginAged"> & { hidden: boolean }>)(
+    "isCaskStrength hidden=$hidden for $kind (ginAged=$ginAged)", ({ hidden, ...context }) => {
+      expect(hiddenFields(makeContext(context)).has("isCaskStrength")).toBe(hidden);
+    },
+  );
+
+  it.each([
+    { kind: "cognac", hidden: true },
+    { kind: "armagnac", hidden: true },
+    { kind: "calvados", hidden: true },
+    { kind: "pisco", hidden: false },
+    { kind: "apple", hidden: false },
+    { kind: "eau-de-vie", hidden: false },
+    { kind: "american", hidden: false },
+  ] satisfies Array<{ kind: FormContext["kind"]; hidden: boolean }>)(
+    "isNas hidden=$hidden for $kind", ({ kind, hidden }) => {
+      const group = kind === "american" ? "whiskey" : "brandy";
+      expect(hiddenFields(makeContext({ group, kind })).has("isNas")).toBe(hidden);
+    },
+  );
+
+  it("cooperageId shown for scotch, while entryProof and isAdditiveFree stay hidden", () => {
+    const hidden = hiddenFields(makeContext({ kind: "scotch" }));
+    expect(hidden.has("cooperageId")).toBe(false);
+    expect(hidden.has("entryProof")).toBe(true);
+    expect(hidden.has("isAdditiveFree")).toBe(true);
+  });
+
+  it.each(peatCases)("peatStatus shown=$shown for kind $kind and slug $slug", ({ shown, ...context }) => {
+    expect(hiddenFields(makeContext(context)).has("peatStatus")).toBe(!shown);
+  });
 
   it("offers Straight only to American whiskey, and always when kinds are unknown", () => {
     expect(hiddenFields(base).has("isStraight")).toBe(false);
@@ -214,6 +281,11 @@ describe("designations a label ticks for itself", () => {
 
 describe("what a name says", () => {
   const whiskey: NameContext = { group: "whiskey", kind: "american" };
+
+  it.each(["tequila", "mezcal"] as const)("Cask Strength Blanco has no isCaskStrength entry for %s but does for whiskey", (kind) => {
+    expect(nameSays("Cask Strength Blanco", { group: "agave", kind })).not.toHaveProperty("isCaskStrength");
+    expect(nameSays("Cask Strength Blanco", whiskey)).toHaveProperty("isCaskStrength");
+  });
 
   it("hears Cask Strength in its several names, as whole words", () => {
     for (const name of ["Booker's Cask Strength", "Eagle Rare Barrel Proof", "Rickhouse Proof", "Barrel-Strength Rye", "Straight From the Barrel"]) {

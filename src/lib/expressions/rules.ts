@@ -1,6 +1,6 @@
 import type { FieldGroup } from "@/db/schema";
 import { ageFilled, withAgeDefaults } from "@/lib/bottles/age";
-import { BRANDY_MINIMUM_YEARS, isAgaveKind } from "./spirit-details";
+import { BRANDY_MINIMUM_YEARS, isAgaveKind, isFrenchBrandy } from "./spirit-details";
 import { isGinKind, NAVY_GIN_PROOF } from "./gin-details";
 
 /**
@@ -68,6 +68,8 @@ export type FormContext = {
   group: FieldGroup;
   /** Null when the caller does not know the kinds, which leaves Straight alone. */
   kind: CategoryKind | null;
+  /** The category's own slug; omitted or null when unknown. */
+  slug?: string | null;
   values: Record<string, unknown>;
   /** Gin only: the "aged" button. */
   ginAged: boolean;
@@ -84,6 +86,12 @@ export function looksAged(values: Record<string, unknown>, finishCount: number):
   return ageFilled(values) || String(values.ageStatement ?? "").trim() !== "" || values.isNas === true || finishCount > 0;
 }
 
+/** Peat applies to these whisky kinds and to American Single Malt, keyed by its stable slug. */
+export function peatKindFor(context: { kind: CategoryKind | null; slug?: string | null }): boolean {
+  return context.kind === "irish" || context.kind === "scotch" || context.kind === "japanese" ||
+    context.kind === "international" || context.slug === "american-single-malt";
+}
+
 /** Label fields the form leaves out for this category and choices. */
 export function hiddenFields(context: FormContext): Set<string> {
   const hidden = new Set<string>();
@@ -95,6 +103,8 @@ export function hiddenFields(context: FormContext): Set<string> {
     hidden.add("bottledOn");
     hidden.add("isNas");
   }
+  if (isAgaveKind(context.kind) || isGinKind(context.kind)) hidden.add("isCaskStrength");
+  if (isFrenchBrandy(context.kind)) hidden.add("isNas");
   if (context.kind === "tequila") hidden.add("ageStatement");
   if (context.kind === "tequila" && context.values.tequilaClass === "blanco") {
     hidden.add("ageYears"); hidden.add("ageMonths"); hidden.add("ageDays");
@@ -118,9 +128,9 @@ export function hiddenFields(context: FormContext): Set<string> {
   if (context.group === "whiskey") {
     hidden.add("isChillFiltered"); hidden.add("colorAdded"); hidden.add("charLevel");
     if (context.kind === "scotch") {
-      hidden.add("entryProof"); hidden.add("cooperageId"); hidden.add("isAdditiveFree");
+      hidden.add("entryProof"); hidden.add("isAdditiveFree");
     } else if (context.kind === "american") hidden.add("isAdditiveFree");
-    if (context.kind !== "irish" && context.kind !== "scotch") hidden.add("peatStatus");
+    if (!peatKindFor(context)) hidden.add("peatStatus");
   } else {
     hidden.add("isNonChillFiltered"); hidden.add("peatStatus");
   }
@@ -176,7 +186,7 @@ export type NameContext = { group: FieldGroup; kind: CategoryKind | null };
 
 /** Whether a name's say-so means anything for this spirit: cask strength needs an age, bond and full proof need whiskey. */
 function nameFlagApplies(flag: NameFlag, { group, kind }: NameContext): boolean {
-  if (flag === "isCaskStrength") return group === "whiskey" || group === "rum" || group === "brandy" || group === "agave";
+  if (flag === "isCaskStrength") return group === "whiskey" || group === "rum" || group === "brandy";
   if (flag === "fullProof") return group === "whiskey";
   return group === "whiskey" && kind === "american";
 }
