@@ -69,7 +69,7 @@ RICKHOUSE   COLLECTION   JOURNAL   FLIGHTS   NUMBERS        [Search ⌘K]   Zach
 ```
 
 - **Collection** is the landing page. The Home page (`src/app/(app)/page.tsx`) is removed; `/` redirects to `/bottles`. The logo links to Collection. `redirect("/")` in `src/app/account/setup/` keeps working through that redirect.
-- **Journal** is the new tasting log for the web: a journal of dates and tastings. Its design is separate. The nav item appears when the page exists.
+- **Journal** is the new tasting log for the web: a journal of dates and tastings. Its design is separate. The nav item ships now (owner's decision) and opens `/journal`, a page that says "Coming soon" until the real page replaces it. It is a page at that address, not a redirect, so Back works and the nav marks Journal as current.
 - **Flights** is the new name for Tournaments. Same pages. *(My call: change the label only; keep the `/tournaments` URLs, which are referenced in 9 places, to avoid redirects.)*
 - **Numbers** is unchanged.
 - Labels, Groups, Housekeeping and Configuration are no longer in the bar.
@@ -147,4 +147,4 @@ The label and bottle page addresses (`/expressions/[id]`, `/bottles/[id]`) stay 
 - Flights keeps the `/tournaments` URLs (label change only).
 - Browsing the Collection stays paged.
 - Narrow screens (under about 720px): logo, search icon and one menu button holding the four places and the account sections.
-- The Journal nav item appears only once the Journal page exists.
+- The "Coming soon" page at `/journal` is a plain page, not a redirect (the owner said "redirect"; this does the same job without breaking Back).

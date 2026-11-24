@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Main places, in order: **Collection** (`/bottles`), **Flights** (`/tournaments`, URLs unchanged), **Numbers** (`/numbers`). **Journal** is added between Collection and Flights only when its page exists; it is not in this plan.
+- Main places, in order: **Collection** (`/bottles`), **Journal** (`/journal`, a "Coming soon" page for now), **Flights** (`/tournaments`, URLs unchanged), **Numbers** (`/numbers`).
 - Top bar at 864px shows every place and no menu button. Narrow (under **720px**): logo, search button, Menu button; tap targets 44px tall.
 - Nav style stays typographic: uppercase links, current page marked by a 2px rule, no icons except the search magnifier, square corners.
 - Menu sections, in order: **Library** (Labels `/expressions`, Housekeeping `/housekeeping`, Configuration `/admin`), **You** (Account settings `/account`, Appearance System/Light/Dark, Sign out), **Admin** (admins only: "Users & sign-in" `/system/users`, Backups `/system/backups`).
@@ -38,16 +38,17 @@ Failure modes the spec implies that no single task's happy path covers, most lik
 ### Task 1: Top bar, Home removed, Flights renamed
 
 **Files:**
-- Create: `src/components/nav/nav-items.ts`, `src/components/nav/__tests__/nav-items.test.ts`
+- Create: `src/components/nav/nav-items.ts`, `src/components/nav/__tests__/nav-items.test.ts`, `src/app/(app)/journal/page.tsx`
 - Modify: `src/components/app-nav.tsx`, `src/app/(app)/page.tsx`, `src/app/(app)/tournaments/page.tsx` (h1 and `metadata.title`)
 
 **Interfaces:**
-- Produces: `PLACES: readonly { href: Route; label: string }[]` (Collection, Flights, Numbers); `isCurrent(pathname: string, href: string): boolean` (exact or subtree match; no Home special case); `NARROW_QUERY = "(max-width: 719px)"`.
+- Produces: `PLACES: readonly { href: Route; label: string }[]` (Collection, Journal, Flights, Numbers); `isCurrent(pathname: string, href: string): boolean` (exact or subtree match; no Home special case); `NARROW_QUERY = "(max-width: 719px)"`.
 
-- [ ] **Step 1: Write the failing test** `nav-items.test.ts`: `PLACES` labels equal `["Collection","Flights","Numbers"]`; `isCurrent("/bottles/12","/bottles")` is true; `isCurrent("/bottlesx","/bottles")` is false; `isCurrent("/expressions","/bottles")` is false.
+- [ ] **Step 1: Write the failing test** `nav-items.test.ts`: `PLACES` labels equal `["Collection","Journal","Flights","Numbers"]`; `isCurrent("/journal","/journal")` is true; `isCurrent("/bottles/12","/bottles")` is true; `isCurrent("/bottlesx","/bottles")` is false; `isCurrent("/expressions","/bottles")` is false.
 - [ ] **Step 2: Run** `npx vitest run src/components/nav` — expect FAIL (module missing).
 - [ ] **Step 3: Implement** `nav-items.ts`. In `app-nav.tsx` drop the `LINKS` array, `xl:` breakpoints, and the Home/Housekeeping/Configuration/Labels/Groups links; render `PLACES` inline from 720px up (use `min-[720px]:`), and keep a Menu button below it with the existing disclosure behaviour (Escape closes, navigating closes, closes on resize past 720). The logo links to `/bottles`. Keep the `wide` prop. Props become `{ userMenu: React.ReactNode; accountPanel: React.ReactNode; wide?: boolean }` (Task 2 supplies the two nodes; until then pass the existing `userMenu` and an empty fragment).
 - [ ] **Step 4: Replace** `src/app/(app)/page.tsx` with a server component that calls `redirect("/bottles")` (delete the Home queries and stat code with it; remove any now-unused imports repo-wide with `npm run lint`).
+- [ ] **Step 4b: Create** `src/app/(app)/journal/page.tsx`: a server component with `metadata.title` "Journal", an `<h1>` "Journal" and one line "Coming soon." in the app's existing page-header style (see `account/page.tsx`). It is a page, not a redirect.
 - [ ] **Step 5: Rename** the tournaments page `<h1>` and `metadata.title` to "Flights". Leave in-body wording and URLs alone.
 - [ ] **Step 6: Run** `npx vitest run src/components/nav`, `npm run typecheck`, `npm run lint` — all pass.
 - [ ] **Step 7: Commit** `feat(nav): top bar with Collection, Flights, Numbers; remove Home`.
@@ -175,7 +176,7 @@ Rules `navSearch` enforces: a label with an owned bottle appears under bottles (
 - Modify: `e2e/polish.spec.ts` (~line 117), `e2e/tournaments.spec.ts` (~lines 245-259), `e2e/admin.spec.ts` (~line 16), `docs/DESIGN.md` §7 (and the root `DESIGN.md` §7 if it carries the same section)
 
 - [ ] **Step 1: Update** the three existing specs: "Open menu" stays the narrow Menu button's accessible name, now below 720px; the tournaments spec becomes "the Flights link is in the bar at 864px and in the menu below 720px" and asserts the page heading "Flights"; the admin spec reaches Configuration through the account menu's Library section.
-- [ ] **Step 2: Write** `navigation.spec.ts`: at 864px Collection, Flights and Numbers are visible and no Menu button exists; `/` redirects to `/bottles`; `⌘K` opens search, typing a seeded brand shows Brands with a count, Enter on a bottle row opens `/bottles/<id>`; the footer link reaches `/expressions/new?name=…`; the Groups rail starts hidden at 864px, "Groups: All ›" shows it, and the choice survives a reload; the bulk editor at 864px has no rail and no Groups button; the account menu lists Library, You and Sign out, and Admin only for the admin; below 720px the magnifier opens the takeover and Cancel closes it.
-- [ ] **Step 3: Update** `DESIGN.md` §7 to the shipped navigation (places, search, rail, menu, narrow bar), noting Journal is added when its page exists.
+- [ ] **Step 2: Write** `navigation.spec.ts`: at 864px Collection, Journal, Flights and Numbers are visible and no Menu button exists; clicking Journal lands on `/journal` showing "Coming soon" with Journal marked current; `/` redirects to `/bottles`; `⌘K` opens search, typing a seeded brand shows Brands with a count, Enter on a bottle row opens `/bottles/<id>`; the footer link reaches `/expressions/new?name=…`; the Groups rail starts hidden at 864px, "Groups: All ›" shows it, and the choice survives a reload; the bulk editor at 864px has no rail and no Groups button; the account menu lists Library, You and Sign out, and Admin only for the admin; below 720px the magnifier opens the takeover and Cancel closes it.
+- [ ] **Step 3: Update** `DESIGN.md` §7 to the shipped navigation (places, search, rail, menu, narrow bar), noting Journal is a "Coming soon" placeholder until its page is designed.
 - [ ] **Step 4: Run** the full unit suite (`npm test`), `npm run typecheck`, `npm run lint`, then `npx playwright test e2e/navigation.spec.ts e2e/polish.spec.ts e2e/tournaments.spec.ts e2e/admin.spec.ts e2e/grid.spec.ts --trace off` on the throwaway DB; record the counts for the PR.
 - [ ] **Step 5: Commit** `test(nav): e2e coverage; update DESIGN.md navigation`.
