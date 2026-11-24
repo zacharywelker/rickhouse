@@ -10,6 +10,7 @@ import { SizeField } from "@/components/forms/size-field";
 import { Textarea } from "@/components/ui/textarea";
 import { ReferenceCombobox } from "@/components/admin/reference-combobox";
 import { descendantsOf } from "@/lib/admin/tree";
+import { capDecimals, padDecimals } from "@/lib/decimals";
 import { cn } from "@/lib/utils";
 import type { FieldSpec, Option } from "@/lib/admin/types";
 import type { FieldValue } from "@/lib/forms/values";
@@ -105,7 +106,8 @@ export function Field({
           name={spec.name}
           type={spec.kind === "number" ? "number" : spec.kind === "date" ? "date" : "text"}
           value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChange(spec.kind === "number" && spec.money ? capDecimals(e.target.value, 2) : e.target.value)}
+          onBlur={spec.kind === "number" && spec.money ? () => onChange(padDecimals(String(value ?? ""), 2)) : undefined}
           placeholder={"placeholder" in spec ? spec.placeholder : undefined}
           readOnly={locked}
           aria-readonly={locked || undefined}

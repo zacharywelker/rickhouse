@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { abvToProof, proofToAbv } from "@/lib/bottles/proof";
+import { capDecimals } from "@/lib/decimals";
 import type { FieldValue } from "@/lib/forms/values";
 
 /**
@@ -82,7 +83,7 @@ export function ProofAbvFields({
           title={greyed ? "Triple-click to edit" : undefined}
           onClick={unlock}
           onChange={(e) => {
-            const next = e.target.value;
+            const next = capDecimals(e.target.value, 2);
             setSource(next === "" ? null : "proof");
             onChange(next);
           }}
@@ -116,7 +117,7 @@ export function ProofAbvFields({
             onClick={unlock}
             className={cn("pr-8", greyedClass)}
             onChange={(e) => {
-              const next = e.target.value;
+              const next = capDecimals(e.target.value, 2);
               setSource(next === "" ? null : "abv");
               setTypedAbv(next);
               onChange(abvToProof(next));
