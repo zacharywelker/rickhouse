@@ -58,6 +58,7 @@ export function AppNav({
   if (pathname !== prevPathname) {
     setPrevPathname(pathname);
     setOpen(false);
+    setSearchOpen(false);
   }
 
   // Escape closes, matching every other dismissable surface in the app.

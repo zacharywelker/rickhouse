@@ -105,7 +105,6 @@ export function NavSearch({ variant, onClose }: { variant: "inline" | "takeover"
     setQuery("");
     setAnswer(null);
     setFocused(variant === "takeover");
-    onClose?.();
   }
   // The cursor may still be in the field after choosing a result (Enter, or a click); leaving it there would
   // make "/" type into it and keep the results hidden, since the search now counts as closed.
