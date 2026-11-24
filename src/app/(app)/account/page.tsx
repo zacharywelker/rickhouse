@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { CurrencySelect } from "@/components/preferences/currency-select";
 import { requireSession } from "@/lib/auth";
 import { CREDENTIAL_PROVIDER } from "@/lib/auth/accounts";
 import { env } from "@/lib/env";
+import { getPreferences } from "@/lib/preferences";
 import { enabledSsoButtons } from "@/lib/sso/providers";
 import { ChangePasswordForm } from "./change-password-form";
 import { LinkedSignIns } from "./linked-sign-ins";
@@ -18,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ linkError?: string }> }) {
   const [user, { linkError }] = await Promise.all([requireSession(), searchParams]);
   const appUrl = env().APP_URL;
-  const [passkeys, linked, providers] = await Promise.all([
+  const [passkeys, linked, providers, preferences] = await Promise.all([
     db
       .select({ id: schema.passkeys.id, name: schema.passkeys.name, createdAt: schema.passkeys.createdAt })
       .from(schema.passkeys)
@@ -29,6 +31,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       .from(schema.accounts)
       .where(and(eq(schema.accounts.userId, user.id), ne(schema.accounts.providerId, CREDENTIAL_PROVIDER))),
     appUrl ? enabledSsoButtons() : Promise.resolve([]),
+    getPreferences(user.id),
   ]);
 
   return (
@@ -98,6 +101,15 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             </p>
           ) : null}
           <LinkedSignIns providers={providers} linked={linked} />
+        </SectionContent>
+      </Section>
+
+      <Section>
+        <SectionHeader>
+          <SectionTitle>Display</SectionTitle>
+        </SectionHeader>
+        <SectionContent className="max-w-2xl">
+          <CurrencySelect value={preferences.currency} />
         </SectionContent>
       </Section>
     </div>

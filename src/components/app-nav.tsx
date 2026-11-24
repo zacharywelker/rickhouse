@@ -4,53 +4,62 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
-import { Menu, X } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
+import { NARROW_QUERY, PLACES, isCurrent } from "@/components/nav/nav-items";
+import { NavSearch } from "@/components/nav/nav-search";
+import { OPEN_SEARCH_EVENT } from "@/lib/nav-search/shortcuts";
 
 /**
- * Canonical nav per docs/DESIGN.md §14: Home · Collection · Labels · Groups ·
- * Numbers · Settings (Tournaments sits after Labels).
- * "Configuration" stays as-is rather than becoming "Settings": it's
- * reference-data CRUD (distilleries, brands, stores…), not the personalization
- * settings DESIGN.md means by that name, which doesn't exist yet either.
- */
-const LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/bottles", label: "Collection" },
-  { href: "/expressions", label: "Labels" },
-  { href: "/tournaments", label: "Tournaments" },
-  { href: "/groups", label: "Groups" },
-  { href: "/numbers", label: "Numbers" },
-  { href: "/housekeeping", label: "Housekeeping" },
-  { href: "/admin", label: "Configuration" },
-] as const;
-
-/** Home only matches exactly; everything else matches its subtree. */
-function isCurrent(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
-}
-
-/**
- * The header nav. Seven links do not fit on a phone, and letting them overflow
- * is what made every page 597px wide on a 390px screen — so under `xl` they
- * collapse behind a disclosure rather than wrapping or scrolling sideways.
- * The cut-off is `xl`, not `lg`: the full row needs ~1050px (it was ~905px
- * before Tournaments), so at `lg` a 1024px window scrolled sideways.
+ * The header nav (DESIGN.md §7, docs/superpowers/specs/2026-11-23-web-navigation-redesign-design.md).
+ * The four main places sit in the bar from 720px up, which includes half of a
+ * 16" MacBook Pro (~864px). Below that they collapse behind a Menu button
+ * rather than wrapping or scrolling sideways.
  *
  * A disclosure, not a modal: Escape closes it, navigating closes it, and the
  * page behind stays readable and scrollable.
  *
- * Typographic, not iconography or a filled pill (DESIGN.md §14.1: "stable,
+ * Typographic, not iconography or a filled pill (DESIGN.md §7: "stable,
  * predictable, typographic, grid-aligned, restrained"). Current page reads
- * from a rule, not a background fill — Rickhouse leans on rules and spacing
- * for hierarchy rather than card/pill chrome (DESIGN.md §7).
+ * from a rule, not a background fill.
  */
 /** `wide`: the bar spans the whole window instead of the page column, for a page that does (the bulk editor). */
-export function AppNav({ signOut, userMenu, wide = false }: { signOut: React.ReactNode; userMenu: React.ReactNode; wide?: boolean }) {
+export function AppNav({
+  userMenu,
+  accountPanel,
+  wide = false,
+}: {
+  /** The name and its popover, from 720px up. */
+  userMenu: React.ReactNode;
+  /** The same account sections, rendered under the places in the narrow menu panel. */
+  accountPanel: React.ReactNode;
+  wide?: boolean;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+  // Below 720px the search takes over the bar.
+  const [searchOpen, setSearchOpen] = React.useState(false);
+
+  // ⌘K or "/" on a narrow screen opens the takeover; on a wide one the inline field answers the same event itself.
+  React.useEffect(() => {
+    const onOpenSearch = () => {
+      if (window.matchMedia(NARROW_QUERY).matches) {
+        setOpen(false);
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener(OPEN_SEARCH_EVENT, onOpenSearch);
+    return () => window.removeEventListener(OPEN_SEARCH_EVENT, onOpenSearch);
+  }, []);
+
+  // Navigating closes the panel, including from a link inside the account sections.
+  const [prevPathname, setPrevPathname] = React.useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setOpen(false);
+    setSearchOpen(false);
+  }
 
   // Escape closes, matching every other dismissable surface in the app.
   React.useEffect(() => {
@@ -64,9 +73,9 @@ export function AppNav({ signOut, userMenu, wide = false }: { signOut: React.Rea
 
   // A resize past the breakpoint leaves the panel stranded open otherwise.
   React.useEffect(() => {
-    const query = window.matchMedia("(min-width: 1280px)");
+    const query = window.matchMedia(NARROW_QUERY);
     const onChange = () => {
-      if (query.matches) setOpen(false);
+      if (!query.matches) setOpen(false);
     };
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
@@ -107,29 +116,45 @@ export function AppNav({ signOut, userMenu, wide = false }: { signOut: React.Rea
   );
 
   return (
-    <header className="border-b border-border">
-      <div className={cn("mx-auto flex w-full items-center gap-6 px-4 py-3 sm:px-6", !wide && "max-w-page")}>
-        <Link href="/" className="text-lg font-bold uppercase tracking-wide text-foreground">
+    <header className="relative border-b border-border">
+      {searchOpen ? (
+        <div className={cn("mx-auto flex w-full items-center px-4 py-2 sm:px-6 min-[720px]:hidden", !wide && "max-w-page")}>
+          <NavSearch variant="takeover" onClose={() => setSearchOpen(false)} />
+        </div>
+      ) : null}
+      <div className={cn("mx-auto flex w-full items-center gap-6 px-4 py-3 sm:px-6", !wide && "max-w-page", searchOpen && "max-[719px]:hidden")}>
+        <Link href="/bottles" className="text-lg font-bold uppercase tracking-wide text-foreground">
           Rickhouse
         </Link>
 
-        <nav aria-label="Main" className="hidden items-center gap-5 xl:flex">
-          {LINKS.map((item) => desktopLink(item.href, item.label))}
+        <nav aria-label="Main" className="hidden items-center gap-5 min-[720px]:flex">
+          {PLACES.map((item) => desktopLink(item.href, item.label))}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* On a phone the three-way toggle moves into the menu panel, so the
-              name and sign-out still fit beside the logo at 390px. */}
-          <div className="hidden sm:block">
-            <ThemeToggle />
+          <div className="hidden min-[720px]:block">
+            <NavSearch variant="inline" />
           </div>
-          {userMenu}
-          {signOut}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="xl:hidden"
+            className="h-11 min-w-11 min-[720px]:hidden"
+            aria-label="Search"
+            title="Search"
+            onClick={() => {
+              setOpen(false);
+              setSearchOpen(true);
+            }}
+          >
+            <Search className="size-4" aria-hidden />
+          </Button>
+          <div className="hidden min-[720px]:block">{userMenu}</div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-11 min-w-11 min-[720px]:hidden"
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={open ? "Close menu" : "Open menu"}
@@ -142,16 +167,12 @@ export function AppNav({ signOut, userMenu, wide = false }: { signOut: React.Rea
       </div>
 
       {open ? (
-        <nav
-          id="mobile-nav"
-          aria-label="Main"
-          className={cn("mx-auto flex w-full flex-col gap-1 border-t border-border px-4 py-3 xl:hidden", !wide && "max-w-page")}
-        >
-          {LINKS.map((item) => mobileLink(item.href, item.label))}
-          <div className="mt-2 border-t border-border pt-3 sm:hidden">
-            <ThemeToggle />
-          </div>
-        </nav>
+        <div id="mobile-nav" className={cn("mx-auto w-full border-t border-border min-[720px]:hidden", !wide && "max-w-page")}>
+          <nav aria-label="Main" className="flex flex-col gap-1 px-4 py-3">
+            {PLACES.map((item) => mobileLink(item.href, item.label))}
+          </nav>
+          <div className="border-t border-border px-4 py-3">{accountPanel}</div>
+        </div>
       ) : null}
     </header>
   );

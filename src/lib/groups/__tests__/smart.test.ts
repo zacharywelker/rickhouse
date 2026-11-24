@@ -25,6 +25,12 @@ describe("smart group queries", () => {
     expect(back.pageSize).toBe(SMART_GROUP_LIMIT);
   });
 
+  it("never stores a hand-picked group's id, so saving from a group's view does not freeze it", () => {
+    const query = smartGroupQuery({ ...DEFAULT_FILTERS, pick: true, groupId: 7 });
+    expect(new URLSearchParams(query).get("group")).toBeNull();
+    expect(new URLSearchParams(query).get("pick")).toBe("1");
+  });
+
   it("reads a stored query it does not fully understand as the default shelf", () => {
     expect(smartGroupFilters("bogus=1&status=nonsense")).toMatchObject({
       statuses: DEFAULT_FILTERS.statuses,

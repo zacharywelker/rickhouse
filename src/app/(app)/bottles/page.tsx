@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { asc, eq } from "drizzle-orm";
 
+import { db } from "@/db";
+import { groups } from "@/db/schema";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { StatStrip } from "@/components/ui/stat-strip";
 import { BottleGallery } from "@/components/bottles/bottle-gallery";
 import { BottleTable, COLUMN_LABELS } from "@/components/bottles/bottle-table";
 import { FilterBar } from "@/components/bottles/filter-bar";
+import { GroupsRail } from "@/components/bottles/groups-rail";
 import { GridPagination } from "@/components/bottles/grid-pagination";
 import { SpinTheBottle } from "@/components/bottles/spin-the-bottle";
 import { SaveSmartGroup } from "@/components/groups/save-smart-group";
@@ -14,6 +18,7 @@ import { requireSession } from "@/lib/auth";
 import { getCurrency } from "@/lib/preferences";
 import { activeFilterCount, parseFilters } from "@/lib/bottles/filters";
 import { queryBottles, summariseBottles } from "@/lib/bottles/grid";
+import { currentGroup } from "@/lib/groups/rail";
 import { smartGroupQuery } from "@/lib/groups/smart";
 import { cn, formatMoney, formatNumeric } from "@/lib/utils";
 
@@ -35,7 +40,7 @@ export default async function BottlesPage({
   const [user, filters] = await Promise.all([requireSession(), searchParams.then(parseFilters)]);
   const currency = await getCurrency();
 
-  const [{ rows, total, pageCount, page }, summary, categories, brands, distilleries, mashbills, finishes, stores, tags] =
+  const [{ rows, total, pageCount, page }, summary, categories, brands, distilleries, mashbills, finishes, stores, tags, railGroups] =
     await Promise.all([
       queryBottles(filters, user.id),
       summariseBottles(filters, user.id),
@@ -46,11 +51,17 @@ export default async function BottlesPage({
       REFERENCE_OPTION_LOADERS.finishes(user.id),
       REFERENCE_OPTION_LOADERS.stores(user.id),
       REFERENCE_OPTION_LOADERS.tags(user.id),
+      db
+        .select({ id: groups.id, name: groups.name, filterQuery: groups.filterQuery })
+        .from(groups)
+        .where(eq(groups.ownerId, user.id))
+        .orderBy(asc(groups.name)),
     ]);
 
   const filtered = activeFilterCount(filters) > 0;
 
   return (
+    <GroupsRail groups={railGroups} currentId={currentGroup(filters, railGroups)?.id ?? null}>
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -150,5 +161,6 @@ export default async function BottlesPage({
         <GridPagination filters={filters} page={page} pageCount={pageCount} total={total} />
       ) : null}
     </div>
+    </GroupsRail>
   );
 }

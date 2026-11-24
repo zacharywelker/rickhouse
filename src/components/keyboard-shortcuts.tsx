@@ -2,12 +2,15 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { OPEN_SEARCH_EVENT, shortcutFor } from "@/lib/nav-search/shortcuts";
 
 /**
- * Global shortcuts (SPEC M6): `n` new bottle, `/` focus search. Escape is not
- * here — Radix already closes its own dialogs and popovers, and the two
- * disclosures this app hand-rolls handle it themselves. A single global
- * Escape handler would fight all three.
+ * Global shortcuts (SPEC M6): `n` new bottle; `/` focuses the Collection's
+ * filter box where there is one, and opens the nav search where there is not;
+ * ⌘K / Ctrl+K opens the nav search everywhere. The rules live in
+ * `shortcutFor` (pure, tested). Escape is not here — Radix already closes its
+ * own dialogs and popovers, and the disclosures this app hand-rolls handle it
+ * themselves. A single global Escape handler would fight them.
  */
 export const SEARCH_INPUT_ID = "grid-search";
 
@@ -24,28 +27,23 @@ export function KeyboardShortcuts() {
 
   React.useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      // Never steal a browser or OS chord.
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (isTyping(event.target)) return;
+      const filterBox = document.getElementById(SEARCH_INPUT_ID);
+      const action = shortcutFor({
+        key: event.key,
+        meta: event.metaKey,
+        ctrl: event.ctrlKey,
+        alt: event.altKey,
+        typing: isTyping(event.target),
+        hasFilterBox: filterBox instanceof HTMLInputElement,
+      });
+      if (action === null) return;
 
-      if (event.key === "/") {
-        const search = document.getElementById(SEARCH_INPUT_ID);
-        if (search instanceof HTMLInputElement) {
-          event.preventDefault();
-          search.focus();
-          search.select();
-        } else {
-          // No search box here; the collection is where searching happens.
-          event.preventDefault();
-          router.push("/bottles");
-        }
-        return;
-      }
-
-      if (event.key === "n") {
-        event.preventDefault();
-        router.push("/bottles/new");
-      }
+      event.preventDefault();
+      if (action === "open-search") window.dispatchEvent(new Event(OPEN_SEARCH_EVENT));
+      else if (action === "focus-filter" && filterBox instanceof HTMLInputElement) {
+        filterBox.focus();
+        filterBox.select();
+      } else if (action === "new-bottle") router.push("/bottles/new");
     };
 
     document.addEventListener("keydown", onKey);

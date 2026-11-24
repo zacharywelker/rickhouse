@@ -192,3 +192,30 @@ describe("ingredientIds", () => {
     expect(activeFilterCount({ ...DEFAULT_FILTERS, ingredientIds: [1, 2] })).toBe(1);
   });
 });
+
+describe("the group filter", () => {
+  it("is off by default", () => {
+    expect(DEFAULT_FILTERS.groupId).toBeNull();
+    expect(parse("").groupId).toBeNull();
+  });
+
+  it("round-trips a group id through the URL", () => {
+    expect(parse("group=7").groupId).toBe(7);
+    expect(new URLSearchParams(serialiseFilters({ ...DEFAULT_FILTERS, groupId: 7 })).get("group")).toBe("7");
+  });
+
+  it("accepts only a positive whole number", () => {
+    for (const bad of ["abc", "-1", "0", "1.5", "", "3,4", "2147483648", "9999999999"]) {
+      expect(parse(`group=${bad}`).groupId, `group=${bad}`).toBeNull();
+    }
+  });
+
+  it("keeps the largest id a database serial can hold", () => {
+    expect(parse("group=2147483647").groupId).toBe(2147483647);
+  });
+
+  it("counts as one active filter and leaves a plain URL clean", () => {
+    expect(activeFilterCount({ ...DEFAULT_FILTERS, groupId: 7 })).toBe(1);
+    expect(serialiseFilters(DEFAULT_FILTERS)).not.toContain("group");
+  });
+});

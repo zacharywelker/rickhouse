@@ -3,7 +3,6 @@ import type { Route } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Section, SectionContent, SectionDescription, SectionHeader, SectionTitle } from "@/components/ui/section";
-import { CurrencySelect } from "@/components/preferences/currency-select";
 import { PreferenceToggle } from "@/components/preferences/preference-toggle";
 import { RESOURCES, RESOURCE_KEYS } from "@/lib/admin/registry";
 import { requireSession } from "@/lib/auth";
@@ -65,15 +64,6 @@ export default async function AdminIndexPage() {
             &ldquo;Add bottle&rdquo; starts with a search of your labels. Pick one and fill in the bottle, or start a
             new label on the same page and save the label, the bottle and its photos together.
           </PreferenceToggle>
-        </SectionContent>
-      </Section>
-
-      <Section className="mt-4">
-        <SectionHeader>
-          <SectionTitle>Display</SectionTitle>
-        </SectionHeader>
-        <SectionContent className="max-w-2xl">
-          <CurrencySelect value={preferences.currency} />
         </SectionContent>
       </Section>
     </div>

@@ -68,7 +68,7 @@ export async function createSsoAction(_prev: ActionResult, formData: FormData): 
     return { ok: false, error: mapped.ok ? "Could not save the provider." : mapped.error };
   }
   forgetAuth();
-  revalidatePath("/system/sso");
+  revalidatePath("/system/users");
   return { ok: true, message: `${parsed.data.name} added.` };
 }
 
@@ -80,7 +80,7 @@ export async function updateSsoAction(id: number, _prev: ActionResult, formData:
   if (!discoveryUrl) return { ok: false, error: "Enter the provider's issuer or discovery URL." };
   await updateSsoProvider(id, { ...parsed.data, discoveryUrl, clientSecret: parsed.data.clientSecret || null });
   forgetAuth();
-  revalidatePath("/system/sso");
+  revalidatePath("/system/users");
   return { ok: true, message: `${parsed.data.name} saved.` };
 }
 
@@ -89,6 +89,6 @@ export async function deleteSsoAction(id: number): Promise<ActionResult> {
   await requireAdmin();
   await deleteSsoProvider(id);
   forgetAuth();
-  revalidatePath("/system/sso");
+  revalidatePath("/system/users");
   return { ok: true, message: "Provider removed." };
 }

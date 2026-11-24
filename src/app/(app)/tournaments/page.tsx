@@ -6,7 +6,7 @@ import { TournamentList } from "@/components/tournaments/tournament-list";
 import { requireSession } from "@/lib/auth";
 import { listTournaments } from "@/lib/tournaments/queries";
 
-export const metadata: Metadata = { title: "Tournaments" };
+export const metadata: Metadata = { title: "Flights" };
 export const dynamic = "force-dynamic";
 
 const NEW = "/tournaments/new" as Route;
@@ -19,7 +19,7 @@ export default async function TournamentsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <h1 className="text-3xl text-accent">Tournaments</h1>
+        <h1 className="text-3xl text-accent">Flights</h1>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" className="min-h-11" asChild>
             <Link href={RANKING}>Ranking</Link>

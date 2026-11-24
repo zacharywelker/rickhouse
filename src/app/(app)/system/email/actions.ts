@@ -32,7 +32,7 @@ export async function saveSmtpAction(_prev: ActionResult, formData: FormData): P
   // Blank keeps the saved password, so the form never has to show it.
   await saveSmtpSettings({ ...rest, password: password === "" ? undefined : password });
   forgetAuth();
-  revalidatePath("/system/email");
+  revalidatePath("/system/users");
   return { ok: true, message: "Email settings saved." };
 }
 
@@ -54,6 +54,6 @@ export async function removeSmtpAction(): Promise<ActionResult> {
   await requireAdmin();
   await deleteSmtpSettings();
   forgetAuth();
-  revalidatePath("/system/email");
+  revalidatePath("/system/users");
   return { ok: true, message: "Email turned off." };
 }

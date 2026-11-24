@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { ADMIN, MEMBER, PASSWORD, asFreshClient, fillSignIn, signIn } from "./support/auth";
+import { ADMIN, MEMBER, PASSWORD, asFreshClient, fillSignIn, signIn, signOut } from "./support/auth";
 import { resetDatabase } from "./support/db";
 
 const SESSION_COOKIE = "rickhouse.session_token";
@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 async function createMember(page: Page, username: string): Promise<string> {
   await page.goto("/system/users");
   await page.getByLabel("Name", { exact: true }).fill(`Test ${username}`);
-  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Username", { exact: true }).fill(username);
   await page.getByLabel("Email").fill(`${username}@example.com`);
   await page.getByRole("button", { name: "Create account" }).click();
   const password = page.getByRole("status").locator("code");
@@ -43,8 +43,8 @@ test("the right password signs in and lands on the collection", async ({ page, c
   await page.goto("/login");
   await fillSignIn(page, ADMIN.username, PASSWORD);
 
-  await expect(page).toHaveURL("/");
-  await expect(page.getByText("Double Oak Spirit")).toBeVisible();
+  await expect(page).toHaveURL("/bottles");
+  await expect(page.getByRole("link", { name: "Double Oak Spirit" })).toBeVisible();
 
   const session = (await context.cookies()).find((c) => c.name === SESSION_COOKIE);
   expect(session?.httpOnly).toBe(true);
@@ -54,7 +54,7 @@ test("the right password signs in and lands on the collection", async ({ page, c
 test("the email address works as well as the username", async ({ page }) => {
   await page.goto("/login");
   await fillSignIn(page, ADMIN.email.toUpperCase(), PASSWORD);
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
 });
 
 test("a deep link is preserved across sign-in", async ({ page }) => {
@@ -67,12 +67,12 @@ test("a deep link is preserved across sign-in", async ({ page }) => {
 test("a crafted next= cannot send you off-site after sign-in", async ({ page }) => {
   await page.goto("/login?next=/%5Cexample.com");
   await fillSignIn(page, ADMIN.username, PASSWORD);
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
 });
 
 test("signing out revokes access", async ({ page }) => {
   await signIn(page);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/login$/);
 
   await page.goto("/");
@@ -92,13 +92,13 @@ test("sign-in attempts are rate limited per client", async ({ page }) => {
   // Someone else is unaffected.
   await asFreshClient(page);
   await fillSignIn(page, ADMIN.username, PASSWORD);
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
 });
 
 test("members don't see or reach the admin-only sections", async ({ page }) => {
   await signIn(page, MEMBER.username);
   await page.getByRole("button", { name: /Account menu/ }).click();
-  await expect(page.getByRole("navigation", { name: "Account" }).getByRole("link", { name: "Account settings" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "You" }).getByRole("link", { name: "Account settings" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Admin" })).toHaveCount(0);
 
   for (const path of ["/system/users", "/system/backups"]) {
@@ -114,7 +114,7 @@ test("admins reach Users and Backups from the menu under their name", async ({ p
   await expect(admin.getByRole("link", { name: "Backups" })).toBeVisible();
   await admin.getByRole("link", { name: "Users" }).click();
   await expect(page).toHaveURL("/system/users");
-  await expect(page.getByRole("heading", { name: "Users", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Users & sign-in", level: 1 })).toBeVisible();
 });
 
 test("the header shows only the first name, and profile edits show up there", async ({ page }) => {
@@ -127,11 +127,11 @@ test("the header shows only the first name, and profile edits show up there", as
   await expect(page.getByRole("button", { name: /Account menu/ })).toHaveText("Morgan");
 
   // The new username signs in; the old one no longer does.
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await fillSignIn(page, MEMBER.username, PASSWORD);
   await expect(page.locator("#login-error")).toBeVisible();
   await fillSignIn(page, "morgan", PASSWORD);
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/bottles");
 
   // Put it back for the tests after this one.
   await page.goto("/account");
@@ -173,14 +173,14 @@ test("a new account signs in with its temporary password, then must choose its o
   await other.getByLabel("New password", { exact: true }).fill("a brand new password");
   await other.getByLabel("Confirm new password").fill("a brand new password");
   await other.getByRole("button", { name: "Save and continue" }).click();
-  await expect(other).toHaveURL("/");
+  await expect(other).toHaveURL("/bottles");
 
   // The temporary password is gone for good.
-  await other.getByRole("button", { name: "Sign out" }).click();
+  await signOut(other);
   await fillSignIn(other, "newbie", temporary);
   await expect(other.locator("#login-error")).toBeVisible();
   await fillSignIn(other, "newbie", "a brand new password");
-  await expect(other).toHaveURL("/");
+  await expect(other).toHaveURL("/bottles");
   await other.close();
 });
 
@@ -228,7 +228,7 @@ test("changing your password keeps you signed in and retires the old one", async
   await page.goto("/bottles");
   await expect(page).toHaveURL("/bottles");
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await fillSignIn(page, MEMBER.username, PASSWORD);
   await expect(page.locator("#login-error")).toBeVisible();
 });
@@ -252,7 +252,7 @@ test("an earlier password can't be chosen again", async ({ page, browser }) => {
   await other.getByLabel("New password", { exact: true }).fill("the first chosen one");
   await other.getByLabel("Confirm new password").fill("the first chosen one");
   await other.getByRole("button", { name: "Save and continue" }).click();
-  await expect(other).toHaveURL("/");
+  await expect(other).toHaveURL("/bottles");
 
   const change = async (current: string, next: string) => {
     await other.goto("/account");

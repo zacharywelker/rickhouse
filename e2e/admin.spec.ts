@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { signIn } from "./support/auth";
+import { MEMBER, signIn, signOut } from "./support/auth";
 import { resetDatabase } from "./support/db";
 
 /** Unique per run, so repeated runs against the same database do not collide. */
@@ -13,7 +13,9 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("every configuration section is reachable and lists its rows", async ({ page }) => {
-  await page.getByRole("link", { name: "Configuration" }).click();
+  // Configuration lives in the Library section of the account menu.
+  await page.getByRole("button", { name: /Account menu/ }).click();
+  await page.getByRole("navigation", { name: "Library" }).getByRole("link", { name: "Configuration" }).click();
   await expect(page).toHaveURL("/admin");
 
   for (const name of ["Categories", "Companies", "Brands", "Distilleries", "Mashbills", "Finishes", "Stores", "Tags"]) {
@@ -245,4 +247,50 @@ test("rejects a duplicate name with a readable message", async ({ page }) => {
   await page.getByRole("button", { name: "Add finish" }).last().click();
 
   await expect(page.getByRole("alert").filter({ hasText: /already/i }).first()).toBeVisible();
+});
+
+test("currency is set on Account and no longer on Configuration", async ({ page }) => {
+  const currency = page.getByLabel("Currency", { exact: true });
+  // The select saves as soon as it changes; wait for that request before reloading.
+  const choose = async (code: string) => {
+    await Promise.all([
+      page.waitForResponse((response) => response.request().method() === "POST"),
+      currency.selectOption(code),
+    ]);
+    await expect(currency).toBeEnabled();
+  };
+
+  await page.goto("/account");
+  await choose("GBP");
+  await page.reload();
+  await expect(currency).toHaveValue("GBP");
+
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "Configuration", level: 1 })).toBeVisible();
+  await expect(currency).toHaveCount(0);
+
+  // Put the throwaway account back on the default currency for the rest of the file.
+  await page.goto("/account");
+  await choose("USD");
+  await page.reload();
+  await expect(currency).toHaveValue("USD");
+});
+
+test("the old SSO and Email pages redirect to their sections on Users & sign-in", async ({ page }) => {
+  await page.goto("/system/sso");
+  await expect(page).toHaveURL(/\/system\/users/);
+  await expect(page.getByRole("heading", { name: "Single sign-on", level: 2 })).toBeVisible();
+
+  await page.goto("/system/email");
+  await expect(page).toHaveURL(/\/system\/users/);
+  await expect(page.getByRole("heading", { name: "Email", level: 2 })).toBeVisible();
+});
+
+test("members get 404 for the merged sign-in sections and their old URLs", async ({ page }) => {
+  await signOut(page);
+  await signIn(page, MEMBER.username);
+  for (const path of ["/system/sso", "/system/email"]) {
+    const response = await page.goto(path);
+    expect(response?.status()).toBe(404);
+  }
 });
