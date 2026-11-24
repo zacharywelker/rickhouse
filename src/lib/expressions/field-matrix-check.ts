@@ -1,12 +1,13 @@
 import type { FieldGroup } from "@/db/schema";
 import { bottleFieldNotUsed } from "./bottle-applicability";
-import { BOTTLE_MATRIX, LABEL_MATRIX, MATRIX_GROUPS, type MatrixRow } from "./field-matrix";
+import { BOTTLE_MATRIX, LABEL_CONDITIONS, LABEL_MATRIX, MATRIX_GROUPS, type MatrixRow } from "./field-matrix";
 import { writableFields } from "./fields";
 import { hiddenFields, type CategoryKind } from "./rules";
 
 /**
  * The kinds that stand for each group when a cell says "always" or "never": the cell has to hold for every one of
- * them, so a rule that is right for Bourbon and wrong for Scotch shows up.
+ * them, so a rule that is right for Bourbon and wrong for Scotch shows up. The top-level category rows (Whisky, Agave,
+ * Brandy…) are grouping rows of kind `other`; they carry no spirit rules and are not tried.
  */
 const KINDS: Record<FieldGroup, ReadonlyArray<CategoryKind>> = {
   whiskey: ["american", "canadian", "irish", "scotch", "japanese", "international", "flavored-whisky"],
@@ -99,9 +100,27 @@ function gapsFor(matrix: "label" | "bottle", rows: ReadonlyArray<MatrixRow>): Ga
   return gaps;
 }
 
-/** Every "always" and "never" cell of the matrix that today's form rules do not match. */
+/** The label's conditional cells that the record spells out by kind (`LABEL_CONDITIONS`), checked kind by kind. */
+function conditionGaps(): Gap[] {
+  const gaps: Gap[] = [];
+  for (const condition of LABEL_CONDITIONS) {
+    const row = LABEL_MATRIX.find((r) => r.label === condition.row);
+    if (!row) throw new Error(`No matrix row called ${condition.row}`);
+    const field = fieldOf(row, condition.group);
+    if (typeof field !== "string") continue;
+    const shown = labelShown(condition.group);
+    const aged = AGED_STATES[condition.group];
+    const wrongShown = condition.shown.filter((kind) => aged.some((a) => !shown(field, kind as CategoryKind, a)));
+    const wrongHidden = condition.hidden.filter((kind) => aged.some((a) => shown(field, kind as CategoryKind, a)));
+    if (wrongShown.length > 0) gaps.push({ matrix: "label", row: row.label, group: condition.group, expected: "A", found: "mixed", detail: `hidden for ${wrongShown.join(", ")}` });
+    if (wrongHidden.length > 0) gaps.push({ matrix: "label", row: row.label, group: condition.group, expected: "N", found: "mixed", detail: `shown for ${wrongHidden.join(", ")}` });
+  }
+  return gaps;
+}
+
+/** Every "always" and "never" cell of the matrix, and every condition the record gives by kind, that today's form rules do not match. */
 export function matrixGaps(): Gap[] {
-  return [...gapsFor("label", LABEL_MATRIX), ...gapsFor("bottle", BOTTLE_MATRIX)];
+  return [...gapsFor("label", LABEL_MATRIX), ...conditionGaps(), ...gapsFor("bottle", BOTTLE_MATRIX)];
 }
 
 export type GapGroup = { matrix: "label" | "bottle"; row: string; expected: "A" | "N"; found: Gap["found"]; groups: Array<FieldGroup | "all">; detail?: string[] };

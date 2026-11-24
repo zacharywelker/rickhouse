@@ -58,7 +58,7 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Peat", "peatStatus", "C N N N N N N N N"),
   row("Cooperage", "cooperageId", "A N N N N N N N N", "Every whiskey, Scotch included (owner, 2026-11-23)."),
   row("Still type", "stillType", "A A A A A A A A A"),
-  row("Dairy", "dairyStatus", "N N N N N N N A N"),
+  row("Dairy", "dairyStatus", "N N N N N N N A N", "Under More for every liqueur, ticked by default on Cream (section 9)."),
   row("Amaro style", "amaroStyle", "N N N N N N A N N"),
   row("Tequila class", "tequilaClass", "N N C N N N N N N"),
   row("Brandy designation", "brandyGrade", "N N N C N N N N N"),
@@ -67,6 +67,9 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Esters", "esterGl", "N A N N N N N N N"),
   row("Added sugar", "sugarGPerL", "N C N N N N N N N"),
   // Retired from every form (section 4).
+  row("Regions", "regions", "C N N N N N N N N", "Scotch only. Shown by the form component, not by hiddenFields."),
+  row("Cooking method", "cookingMethod", "N N C N N N N N N", "Agave, optional (tequila and mezcal)."),
+  row("Extraction", "extraction", "N N C N N N N N N", "Agave, optional (tequila and mezcal)."),
   row("Still proof", "isStillProof", "N N N N N N N N N", "Retired."),
   row("Chill filtered", "isChillFiltered", "N N N N N N N N N", "Retired."),
   row("Colour added", "colorAdded", "N N N N N N N N N", "Retired."),
@@ -92,10 +95,54 @@ export const BOTTLE_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Age years", "ageYears", "A C C A C N N N A"),
   row("Age months", "ageMonths", "A C C A C N N N A"),
   row("Age days", "ageDays", "A C C A C N N N A"),
-  row("Age statement", "ageStatement", "A C C A C N N N A"),
+  row("Age statement", "ageStatement", "A C C A N N N N A", "The record's table says aged gin; section 9 says no statement for gin, as on the label."),
+  row("Vintage choice", "releaseId", "A A C A N N N N A", "Mezcal only for agave: tequila and gin lose it (section 8)."),
   row("Tequila class", "tequilaClass", "N N C N N N N N N"),
   row("Gin NAS", "ginIsNas", "N N N N C N N N N"),
   row("Brandy designation", "brandyGrade", "N N N N N N N N N", "Off the bottle; the label keeps it (section 4)."),
   row("Bottle count", "bottleCount", "N N N N N N N N N", "Retired."),
   row("Size override", "sizeMl", "A A A A A A A A A"),
+];
+
+/** Bottle fields every spirit has (section 8's first row, and Sealed / Opened and Label version). */
+export const BOTTLE_ALWAYS_FIELDS: ReadonlyArray<string> = ["expressionId", "expressionNameId", "pricePaid", "storeId", "dateAcquired", "acquisition", "status", "location", "notes"];
+
+/** Fields every spirit has, which the record's tables lump into one row. */
+export const ALWAYS_FIELDS: ReadonlyArray<string> = ["brandId", "name", "categoryId", "slug", "msrp", "sizeMl", "upc", "description"];
+
+/**
+ * Form fields the record does not mention. They are not rows because the record is silent, so phase 4 decides:
+ * rum's tropical and continental aging years (the record replaces rum aging with the Aged toggle and Solera).
+ */
+export const UNLISTED_FIELDS: Readonly<Record<string, string>> = {
+  tropicalYears: "Not in the record; rum aging by climate, to decide in phase 4.",
+  continentalYears: "Not in the record; rum aging by climate, to decide in phase 4.",
+};
+
+/**
+ * Conditional ("C") cells the record spells out by kind, so they can be checked: for a label row, the kinds of the
+ * group that show the field and the kinds that hide it. A condition that needs more than the kind (peat for American
+ * Single Malt, rum's "when aged") is not listed here; see `UNDECIDABLE`.
+ */
+export type Condition = { row: string; group: FieldGroup; shown: ReadonlyArray<string>; hidden: ReadonlyArray<string> };
+
+export const LABEL_CONDITIONS: ReadonlyArray<Condition> = [
+  { row: "Bottled in Bond", group: "whiskey", shown: ["american"], hidden: ["canadian", "irish", "scotch", "japanese", "international", "flavored-whisky"] },
+  { row: "Straight", group: "whiskey", shown: ["american"], hidden: ["canadian", "irish", "scotch", "japanese", "international", "flavored-whisky"] },
+  { row: "Additive free", group: "whiskey", shown: ["canadian", "irish", "japanese", "international", "flavored-whisky"], hidden: ["american", "scotch"] },
+  { row: "Additive free", group: "agave", shown: ["tequila", "mezcal"], hidden: [] },
+  { row: "Entry proof", group: "whiskey", shown: ["american", "canadian", "irish", "japanese", "international", "flavored-whisky"], hidden: ["scotch"] },
+  { row: "Peat", group: "whiskey", shown: ["irish", "scotch", "japanese", "international"], hidden: ["canadian", "flavored-whisky"] },
+  { row: "NAS", group: "brandy", shown: ["pisco", "apple", "eau-de-vie"], hidden: ["cognac", "armagnac", "calvados"] },
+  { row: "Age statement", group: "agave", shown: ["mezcal"], hidden: ["tequila"] },
+  { row: "Tequila class", group: "agave", shown: ["tequila"], hidden: ["mezcal"] },
+  { row: "Brandy designation", group: "brandy", shown: ["cognac", "armagnac", "calvados"], hidden: ["pisco", "apple", "eau-de-vie"] },
+  { row: "Gin style", group: "gin", shown: ["gin"], hidden: ["genever"] },
+];
+
+/** Conditions the check cannot decide from the kind alone, and what they wait on. */
+export const UNDECIDABLE: ReadonlyArray<{ row: string; why: string }> = [
+  { row: "Peat", why: "American Single Malt is a subcategory of kind american, so peat for it needs a key finer than the kind (section 6)." },
+  { row: "Cask strength", why: "Rum shows it only when aged, and rum has no Aged toggle yet." },
+  { row: "Barrel type", why: "No such field yet." },
 ];
