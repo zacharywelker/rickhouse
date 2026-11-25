@@ -103,6 +103,7 @@ const labelFacts = (row: SheetRow, kinds: Kinds) => ({
   group: row.label.fieldGroup,
   kind: kinds[row.label.categoryId] ?? ("other" as const),
   isAgedGin: (row.label as unknown as { isAgedGin?: boolean }).isAgedGin === true,
+  isAged: (row.label as unknown as { isAged?: boolean }).isAged === true,
   tequilaClass: row.label.tequilaClass ?? null,
 });
 

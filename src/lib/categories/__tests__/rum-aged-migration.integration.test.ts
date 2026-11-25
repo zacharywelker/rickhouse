@@ -63,6 +63,13 @@ describe.skipIf(!url)("migration 0056, the rum Aged backfill", () => {
     await label("Finished", "t-rum");
     const [finish] = await sql<{ id: number }[]>`INSERT INTO finishes (name, slug, owner_id) VALUES ('Port', 'port', ${ownerId}) RETURNING id`;
     await sql`INSERT INTO expression_finishes (expression_id, finish_id) VALUES (${ids.Finished!}, ${finish!.id})`;
+    await label("Bottle age", "t-rum");
+    await label("Bottle pick", "t-rum");
+    await label("Bottle plain", "t-rum");
+    for (const [name, columns] of [["Bottle age", "age_years = 12"], ["Bottle pick", "is_single_barrel_pick = true"], ["Bottle plain", "notes = 'x'"]] as const) {
+      const [b] = await sql<{ id: number }[]>`INSERT INTO bottles (owner_id, expression_id) VALUES (${ownerId}, ${ids[name]!}) RETURNING id`;
+      await sql.unsafe(`UPDATE bottles SET ${columns} WHERE id = ${b!.id}`);
+    }
     await label("Bourbon aged", "t-bourbon", { age_years: 8 });
     await label("Amaro bare", "t-amaro", { age_years: 2 });
     // The migration ran on an empty database, so none of these has been touched yet: run it on the data.
@@ -79,9 +86,10 @@ describe.skipIf(!url)("migration 0056, the rum Aged backfill", () => {
 
   it("switches on every rum label that shows aging and leaves a bare one off", async () => {
     const now = await aged();
-    for (const name of ["Years", "Months", "Statement", "Nas", "Filled", "Bottled", "Finished"]) expect(now[name], name).toBe(true);
+    for (const name of ["Years", "Months", "Statement", "Nas", "Filled", "Bottled", "Finished", "Bottle age", "Bottle pick"]) expect(now[name], name).toBe(true);
     expect(now.Bare).toBe(false);
     expect(now["Blank statement"]).toBe(false);
+    expect(now["Bottle plain"]).toBe(false);
   });
 
   it("leaves labels of other groups alone", async () => {

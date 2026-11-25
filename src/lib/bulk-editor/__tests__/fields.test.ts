@@ -92,6 +92,11 @@ describe("which spirits and kinds of bottle a bottle fact applies to", () => {
     expect(editorFor(col("singleBarrel"), both, bottleRow(), new Set(), kinds)?.field).toBe("isSingleBarrel");
     expect(editorFor(col("privateSelection"), both, bottleRow(), new Set(), kinds)?.field).toBe("isSingleBarrelPick");
   });
+  it("a rum has barrel cells only when it is marked aged", () => {
+    const rum = (isAged: boolean) => label({ id: 5, categoryId: 50, fieldGroup: "rum", isAged });
+    expect(editorFor(col("singleBarrel"), both, bottleRow(rum(false), bottle({ expressionId: 5 })), new Set(), kinds)).toBeNull();
+    expect(editorFor(col("singleBarrel"), both, bottleRow(rum(true), bottle({ expressionId: 5 })), new Set(), kinds)?.field).toBe("isSingleBarrel");
+  });
   it("a bottle that has just been made a private pick opens its pick details at once, before it has saved", () => {
     const row = bottleRow();
     expect(editorFor(col("pickedBy"), both, row, new Set(), kinds)).toBeNull();

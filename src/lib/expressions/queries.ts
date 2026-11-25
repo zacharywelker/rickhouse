@@ -520,6 +520,7 @@ export async function expressionOptions(ownerId: number) {
       tequilaClass: expressions.tequilaClass,
       brandyGrade: expressions.brandyGrade,
       isAgedGin: expressions.isAgedGin,
+      isAged: expressions.isAged,
       isNas: expressions.isNas,
     })
     .from(expressions)
@@ -534,6 +535,7 @@ export async function expressionOptions(ownerId: number) {
     tequilaClass: r.tequilaClass,
     brandyGrade: r.brandyGrade,
     isAgedGin: r.isAgedGin,
+    isAged: r.isAged,
     isNas: r.isNas,
   }));
 }
