@@ -18,9 +18,9 @@ describe("specForKind", () => {
   });
   it("gives each brandy its designations, with the minimum age", () => {
     expect(values(specForKind(field("brandyGrade"), "cognac"))).toEqual(["", "VS", "VSOP", "XO"]);
-    expect(values(specForKind(field("brandyGrade"), "armagnac"))).toEqual(["", "VS", "VSOP", "Napoléon", "XO", "Hors d'Âge"]);
+    expect(values(specForKind(field("brandyGrade"), "armagnac"))).toEqual(["", "Blanche", "VS", "VSOP", "Napoléon", "XO", "Hors d'Âge", "Millésime"]);
     const calvados = specForKind(field("brandyGrade"), "calvados");
-    expect(values(calvados)).toEqual(["", "VS", "Vieux", "VSOP", "XO"]);
+    expect(values(calvados)).toEqual(["", "VS", "Vieux", "VSOP", "XO", "Millésime"]);
     expect(calvados.kind === "select" && calvados.options[1]!.label).toBe("Fine (VS) · 2+ years");
   });
   it("leaves every other field alone", () => {

@@ -99,7 +99,7 @@ export function peatKindFor(context: { kind: CategoryKind | null; slug?: string 
 export function hiddenFields(context: FormContext): Set<string> {
   const hidden = new Set<string>();
   // Solera is an aged rum's: its range goes with the age.
-  if (isUnaged(context)) for (const name of [...AGING_FIELDS, "isSolera", "soleraRange"]) hidden.add(name);
+  if (isUnaged(context)) for (const name of [...AGING_FIELDS, "isSolera", "soleraLowYears", "soleraHighYears"]) hidden.add(name);
   if (!isAgaveKind(context.kind)) hidden.add("tequilaClass");
   if (!context.kind || !BRANDY_MINIMUM_YEARS[context.kind]) hidden.add("brandyGrade");
   if (isAgaveKind(context.kind)) {
@@ -144,7 +144,12 @@ export function hiddenFields(context: FormContext): Set<string> {
     hidden.add("isStraight");
     hidden.add("isBottledInBond");
   }
-  if (context.values.isSolera !== "true") hidden.add("soleraRange");
+  // A solera is aged as a range: a youngest and an oldest age, no single age, no dates; the statement stays.
+  if (context.values.isSolera !== "true") { hidden.add("soleraLowYears"); hidden.add("soleraHighYears"); }
+  else for (const name of ["ageYears", "ageMonths", "ageDays", "barrelFilledOn", "bottledOn"]) hidden.add(name);
+  if (context.kind !== "calvados") hidden.add("calvadosAppellation");
+  if (!(context.kind === "armagnac" || context.kind === "calvados") || context.values.brandyGrade !== "Millésime") hidden.add("brandyVintageYear");
+  if (context.kind !== "pisco") hidden.add("isMostoVerde");
   for (const [name, flag] of Object.entries(STRENGTH_FLAGS)) if (!flag.groups.includes(context.group)) hidden.add(name);
   // Still proof is for the unaged: an age, or a statement, rules it out.
   if (ageFilled(context.values) || String(context.values.ageStatement ?? "").trim() !== "") hidden.add("isStillProof");

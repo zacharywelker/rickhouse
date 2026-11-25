@@ -1,7 +1,7 @@
 import { CHAR_LEVELS, CHAR_LEVEL_LABELS, FIELD_GROUPS, STILL_TYPES, type FieldGroup } from "@/db/schema";
 import type { FieldSpec } from "@/lib/admin/types";
 import { AGING_FIELDS, STRENGTH_FLAGS } from "./rules";
-import { AMARO_STYLES, BRANDY_GRADES, DAIRY_STATUSES, PEAT_STATUSES, TEQUILA_CLASSES, TEQUILA_CLASS_GUIDANCE, TEQUILA_CLASS_LABELS } from "./spirit-details";
+import { AMARO_STYLES, BRANDY_GRADES, CALVADOS_APPELLATIONS, CALVADOS_APPELLATION_LABELS, DAIRY_STATUSES, PEAT_STATUSES, TEQUILA_CLASSES, TEQUILA_CLASS_GUIDANCE, TEQUILA_CLASS_LABELS } from "./spirit-details";
 import { GENEVER_CLASSES, GIN_STYLES } from "./gin-details";
 import { SIZE_PRESETS } from "./sizes";
 
@@ -86,7 +86,8 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
       ["proof", "isCaskStrength", "isBottledInBond", "@tier"],
       ["barrelFilledOn", "bottledOn", "@dates"],
       ["tequilaClass", "brandyGrade", "isAgedGin", "isAged", "ageYears", "ageStatement", "isNas", "isStraight"],
-      ["tropicalYears", "continentalYears", "isSolera", "soleraRange"],
+      ["tropicalYears", "continentalYears", "isSolera"],
+      ["soleraLowYears", "soleraHighYears"],
     ],
     fields: [
       // Proof renders as two linked cells (Proof, ABV). Bottled In Bond is drawn after Cask Strength, from the Process section.
@@ -203,7 +204,8 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
       { kind: "number", name: "tropicalYears", label: "Tropical Years", min: 0, max: 100, step: 0.1, width: "xs" },
       { kind: "number", name: "continentalYears", label: "Continental Years", min: 0, max: 100, step: 0.1, width: "xs" },
       { kind: "select", name: "isSolera", label: "Solera", options: TRISTATE, width: "sm" },
-      { kind: "text", name: "soleraRange", label: "Solera Range", placeholder: "1990–2015", width: "sm" },
+      { kind: "number", name: "soleraLowYears", label: "Solera — Youngest (years)", min: 0, max: 100, step: 0.1, width: "xs" },
+      { kind: "number", name: "soleraHighYears", label: "Solera — Oldest (years)", min: 0, max: 100, step: 0.1, width: "xs" },
     ],
   },
   {
@@ -247,6 +249,20 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
         span: "half",
       },
       { kind: "select", name: "isAdditiveFree", label: "Additive Free", options: TRISTATE, span: "half" },
+    ],
+  },
+  {
+    id: "brandy",
+    title: "Brandy detail",
+    fieldGroups: ["brandy"],
+    fields: [
+      {
+        kind: "select", name: "calvadosAppellation", label: "Appellation",
+        options: [{ value: "", label: "Not specified" }, ...CALVADOS_APPELLATIONS.map((value) => ({ value, label: CALVADOS_APPELLATION_LABELS[value] }))],
+        span: "half",
+      },
+      { kind: "number", name: "brandyVintageYear", label: "Vintage Year", min: 1800, max: 2100, step: 1, span: "half" },
+      { kind: "checkbox", name: "isMostoVerde", label: "Mosto Verde", help: "Made from partly fermented must: a style, not a grape.", span: "half" },
     ],
   },
   {

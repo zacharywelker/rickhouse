@@ -384,6 +384,10 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
   if (isGinKind(kind)) {
     values.barrelFilledOn = null; values.bottledOn = null; values.ageStatement = null; values.ageDays = null;
   }
+  const years = (value: unknown) => (value === null || value === undefined || value === "" ? null : Number(value));
+  const low = years(values.soleraLowYears);
+  const high = years(values.soleraHighYears);
+  if (low !== null && high !== null && low > high) throw new LabelRejected("A solera's youngest age cannot be above its oldest.");
   if (kind === "tequila") {
     values.ageStatement = input.tequilaClass ? TEQUILA_CLASS_LABELS[input.tequilaClass as TequilaClass] : null;
     values.isNas = false;

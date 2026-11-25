@@ -33,8 +33,8 @@ describe("agaveClassFromYears", () => {
 describe("brandy designations", () => {
   it("offers each kind its own list", () => {
     expect(brandyGradesFor("cognac")).toEqual(["VS", "VSOP", "XO"]);
-    expect(brandyGradesFor("armagnac")).toEqual(["VS", "VSOP", "Napoléon", "XO", "Hors d'Âge"]);
-    expect(brandyGradesFor("calvados")).toEqual(["VS", "Vieux", "VSOP", "XO"]);
+    expect(brandyGradesFor("armagnac")).toEqual(["Blanche", "VS", "VSOP", "Napoléon", "XO", "Hors d'Âge", "Millésime"]);
+    expect(brandyGradesFor("calvados")).toEqual(["VS", "Vieux", "VSOP", "XO", "Millésime"]);
     expect(brandyGradesFor("pisco")).toEqual([]);
   });
   it("works the designation out from an age, and leaves Hors d'Âge to be chosen", () => {
@@ -47,6 +47,8 @@ describe("brandy designations", () => {
     expect(brandyGradeFromYears("calvados", 3)).toBe("Vieux");
     expect(brandyGradeFromYears("calvados", 6)).toBe("XO");
     expect(brandyGradeFromYears("apple", 10)).toBeNull();
+    expect(brandyGradeFromYears("armagnac", 0.5)).toBe("Blanche");
+    expect(brandyGradeFromYears("calvados", 40)).toBe("XO"); // a Millésime is a year, never an age
   });
   it("reads the designation from the words of an age statement, only where the kind has it", () => {
     expect(brandyGradeFromStatement("cognac", "V.S.O.P.")).toBe("VSOP");
@@ -59,6 +61,9 @@ describe("brandy designations", () => {
     expect(brandyGradeFromStatement("calvados", "Fine")).toBe("VS");
     expect(brandyGradeFromStatement("calvados", "Napoléon")).toBe("XO");
     expect(brandyGradeFromStatement("calvados", "Hors d'Age")).toBe("XO");
+    expect(brandyGradeFromStatement("armagnac", "Millésimé 1985")).toBe("Millésime");
+    expect(brandyGradeFromStatement("calvados", "Vintage")).toBe("Millésime");
+    expect(brandyGradeFromStatement("armagnac", "Blanche")).toBe("Blanche");
     expect(brandyGradeFromStatement("cognac", "Napoleon")).toBeNull();
     expect(brandyGradeFromStatement("cognac", "Small batch")).toBeNull();
   });

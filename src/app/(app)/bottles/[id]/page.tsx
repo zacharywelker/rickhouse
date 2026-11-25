@@ -35,7 +35,7 @@ import { seededRandom } from "@/lib/seeded-random";
 import { TAPE_FONTS } from "@/lib/tape-fonts";
 import { effectiveBottleStatus, releaseUnit } from "@/lib/bottles/terminology";
 import { ageLabel } from "@/lib/expressions/display";
-import { hidesWarehouse, isAgaveKind, spiritAgeLabel, whiskeyCategoryGrains } from "@/lib/expressions/spirit-details";
+import { hidesWarehouse, isAgaveKind, spiritAgeLabel, whiskeyCategoryGrains, CALVADOS_APPELLATION_LABELS, soleraText, type CalvadosAppellation } from "@/lib/expressions/spirit-details";
 import { isGinKind } from "@/lib/expressions/gin-details";
 import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { cn, formatMoney, formatNumeric, humanise, formatDate, timeSince } from "@/lib/utils";
@@ -259,6 +259,10 @@ export default async function BottlePage({
             {kind === "gin" ? <Spec label="Style" value={e.ginStyle} /> : null}
             {group === "amaro" ? <Spec label="Style" value={e.amaroStyle} /> : null}
             {group === "amaro" || group === "liqueur" || group === "rum" ? <Spec label="Aged" value={e.isAged ? "Yes" : null} /> : null}
+            {group === "rum" && e.isSolera ? <Spec label="Solera" value={soleraText(e.soleraLowYears, e.soleraHighYears)} /> : null}
+            {kind === "calvados" && e.calvadosAppellation ? <Spec label="Appellation" value={CALVADOS_APPELLATION_LABELS[e.calvadosAppellation as CalvadosAppellation] ?? e.calvadosAppellation} /> : null}
+            {(kind === "armagnac" || kind === "calvados") && e.brandyGrade === "Millésime" && e.brandyVintageYear ? <Spec label="Vintage year" value={String(e.brandyVintageYear)} /> : null}
+            {kind === "pisco" && e.isMostoVerde ? <Spec label="Style" value="Mosto Verde" /> : null}
             {group === "liqueur" && ["liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? <Spec label="Dairy" value={e.dairyStatus === "unknown" ? null : e.dairyStatus} /> : null}
             {peatKindFor({ kind, slug: row.category.slug }) && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
             <Spec label="Size" value={formatSize(row.bottle.sizeMl ?? e.sizeMl)} />

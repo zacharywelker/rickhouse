@@ -14,6 +14,9 @@ export function writableLabelFacts(fieldGroup: FieldGroup | "other", kind: Categ
   if (!isAgaveKind(kind)) allowed.delete("tequilaClass");
   if (!BRANDY_MINIMUM_YEARS[kind]) allowed.delete("brandyGrade");
   if (!isGinKind(kind)) allowed.delete("ginStyle");
+  if (kind !== "calvados") allowed.delete("calvadosAppellation");
+  if (kind !== "armagnac" && kind !== "calvados") allowed.delete("brandyVintageYear");
+  if (kind !== "pisco") allowed.delete("isMostoVerde");
   // Aged gin is a gin's own flag, and a gin has no barrel dates or age statement.
   if (!isGinKind(kind)) allowed.delete("isAgedGin");
   if (isGinKind(kind)) {

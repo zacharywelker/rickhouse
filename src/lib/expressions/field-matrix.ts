@@ -50,7 +50,8 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Distilled / filled date", "barrelFilledOn", "A C N A N N N N A"),
   row("Bottled date", "bottledOn", "A C N A N N N N A"),
   row("Solera", "isSolera", "N C N N N N N N N"),
-  row("Solera low and high age", "soleraRange", "N C N N N N N N N"),
+  row("Solera youngest age", "soleraLowYears", "N C N N N N N N N"),
+  row("Solera oldest age", "soleraHighYears", "N C N N N N N N N"),
   row("Barrel type", "finishLinks", "C N A N C N N N N", "Whiskey: Corn and Light only. Agave: not Madurado en Vidrio. Gin: when aged."),
   row("Non-chill filtered", "isNonChillFiltered", "A N N N N N N N N"),
   row("Additive free", "isAdditiveFree", "C N C N N N N N N"),
@@ -62,6 +63,9 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Amaro style", "amaroStyle", "N N N N N N A N N"),
   row("Tequila class", "tequilaClass", "N N C N N N N N N", "Mezcal has a class too (without Extra Añejo and Cristalino)."),
   row("Brandy designation", "brandyGrade", "N N N C N N N N N"),
+  row("Appellation", "calvadosAppellation", "N N N C N N N N N", "Calvados only."),
+  row("Vintage year", "brandyVintageYear", "N N N C N N N N N", "Armagnac and Calvados, when the designation is Millésime."),
+  row("Mosto Verde", "isMostoVerde", "N N N C N N N N N", "Pisco only (Peru: the form shows it only for a Peruvian distillery)."),
   row("Gin style", "ginStyle", "N N N N C N N N N", "A genever's class (Jonge, Oude, Korenwijn) is kept in the same field."),
   row("Marque", "marque", "N A N N N N N N N"),
   row("Esters", "esterGl", "N A N N N N N N N"),
@@ -137,6 +141,8 @@ export const LABEL_CONDITIONS: ReadonlyArray<Condition> = [
   { row: "Age statement", group: "agave", shown: ["mezcal"], hidden: ["tequila"] },
   { row: "Tequila class", group: "agave", shown: ["tequila", "mezcal"], hidden: [] },
   { row: "Brandy designation", group: "brandy", shown: ["cognac", "armagnac", "calvados"], hidden: ["pisco", "apple", "eau-de-vie"] },
+  { row: "Appellation", group: "brandy", shown: ["calvados"], hidden: ["cognac", "armagnac", "pisco", "apple", "eau-de-vie"] },
+  { row: "Mosto Verde", group: "brandy", shown: ["pisco"], hidden: ["cognac", "armagnac", "calvados", "apple", "eau-de-vie"] },
   { row: "Gin style", group: "gin", shown: ["gin", "genever"], hidden: [] },
 ];
 

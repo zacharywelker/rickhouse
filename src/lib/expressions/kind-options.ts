@@ -24,7 +24,7 @@ export function specForKind(field: FieldSpec, kind: CategoryKind | null): FieldS
       ...field,
       options: [
         ...field.options.filter((option) => option.value === ""),
-        ...brandyGradesFor(kind).map((grade) => ({ value: grade, label: `${names[grade] ?? grade} · ${minimums[grade]}+ years` })),
+        ...brandyGradesFor(kind).map((grade) => ({ value: grade, label: grade === "Millésime" ? (names[grade] ?? grade) : grade === "Blanche" ? `${grade} · unaged` : `${names[grade] ?? grade} · ${minimums[grade]}+ years` })),
       ],
     };
   }

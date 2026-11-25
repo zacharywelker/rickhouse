@@ -109,6 +109,7 @@ export const LABEL_COLUMN_GROUPS: ReadonlyArray<LabelColumnGroup> = [
   { id: "rum", title: "Rum detail", section: section("rum"), columns: all("rum") },
   { id: "gin", title: "Gin detail", section: section("gin"), columns: all("gin") },
   { id: "agave", title: "Agave detail", section: section("agave"), columns: all("agave") },
+  { id: "brandy", title: "Brandy detail", section: section("brandy"), columns: all("brandy") },
   { id: "amaro", title: "Amaro detail", section: section("amaro"), columns: all("amaro") },
   { id: "liqueur", title: "Liqueur detail", section: section("liqueur"), columns: all("liqueur") },
   {

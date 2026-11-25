@@ -342,6 +342,12 @@ export const expressions = pgTable(
     /** A tequila class or a legally defined brandy age designation; numbers remain known ages only. */
     tequilaClass: text("tequila_class"),
     brandyGrade: text("brandy_grade"),
+    /** Calvados: aoc-calvados, pays-d-auge or domfrontais. */
+    calvadosAppellation: text("calvados_appellation"),
+    /** The year of a Millésime (Armagnac, Calvados). */
+    brandyVintageYear: integer("brandy_vintage_year"),
+    /** A Peruvian pisco from partly fermented must. */
+    isMostoVerde: boolean("is_mosto_verde").notNull().default(false),
     ginStyle: text("gin_style"),
     isAgedGin: boolean("is_aged_gin").notNull().default(false),
     /** Used by Amaro, Liqueur and Rum; a label in those groups shows no age or casks until it is on. */
@@ -383,7 +389,10 @@ export const expressions = pgTable(
     esterGl: numeric("ester_gl", { precision: 8, scale: 2 }),
     sugarGPerL: numeric("sugar_g_per_l", { precision: 6, scale: 2 }),
     isSolera: boolean("is_solera"),
+    /** The old free-text range (calendar years); dormant, replaced by the two ages below. */
     soleraRange: text("solera_range"),
+    soleraLowYears: numeric("solera_low_years", { precision: 4, scale: 1 }),
+    soleraHighYears: numeric("solera_high_years", { precision: 4, scale: 1 }),
     tropicalYears: numeric("tropical_years", { precision: 4, scale: 1 }),
     continentalYears: numeric("continental_years", { precision: 4, scale: 1 }),
     molassesOrCane: text("molasses_or_cane"),

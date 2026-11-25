@@ -41,7 +41,8 @@ import {
   type NameContext,
   type ProofSpread,
 } from "@/lib/expressions/rules";
-import { countryForDistillery, effectiveDairy, stillForCountry } from "@/lib/expressions/spirit-details";
+import { countryForDistillery, effectiveDairy, piscoCountry, piscoStyle, stillForCountry } from "@/lib/expressions/spirit-details";
+import { appellationNote } from "@/lib/expressions/derived-designation";
 import { specForKind } from "@/lib/expressions/kind-options";
 import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
@@ -87,6 +88,8 @@ export const EMPTY_LINKS: LabelLinks = { distilleries: [], mashbills: [], finish
  * fill in an age, NAS offers its age statement, Bottled In Bond sets 100 proof,
  * and a name that starts to say Cask Strength, Bonded or Full Proof acts on it.
  */
+const STILL_FOR_APPELLATION: Record<string, string> = { "pays-d-auge": "pot", domfrontais: "column" };
+
 export function withLabelChange(
   prev: Record<string, FieldValue>,
   name: string,
@@ -102,6 +105,8 @@ export function withLabelChange(
   }
   if (resolve?.(next).group === "whiskey") next = withStatementAge(prev, next, name);
   if (resolve) next = withDerivedDesignation(next, name, resolve(next).kind);
+  // Pays d'Auge is distilled in a pot still and Domfrontais in a column still.
+  if (name === "calvadosAppellation") next = { ...next, ...(STILL_FOR_APPELLATION[String(value)] ? { stillType: STILL_FOR_APPELLATION[String(value)] } : {}) };
   if (name === "isBottledInBond" && value === true) next.proof = BOND_PROOF;
   return resolve ? withNameRules(prev, next, resolve) : next;
 }
@@ -159,6 +164,12 @@ export function ExpressionFields({
   const ginAged = values.isAgedGin === true || (values.isAgedGin == null && looksAged(values, links.finishes.length));
   const context = { group: fieldGroup, kind, slug: categorySlug ?? null, values, ginAged };
   const hidden = hiddenFields(context);
+  // A pisco's country follows its distillery's: Mosto Verde is Peru's, and the Puro / Acholado or the class is worked out, not typed.
+  const piscoLand = kind === "pisco" ? piscoCountry(links.distilleries.map((row) => options.distilleryLinks?.find((option) => option.value === row.id)?.country)) : null;
+  if (kind === "pisco" && piscoLand !== "Peru") hidden.add("isMostoVerde");
+  const piscoKind = kind === "pisco"
+    ? piscoStyle(piscoLand, (links.ingredients ?? []).filter((item) => item.kind === "distillate" && item.family === "grape").length, values.proof ? Number(values.proof) / 2 : null)
+    : null;
   const regions = parseRegions(values.regions);
   // NAS greys out the age and its statement, and an age filled in greys out the statement; Cask Strength greys out
   // the proof, and Full Proof the Entry Proof. Triple-clicking a greyed box makes it editable again.
@@ -376,6 +387,8 @@ export function ExpressionFields({
                   ? "Greyed out for NAS. Triple-click to edit anyway."
                   : "Greyed out while an age is filled in. Triple-click to edit anyway.",
               }
+            : field.name === "calvadosAppellation"
+              ? { ...field, help: appellationNote(values) ?? field.help }
             : entry && entryGreyed
               ? { ...field, help: "Follows Proof, as the name says Full Proof. Triple-click to edit anyway." }
               : specForKind(field, kind)
@@ -440,6 +453,8 @@ export function ExpressionFields({
       <input type="hidden" name="originRegionManual" value={values.originRegionManual === true ? "true" : "false"} />
       {EXPRESSION_SECTIONS.map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
+        // The brandy detail holds a few single-spirit fields: for the rest of the brandies it is not drawn at all.
+        if (section.id === "brandy" && section.fields.every((field) => hidden.has(field.name)) && kind !== "pisco") return null;
         return (
           <Section key={section.id}>
             <SectionHeader>
@@ -460,6 +475,13 @@ export function ExpressionFields({
                   if (field.name === "regions" || field.name === "isBottledInBond") return null;
                   return renderField(field);
                 })}
+                {section.id === "brandy" && kind === "pisco" ? (
+                  <p className="col-span-full text-sm text-muted-foreground">
+                    {piscoLand === null ? "Link a Peruvian or Chilean distillery to see what the grapes or the strength make it."
+                      : piscoKind ? <>Worked out: <span className="font-medium text-foreground">{piscoLand === "Peru" ? `Pisco ${piscoKind}` : piscoKind}</span>{piscoLand === "Peru" && values.isMostoVerde === true ? " · Mosto Verde" : ""}</>
+                      : piscoLand === "Peru" ? "Add the grapes to see whether it is a Puro or an Acholado." : "Enter a proof of at least 60 to see the class."}
+                  </p>
+                ) : null}
               </SectionContent>
             )}
           </Section>
