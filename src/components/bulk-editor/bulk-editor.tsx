@@ -408,7 +408,7 @@ type RowProps = {
 };
 
 /** The columns that hold a value which can come from the bottle, its vintage or the label (`resolve.ts`): what an edit changes is chosen. */
-const VALUE_FIELD: Readonly<Record<string, ValueField>> = { sizeMl: "sizeMl", proof: "proof", abv: "proof", ageYears: "ageYears", ageMonths: "ageMonths", ageDays: "ageDays", ageStatement: "ageStatement", tequilaClass: "tequilaClass", brandyGrade: "brandyGrade", isNas: "ginIsNas" };
+const VALUE_FIELD: Readonly<Record<string, ValueField>> = { sizeMl: "sizeMl", proof: "proof", abv: "proof", ageYears: "ageYears", ageMonths: "ageMonths", ageDays: "ageDays", ageStatement: "ageStatement", tequilaClass: "tequilaClass", isNas: "ginIsNas" };
 
 /** The values that move to a bottle marked a single barrel or private selection, in words: "proof and age". */
 function liquidWords(fields: ReadonlyArray<string>): string {

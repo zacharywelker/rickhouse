@@ -356,9 +356,13 @@ export default async function BottlePage({
                 {!isAgaveKind(kind) && !isGinKind(kind) ? <Spec label="Bottled" value={bottledOn ? formatDate(bottledOn) : null} /> : null}
               </dl>
             ) : null}
-            {group === "rum" ? (
+            {e.stillType ? (
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <Spec label="Still" value={humanise(e.stillType)} />
+              </dl>
+            ) : null}
+            {group === "rum" ? (
+              <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <Spec label="Marque" value={e.marque} />
                 <Spec label="Esters" value={e.esterGl ? `${Number(e.esterGl)} g/hLAA` : null} />
                 <Spec label="Added sugar" value={e.sugarGPerL ? `${Number(e.sugarGPerL)} g/L` : null} />
