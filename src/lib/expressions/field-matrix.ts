@@ -41,7 +41,7 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Cask strength", "isCaskStrength", "A C N A N N N N A", "Off for agave and gin (owner, 2026-11-23)."),
   row("Bottled in Bond", "isBottledInBond", "C N N N N N N N N"),
   row("Straight", "isStraight", "C N N N N N N N N"),
-  row("Aged toggle", { gin: "isAgedGin", amaro: "isAged", liqueur: "isAged", rum: null }, "N A N N A N A A N"),
+  row("Aged toggle", { gin: "isAgedGin", amaro: "isAged", liqueur: "isAged", rum: "isAged" }, "N A N N A N A A N"),
   row("Age years", "ageYears", "A C C A C N C C A"),
   row("Age months", "ageMonths", "A C C A C N C C A"),
   row("Age days", "ageDays", "A C C A C N N N A"),
@@ -142,6 +142,5 @@ export const LABEL_CONDITIONS: ReadonlyArray<Condition> = [
 
 /** Conditions the check cannot decide from the kind alone, and what they wait on. (Peat for American Single Malt is decided by the category slug and pinned in rules.test.ts, not here.) */
 export const UNDECIDABLE: ReadonlyArray<{ row: string; why: string }> = [
-  { row: "Cask strength", why: "Rum shows it only when aged, and rum has no Aged toggle yet." },
   { row: "Barrel type", why: "No such field yet." },
 ];

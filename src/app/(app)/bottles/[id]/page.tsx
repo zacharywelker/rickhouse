@@ -119,7 +119,7 @@ export default async function BottlePage({
   const bottleHasAge = b.ageYears !== null || b.ageMonths !== null || b.ageDays !== null || b.ageStatement !== null;
   const ageFacts = group === "amaro" || group === "liqueur" ? e : bottleHasAge ? b : ageSource;
   const whiskeyAgeInfo = group === "whiskey" ? whiskeyAge({ ...ageFacts, isStraight: e.isStraight, isNas: e.isNas, isBottledInBond: e.isBottledInBond }, kind) : null;
-  const age = whiskeyAgeInfo?.text ?? (group === "vodka" || ((group === "amaro" || group === "liqueur") && !e.isAged) ? null : isGinKind(kind) && !e.isAgedGin ? null : isGinKind(kind) && (b.ginIsNas ?? e.isNas) ? "NAS" : spiritAgeLabel(kind, b.tequilaClass ?? e.tequilaClass, b.brandyGrade ?? e.brandyGrade,
+  const age = whiskeyAgeInfo?.text ?? (group === "vodka" || ((group === "amaro" || group === "liqueur" || group === "rum") && !e.isAged) ? null : isGinKind(kind) && !e.isAgedGin ? null : isGinKind(kind) && (b.ginIsNas ?? e.isNas) ? "NAS" : spiritAgeLabel(kind, b.tequilaClass ?? e.tequilaClass, b.brandyGrade ?? e.brandyGrade,
     ageLabel({ ...ageFacts, ageStatement: null })) ?? ageLabel(ageFacts) ?? ((b.ginIsNas ?? e.isNas) ? "NAS" : null));
 
   // The pen this bottle's entry was "filled in" with — one hand for the
@@ -130,18 +130,18 @@ export default async function BottlePage({
     { kind: "bottled-in-bond", ownerId: e.id, active: kind === "american" && e.isBottledInBond },
     { kind: "cask-strength", ownerId: e.id, active: !["vodka", "amaro", "liqueur"].includes(group) && !isAgaveKind(kind) && !isGinKind(kind) && e.isCaskStrength, detail: proof ? `${formatNumeric(proof)}°` : undefined },
     { kind: "straight", ownerId: e.id, active: kind === "american" && e.isStraight },
-    { kind: "nas", ownerId: e.id, active: group === "whiskey" ? e.isNas : isGinKind(kind) ? e.isAgedGin && (b.ginIsNas ?? e.isNas) : (group === "amaro" || group === "liqueur") && e.isAged && e.isNas },
+    { kind: "nas", ownerId: e.id, active: group === "whiskey" ? e.isNas : isGinKind(kind) ? e.isAgedGin && (b.ginIsNas ?? e.isNas) : (group === "amaro" || group === "liqueur" || group === "rum") && e.isAged && e.isNas },
     {
       kind: "single-barrel",
       ownerId: bottleId,
-      active: b.isSingleBarrel && !["vodka", "amaro", "liqueur"].includes(group) && (!isGinKind(kind) || e.isAgedGin),
+      active: b.isSingleBarrel && !["vodka", "amaro", "liqueur"].includes(group) && (!isGinKind(kind) || e.isAgedGin) && (group !== "rum" || e.isAged),
       detail: b.barrelNumber ? `No. ${b.barrelNumber}` : undefined,
       unit: releaseUnitName,
     },
     {
       kind: "private-selection",
       ownerId: bottleId,
-      active: b.isSingleBarrelPick && !["vodka", "amaro", "liqueur"].includes(group) && (!isGinKind(kind) || e.isAgedGin),
+      active: b.isSingleBarrelPick && !["vodka", "amaro", "liqueur"].includes(group) && (!isGinKind(kind) || e.isAgedGin) && (group !== "rum" || e.isAged),
       detail: b.pickedBy ? `Picked by ${b.pickedBy}` : undefined,
     },
   ];
@@ -258,7 +258,7 @@ export default async function BottlePage({
             {isGinKind(kind) ? <Spec label="Aged" value={e.isAgedGin ? "Yes" : "No"} /> : null}
             {kind === "gin" ? <Spec label="Style" value={e.ginStyle} /> : null}
             {group === "amaro" ? <Spec label="Style" value={e.amaroStyle} /> : null}
-            {group === "amaro" || group === "liqueur" ? <Spec label="Aged" value={e.isAged ? "Yes" : null} /> : null}
+            {group === "amaro" || group === "liqueur" || group === "rum" ? <Spec label="Aged" value={e.isAged ? "Yes" : null} /> : null}
             {group === "liqueur" && ["liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? <Spec label="Dairy" value={e.dairyStatus === "unknown" ? null : e.dairyStatus} /> : null}
             {peatKindFor({ kind, slug: row.category.slug }) && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
             <Spec label="Size" value={formatSize(row.bottle.sizeMl ?? e.sizeMl)} />
@@ -340,12 +340,12 @@ export default async function BottlePage({
               </> : group === "rum" || group === "agave" || group === "brandy"
               ? <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients} hrefFor={ingredientHref} />
               : <>{whiskeyCategoryGrains(row.category.slug) ? <dl><Spec label="Category grains" value={whiskeyCategoryGrains(row.category.slug)} /></dl> : null}<Mashbills items={links.mashbills} /></>}
-            {(group !== "gin" || e.isAgedGin) && group !== "vodka" && ((group !== "amaro" && group !== "liqueur") || e.isAged) ? <Chips
+            {(group !== "gin" || e.isAgedGin) && group !== "vodka" && ((group !== "amaro" && group !== "liqueur" && group !== "rum") || e.isAged) ? <Chips
               label={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? "Cask Types" : "Finishes"}
               items={links.finishes}
               hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}
             /> : null}
-            {!(["vodka", "amaro", "liqueur"].includes(group)) && (group !== "gin" || e.isAgedGin) && (b.pickName || b.pickedBy || b.barrelNumber || (!hidesWarehouse(group, kind) && b.warehouse) || (!isAgaveKind(kind) && !isGinKind(kind) && (filledOn || bottledOn))) ? (
+            {!(["vodka", "amaro", "liqueur"].includes(group)) && (group !== "gin" || e.isAgedGin) && (group !== "rum" || e.isAged) && (b.pickName || b.pickedBy || b.barrelNumber || (!hidesWarehouse(group, kind) && b.warehouse) || (!isAgaveKind(kind) && !isGinKind(kind) && (filledOn || bottledOn))) ? (
               <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <Spec label="Pick" value={b.pickName} />
                 <Spec label="Picked By" value={b.pickedBy} />

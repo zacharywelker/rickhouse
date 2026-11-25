@@ -99,7 +99,7 @@ export const LABEL_AGE: ReadonlyArray<Generated> = FIELDS.map(labelAgeColumn);
 /** The age as the Age column used to write it, for the rail: the parts, else the statement, else what a designation implies. */
 export function ageSummary(label: SheetLabel, kinds: Record<number, CategoryKind>): Cell {
   const { fieldGroup } = label;
-  if (fieldGroup === "vodka" || ((fieldGroup === "amaro" || fieldGroup === "liqueur") && !label.isAged)) return DASH;
+  if (fieldGroup === "vodka" || ((fieldGroup === "amaro" || fieldGroup === "liqueur" || fieldGroup === "rum") && !label.isAged)) return DASH;
   if (fieldGroup === "whiskey") {
     const text = whiskeyAge(label, kinds[label.categoryId] ?? "other").text ?? (label.isNas ? "NAS" : null);
     return text ? { text } : DASH;
@@ -117,7 +117,7 @@ const OWN: Record<Field, string> = { ageYears: "ownAgeYears", ageMonths: "ownAge
 const notUsed = (field: Field, row: SheetRow, kinds: Kinds) =>
   bottleFieldNotUsed(
     field,
-    { group: row.label.fieldGroup, kind: kinds[row.label.categoryId] ?? "other", isAgedGin: row.label.isAgedGin === true, tequilaClass: row.label.tequilaClass ?? null },
+    { group: row.label.fieldGroup, kind: kinds[row.label.categoryId] ?? "other", isAgedGin: row.label.isAgedGin === true, isAged: row.label.isAged === true, tequilaClass: row.label.tequilaClass ?? null },
     { tequilaClass: row.bottle?.tequilaClass ?? null },
   );
 

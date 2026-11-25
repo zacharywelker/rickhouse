@@ -118,7 +118,7 @@ export default async function LabelPage({
   const kind = (await categoryKindsById())[row.category.id] ?? "other";
   const whiskeyAgeInfo = group === "whiskey" ? whiskeyAge(e, kind) : null;
   const knownAge = ageLabel({ ageYears: e.ageYears, ageMonths: e.ageMonths, ageDays: e.ageDays, ageStatement: null });
-  const shownAge = whiskeyAgeInfo?.text ?? (group === "vodka" || (group === "gin" && !e.isAgedGin) || ((group === "amaro" || group === "liqueur") && !e.isAged) ? null : group === "gin" && e.isNas ? "NAS" : spiritAgeLabel(kind, e.tequilaClass, e.brandyGrade, knownAge) ?? ageLabel(e) ?? (e.isNas ? "NAS" : null));
+  const shownAge = whiskeyAgeInfo?.text ?? (group === "vodka" || (group === "gin" && !e.isAgedGin) || ((group === "amaro" || group === "liqueur" || group === "rum") && !e.isAged) ? null : group === "gin" && e.isNas ? "NAS" : spiritAgeLabel(kind, e.tequilaClass, e.brandyGrade, knownAge) ?? ageLabel(e) ?? (e.isNas ? "NAS" : null));
   const title = `${row.brand.name} ${e.name}`;
   // A cask-strength label has no one proof: show what its releases and bottles span. Navy Strength and Overproof
   // come from the proof itself.
@@ -138,7 +138,7 @@ export default async function LabelPage({
     { kind: "bottled-in-bond", ownerId: e.id, active: kind === "american" && e.isBottledInBond },
     { kind: "cask-strength", ownerId: e.id, active: !["vodka", "amaro", "liqueur"].includes(group) && caskStrength, detail: e.proof ? `${formatNumeric(e.proof)}°` : undefined },
     { kind: "straight", ownerId: e.id, active: kind === "american" && e.isStraight },
-    { kind: "nas", ownerId: e.id, active: e.isNas && (group === "whiskey" || (group === "gin" && e.isAgedGin) || ((group === "amaro" || group === "liqueur") && e.isAged)) },
+    { kind: "nas", ownerId: e.id, active: e.isNas && (group === "whiskey" || (group === "gin" && e.isAgedGin) || ((group === "amaro" || group === "liqueur" || group === "rum") && e.isAged)) },
   ];
 
   return (
@@ -231,7 +231,7 @@ export default async function LabelPage({
             {group === "gin" ? <Spec label="Style" value={kind === "genever" ? null : e.ginStyle} /> : null}
             {group === "gin" ? <Spec label="Aged" value={e.isAgedGin ? "Yes" : "No"} /> : null}
             {group === "amaro" ? <Spec label="Style" value={e.amaroStyle} /> : null}
-            {group === "amaro" || group === "liqueur" ? <Spec label="Aged" value={e.isAged ? "Yes" : null} /> : null}
+            {group === "amaro" || group === "liqueur" || group === "rum" ? <Spec label="Aged" value={e.isAged ? "Yes" : null} /> : null}
             {group === "liqueur" && ["liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? <Spec label="Dairy" value={e.dairyStatus === "unknown" ? null : e.dairyStatus} /> : null}
             {peatKindFor({ kind, slug: row.category.slug }) && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
             {group === "whiskey" && e.isNonChillFiltered ? <Spec label="Filtration" value="Non-chill filtered" /> : null}
@@ -263,7 +263,7 @@ export default async function LabelPage({
               </> : group === "rum" || group === "agave" || group === "brandy"
               ? <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients} hrefFor={ingredientHref} />
               : <>{whiskeyCategoryGrains(row.category.slug) ? <dl><Spec label="Category grains" value={whiskeyCategoryGrains(row.category.slug)} /></dl> : null}<Mashbills items={links.mashbills} /></>}
-            {(group !== "gin" || e.isAgedGin) && (group !== "vodka") && ((group !== "amaro" && group !== "liqueur") || e.isAged) ? <Chips
+            {(group !== "gin" || e.isAgedGin) && (group !== "vodka") && ((group !== "amaro" && group !== "liqueur" && group !== "rum") || e.isAged) ? <Chips
               label={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? "Cask Types" : "Finishes"}
               items={links.finishes}
               hrefFor={(item) => (item.slug ? (`/finishes/${item.slug}` as Route) : null)}

@@ -27,6 +27,11 @@ describe("bottleFieldNotUsed", () => {
     });
   }
 
+  it.each(["isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "ageYears", "ageStatement"])("uses %s for rum only when its label is aged", (name) => {
+    expect(bottleFieldNotUsed(name, { ...label, group: "rum", kind: "other" })).toBe("Only for aged rum");
+    expect(bottleFieldNotUsed(name, { ...label, group: "rum", kind: "other", isAged: true })).toBeNull();
+  });
+
   it("uses a vintage choice for mezcal, but not tequila", () => {
     expect(bottleFieldNotUsed("releaseId", { ...label, group: "agave", kind: "tequila" })).toBe("Only for mezcal");
     expect(bottleFieldNotUsed("releaseId", { ...label, group: "agave", kind: "mezcal" })).toBeNull();

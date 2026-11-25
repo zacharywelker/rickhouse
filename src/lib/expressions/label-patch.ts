@@ -195,6 +195,11 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
         if (manual.originCountryManual !== undefined) columns.originCountryManual = manual.originCountryManual;
         if (manual.originRegionManual !== undefined) columns.originRegionManual = manual.originRegionManual;
       }
+      // The phone knows no Aged toggle for rum: an age or NAS it sends marks the label aged, so the web does not hide it.
+      if (category?.fieldGroup === "rum" && columns.isAged === undefined) {
+        const aging = [columns.ageYears, columns.ageMonths, columns.ageDays, columns.ageStatement];
+        if (aging.some((value) => value !== undefined && value !== null && value !== "") || columns.isNas === true) columns.isAged = true;
+      }
       const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) } as Partial<typeof expressions.$inferInsert>;
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));

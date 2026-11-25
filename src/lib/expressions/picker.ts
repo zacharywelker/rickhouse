@@ -17,6 +17,7 @@ export const labelColumns = {
   tequilaClass: expressions.tequilaClass,
   brandyGrade: expressions.brandyGrade,
   isAgedGin: expressions.isAgedGin,
+  isAged: expressions.isAged,
   isNas: expressions.isNas,
   upc: expressions.upc,
   thumbPath: expressions.photoThumbPath,

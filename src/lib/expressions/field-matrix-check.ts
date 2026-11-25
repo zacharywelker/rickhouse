@@ -55,11 +55,11 @@ function labelShown(group: FieldGroup): Shown {
   const writable = writableFields(group);
   return (field, kind, aged) =>
     writable.has(field) &&
-    !hiddenFields({ group, kind, values: group === "amaro" || group === "liqueur" ? { isAged: aged } : {}, ginAged: aged }).has(field);
+    !hiddenFields({ group, kind, values: group === "amaro" || group === "liqueur" || group === "rum" ? { isAged: aged } : {}, ginAged: aged }).has(field);
 }
 
 function bottleShown(group: FieldGroup): Shown {
-  return (field, kind, aged) => bottleFieldNotUsed(field, { group, kind, isAgedGin: aged, tequilaClass: null }) === null;
+  return (field, kind, aged) => bottleFieldNotUsed(field, { group, kind, isAgedGin: aged, isAged: aged, tequilaClass: null }) === null;
 }
 
 function gapsFor(matrix: "label" | "bottle", rows: ReadonlyArray<MatrixRow>): Gap[] {

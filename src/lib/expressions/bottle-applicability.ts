@@ -4,7 +4,7 @@ import type { CategoryKind } from "./rules";
 import { BRANDY_MINIMUM_YEARS, hidesWarehouse, isAgaveKind } from "./spirit-details";
 
 /** What the rule needs to know of the bottle's label. */
-export type LabelFacts = { group: FieldGroup | null; kind: CategoryKind; isAgedGin: boolean; tequilaClass: string | null };
+export type LabelFacts = { group: FieldGroup | null; kind: CategoryKind; isAgedGin: boolean; tequilaClass: string | null; /** Rum, amaro and liqueur: the label's Aged toggle. */ isAged?: boolean };
 
 /**
  * Why a bottle field does not apply to a bottle of this label, or null when it does. The bottle form's own rules
@@ -20,6 +20,7 @@ export function bottleFieldNotUsed(name: string, label: LabelFacts, own: { tequi
   if ((name === "barrelFilledOn" || name === "bottledOn") && (isAgaveKind(kind) || isGinKind(kind))) return "Not used for this spirit";
   if ((name === "warehouse" || name === "rickFloor") && hidesWarehouse(group ?? "", kind)) return "Not used for this spirit";
   if (isGinKind(kind) && !label.isAgedGin && ["isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "bottleCount", "ageYears", "ageMonths", "ageDays", "ginIsNas"].includes(name)) return "Only for aged gin";
+  if (group === "rum" && !label.isAged && ["isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "barrelFilledOn", "bottledOn", "ageYears", "ageMonths", "ageDays", "ageStatement"].includes(name)) return "Only for aged rum";
   if (name === "ginIsNas" && !isGinKind(kind)) return "Only for gin";
   if (name === "tequilaClass" && kind !== "tequila") return "Only for tequila";
   if (name === "brandyGrade" && !BRANDY_MINIMUM_YEARS[kind]) return "No defined grade for this category";

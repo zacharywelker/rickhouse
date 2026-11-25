@@ -123,7 +123,7 @@ const hasOwnAge = (b: SheetRow["bottle"]) => b !== null && (b.ageYears !== null 
  */
 export function labelAgeYears(label: SheetLabel, ctx: FindContext): number | null {
   const group = label.fieldGroup;
-  if (group === "vodka" || ((group === "amaro" || group === "liqueur") && !label.isAged)) return null;
+  if (group === "vodka" || ((group === "amaro" || group === "liqueur" || group === "rum") && !label.isAged)) return null;
   if (group === "whiskey") return whiskeyAge(label, ctx.kinds[label.categoryId] ?? "other").groupingYears;
   return ageInYears(label);
 }

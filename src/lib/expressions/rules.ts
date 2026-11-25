@@ -75,10 +75,13 @@ export type FormContext = {
   ginAged: boolean;
 };
 
-/** Whether aging matters: not for vodka, and not for a gin nobody has marked aged. */
+/** The groups that have an Aged toggle and are unaged until it is on (gin has its own, `isAgedGin`). */
+export const usesAgedToggle = (group: string | null) => group === "amaro" || group === "liqueur" || group === "rum";
+
+/** Whether aging matters: not for vodka, and not for a gin, amaro, liqueur or rum nobody has marked aged. */
 export function isUnaged(context: Pick<FormContext, "group" | "ginAged"> & { values?: Record<string, unknown> }): boolean {
   return context.group === "vodka" || (context.group === "gin" && !context.ginAged) ||
-    ((context.group === "amaro" || context.group === "liqueur") && context.values?.isAged !== true);
+    (usesAgedToggle(context.group) && context.values?.isAged !== true);
 }
 
 /** Whether a gin already carries something only an aged one has, so it opens as aged. */
@@ -115,7 +118,7 @@ export function hiddenFields(context: FormContext): Set<string> {
   } else {
     hidden.add("ginStyle"); hidden.add("isAgedGin");
   }
-  if (context.group !== "amaro" && context.group !== "liqueur") hidden.add("isAged");
+  if (!usesAgedToggle(context.group)) hidden.add("isAged");
   if (context.group === "amaro" || context.group === "liqueur") {
     hidden.add("ageDays"); hidden.add("barrelFilledOn"); hidden.add("bottledOn");
     hidden.add("isCaskStrength"); hidden.add("isStillProof");

@@ -103,6 +103,7 @@ export function BottleFields({
   categoryKind = "american",
   inheritedTequilaClass = null,
   inheritedGinAged,
+  inheritedAged,
   inheritedGinNas,
   openedLevel,
 }: {
@@ -127,6 +128,8 @@ export function BottleFields({
   categoryKind?: CategoryKind;
   inheritedTequilaClass?: string | null;
   inheritedGinAged?: boolean;
+  /** Rum, amaro and liqueur: the label's Aged toggle. */
+  inheritedAged?: boolean;
   inheritedGinNas?: boolean;
   openedLevel?: Pick<React.ComponentProps<typeof OpenedLevel>, "value" | "onChange" | "error">;
 }) {
@@ -139,7 +142,7 @@ export function BottleFields({
   const effectiveTequilaClass = String(values.tequilaClass || inheritedTequilaClass || "");
   const labelOption = options.expressionId?.find((option) => option.value === Number(values.expressionId));
   const ginAged = isGinKind(categoryKind) && (inheritedGinAged ?? labelOption?.isAgedGin) === true;
-  const labelFacts: LabelFacts = { group: fieldGroup, kind: categoryKind, isAgedGin: ginAged, tequilaClass: inheritedTequilaClass };
+  const labelFacts: LabelFacts = { group: fieldGroup, kind: categoryKind, isAgedGin: ginAged, isAged: (inheritedAged ?? labelOption?.isAged) === true, tequilaClass: inheritedTequilaClass };
   const ginNas = values.ginIsNas === "true" || values.ginIsNas === true || ((values.ginIsNas === "" || values.ginIsNas == null) && (inheritedGinNas ?? labelOption?.isNas) === true);
   return (
     <>
@@ -149,6 +152,7 @@ export function BottleFields({
         // way the label form reveals its per-spirit sections.
         if (!sectionVisible(section, null, values)) return null;
         if (section.id === "pick" && isGinKind(categoryKind) && !ginAged) return null;
+        if (section.id === "pick" && fieldGroup === "rum" && !labelFacts.isAged) return null;
         if ((fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") && (section.id === "release" || section.id === "pick")) return null;
         return (
         <Section key={section.id}>

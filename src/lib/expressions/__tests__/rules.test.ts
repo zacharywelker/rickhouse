@@ -218,6 +218,26 @@ describe("rum", () => {
   });
 });
 
+describe("the rum Aged toggle", () => {
+  const rum = (isAged?: boolean) => makeContext({ group: "rum", kind: "other", values: isAged === undefined ? {} : { isAged } });
+  const aging = ["ageYears", "ageMonths", "ageDays", "ageStatement", "isNas", "barrelFilledOn", "bottledOn", "isCaskStrength"];
+  it("hides the aging fields and the finish row of a rum nobody marked aged", () => {
+    expect(isUnaged(rum())).toBe(true);
+    for (const name of aging) expect(hiddenFields(rum()).has(name), name).toBe(true);
+    expect(showsFinishes(rum())).toBe(false);
+    expect(hiddenFields(rum()).has("isAged")).toBe(false);
+  });
+  it("shows them once it is aged", () => {
+    expect(isUnaged(rum(true))).toBe(false);
+    for (const name of ["ageYears", "ageMonths", "ageStatement", "isNas"]) expect(hiddenFields(rum(true)).has(name), name).toBe(false);
+    expect(showsFinishes(rum(true))).toBe(true);
+  });
+  it("gives only amaro, liqueur and rum an Aged toggle", () => {
+    expect(hiddenFields(makeContext({ group: "whiskey" })).has("isAged")).toBe(true);
+    expect(hiddenFields(makeContext({ group: "brandy", kind: "cognac" })).has("isAged")).toBe(true);
+  });
+});
+
 describe("writableFields", () => {
   it("never writes aging for vodka", () => {
     const vodka = writableFields("vodka");

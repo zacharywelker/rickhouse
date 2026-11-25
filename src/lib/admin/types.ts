@@ -23,6 +23,7 @@ export type Option = {
   tequilaClass?: string | null;
   brandyGrade?: string | null;
   isAgedGin?: boolean;
+  isAged?: boolean;
   isNas?: boolean;
   /** Set on self-referencing resources, so the form can exclude descendants. */
   parentId?: number | null;

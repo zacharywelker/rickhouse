@@ -220,7 +220,7 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
 }> {
   const bottleCount = sql<number>`(select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id})`;
   const pickCount = sql<number>`CASE WHEN ${categories.fieldGroup} IN ('vodka', 'amaro', 'liqueur') THEN 0 ELSE (select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id} and (${bottles.isSingleBarrel} or ${bottles.isSingleBarrelPick})) END`;
-  const ageForSort = sql<number | null>`CASE WHEN ${categories.fieldGroup} = 'vodka' OR (${categories.fieldGroup} IN ('amaro', 'liqueur') AND NOT ${expressions.isAged}) THEN NULL ELSE coalesce(
+  const ageForSort = sql<number | null>`CASE WHEN ${categories.fieldGroup} = 'vodka' OR (${categories.fieldGroup} IN ('amaro', 'liqueur', 'rum') AND NOT ${expressions.isAged}) THEN NULL ELSE coalesce(
     CASE WHEN ${expressions.ageYears} IS NOT NULL OR ${expressions.ageMonths} IS NOT NULL OR ${expressions.ageDays} IS NOT NULL
       THEN coalesce(${expressions.ageYears}, 0)::numeric + coalesce(${expressions.ageMonths}, 0)::numeric / 12 + coalesce(${expressions.ageDays}, 0)::numeric / 365 END,
     nullif(substring(${expressions.ageStatement} from '([0-9]{1,3}(\\.[0-9])?)[[:space:]]*(to|[-–—])[[:space:]]*[0-9]{1,3}(\\.[0-9])?[[:space:]]*(years?|yrs?)'), '')::numeric,

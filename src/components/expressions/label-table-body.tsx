@@ -108,7 +108,7 @@ export function LabelTableBody({
         return tier ? STRENGTH_TIER_LABELS[tier] : DASH;
       }
       case "age":
-        if (row.fieldGroup === "vodka" || ((row.fieldGroup === "amaro" || row.fieldGroup === "liqueur") && !row.isAged)) return DASH;
+        if (row.fieldGroup === "vodka" || ((row.fieldGroup === "amaro" || row.fieldGroup === "liqueur" || row.fieldGroup === "rum") && !row.isAged)) return DASH;
         if (row.fieldGroup === "whiskey") {
           const resolved = whiskeyAge(row, categoryKinds[row.categoryId] ?? "other");
           return resolved.inferred ? <abbr tabIndex={0} title={resolved.explanation ?? undefined} className="cursor-help italic no-underline">{resolved.text}</abbr> : resolved.text ?? DASH;
