@@ -70,7 +70,9 @@ const STATEMENT_WORDS: ReadonlyArray<[BrandyGrade, RegExp]> = [
 export function brandyGradeFromStatement(kind: CategoryKind | null, statement: string): BrandyGrade | null {
   const text = statement.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const offered = brandyGradesFor(kind);
-  return STATEMENT_WORDS.find(([grade, pattern]) => offered.includes(grade) && pattern.test(text))?.[0] ?? null;
+  // Calvados calls its XO also Napoléon and Hors d'Âge.
+  const alias = (grade: BrandyGrade): BrandyGrade => (kind === "calvados" && (grade === "Napoléon" || grade === "Hors d'Âge") ? "XO" : grade);
+  return STATEMENT_WORDS.map(([grade, pattern]) => [alias(grade), pattern] as const).find(([grade, pattern]) => offered.includes(grade) && pattern.test(text))?.[0] ?? null;
 }
 
 /** An age as years, from the years, months and days typed (blank counts as nothing); null when none is typed. */

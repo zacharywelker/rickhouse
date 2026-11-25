@@ -16,6 +16,10 @@ describe("withDerivedDesignation", () => {
     expect(withDerivedDesignation({ ageYears: "4", tequilaClass: "cristalino" }, "ageYears", "tequila")).toMatchObject({ tequilaClass: "cristalino" });
     expect(withDerivedDesignation({ ageYears: "", tequilaClass: "reposado" }, "ageYears", "tequila")).toMatchObject({ tequilaClass: "reposado" });
   });
+  it("does not count years left behind in a field a Blanco hides", () => {
+    expect(withDerivedDesignation({ ageYears: "4", ageMonths: "1", tequilaClass: "blanco" }, "ageMonths", "tequila")).toMatchObject({ tequilaClass: "blanco" });
+    expect(withDerivedDesignation({ ageYears: "4", ageMonths: "8", tequilaClass: "blanco" }, "ageMonths", "tequila")).toMatchObject({ tequilaClass: "reposado" });
+  });
   it("only acts when an age field is what changed", () => {
     expect(withDerivedDesignation({ ageYears: "4", tequilaClass: "blanco" }, "proof", "tequila")).toMatchObject({ tequilaClass: "blanco" });
   });

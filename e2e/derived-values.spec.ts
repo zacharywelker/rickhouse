@@ -66,3 +66,11 @@ test("a Rhum Agricole has a fixed sugarcane juice base and no Added Sugar; a spi
   await expect(page.getByRole("group", { name: "Flavors" })).toBeVisible();
   await expect(page.getByLabel("Added Sugar (g/L)")).toBeVisible();
 });
+
+test("a Reposado keeps its months and days", async ({ page }) => {
+  await choose(page, "Tequila");
+  await page.getByLabel("Tequila Class").selectOption("reposado");
+  await expect(page.getByRole("spinbutton", { name: "Years" })).toHaveCount(0);
+  await expect(page.getByRole("spinbutton", { name: "Months" })).toBeVisible();
+  await expect(page.getByRole("spinbutton", { name: "Days" })).toBeVisible();
+});

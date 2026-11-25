@@ -158,7 +158,7 @@ export function LabelTableBody({
             {shown.map(({ column, group }) => {
               const applies = groupApplies(group, fieldGroup)
                 && !hidden.has(column.id)
-                && !(column.id === "age" && hidden.has("ageYears"))
+                && !(column.id === "age" && hidden.has("ageYears") && hidden.has("ageMonths") && hidden.has("ageDays"))
                 && !(column.id === "tequilaClass" && !isAgaveKind(kind))
                 && !(column.id === "brandyGrade" && !BRANDY_MINIMUM_YEARS[kind])
                 && !(column.id === "ginStyle" && !isGinKind(kind))

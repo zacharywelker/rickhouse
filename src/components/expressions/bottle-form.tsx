@@ -170,7 +170,10 @@ export function BottleFields({
             // One function decides which bottle fields a label's spirit has (and the bulk editor asks the same one).
             // A vintage already chosen stays visible even where the spirit no longer offers the choice (gin, tequila), so it can be cleared.
             const keptVintage = field.name === "releaseId" && String(values.releaseId ?? "") !== "";
-            if (bottleFieldNotUsed(field.name, labelFacts, { tequilaClass: effectiveTequilaClass || null }) !== null && !keptVintage) return null;
+            const notUsed = (name: string) => bottleFieldNotUsed(name, labelFacts, { tequilaClass: effectiveTequilaClass || null }) !== null;
+            // The age group is drawn by its years field: with years unavailable (a Reposado) but months or days not, it stays.
+            const ageGroupStays = field.name === "ageYears" && (!notUsed("ageMonths") || !notUsed("ageDays"));
+            if (notUsed(field.name) && !keptVintage && !ageGroupStays) return null;
             if (!fieldVisible(field, values) || omit.includes(field.name)) return null;
             // Proof/ABV and the age triplet render as linked composites
             // rather than the generic field; see the label form for the same
@@ -246,6 +249,8 @@ export function BottleFields({
                     ageDays: values.ageDays ?? "",
                   }}
                   onChange={(name, next) => onChange(name, next)}
+                  showYears={!notUsed("ageYears")}
+                  showDays={!notUsed("ageDays")}
                   locked={!ageOpen && ((isGinKind(categoryKind) && ginNas) || String(values.ageStatement ?? "").trim() !== "")}
                   onUnlock={() => setAgeOpen(true)}
                   errors={{

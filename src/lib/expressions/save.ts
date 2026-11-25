@@ -394,6 +394,21 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
  * its lists. Throws NotOwned for someone else's label, which rolls back the
  * transaction it runs in.
  */
+/**
+ * A fixed recipe replaces whatever mashbills were sent, so the finishes' explicit pairs have to name it too: each pair line
+ * moves to the one mashbill (their shares added, since they were parts of one recipe). Without this a label whose finishes were
+ * paired to another recipe could not be saved.
+ */
+export function withOnlyMashbill(links: Links, mashbillId: number): Links {
+  const finishes = links.finishes.map((row) => {
+    if (!row.mashbills || row.mashbills.length === 0) return row;
+    const shares = row.mashbills.map((line) => line.share);
+    const share = shares.every((value) => value === null || value === undefined) ? null : Math.min(100, shares.reduce<number>((sum, value) => sum + (value ?? 0), 0));
+    return { ...row, mashbills: [{ id: mashbillId, share }] };
+  });
+  return { ...links, mashbills: [{ id: mashbillId, amount: null }], finishes };
+}
+
 export async function writeLabel(
   tx: Tx,
   ownerId: number,
@@ -403,7 +418,7 @@ export async function writeLabel(
 ): Promise<number> {
   const [category] = await tx.select({ slug: categories.slug }).from(categories).where(eq(categories.id, Number(values.categoryId))).limit(1);
   if (isSingleMaltCategory(category?.slug)) {
-    links = { ...links, mashbills: [{ id: await singleMaltMashbillId(tx, ownerId), amount: null }] };
+    links = withOnlyMashbill(links, await singleMaltMashbillId(tx, ownerId));
   }
   let target = id;
   if (target === null) {

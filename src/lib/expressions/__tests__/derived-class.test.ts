@@ -57,6 +57,8 @@ describe("brandy designations", () => {
     expect(brandyGradeFromStatement("armagnac", "Three Star")).toBe("VS");
     expect(brandyGradeFromStatement("calvados", "Vieille Réserve")).toBe("VSOP");
     expect(brandyGradeFromStatement("calvados", "Fine")).toBe("VS");
+    expect(brandyGradeFromStatement("calvados", "Napoléon")).toBe("XO");
+    expect(brandyGradeFromStatement("calvados", "Hors d'Age")).toBe("XO");
     expect(brandyGradeFromStatement("cognac", "Napoleon")).toBeNull();
     expect(brandyGradeFromStatement("cognac", "Small batch")).toBeNull();
   });
