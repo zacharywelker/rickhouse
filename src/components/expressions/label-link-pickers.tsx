@@ -85,6 +85,18 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange }: Co
       </>
     );
   }
+  // Flavored whisky has Flavors; absinthe and akvavit have Botanicals; shochu has a base (sweet potato, barley, rice).
+  const extra = fieldGroup === "whiskey" && kind === "flavored-whisky" ? "flavor" as const
+    : fieldGroup === "other" && (kind === "absinthe" || kind === "akvavit") ? "botanical" as const
+    : fieldGroup === "other" && kind === "shochu" ? "vodka_base" as const : null;
+  if (extra) {
+    return (
+      <>
+        <IngredientPicker kind={extra} categoryKind={kind} value={chosen} hiddenName={null} onChange={only(extra)} />
+        <input type="hidden" name="ingredientLinks" value={JSON.stringify(chosen)} />
+      </>
+    );
+  }
   if (fieldGroup === "rum" && kind === "spiced-rum") {
     // A spiced rum has its flavors besides its base.
     return (
@@ -108,9 +120,9 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange }: Co
   return null;
 }
 
-export function MashbillPicker({ fieldGroup, singleMalt, categoryName, mashbillCategory, options, links, onLinksChange, matchesOption, onOptionCreated, renderRowExtra }: Common & PickerExtras & { singleMalt: boolean; categoryName: string | undefined; /** "bourbon" or "rye" when the label is one, for the popup's recipe warning. */ mashbillCategory?: string | null; options: Option[]; matchesOption?: (option: Option) => boolean }) {
+export function MashbillPicker({ fieldGroup, kind, singleMalt, categoryName, mashbillCategory, options, links, onLinksChange, matchesOption, onOptionCreated, renderRowExtra }: Common & PickerExtras & { singleMalt: boolean; categoryName: string | undefined; /** "bourbon" or "rye" when the label is one, for the popup's recipe warning. */ mashbillCategory?: string | null; options: Option[]; matchesOption?: (option: Option) => boolean }) {
   if (fieldGroup === "gin") return null;
-  if (fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") {
+  if (fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur" || (fieldGroup === "other" && (kind === "absinthe" || kind === "akvavit" || kind === "shochu"))) {
     // Older mashbill links remain stored while the relevant spirit uses ingredients.
     return <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />;
   }

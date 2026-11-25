@@ -74,3 +74,23 @@ test("a Reposado keeps its months and days", async ({ page }) => {
   await expect(page.getByRole("spinbutton", { name: "Months" })).toBeVisible();
   await expect(page.getByRole("spinbutton", { name: "Days" })).toBeVisible();
 });
+
+test("liqueur dairy is Dairy or Non-dairy, and Cream starts as Dairy", async ({ page }) => {
+  await choose(page, "Cream Liqueur");
+  await expect(page.getByLabel("Dairy")).toHaveValue("dairy");
+  expect(await page.getByLabel("Dairy").locator("option").allInnerTexts()).toEqual(["Dairy", "Non-dairy"]);
+  await choose(page, "Chocolate Liqueur");
+  await expect(page.getByLabel("Dairy")).toHaveValue("non-dairy");
+});
+
+test("apple brandy has its fruit fixed; flavored whisky, absinthe and shochu have their lists", async ({ page }) => {
+  await choose(page, "Apple Brandy");
+  
+  await expect(page.getByText("fixed for apple brandy")).toBeVisible();
+  await choose(page, "Flavored Whisky");
+  await expect(page.getByRole("group", { name: "Flavors" })).toBeVisible();
+  await choose(page, "Absinthe");
+  await expect(page.getByRole("group", { name: "Botanicals" })).toBeVisible();
+  await choose(page, "Shochu");
+  await expect(page.getByRole("group", { name: "Base Ingredients" })).toBeVisible();
+});

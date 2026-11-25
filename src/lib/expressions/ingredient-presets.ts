@@ -15,6 +15,8 @@ export const GIN_BOTANICALS = [
   "Meadowsweet", "Nutmeg", "Orris Root", "Rosemary", "Rose", "Thyme",
 ] as const;
 export const RUM_BASES = ["Molasses", "Sugarcane", "Sugarcane juice", "Honey"] as const;
+/** What a shochu is distilled from. */
+export const SHOCHU_BASES = ["Sweet potato", "Barley", "Rice"] as const;
 export const VODKA_BASES = ["Wheat", "Rye", "Potato", "Corn", "Grape"] as const;
 export const MAGUEY_PRESETS = ["Blue Weber"] as const;
 

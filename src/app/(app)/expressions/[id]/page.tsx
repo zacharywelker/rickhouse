@@ -261,8 +261,15 @@ export default async function LabelPage({
                 {group === "liqueur" ? <Chips label="Base Ingredients" items={links.ingredients.filter((item) => item.kind === "liqueur_base")} hrefFor={ingredientHref} /> : null}
                 {group === "liqueur" || kind === "flavored-vodka" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={ingredientHref} /> : null}
               </> : group === "rum" || group === "agave" || group === "brandy"
-              ? <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients} hrefFor={ingredientHref} />
-              : <>{whiskeyCategoryGrains(row.category.slug) ? <dl><Spec label="Category grains" value={whiskeyCategoryGrains(row.category.slug)} /></dl> : null}<Mashbills items={links.mashbills} /></>}
+              ? <>
+                <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients.filter((item) => item.kind !== "flavor")} hrefFor={ingredientHref} />
+                {kind === "spiced-rum" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={ingredientHref} /> : null}
+              </>
+              : group === "other"
+              ? <>
+                {kind === "shochu" ? <Chips label="Base Ingredients" items={links.ingredients.filter((item) => item.kind === "vodka_base")} hrefFor={ingredientHref} /> : <Chips label="Botanicals" items={links.ingredients.filter((item) => item.kind === "botanical")} hrefFor={ingredientHref} />}
+              </>
+              : <>{whiskeyCategoryGrains(row.category.slug) ? <dl><Spec label="Category grains" value={whiskeyCategoryGrains(row.category.slug)} /></dl> : null}<Mashbills items={links.mashbills} />{kind === "flavored-whisky" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={ingredientHref} /> : null}</>}
             {(group !== "gin" || e.isAgedGin) && (group !== "vodka") && ((group !== "amaro" && group !== "liqueur" && group !== "rum") || e.isAged) ? <Chips
               label={["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? "Cask Types" : "Finishes"}
               items={links.finishes}

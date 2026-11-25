@@ -41,7 +41,7 @@ import {
   type NameContext,
   type ProofSpread,
 } from "@/lib/expressions/rules";
-import { countryForDistillery, stillForCountry } from "@/lib/expressions/spirit-details";
+import { countryForDistillery, effectiveDairy, stillForCountry } from "@/lib/expressions/spirit-details";
 import { specForKind } from "@/lib/expressions/kind-options";
 import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
@@ -68,6 +68,8 @@ export function initialLabelValues(
 ): Record<string, FieldValue> {
   const values = initialFieldValues(LABEL_FIELDS, existing);
   if (categoryGroups[Number(existing?.categoryId)] === "whiskey") values.isAdditiveFree = existing?.isAdditiveFree === true;
+  // Dairy is stated or it takes its kind's default (Cream is dairy); the select has no "unknown", so a new label must not start on its first option.
+  values.dairyStatus = typeof existing?.dairyStatus === "string" ? existing.dairyStatus : "unknown";
   return values;
 }
 
@@ -379,7 +381,7 @@ export function ExpressionFields({
               : specForKind(field, kind)
         }
         idPrefix={idPrefix}
-        value={values[field.name] ?? ""}
+        value={field.name === "dairyStatus" ? effectiveDairy(kind, values.dairyStatus) : (values[field.name] ?? "")}
         onChange={(next) => change(field.name, next)}
         error={errors[field.name]}
         options={options[field.name] ?? []}

@@ -8,7 +8,7 @@ import type { IngredientKind } from "@/db/schema";
 import { fixedIngredient, ingredientAllowed, type IngredientChoice } from "@/lib/expressions/spirit-details";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { X } from "lucide-react";
-import { BRANDY_FRUITS, fruitFamily, GIN_BASES, GIN_BOTANICALS, RUM_BASES, VODKA_BASES } from "@/lib/expressions/ingredient-presets";
+import { BRANDY_FRUITS, fruitFamily, GIN_BASES, GIN_BOTANICALS, RUM_BASES, SHOCHU_BASES, VODKA_BASES } from "@/lib/expressions/ingredient-presets";
 import { isGinKind } from "@/lib/expressions/gin-details";
 
 const labelFor = (kind: IngredientKind) => kind === "maguey" ? "Magueys" : kind === "distillate" ? "Distillate" : kind === "botanical" ? "Botanicals" : kind === "flavor" ? "Flavors" : kind === "vodka_base" || kind === "liqueur_base" ? "Base Ingredients" : "Base";
@@ -36,7 +36,7 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
   const selected = fixedHere ? [fixed]
     : kind === "botanical" && isGinKind(categoryKind) ? [{ name: "Juniper", kind: "botanical" as const }, ...value.filter((item) => item.kind === "botanical" && item.name.toLocaleLowerCase() !== "juniper")]
     : value.filter((item) => (!item.kind || item.kind === kind) && ingredientAllowed(categoryKind, item));
-  const presets = kind === "rum_base" ? RUM_BASES : kind === "botanical" && isGinKind(categoryKind) ? GIN_BOTANICALS : kind === "gin_base" ? GIN_BASES : kind === "vodka_base" ? VODKA_BASES : [];
+  const presets = kind === "rum_base" ? RUM_BASES : kind === "botanical" && isGinKind(categoryKind) ? GIN_BOTANICALS : kind === "gin_base" ? GIN_BASES : kind === "vodka_base" ? (categoryKind === "shochu" ? SHOCHU_BASES : VODKA_BASES) : [];
   const presetChoices: IngredientChoice[] = kind === "distillate"
     ? Object.entries(BRANDY_FRUITS).map(([name, family]) => ({ name, kind, family }))
     : presets.map((name): IngredientChoice => ({ name, kind }));
@@ -67,7 +67,7 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
     <fieldset className="flex flex-col gap-3 border border-border p-4">
       <legend className="px-1 text-sm font-medium">{labelFor(kind)}</legend>
       {fixedHere ? (
-        <p className="text-sm">{fixed.name} <span className="text-muted-foreground">· fixed for {categoryKind === "tequila" ? "tequila" : categoryKind === "cachaca" ? "cachaça" : "rhum agricole"}</span></p>
+        <p className="text-sm">{fixed.name} <span className="text-muted-foreground">· fixed for {categoryKind === "tequila" ? "tequila" : categoryKind === "cachaca" ? "cachaça" : categoryKind === "apple" ? "apple brandy" : "rhum agricole"}</span></p>
       ) : (
         <>
           {selected.length > 0 ? (

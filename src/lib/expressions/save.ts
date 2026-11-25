@@ -10,7 +10,7 @@ import { AGING_FIELDS, BOND_PROOF, hiddenFields, isSingleMaltCategory, type Cate
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 import { FinishPairsInvalid, resolveFinishPairs, type FinishRowInput } from "./finish-pairs";
-import { UNDER_A_YEAR_CLASSES, fixedIngredient, ingredientAllowed, isAgaveKind, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
+import { UNDER_A_YEAR_CLASSES, effectiveDairy, fixedIngredient, ingredientAllowed, isAgaveKind, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
 import { categoryKindsById, categorySlugById } from "./queries";
 import { isGinKind } from "./gin-details";
 
@@ -260,7 +260,9 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
   const accepted: IngredientKind[] = label.group === "agave" ? ["maguey"] : label.group === "rum" ? (kind === "spiced-rum" ? ["rum_base", "flavor"] : ["rum_base"]) :
     label.group === "brandy" ? ["distillate"] : label.group === "gin" ? ["botanical", "gin_base"] :
     label.group === "vodka" ? ["vodka_base", "flavor"] : label.group === "amaro" ? ["botanical"] :
-    label.group === "liqueur" ? ["flavor", "liqueur_base"] : [];
+    label.group === "liqueur" ? ["flavor", "liqueur_base"] :
+    label.group === "whiskey" ? (kind === "flavored-whisky" ? ["flavor"] : []) :
+    label.group === "other" ? (kind === "absinthe" || kind === "akvavit" ? ["botanical"] : kind === "shochu" ? ["vodka_base"] : []) : [];
   if (accepted.length === 0) return;
   const fixed = fixedIngredient(kind);
   if (submitted === undefined && !fixed && label.group !== "gin" && label.group !== "amaro") return;
@@ -362,6 +364,8 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
   }, query);
   const values = valuesForGroup(input, allowed, slug);
   if (group === "whiskey") values.ageYearsSource = input.ageYearsSource;
+  // A liqueur is dairy or non-dairy: an unstated one takes its kind's default (Cream is dairy).
+  if (group === "liqueur") values.dairyStatus = effectiveDairy(kind, input.dairyStatus);
   if (group === "amaro" || group === "liqueur") {
     values.originCountryManual = input.originCountryManual;
     values.originRegionManual = input.originRegionManual;

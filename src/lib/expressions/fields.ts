@@ -262,7 +262,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
     title: "Liqueur detail",
     fieldGroups: ["liqueur"],
     fields: [
-      { kind: "select", name: "dairyStatus", label: "Dairy", options: DAIRY_STATUSES.map((value) => ({ value, label: value === "unknown" ? "Unknown" : value === "dairy" ? "Dairy" : "Non-dairy" })), span: "half" },
+      { kind: "select", name: "dairyStatus", label: "Dairy", options: DAIRY_STATUSES.filter((value) => value !== "unknown").map((value) => ({ value, label: value === "dairy" ? "Dairy" : "Non-dairy" })), span: "half" },
     ],
   },
 ];

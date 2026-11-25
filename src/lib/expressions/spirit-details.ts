@@ -5,6 +5,10 @@ import { isGinKind } from "./gin-details";
 export const AMARO_STYLES = ["Fernet", "Alpine", "Citrus", "New-World", "Old-World", "Medium-Bodied", "Aperitivo", "Carciofo", "Genepy", "Rabarbaro"] as const;
 export const PEAT_STATUSES = ["unknown", "unpeated", "peated"] as const;
 export const DAIRY_STATUSES = ["unknown", "dairy", "non-dairy"] as const;
+/** A liqueur is dairy or it is not: a Cream liqueur starts as dairy, every other as non-dairy, and "unknown" is never offered or kept. */
+export const dairyDefault = (kind: CategoryKind | null): "dairy" | "non-dairy" => (kind === "cream-liqueur" ? "dairy" : "non-dairy");
+export const effectiveDairy = (kind: CategoryKind | null, status: unknown): "dairy" | "non-dairy" =>
+  status === "dairy" || status === "non-dairy" ? status : dairyDefault(kind);
 
 /** Category composition is known even when a producer's exact recipe is not. */
 export function whiskeyCategoryGrains(slug: string): string | null {
@@ -118,10 +122,11 @@ export type IngredientChoice = { name: string; family?: string | null; kind?: "m
 export const stillForCountry = (country: string | null | undefined): "column" | null =>
   country && normalizeCountry(country) === "Martinique" ? "column" : null;
 
-/** The one base a kind has by definition: tequila's Blue Weber, and the sugarcane juice of a Rhum Agricole and a Cachaça. */
+/** The one base a kind has by definition: tequila's Blue Weber, the sugarcane juice of a Rhum Agricole and a Cachaça, an apple brandy's apples. */
 export function fixedIngredient(kind: CategoryKind | null): (IngredientChoice & { kind: NonNullable<IngredientChoice["kind"]> }) | null {
   if (kind === "tequila") return { name: "Blue Weber", kind: "maguey" };
   if (kind === "agricole" || kind === "cachaca") return { name: "Sugarcane juice", kind: "rum_base" };
+  if (kind === "apple") return { name: "Apple", kind: "distillate", family: "apple" };
   return null;
 }
 
