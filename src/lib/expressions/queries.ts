@@ -324,6 +324,8 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
       soleraLowYears: expressions.soleraLowYears,
       soleraHighYears: expressions.soleraHighYears,
       calvadosAppellation: expressions.calvadosAppellation,
+      mezcalProduction: expressions.mezcalProduction,
+      mezcalFlavorMethod: expressions.mezcalFlavorMethod,
       brandyVintageYear: expressions.brandyVintageYear,
       isMostoVerde: expressions.isMostoVerde,
       agaveType: expressions.agaveType,
@@ -503,6 +505,8 @@ export type ExpressionRow = {
   soleraLowYears: string | null;
   soleraHighYears: string | null;
   calvadosAppellation: string | null;
+  mezcalProduction: string | null;
+  mezcalFlavorMethod: string | null;
   brandyVintageYear: number | null;
   isMostoVerde: boolean;
   agaveType: string | null;

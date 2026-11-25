@@ -31,7 +31,7 @@ import { colaLookupEnabled, colasForExpression, distilleriesByPermit } from "@/l
 import { ageLabel } from "@/lib/expressions/display";
 import { bottlesOfLabel, categoryKindsById, expressionLinks, getExpression, tastingNotesForLabel } from "@/lib/expressions/queries";
 import { isGinKind } from "@/lib/expressions/gin-details";
-import { isAgaveKind, spiritAgeLabel, whiskeyCategoryGrains, CALVADOS_APPELLATION_LABELS, soleraText, type CalvadosAppellation } from "@/lib/expressions/spirit-details";
+import { isAgaveKind, spiritAgeLabel, whiskeyCategoryGrains, CALVADOS_APPELLATION_LABELS, MEZCAL_FLAVOR_METHOD_LABELS, MEZCAL_PRODUCTION_LABELS, soleraText, type CalvadosAppellation, type MezcalProduction } from "@/lib/expressions/spirit-details";
 import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { provenanceOf, provenanceTags, type ProvenanceInput } from "@/lib/provenance";
 import { STRENGTH_TIER_LABELS, peatKindFor, proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
@@ -235,6 +235,8 @@ export default async function LabelPage({
             {group === "rum" && e.isSolera ? <Spec label="Solera" value={soleraText(e.soleraLowYears, e.soleraHighYears)} /> : null}
             {kind === "calvados" && e.calvadosAppellation ? <Spec label="Appellation" value={CALVADOS_APPELLATION_LABELS[e.calvadosAppellation as CalvadosAppellation] ?? e.calvadosAppellation} /> : null}
             {(kind === "armagnac" || kind === "calvados") && e.brandyGrade === "Millésime" && e.brandyVintageYear ? <Spec label="Vintage year" value={String(e.brandyVintageYear)} /> : null}
+            {kind === "mezcal" && e.mezcalProduction ? <Spec label="Production" value={MEZCAL_PRODUCTION_LABELS[e.mezcalProduction as MezcalProduction] ?? e.mezcalProduction} /> : null}
+            {kind === "mezcal" && e.mezcalFlavorMethod ? <Spec label="Flavor" value={MEZCAL_FLAVOR_METHOD_LABELS[e.mezcalFlavorMethod as keyof typeof MEZCAL_FLAVOR_METHOD_LABELS] ?? e.mezcalFlavorMethod} /> : null}
             {kind === "pisco" && e.isMostoVerde ? <Spec label="Style" value="Mosto Verde" /> : null}
             {group === "liqueur" && ["liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? <Spec label="Dairy" value={e.dairyStatus === "unknown" ? null : e.dairyStatus} /> : null}
             {peatKindFor({ kind, slug: row.category.slug }) && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
@@ -267,7 +269,7 @@ export default async function LabelPage({
               </> : group === "rum" || group === "agave" || group === "brandy"
               ? <>
                 <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients.filter((item) => item.kind !== "flavor")} hrefFor={ingredientHref} />
-                {kind === "spiced-rum" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={ingredientHref} /> : null}
+                {kind === "spiced-rum" || kind === "mezcal" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={ingredientHref} /> : null}
               </>
               : group === "other"
               ? <>

@@ -285,6 +285,23 @@ describe("age and class rules by spirit", () => {
   });
 });
 
+describe("mezcal", () => {
+  const mezcal = (values: Record<string, unknown> = {}) => makeContext({ group: "agave", kind: "mezcal", values });
+  it("has a production and a flavor, which tequila does not", () => {
+    for (const name of ["mezcalProduction", "mezcalFlavorMethod"]) {
+      expect(hiddenFields(mezcal()).has(name), name).toBe(false);
+      expect(hiddenFields(makeContext({ group: "agave", kind: "tequila" })).has(name), name).toBe(true);
+    }
+  });
+  it("takes the age and the barrel away from a Madurado en Vidrio", () => {
+    const hidden = hiddenFields(mezcal({ tequilaClass: "madurado-en-vidrio" }));
+    for (const name of ["ageYears", "ageMonths", "ageDays", "ageStatement"]) expect(hidden.has(name), name).toBe(true);
+    expect(showsFinishes(mezcal({ tequilaClass: "madurado-en-vidrio" }))).toBe(false);
+    expect(showsFinishes(mezcal({ tequilaClass: "anejo" }))).toBe(true);
+    expect(hiddenFields(mezcal({ tequilaClass: "anejo" })).has("ageMonths")).toBe(false);
+  });
+});
+
 describe("barrelTypeKind", () => {
   const ctx = (over: Partial<Parameters<typeof barrelTypeKind>[0]>) => ({ group: "whiskey" as const, kind: "american" as const, slug: null, ginAged: false, ...over });
   it("is the finishes picker for agave, an aged gin, and Corn and Light whiskey", () => {

@@ -26,6 +26,7 @@ export function bottleFieldNotUsed(name: string, label: LabelFacts, own: { tequi
   if (name === "brandyGrade" && !BRANDY_MINIMUM_YEARS[kind]) return "No defined grade for this category";
   if (name === "ageStatement" && (kind === "tequila" || isGinKind(kind))) return "No age statement field for this spirit";
   if (name === "ageYears" && isAgaveKind(kind) && UNDER_A_YEAR_CLASSES.includes(own.tequilaClass || label.tequilaClass || "")) return "Blanco and Reposado are under a year";
+  if (["ageYears", "ageMonths", "ageDays", "ageStatement"].includes(name) && kind === "mezcal" && (own.tequilaClass || label.tequilaClass) === "madurado-en-vidrio") return "Madurado en Vidrio has no age";
   if (name === "ageDays" && isGinKind(kind)) return "Gin is aged in years and months";
   return null;
 }

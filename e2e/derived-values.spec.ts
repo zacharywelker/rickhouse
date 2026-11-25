@@ -125,3 +125,26 @@ test("a pisco asks for a Peruvian or Chilean distillery before it says what it i
   await choose(page, "Cognac");
   await expect(page.getByRole("heading", { name: "Brandy detail" })).toHaveCount(0);
 });
+
+test("a mezcal has a production category that presets and limits how it was made", async ({ page }) => {
+  await choose(page, "Mezcal");
+  await expect(page.getByLabel("Production")).toBeVisible();
+  await page.getByLabel("Production").selectOption("ancestral");
+  await expect(page.getByLabel("Still Type")).toHaveValue("clay-pot");
+  await expect(page.getByLabel("Cooking Method")).toHaveValue("pit");
+  expect(await page.getByLabel("Still Type").locator("option").allInnerTexts()).toEqual(["Unknown", "Clay pot"]);
+  await page.getByLabel("Production").selectOption("artesanal");
+  expect(await page.getByLabel("Still Type").locator("option").allInnerTexts()).not.toContain("Column");
+  await choose(page, "Tequila");
+  await expect(page.getByLabel("Production")).toHaveCount(0);
+});
+
+test("a mezcal Madurado en Vidrio has no age and no barrel; its flavors are a list", async ({ page }) => {
+  await choose(page, "Mezcal");
+  await expect(page.getByRole("group", { name: "Barrel Type" })).toBeVisible();
+  await page.getByLabel("Mezcal Class").selectOption("madurado-en-vidrio");
+  await expect(page.getByRole("spinbutton", { name: "Months" })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Barrel Type" })).toHaveCount(0);
+  await expect(page.getByLabel("Flavor", { exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Flavors" })).toBeVisible();
+});

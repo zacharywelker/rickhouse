@@ -407,6 +407,13 @@
       "when": 1793622574639,
       "tag": "0057_solera_calvados_pisco",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793709000000,
+      "tag": "0058_mezcal_production_flavor",
+      "breakpoints": true
     }
   ]
 }

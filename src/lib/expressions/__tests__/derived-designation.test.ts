@@ -14,6 +14,7 @@ describe("withDerivedDesignation", () => {
   it("never moves a Joven or a Cristalino, and does nothing when the age is cleared", () => {
     expect(withDerivedDesignation({ ageYears: "4", tequilaClass: "joven" }, "ageYears", "tequila")).toMatchObject({ tequilaClass: "joven" });
     expect(withDerivedDesignation({ ageYears: "4", tequilaClass: "cristalino" }, "ageYears", "tequila")).toMatchObject({ tequilaClass: "cristalino" });
+    expect(withDerivedDesignation({ ageYears: "4", tequilaClass: "madurado-en-vidrio" }, "ageYears", "mezcal")).toMatchObject({ tequilaClass: "madurado-en-vidrio" });
     expect(withDerivedDesignation({ ageYears: "", tequilaClass: "reposado" }, "ageYears", "tequila")).toMatchObject({ tequilaClass: "reposado" });
   });
   it("does not count years left behind in a field a Blanco hides", () => {

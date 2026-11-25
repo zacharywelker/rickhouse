@@ -257,7 +257,7 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
     .where(eq(expressions.id, expressionId)).limit(1);
   if (!label) return;
   const kind = (await categoryKindsById(tx))[label.categoryId] ?? "other";
-  const accepted: IngredientKind[] = label.group === "agave" ? ["maguey"] : label.group === "rum" ? (kind === "spiced-rum" ? ["rum_base", "flavor"] : ["rum_base"]) :
+  const accepted: IngredientKind[] = label.group === "agave" ? (kind === "mezcal" ? ["maguey", "flavor"] : ["maguey"]) : label.group === "rum" ? (kind === "spiced-rum" ? ["rum_base", "flavor"] : ["rum_base"]) :
     label.group === "brandy" ? ["distillate"] : label.group === "gin" ? ["botanical", "gin_base"] :
     label.group === "vodka" ? ["vodka_base", "flavor"] : label.group === "amaro" ? ["botanical"] :
     label.group === "liqueur" ? ["flavor", "liqueur_base"] :

@@ -43,7 +43,7 @@ import {
 } from "@/lib/expressions/rules";
 import { countryForDistillery, effectiveDairy, piscoCountry, piscoStyle, stillForCountry } from "@/lib/expressions/spirit-details";
 import { appellationNote } from "@/lib/expressions/derived-designation";
-import { specForKind } from "@/lib/expressions/kind-options";
+import { specForKind, withProduction } from "@/lib/expressions/kind-options";
 import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
 import { RegionPicker } from "./region-picker";
@@ -106,6 +106,7 @@ export function withLabelChange(
   if (resolve?.(next).group === "whiskey") next = withStatementAge(prev, next, name);
   if (resolve) next = withDerivedDesignation(next, name, resolve(next).kind);
   // Pays d'Auge is distilled in a pot still and Domfrontais in a column still.
+  if (name === "mezcalProduction") next = withProduction(next, String(value));
   if (name === "calvadosAppellation") next = { ...next, ...(STILL_FOR_APPELLATION[String(value)] ? { stillType: STILL_FOR_APPELLATION[String(value)] } : {}) };
   if (name === "isBottledInBond" && value === true) next.proof = BOND_PROOF;
   return resolve ? withNameRules(prev, next, resolve) : next;
@@ -391,7 +392,7 @@ export function ExpressionFields({
               ? { ...field, help: appellationNote(values) ?? field.help }
             : entry && entryGreyed
               ? { ...field, help: "Follows Proof, as the name says Full Proof. Triple-click to edit anyway." }
-              : specForKind(field, kind)
+              : specForKind(field, kind, values)
         }
         idPrefix={idPrefix}
         value={field.name === "dairyStatus" ? effectiveDairy(kind, values.dairyStatus) : (values[field.name] ?? "")}

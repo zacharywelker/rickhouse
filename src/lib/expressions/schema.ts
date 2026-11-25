@@ -7,7 +7,7 @@
  */
 import { z } from "zod";
 import { ACQUISITIONS, BOTTLE_STATUSES, CHAR_LEVELS, RUM_BASES, SCOTCH_REGIONS, STILL_TYPES, TASTING_SOURCES } from "@/db/schema";
-import { AMARO_STYLES, BRANDY_GRADES, CALVADOS_APPELLATIONS, DAIRY_STATUSES, PEAT_STATUSES, TEQUILA_CLASSES } from "./spirit-details";
+import { AMARO_STYLES, BRANDY_GRADES, CALVADOS_APPELLATIONS, MEZCAL_FLAVOR_METHODS, MEZCAL_PRODUCTIONS, DAIRY_STATUSES, PEAT_STATUSES, TEQUILA_CLASSES } from "./spirit-details";
 import { GENEVER_CLASSES, GIN_STYLES } from "./gin-details";
 
 const trimmed = z.string().trim();
@@ -146,6 +146,8 @@ export const expressionSchema = z
     soleraLowYears: optionalDecimal(0, 100),
     soleraHighYears: optionalDecimal(0, 100),
     calvadosAppellation: optionalEnum(CALVADOS_APPELLATIONS),
+    mezcalProduction: optionalEnum(MEZCAL_PRODUCTIONS),
+    mezcalFlavorMethod: optionalEnum(MEZCAL_FLAVOR_METHODS),
     brandyVintageYear: optionalInt(1800, 2100),
     isMostoVerde: checkbox,
 

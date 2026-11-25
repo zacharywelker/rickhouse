@@ -32,6 +32,12 @@ describe("bottleFieldNotUsed", () => {
     expect(bottleFieldNotUsed(name, { ...label, group: "rum", kind: "other", isAged: true })).toBeNull();
   });
 
+  it("gives a mezcal Madurado en Vidrio no age", () => {
+    const glass: LabelFacts = { ...label, group: "agave", kind: "mezcal", tequilaClass: "madurado-en-vidrio" };
+    for (const name of ["ageYears", "ageMonths", "ageDays", "ageStatement"]) expect(bottleFieldNotUsed(name, glass), name).toBe("Madurado en Vidrio has no age");
+    expect(bottleFieldNotUsed("ageMonths", { ...glass, tequilaClass: "anejo" })).toBeNull();
+  });
+
   it("uses a vintage choice for mezcal, but not tequila", () => {
     expect(bottleFieldNotUsed("releaseId", { ...label, group: "agave", kind: "tequila" })).toBe("Only for mezcal");
     expect(bottleFieldNotUsed("releaseId", { ...label, group: "agave", kind: "mezcal" })).toBeNull();

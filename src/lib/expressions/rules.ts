@@ -150,6 +150,9 @@ export function hiddenFields(context: FormContext): Set<string> {
   if (!solera) { hidden.add("soleraLowYears"); hidden.add("soleraHighYears"); }
   else for (const name of ["ageYears", "ageMonths", "ageDays", "barrelFilledOn", "bottledOn"]) hidden.add(name);
   if (context.kind !== "calvados") hidden.add("calvadosAppellation");
+  if (context.kind !== "mezcal") { hidden.add("mezcalProduction"); hidden.add("mezcalFlavorMethod"); }
+  // A mezcal Madurado en Vidrio rests in glass: no barrel, no age typed.
+  if (context.kind === "mezcal" && context.values.tequilaClass === "madurado-en-vidrio") for (const name of ["ageYears", "ageMonths", "ageDays", "ageStatement", "barrelFilledOn", "bottledOn"]) hidden.add(name);
   if (!(context.kind === "armagnac" || context.kind === "calvados") || context.values.brandyGrade !== "Millésime") hidden.add("brandyVintageYear");
   if (context.kind !== "pisco") hidden.add("isMostoVerde");
   for (const [name, flag] of Object.entries(STRENGTH_FLAGS)) if (!flag.groups.includes(context.group)) hidden.add(name);
@@ -285,11 +288,13 @@ export const BARREL_TYPE_SUGGESTIONS: Readonly<Record<string, ReadonlyArray<stri
  * (not genever), and Corn and Light whiskey, keyed by slug. Not yet: mezcal of the class Madurado en Vidrio, which the app cannot say.
  */
 export function barrelTypeKind(context: { group: FieldGroup; kind: CategoryKind | null; slug?: string | null; ginAged: boolean }): boolean {
+  // (A mezcal Madurado en Vidrio has no barrel at all: `showsFinishes` takes the row away.)
   return context.group === "agave" || (context.kind === "gin" && context.ginAged) || (context.slug != null && context.slug in BARREL_TYPE_SUGGESTIONS);
 }
 
 /** The finishes list: aging matters to it too. */
-export const showsFinishes = (context: Pick<FormContext, "group" | "ginAged"> & { values?: Record<string, unknown> }) => !isUnaged(context);
+export const showsFinishes = (context: Pick<FormContext, "group" | "ginAged"> & { values?: Record<string, unknown> }) =>
+  !isUnaged(context) && !(context.group === "agave" && context.values?.tequilaClass === "madurado-en-vidrio");
 
 /** Rum records its base where other spirits record a mashbill. */
 export const baseReplacesMashbills = (group: FieldGroup) => group === "rum";

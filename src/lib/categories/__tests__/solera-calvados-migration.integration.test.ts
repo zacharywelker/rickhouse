@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 
-/** Migration 0057 (solera ages, Calvados appellation, vintage year, Mosto Verde). Opt-in, like the 0055 and 0056 tests. */
+/** Migrations 0057 (solera ages, Calvados appellation, vintage year, Mosto Verde) and 0058 (mezcal production and flavor). Opt-in, like the 0055 and 0056 tests. */
 const url = process.env.TOURNAMENT_TEST_DATABASE_URL;
 
 describe.skipIf(!url)("migration 0057", () => {
@@ -51,6 +51,17 @@ describe.skipIf(!url)("migration 0057", () => {
     await expect(sql`UPDATE expressions SET calvados_appellation = 'cider' WHERE id = ${label}`).rejects.toThrow(/appellation_check/);
     await expect(sql`UPDATE expressions SET brandy_vintage_year = 1200 WHERE id = ${label}`).rejects.toThrow(/vintage_year_check/);
   });
+  it("0058 takes a mezcal production and flavor method, and refuses others", async () => {
+    await sql`UPDATE expressions SET mezcal_production = 'ancestral', mezcal_flavor_method = 'abocado-con' WHERE id = ${label}`;
+    await expect(sql`UPDATE expressions SET mezcal_production = 'industrial' WHERE id = ${label}`).rejects.toThrow(/mezcal_production_check/);
+    await expect(sql`UPDATE expressions SET mezcal_flavor_method = 'infused' WHERE id = ${label}`).rejects.toThrow(/flavor_method_check/);
+    const readFile = (await import("node:fs")).readFileSync;
+    for (const statement of readFile("drizzle/rollback/0058_mezcal_production_flavor_down.sql", "utf8").split("--> statement-breakpoint").map((x) => x.trim()).filter(Boolean)) await sql.unsafe(statement);
+    const cols = await sql<{ column_name: string }[]>`SELECT column_name FROM information_schema.columns WHERE table_name = 'expressions' AND column_name LIKE 'mezcal_%'`;
+    expect(cols).toEqual([]);
+    for (const statement of readFile("drizzle/0058_mezcal_production_flavor.sql", "utf8").split("--> statement-breakpoint").map((x) => x.trim()).filter(Boolean)) await sql.unsafe(statement);
+  });
+
   it("rolls back cleanly", async () => {
     for (const statement of (await import("node:fs")).readFileSync("drizzle/rollback/0057_solera_calvados_pisco_down.sql", "utf8").split("--> statement-breakpoint").map((x) => x.trim()).filter(Boolean)) await sql.unsafe(statement);
     const cols = await sql<{ column_name: string }[]>`SELECT column_name FROM information_schema.columns WHERE table_name = 'expressions' AND column_name IN ('solera_low_years', 'is_mosto_verde')`;

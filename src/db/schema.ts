@@ -400,6 +400,10 @@ export const expressions = pgTable(
     // ---- Agave-specific
     agaveType: text("agave_type"),
     agaveRegion: text("agave_region"),
+    /** Mezcal only: mezcal, artesanal or ancestral. */
+    mezcalProduction: text("mezcal_production"),
+    /** Mezcal only: abocado-con or destilado-con (the flavors are ingredient links). */
+    mezcalFlavorMethod: text("mezcal_flavor_method"),
     cookingMethod: text("cooking_method"),
     extraction: text("extraction"),
     isAdditiveFree: boolean("is_additive_free"),
@@ -1242,7 +1246,7 @@ export type Acquisition = (typeof ACQUISITIONS)[number];
 export const BOTTLE_STATUSES = ["owned", "open", "killed", "sold", "traded", "wishlist", "sampled"] as const;
 export type BottleStatus = (typeof BOTTLE_STATUSES)[number];
 
-export const STILL_TYPES = ["pot", "column", "blend", "coffey", "3-chamber"] as const;
+export const STILL_TYPES = ["pot", "column", "blend", "coffey", "3-chamber", "clay-pot"] as const;
 /** Scotch whisky regions, as a label or a distillery names them. */
 export const SCOTCH_REGIONS = ["Speyside", "Highland", "Lowland", "Islay", "Campbeltown", "Islands"] as const;
 /** What the rum is made from. */

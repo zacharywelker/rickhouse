@@ -8,6 +8,28 @@ export type CalvadosAppellation = (typeof CALVADOS_APPELLATIONS)[number];
 export const CALVADOS_APPELLATION_LABELS: Record<CalvadosAppellation, string> = {
   "aoc-calvados": "AOC Calvados", "pays-d-auge": "Pays d'Auge", domfrontais: "Domfrontais",
 };
+/** Mezcal's production categories (design record, section 9). */
+export const MEZCAL_PRODUCTIONS = ["mezcal", "artesanal", "ancestral"] as const;
+export type MezcalProduction = (typeof MEZCAL_PRODUCTIONS)[number];
+export const MEZCAL_PRODUCTION_LABELS: Record<MezcalProduction, string> = { mezcal: "Mezcal", artesanal: "Mezcal Artesanal", ancestral: "Mezcal Ancestral" };
+export const MEZCAL_FLAVOR_METHODS = ["abocado-con", "destilado-con"] as const;
+export const MEZCAL_FLAVOR_METHOD_LABELS: Record<(typeof MEZCAL_FLAVOR_METHODS)[number], string> = { "abocado-con": "Abocado con (flavored after)", "destilado-con": "Destilado con (distilled with)" };
+
+export const COOKING_METHODS = ["brick oven", "autoclave", "pit"] as const;
+/** "hand mallet" is a hand method (mazo); "diffuser" is an industrial one. */
+export const EXTRACTION_METHODS = ["tahona", "roller mill", "hand mallet", "diffuser"] as const;
+
+/**
+ * What each production category allows (the designer's reading of the mezcal standard; **to be verified**, which is why it is
+ * one table). Ancestral: pit-oven cooking, a clay pot still, hand extraction. Artesanal: no column still and no diffuser.
+ * Plain mezcal: anything. `preselect` fills a field the owner has not chosen.
+ */
+export const PRODUCTION_RULES: Record<MezcalProduction, { cooking?: ReadonlyArray<string>; still?: ReadonlyArray<string>; extraction?: ReadonlyArray<string>; notStill?: ReadonlyArray<string>; notExtraction?: ReadonlyArray<string>; preselect?: { cookingMethod?: string; stillType?: string } }> = {
+  mezcal: {},
+  artesanal: { notStill: ["column"], notExtraction: ["diffuser"] },
+  ancestral: { cooking: ["pit"], still: ["clay-pot"], extraction: ["hand mallet"], preselect: { cookingMethod: "pit", stillType: "clay-pot" } },
+};
+
 export const PEAT_STATUSES = ["unknown", "unpeated", "peated"] as const;
 export const DAIRY_STATUSES = ["unknown", "dairy", "non-dairy"] as const;
 /** A liqueur is dairy or it is not: a Cream liqueur starts as dairy, every other as non-dairy, and "unknown" is never offered or kept. */
@@ -22,11 +44,11 @@ export function whiskeyCategoryGrains(slug: string): string | null {
   return null;
 }
 
-export const TEQUILA_CLASSES = ["blanco", "joven", "reposado", "anejo", "extra-anejo", "cristalino"] as const;
+export const TEQUILA_CLASSES = ["blanco", "joven", "reposado", "anejo", "extra-anejo", "cristalino", "madurado-en-vidrio"] as const;
 export type TequilaClass = (typeof TEQUILA_CLASSES)[number];
 export const TEQUILA_CLASS_LABELS: Record<TequilaClass, string> = {
   blanco: "Blanco", joven: "Joven", reposado: "Reposado", anejo: "Añejo",
-  "extra-anejo": "Extra Añejo", cristalino: "Cristalino",
+  "extra-anejo": "Extra Añejo", cristalino: "Cristalino", "madurado-en-vidrio": "Madurado en Vidrio",
 };
 export const TEQUILA_CLASS_GUIDANCE: Partial<Record<TequilaClass, string>> = {
   blanco: "0–2 months", reposado: "2 months–1 year", anejo: "1–3 years",
@@ -106,7 +128,7 @@ export function agaveClassFromYears(kind: CategoryKind | null, years: number): T
 }
 
 /** The classes whose typing is manual: an age never moves a Joven or a Cristalino. */
-export const MANUAL_AGAVE_CLASSES: ReadonlyArray<string> = ["joven", "cristalino"];
+export const MANUAL_AGAVE_CLASSES: ReadonlyArray<string> = ["joven", "cristalino", "madurado-en-vidrio"];
 /** Blanco and Reposado are legally under a year: they take months and days, never years. */
 export const UNDER_A_YEAR_CLASSES: ReadonlyArray<string> = ["blanco", "reposado"];
 
