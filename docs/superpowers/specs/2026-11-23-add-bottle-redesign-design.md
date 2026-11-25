@@ -71,7 +71,7 @@ The bottle section:
 - **Which one:** Vintage choice (only when the label has vintages), Batch (Lot # for agave), Year, Sealed / Opened. Sealed / Opened replaces the status dropdown, the fill dial and the Opened checkbox at add time.
 - The bottle's own proof, age and size block is **hidden on a new label** (the bottle inherits). "This bottle differs from the label" opens it.
 
-Still type (new, every spirit): an optional **Still** link under More with the options **Pot, Column, Coffey (a kind of column still), 3-chamber**. The old "blend" value is dropped. Where a rule fixes the still, it stays visible as a locked chip instead (Pays d'Auge is pot, Domfrontais is column, Rhum Agricole with a Martinique distillery pre-selects column).
+Still type (new, every spirit): an optional **Still** link under More with the options **Pot, Column, Coffey (a kind of column still), 3-chamber, Blend**. **Blend stays** (owner, 2026-11-24): it was first dropped, then kept, so no existing value changes. Where a rule fixes the still, it stays visible as a locked chip instead (Pays d'Auge is pot, Domfrontais is column, Rhum Agricole with a Martinique distillery pre-selects column).
 
 Barrel type: tequila, mezcal and aged gin show an optional **Barrel type** chip in Age. It is the **Finish data renamed on the page**, with the same options, and the Finish row is hidden for those spirits. Corn Whiskey and Light Whiskey get a Barrel type with the options **Uncharred** and **Used**.
 
@@ -277,7 +277,7 @@ Scope: getting a photo onto a label or a bottle **from a file or a link**. Remov
 4. **To verify later:** the mezcal production rules, the Armagnac minimum ages, and Cristalino's 1-year floor (not used, since nothing is prefilled).
 5. **Mosto Verde** is a toggle, not a grape. Confirm.
 6. Should **Cognac** also offer Napoléon, Extra and Hors d'Âge?
-7. The still enum drops "blend": what happens to existing values?
+7. **Decided (2026-11-24): the still enum keeps "blend".** Nothing happens to existing values.
 8. **Colours** for the new subcategories are placeholders.
 9. **Not yet reviewed in detail:** Irish, Canadian, Japanese, International and Flavored whisky, Vodka, Absinthe, Akvavit, Shochu, Amaro, Apple brandy, Eau de Vie.
 10. Two data-model asks are parked as separate work: **several cooperages** per label (a blend can come from three) and **a per-distillery age** (a blend of 5- and 6-year components).
@@ -288,6 +288,8 @@ Scope: getting a photo onto a label or a bottle **from a file or a link**. Remov
 15. **Decided, built (#405): the country stays free text with automatic matching.** `normalizeCountry` (`src/lib/places.ts`) folds the usual spellings to one name (us, U.S.A., United States, United States of America, America → USA; mexico, México, MX → Mexico; uk, Great Britain → United Kingdom; about 55 countries in all). An unlisted country is kept as typed, except that one typed in a single case is capitalised by word. Open: existing rows are not rewritten, and a store typed again with the normalised country makes a second store row next to one saved earlier with a different spelling (`createStore` and the `stores_owner_name_place_unique` index compare the country exactly); a data migration would fix it but could collide on that index.
 
 ## 13. Not yet designed
+
+*Update 2026-11-24: phase 4A is built but NOT yet merged: the rules and field changes of sections 4, 7 and 8 are in the stacked PRs #413 to #415, where the matrix gap list is empty; main has none of it until they merge. Still to build: the rules of section 9 that are new behaviour (4B), the layout (4C) and the page (4D).*
 
 Phase 3 (the tree, the kinds and the matrix as data) is built (section 5). Phase 4 is planned in `docs/superpowers/plans/2026-11-24-add-bottle-redesign-phase-4-overview.md`. After the forms: the **Configuration** and **Labels** pages (each has its own GitHub issue, #393 and #394). The popups (add mashbill, distillery and finish) are designed (section 16) and built; the "Distillery not disclosed" popup is the one popup left (open question 12). The photo flow is done as a design (section 11); the bottles and labels pages that show photos are redesigned later, keeping the behaviour in section 11. The iOS photo flow follows the server as separate work. An accordion with a live bottle card (mockup option B) is parked for the **bottle and label display pages**.
 

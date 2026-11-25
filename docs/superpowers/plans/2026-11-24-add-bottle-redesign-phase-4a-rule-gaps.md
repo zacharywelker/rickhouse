@@ -10,16 +10,16 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-23-add-bottle-redesign-design.md` (sections 4, 7, 8, 9, 12) and `2026-11-24-add-bottle-redesign-phase-4-overview.md`.
 
-## Decisions (my recommendation; the owner confirms before Tasks 4, 5 and 6)
+## Decisions (taken by the owner, 2026-11-24)
 
-1. **`blend` still type:** existing rows with it become empty (the record drops the value; guessing "column" would invent data).
+1. **`blend` stays a still type.** The options are Pot, Column, Coffey, 3-chamber and Blend, so `STILL_TYPES` does not change and Task 4 needs no migration.
 2. **Existing aged rum:** a rum label with any age value, age statement, NAS, distilled or bottled date, or finish has the new Aged toggle switched **on**, so nothing it shows today disappears. Every other rum label starts off.
 3. **Barrel type for Corn and Light whiskey:** Uncharred and Used are ordinary finishes the owner creates on first use (offered as one-click suggestions in the Barrel type chip); no new column.
 
 ## Global Constraints
 
 - A retired field leaves the label form, the bottle form, the bulk editor's columns and the detail pages; its column, the label-patch and lookups API keys and the iOS models stay (a `.strict()` API body must not start rejecting a key the app still sends).
-- Hand-written migrations with the next numbers (`0056`, `0057`) and a `when` later than the last journal entry; a rollback script for each that rewrites data; opt-in database tests that create and drop their own database.
+- Hand-written migrations with the next number (`0056`, the rum backfill; `0055` is the category tree) and a `when` later than the last journal entry; a rollback script for each that rewrites data; opt-in database tests that create and drop their own database.
 - Every task deletes its `KNOWN_GAPS` entries in the same commit as the rule change and leaves `npx vitest run src/lib/expressions/__tests__/field-matrix.test.ts` green.
 - `npm run lint`, `npx tsc --noEmit` and the whole vitest suite before each push; e2e only against a throwaway database whose name the spec checks **before** `resetDatabase()` (`assertThrowawayDatabase()`).
 - Codex gets pure functions and vitest only, with its shell started inside its worktree, and its work is committed from the main session; Haiku gets mechanical removals; a Sonnet review follows each task; no Opus.
@@ -86,27 +86,27 @@ Clears: the "Single barrel … Age statement" entries for vodka, amaro and lique
 - [ ] **Step 3: Check the bulk editor** for a vodka, an amaro and a liqueur row (Review Focus 4) and a rum row; write down what greys out now.
 - [ ] **Step 4: Expand** `BOTTLE_FUNCTION_FIELDS`, delete the gap entries, commit `refactor: the bottle form's rules live in bottleFieldNotUsed`.
 
-### Task 4: The Still link for every spirit (migration 0056)
+### Task 4: The Still link for every spirit
 
-Clears: "Still type" (every group except rum).
+Clears: "Still type" (every group except rum). No migration: `STILL_TYPES` keeps `blend`.
 
 **Files:**
-- Create: `drizzle/0056_still_type_no_blend.sql`, `drizzle/rollback/0056_still_type_no_blend_down.sql`, an opt-in database test
-- Modify: `drizzle/meta/_journal.json`, `src/db/schema.ts` (`STILL_TYPES` loses `blend`), `src/lib/expressions/fields.ts` (move `stillType` out of "Rum detail" into the Identity or "Strength and age" section's More line for every group), `expression-form.tsx`, `field-matrix-gaps.ts`
+- Modify: `src/lib/expressions/fields.ts` (move `stillType` out of "Rum detail" into a More line available to every group), `src/components/expressions/expression-form.tsx`, `src/lib/expressions/field-matrix-gaps.ts`
+- Test: `src/lib/expressions/__tests__/fields.test.ts`, an e2e spec for the link
 
-**Interfaces:** `STILL_TYPES = ["pot", "column", "coffey", "3-chamber"] as const`.
+**Interfaces:** `STILL_TYPES = ["pot", "column", "blend", "coffey", "3-chamber"]` as today.
 
-- [ ] **Step 1: Failing tests:** `writableFields` contains `stillType` for all nine groups; the schema accepts `pot`, `column`, `coffey`, `3-chamber` and rejects `blend`; the opt-in database test builds rows with `still_type` of `blend`, `pot` and null, runs `0056`, and finds `blend` rows null and the others unchanged; the rollback test restores nothing it cannot (the cleared values are gone: say so in the script's header).
-- [ ] **Step 2: Implement** the migration (`UPDATE expressions SET still_type = NULL WHERE still_type = 'blend'`), the type change and the move; the control is an optional "Still" link under More (Pot, Column, Coffey, 3-chamber), not a field always drawn.
-- [ ] **Step 3: Verify:** the suite, the opt-in test, and a rum, bourbon and tequila form in the browser. Check the phone API never sends `blend` (grep `ios`; none expected).
-- [ ] **Step 4: Commit** `feat: the Still link for every spirit; drop the blend value (migration 0056)`.
+- [ ] **Step 1: Failing tests:** `writableFields` contains `stillType` for all nine groups; the label schema accepts each of the five values and rejects another; a full-form save of a bourbon label with a still type keeps it.
+- [ ] **Step 2: Implement** the move; the control is an optional "Still" link under More offering the five choices, not a field always drawn. Where a rule fixes the still (Pays d'Auge, Domfrontais, Rhum Agricole with a Martinique distillery; phase 4B) it will show as a locked chip instead.
+- [ ] **Step 3: Verify:** the suite, and a rum, bourbon and tequila form in the browser; an existing rum label with a still type still shows it.
+- [ ] **Step 4: Commit** `feat: the Still link for every spirit`.
 
-### Task 5: The rum Aged toggle (migration 0057)
+### Task 5: The rum Aged toggle (migration 0056)
 
 Clears: "Aged toggle" (rum). Also unblocks the "Cask strength" rum condition in `UNDECIDABLE`.
 
 **Files:**
-- Create: `drizzle/0057_rum_aged_backfill.sql`, its rollback, an opt-in database test
+- Create: `drizzle/0056_rum_aged_backfill.sql`, its rollback, an opt-in database test
 - Modify: `src/lib/expressions/rules.ts` (`isUnaged`, `hiddenFields`, `showsFinishes`), `src/lib/expressions/fields.ts` (the `isAged` field for rum), `expression-form.tsx` (draw the toggle where amaro and liqueur draw it), `src/lib/expressions/bottle-applicability.ts` (a rum bottle follows its label's Aged, as gin does), `bottle-form.tsx`, `src/lib/expressions/save.ts` (clear the aging fields of an unaged rum, as for gin), `field-matrix.ts` (the rum cells become checkable), `field-matrix-gaps.ts`
 
 **Interfaces:** `isUnaged(context)` is true for `rum` when `values.isAged !== true`. `LabelFacts` gains `isAged: boolean` (replacing `isAgedGin` where the rule is the same).
@@ -115,7 +115,7 @@ Clears: "Aged toggle" (rum). Also unblocks the "Cask strength" rum condition in 
 - [ ] **Step 2: Migration test (opt-in):** rum labels with an age, a statement, NAS, a date or a finish get `is_aged = true`; a bare rum label stays false; labels of other groups are untouched; the migration is idempotent.
 - [ ] **Step 3: Implement,** then look at an aged and an unaged rum label and bottle in the browser.
 - [ ] **Step 4: Phone check:** old iOS builds do not send `isAged` for rum; confirm the API default leaves an existing aged label aged (the backfill) and that a label created on the phone without the key is unaged (state this in the PR).
-- [ ] **Step 5: Commit** `feat: the rum Aged toggle (migration 0057)`.
+- [ ] **Step 5: Commit** `feat: the rum Aged toggle (migration 0056)`.
 
 ### Task 6: Barrel type
 
@@ -148,3 +148,12 @@ Codex (pure functions, vitest only): the rule changes and tests of Task 2 and th
 - **Not verified while planning:** that no old iOS build sends `blend` or relies on rum having no `isAged` (Tasks 4 and 5 check), how many callers build a `FormContext` (Task 2: the compiler finds them), and which bulk-editor columns read each retired field (Task 1 Step 1).
 - **Not in this plan:** new behaviour (Solera low and high age, Cachaça, Agricole, Spiced rum, grapes, mezcal production), the layout and the page itself; they are 4B to 4E in the overview.
 - **Proportion:** each task gives the files, the signatures, the test names and the values the spec fixes; bodies are left to the implementer.
+
+## As built (2026-11-24), pending merge
+
+**Status: built, not yet merged.** Until #413, #414 and #415 are merged to main, none of this is in the code on main (the rule changes, the retired fields and migration 0056 are all in those PRs). Update this line when they merge. Phase 4A is built as three stacked PRs: #413 (wave A: rules by kind, the bottle rules in `bottleFieldNotUsed`), #414 (wave B: retired fields, Still for every spirit) and #415 (wave C: rum Aged toggle, Barrel type). `KNOWN_GAPS` is empty on the PR branches.
+
+- **Retired fields** leave the forms, the bulk editor and the detail pages; the columns stay dormant. A web save of a bottle strips `bottleCount` and `brandyGrade` when the form does not post them, so an existing value survives. The phone keeps writing `isStillProof` for agave.
+- **Rum Aged toggle** reuses `is_aged` (amaro and liqueur's column). Migration 0056 backfills it; a phone edit that sends an age to a rum label marks it aged. The bottle rule reads `LabelFacts.isAged`.
+- **Barrel type** is the finishes picker relabelled (one value, no order or months); `barrelTypeKind` decides it (agave, aged `gin`, slugs `corn-whiskey` and `light-whiskey`). Uncharred and Used are created as finishes on first click. Mezcal Madurado en Vidrio cannot be told yet (the class arrives in 4B), so every agave label shows it.
+- **Left open:** rum tropical and continental years still show for an unaged rum; the retired columns are to be dropped in a later migration; the matrix check models Barrel type through a `finishLinks` pseudo-field.

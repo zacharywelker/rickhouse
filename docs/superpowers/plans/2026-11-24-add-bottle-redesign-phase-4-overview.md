@@ -14,7 +14,7 @@ This is a roadmap, not a task list. Phase 4 is five pieces that can each be buil
 
 | | Piece | What it is | Size | Risk | Depends on |
 |---|---|---|---|---|---|
-| **4A** | Rule gaps | Make today's forms follow the matrix: hide the retired fields, cask strength, NAS, cooperage and peat rules, the bottle rules in one function, the Still link for every spirit, the rum Aged toggle, Barrel type | 6 small PRs | Medium: two data migrations (still type, rum aged) | Phase 3 |
+| **4A** | Rule gaps | Make today's forms follow the matrix: hide the retired fields, cask strength, NAS, cooperage and peat rules, the bottle rules in one function, the Still link for every spirit, the rum Aged toggle, Barrel type | 6 small PRs | Medium: one data migration (the rum Aged backfill) | Phase 3 |
 | **4B** | New per-spirit behaviour | The rules in section 9 that are not just show or hide: Solera low and high age in years, Cachaça / Agricole / Spiced rum, Tennessee, Cognac, Armagnac, Calvados and Pisco derived values, mezcal production and class, Chilean pisco class from ABV, Acholado | Large, but each spirit is separate | Medium: some need schema columns | 4A |
 | **4C** | The data-sheet layout | The visual language of section 3: rows with small-caps labels, property chips, dashed "+" chips for optional fields, toggle chips, "More" lines, one photo slot (the slot itself is phase 5), tables with a Share column | Large | Medium: touches every label and bottle form | 4A |
 | **4D** | One add page | "1 The label" then "2 The bottle in your hand" on one page, the search-first start, the bottle section (Bought, Which one, Sealed / Opened), inherited bottle fields hidden on a new label | Large | High: it replaces the page you use most | 4A, 4C |
@@ -24,10 +24,10 @@ This is a roadmap, not a task list. Phase 4 is five pieces that can each be buil
 
 ## Things to settle before planning each piece
 
-**Before 4A (needed now; my recommendation in the 4A plan):**
-1. The still type's `blend` value is dropped. Existing rows with it become empty (recommended), or are mapped to `column`?
-2. Existing aged rum labels get the new Aged toggle switched on (recommended: any label with an age value, a statement or a finish), or all start off?
-3. Barrel type for Corn and Light whiskey: the options **Uncharred** and **Used** are two finishes (recommended: seed them as ordinary finishes so the existing picker and pairing code keep working), or a separate field?
+**Before 4A (decided by the owner, 2026-11-24):**
+1. `blend` stays a still type (Pot, Column, Coffey, 3-chamber, Blend), so no migration for it.
+2. Existing aged rum labels get the new Aged toggle switched on (any label with an age value, a statement, NAS, a date or a finish).
+3. Barrel type for Corn and Light whiskey: **Uncharred** and **Used** are ordinary finishes created on first use, so the existing picker and pairing code keep working.
 
 **Before 4B:** verify what already exists. Several section 9 rules were built in October (Calvados fruit table, Pisco grapes, brandy designations from age, tequila class from age; see the October per-spirit specs). 4B's first task is an audit that turns section 9 into a checklist marked built, partly built or not built, and only the last two become tasks. The solera range (`solera_range` is a text column today) and the sugar-cane rum rules need schema work.
 
