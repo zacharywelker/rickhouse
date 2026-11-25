@@ -562,10 +562,12 @@ export async function categoryKindForExpression(expressionId: number): Promise<C
   return row ? (await categoryKindsById())[row.categoryId] ?? "other" : "other";
 }
 
-export async function bottleSpiritForExpression(expressionId: number): Promise<{ kind: CategoryKind; ginAged: boolean }> {
+export async function bottleSpiritForExpression(expressionId: number): Promise<{ kind: CategoryKind; ginAged: boolean; group: FieldGroup }> {
   const [row] = await db.select({ categoryId: expressions.categoryId, isAgedGin: expressions.isAgedGin }).from(expressions)
     .where(eq(expressions.id, expressionId)).limit(1);
-  return row ? { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin } : { kind: "other", ginAged: false };
+  return row
+    ? { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin, group: (await categoryFieldGroups())[row.categoryId] ?? "other" }
+    : { kind: "other", ginAged: false, group: "other" };
 }
 
 export async function fieldGroupForCategory(categoryId: number, query: Pick<typeof db, "select"> = db): Promise<FieldGroup> {

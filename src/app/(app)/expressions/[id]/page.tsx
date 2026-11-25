@@ -34,7 +34,7 @@ import { isGinKind } from "@/lib/expressions/gin-details";
 import { isAgaveKind, spiritAgeLabel, whiskeyCategoryGrains } from "@/lib/expressions/spirit-details";
 import { whiskeyAge } from "@/lib/expressions/whiskey-age";
 import { provenanceOf, provenanceTags, type ProvenanceInput } from "@/lib/provenance";
-import { STRENGTH_TIER_LABELS, proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
+import { STRENGTH_TIER_LABELS, peatKindFor, proofSpread, spreadLabel, strengthTier } from "@/lib/expressions/rules";
 import { cn, formatDate, formatMoney, formatNumeric, humanise } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -235,12 +235,12 @@ export default async function LabelPage({
             {group === "amaro" || group === "liqueur" ? <Spec label="Country" value={e.originCountry} /> : null}
             {group === "amaro" || group === "liqueur" ? <Spec label="Region" value={e.originRegion} /> : null}
             {group === "liqueur" && ["liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? <Spec label="Dairy" value={e.dairyStatus === "unknown" ? null : e.dairyStatus} /> : null}
-            {(kind === "irish" || kind === "scotch") && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
+            {peatKindFor({ kind, slug: row.category.slug }) && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
             {group === "whiskey" && e.isNonChillFiltered ? <Spec label="Filtration" value="Non-chill filtered" /> : null}
             {(kind === "canadian" || kind === "irish") && e.isAdditiveFree ? <Spec label="Additives" value="Additive free" /> : null}
             <Spec label="Size" value={formatSize(e.sizeMl)} />
             <Spec label="UPC" value={e.upc} />
-            {group === "whiskey" && kind !== "scotch" ? <Spec label="Cooperage" value={row.cooperage} /> : null}
+            {group === "whiskey" ? <Spec label="Cooperage" value={row.cooperage} /> : null}
             {kind !== "scotch" ? <Spec label="Entry Proof" value={e.entryProof ? formatNumeric(e.entryProof) : null} /> : null}
             {group !== "whiskey" ? <Spec label="Chill Filtered" value={yesNo(e.isChillFiltered)} /> : null}
             {group !== "whiskey" ? <Spec label="Colour Added" value={yesNo(e.colorAdded)} /> : null}

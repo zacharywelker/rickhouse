@@ -65,7 +65,7 @@ export function spiritAgeLabel(kind: CategoryKind | null, tequilaClass: string |
 }
 
 /** A bottle stores only its own designation; null continues to inherit from its label. */
-export function withBottleSpiritFacts<T extends Record<string, unknown>>(facts: T, kind: CategoryKind, ginAged = false): T {
+export function withBottleSpiritFacts<T extends Record<string, unknown>>(facts: T, kind: CategoryKind, ginAged = false, group: string = kind): T {
   const out: Record<string, unknown> = { ...facts };
   if (kind === "tequila") {
     if ("tequilaClass" in out) {
@@ -104,7 +104,7 @@ export function withBottleSpiritFacts<T extends Record<string, unknown>>(facts: 
     for (const name of ["ageYears", "ageMonths", "ageDays", "ageStatement"]) delete out[name];
     delete out.ageYearsSource;
   }
-  if (hidesWarehouse(kind, kind)) {
+  if (hidesWarehouse(group, kind)) {
     delete out.warehouse;
     delete out.rickFloor;
   }

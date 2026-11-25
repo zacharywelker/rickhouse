@@ -99,7 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .insert(bottles)
       .values({
         ...settleNewBottleOpen(
-          { ...withBottleSpiritFacts(data, spirit.kind, spirit.ginAged), isOpen: state.data.isOpen, fillPct: state.data.fillPct, dateOpened: state.data.dateOpened },
+          { ...withBottleSpiritFacts(data, spirit.kind, spirit.ginAged, spirit.group), isOpen: state.data.isOpen, fillPct: state.data.fillPct, dateOpened: state.data.dateOpened },
           new Date().toISOString().slice(0, 10),
         ),
         ownerId: user.id,

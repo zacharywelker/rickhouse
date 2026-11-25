@@ -1,5 +1,5 @@
 import { ingredientHref } from "@/lib/expressions/ingredient-rules";
-import { STRENGTH_TIER_LABELS, strengthTier } from "@/lib/expressions/rules";
+import { STRENGTH_TIER_LABELS, peatKindFor, strengthTier } from "@/lib/expressions/rules";
 import { formatSize } from "@/lib/expressions/sizes";
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -262,7 +262,7 @@ export default async function BottlePage({
             {group === "amaro" || group === "liqueur" ? <Spec label="Country" value={e.originCountry} /> : null}
             {group === "amaro" || group === "liqueur" ? <Spec label="Region" value={e.originRegion} /> : null}
             {group === "liqueur" && ["liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind) ? <Spec label="Dairy" value={e.dairyStatus === "unknown" ? null : e.dairyStatus} /> : null}
-            {(kind === "irish" || kind === "scotch") && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
+            {peatKindFor({ kind, slug: row.category.slug }) && e.peatStatus !== "unknown" ? <Spec label="Peat" value={e.peatStatus} /> : null}
             <Spec label="Size" value={formatSize(row.bottle.sizeMl ?? e.sizeMl)} />
             <Spec label="MSRP" value={msrp ? formatMoney(msrp, currency) : null} />
             <Spec
@@ -316,7 +316,7 @@ export default async function BottlePage({
               }
             /> : null}
             <Spec label="UPC" value={e.upc} />
-            {group === "whiskey" && kind !== "scotch" ? <Spec label="Cooperage" value={row.cooperage} /> : null}
+            {group === "whiskey" ? <Spec label="Cooperage" value={row.cooperage} /> : null}
           </dl>
           {group !== "whiskey" ? <CharLevelSpec value={e.charLevel} /> : null}
           <StampDesignations stamps={stamps} />

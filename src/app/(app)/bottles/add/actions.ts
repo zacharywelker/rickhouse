@@ -121,12 +121,13 @@ export async function catalogBottleAction(input: CatalogInput): Promise<CatalogR
 
   // A release can only be one of a chosen label's; a new label has none yet.
   const bottleSpirit = chosenId === null
-    ? { kind: (await categoryKindsById())[label?.success ? label.data.categoryId : -1] ?? "other", ginAged: label?.success ? label.data.isAgedGin : false }
+    ? { kind: (await categoryKindsById())[label?.success ? label.data.categoryId : -1] ?? "other", ginAged: label?.success ? label.data.isAgedGin : false, group: (await categoryFieldGroups())[label?.success ? label.data.categoryId : -1] ?? "other" }
     : await bottleSpiritForExpression(chosenId);
   const bottleData = withBottleSpiritFacts(
     chosenId === null ? { ...bottle.data, releaseId: null } : await settleLabelChoices({ ...bottle.data }),
     bottleSpirit.kind,
     bottleSpirit.ginAged,
+    bottleSpirit.group,
   );
 
   // A new label's vintages are written with it, so the bottle can be one of them. The form leaves the section out for

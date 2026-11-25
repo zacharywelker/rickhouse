@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { bottleFieldNotUsed, type LabelFacts } from "../bottle-applicability";
 import type { CategoryKind } from "../rules";
-import { hidesWarehouse } from "../spirit-details";
+import { hidesWarehouse, withBottleSpiritFacts } from "../spirit-details";
 
 const label: LabelFacts = { group: "whiskey", kind: "american", isAgedGin: false, tequilaClass: null };
 const unusedFields = ["batch", "releaseYear", "releaseId", "isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "barrelFilledOn", "bottledOn", "ageYears", "ageMonths", "ageDays", "ageStatement"];
@@ -68,5 +68,18 @@ describe("hidesWarehouse", () => {
 
   it.each(["canadian", "irish", "scotch"] as const)("still hides warehouse fields for %s", (kind) => {
     expect(hidesWarehouse("whiskey", kind)).toBe(true);
+  });
+});
+
+describe("withBottleSpiritFacts and the warehouse", () => {
+  it("leaves warehouse and rick out for an absinthe, akvavit or shochu bottle, so a save cannot clear them", () => {
+    for (const kind of ["absinthe", "akvavit", "shochu"] as const) {
+      const out = withBottleSpiritFacts({ warehouse: null, rickFloor: null, notes: "x" }, kind, false, "other");
+      expect("warehouse" in out, kind).toBe(false);
+      expect("rickFloor" in out, kind).toBe(false);
+    }
+  });
+  it("keeps them for an American whiskey", () => {
+    expect(withBottleSpiritFacts({ warehouse: "A" }, "american", false, "whiskey")).toHaveProperty("warehouse", "A");
   });
 });

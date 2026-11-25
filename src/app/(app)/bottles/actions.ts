@@ -55,7 +55,7 @@ export async function saveBottleAction(
   const parsed = bottleSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return invalid(parsed.error.issues);
   const spirit = await bottleSpiritForExpression(parsed.data.expressionId);
-  const input = withBottleSpiritFacts(await settleLabelChoices(parsed.data), spirit.kind, spirit.ginAged);
+  const input = withBottleSpiritFacts(await settleLabelChoices(parsed.data), spirit.kind, spirit.ginAged, spirit.group);
   const duplicateRaw = formData.get("duplicateSourceId");
   const duplicateId = typeof duplicateRaw === "string" && /^\d+$/.test(duplicateRaw) ? Number(duplicateRaw) : null;
   if (duplicateRaw !== null && duplicateId === null) return { ok: false, error: "That source bottle is not available." };
