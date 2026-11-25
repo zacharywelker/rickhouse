@@ -2,7 +2,7 @@ import { CHAR_LEVELS, CHAR_LEVEL_LABELS, FIELD_GROUPS, STILL_TYPES, type FieldGr
 import type { FieldSpec } from "@/lib/admin/types";
 import { AGING_FIELDS, STRENGTH_FLAGS } from "./rules";
 import { AMARO_STYLES, BRANDY_GRADES, DAIRY_STATUSES, PEAT_STATUSES, TEQUILA_CLASSES, TEQUILA_CLASS_GUIDANCE, TEQUILA_CLASS_LABELS } from "./spirit-details";
-import { GIN_STYLES } from "./gin-details";
+import { GENEVER_CLASSES, GIN_STYLES } from "./gin-details";
 import { SIZE_PRESETS } from "./sizes";
 
 /**
@@ -214,6 +214,7 @@ export const EXPRESSION_SECTIONS: ReadonlyArray<FormSection> = [
       { kind: "select", name: "ginStyle", label: "Style", options: [
         { value: "", label: "Not specified" },
         ...GIN_STYLES.map((value) => ({ value, label: value })),
+        ...GENEVER_CLASSES.map((value) => ({ value, label: value })),
       ], span: "half" },
     ],
   },

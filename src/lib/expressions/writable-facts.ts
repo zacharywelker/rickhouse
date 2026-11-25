@@ -11,15 +11,16 @@ import { BRANDY_MINIMUM_YEARS, isAgaveKind, isFrenchBrandy } from "./spirit-deta
  */
 export function writableLabelFacts(fieldGroup: FieldGroup | "other", kind: CategoryKind): Set<string> {
   const allowed = writableFields(fieldGroup);
-  if (kind !== "tequila") allowed.delete("tequilaClass");
+  if (!isAgaveKind(kind)) allowed.delete("tequilaClass");
   if (!BRANDY_MINIMUM_YEARS[kind]) allowed.delete("brandyGrade");
-  if (kind !== "gin") allowed.delete("ginStyle");
+  if (!isGinKind(kind)) allowed.delete("ginStyle");
   // Aged gin is a gin's own flag, and a gin has no barrel dates or age statement.
   if (!isGinKind(kind)) allowed.delete("isAgedGin");
   if (isGinKind(kind)) {
     allowed.delete("barrelFilledOn");
     allowed.delete("bottledOn");
     allowed.delete("ageStatement");
+    allowed.delete("ageDays");
   }
   if (isAgaveKind(kind)) {
     allowed.delete("barrelFilledOn");

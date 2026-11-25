@@ -60,9 +60,9 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Still type", "stillType", "A A A A A A A A A"),
   row("Dairy", "dairyStatus", "N N N N N N N A N", "Under More for every liqueur, ticked by default on Cream (section 9)."),
   row("Amaro style", "amaroStyle", "N N N N N N A N N"),
-  row("Tequila class", "tequilaClass", "N N C N N N N N N"),
+  row("Tequila class", "tequilaClass", "N N C N N N N N N", "Mezcal has a class too (without Extra Añejo and Cristalino)."),
   row("Brandy designation", "brandyGrade", "N N N C N N N N N"),
-  row("Gin style", "ginStyle", "N N N N C N N N N"),
+  row("Gin style", "ginStyle", "N N N N C N N N N", "A genever's class (Jonge, Oude, Korenwijn) is kept in the same field."),
   row("Marque", "marque", "N A N N N N N N N"),
   row("Esters", "esterGl", "N A N N N N N N N"),
   row("Added sugar", "sugarGPerL", "N C N N N N N N N"),
@@ -135,9 +135,9 @@ export const LABEL_CONDITIONS: ReadonlyArray<Condition> = [
   { row: "Peat", group: "whiskey", shown: ["irish", "scotch", "japanese", "international"], hidden: ["canadian", "flavored-whisky"] },
   { row: "NAS", group: "brandy", shown: ["pisco", "apple", "eau-de-vie"], hidden: ["cognac", "armagnac", "calvados"] },
   { row: "Age statement", group: "agave", shown: ["mezcal"], hidden: ["tequila"] },
-  { row: "Tequila class", group: "agave", shown: ["tequila"], hidden: ["mezcal"] },
+  { row: "Tequila class", group: "agave", shown: ["tequila", "mezcal"], hidden: [] },
   { row: "Brandy designation", group: "brandy", shown: ["cognac", "armagnac", "calvados"], hidden: ["pisco", "apple", "eau-de-vie"] },
-  { row: "Gin style", group: "gin", shown: ["gin"], hidden: ["genever"] },
+  { row: "Gin style", group: "gin", shown: ["gin", "genever"], hidden: [] },
 ];
 
 /** Conditions the check cannot decide from the kind alone, and what they wait on. (Peat for American Single Malt is decided by the category slug and pinned in rules.test.ts, not here.) */

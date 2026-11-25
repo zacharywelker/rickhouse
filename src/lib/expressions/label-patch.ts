@@ -13,7 +13,7 @@ import { FinishPairsInvalid } from "./finish-pairs";
 import { replaceIngredients, replaceLinks, writableValues, type Links } from "./save";
 import type { IngredientChoice } from "./spirit-details";
 import { expressionSchema } from "./schema";
-import { BRANDY_MINIMUM_YEARS, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "./spirit-details";
+import { BRANDY_MINIMUM_YEARS, UNDER_A_YEAR_CLASSES, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "./spirit-details";
 import { isGinKind } from "./gin-details";
 import { writableLabelFacts } from "./writable-facts";
 
@@ -173,18 +173,18 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       if (isAgaveKind(kind)) {
         delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.isNas;
       }
-      if (kind !== "tequila") delete columns.tequilaClass;
+      if (!isAgaveKind(kind)) delete columns.tequilaClass;
       if (!BRANDY_MINIMUM_YEARS[kind]) delete columns.brandyGrade;
-      if (kind !== "gin") delete columns.ginStyle;
+      if (!isGinKind(kind)) delete columns.ginStyle;
       if (!isGinKind(kind)) delete columns.isAgedGin;
       if (isGinKind(kind)) {
-        delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.ageStatement;
+        delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.ageStatement; delete columns.ageDays;
       }
       if (kind === "tequila" && facts.tequilaClass !== undefined) {
         columns.ageStatement = facts.tequilaClass ? TEQUILA_CLASS_LABELS[facts.tequilaClass as TequilaClass] : null;
         columns.isNas = false;
-        if (facts.tequilaClass === "blanco") { columns.ageYears = null; columns.ageMonths = null; columns.ageDays = null; }
       }
+      if (isAgaveKind(kind) && UNDER_A_YEAR_CLASSES.includes(facts.tequilaClass ?? "")) columns.ageYears = null;
       if (BRANDY_MINIMUM_YEARS[kind] && facts.brandyGrade !== undefined) columns.ageStatement = facts.brandyGrade;
       // The sheet's derived-age flag (the forms' `ageYearsSource`): only a whiskey keeps one.
       const source = (facts as { ageYearsSource?: "entered" | "derived" }).ageYearsSource;

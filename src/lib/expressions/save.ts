@@ -10,7 +10,7 @@ import { AGING_FIELDS, BOND_PROOF, hiddenFields, isSingleMaltCategory, type Cate
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 import { FinishPairsInvalid, resolveFinishPairs, type FinishRowInput } from "./finish-pairs";
-import { ingredientAllowed, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
+import { UNDER_A_YEAR_CLASSES, ingredientAllowed, isAgaveKind, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
 import { categoryKindsById, categorySlugById } from "./queries";
 import { isGinKind } from "./gin-details";
 
@@ -343,9 +343,9 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
   const group = await fieldGroupForCategory(input.categoryId, query);
   const kind = (await categoryKindsById(query))[input.categoryId] ?? "other";
   const allowed = writableFields(group);
-  if (kind !== "tequila") allowed.delete("tequilaClass");
+  if (!isAgaveKind(kind)) allowed.delete("tequilaClass");
   if (!["cognac", "armagnac", "calvados"].includes(kind)) allowed.delete("brandyGrade");
-  if (kind !== "gin") allowed.delete("ginStyle");
+  if (!isGinKind(kind)) allowed.delete("ginStyle");
   if (kind === "tequila" || kind === "mezcal") {
     allowed.delete("barrelFilledOn"); allowed.delete("bottledOn"); allowed.delete("isNas");
   }
@@ -372,21 +372,19 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
   if (kind === "tequila" || kind === "mezcal") {
     delete values.barrelFilledOn; delete values.bottledOn; delete values.isNas;
   }
-  if (kind !== "tequila") delete values.tequilaClass;
+  if (!isAgaveKind(kind)) delete values.tequilaClass;
   if (!["cognac", "armagnac", "calvados"].includes(kind)) delete values.brandyGrade;
-  if (kind !== "gin") delete values.ginStyle;
+  if (!isGinKind(kind)) delete values.ginStyle;
   if (!isGinKind(kind)) delete values.isAgedGin;
   if (isGinKind(kind)) {
-    values.barrelFilledOn = null; values.bottledOn = null; values.ageStatement = null;
+    values.barrelFilledOn = null; values.bottledOn = null; values.ageStatement = null; values.ageDays = null;
   }
   if (kind === "tequila") {
     values.ageStatement = input.tequilaClass ? TEQUILA_CLASS_LABELS[input.tequilaClass as TequilaClass] : null;
     values.isNas = false;
   }
   if (["cognac", "armagnac", "calvados"].includes(kind) && input.brandyGrade) values.ageStatement = input.brandyGrade;
-  if (kind === "tequila" && input.tequilaClass === "blanco") {
-    values.ageYears = null; values.ageMonths = null; values.ageDays = null;
-  }
+  if (isAgaveKind(kind) && UNDER_A_YEAR_CLASSES.includes(input.tequilaClass ?? "")) values.ageYears = null;
   return values;
 }
 

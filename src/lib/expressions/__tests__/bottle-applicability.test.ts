@@ -37,18 +37,21 @@ describe("bottleFieldNotUsed", () => {
     expect(bottleFieldNotUsed("releaseId", { ...label, group: "agave", kind: "mezcal" })).toBeNull();
   });
 
-  it("uses tequila class only for tequila", () => {
+  it("uses a class for tequila and mezcal only", () => {
     expect(bottleFieldNotUsed("tequilaClass", { ...label, group: "agave", kind: "tequila" })).toBeNull();
-    expect(bottleFieldNotUsed("tequilaClass", { ...label, group: "agave", kind: "mezcal" })).toBe("Only for tequila");
+    expect(bottleFieldNotUsed("tequilaClass", { ...label, group: "agave", kind: "mezcal" })).toBeNull();
+    expect(bottleFieldNotUsed("tequilaClass", { ...label, kind: "american" })).toBe("Only for tequila and mezcal");
   });
 
   it("uses the bottle's tequila class before the label's class for age", () => {
     const blanco: LabelFacts = { ...label, group: "agave", kind: "tequila", tequilaClass: "blanco" };
-    for (const name of ["ageYears", "ageMonths", "ageDays"]) {
-      expect(bottleFieldNotUsed(name, blanco)).toBe("Blanco has no age field");
-      expect(bottleFieldNotUsed(name, blanco, { tequilaClass: "anejo" })).toBeNull();
-      expect(bottleFieldNotUsed(name, { ...blanco, tequilaClass: "anejo" }, { tequilaClass: "blanco" })).toBe("Blanco has no age field");
-    }
+    // Blanco and Reposado take months and days, never years.
+    expect(bottleFieldNotUsed("ageYears", blanco)).toBe("Blanco and Reposado are under a year");
+    expect(bottleFieldNotUsed("ageYears", blanco, { tequilaClass: "anejo" })).toBeNull();
+    expect(bottleFieldNotUsed("ageYears", { ...blanco, tequilaClass: "anejo" }, { tequilaClass: "reposado" })).toBe("Blanco and Reposado are under a year");
+    for (const name of ["ageMonths", "ageDays"]) expect(bottleFieldNotUsed(name, blanco), name).toBeNull();
+    expect(bottleFieldNotUsed("ageYears", { ...blanco, kind: "mezcal" })).toBe("Blanco and Reposado are under a year");
+    expect(bottleFieldNotUsed("ageDays", { ...label, group: "gin", kind: "gin", isAgedGin: true })).toBe("Gin is aged in years and months");
   });
 
   it("keeps the existing bottle count and brandy grade rules", () => {

@@ -1,6 +1,6 @@
 import type { FieldGroup } from "@/db/schema";
 import { ageFilled, withAgeDefaults } from "@/lib/bottles/age";
-import { BRANDY_MINIMUM_YEARS, isAgaveKind, isFrenchBrandy } from "./spirit-details";
+import { BRANDY_MINIMUM_YEARS, UNDER_A_YEAR_CLASSES, isAgaveKind, isFrenchBrandy } from "./spirit-details";
 import { isGinKind, NAVY_GIN_PROOF } from "./gin-details";
 
 /**
@@ -98,8 +98,9 @@ export function peatKindFor(context: { kind: CategoryKind | null; slug?: string 
 /** Label fields the form leaves out for this category and choices. */
 export function hiddenFields(context: FormContext): Set<string> {
   const hidden = new Set<string>();
-  if (isUnaged(context)) for (const name of AGING_FIELDS) hidden.add(name);
-  if (context.kind !== "tequila") hidden.add("tequilaClass");
+  // Solera is an aged rum's: its range goes with the age.
+  if (isUnaged(context)) for (const name of [...AGING_FIELDS, "isSolera", "soleraRange"]) hidden.add(name);
+  if (!isAgaveKind(context.kind)) hidden.add("tequilaClass");
   if (!context.kind || !BRANDY_MINIMUM_YEARS[context.kind]) hidden.add("brandyGrade");
   if (isAgaveKind(context.kind)) {
     hidden.add("barrelFilledOn");
@@ -109,12 +110,11 @@ export function hiddenFields(context: FormContext): Set<string> {
   if (isAgaveKind(context.kind) || isGinKind(context.kind)) hidden.add("isCaskStrength");
   if (isFrenchBrandy(context.kind)) hidden.add("isNas");
   if (context.kind === "tequila") hidden.add("ageStatement");
-  if (context.kind === "tequila" && context.values.tequilaClass === "blanco") {
-    hidden.add("ageYears"); hidden.add("ageMonths"); hidden.add("ageDays");
-  }
+  // Blanco and Reposado are under a year by law: months and days, never years.
+  if (isAgaveKind(context.kind) && UNDER_A_YEAR_CLASSES.includes(String(context.values.tequilaClass ?? ""))) hidden.add("ageYears");
   if (isGinKind(context.kind)) {
-    hidden.add("barrelFilledOn"); hidden.add("bottledOn"); hidden.add("ageStatement");
-    if (context.kind === "genever") hidden.add("ginStyle");
+    // A gin is aged in years and months: no dates, no statement, no days. Genever has a class where gin has a style.
+    hidden.add("barrelFilledOn"); hidden.add("bottledOn"); hidden.add("ageStatement"); hidden.add("ageDays");
   } else {
     hidden.add("ginStyle"); hidden.add("isAgedGin");
   }
@@ -285,8 +285,8 @@ export const showsFinishes = (context: Pick<FormContext, "group" | "ginAged"> & 
 /** Rum records its base where other spirits record a mashbill. */
 export const baseReplacesMashbills = (group: FieldGroup) => group === "rum";
 
-/** Both supported Single Malt categories have the same fixed recipe. */
-export const isSingleMaltCategory = (slug: unknown) => slug === "american-single-malt" || slug === "single-malt-scotch";
+/** The categories whose recipe is fixed at 100% malted barley: the two Single Malts and Blended Malt Scotch. */
+export const isSingleMaltCategory = (slug: unknown) => slug === "american-single-malt" || slug === "single-malt-scotch" || slug === "blended-malt-scotch";
 
 /** Regions belong to Scotch. */
 export const showsRegions = (context: Pick<FormContext, "kind">) => context.kind === "scotch";

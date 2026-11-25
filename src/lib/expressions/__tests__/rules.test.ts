@@ -102,9 +102,10 @@ describe("categoryKinds", () => {
 });
 
 describe("Single Malt", () => {
-  it("recognises both categories, and not a blend", () => {
+  it("recognises the two Single Malts and Blended Malt, and not a blend", () => {
     expect(isSingleMaltCategory("american-single-malt")).toBe(true);
     expect(isSingleMaltCategory("single-malt-scotch")).toBe(true);
+    expect(isSingleMaltCategory("blended-malt-scotch")).toBe(true);
     expect(isSingleMaltCategory("blended-scotch")).toBe(false);
   });
 });
@@ -178,9 +179,10 @@ describe("hiddenFields", () => {
   });
 
   it("shows the solera range only when Solera is Yes", () => {
-    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "" } }).has("soleraRange")).toBe(true);
-    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "false" } }).has("soleraRange")).toBe(true);
-    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "true" } }).has("soleraRange")).toBe(false);
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "" } }).has("soleraRange")).toBe(true);
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "false" } }).has("soleraRange")).toBe(true);
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "true" } }).has("soleraRange")).toBe(false);
+    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "true" } }).has("soleraRange")).toBe(true); // Solera is an aged rum's
   });
 });
 
@@ -235,6 +237,30 @@ describe("the rum Aged toggle", () => {
   it("gives only amaro, liqueur and rum an Aged toggle", () => {
     expect(hiddenFields(makeContext({ group: "whiskey" })).has("isAged")).toBe(true);
     expect(hiddenFields(makeContext({ group: "brandy", kind: "cognac" })).has("isAged")).toBe(true);
+  });
+});
+
+describe("age and class rules by spirit", () => {
+  const ctx = (over: Partial<FormContext>) => makeContext(over);
+  it("gives an aged gin years and months, no days; genever has its class in the style field", () => {
+    expect(hiddenFields(ctx({ group: "gin", kind: "gin", ginAged: true })).has("ageDays")).toBe(true);
+    expect(hiddenFields(ctx({ group: "gin", kind: "gin", ginAged: true })).has("ageYears")).toBe(false);
+    expect(hiddenFields(ctx({ group: "gin", kind: "genever" })).has("ginStyle")).toBe(false);
+    expect(hiddenFields(ctx({ kind: "american" })).has("ginStyle")).toBe(true);
+  });
+  it("gives mezcal a class as tequila has", () => {
+    expect(hiddenFields(ctx({ group: "agave", kind: "mezcal" })).has("tequilaClass")).toBe(false);
+    expect(hiddenFields(ctx({ group: "agave", kind: "tequila" })).has("tequilaClass")).toBe(false);
+    expect(hiddenFields(ctx({ group: "whiskey", kind: "american" })).has("tequilaClass")).toBe(true);
+  });
+  it("takes years from a Blanco and a Reposado, and keeps their months and days", () => {
+    for (const tequilaClass of ["blanco", "reposado"]) {
+      const hidden = hiddenFields(ctx({ group: "agave", kind: "tequila", values: { tequilaClass } }));
+      expect(hidden.has("ageYears"), tequilaClass).toBe(true);
+      expect(hidden.has("ageMonths"), tequilaClass).toBe(false);
+      expect(hidden.has("ageDays"), tequilaClass).toBe(false);
+    }
+    expect(hiddenFields(ctx({ group: "agave", kind: "tequila", values: { tequilaClass: "anejo" } })).has("ageYears")).toBe(false);
   });
 });
 

@@ -41,7 +41,9 @@ import {
   type NameContext,
   type ProofSpread,
 } from "@/lib/expressions/rules";
-import { BRANDY_MINIMUM_YEARS, countryForDistillery } from "@/lib/expressions/spirit-details";
+import { countryForDistillery } from "@/lib/expressions/spirit-details";
+import { specForKind } from "@/lib/expressions/kind-options";
+import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
 import { RegionPicker } from "./region-picker";
 import { OTHER_NAME_COLUMNS, otherNameRows, RELEASE_COLUMNS } from "./label-list-columns";
@@ -97,6 +99,7 @@ export function withLabelChange(
     if (group === "agave") next.isAdditiveFree = next.isAdditiveFree === true ? "true" : typeof next.isAdditiveFree === "string" ? next.isAdditiveFree : "";
   }
   if (resolve?.(next).group === "whiskey") next = withStatementAge(prev, next, name);
+  if (resolve) next = withDerivedDesignation(next, name, resolve(next).kind);
   if (name === "isBottledInBond" && value === true) next.proof = BOND_PROOF;
   return resolve ? withNameRules(prev, next, resolve) : next;
 }
@@ -195,6 +198,11 @@ export function ExpressionFields({
     category = categoryOptions.find((option) => option.value === category?.parentId)) {
     if (category.slug === "bourbon" || category.slug === "rye") {
       mashbillCategory = category.slug;
+      break;
+    }
+    // Tennessee follows the bourbon recipe rule exactly.
+    if (category.slug === "tennessee") {
+      mashbillCategory = "bourbon";
       break;
     }
     ancestors.add(category.value);
@@ -360,11 +368,9 @@ export function ExpressionFields({
                   ? "Greyed out for NAS. Triple-click to edit anyway."
                   : "Greyed out while an age is filled in. Triple-click to edit anyway.",
               }
-            : field.name === "brandyGrade" && kind && BRANDY_MINIMUM_YEARS[kind] && values.brandyGrade
-              ? { ...field, help: `At least ${BRANDY_MINIMUM_YEARS[kind]![String(values.brandyGrade) as "VS" | "VSOP" | "XO"]} years. Enter an exact age only when known.` }
             : entry && entryGreyed
               ? { ...field, help: "Follows Proof, as the name says Full Proof. Triple-click to edit anyway." }
-              : field
+              : specForKind(field, kind)
         }
         idPrefix={idPrefix}
         value={values[field.name] ?? ""}
