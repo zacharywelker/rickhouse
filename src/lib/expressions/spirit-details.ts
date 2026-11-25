@@ -111,8 +111,21 @@ export function countryForDistillery(kind: CategoryKind | null, country: string)
 }
 
 export type IngredientChoice = { name: string; family?: string | null; kind?: "maguey" | "distillate" | "rum_base" | "botanical" | "gin_base" | "vodka_base" | "flavor" | "liqueur_base"; isManual?: boolean };
+
+/** A Rhum Agricole made in Martinique is made on a column still; a distillery there pre-selects it. */
+export const stillForCountry = (country: string | null | undefined): "column" | null =>
+  country && normalizeCountry(country) === "Martinique" ? "column" : null;
+
+/** The one base a kind has by definition: tequila's Blue Weber, and the sugarcane juice of a Rhum Agricole and a Cachaça. */
+export function fixedIngredient(kind: CategoryKind | null): (IngredientChoice & { kind: NonNullable<IngredientChoice["kind"]> }) | null {
+  if (kind === "tequila") return { name: "Blue Weber", kind: "maguey" };
+  if (kind === "agricole" || kind === "cachaca") return { name: "Sugarcane juice", kind: "rum_base" };
+  return null;
+}
+
 export function ingredientAllowed(kind: CategoryKind | null, ingredient: IngredientChoice): boolean {
-  if (kind === "tequila") return ingredient.name.trim().toLocaleLowerCase() === "blue weber";
+  const fixed = fixedIngredient(kind);
+  if (fixed && (ingredient.kind === undefined || ingredient.kind === fixed.kind)) return ingredient.name.trim().toLocaleLowerCase() === fixed.name.toLocaleLowerCase();
   if (kind === "calvados") return ingredient.family === "apple" || ingredient.family === "pear";
   if (kind === "cognac" || kind === "armagnac") return ingredient.family === "grape";
   return true;

@@ -10,7 +10,7 @@ import { AGING_FIELDS, BOND_PROOF, hiddenFields, isSingleMaltCategory, type Cate
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 import { FinishPairsInvalid, resolveFinishPairs, type FinishRowInput } from "./finish-pairs";
-import { UNDER_A_YEAR_CLASSES, ingredientAllowed, isAgaveKind, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
+import { UNDER_A_YEAR_CLASSES, fixedIngredient, ingredientAllowed, isAgaveKind, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
 import { categoryKindsById, categorySlugById } from "./queries";
 import { isGinKind } from "./gin-details";
 
@@ -257,12 +257,13 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
     .where(eq(expressions.id, expressionId)).limit(1);
   if (!label) return;
   const kind = (await categoryKindsById(tx))[label.categoryId] ?? "other";
-  const accepted: IngredientKind[] = label.group === "agave" ? ["maguey"] : label.group === "rum" ? ["rum_base"] :
+  const accepted: IngredientKind[] = label.group === "agave" ? ["maguey"] : label.group === "rum" ? (kind === "spiced-rum" ? ["rum_base", "flavor"] : ["rum_base"]) :
     label.group === "brandy" ? ["distillate"] : label.group === "gin" ? ["botanical", "gin_base"] :
     label.group === "vodka" ? ["vodka_base", "flavor"] : label.group === "amaro" ? ["botanical"] :
     label.group === "liqueur" ? ["flavor", "liqueur_base"] : [];
   if (accepted.length === 0) return;
-  if (submitted === undefined && kind !== "tequila" && label.group !== "gin" && label.group !== "amaro") return;
+  const fixed = fixedIngredient(kind);
+  if (submitted === undefined && !fixed && label.group !== "gin" && label.group !== "amaro") return;
   const existing = await tx.select({ id: expressionIngredients.ingredientId, kind: ingredients.kind, name: ingredients.name, family: ingredients.family, isManual: expressionIngredients.isManual })
     .from(expressionIngredients).innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
     .where(eq(expressionIngredients.expressionId, expressionId));
@@ -272,7 +273,7 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
   ));
   const automaticBotanical = label.style === "Carciofo" ? "Artichoke" : label.style === "Rabarbaro" ? "Rhubarb" :
     label.style === "Genepy" ? "Wormwood" : null;
-  const chosen: IngredientChoice[] = kind === "tequila" ? [{ name: "Blue Weber", kind: "maguey" }]
+  const chosen: IngredientChoice[] = fixed ? [fixed, ...(kind === "tequila" ? [] : (submitted ?? []).filter((choice) => choice.kind !== undefined && choice.kind !== fixed.kind && accepted.includes(choice.kind)))]
     : label.group === "gin" ? [{ name: "Juniper", kind: "botanical" }, ...(submitted ?? existing.map((row) => ({ name: row.name, kind: row.kind, family: row.family, isManual: row.isManual }))).filter((choice) =>
       (choice.kind === "botanical" || choice.kind === "gin_base") && !(choice.kind === "botanical" && choice.name.trim().toLocaleLowerCase() === "juniper"))]
     : label.group === "amaro" ? [

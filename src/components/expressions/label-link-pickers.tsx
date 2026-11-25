@@ -85,6 +85,16 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange }: Co
       </>
     );
   }
+  if (fieldGroup === "rum" && kind === "spiced-rum") {
+    // A spiced rum has its flavors besides its base.
+    return (
+      <>
+        <IngredientPicker kind="rum_base" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("rum_base")} />
+        <IngredientPicker kind="flavor" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("flavor")} />
+        <input type="hidden" name="ingredientLinks" value={JSON.stringify(chosen)} />
+      </>
+    );
+  }
   if (fieldGroup === "agave" || fieldGroup === "rum" || fieldGroup === "brandy") {
     return (
       <IngredientPicker

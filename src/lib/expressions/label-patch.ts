@@ -13,7 +13,7 @@ import { FinishPairsInvalid } from "./finish-pairs";
 import { replaceIngredients, replaceLinks, writableValues, type Links } from "./save";
 import type { IngredientChoice } from "./spirit-details";
 import { expressionSchema } from "./schema";
-import { BRANDY_MINIMUM_YEARS, UNDER_A_YEAR_CLASSES, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "./spirit-details";
+import { BRANDY_MINIMUM_YEARS, UNDER_A_YEAR_CLASSES, fixedIngredient, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "./spirit-details";
 import { isGinKind } from "./gin-details";
 import { writableLabelFacts } from "./writable-facts";
 
@@ -206,8 +206,9 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       }
       if (patch.links) await replaceLinks(tx, ownerId, id, patch.links);
       if (patch.ingredients && !patch.links?.ingredients) await replaceIngredients(tx, ownerId, id, patch.ingredients);
-      if (kind === "tequila" && current.categoryId !== categoryId && !patch.links?.ingredients && !patch.ingredients) {
-        await replaceIngredients(tx, ownerId, id, [{ name: "Blue Weber" }]);
+      const fixedBase = fixedIngredient(kind);
+      if (fixedBase && current.categoryId !== categoryId && !patch.links?.ingredients && !patch.ingredients) {
+        await replaceIngredients(tx, ownerId, id, [{ name: fixedBase.name, kind: fixedBase.kind }]);
       }
       if (isGinKind(kind) && !isGinKind(kinds[current.categoryId] ?? "other") && !patch.links?.ingredients && !patch.ingredients) {
         await replaceIngredients(tx, ownerId, id, [{ name: "Juniper", kind: "botanical" }]);

@@ -41,7 +41,7 @@ import {
   type NameContext,
   type ProofSpread,
 } from "@/lib/expressions/rules";
-import { countryForDistillery } from "@/lib/expressions/spirit-details";
+import { countryForDistillery, stillForCountry } from "@/lib/expressions/spirit-details";
 import { specForKind } from "@/lib/expressions/kind-options";
 import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
@@ -231,6 +231,10 @@ export function ExpressionFields({
   /** A linked distillery brings its Scotch region along. */
   const changeLinks = (next: LabelLinks) => {
     onLinksChange(next);
+    if (kind === "agricole" && !values.stillType) {
+      const added = next.distilleries.filter((row) => !links.distilleries.some((known) => known.id === row.id));
+      if (added.some((row) => stillForCountry(options.distilleryLinks?.find((option) => option.value === row.id)?.country) === "column")) onChange("stillType", "column");
+    }
     if (!showsRegions(context)) return;
     const known = new Set(links.distilleries.map((row) => row.id));
     const brought = next.distilleries
@@ -298,7 +302,8 @@ export function ExpressionFields({
       );
     }
     if (field.name === "ageMonths" || field.name === "ageDays") return null;
-    if (hidden.has(field.name)) return null;
+    // The age group is drawn by its years field: with years hidden but months or days not, it is still drawn.
+    if (hidden.has(field.name) && !(field.name === "ageYears" && !(hidden.has("ageMonths") && hidden.has("ageDays")))) return null;
     if (field.name === "isNonChillFiltered") return (
       <label key={field.name} className="flex items-center gap-2 text-sm">
         <input
@@ -339,6 +344,7 @@ export function ExpressionFields({
           idPrefix={idPrefix}
           compact
           showDays={!hidden.has("ageDays")}
+          showYears={!hidden.has("ageYears")}
           locked={ageGreyed}
           onUnlock={() => unlock("age")}
           values={{

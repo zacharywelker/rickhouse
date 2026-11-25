@@ -119,6 +119,8 @@ export function hiddenFields(context: FormContext): Set<string> {
     hidden.add("ginStyle"); hidden.add("isAgedGin");
   }
   if (!usesAgedToggle(context.group)) hidden.add("isAged");
+  // A Rhum Agricole is pure cane juice: nothing is added.
+  if (context.kind === "agricole") hidden.add("sugarGPerL");
   if (context.group === "amaro" || context.group === "liqueur") {
     hidden.add("ageDays"); hidden.add("barrelFilledOn"); hidden.add("bottledOn");
     hidden.add("isCaskStrength"); hidden.add("isStillProof");

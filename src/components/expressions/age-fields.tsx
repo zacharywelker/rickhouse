@@ -25,6 +25,7 @@ export function AgeFields({
   help,
   compact = false,
   showDays = true,
+  showYears = true,
   locked = false,
   onUnlock,
 }: {
@@ -36,6 +37,8 @@ export function AgeFields({
   /** Four characters wide each and part of a line, rather than a row of their own. */
   compact?: boolean;
   showDays?: boolean;
+  /** A Blanco and a Reposado are under a year: months and days only. */
+  showYears?: boolean;
   /** Greyed out and read-only; triple-clicking a box calls `onUnlock`. */
   locked?: boolean;
   onUnlock?: () => void;
@@ -46,7 +49,7 @@ export function AgeFields({
     <div className={cn("flex flex-col gap-1.5", !compact && "col-span-full")}>
       <Label id={`${idPrefix}-age-label`}>Age</Label>
       <div className="flex gap-3" role="group" aria-labelledby={`${idPrefix}-age-label`}>
-        {UNITS.filter((unit) => showDays || unit.name !== "ageDays").map((unit) => (
+        {UNITS.filter((unit) => (showDays || unit.name !== "ageDays") && (showYears || unit.name !== "ageYears")).map((unit) => (
           <div key={unit.name} className={cn("flex flex-col gap-1", compact ? "w-20" : "flex-1")}>
             <Label htmlFor={`${idPrefix}-${unit.name}`} className="text-xs font-normal text-muted-foreground">
               {unit.label}

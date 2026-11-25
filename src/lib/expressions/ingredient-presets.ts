@@ -14,7 +14,7 @@ export const GIN_BOTANICALS = [
   "Fennel", "Ginger", "Grains of Paradise", "Honeysuckle", "Lemongrass", "Licorice",
   "Meadowsweet", "Nutmeg", "Orris Root", "Rosemary", "Rose", "Thyme",
 ] as const;
-export const RUM_BASES = ["Molasses", "Sugarcane", "Honey"] as const;
+export const RUM_BASES = ["Molasses", "Sugarcane", "Sugarcane juice", "Honey"] as const;
 export const VODKA_BASES = ["Wheat", "Rye", "Potato", "Corn", "Grape"] as const;
 export const MAGUEY_PRESETS = ["Blue Weber"] as const;
 
