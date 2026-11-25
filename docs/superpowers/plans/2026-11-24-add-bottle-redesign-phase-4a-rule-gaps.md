@@ -148,3 +148,12 @@ Codex (pure functions, vitest only): the rule changes and tests of Task 2 and th
 - **Not verified while planning:** that no old iOS build sends `blend` or relies on rum having no `isAged` (Tasks 4 and 5 check), how many callers build a `FormContext` (Task 2: the compiler finds them), and which bulk-editor columns read each retired field (Task 1 Step 1).
 - **Not in this plan:** new behaviour (Solera low and high age, Cachaça, Agricole, Spiced rum, grapes, mezcal production), the layout and the page itself; they are 4B to 4E in the overview.
 - **Proportion:** each task gives the files, the signatures, the test names and the values the spec fixes; bodies are left to the implementer.
+
+## As built (2026-11-24)
+
+Phase 4A shipped as three stacked PRs: #413 (wave A: rules by kind, the bottle rules in `bottleFieldNotUsed`), #414 (wave B: retired fields, Still for every spirit) and #415 (wave C: rum Aged toggle, Barrel type). `KNOWN_GAPS` is empty.
+
+- **Retired fields** leave the forms, the bulk editor and the detail pages; the columns stay dormant. A web save of a bottle strips `bottleCount` and `brandyGrade` when the form does not post them, so an existing value survives. The phone keeps writing `isStillProof` for agave.
+- **Rum Aged toggle** reuses `is_aged` (amaro and liqueur's column). Migration 0056 backfills it; a phone edit that sends an age to a rum label marks it aged. The bottle rule reads `LabelFacts.isAged`.
+- **Barrel type** is the finishes picker relabelled (one value, no order or months); `barrelTypeKind` decides it (agave, aged `gin`, slugs `corn-whiskey` and `light-whiskey`). Uncharred and Used are created as finishes on first click. Mezcal Madurado en Vidrio cannot be told yet (the class arrives in 4B), so every agave label shows it.
+- **Left open:** rum tropical and continental years still show for an unaged rum; the retired columns are to be dropped in a later migration; the matrix check models Barrel type through a `finishLinks` pseudo-field.
