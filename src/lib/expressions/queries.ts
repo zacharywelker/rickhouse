@@ -220,7 +220,7 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
 }> {
   const bottleCount = sql<number>`(select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id})`;
   const pickCount = sql<number>`CASE WHEN ${categories.fieldGroup} IN ('vodka', 'amaro', 'liqueur') THEN 0 ELSE (select count(*)::int from ${bottles} where ${bottles.expressionId} = ${expressions.id} and (${bottles.isSingleBarrel} or ${bottles.isSingleBarrelPick})) END`;
-  const ageForSort = sql<number | null>`CASE WHEN ${categories.fieldGroup} = 'vodka' OR (${categories.fieldGroup} IN ('amaro', 'liqueur') AND NOT ${expressions.isAged}) THEN NULL ELSE coalesce(
+  const ageForSort = sql<number | null>`CASE WHEN ${categories.fieldGroup} = 'vodka' OR (${categories.fieldGroup} IN ('amaro', 'liqueur', 'rum') AND NOT ${expressions.isAged}) THEN NULL ELSE coalesce(
     CASE WHEN ${expressions.ageYears} IS NOT NULL OR ${expressions.ageMonths} IS NOT NULL OR ${expressions.ageDays} IS NOT NULL
       THEN coalesce(${expressions.ageYears}, 0)::numeric + coalesce(${expressions.ageMonths}, 0)::numeric / 12 + coalesce(${expressions.ageDays}, 0)::numeric / 365 END,
     nullif(substring(${expressions.ageStatement} from '([0-9]{1,3}(\\.[0-9])?)[[:space:]]*(to|[-–—])[[:space:]]*[0-9]{1,3}(\\.[0-9])?[[:space:]]*(years?|yrs?)'), '')::numeric,
@@ -520,6 +520,7 @@ export async function expressionOptions(ownerId: number) {
       tequilaClass: expressions.tequilaClass,
       brandyGrade: expressions.brandyGrade,
       isAgedGin: expressions.isAgedGin,
+      isAged: expressions.isAged,
       isNas: expressions.isNas,
     })
     .from(expressions)
@@ -534,6 +535,7 @@ export async function expressionOptions(ownerId: number) {
     tequilaClass: r.tequilaClass,
     brandyGrade: r.brandyGrade,
     isAgedGin: r.isAgedGin,
+    isAged: r.isAged,
     isNas: r.isNas,
   }));
 }
@@ -550,16 +552,24 @@ export async function categoryKindsById(query: Pick<typeof db, "select"> = db): 
   return categoryKinds(rows);
 }
 
+/** Each category's own slug, by category id (peat for American Single Malt is keyed by it). */
+export async function categorySlugById(query: Pick<typeof db, "select"> = db): Promise<Record<number, string>> {
+  const rows = await query.select({ id: categories.id, slug: categories.slug }).from(categories);
+  return Object.fromEntries(rows.map((row) => [row.id, row.slug]));
+}
+
 export async function categoryKindForExpression(expressionId: number): Promise<CategoryKind> {
   const [row] = await db.select({ categoryId: expressions.categoryId }).from(expressions)
     .where(eq(expressions.id, expressionId)).limit(1);
   return row ? (await categoryKindsById())[row.categoryId] ?? "other" : "other";
 }
 
-export async function bottleSpiritForExpression(expressionId: number): Promise<{ kind: CategoryKind; ginAged: boolean }> {
+export async function bottleSpiritForExpression(expressionId: number): Promise<{ kind: CategoryKind; ginAged: boolean; group: FieldGroup }> {
   const [row] = await db.select({ categoryId: expressions.categoryId, isAgedGin: expressions.isAgedGin }).from(expressions)
     .where(eq(expressions.id, expressionId)).limit(1);
-  return row ? { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin } : { kind: "other", ginAged: false };
+  return row
+    ? { kind: (await categoryKindsById())[row.categoryId] ?? "other", ginAged: row.isAgedGin, group: (await categoryFieldGroups())[row.categoryId] ?? "other" }
+    : { kind: "other", ginAged: false, group: "other" };
 }
 
 export async function fieldGroupForCategory(categoryId: number, query: Pick<typeof db, "select"> = db): Promise<FieldGroup> {

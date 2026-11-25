@@ -22,7 +22,8 @@ import { OpenedLevel, SEALED } from "@/components/bottles/opened-level";
 import { withOption } from "@/lib/forms/values";
 import { AgeFields } from "./age-fields";
 import { releaseUnit } from "@/lib/bottles/terminology";
-import { BRANDY_MINIMUM_YEARS, hidesWarehouse, isAgaveKind } from "@/lib/expressions/spirit-details";
+import { bottleFieldNotUsed, type LabelFacts } from "@/lib/expressions/bottle-applicability";
+import { isAgaveKind } from "@/lib/expressions/spirit-details";
 import { isGinKind } from "@/lib/expressions/gin-details";
 import { withStatementAge } from "@/lib/expressions/whiskey-age";
 
@@ -102,6 +103,7 @@ export function BottleFields({
   categoryKind = "american",
   inheritedTequilaClass = null,
   inheritedGinAged,
+  inheritedAged,
   inheritedGinNas,
   openedLevel,
 }: {
@@ -126,6 +128,8 @@ export function BottleFields({
   categoryKind?: CategoryKind;
   inheritedTequilaClass?: string | null;
   inheritedGinAged?: boolean;
+  /** Rum, amaro and liqueur: the label's Aged toggle. */
+  inheritedAged?: boolean;
   inheritedGinNas?: boolean;
   openedLevel?: Pick<React.ComponentProps<typeof OpenedLevel>, "value" | "onChange" | "error">;
 }) {
@@ -138,6 +142,7 @@ export function BottleFields({
   const effectiveTequilaClass = String(values.tequilaClass || inheritedTequilaClass || "");
   const labelOption = options.expressionId?.find((option) => option.value === Number(values.expressionId));
   const ginAged = isGinKind(categoryKind) && (inheritedGinAged ?? labelOption?.isAgedGin) === true;
+  const labelFacts: LabelFacts = { group: fieldGroup, kind: categoryKind, isAgedGin: ginAged, isAged: (inheritedAged ?? labelOption?.isAged) === true, tequilaClass: inheritedTequilaClass };
   const ginNas = values.ginIsNas === "true" || values.ginIsNas === true || ((values.ginIsNas === "" || values.ginIsNas == null) && (inheritedGinNas ?? labelOption?.isNas) === true);
   return (
     <>
@@ -147,6 +152,7 @@ export function BottleFields({
         // way the label form reveals its per-spirit sections.
         if (!sectionVisible(section, null, values)) return null;
         if (section.id === "pick" && isGinKind(categoryKind) && !ginAged) return null;
+        if (section.id === "pick" && fieldGroup === "rum" && !labelFacts.isAged) return null;
         if ((fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") && (section.id === "release" || section.id === "pick")) return null;
         return (
         <Section key={section.id}>
@@ -161,17 +167,13 @@ export function BottleFields({
               : originalField.name === "barrelNumber"
                 ? { ...originalField, label: `${unitTitle} Number`, placeholder: `${unitTitle} 24` }
                 : originalField;
-            if ((field.name === "warehouse" || field.name === "rickFloor") && hidesWarehouse(fieldGroup, categoryKind)) return null;
-            if (fieldGroup === "vodka" && ["barrelFilledOn", "bottledOn", "ageYears", "ageMonths", "ageDays", "ageStatement"].includes(field.name)) return null;
-            if ((fieldGroup === "amaro" || fieldGroup === "liqueur") && ["proof", "barrelFilledOn", "bottledOn", "ageYears", "ageMonths", "ageDays", "ageStatement"].includes(field.name)) return null;
-            if ((field.name === "barrelFilledOn" || field.name === "bottledOn") && (isAgaveKind(categoryKind) || isGinKind(categoryKind))) return null;
-            if (["isSingleBarrel", "isSingleBarrelPick"].includes(field.name) && isGinKind(categoryKind) && !ginAged) return null;
-            if (field.name === "tequilaClass" && categoryKind !== "tequila") return null;
-            if (field.name === "brandyGrade" && !BRANDY_MINIMUM_YEARS[categoryKind]) return null;
-            if (field.name === "ageStatement" && (categoryKind === "tequila" || isGinKind(categoryKind))) return null;
-            if (field.name === "ginIsNas" && !ginAged) return null;
-            if (["ageYears", "ageMonths", "ageDays"].includes(field.name) && isGinKind(categoryKind) && !ginAged) return null;
-            if (["ageYears", "ageMonths", "ageDays"].includes(field.name) && categoryKind === "tequila" && effectiveTequilaClass === "blanco") return null;
+            // One function decides which bottle fields a label's spirit has (and the bulk editor asks the same one).
+            // A vintage already chosen stays visible even where the spirit no longer offers the choice (gin, tequila), so it can be cleared.
+            const keptVintage = field.name === "releaseId" && String(values.releaseId ?? "") !== "";
+            const notUsed = (name: string) => bottleFieldNotUsed(name, labelFacts, { tequilaClass: effectiveTequilaClass || null }) !== null;
+            // The age group is drawn by its years field: with years unavailable (a Reposado) but months or days not, it stays.
+            const ageGroupStays = field.name === "ageYears" && (!notUsed("ageMonths") || !notUsed("ageDays"));
+            if (notUsed(field.name) && !keptVintage && !ageGroupStays) return null;
             if (!fieldVisible(field, values) || omit.includes(field.name)) return null;
             // Proof/ABV and the age triplet render as linked composites
             // rather than the generic field; see the label form for the same
@@ -247,6 +249,8 @@ export function BottleFields({
                     ageDays: values.ageDays ?? "",
                   }}
                   onChange={(name, next) => onChange(name, next)}
+                  showYears={!notUsed("ageYears")}
+                  showDays={!notUsed("ageDays")}
                   locked={!ageOpen && ((isGinKind(categoryKind) && ginNas) || String(values.ageStatement ?? "").trim() !== "")}
                   onUnlock={() => setAgeOpen(true)}
                   errors={{
@@ -267,10 +271,7 @@ export function BottleFields({
             const control = (
               <Field
                 key={field.name}
-                spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` }
-                  : field.name === "brandyGrade" && BRANDY_MINIMUM_YEARS[categoryKind] && values.brandyGrade
-                    ? { ...field, help: `At least ${BRANDY_MINIMUM_YEARS[categoryKind]![String(values.brandyGrade) as "VS" | "VSOP" | "XO"]} years. Leave age blank unless exact age is known.` }
-                    : field}
+                spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } : field}
                 idPrefix={idPrefix}
                 value={values[field.name] ?? ""}
                 onChange={(next) => onChange(field.name, next)}

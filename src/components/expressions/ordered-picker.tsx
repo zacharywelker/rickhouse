@@ -10,6 +10,7 @@ import { linksPayload } from "@/lib/expressions/links";
 import { UndisclosedTick } from "./undisclosed-tick";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
+import { quickCreateAction } from "@/app/(app)/admin/actions";
 import { CreateWithDetailsDialog } from "@/components/admin/create-with-details-dialog";
 
 /** The JSON a list is submitted as, read back by `parseLinks` on the server. */
@@ -74,6 +75,8 @@ export function OrderedPicker({
   footer,
   hiddenValue,
   lockedAmounts,
+  maxRows,
+  suggestions,
 }: {
   name: string;
   label: string;
@@ -126,6 +129,10 @@ export function OrderedPicker({
   hiddenValue?: string;
   /** Rows whose amount is computed elsewhere: shown read-only instead of as a box. */
   lockedAmounts?: Record<number, string>;
+  /** The most rows the list takes: the add box goes once it is full. */
+  maxRows?: number;
+  /** Names offered as one-click buttons under the add box: an existing option of that name is added, else one is created. */
+  suggestions?: ReadonlyArray<string>;
 }) {
   const [created, setCreated] = React.useState<Option[]>([]);
   const [editing, setEditing] = React.useState<LinkedRow | null>(null);
@@ -151,6 +158,21 @@ export function OrderedPicker({
     const [row] = next.splice(index, 1);
     next.splice(target, 0, row!);
     onChange(next);
+  };
+
+  const full = maxRows !== undefined && value.length >= maxRows;
+  const [suggesting, setSuggesting] = React.useState(false);
+  const addSuggestion = async (name: string) => {
+    if (resource === null || suggesting) return;
+    const existing = available.find((option) => option.label.trim().toLowerCase() === name.toLowerCase());
+    if (existing) { addRow(existing); return; }
+    setSuggesting(true);
+    const result = await quickCreateAction(resource, name);
+    setSuggesting(false);
+    if (!result.ok) { setOptionNotice(result.error); return; }
+    setCreated((prev) => [...prev, result.option]);
+    onOptionCreated?.(result.option);
+    addRow(result.option);
   };
 
   const addRow = (option: Option) => {
@@ -320,7 +342,7 @@ export function OrderedPicker({
         <p className="text-sm text-muted-foreground">None yet.</p>
       ) : null}
 
-      <ReferenceCombobox
+      {full ? null : <ReferenceCombobox
         id={`${name}-add`}
         labelledBy={`${name}-add-label`}
         resource={resource}
@@ -349,7 +371,15 @@ export function OrderedPicker({
         }}
         placeholder={`Add ${label.toLowerCase()}…`}
         {...(emptyHint ? { emptyHint } : {})}
-      />
+      />}
+      {!full && suggestions && suggestions.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Suggested:</span>
+          {suggestions.map((suggestion) => (
+            <Button key={suggestion} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={suggesting} onClick={() => void addSuggestion(suggestion)}>{suggestion}</Button>
+          ))}
+        </div>
+      ) : null}
       <span id={`${name}-add-label`} className="sr-only">
         Add {label.toLowerCase()}
       </span>

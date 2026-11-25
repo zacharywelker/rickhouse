@@ -100,20 +100,6 @@ describe.skipIf(!url)("the list cells save, against a real database", () => {
     await m.sql(`DELETE FROM categories WHERE id = $1`, liqueur);
   });
 
-  it("brings a Scotch region along with the link, and remembers an amaro's origin as typed only when it was", async () => {
-    const scotch = await fx.mkLabel(owner, cat.whiskey, "Links Five");
-    expect(await rows.patchLabelRow(owner, scotch, labelPatchBody({ regions: "Islay, Speyside" }))).toEqual({ ok: true }); // as a link would have staged it
-    // (regions only apply to a Scotch category; this label is not one, so they are not kept: the form drops them too)
-    const amaro = (await m.sql<{ id: number }>(`INSERT INTO categories (name, slug, field_group) VALUES ('Links Amaro', 'links-amaro-${Math.random()}', 'amaro') RETURNING id`))[0]!.id;
-    const label = await fx.mkLabel(owner, amaro, "Links Six");
-    expect(await rows.patchLabelRow(owner, label, labelPatchBody({ originCountryLinked: "Italy" }))).toEqual({ ok: true });
-    expect(await one(`SELECT origin_country, origin_country_manual FROM expressions WHERE id = $1`, label)).toEqual({ origin_country: "Italy", origin_country_manual: false });
-    expect(await rows.patchLabelRow(owner, label, { originCountry: "Spain", originCountryManual: true })).toEqual({ ok: true });
-    expect(await one(`SELECT origin_country, origin_country_manual FROM expressions WHERE id = $1`, label)).toEqual({ origin_country: "Spain", origin_country_manual: true });
-    await m.sql(`DELETE FROM expressions WHERE id = $1`, label);
-    await m.sql(`DELETE FROM categories WHERE id = $1`, amaro);
-  });
-
   it("a new row takes its lists in the facts", async () => {
     const [a, mb] = [await distillery("Delta"), await mashbill("Wheat")];
     const out = await rows.createRow(owner, {

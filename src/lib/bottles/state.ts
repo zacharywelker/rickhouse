@@ -104,7 +104,7 @@ export async function updateBottle(bottleId: number, ownerId: number, patch: Bot
     }
     const labelId = columns.expressionId ?? current.expressionId;
     const spirit = await bottleSpiritForExpression(labelId);
-    Object.assign(columns, withBottleSpiritFacts(columns, spirit.kind, spirit.ginAged));
+    Object.assign(columns, withBottleSpiritFacts(columns, spirit.kind, spirit.ginAged, spirit.group));
     if (labelId !== current.expressionId) {
       // A version name and a release belong to a label: a bottle moved to another has neither unless the patch says one.
       columns.expressionNameId ??= null;

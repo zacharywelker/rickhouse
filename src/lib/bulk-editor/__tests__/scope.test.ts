@@ -30,10 +30,10 @@ describe("the levels a row offers, narrowest first", () => {
     expect(scopesFor(row(bottle({ releaseId: 70 })))).toEqual(["bottle", "vintage", "label"]);
     expect(scopesFor(row(bottle()))).toEqual(["bottle", "label"]);
   });
-  it("leaves the vintage out for size, tequila class, brandy grade and gin NAS, which a vintage does not have", () => {
+  it("leaves the vintage out for size, tequila class and gin NAS, which a vintage does not have", () => {
     const b = row(bottle({ releaseId: 70 }));
     expect(scopesFor(b, "proof")).toEqual(["bottle", "vintage", "label"]);
-    for (const field of ["sizeMl", "tequilaClass", "brandyGrade", "ginIsNas"] as const) expect(scopesFor(b, field)).toEqual(["bottle", "label"]);
+    for (const field of ["sizeMl", "tequilaClass", "ginIsNas"] as const) expect(scopesFor(b, field)).toEqual(["bottle", "label"]);
   });
   it("offers no choice on a new, unsaved row or on a label's own row", () => {
     expect(scopesFor(row(bottle(), true))).toEqual([]);
@@ -54,11 +54,10 @@ describe("stepping through the levels", () => {
 });
 
 describe("the column an edit is stored under at a level", () => {
-  it("keeps the three spirit overrides under the bottle's own editors", () => {
+  it("keeps the spirit overrides under the bottle's own editors (the brandy designation is the label's only)", () => {
     expect(columnFor("abv", "bottle")).toBe("ownProof");
     expect(columnFor("abv", "label")).toBe("proof");
     expect(columnFor("tequilaClass", "bottle")).toBe("ownTequilaClass");
-    expect(columnFor("brandyGrade", "bottle")).toBe("ownBrandyGrade");
     expect(columnFor("isNas", "bottle")).toBe("ginIsNas");
     expect(columnFor("tequilaClass", "label")).toBe("tequilaClass");
   });

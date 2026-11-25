@@ -103,6 +103,7 @@ const labelFacts = (row: SheetRow, kinds: Kinds) => ({
   group: row.label.fieldGroup,
   kind: kinds[row.label.categoryId] ?? ("other" as const),
   isAgedGin: (row.label as unknown as { isAgedGin?: boolean }).isAgedGin === true,
+  isAged: (row.label as unknown as { isAged?: boolean }).isAged === true,
   tequilaClass: row.label.tequilaClass ?? null,
 });
 
@@ -250,13 +251,11 @@ function generatedLabelColumns(): Generated[] {
 const HAND_MADE_BOTTLE = new Set(["ageYears", "ageMonths", "ageDays", "ageStatement", "status", "storeId", "pricePaid", "dateAcquired", "releaseYear", "location", "notes", "sizeMl", "proof", "pickName"]);
 /** A bottle's field of the same name as a label's (its own value, overriding the label's) gets its own column id. */
 const BOTTLE_ID: Readonly<Record<string, string>> = {
-  bottleCount: "releaseBottleCount",
   barrelFilledOn: "ownBarrelFilledOn",
   bottledOn: "ownBottledOn",
   isSingleBarrel: "singleBarrel",
   isSingleBarrelPick: "privateSelection",
   tequilaClass: "ownTequilaClass",
-  brandyGrade: "ownBrandyGrade",
 };
 const BOTTLE_HEADER: Readonly<Record<string, string>> = {
   releaseId: "Vintage",
@@ -265,7 +264,6 @@ const BOTTLE_HEADER: Readonly<Record<string, string>> = {
   barrelFilledOn: "This bottle's distilled / barrel filled",
   bottledOn: "This bottle's bottled date",
   tequilaClass: "This bottle's tequila class",
-  brandyGrade: "This bottle's age designation",
 };
 
 /** The bottle columns that are part of how a bottle is entered, so they are not hidden until switched on. */

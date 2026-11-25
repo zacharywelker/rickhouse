@@ -45,6 +45,8 @@ function invalid(issues: { path: PropertyKey[]; message: string }[]): ActionResu
   };
 }
 
+const RETIRED_BOTTLE_FIELDS = ["bottleCount", "brandyGrade"] as const;
+
 export async function saveBottleAction(
   id: number | null,
   _prev: ActionResult,
@@ -55,7 +57,11 @@ export async function saveBottleAction(
   const parsed = bottleSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return invalid(parsed.error.issues);
   const spirit = await bottleSpiritForExpression(parsed.data.expressionId);
-  const input = withBottleSpiritFacts(await settleLabelChoices(parsed.data), spirit.kind, spirit.ginAged);
+  // Retired from the form but still in the API schema, which reads an absent field as blank: a form that no longer
+  // posts them must leave the stored values (and the age statement a brandy grade sets) alone.
+  const posted: typeof parsed.data = { ...parsed.data };
+  for (const key of RETIRED_BOTTLE_FIELDS) if (!formData.has(key)) delete posted[key];
+  const input = withBottleSpiritFacts(await settleLabelChoices(posted), spirit.kind, spirit.ginAged, spirit.group);
   const duplicateRaw = formData.get("duplicateSourceId");
   const duplicateId = typeof duplicateRaw === "string" && /^\d+$/.test(duplicateRaw) ? Number(duplicateRaw) : null;
   if (duplicateRaw !== null && duplicateId === null) return { ok: false, error: "That source bottle is not available." };

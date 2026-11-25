@@ -27,7 +27,7 @@ export type NewBottle =
 export async function newBottleValues(
   raw: Record<string, unknown>,
   expressionId: number,
-  spirit: { kind: CategoryKind; ginAged: boolean },
+  spirit: { kind: CategoryKind; ginAged: boolean; group?: string },
   query: Pick<typeof db, "select">,
 ): Promise<NewBottle> {
   const row = { acquisition: "purchase", status: "owned", ...raw, expressionId };
@@ -40,7 +40,7 @@ export async function newBottleValues(
   const settled = await settleLabelChoices(parsed.data, query);
   const today = new Date().toISOString().slice(0, 10);
   const open = settleNewBottleOpen({
-    ...withBottleSpiritFacts(settled, spirit.kind, spirit.ginAged),
+    ...withBottleSpiritFacts(settled, spirit.kind, spirit.ginAged, spirit.group),
     ...state.data,
     isOpen: state.data.isOpen || state.data.dateOpened !== null,
   }, today);
