@@ -38,3 +38,20 @@ describe("a Martinique distillery", () => {
     expect(stillForCountry(undefined)).toBeNull();
   });
 });
+
+describe("what a mezcal's production offers can be saved", () => {
+  const shape = { brandId: "1", categoryId: "2", name: "X" };
+  it("accepts every cooking and extraction method the form offers, and the new still", async () => {
+    const { expressionSchema } = await import("../schema");
+    const { COOKING_METHODS, EXTRACTION_METHODS } = await import("../spirit-details");
+    for (const cookingMethod of COOKING_METHODS) expect(expressionSchema.safeParse({ ...shape, cookingMethod }).success, cookingMethod).toBe(true);
+    for (const extraction of EXTRACTION_METHODS) expect(expressionSchema.safeParse({ ...shape, extraction }).success, extraction).toBe(true);
+    expect(expressionSchema.safeParse({ ...shape, stillType: "clay-pot" }).success).toBe(true);
+    expect(expressionSchema.safeParse({ ...shape, extraction: "steam" }).success).toBe(false);
+  });
+  it("does not let a tequila bottle keep Madurado en Vidrio", async () => {
+    const { withBottleSpiritFacts } = await import("../spirit-details");
+    expect(withBottleSpiritFacts({ tequilaClass: "madurado-en-vidrio" }, "tequila", false, "agave")).toMatchObject({ tequilaClass: null, ageStatement: null });
+    expect(withBottleSpiritFacts({ tequilaClass: "madurado-en-vidrio" }, "mezcal", false, "agave")).toMatchObject({ tequilaClass: "madurado-en-vidrio" });
+  });
+});

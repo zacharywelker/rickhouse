@@ -196,6 +196,8 @@ export function spiritAgeLabel(kind: CategoryKind | null, tequilaClass: string |
 /** A bottle stores only its own designation; null continues to inherit from its label. */
 export function withBottleSpiritFacts<T extends Record<string, unknown>>(facts: T, kind: CategoryKind, ginAged = false, group: string = kind): T {
   const out: Record<string, unknown> = { ...facts };
+  // Madurado en Vidrio is a mezcal's: a tequila bottle cannot keep it.
+  if (kind === "tequila" && out.tequilaClass === "madurado-en-vidrio") out.tequilaClass = null;
   if (kind === "tequila" && "tequilaClass" in out) {
     const chosen = out.tequilaClass;
     out.ageStatement = typeof chosen === "string" && chosen in TEQUILA_CLASS_LABELS ? TEQUILA_CLASS_LABELS[chosen as TequilaClass] : null;
