@@ -212,13 +212,12 @@ export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = (() => {
     list.splice(at + 1, 0, ...add);
     return list;
   };
-  // Tequila class, brandy grade and gin NAS: one cell each, the label's and the bottle's together. The bottle's own editors stay (under their own ids) for writing at the bottle level.
-  const spirit: Record<string, { field: ValueField; own: string }> = { tequilaClass: { field: "tequilaClass", own: "ownTequilaClass" }, brandyGrade: { field: "brandyGrade", own: "ownBrandyGrade" }, isNas: { field: "ginIsNas", own: "ginIsNas" } };
+  // Tequila class and gin NAS: one cell each (the brandy designation is the label's only, since the bottle no longer has its own), the label's and the bottle's together. The bottle's own editors stay (under their own ids) for writing at the bottle level.
+  const spirit: Record<string, { field: ValueField; own: string }> = { tequilaClass: { field: "tequilaClass", own: "ownTequilaClass" }, isNas: { field: "ginIsNas", own: "ginIsNas" } };
   const editorOf = (id: string) => [...GENERATED_LABEL, ...GENERATED_BOTTLE].find((g) => g.column.id === id)!.editor;
   const asValue = (c: SheetColumn): SheetColumn => {
     const one = spirit[c.id];
     if (!one) return c;
-    const own = editorOf(one.own);
     const labelEditor = editorOf(c.id);
     return {
       ...c,
@@ -232,7 +231,7 @@ export const SHEET_COLUMNS: ReadonlyArray<SheetColumn> = (() => {
     };
   };
   const label = after(after(BY_HAND.filter((c) => c.group === "label" || c.group === "value"), "designation", LABEL_AGE.map((g) => g.column)), "finishes", [INGREDIENTS_COLUMN]);
-  const folded = new Set(["ownTequilaClass", "ownBrandyGrade", "ginIsNas"]);
+  const folded = new Set(["ownTequilaClass", "ginIsNas"]);
   const rest = [...label, ...GENERATED_LABEL.map((g) => asValue(g.column)), ...PANEL_COLUMNS, ...BY_HAND.filter((c) => c.group === "bottle"), ...GENERATED_BOTTLE.map((g) => g.column).filter((c) => !folded.has(c.id))];
   // The order a bottle is entered in: what it is (brand, label, category, vintage, single barrel, private selection), then its values.
   const head = FIRST_COLUMNS.map((id) => rest.find((c) => c.id === id)!);

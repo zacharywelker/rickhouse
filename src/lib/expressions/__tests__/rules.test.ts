@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORY_TREE } from "@/lib/categories/tree";
-import { categoryKinds, hiddenFields, proofAfterBondToggle, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type NameContext } from "../rules";
+import { BARREL_TYPE_SUGGESTIONS, barrelTypeKind, categoryKinds, hiddenFields, peatKindFor, proofAfterBondToggle, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type FormContext, type NameContext } from "../rules";
 import { writableFields } from "../fields";
 import { expressionSchema } from "../schema";
 
@@ -12,6 +12,32 @@ const tree = [
   { id: 5, slug: "blended-scotch", parentId: 4 },
   { id: 6, slug: "irish-whiskey", parentId: 1 },
 ];
+
+const makeContext = (overrides: Partial<FormContext> = {}): FormContext => ({
+  group: "whiskey", kind: "american", values: {}, ginAged: false, ...overrides,
+});
+
+const peatCases: Array<{ kind: FormContext["kind"]; slug?: string | null; shown: boolean }> = [
+  { kind: "japanese", shown: true },
+  { kind: "international", shown: true },
+  { kind: "irish", shown: true },
+  { kind: "scotch", shown: true },
+  { kind: "american", slug: "american-single-malt", shown: true },
+  { kind: "american", slug: "bourbon", shown: false },
+  { kind: "canadian", shown: false },
+  { kind: "flavored-whisky", shown: false },
+  { kind: "american", shown: false },
+  { kind: "american", slug: null, shown: false },
+  { kind: null, shown: false },
+  { kind: null, slug: null, shown: false },
+  { kind: null, slug: "american-single-malt", shown: true },
+];
+
+describe("peatKindFor", () => {
+  it.each(peatCases)("returns $shown for kind $kind and slug $slug", ({ kind, slug, shown }) => {
+    expect(peatKindFor({ kind, slug })).toBe(shown);
+  });
+});
 
 describe("categoryKinds", () => {
   it("derives the expected kinds from the shared category tree", () => {
@@ -76,15 +102,57 @@ describe("categoryKinds", () => {
 });
 
 describe("Single Malt", () => {
-  it("recognises both categories, and not a blend", () => {
+  it("recognises the two Single Malts and Blended Malt, and not a blend", () => {
     expect(isSingleMaltCategory("american-single-malt")).toBe(true);
     expect(isSingleMaltCategory("single-malt-scotch")).toBe(true);
+    expect(isSingleMaltCategory("blended-malt-scotch")).toBe(true);
     expect(isSingleMaltCategory("blended-scotch")).toBe(false);
   });
 });
 
 describe("hiddenFields", () => {
   const base = { group: "whiskey" as const, kind: "american" as const, values: {}, ginAged: false };
+
+  it.each([
+    { group: "agave", kind: "tequila", ginAged: false, hidden: true },
+    { group: "agave", kind: "mezcal", ginAged: false, hidden: true },
+    { group: "gin", kind: "gin", ginAged: false, hidden: true },
+    { group: "gin", kind: "gin", ginAged: true, hidden: true },
+    { group: "gin", kind: "genever", ginAged: false, hidden: true },
+    { group: "gin", kind: "genever", ginAged: true, hidden: true },
+    { group: "whiskey", kind: "american", ginAged: false, hidden: false },
+    { group: "brandy", kind: "cognac", ginAged: false, hidden: false },
+  ] satisfies Array<Pick<FormContext, "group" | "kind" | "ginAged"> & { hidden: boolean }>)(
+    "isCaskStrength hidden=$hidden for $kind (ginAged=$ginAged)", ({ hidden, ...context }) => {
+      expect(hiddenFields(makeContext(context)).has("isCaskStrength")).toBe(hidden);
+    },
+  );
+
+  it.each([
+    { kind: "cognac", hidden: true },
+    { kind: "armagnac", hidden: true },
+    { kind: "calvados", hidden: true },
+    { kind: "pisco", hidden: false },
+    { kind: "apple", hidden: false },
+    { kind: "eau-de-vie", hidden: false },
+    { kind: "american", hidden: false },
+  ] satisfies Array<{ kind: FormContext["kind"]; hidden: boolean }>)(
+    "isNas hidden=$hidden for $kind", ({ kind, hidden }) => {
+      const group = kind === "american" ? "whiskey" : "brandy";
+      expect(hiddenFields(makeContext({ group, kind })).has("isNas")).toBe(hidden);
+    },
+  );
+
+  it("cooperageId shown for scotch, while entryProof and isAdditiveFree stay hidden", () => {
+    const hidden = hiddenFields(makeContext({ kind: "scotch" }));
+    expect(hidden.has("cooperageId")).toBe(false);
+    expect(hidden.has("entryProof")).toBe(true);
+    expect(hidden.has("isAdditiveFree")).toBe(true);
+  });
+
+  it.each(peatCases)("peatStatus shown=$shown for kind $kind and slug $slug", ({ shown, ...context }) => {
+    expect(hiddenFields(makeContext(context)).has("peatStatus")).toBe(!shown);
+  });
 
   it("offers Straight only to American whiskey, and always when kinds are unknown", () => {
     expect(hiddenFields(base).has("isStraight")).toBe(false);
@@ -111,9 +179,10 @@ describe("hiddenFields", () => {
   });
 
   it("shows the solera range only when Solera is Yes", () => {
-    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "" } }).has("soleraRange")).toBe(true);
-    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "false" } }).has("soleraRange")).toBe(true);
-    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "true" } }).has("soleraRange")).toBe(false);
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "" } }).has("soleraRange")).toBe(true);
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "false" } }).has("soleraRange")).toBe(true);
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "true" } }).has("soleraRange")).toBe(false);
+    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "true" } }).has("soleraRange")).toBe(true); // Solera is an aged rum's
   });
 });
 
@@ -148,6 +217,72 @@ describe("rum", () => {
       stillType: "3-chamber",
     });
     expect(expressionSchema.safeParse({ ...shape, molassesOrCane: "cane juice" }).success).toBe(false);
+  });
+});
+
+describe("the rum Aged toggle", () => {
+  const rum = (isAged?: boolean) => makeContext({ group: "rum", kind: "other", values: isAged === undefined ? {} : { isAged } });
+  const aging = ["ageYears", "ageMonths", "ageDays", "ageStatement", "isNas", "barrelFilledOn", "bottledOn", "isCaskStrength"];
+  it("hides the aging fields and the finish row of a rum nobody marked aged", () => {
+    expect(isUnaged(rum())).toBe(true);
+    for (const name of aging) expect(hiddenFields(rum()).has(name), name).toBe(true);
+    expect(showsFinishes(rum())).toBe(false);
+    expect(hiddenFields(rum()).has("isAged")).toBe(false);
+  });
+  it("shows them once it is aged", () => {
+    expect(isUnaged(rum(true))).toBe(false);
+    for (const name of ["ageYears", "ageMonths", "ageStatement", "isNas"]) expect(hiddenFields(rum(true)).has(name), name).toBe(false);
+    expect(showsFinishes(rum(true))).toBe(true);
+  });
+  it("gives only amaro, liqueur and rum an Aged toggle", () => {
+    expect(hiddenFields(makeContext({ group: "whiskey" })).has("isAged")).toBe(true);
+    expect(hiddenFields(makeContext({ group: "brandy", kind: "cognac" })).has("isAged")).toBe(true);
+  });
+});
+
+describe("age and class rules by spirit", () => {
+  const ctx = (over: Partial<FormContext>) => makeContext(over);
+  it("gives an aged gin years and months, no days; genever has its class in the style field", () => {
+    expect(hiddenFields(ctx({ group: "gin", kind: "gin", ginAged: true })).has("ageDays")).toBe(true);
+    expect(hiddenFields(ctx({ group: "gin", kind: "gin", ginAged: true })).has("ageYears")).toBe(false);
+    expect(hiddenFields(ctx({ group: "gin", kind: "genever" })).has("ginStyle")).toBe(false);
+    expect(hiddenFields(ctx({ kind: "american" })).has("ginStyle")).toBe(true);
+  });
+  it("gives mezcal a class as tequila has", () => {
+    expect(hiddenFields(ctx({ group: "agave", kind: "mezcal" })).has("tequilaClass")).toBe(false);
+    expect(hiddenFields(ctx({ group: "agave", kind: "tequila" })).has("tequilaClass")).toBe(false);
+    expect(hiddenFields(ctx({ group: "whiskey", kind: "american" })).has("tequilaClass")).toBe(true);
+  });
+  it("takes years from a Blanco and a Reposado, and keeps their months and days", () => {
+    for (const tequilaClass of ["blanco", "reposado"]) {
+      const hidden = hiddenFields(ctx({ group: "agave", kind: "tequila", values: { tequilaClass } }));
+      expect(hidden.has("ageYears"), tequilaClass).toBe(true);
+      expect(hidden.has("ageMonths"), tequilaClass).toBe(false);
+      expect(hidden.has("ageDays"), tequilaClass).toBe(false);
+    }
+    expect(hiddenFields(ctx({ group: "agave", kind: "tequila", values: { tequilaClass: "anejo" } })).has("ageYears")).toBe(false);
+  });
+});
+
+describe("barrelTypeKind", () => {
+  const ctx = (over: Partial<Parameters<typeof barrelTypeKind>[0]>) => ({ group: "whiskey" as const, kind: "american" as const, slug: null, ginAged: false, ...over });
+  it("is the finishes picker for agave, an aged gin, and Corn and Light whiskey", () => {
+    expect(barrelTypeKind(ctx({ group: "agave", kind: "tequila" }))).toBe(true);
+    expect(barrelTypeKind(ctx({ group: "agave", kind: "mezcal" }))).toBe(true);
+    expect(barrelTypeKind(ctx({ group: "gin", kind: "gin", ginAged: true }))).toBe(true);
+    expect(barrelTypeKind(ctx({ slug: "corn-whiskey" }))).toBe(true);
+    expect(barrelTypeKind(ctx({ slug: "light-whiskey" }))).toBe(true);
+  });
+  it("is not for an unaged gin, genever, bourbon, or a renamed category with another slug", () => {
+    expect(barrelTypeKind(ctx({ group: "gin", kind: "gin", ginAged: false }))).toBe(false);
+    expect(barrelTypeKind(ctx({ group: "gin", kind: "genever", ginAged: true }))).toBe(false);
+    expect(barrelTypeKind(ctx({ slug: "bourbon" }))).toBe(false);
+    expect(barrelTypeKind(ctx({ group: "rum", kind: "other" }))).toBe(false);
+  });
+  it("offers Uncharred and Used for Corn and Light whiskey only", () => {
+    expect(BARREL_TYPE_SUGGESTIONS["corn-whiskey"]).toEqual(["Uncharred", "Used"]);
+    expect(BARREL_TYPE_SUGGESTIONS["light-whiskey"]).toEqual(["Uncharred", "Used"]);
+    expect(BARREL_TYPE_SUGGESTIONS.bourbon).toBeUndefined();
   });
 });
 
@@ -196,12 +331,12 @@ describe("strength tier", () => {
 describe("designations a label ticks for itself", () => {
   const ctx = { group: "agave", kind: null, values: {}, ginAged: false } as const;
 
-  it("offers Still Proof to unaged agave only", () => {
+  it("keeps Still Proof's rule for unaged agave, but no form writes it any more", () => {
     expect(hiddenFields(ctx).has("isStillProof")).toBe(false);
     expect(hiddenFields({ ...ctx, values: { ageYears: "2" } }).has("isStillProof")).toBe(true);
     expect(hiddenFields({ ...ctx, values: { ageStatement: "Reposado" } }).has("isStillProof")).toBe(true);
     expect(hiddenFields({ ...ctx, group: "rum" }).has("isStillProof")).toBe(true);
-    expect(writableFields("agave").has("isStillProof")).toBe(true);
+    expect(writableFields("agave").has("isStillProof")).toBe(false);
     expect(writableFields("rum").has("isStillProof")).toBe(false);
   });
 
@@ -214,6 +349,11 @@ describe("designations a label ticks for itself", () => {
 
 describe("what a name says", () => {
   const whiskey: NameContext = { group: "whiskey", kind: "american" };
+
+  it.each(["tequila", "mezcal"] as const)("Cask Strength Blanco has no isCaskStrength entry for %s but does for whiskey", (kind) => {
+    expect(nameSays("Cask Strength Blanco", { group: "agave", kind })).not.toHaveProperty("isCaskStrength");
+    expect(nameSays("Cask Strength Blanco", whiskey)).toHaveProperty("isCaskStrength");
+  });
 
   it("hears Cask Strength in its several names, as whole words", () => {
     for (const name of ["Booker's Cask Strength", "Eagle Rare Barrel Proof", "Rickhouse Proof", "Barrel-Strength Rye", "Straight From the Barrel"]) {

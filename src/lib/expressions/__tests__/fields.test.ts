@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { EXPRESSION_SECTIONS, fieldVisible, sectionVisible, writableFields } from "../fields";
-import { BOTTLE_SECTIONS } from "../bottle-fields";
+import { BOTTLE_FIELDS, BOTTLE_SECTIONS } from "../bottle-fields";
+import { expressionSchema } from "../schema";
+import { FIELD_GROUPS } from "@/db/schema";
 
 const bottleSection = (id: string) => {
   const found = BOTTLE_SECTIONS.find((s) => s.id === id);
@@ -13,6 +15,28 @@ const section = (id: string) => {
   if (!found) throw new Error(`no section ${id}`);
   return found;
 };
+
+describe("retired fields are not in the forms", () => {
+  it("drops Still proof from agave", () => {
+    expect(writableFields("agave").has("isStillProof")).toBe(false);
+  });
+  it("drops the amaro and liqueur country and region", () => {
+    for (const group of ["amaro", "liqueur"] as const) {
+      const fields = writableFields(group);
+      expect(fields.has("originCountry")).toBe(false);
+      expect(fields.has("originRegion")).toBe(false);
+    }
+  });
+  it("drops Bottle Count and the brandy designation from the bottle form", () => {
+    const names = new Set(BOTTLE_FIELDS.map((field) => field.name));
+    expect(names.has("bottleCount")).toBe(false);
+    expect(names.has("brandyGrade")).toBe(false);
+  });
+  it("keeps the brandy designation on the label form", () => {
+    const names = new Set(EXPRESSION_SECTIONS.flatMap((s) => s.fields).map((field) => field.name));
+    expect(names.has("brandyGrade")).toBe(true);
+  });
+});
 
 describe("sectionVisible", () => {
   it("always shows the sections common to every spirit", () => {
@@ -134,5 +158,27 @@ describe("Description help", () => {
     }
     expect(description.help).not.toContain("live here");
     expect(description.help).toContain("Distilled by");
+  });
+});
+
+describe("the Still field", () => {
+  it("is writable for every spirit", () => {
+    for (const group of FIELD_GROUPS) {
+      expect(writableFields(group).has("stillType"), `stillType for ${group}`).toBe(true);
+    }
+  });
+
+  it("is drawn in a section with no field group, so every spirit shows it", () => {
+    expect(section("still").fieldGroups).toBeUndefined();
+    expect(section("still").showWhenAny).toBeUndefined();
+    expect(section("still").fields.map((f) => f.name)).toEqual(["stillType"]);
+  });
+
+  it("accepts the five still types and rejects anything else on the label", () => {
+    const shape = { brandId: "1", categoryId: "2", name: "X" };
+    for (const stillType of ["pot", "column", "blend", "coffey", "3-chamber"]) {
+      expect(expressionSchema.parse({ ...shape, stillType })).toMatchObject({ stillType });
+    }
+    expect(expressionSchema.safeParse({ ...shape, stillType: "kettle" }).success).toBe(false);
   });
 });

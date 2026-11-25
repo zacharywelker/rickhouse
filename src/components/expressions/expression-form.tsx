@@ -32,6 +32,8 @@ import {
   proofSpread,
   spreadLabel,
   showsFinishes,
+  BARREL_TYPE_SUGGESTIONS,
+  barrelTypeKind,
   showsRegions,
   strengthTier,
   withNameRules,
@@ -39,7 +41,9 @@ import {
   type NameContext,
   type ProofSpread,
 } from "@/lib/expressions/rules";
-import { BRANDY_MINIMUM_YEARS, countryForDistillery } from "@/lib/expressions/spirit-details";
+import { countryForDistillery, effectiveDairy, stillForCountry } from "@/lib/expressions/spirit-details";
+import { specForKind } from "@/lib/expressions/kind-options";
+import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
 import { RegionPicker } from "./region-picker";
 import { OTHER_NAME_COLUMNS, otherNameRows, RELEASE_COLUMNS } from "./label-list-columns";
@@ -64,6 +68,8 @@ export function initialLabelValues(
 ): Record<string, FieldValue> {
   const values = initialFieldValues(LABEL_FIELDS, existing);
   if (categoryGroups[Number(existing?.categoryId)] === "whiskey") values.isAdditiveFree = existing?.isAdditiveFree === true;
+  // Dairy is stated or it takes its kind's default (Cream is dairy); the select has no "unknown", so a new label must not start on its first option.
+  values.dairyStatus = typeof existing?.dairyStatus === "string" ? existing.dairyStatus : "unknown";
   return values;
 }
 
@@ -95,6 +101,7 @@ export function withLabelChange(
     if (group === "agave") next.isAdditiveFree = next.isAdditiveFree === true ? "true" : typeof next.isAdditiveFree === "string" ? next.isAdditiveFree : "";
   }
   if (resolve?.(next).group === "whiskey") next = withStatementAge(prev, next, name);
+  if (resolve) next = withDerivedDesignation(next, name, resolve(next).kind);
   if (name === "isBottledInBond" && value === true) next.proof = BOND_PROOF;
   return resolve ? withNameRules(prev, next, resolve) : next;
 }
@@ -144,12 +151,13 @@ export function ExpressionFields({
   const categoryRaw = values.categoryId;
   const categoryId = typeof categoryRaw === "string" && categoryRaw !== "" ? Number(categoryRaw) : null;
   const fieldGroup: FieldGroup = (categoryId !== null ? categoryGroups[categoryId] : undefined) ?? "other";
-  const singleMalt = isSingleMaltCategory(options.categoryId?.find((option) => option.value === categoryId)?.slug);
+  const categorySlug = options.categoryId?.find((option) => option.value === categoryId)?.slug;
+  const singleMalt = isSingleMaltCategory(categorySlug);
   const kind: CategoryKind | null = categoryKinds ? (categoryId !== null ? (categoryKinds[categoryId] ?? "other") : "other") : null;
 
   // A gin is unaged until it is marked aged; one that already has an age opens as aged.
   const ginAged = values.isAgedGin === true || (values.isAgedGin == null && looksAged(values, links.finishes.length));
-  const context = { group: fieldGroup, kind, values, ginAged };
+  const context = { group: fieldGroup, kind, slug: categorySlug ?? null, values, ginAged };
   const hidden = hiddenFields(context);
   const regions = parseRegions(values.regions);
   // NAS greys out the age and its statement, and an age filled in greys out the statement; Cask Strength greys out
@@ -164,9 +172,6 @@ export function ExpressionFields({
   const says = nameSays(values.name, nameContext);
   const entryGreyed = followsProof(values.name, nameContext) && !forced.has("entry");
   const change = (name: string, value: FieldValue) => {
-    if ((name === "originCountry" || name === "originRegion") && (fieldGroup === "amaro" || fieldGroup === "liqueur")) {
-      onChange(`${name}Manual`, String(value ?? "").trim() !== "");
-    }
     if (name === "isNas") setForced((now) => new Set([...now].filter((g) => g !== "age" && g !== "statement")));
     if (name === "isCaskStrength") setForced((now) => (now.has("proof") ? new Set([...now].filter((g) => g !== "proof")) : now));
     if (name === "amaroStyle") {
@@ -197,6 +202,11 @@ export function ExpressionFields({
       mashbillCategory = category.slug;
       break;
     }
+    // Tennessee follows the bourbon recipe rule exactly.
+    if (category.slug === "tennessee") {
+      mashbillCategory = "bourbon";
+      break;
+    }
     ancestors.add(category.value);
   }
   const matchesRecipe = (option: Option) => matchesMashbillCategory(option.grains ?? [], mashbillCategory);
@@ -223,20 +233,9 @@ export function ExpressionFields({
   /** A linked distillery brings its Scotch region along. */
   const changeLinks = (next: LabelLinks) => {
     onLinksChange(next);
-    if (fieldGroup === "amaro" || fieldGroup === "liqueur") {
-      const selected = next.distilleries.map((row) => options.distilleryLinks?.find((option) => option.value === row.id));
-      if (selected.length > 0 && selected.every((row) => row?.country) && values.originCountryManual !== true) {
-        const countries = [...new Set(selected.map((row) => row!.country!.trim()))];
-        onChange("originCountry", countries.length === 1 ? countries[0]! : "");
-      } else if (values.originCountryManual !== true) {
-        onChange("originCountry", "");
-      }
-      if (selected.length > 0 && selected.every((row) => row?.region) && values.originRegionManual !== true) {
-        const originRegions = [...new Set(selected.map((row) => row!.region!.trim()))];
-        onChange("originRegion", originRegions.length === 1 ? originRegions[0]! : "");
-      } else if (values.originRegionManual !== true) {
-        onChange("originRegion", "");
-      }
+    if (kind === "agricole" && !values.stillType) {
+      const added = next.distilleries.filter((row) => !links.distilleries.some((known) => known.id === row.id));
+      if (added.some((row) => stillForCountry(options.distilleryLinks?.find((option) => option.value === row.id)?.country) === "column")) onChange("stillType", "column");
     }
     if (!showsRegions(context)) return;
     const known = new Set(links.distilleries.map((row) => row.id));
@@ -305,7 +304,8 @@ export function ExpressionFields({
       );
     }
     if (field.name === "ageMonths" || field.name === "ageDays") return null;
-    if (hidden.has(field.name)) return null;
+    // The age group is drawn by its years field: with years hidden but months or days not, it is still drawn.
+    if (hidden.has(field.name) && !(field.name === "ageYears" && !(hidden.has("ageMonths") && hidden.has("ageDays")))) return null;
     if (field.name === "isNonChillFiltered") return (
       <label key={field.name} className="flex items-center gap-2 text-sm">
         <input
@@ -346,6 +346,7 @@ export function ExpressionFields({
           idPrefix={idPrefix}
           compact
           showDays={!hidden.has("ageDays")}
+          showYears={!hidden.has("ageYears")}
           locked={ageGreyed}
           onUnlock={() => unlock("age")}
           values={{
@@ -375,14 +376,12 @@ export function ExpressionFields({
                   ? "Greyed out for NAS. Triple-click to edit anyway."
                   : "Greyed out while an age is filled in. Triple-click to edit anyway.",
               }
-            : field.name === "brandyGrade" && kind && BRANDY_MINIMUM_YEARS[kind] && values.brandyGrade
-              ? { ...field, help: `At least ${BRANDY_MINIMUM_YEARS[kind]![String(values.brandyGrade) as "VS" | "VSOP" | "XO"]} years. Enter an exact age only when known.` }
             : entry && entryGreyed
               ? { ...field, help: "Follows Proof, as the name says Full Proof. Triple-click to edit anyway." }
-              : field
+              : specForKind(field, kind)
         }
         idPrefix={idPrefix}
-        value={values[field.name] ?? ""}
+        value={field.name === "dairyStatus" ? effectiveDairy(kind, values.dairyStatus) : (values[field.name] ?? "")}
         onChange={(next) => change(field.name, next)}
         error={errors[field.name]}
         options={options[field.name] ?? []}
@@ -484,7 +483,7 @@ export function ExpressionFields({
           <IngredientPickers fieldGroup={fieldGroup} kind={kind} links={links} onLinksChange={onLinksChange} />
           <MashbillPicker fieldGroup={fieldGroup} kind={kind} singleMalt={singleMalt} categoryName={options.categoryId?.find((option) => option.value === categoryId)?.label} mashbillCategory={mashbillCategory} options={options.mashbillLinks ?? []} links={links} onLinksChange={onLinksChange}
             matchesOption={matchesRecipe} onOptionCreated={(option) => onOptionCreated("mashbillLinks", option)} renderRowExtra={distilleriesForMashbill} />
-          <FinishPickers kind={kind} shown={showsFinishes(context)} options={options.finishLinks ?? []} links={links} onLinksChange={onLinksChange} fieldGroup={fieldGroup} />
+          <FinishPickers kind={kind} shown={showsFinishes(context)} barrelType={barrelTypeKind(context) ? { suggestions: BARREL_TYPE_SUGGESTIONS[categorySlug ?? ""] ?? [] } : null} options={options.finishLinks ?? []} links={links} onLinksChange={onLinksChange} fieldGroup={fieldGroup} />
         </SectionContent>
       </Section>
     </>

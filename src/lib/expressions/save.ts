@@ -10,8 +10,8 @@ import { AGING_FIELDS, BOND_PROOF, hiddenFields, isSingleMaltCategory, type Cate
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 import { FinishPairsInvalid, resolveFinishPairs, type FinishRowInput } from "./finish-pairs";
-import { ingredientAllowed, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
-import { categoryKindsById } from "./queries";
+import { UNDER_A_YEAR_CLASSES, effectiveDairy, fixedIngredient, ingredientAllowed, isAgaveKind, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
+import { categoryKindsById, categorySlugById } from "./queries";
 import { isGinKind } from "./gin-details";
 
 /**
@@ -257,12 +257,15 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
     .where(eq(expressions.id, expressionId)).limit(1);
   if (!label) return;
   const kind = (await categoryKindsById(tx))[label.categoryId] ?? "other";
-  const accepted: IngredientKind[] = label.group === "agave" ? ["maguey"] : label.group === "rum" ? ["rum_base"] :
+  const accepted: IngredientKind[] = label.group === "agave" ? ["maguey"] : label.group === "rum" ? (kind === "spiced-rum" ? ["rum_base", "flavor"] : ["rum_base"]) :
     label.group === "brandy" ? ["distillate"] : label.group === "gin" ? ["botanical", "gin_base"] :
     label.group === "vodka" ? ["vodka_base", "flavor"] : label.group === "amaro" ? ["botanical"] :
-    label.group === "liqueur" ? ["flavor", "liqueur_base"] : [];
+    label.group === "liqueur" ? ["flavor", "liqueur_base"] :
+    label.group === "whiskey" ? (kind === "flavored-whisky" ? ["flavor"] : []) :
+    label.group === "other" ? (kind === "absinthe" || kind === "akvavit" ? ["botanical"] : kind === "shochu" ? ["vodka_base"] : []) : [];
   if (accepted.length === 0) return;
-  if (submitted === undefined && kind !== "tequila" && label.group !== "gin" && label.group !== "amaro") return;
+  const fixed = fixedIngredient(kind);
+  if (submitted === undefined && !fixed && label.group !== "gin" && label.group !== "amaro") return;
   const existing = await tx.select({ id: expressionIngredients.ingredientId, kind: ingredients.kind, name: ingredients.name, family: ingredients.family, isManual: expressionIngredients.isManual })
     .from(expressionIngredients).innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
     .where(eq(expressionIngredients.expressionId, expressionId));
@@ -272,7 +275,7 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
   ));
   const automaticBotanical = label.style === "Carciofo" ? "Artichoke" : label.style === "Rabarbaro" ? "Rhubarb" :
     label.style === "Genepy" ? "Wormwood" : null;
-  const chosen: IngredientChoice[] = kind === "tequila" ? [{ name: "Blue Weber", kind: "maguey" }]
+  const chosen: IngredientChoice[] = fixed ? [fixed, ...(kind === "tequila" ? [] : (submitted ?? []).filter((choice) => choice.kind !== undefined && choice.kind !== fixed.kind && accepted.includes(choice.kind)))]
     : label.group === "gin" ? [{ name: "Juniper", kind: "botanical" }, ...(submitted ?? existing.map((row) => ({ name: row.name, kind: row.kind, family: row.family, isManual: row.isManual }))).filter((choice) =>
       (choice.kind === "botanical" || choice.kind === "gin_base") && !(choice.kind === "botanical" && choice.name.trim().toLocaleLowerCase() === "juniper"))]
     : label.group === "amaro" ? [
@@ -343,9 +346,9 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
   const group = await fieldGroupForCategory(input.categoryId, query);
   const kind = (await categoryKindsById(query))[input.categoryId] ?? "other";
   const allowed = writableFields(group);
-  if (kind !== "tequila") allowed.delete("tequilaClass");
+  if (!isAgaveKind(kind)) allowed.delete("tequilaClass");
   if (!["cognac", "armagnac", "calvados"].includes(kind)) allowed.delete("brandyGrade");
-  if (kind !== "gin") allowed.delete("ginStyle");
+  if (!isGinKind(kind)) allowed.delete("ginStyle");
   if (kind === "tequila" || kind === "mezcal") {
     allowed.delete("barrelFilledOn"); allowed.delete("bottledOn"); allowed.delete("isNas");
   }
@@ -361,32 +364,32 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
   }, query);
   const values = valuesForGroup(input, allowed, slug);
   if (group === "whiskey") values.ageYearsSource = input.ageYearsSource;
+  // A liqueur is dairy or non-dairy: an unstated one takes its kind's default (Cream is dairy).
+  if (group === "liqueur") values.dairyStatus = effectiveDairy(kind, input.dairyStatus);
   if (group === "amaro" || group === "liqueur") {
     values.originCountryManual = input.originCountryManual;
     values.originRegionManual = input.originRegionManual;
   }
   // A hidden field is not an edit. Keep previously recorded facts when a
   // category switch hides them, including legacy process facts.
-  const hidden = hiddenFields({ group, kind, values: input, ginAged: input.isAgedGin });
+  const hidden = hiddenFields({ group, kind, slug: (await categorySlugById(query))[input.categoryId] ?? null, values: input, ginAged: input.isAgedGin });
   for (const name of hidden) delete values[name];
   if (kind === "tequila" || kind === "mezcal") {
     delete values.barrelFilledOn; delete values.bottledOn; delete values.isNas;
   }
-  if (kind !== "tequila") delete values.tequilaClass;
+  if (!isAgaveKind(kind)) delete values.tequilaClass;
   if (!["cognac", "armagnac", "calvados"].includes(kind)) delete values.brandyGrade;
-  if (kind !== "gin") delete values.ginStyle;
+  if (!isGinKind(kind)) delete values.ginStyle;
   if (!isGinKind(kind)) delete values.isAgedGin;
   if (isGinKind(kind)) {
-    values.barrelFilledOn = null; values.bottledOn = null; values.ageStatement = null;
+    values.barrelFilledOn = null; values.bottledOn = null; values.ageStatement = null; values.ageDays = null;
   }
   if (kind === "tequila") {
     values.ageStatement = input.tequilaClass ? TEQUILA_CLASS_LABELS[input.tequilaClass as TequilaClass] : null;
     values.isNas = false;
   }
   if (["cognac", "armagnac", "calvados"].includes(kind) && input.brandyGrade) values.ageStatement = input.brandyGrade;
-  if (kind === "tequila" && input.tequilaClass === "blanco") {
-    values.ageYears = null; values.ageMonths = null; values.ageDays = null;
-  }
+  if (isAgaveKind(kind) && UNDER_A_YEAR_CLASSES.includes(input.tequilaClass ?? "")) values.ageYears = null;
   return values;
 }
 
@@ -395,6 +398,21 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
  * its lists. Throws NotOwned for someone else's label, which rolls back the
  * transaction it runs in.
  */
+/**
+ * A fixed recipe replaces whatever mashbills were sent, so the finishes' explicit pairs have to name it too: each pair line
+ * moves to the one mashbill (their shares added, since they were parts of one recipe). Without this a label whose finishes were
+ * paired to another recipe could not be saved.
+ */
+export function withOnlyMashbill(links: Links, mashbillId: number): Links {
+  const finishes = links.finishes.map((row) => {
+    if (!row.mashbills || row.mashbills.length === 0) return row;
+    const shares = row.mashbills.map((line) => line.share);
+    const share = shares.every((value) => value === null || value === undefined) ? null : Math.min(100, shares.reduce<number>((sum, value) => sum + (value ?? 0), 0));
+    return { ...row, mashbills: [{ id: mashbillId, share }] };
+  });
+  return { ...links, mashbills: [{ id: mashbillId, amount: null }], finishes };
+}
+
 export async function writeLabel(
   tx: Tx,
   ownerId: number,
@@ -404,7 +422,7 @@ export async function writeLabel(
 ): Promise<number> {
   const [category] = await tx.select({ slug: categories.slug }).from(categories).where(eq(categories.id, Number(values.categoryId))).limit(1);
   if (isSingleMaltCategory(category?.slug)) {
-    links = { ...links, mashbills: [{ id: await singleMaltMashbillId(tx, ownerId), amount: null }] };
+    links = withOnlyMashbill(links, await singleMaltMashbillId(tx, ownerId));
   }
   let target = id;
   if (target === null) {

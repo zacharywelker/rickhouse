@@ -61,7 +61,7 @@ describe.skipIf(!url)("regions, older names, releases and the category save, aga
     it("are refused with the form's message when two share a name, and nothing else in the request is saved", async () => {
       const label = await fx.mkLabel(owner, cat.whiskey, "Rel Three");
       const out = await save(label, { proof: "88", releases: JSON.stringify([{ name: "Same" }, { name: "same" }]) });
-      expect(out).toMatchObject({ ok: false, kind: "invalid", fieldErrors: { releases: expect.stringMatching(/Two releases are both called/) } });
+      expect(out).toMatchObject({ ok: false, kind: "invalid", fieldErrors: { releases: expect.stringMatching(/Two vintages are both called/) } });
       expect((await q(`SELECT proof::float AS proof FROM expressions WHERE id = $1`, label))[0]!.proof).not.toBe(88);
     });
 

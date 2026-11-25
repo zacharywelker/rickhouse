@@ -1,6 +1,6 @@
 import type { FieldGroup } from "@/db/schema";
 import { ageFilled, withAgeDefaults } from "@/lib/bottles/age";
-import { BRANDY_MINIMUM_YEARS, isAgaveKind } from "./spirit-details";
+import { BRANDY_MINIMUM_YEARS, UNDER_A_YEAR_CLASSES, isAgaveKind, isFrenchBrandy } from "./spirit-details";
 import { isGinKind, NAVY_GIN_PROOF } from "./gin-details";
 
 /**
@@ -68,15 +68,20 @@ export type FormContext = {
   group: FieldGroup;
   /** Null when the caller does not know the kinds, which leaves Straight alone. */
   kind: CategoryKind | null;
+  /** The category's own slug; omitted or null when unknown. */
+  slug?: string | null;
   values: Record<string, unknown>;
   /** Gin only: the "aged" button. */
   ginAged: boolean;
 };
 
-/** Whether aging matters: not for vodka, and not for a gin nobody has marked aged. */
+/** The groups that have an Aged toggle and are unaged until it is on (gin has its own, `isAgedGin`). */
+export const usesAgedToggle = (group: string | null) => group === "amaro" || group === "liqueur" || group === "rum";
+
+/** Whether aging matters: not for vodka, and not for a gin, amaro, liqueur or rum nobody has marked aged. */
 export function isUnaged(context: Pick<FormContext, "group" | "ginAged"> & { values?: Record<string, unknown> }): boolean {
   return context.group === "vodka" || (context.group === "gin" && !context.ginAged) ||
-    ((context.group === "amaro" || context.group === "liqueur") && context.values?.isAged !== true);
+    (usesAgedToggle(context.group) && context.values?.isAged !== true);
 }
 
 /** Whether a gin already carries something only an aged one has, so it opens as aged. */
@@ -84,28 +89,38 @@ export function looksAged(values: Record<string, unknown>, finishCount: number):
   return ageFilled(values) || String(values.ageStatement ?? "").trim() !== "" || values.isNas === true || finishCount > 0;
 }
 
+/** Peat applies to these whisky kinds and to American Single Malt, keyed by its stable slug. */
+export function peatKindFor(context: { kind: CategoryKind | null; slug?: string | null }): boolean {
+  return context.kind === "irish" || context.kind === "scotch" || context.kind === "japanese" ||
+    context.kind === "international" || context.slug === "american-single-malt";
+}
+
 /** Label fields the form leaves out for this category and choices. */
 export function hiddenFields(context: FormContext): Set<string> {
   const hidden = new Set<string>();
-  if (isUnaged(context)) for (const name of AGING_FIELDS) hidden.add(name);
-  if (context.kind !== "tequila") hidden.add("tequilaClass");
+  // Solera is an aged rum's: its range goes with the age.
+  if (isUnaged(context)) for (const name of [...AGING_FIELDS, "isSolera", "soleraRange"]) hidden.add(name);
+  if (!isAgaveKind(context.kind)) hidden.add("tequilaClass");
   if (!context.kind || !BRANDY_MINIMUM_YEARS[context.kind]) hidden.add("brandyGrade");
   if (isAgaveKind(context.kind)) {
     hidden.add("barrelFilledOn");
     hidden.add("bottledOn");
     hidden.add("isNas");
   }
+  if (isAgaveKind(context.kind) || isGinKind(context.kind)) hidden.add("isCaskStrength");
+  if (isFrenchBrandy(context.kind)) hidden.add("isNas");
   if (context.kind === "tequila") hidden.add("ageStatement");
-  if (context.kind === "tequila" && context.values.tequilaClass === "blanco") {
-    hidden.add("ageYears"); hidden.add("ageMonths"); hidden.add("ageDays");
-  }
+  // Blanco and Reposado are under a year by law: months and days, never years.
+  if (isAgaveKind(context.kind) && UNDER_A_YEAR_CLASSES.includes(String(context.values.tequilaClass ?? ""))) hidden.add("ageYears");
   if (isGinKind(context.kind)) {
-    hidden.add("barrelFilledOn"); hidden.add("bottledOn"); hidden.add("ageStatement");
-    if (context.kind === "genever") hidden.add("ginStyle");
+    // A gin is aged in years and months: no dates, no statement, no days. Genever has a class where gin has a style.
+    hidden.add("barrelFilledOn"); hidden.add("bottledOn"); hidden.add("ageStatement"); hidden.add("ageDays");
   } else {
     hidden.add("ginStyle"); hidden.add("isAgedGin");
   }
-  if (context.group !== "amaro" && context.group !== "liqueur") hidden.add("isAged");
+  if (!usesAgedToggle(context.group)) hidden.add("isAged");
+  // A Rhum Agricole is pure cane juice: nothing is added.
+  if (context.kind === "agricole") hidden.add("sugarGPerL");
   if (context.group === "amaro" || context.group === "liqueur") {
     hidden.add("ageDays"); hidden.add("barrelFilledOn"); hidden.add("bottledOn");
     hidden.add("isCaskStrength"); hidden.add("isStillProof");
@@ -118,9 +133,9 @@ export function hiddenFields(context: FormContext): Set<string> {
   if (context.group === "whiskey") {
     hidden.add("isChillFiltered"); hidden.add("colorAdded"); hidden.add("charLevel");
     if (context.kind === "scotch") {
-      hidden.add("entryProof"); hidden.add("cooperageId"); hidden.add("isAdditiveFree");
+      hidden.add("entryProof"); hidden.add("isAdditiveFree");
     } else if (context.kind === "american") hidden.add("isAdditiveFree");
-    if (context.kind !== "irish" && context.kind !== "scotch") hidden.add("peatStatus");
+    if (!peatKindFor(context)) hidden.add("peatStatus");
   } else {
     hidden.add("isNonChillFiltered"); hidden.add("peatStatus");
   }
@@ -176,7 +191,7 @@ export type NameContext = { group: FieldGroup; kind: CategoryKind | null };
 
 /** Whether a name's say-so means anything for this spirit: cask strength needs an age, bond and full proof need whiskey. */
 function nameFlagApplies(flag: NameFlag, { group, kind }: NameContext): boolean {
-  if (flag === "isCaskStrength") return group === "whiskey" || group === "rum" || group === "brandy" || group === "agave";
+  if (flag === "isCaskStrength") return group === "whiskey" || group === "rum" || group === "brandy";
   if (flag === "fullProof") return group === "whiskey";
   return group === "whiskey" && kind === "american";
 }
@@ -252,14 +267,28 @@ export function nameRuleColumns(
 /** Whether Entry Proof should follow Proof: the name says Full Proof. */
 export const followsProof = (name: unknown, context: NameContext) => nameSays(name, context).fullProof !== undefined;
 
+/** Corn and Light whiskey have no finishes: their Barrel type is one of these, or a finish of the owner's own. */
+export const BARREL_TYPE_SUGGESTIONS: Readonly<Record<string, ReadonlyArray<string>>> = {
+  "corn-whiskey": ["Uncharred", "Used"],
+  "light-whiskey": ["Uncharred", "Used"],
+};
+
+/**
+ * Whether the finishes picker is a Barrel type (one optional value, the same finish data under another name): agave, an aged gin
+ * (not genever), and Corn and Light whiskey, keyed by slug. Not yet: mezcal of the class Madurado en Vidrio, which the app cannot say.
+ */
+export function barrelTypeKind(context: { group: FieldGroup; kind: CategoryKind | null; slug?: string | null; ginAged: boolean }): boolean {
+  return context.group === "agave" || (context.kind === "gin" && context.ginAged) || (context.slug != null && context.slug in BARREL_TYPE_SUGGESTIONS);
+}
+
 /** The finishes list: aging matters to it too. */
 export const showsFinishes = (context: Pick<FormContext, "group" | "ginAged"> & { values?: Record<string, unknown> }) => !isUnaged(context);
 
 /** Rum records its base where other spirits record a mashbill. */
 export const baseReplacesMashbills = (group: FieldGroup) => group === "rum";
 
-/** Both supported Single Malt categories have the same fixed recipe. */
-export const isSingleMaltCategory = (slug: unknown) => slug === "american-single-malt" || slug === "single-malt-scotch";
+/** The categories whose recipe is fixed at 100% malted barley: the two Single Malts and Blended Malt Scotch. */
+export const isSingleMaltCategory = (slug: unknown) => slug === "american-single-malt" || slug === "single-malt-scotch" || slug === "blended-malt-scotch";
 
 /** Regions belong to Scotch. */
 export const showsRegions = (context: Pick<FormContext, "kind">) => context.kind === "scotch";

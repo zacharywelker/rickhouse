@@ -344,7 +344,7 @@ export const expressions = pgTable(
     brandyGrade: text("brandy_grade"),
     ginStyle: text("gin_style"),
     isAgedGin: boolean("is_aged_gin").notNull().default(false),
-    /** Used by Amaro and Liqueur; ordinary labels in those groups do not expose age or casks. */
+    /** Used by Amaro, Liqueur and Rum; a label in those groups shows no age or casks until it is on. */
     isAged: boolean("is_aged").notNull().default(false),
     amaroStyle: text("amaro_style"),
     /** Scotch: unknown, unpeated, or peated. Irish uses unknown or peated. */

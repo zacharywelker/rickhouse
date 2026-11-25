@@ -2,7 +2,7 @@ import type { FieldGroup } from "@/db/schema";
 import { bottleFieldNotUsed } from "./bottle-applicability";
 import { BOTTLE_MATRIX, LABEL_CONDITIONS, LABEL_MATRIX, MATRIX_GROUPS, type MatrixRow } from "./field-matrix";
 import { writableFields } from "./fields";
-import { hiddenFields, type CategoryKind } from "./rules";
+import { barrelTypeKind, hiddenFields, isUnaged, type CategoryKind } from "./rules";
 
 /**
  * The kinds that stand for each group when a cell says "always" or "never": the cell has to hold for every one of
@@ -26,10 +26,11 @@ const AGED_STATES: Record<FieldGroup, ReadonlyArray<boolean>> = {
   whiskey: [false], rum: [false], agave: [false], brandy: [false], gin: [false, true], vodka: [false], amaro: [false, true], liqueur: [false, true], other: [false],
 };
 
-/** Bottle fields `bottleFieldNotUsed` knows about; the other bottle rules live in the bottle form component. */
+/** Bottle fields `bottleFieldNotUsed` decides (the bottle form and the bulk editor both ask it). */
 const BOTTLE_FUNCTION_FIELDS = new Set([
   "barrelFilledOn", "bottledOn", "warehouse", "rickFloor", "ginIsNas", "tequilaClass", "brandyGrade", "ageStatement", "ageYears", "ageMonths",
-  "ageDays", "isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "bottleCount",
+  "ageDays", "isSingleBarrel", "isSingleBarrelPick", "pickName", "pickedBy", "barrelNumber", "bottleCount", "batch", "releaseYear", "releaseId",
+  "proof", "sizeMl",
 ]);
 
 export type Gap = {
@@ -52,13 +53,15 @@ type Shown = (field: string, kind: CategoryKind, aged: boolean) => boolean;
 
 function labelShown(group: FieldGroup): Shown {
   const writable = writableFields(group);
+  // The Barrel type is the finishes picker, which is not a form field: it is there when the picker is one.
   return (field, kind, aged) =>
+    field === "finishLinks" ? barrelTypeKind({ group, kind, ginAged: aged }) && !isUnaged({ group, ginAged: aged, values: { isAged: aged } }) :
     writable.has(field) &&
-    !hiddenFields({ group, kind, values: group === "amaro" || group === "liqueur" ? { isAged: aged } : {}, ginAged: aged }).has(field);
+    !hiddenFields({ group, kind, values: group === "amaro" || group === "liqueur" || group === "rum" ? { isAged: aged } : {}, ginAged: aged }).has(field);
 }
 
 function bottleShown(group: FieldGroup): Shown {
-  return (field, kind, aged) => bottleFieldNotUsed(field, { group, kind, isAgedGin: aged, tequilaClass: null }) === null;
+  return (field, kind, aged) => bottleFieldNotUsed(field, { group, kind, isAgedGin: aged, isAged: aged, tequilaClass: null }) === null;
 }
 
 function gapsFor(matrix: "label" | "bottle", rows: ReadonlyArray<MatrixRow>): Gap[] {

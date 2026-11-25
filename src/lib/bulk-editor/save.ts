@@ -60,8 +60,6 @@ export function serverFields(editor: CellEditor | undefined, column: string, val
     const id = /^id:(\d+)$/.exec(value);
     return { categoryId: id ? Number(id[1]) : null };
   }
-  // The origin of an amaro or liqueur typed in is remembered as the owner's own, as the form does.
-  if (editor.field === "originCountry" || editor.field === "originRegion") return { [editor.field]: valueOrNull(value), [`${editor.field}Manual`]: value.trim() !== "" };
   if (editor.reference) return refServerFields(editor.field, value);
   // The level is a whole number on the server; the cell holds the option's value as text.
   if (editor.field === "fillPct") return { fillPct: Number(value) };
@@ -73,18 +71,10 @@ export function serverFields(editor: CellEditor | undefined, column: string, val
 
 /**
  * What linking a distillery brings along (the form's `changeLinks`): the Scotch regions, and an amaro's or liqueur's origin.
- * They are edits under these names, not the Region and Origin cells', so they are not mistaken for being typed (typing an
- * origin marks it as the owner's own, and a later link then leaves it alone).
+ * 
  */
-const LINKED_FACTS: Readonly<Record<string, string>> = { regions: "regions", originCountryLinked: "originCountry", originRegionLinked: "originRegion" };
+const LINKED_FACTS: Readonly<Record<string, string>> = { regions: "regions" };
 export const LINKED_COLUMNS = Object.keys(LINKED_FACTS);
-
-/** A staged manual origin takes precedence over a value inferred by a link. */
-function linkedField(column: string, cells: Readonly<Record<string, string>>): string | undefined {
-  const field = LINKED_FACTS[column];
-  if ((field === "originCountry" || field === "originRegion") && cells[field]?.trim()) return undefined;
-  return field;
-}
 
 /** A field and its text, under the server's field name. A blank clears the value (null). The lists are sent by `linksBody`. */
 function patchFields(cells: Readonly<Record<string, string>>): Record<string, unknown> {
@@ -93,8 +83,7 @@ function patchFields(cells: Readonly<Record<string, string>>): Record<string, un
     ...Object.entries(cells).map(([column, value]) => {
       if (EDITORS[column]?.links) return {};
       if (column in LINKED_FACTS) {
-        const field = linkedField(column, cells);
-        return field ? { [field]: valueOrNull(value) } : {};
+        return { [LINKED_FACTS[column]!]: valueOrNull(value) };
       }
       return serverFields(EDITORS[column], column, value);
     }),
@@ -131,8 +120,7 @@ export function cellFields(cells: Readonly<Record<string, string>> | undefined):
   for (const [column, value] of Object.entries(cells ?? {})) {
     const editor = EDITORS[column];
     if (column in LINKED_FACTS) {
-      const field = linkedField(column, cells ?? {});
-      if (field && value !== "") facts[field] = value;
+      if (value !== "") facts[LINKED_FACTS[column]!] = value;
       continue;
     }
     if (editor?.links) {

@@ -531,6 +531,7 @@ export function CatalogBottle({
               categoryKind={categoryKinds[bottleCategoryId] ?? "american"}
               inheritedTequilaClass={String(labelValues.tequilaClass || (phase.kind === "existing" ? phase.label.values.tequilaClass : "") || "")}
               inheritedGinAged={Boolean(labelValues.isAgedGin ?? (phase.kind === "existing" ? phase.label.values.isAgedGin : false))}
+              inheritedAged={Boolean(labelValues.isAged ?? (phase.kind === "existing" ? phase.label.values.isAged : false))}
               inheritedGinNas={Boolean(labelValues.isNas ?? (phase.kind === "existing" ? phase.label.values.isNas : false))}
               openedLevel={{ value: life, onChange: setLife, error: errors.bottle.dateOpened ?? errors.bottle.fillPct }}
             />

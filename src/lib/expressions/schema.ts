@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { ACQUISITIONS, BOTTLE_STATUSES, CHAR_LEVELS, RUM_BASES, SCOTCH_REGIONS, STILL_TYPES, TASTING_SOURCES } from "@/db/schema";
 import { AMARO_STYLES, BRANDY_GRADES, DAIRY_STATUSES, PEAT_STATUSES, TEQUILA_CLASSES } from "./spirit-details";
-import { GIN_STYLES } from "./gin-details";
+import { GENEVER_CLASSES, GIN_STYLES } from "./gin-details";
 
 const trimmed = z.string().trim();
 
@@ -94,7 +94,7 @@ export const expressionSchema = z
     isNas: checkbox,
     tequilaClass: optionalEnum(TEQUILA_CLASSES),
     brandyGrade: optionalEnum(BRANDY_GRADES),
-    ginStyle: optionalEnum(GIN_STYLES),
+    ginStyle: optionalEnum([...GIN_STYLES, ...GENEVER_CLASSES]),
     isAgedGin: checkbox,
     isAged: checkbox,
     amaroStyle: optionalEnum(AMARO_STYLES),

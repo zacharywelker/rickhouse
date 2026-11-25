@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
+import type { FieldGroup } from "@/db/schema";
 import { BOTTLE_STATUSES, bottleImages, bottles, brands, categories, expressionReleases, expressions, stores } from "@/db/schema";
 import { newBottleValues } from "@/lib/bottles/new-bottle";
 import { bottlePatchSchema } from "@/lib/bottles/patch-schema";
@@ -135,7 +136,7 @@ const newRowSchema = z
   })
   .strict();
 
-type Spirit = { kind: CategoryKind; ginAged: boolean };
+type Spirit = { kind: CategoryKind; ginAged: boolean; group: FieldGroup };
 
 /**
  * A new row: a label (chosen, or named and created) under a brand (chosen, or named and created), and a bottle on it
@@ -200,7 +201,7 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
         if (!row) throw new Rejected(invalidField("label", "Choose one of your labels."));
         if (row.brandId !== brandId) throw new Rejected(invalidField("label", "That label is not under this brand."));
         labelId = row.id;
-        spirit = { kind: (await categoryKindsById(tx))[row.categoryId] ?? "other", ginAged: row.isAgedGin };
+        spirit = { kind: (await categoryKindsById(tx))[row.categoryId] ?? "other", ginAged: row.isAgedGin, group: await fieldGroupForCategory(row.categoryId, tx) };
       } else {
         const facts = { ...(labelFacts ?? {}) };
         if (cooperageNamed.name !== undefined) facts.cooperageId = (await ensureCooperage(tx, ownerId, cooperageNamed.name)).id;
@@ -208,7 +209,7 @@ export async function createRow(ownerId: number, raw: unknown): Promise<CreateOu
         labelId = made.id;
         createdLabel = made.created;
         labelFactsIgnored = !made.created && Object.keys(labelFacts ?? {}).length + (cooperageNamed.name !== undefined ? 1 : 0) > 0;
-        spirit = { kind: (await categoryKindsById(tx))[made.categoryId] ?? "other", ginAged: made.isAgedGin };
+        spirit = { kind: (await categoryKindsById(tx))[made.categoryId] ?? "other", ginAged: made.isAgedGin, group: await fieldGroupForCategory(made.categoryId, tx) };
       }
 
       // The bottle.

@@ -108,7 +108,7 @@ export function LabelTableBody({
         return tier ? STRENGTH_TIER_LABELS[tier] : DASH;
       }
       case "age":
-        if (row.fieldGroup === "vodka" || ((row.fieldGroup === "amaro" || row.fieldGroup === "liqueur") && !row.isAged)) return DASH;
+        if (row.fieldGroup === "vodka" || ((row.fieldGroup === "amaro" || row.fieldGroup === "liqueur" || row.fieldGroup === "rum") && !row.isAged)) return DASH;
         if (row.fieldGroup === "whiskey") {
           const resolved = whiskeyAge(row, categoryKinds[row.categoryId] ?? "other");
           return resolved.inferred ? <abbr tabIndex={0} title={resolved.explanation ?? undefined} className="cursor-help italic no-underline">{resolved.text}</abbr> : resolved.text ?? DASH;
@@ -152,16 +152,16 @@ export function LabelTableBody({
       {rows.map((row) => {
         const fieldGroup = row.fieldGroup;
         const kind = categoryKinds[row.categoryId] ?? "other";
-        const hidden = hiddenFields({ group: fieldGroup, kind, values: row as unknown as Record<string, unknown>, ginAged: row.isAgedGin === true });
+        const hidden = hiddenFields({ group: fieldGroup, kind, slug: row.categorySlug ?? null, values: row as unknown as Record<string, unknown>, ginAged: row.isAgedGin === true });
         return (
           <TableRow key={row.id} onDoubleClick={(event) => openOnDoubleClick(event, router, row.id)} className="cursor-pointer">
             {shown.map(({ column, group }) => {
               const applies = groupApplies(group, fieldGroup)
                 && !hidden.has(column.id)
-                && !(column.id === "age" && hidden.has("ageYears"))
-                && !(column.id === "tequilaClass" && kind !== "tequila")
+                && !(column.id === "age" && hidden.has("ageYears") && hidden.has("ageMonths") && hidden.has("ageDays"))
+                && !(column.id === "tequilaClass" && !isAgaveKind(kind))
                 && !(column.id === "brandyGrade" && !BRANDY_MINIMUM_YEARS[kind])
-                && !(column.id === "ginStyle" && kind !== "gin")
+                && !(column.id === "ginStyle" && !isGinKind(kind))
                 && !(column.id === "isAgedGin" && !isGinKind(kind))
                 && !(column.id === "ingredients" && !["rum", "agave", "brandy", "gin", "vodka", "amaro", "liqueur"].includes(fieldGroup))
                 && !(column.id === "mashbills" && ["rum", "agave", "brandy", "gin", "vodka", "amaro", "liqueur"].includes(fieldGroup))

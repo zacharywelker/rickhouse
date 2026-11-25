@@ -2,7 +2,7 @@ import { ACQUISITIONS, BOTTLE_STATUSES } from "@/db/schema";
 import { FILL_STATES } from "@/lib/bottles/fill-state";
 import { SIZE_PRESETS } from "./sizes";
 import type { FormSection } from "./fields";
-import { BRANDY_GRADES, TEQUILA_CLASSES, TEQUILA_CLASS_LABELS } from "./spirit-details";
+import { TEQUILA_CLASSES, TEQUILA_CLASS_LABELS } from "./spirit-details";
 
 const titleCase = (value: string) => value[0]!.toUpperCase() + value.slice(1);
 
@@ -121,7 +121,6 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
         showWhenAny: ["isSingleBarrelPick"],
       },
       { kind: "text", name: "barrelNumber", label: "Barrel Number", span: "half" },
-      { kind: "number", name: "bottleCount", label: "Bottle Count", min: 1, step: 1, span: "half" },
       { kind: "text", name: "warehouse", label: "Warehouse", placeholder: "Warehouse H", span: "half" },
       { kind: "text", name: "rickFloor", label: "Rick / Floor", placeholder: "5th floor, rick 12", span: "half" },
     ],
@@ -169,9 +168,6 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
       { kind: "select", name: "tequilaClass", label: "Tequila Class", options: [
         { value: "", label: "Same as the label" },
         ...TEQUILA_CLASSES.map((value) => ({ value, label: TEQUILA_CLASS_LABELS[value] })),
-      ], span: "half" },
-      { kind: "select", name: "brandyGrade", label: "Age Designation", options: [
-        { value: "", label: "Same as the label" }, ...BRANDY_GRADES.map((value) => ({ value, label: value })),
       ], span: "half" },
       {
         kind: "text",

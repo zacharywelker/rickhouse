@@ -91,7 +91,9 @@ describe("tequila class, brandy grade and gin NAS: one cell each", () => {
     const ids = SHEET_COLUMNS.map((c) => c.id);
     for (const id of ["tequilaClass", "brandyGrade", "isNas"]) expect(ids).toContain(id);
     for (const gone of ["ownTequilaClass", "ownBrandyGrade", "ginIsNas"]) expect(ids).not.toContain(gone);
-    for (const id of ["tequilaClass", "brandyGrade", "isNas"]) expect(col(id).group).toBe("value");
+    // The bottle has no designation of its own any more, so the brandy designation is the label's plain column.
+    for (const id of ["tequilaClass", "isNas"]) expect(col(id).group).toBe("value");
+    expect(col("brandyGrade").group).not.toBe("value");
   });
   it("shows the label's tequila class with no marker, and a bottle's own with a B", () => {
     const plain = bottle({ id: 8, expressionId: 2 });

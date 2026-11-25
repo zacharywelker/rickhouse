@@ -13,7 +13,7 @@ import { FinishPairsInvalid } from "./finish-pairs";
 import { replaceIngredients, replaceLinks, writableValues, type Links } from "./save";
 import type { IngredientChoice } from "./spirit-details";
 import { expressionSchema } from "./schema";
-import { BRANDY_MINIMUM_YEARS, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "./spirit-details";
+import { BRANDY_MINIMUM_YEARS, UNDER_A_YEAR_CLASSES, fixedIngredient, isAgaveKind, TEQUILA_CLASS_LABELS, type TequilaClass } from "./spirit-details";
 import { isGinKind } from "./gin-details";
 import { writableLabelFacts } from "./writable-facts";
 
@@ -173,18 +173,18 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
       if (isAgaveKind(kind)) {
         delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.isNas;
       }
-      if (kind !== "tequila") delete columns.tequilaClass;
+      if (!isAgaveKind(kind)) delete columns.tequilaClass;
       if (!BRANDY_MINIMUM_YEARS[kind]) delete columns.brandyGrade;
-      if (kind !== "gin") delete columns.ginStyle;
+      if (!isGinKind(kind)) delete columns.ginStyle;
       if (!isGinKind(kind)) delete columns.isAgedGin;
       if (isGinKind(kind)) {
-        delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.ageStatement;
+        delete columns.barrelFilledOn; delete columns.bottledOn; delete columns.ageStatement; delete columns.ageDays;
       }
       if (kind === "tequila" && facts.tequilaClass !== undefined) {
         columns.ageStatement = facts.tequilaClass ? TEQUILA_CLASS_LABELS[facts.tequilaClass as TequilaClass] : null;
         columns.isNas = false;
-        if (facts.tequilaClass === "blanco") { columns.ageYears = null; columns.ageMonths = null; columns.ageDays = null; }
       }
+      if (isAgaveKind(kind) && UNDER_A_YEAR_CLASSES.includes(facts.tequilaClass ?? "")) columns.ageYears = null;
       if (BRANDY_MINIMUM_YEARS[kind] && facts.brandyGrade !== undefined) columns.ageStatement = facts.brandyGrade;
       // The sheet's derived-age flag (the forms' `ageYearsSource`): only a whiskey keeps one.
       const source = (facts as { ageYearsSource?: "entered" | "derived" }).ageYearsSource;
@@ -195,14 +195,20 @@ export async function patchLabel(ownerId: number, id: number, patch: LabelPatch)
         if (manual.originCountryManual !== undefined) columns.originCountryManual = manual.originCountryManual;
         if (manual.originRegionManual !== undefined) columns.originRegionManual = manual.originRegionManual;
       }
+      // The phone knows no Aged toggle for rum: an age or NAS it sends marks the label aged, so the web does not hide it.
+      if (category?.fieldGroup === "rum" && columns.isAged === undefined) {
+        const aging = [columns.ageYears, columns.ageMonths, columns.ageDays, columns.ageStatement];
+        if (aging.some((value) => value !== undefined && value !== null && value !== "") || columns.isNas === true) columns.isAged = true;
+      }
       const set = { ...columns, ...(brandId !== current.brandId ? { brandId } : {}) } as Partial<typeof expressions.$inferInsert>;
       if (Object.keys(set).length > 0) {
         await tx.update(expressions).set(set).where(and(eq(expressions.id, id), eq(expressions.ownerId, ownerId)));
       }
       if (patch.links) await replaceLinks(tx, ownerId, id, patch.links);
       if (patch.ingredients && !patch.links?.ingredients) await replaceIngredients(tx, ownerId, id, patch.ingredients);
-      if (kind === "tequila" && current.categoryId !== categoryId && !patch.links?.ingredients && !patch.ingredients) {
-        await replaceIngredients(tx, ownerId, id, [{ name: "Blue Weber" }]);
+      const fixedBase = fixedIngredient(kind);
+      if (fixedBase && current.categoryId !== categoryId && !patch.links?.ingredients && !patch.ingredients) {
+        await replaceIngredients(tx, ownerId, id, [{ name: fixedBase.name, kind: fixedBase.kind }]);
       }
       if (isGinKind(kind) && !isGinKind(kinds[current.categoryId] ?? "other") && !patch.links?.ingredients && !patch.ingredients) {
         await replaceIngredients(tx, ownerId, id, [{ name: "Juniper", kind: "botanical" }]);

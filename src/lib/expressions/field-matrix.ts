@@ -41,7 +41,7 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Cask strength", "isCaskStrength", "A C N A N N N N A", "Off for agave and gin (owner, 2026-11-23)."),
   row("Bottled in Bond", "isBottledInBond", "C N N N N N N N N"),
   row("Straight", "isStraight", "C N N N N N N N N"),
-  row("Aged toggle", { gin: "isAgedGin", amaro: "isAged", liqueur: "isAged", rum: null }, "N A N N A N A A N"),
+  row("Aged toggle", { gin: "isAgedGin", amaro: "isAged", liqueur: "isAged", rum: "isAged" }, "N A N N A N A A N"),
   row("Age years", "ageYears", "A C C A C N C C A"),
   row("Age months", "ageMonths", "A C C A C N C C A"),
   row("Age days", "ageDays", "A C C A C N N N A"),
@@ -51,7 +51,7 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Bottled date", "bottledOn", "A C N A N N N N A"),
   row("Solera", "isSolera", "N C N N N N N N N"),
   row("Solera low and high age", "soleraRange", "N C N N N N N N N"),
-  row("Barrel type", null, "C N A N C N N N N", "Whiskey: Corn and Light only. Agave: not Madurado en Vidrio. Gin: when aged."),
+  row("Barrel type", "finishLinks", "C N A N C N N N N", "Whiskey: Corn and Light only. Agave: not Madurado en Vidrio. Gin: when aged."),
   row("Non-chill filtered", "isNonChillFiltered", "A N N N N N N N N"),
   row("Additive free", "isAdditiveFree", "C N C N N N N N N"),
   row("Entry proof", "entryProof", "C N N N N N N N N"),
@@ -60,9 +60,9 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Still type", "stillType", "A A A A A A A A A"),
   row("Dairy", "dairyStatus", "N N N N N N N A N", "Under More for every liqueur, ticked by default on Cream (section 9)."),
   row("Amaro style", "amaroStyle", "N N N N N N A N N"),
-  row("Tequila class", "tequilaClass", "N N C N N N N N N"),
+  row("Tequila class", "tequilaClass", "N N C N N N N N N", "Mezcal has a class too (without Extra Añejo and Cristalino)."),
   row("Brandy designation", "brandyGrade", "N N N C N N N N N"),
-  row("Gin style", "ginStyle", "N N N N C N N N N"),
+  row("Gin style", "ginStyle", "N N N N C N N N N", "A genever's class (Jonge, Oude, Korenwijn) is kept in the same field."),
   row("Marque", "marque", "N A N N N N N N N"),
   row("Esters", "esterGl", "N A N N N N N N N"),
   row("Added sugar", "sugarGPerL", "N C N N N N N N N"),
@@ -70,12 +70,12 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Regions", "regions", "C N N N N N N N N", "Scotch only. Shown by the form component, not by hiddenFields."),
   row("Cooking method", "cookingMethod", "N N C N N N N N N", "Agave, optional (tequila and mezcal)."),
   row("Extraction", "extraction", "N N C N N N N N N", "Agave, optional (tequila and mezcal)."),
-  row("Still proof", "isStillProof", "N N N N N N N N N", "Retired."),
+  row("Still proof", null, "N N N N N N N N N", "Retired."),
   row("Chill filtered", "isChillFiltered", "N N N N N N N N N", "Retired."),
   row("Colour added", "colorAdded", "N N N N N N N N N", "Retired."),
   row("Char level", "charLevel", "N N N N N N N N N", "Retired."),
-  row("Country (amaro, liqueur)", "originCountry", "N N N N N N N N N", "Retired: the distillery supplies it."),
-  row("Region (amaro, liqueur)", "originRegion", "N N N N N N N N N", "Retired: the distillery supplies it."),
+  row("Country (amaro, liqueur)", null, "N N N N N N N N N", "Retired: the distillery supplies it."),
+  row("Region (amaro, liqueur)", null, "N N N N N N N N N", "Retired: the distillery supplies it."),
 ];
 
 /** Section 8: what a bottle shows. */
@@ -99,8 +99,8 @@ export const BOTTLE_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Vintage choice", "releaseId", "A A C A N N N N A", "Mezcal only for agave: tequila and gin lose it (section 8)."),
   row("Tequila class", "tequilaClass", "N N C N N N N N N"),
   row("Gin NAS", "ginIsNas", "N N N N C N N N N"),
-  row("Brandy designation", "brandyGrade", "N N N N N N N N N", "Off the bottle; the label keeps it (section 4)."),
-  row("Bottle count", "bottleCount", "N N N N N N N N N", "Retired."),
+  row("Brandy designation", null, "N N N N N N N N N", "Off the bottle; the label keeps it (section 4)."),
+  row("Bottle count", null, "N N N N N N N N N", "Retired."),
   row("Size override", "sizeMl", "A A A A A A A A A"),
 ];
 
@@ -135,14 +135,12 @@ export const LABEL_CONDITIONS: ReadonlyArray<Condition> = [
   { row: "Peat", group: "whiskey", shown: ["irish", "scotch", "japanese", "international"], hidden: ["canadian", "flavored-whisky"] },
   { row: "NAS", group: "brandy", shown: ["pisco", "apple", "eau-de-vie"], hidden: ["cognac", "armagnac", "calvados"] },
   { row: "Age statement", group: "agave", shown: ["mezcal"], hidden: ["tequila"] },
-  { row: "Tequila class", group: "agave", shown: ["tequila"], hidden: ["mezcal"] },
+  { row: "Tequila class", group: "agave", shown: ["tequila", "mezcal"], hidden: [] },
   { row: "Brandy designation", group: "brandy", shown: ["cognac", "armagnac", "calvados"], hidden: ["pisco", "apple", "eau-de-vie"] },
-  { row: "Gin style", group: "gin", shown: ["gin"], hidden: ["genever"] },
+  { row: "Gin style", group: "gin", shown: ["gin", "genever"], hidden: [] },
 ];
 
-/** Conditions the check cannot decide from the kind alone, and what they wait on. */
+/** Conditions the check cannot decide from the kind alone, and what they wait on. (Peat for American Single Malt is decided by the category slug and pinned in rules.test.ts, not here.) */
 export const UNDECIDABLE: ReadonlyArray<{ row: string; why: string }> = [
-  { row: "Peat", why: "American Single Malt is a subcategory of kind american, so peat for it needs a key finer than the kind (section 6)." },
-  { row: "Cask strength", why: "Rum shows it only when aged, and rum has no Aged toggle yet." },
   { row: "Barrel type", why: "No such field yet." },
 ];

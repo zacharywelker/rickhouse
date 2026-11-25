@@ -5,7 +5,7 @@ import { labelLinksAction } from "@/app/(wide)/bulk-editor/actions";
 import { DistilleryPicker, FinishPickers, IngredientPickers, MashbillPicker, type LabelLinks } from "@/components/expressions/label-link-pickers";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import type { Option } from "@/lib/admin/types";
-import { isSingleMaltCategory, showsFinishes, type CategoryKind } from "@/lib/expressions/rules";
+import { BARREL_TYPE_SUGGESTIONS, barrelTypeKind, isSingleMaltCategory, showsFinishes, type CategoryKind } from "@/lib/expressions/rules";
 import { linkedFacts, linksFromLoaded, LINK_KEYS, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
 import type { SheetLabel } from "@/lib/bulk-editor/sheet";
 
@@ -108,7 +108,7 @@ export function LinksEditor({
         ) : which === "mashbills" ? (
           <MashbillPicker {...common} singleMalt={isSingleMaltCategory(label.categorySlug)} categoryName={label.category} options={options.mashbillLinks} />
         ) : which === "finishes" ? (
-          <FinishPickers {...common} shown={showsFinishes({ group: label.fieldGroup, ginAged: label.isAgedGin === true, values: label as unknown as Record<string, unknown> })} options={options.finishLinks} />
+          <FinishPickers {...common} barrelType={barrelTypeKind({ group: label.fieldGroup, kind, slug: label.categorySlug ?? null, ginAged: label.isAgedGin === true }) ? { suggestions: BARREL_TYPE_SUGGESTIONS[label.categorySlug ?? ""] ?? [] } : null} shown={showsFinishes({ group: label.fieldGroup, ginAged: label.isAgedGin === true, values: label as unknown as Record<string, unknown> })} options={options.finishLinks} />
         ) : (
           <IngredientPickers {...common} />
         )}

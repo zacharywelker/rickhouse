@@ -1,6 +1,8 @@
 import type { CategoryKind } from "./rules";
 
 export const GIN_STYLES = ["London Dry", "Old Tom", "Contemporary", "Plymouth", "Holland-Style", "Other"] as const;
+/** A genever's class sits in the gin Style field (the same column), as its Style does for a gin. */
+export const GENEVER_CLASSES = ["Jonge", "Oude", "Korenwijn"] as const;
 export { GIN_BASES, GIN_BOTANICALS } from "./ingredient-presets";
 
 export const isGinKind = (kind: CategoryKind | null) => kind === "gin" || kind === "genever";
