@@ -145,7 +145,9 @@ export function hiddenFields(context: FormContext): Set<string> {
     hidden.add("isBottledInBond");
   }
   // A solera is aged as a range: a youngest and an oldest age, no single age, no dates; the statement stays.
-  if (context.values.isSolera !== "true") { hidden.add("soleraLowYears"); hidden.add("soleraHighYears"); }
+  // (The form holds "true", a validated input holds true.) Solera belongs to rum: another category ignores a leftover choice.
+  const solera = context.group === "rum" && (context.values.isSolera === "true" || context.values.isSolera === true);
+  if (!solera) { hidden.add("soleraLowYears"); hidden.add("soleraHighYears"); }
   else for (const name of ["ageYears", "ageMonths", "ageDays", "barrelFilledOn", "bottledOn"]) hidden.add(name);
   if (context.kind !== "calvados") hidden.add("calvadosAppellation");
   if (!(context.kind === "armagnac" || context.kind === "calvados") || context.values.brandyGrade !== "Millésime") hidden.add("brandyVintageYear");

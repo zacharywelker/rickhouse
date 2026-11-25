@@ -182,6 +182,11 @@ describe("hiddenFields", () => {
     const yes = hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "true" } });
     for (const name of ["soleraLowYears", "soleraHighYears", "ageStatement"]) expect(yes.has(name), name).toBe(false);
     for (const name of ["ageYears", "ageMonths", "ageDays", "barrelFilledOn", "bottledOn"]) expect(yes.has(name), name).toBe(true);
+    // A validated input holds the boolean, and another category ignores a leftover Solera.
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: true } }).has("soleraLowYears")).toBe(false);
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: true } }).has("ageYears")).toBe(true);
+    expect(hiddenFields({ ...base, group: "whiskey", values: { isSolera: "true" } }).has("ageYears")).toBe(false);
+    expect(hiddenFields({ ...base, group: "whiskey", values: { isSolera: true } }).has("barrelFilledOn")).toBe(false);
     const no = hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "false" } });
     expect(no.has("soleraLowYears")).toBe(true);
     expect(no.has("ageYears")).toBe(false);
