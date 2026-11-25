@@ -5,9 +5,8 @@ import type { GapGroup } from "./field-matrix-check";
  * `field-matrix.test.ts` requires this list to equal what `matrixGaps()` finds, so fixing a rule (phase 4) fails the
  * test until its entry is deleted here, and a rule that starts to disagree fails it until the entry is added.
  *
- * Phase 4A (wave A) removed the entries for the rules by kind and for the bottle rules, which now live in
- * `bottleFieldNotUsed` (the bottle form and the bulk editor both ask it). What is left is Barrel type (phase 4A: waves A and B did
- * the rules, the retired fields and the Still field; the rum Aged toggle is wave C's first half).
+ * Phase 4A closed every entry: the rules by kind, the bottle rules, the retired fields, the Still field, the rum Aged toggle
+ * and Barrel type. The list is empty on purpose; a rule that starts to disagree with the matrix fails the test until its entry is added.
  */
 export const KNOWN_GAPS: ReadonlyArray<GapGroup & { phase4: string }> = [
 ];
