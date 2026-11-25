@@ -289,7 +289,7 @@ Scope: getting a photo onto a label or a bottle **from a file or a link**. Remov
 
 ## 13. Not yet designed
 
-*Update 2026-11-24: phase 4A built the rules and field changes of sections 4, 7 and 8 as the field matrix says (PRs #413 to #415); the matrix gap list is empty. Still to build: the rules of section 9 that are new behaviour (4B), the layout (4C) and the page (4D).*
+*Update 2026-11-24: phase 4A is built but NOT yet merged: the rules and field changes of sections 4, 7 and 8 are in the stacked PRs #413 to #415, where the matrix gap list is empty; main has none of it until they merge. Still to build: the rules of section 9 that are new behaviour (4B), the layout (4C) and the page (4D).*
 
 Phase 3 (the tree, the kinds and the matrix as data) is built (section 5). Phase 4 is planned in `docs/superpowers/plans/2026-11-24-add-bottle-redesign-phase-4-overview.md`. After the forms: the **Configuration** and **Labels** pages (each has its own GitHub issue, #393 and #394). The popups (add mashbill, distillery and finish) are designed (section 16) and built; the "Distillery not disclosed" popup is the one popup left (open question 12). The photo flow is done as a design (section 11); the bottles and labels pages that show photos are redesigned later, keeping the behaviour in section 11. The iOS photo flow follows the server as separate work. An accordion with a live bottle card (mockup option B) is parked for the **bottle and label display pages**.
 
