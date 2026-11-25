@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORY_TREE } from "@/lib/categories/tree";
-import { categoryKinds, hiddenFields, peatKindFor, proofAfterBondToggle, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type FormContext, type NameContext } from "../rules";
+import { BARREL_TYPE_SUGGESTIONS, barrelTypeKind, categoryKinds, hiddenFields, peatKindFor, proofAfterBondToggle, withBondProof, isSingleMaltCategory, isUnaged, looksAged, parseRegions, showsFinishes, nameRuleColumns, nameSays, proofSpread, spreadLabel, strengthTier, withNameRules, type FormContext, type NameContext } from "../rules";
 import { writableFields } from "../fields";
 import { expressionSchema } from "../schema";
 
@@ -235,6 +235,28 @@ describe("the rum Aged toggle", () => {
   it("gives only amaro, liqueur and rum an Aged toggle", () => {
     expect(hiddenFields(makeContext({ group: "whiskey" })).has("isAged")).toBe(true);
     expect(hiddenFields(makeContext({ group: "brandy", kind: "cognac" })).has("isAged")).toBe(true);
+  });
+});
+
+describe("barrelTypeKind", () => {
+  const ctx = (over: Partial<Parameters<typeof barrelTypeKind>[0]>) => ({ group: "whiskey" as const, kind: "american" as const, slug: null, ginAged: false, ...over });
+  it("is the finishes picker for agave, an aged gin, and Corn and Light whiskey", () => {
+    expect(barrelTypeKind(ctx({ group: "agave", kind: "tequila" }))).toBe(true);
+    expect(barrelTypeKind(ctx({ group: "agave", kind: "mezcal" }))).toBe(true);
+    expect(barrelTypeKind(ctx({ group: "gin", kind: "gin", ginAged: true }))).toBe(true);
+    expect(barrelTypeKind(ctx({ slug: "corn-whiskey" }))).toBe(true);
+    expect(barrelTypeKind(ctx({ slug: "light-whiskey" }))).toBe(true);
+  });
+  it("is not for an unaged gin, genever, bourbon, or a renamed category with another slug", () => {
+    expect(barrelTypeKind(ctx({ group: "gin", kind: "gin", ginAged: false }))).toBe(false);
+    expect(barrelTypeKind(ctx({ group: "gin", kind: "genever", ginAged: true }))).toBe(false);
+    expect(barrelTypeKind(ctx({ slug: "bourbon" }))).toBe(false);
+    expect(barrelTypeKind(ctx({ group: "rum", kind: "other" }))).toBe(false);
+  });
+  it("offers Uncharred and Used for Corn and Light whiskey only", () => {
+    expect(BARREL_TYPE_SUGGESTIONS["corn-whiskey"]).toEqual(["Uncharred", "Used"]);
+    expect(BARREL_TYPE_SUGGESTIONS["light-whiskey"]).toEqual(["Uncharred", "Used"]);
+    expect(BARREL_TYPE_SUGGESTIONS.bourbon).toBeUndefined();
   });
 });
 

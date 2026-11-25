@@ -26,7 +26,8 @@ describe("the field matrix as data", () => {
   });
 
   it("names only fields the forms have", () => {
-    for (const row of LABEL_MATRIX) for (const name of fieldNames(row)) expect(labelFieldNames.has(name), `${row.label}: ${name}`).toBe(true);
+    // finishLinks is the finishes picker, which the Barrel type row stands for; it is a picker and not a field of the form's list.
+    for (const row of LABEL_MATRIX) for (const name of fieldNames(row)) expect(name === "finishLinks" || labelFieldNames.has(name), `${row.label}: ${name}`).toBe(true);
     for (const row of BOTTLE_MATRIX) for (const name of fieldNames(row)) expect(bottleFieldNames.has(name), `${row.label}: ${name}`).toBe(true);
   });
 });

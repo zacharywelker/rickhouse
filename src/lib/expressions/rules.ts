@@ -265,6 +265,20 @@ export function nameRuleColumns(
 /** Whether Entry Proof should follow Proof: the name says Full Proof. */
 export const followsProof = (name: unknown, context: NameContext) => nameSays(name, context).fullProof !== undefined;
 
+/** Corn and Light whiskey have no finishes: their Barrel type is one of these, or a finish of the owner's own. */
+export const BARREL_TYPE_SUGGESTIONS: Readonly<Record<string, ReadonlyArray<string>>> = {
+  "corn-whiskey": ["Uncharred", "Used"],
+  "light-whiskey": ["Uncharred", "Used"],
+};
+
+/**
+ * Whether the finishes picker is a Barrel type (one optional value, the same finish data under another name): agave, an aged gin
+ * (not genever), and Corn and Light whiskey, keyed by slug. Not yet: mezcal of the class Madurado en Vidrio, which the app cannot say.
+ */
+export function barrelTypeKind(context: { group: FieldGroup; kind: CategoryKind | null; slug?: string | null; ginAged: boolean }): boolean {
+  return context.group === "agave" || (context.kind === "gin" && context.ginAged) || (context.slug != null && context.slug in BARREL_TYPE_SUGGESTIONS);
+}
+
 /** The finishes list: aging matters to it too. */
 export const showsFinishes = (context: Pick<FormContext, "group" | "ginAged"> & { values?: Record<string, unknown> }) => !isUnaged(context);
 

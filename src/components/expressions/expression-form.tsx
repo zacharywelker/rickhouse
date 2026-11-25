@@ -32,6 +32,8 @@ import {
   proofSpread,
   spreadLabel,
   showsFinishes,
+  BARREL_TYPE_SUGGESTIONS,
+  barrelTypeKind,
   showsRegions,
   strengthTier,
   withNameRules,
@@ -467,7 +469,7 @@ export function ExpressionFields({
           <IngredientPickers fieldGroup={fieldGroup} kind={kind} links={links} onLinksChange={onLinksChange} />
           <MashbillPicker fieldGroup={fieldGroup} kind={kind} singleMalt={singleMalt} categoryName={options.categoryId?.find((option) => option.value === categoryId)?.label} mashbillCategory={mashbillCategory} options={options.mashbillLinks ?? []} links={links} onLinksChange={onLinksChange}
             matchesOption={matchesRecipe} onOptionCreated={(option) => onOptionCreated("mashbillLinks", option)} renderRowExtra={distilleriesForMashbill} />
-          <FinishPickers kind={kind} shown={showsFinishes(context)} options={options.finishLinks ?? []} links={links} onLinksChange={onLinksChange} fieldGroup={fieldGroup} />
+          <FinishPickers kind={kind} shown={showsFinishes(context)} barrelType={barrelTypeKind(context) ? { suggestions: BARREL_TYPE_SUGGESTIONS[categorySlug ?? ""] ?? [] } : null} options={options.finishLinks ?? []} links={links} onLinksChange={onLinksChange} fieldGroup={fieldGroup} />
         </SectionContent>
       </Section>
     </>

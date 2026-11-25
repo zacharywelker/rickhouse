@@ -51,7 +51,7 @@ export const LABEL_MATRIX: ReadonlyArray<MatrixRow> = [
   row("Bottled date", "bottledOn", "A C N A N N N N A"),
   row("Solera", "isSolera", "N C N N N N N N N"),
   row("Solera low and high age", "soleraRange", "N C N N N N N N N"),
-  row("Barrel type", null, "C N A N C N N N N", "Whiskey: Corn and Light only. Agave: not Madurado en Vidrio. Gin: when aged."),
+  row("Barrel type", "finishLinks", "C N A N C N N N N", "Whiskey: Corn and Light only. Agave: not Madurado en Vidrio. Gin: when aged."),
   row("Non-chill filtered", "isNonChillFiltered", "A N N N N N N N N"),
   row("Additive free", "isAdditiveFree", "C N C N N N N N N"),
   row("Entry proof", "entryProof", "C N N N N N N N N"),

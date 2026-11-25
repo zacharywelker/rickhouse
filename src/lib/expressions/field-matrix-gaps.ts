@@ -10,5 +10,4 @@ import type { GapGroup } from "./field-matrix-check";
  * the rules, the retired fields and the Still field; the rum Aged toggle is wave C's first half).
  */
 export const KNOWN_GAPS: ReadonlyArray<GapGroup & { phase4: string }> = [
-  { matrix: "label", row: "Barrel type", expected: "A", found: "no-field", groups: ["agave"], phase4: "Add Barrel type for agave (the Finish data renamed on the page; not Madurado en Vidrio), Corn and Light whiskey, and aged gin." },
 ];

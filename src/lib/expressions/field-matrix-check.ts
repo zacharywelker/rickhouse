@@ -2,7 +2,7 @@ import type { FieldGroup } from "@/db/schema";
 import { bottleFieldNotUsed } from "./bottle-applicability";
 import { BOTTLE_MATRIX, LABEL_CONDITIONS, LABEL_MATRIX, MATRIX_GROUPS, type MatrixRow } from "./field-matrix";
 import { writableFields } from "./fields";
-import { hiddenFields, type CategoryKind } from "./rules";
+import { barrelTypeKind, hiddenFields, isUnaged, type CategoryKind } from "./rules";
 
 /**
  * The kinds that stand for each group when a cell says "always" or "never": the cell has to hold for every one of
@@ -53,7 +53,9 @@ type Shown = (field: string, kind: CategoryKind, aged: boolean) => boolean;
 
 function labelShown(group: FieldGroup): Shown {
   const writable = writableFields(group);
+  // The Barrel type is the finishes picker, which is not a form field: it is there when the picker is one.
   return (field, kind, aged) =>
+    field === "finishLinks" ? barrelTypeKind({ group, kind, ginAged: aged }) && !isUnaged({ group, ginAged: aged, values: { isAged: aged } }) :
     writable.has(field) &&
     !hiddenFields({ group, kind, values: group === "amaro" || group === "liqueur" || group === "rum" ? { isAged: aged } : {}, ginAged: aged }).has(field);
 }

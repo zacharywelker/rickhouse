@@ -147,7 +147,7 @@ export function MashbillPicker({ fieldGroup, singleMalt, categoryName, mashbillC
   );
 }
 
-export function FinishPickers({ kind, shown, options, links, onLinksChange }: Common & { shown: boolean; options: Option[] }) {
+export function FinishPickers({ kind, shown, options, links, onLinksChange, barrelType = null }: Common & { shown: boolean; options: Option[]; barrelType?: { suggestions: ReadonlyArray<string> } | null }) {
   const caskTypes = CASK_TYPE_KINDS.includes(kind ?? "");
   if (!shown) {
     // A hidden picker is not an instruction to erase previously saved casks.
@@ -158,15 +158,15 @@ export function FinishPickers({ kind, shown, options, links, onLinksChange }: Co
       mashbills={links.mashbills}
       finishes={links.finishes}
       name="finishLinks"
-      label={caskTypes ? "Cask Types" : "Finishes"}
-      description={caskTypes ? "Known casks, without assuming a finishing order or duration." : "In sequence, for a double or triple finish."}
+      label={barrelType ? "Barrel Type" : caskTypes ? "Cask Types" : "Finishes"}
+      description={barrelType ? "The barrel it was aged in, if you know it." : caskTypes ? "Known casks, without assuming a finishing order or duration." : "In sequence, for a double or triple finish."}
       resource="finishes"
-      {...(caskTypes ? { detailNoun: "cask type" } : {})}
+      {...(barrelType ? { detailNoun: "barrel type", maxRows: 1, ...(barrelType.suggestions.length > 0 ? { suggestions: barrelType.suggestions } : {}) } : caskTypes ? { detailNoun: "cask type" } : {})}
       options={options}
       amountLabel="Months"
       amountSuffix="mo"
-      showOrder={!caskTypes}
-      showAmount={!caskTypes}
+      showOrder={!caskTypes && !barrelType}
+      showAmount={!caskTypes && !barrelType}
       onChange={(rows) => onLinksChange({ ...links, finishes: rows })}
     />
   );
