@@ -69,7 +69,7 @@ export async function expressionLinks(expressionId: number): Promise<{
   finishes: LinkedFinish[];
   /** The part of the blend that was not finished, one line per mashbill. */
   unfinished: PairLine[];
-  ingredients: Array<{ id: number; name: string; kind: string; family: string | null; isManual: boolean; share: number | null; slug: null; amount: null }>;
+  ingredients: Array<{ id: number; name: string; kind: string; family: string | null; isManual: boolean; share: number | null; slug: null; amount: string | null }>;
 }> {
   const [d, m, f, materials, pairs] = await Promise.all([
     db
@@ -165,7 +165,7 @@ export async function expressionLinks(expressionId: number): Promise<{
     })),
     finishes: f.map((row) => ({ ...row, mashbills: lines(row.id) })),
     unfinished: lines(null),
-    ingredients: materials.map((item) => ({ ...item, share: item.share === null ? null : Number(item.share), slug: null, amount: null })),
+    ingredients: materials.map((item) => ({ ...item, share: item.share === null ? null : Number(item.share), slug: null, amount: item.share === null ? null : String(Number(item.share)) })),
   };
 }
 

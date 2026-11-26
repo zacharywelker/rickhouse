@@ -121,7 +121,7 @@ export function linksBody(cells: Readonly<Record<string, string>>, loaded: LinkL
     }
   }
   const ingredients = listOf<IngredientChoice>(cells, "ingredients");
-  if (ingredients !== null) body.ingredients = ingredients.map((item) => ({ name: item.name, family: item.family ?? null, ...(item.kind ? { kind: item.kind } : {}), ...(item.isManual !== undefined ? { isManual: item.isManual } : {}) }));
+  if (ingredients !== null) body.ingredients = ingredients.map((item) => ({ name: item.name, family: item.family ?? null, ...(item.kind ? { kind: item.kind } : {}), ...(item.isManual !== undefined ? { isManual: item.isManual } : {}), ...(item.share !== undefined ? { share: item.share } : {}) }));
   return body;
 }
 

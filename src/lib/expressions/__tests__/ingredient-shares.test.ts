@@ -35,3 +35,34 @@ describe("parseIngredientLinks and shares", () => {
     expect("share" in rows![2]!).toBe(false);
   });
 });
+
+describe("shareNote", () => {
+  it("says nothing until a share is filled, and nothing when they add to 100", async () => {
+    const { shareNote } = await import("../spirit-details");
+    expect(shareNote([])).toBeNull();
+    expect(shareNote([{ share: null }, { share: undefined }])).toBeNull();
+    expect(shareNote([{ share: 90 }, { share: 10 }])).toBeNull();
+    expect(shareNote([{ share: 99.99 }])).toBeNull();
+    expect(shareNote([{ share: 33.33 }, { share: 33.33 }, { share: 33.34 }])).toBeNull();
+  });
+  it("warns, never blocks, when they do not", async () => {
+    const { shareNote } = await import("../spirit-details");
+    expect(shareNote([{ share: 90 }, { share: 5 }])).toBe("The shares add up to 95%, not 100%.");
+    expect(shareNote([{ share: 90 }, { share: null }])).toBe("The shares add up to 90% so far, not 100%.");
+    expect(shareNote([{ share: 60 }, { share: 60 }])).toBe("The shares add up to 120%, not 100%.");
+    expect(shareNote([{ share: 100 }, { share: null }])).toBe("Some grapes have no share yet.");
+  });
+});
+
+describe("grapeSuggestions", () => {
+  it("lists a spirit's grapes with the main ones first", async () => {
+    const { grapeSuggestions } = await import("../ingredient-presets");
+    expect(grapeSuggestions("cognac", null).slice(0, 3)).toEqual(["Ugni Blanc", "Folle Blanche", "Colombard"]);
+    expect(grapeSuggestions("armagnac", null)[1]).toBe("Baco 22A");
+    expect(grapeSuggestions("pisco", "Peru")).toContain("Quebranta");
+    expect(grapeSuggestions("pisco", "Peru")).not.toContain("Pedro Jiménez");
+    expect(grapeSuggestions("pisco", "Chile")).toContain("Pedro Jiménez");
+    expect(grapeSuggestions("pisco", null)).toEqual(expect.arrayContaining(["Quebranta", "Pedro Jiménez"]));
+    expect(grapeSuggestions("calvados", null)).toEqual([]);
+  });
+});

@@ -61,7 +61,7 @@ export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks
   );
 }
 
-export function IngredientPickers({ fieldGroup, kind, links, onLinksChange }: Common) {
+export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, piscoLand = null }: Common & { piscoLand?: "Peru" | "Chile" | null }) {
   const chosen = links.ingredients ?? [];
   const only = (name: string) => (selected: IngredientChoice[]) => onLinksChange({ ...links, ingredients: [...chosen.filter((item) => item.kind !== name), ...selected] });
   if (fieldGroup === "gin" && isGinKind(kind)) {
@@ -122,6 +122,8 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange }: Co
       <IngredientPicker
         kind={fieldGroup === "agave" ? "maguey" : fieldGroup === "rum" ? "rum_base" : "distillate"}
         categoryKind={kind}
+        shares={kind === "cognac" || kind === "armagnac" || kind === "pisco"}
+        country={piscoLand}
         value={chosen}
         onChange={(ingredients) => onLinksChange({ ...links, ingredients })}
       />

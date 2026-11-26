@@ -345,7 +345,7 @@ export default async function BottlePage({
                 {group === "liqueur" || kind === "flavored-vodka" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={ingredientHref} /> : null}
               </> : group === "rum" || group === "agave" || group === "brandy"
               ? <>
-                <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients.filter((item) => item.kind !== "flavor")} hrefFor={ingredientHref} />
+                <Chips label={group === "agave" ? "Magueys" : group === "brandy" ? "Distillate" : "Base"} items={links.ingredients.filter((item) => item.kind !== "flavor")} hrefFor={ingredientHref} exact />
                 {kind === "spiced-rum" || kind === "mezcal" ? <Chips label="Flavors" items={links.ingredients.filter((item) => item.kind === "flavor")} hrefFor={ingredientHref} /> : null}
               </>
               : group === "other"

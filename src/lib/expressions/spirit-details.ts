@@ -261,3 +261,15 @@ export function soleraText(low: string | number | null | undefined, high: string
   if (a !== null && b !== null) return a === b ? `${a} years` : `${a}–${b} years`;
   return a !== null ? `from ${a} years` : `up to ${b} years`;
 }
+
+/**
+ * A note on a list of shares, or null when there is nothing to say: shares are optional, and a total that is not 100 is a warning,
+ * never a block. Nothing is said until at least one share is filled; a rounding difference (99.99, 100.01) is not worth a note.
+ */
+export function shareNote(rows: ReadonlyArray<{ share?: number | null }>): string | null {
+  const filled = rows.filter((row) => row.share !== null && row.share !== undefined);
+  if (filled.length === 0) return null;
+  const total = Math.round(filled.reduce((sum, row) => sum + (row.share ?? 0), 0) * 100) / 100;
+  if (Math.abs(total - 100) <= 0.05) return filled.length < rows.length ? "Some grapes have no share yet." : null;
+  return `The shares add up to ${total}%${filled.length < rows.length ? " so far" : ""}, not 100%.`;
+}

@@ -107,10 +107,13 @@ export function Chips({
   label,
   items,
   hrefFor,
+  exact = false,
 }: {
   label: string;
   items: Array<{ id: number; name: string; slug: string | null; amount: string | null; inferred?: boolean }>;
   hrefFor: (item: { id: number; slug: string | null }) => Route | null;
+  /** Shares to two places (a grape's 12.5%) instead of a whole percentage. */
+  exact?: boolean;
 }) {
   if (items.length === 0) return null;
   return (
@@ -129,7 +132,7 @@ export function Chips({
             >
               {item.inferred ? <Inferred>{item.name}</Inferred> : item.name}
               {item.amount !== null ? (
-                <span className="ml-1 text-muted-foreground">{Math.round(Number(item.amount))}%</span>
+                <span className="ml-1 text-muted-foreground">{exact ? Number(Number(item.amount).toFixed(2)) : Math.round(Number(item.amount))}%</span>
               ) : null}
             </Badge>
           );
