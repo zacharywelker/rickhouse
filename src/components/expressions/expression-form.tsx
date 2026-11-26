@@ -44,6 +44,10 @@ import {
 import { countryForDistillery, effectiveDairy, piscoCountry, piscoStyle, stillForCountry } from "@/lib/expressions/spirit-details";
 import { appellationNote } from "@/lib/expressions/derived-designation";
 import { specForKind, withProduction } from "@/lib/expressions/kind-options";
+import { SHEET_LAYOUT } from "@/lib/expressions/sheet-layout";
+import { ChipField } from "@/components/sheet/chips";
+import { SheetRow } from "@/components/sheet/sheet-row";
+import { NewLookToggle, useNewLook } from "@/components/sheet/use-new-look";
 import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
 import { RegionPicker } from "./region-picker";
@@ -164,6 +168,7 @@ export function ExpressionFields({
   // A gin is unaged until it is marked aged; one that already has an age opens as aged.
   const ginAged = values.isAgedGin === true || (values.isAgedGin == null && looksAged(values, links.finishes.length));
   const context = { group: fieldGroup, kind, slug: categorySlug ?? null, values, ginAged };
+  const newLook = useNewLook();
   const hidden = hiddenFields(context);
   // A pisco's country follows its distillery's: Mosto Verde is Peru's, and the Puro / Acholado or the class is worked out, not typed.
   const piscoLand = kind === "pisco" ? piscoCountry(links.distilleries.map((row) => options.distilleryLinks?.find((option) => option.value === row.id)?.country)) : null;
@@ -407,34 +412,84 @@ export function ExpressionFields({
   };
 
   /** One line of a section: the fields it names, side by side, skipping any this spirit does not have. */
-  const renderRow = (names: ReadonlyArray<string>, key: number) => {
+  /** One cell of a row: a field (drawn by `draw`) or a token, or null where this spirit does not have it. */
+  const cellFor = (name: string, draw: (field: FieldSpec) => React.ReactNode): React.ReactNode => {
     const tier = strengthTier(fieldGroup, values.proof);
-    const cells = names.map((name) => {
-      if (name === "@dates") {
-        return hidden.has("barrelFilledOn") ? null : <DeriveAge key={name} values={values} set={change} className="" />;
-      }
-      if (name === "@tier") {
-        return tier ? (
-          <span key={name} className="self-end pb-2.5 text-sm font-medium text-accent">
-            {STRENGTH_TIER_LABELS[tier]}
-          </span>
-        ) : null;
-      }
-      const field = LABEL_FIELDS.find((candidate) => candidate.name === name);
-      const owner = SECTION_OF.get(name);
-      if (!field || (owner?.fieldGroups && !owner.fieldGroups.includes(fieldGroup))) return null;
-      // Bottled In Bond is an American whiskey designation; the other spirits never see it.
-      if (name === "isBottledInBond" && (fieldGroup !== "whiskey" || hidden.has(name))) return null;
-      return renderField(field);
-    });
-    if (cells.every((cell) => cell === null)) return null;
-    // Proof's line explains what the name did and, for a cask-strength label, why the proof is greyed.
+    if (name === "@dates") {
+      return hidden.has("barrelFilledOn") ? null : <DeriveAge key={name} values={values} set={change} className="" />;
+    }
+    if (name === "@tier") {
+      return tier ? (
+        <span key={name} className="self-end pb-2.5 text-sm font-medium text-accent">
+          {STRENGTH_TIER_LABELS[tier]}
+        </span>
+      ) : null;
+    }
+    const field = LABEL_FIELDS.find((candidate) => candidate.name === name);
+    const owner = SECTION_OF.get(name);
+    if (!field || (owner?.fieldGroups && !owner.fieldGroups.includes(fieldGroup))) return null;
+    // Bottled In Bond is an American whiskey designation; the other spirits never see it.
+    if (name === "isBottledInBond" && (fieldGroup !== "whiskey" || hidden.has(name))) return null;
+    return draw(field);
+  };
+
+  /** Proof's line explains what the name did and, for a cask-strength label, why the proof is greyed. */
+  const rowNotes = (names: ReadonlyArray<string>): string[] => {
     const notes: string[] = [];
     if (names.includes("proof")) {
       if (says.isCaskStrength && values.isCaskStrength === true) notes.push(`Cask Strength, as the name says “${says.isCaskStrength}”.`);
       if (says.isBottledInBond && values.isBottledInBond === true) notes.push(`Bottled In Bond, as the name says “${says.isBottledInBond}”.`);
       if (proofGreyed && !bonded) notes.push(spreadLabel(spread));
     }
+    return notes;
+  };
+
+  /** The data-sheet look of one simple field: a chip, a toggle, a "+" chip (the form's own field for what a chip cannot be). */
+  const renderChip = (field: FieldSpec) => {
+    const composite = ["brandId", "name", "categoryId", "slug", "proof", "ageYears", "ageMonths", "ageDays", "isNonChillFiltered", "peatStatus"];
+    // The name row holds three boxes side by side at half-screen width.
+    if (["brandId", "name", "categoryId"].includes(field.name)) return renderField({ ...field, width: "md" } as FieldSpec);
+    if (composite.includes(field.name) || (hidden.has(field.name))) return renderField(field);
+    const entry = field.name === "entryProof";
+    const greyed = (field.name === "ageStatement" && statementGreyed) || (entry && entryGreyed);
+    return (
+      <ChipField
+        key={field.name} spec={specForKind(field, kind, values)} idPrefix={idPrefix}
+        value={values[field.name] ?? ""} onChange={(next) => change(field.name, next)} error={errors[field.name]}
+        locked={greyed} onUnlock={() => unlock(entry ? "entry" : "statement")}
+        onField={() => renderField(field)}
+      />
+    );
+  };
+
+  /** A section's rows in the data-sheet look (null for a section that has no layout yet). */
+  const renderSheet = (sectionId: string, extra?: React.ReactNode) => {
+    const layout = SHEET_LAYOUT[sectionId];
+    if (!layout) return null;
+    return (
+      <div className="flex min-w-0 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col border-t border-border">
+          {extra ? <SheetRow label="Photo">{extra}</SheetRow> : null}
+          {layout.map((row) => {
+            const cells = row.items.map((name) => cellFor(name, renderChip));
+            if (cells.every((cell) => cell === null)) return null;
+            const notes = rowNotes(row.items);
+            return (
+              <SheetRow key={row.label} label={row.label}>
+                {cells}
+                {notes.map((note) => <p key={note} className="basis-full text-xs text-muted-foreground">{note}</p>)}
+              </SheetRow>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRow = (names: ReadonlyArray<string>, key: number) => {
+    const cells = names.map((name) => cellFor(name, renderField));
+    if (cells.every((cell) => cell === null)) return null;
+    const notes = rowNotes(names);
     return (
       <div key={key} className="flex flex-wrap items-start gap-x-4 gap-y-3">
         {cells}
@@ -452,8 +507,11 @@ export function ExpressionFields({
       <input type="hidden" name="ageYearsSource" value={String(values.ageYearsSource ?? "entered")} />
       <input type="hidden" name="originCountryManual" value={values.originCountryManual === true ? "true" : "false"} />
       <input type="hidden" name="originRegionManual" value={values.originRegionManual === true ? "true" : "false"} />
+      <NewLookToggle />
       {EXPRESSION_SECTIONS.map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
+        // The data-sheet look draws the sections it has a layout for as rows (the rest keep the form's own look until their slice).
+        if (newLook && SHEET_LAYOUT[section.id]) return <React.Fragment key={section.id}>{renderSheet(section.id, section.id === "identity" ? photoSlot : undefined)}</React.Fragment>;
         // The brandy detail holds a few single-spirit fields: for the rest of the brandies it is not drawn at all.
         if (section.id === "brandy" && section.fields.every((field) => hidden.has(field.name)) && kind !== "pisco") return null;
         return (
