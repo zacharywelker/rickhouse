@@ -149,9 +149,9 @@ Codex (pure functions, vitest only): the rule changes and tests of Task 2 and th
 - **Not in this plan:** new behaviour (Solera low and high age, Cachaça, Agricole, Spiced rum, grapes, mezcal production), the layout and the page itself; they are 4B to 4E in the overview.
 - **Proportion:** each task gives the files, the signatures, the test names and the values the spec fixes; bodies are left to the implementer.
 
-## As built (2026-11-24), pending merge
+## As built (2026-11-25)
 
-**Status: built, not yet merged.** Until #413, #414 and #415 are merged to main, none of this is in the code on main (the rule changes, the retired fields and migration 0056 are all in those PRs). Update this line when they merge. Phase 4A is built as three stacked PRs: #413 (wave A: rules by kind, the bottle rules in `bottleFieldNotUsed`), #414 (wave B: retired fields, Still for every spirit) and #415 (wave C: rum Aged toggle, Barrel type). `KNOWN_GAPS` is empty on the PR branches.
+**Status: merged to main** (#413 to #415; the first two 4B PRs, #416 and #417, followed). Migration 0056 (the rum Aged backfill) ships with it and has to be run on each deployed database. `KNOWN_GAPS` is empty.
 
 - **Retired fields** leave the forms, the bulk editor and the detail pages; the columns stay dormant. A web save of a bottle strips `bottleCount` and `brandyGrade` when the form does not post them, so an existing value survives. The phone keeps writing `isStillProof` for agave.
 - **Rum Aged toggle** reuses `is_aged` (amaro and liqueur's column). Migration 0056 backfills it; a phone edit that sends an age to a rum label marks it aged. The bottle rule reads `LabelFacts.isAged`.
