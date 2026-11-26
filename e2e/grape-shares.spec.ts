@@ -58,3 +58,29 @@ test("an Armagnac suggests its own grapes, main grapes first", async ({ page }) 
   expect(options).toContain("Mauzac");
   expect(options).not.toContain("Quebranta");
 });
+
+test("a Calvados's fruit is a table of shares with an apples subtotal, a total, and the appellation's pear warning", async ({ page }) => {
+  await openNewLabelForm(page);
+  await pick(page, "Brand", "Pursuit Spirits");
+  await pick(page, "Category", "Calvados");
+  await page.getByLabel("Label Name").fill(`Fruit Shares ${Date.now()}`);
+  await page.getByLabel("Appellation").selectOption("pays-d-auge");
+  await page.getByLabel("Share of Bittersweet").fill("40");
+  await page.getByLabel("Share of Sweet", { exact: true }).fill("30");
+  await page.getByLabel("Share of Pears").fill("30");
+  await expect(page.getByRole("row", { name: /Apples \(subtotal\)/ })).toContainText("70%");
+  await expect(page.getByRole("row", { name: /^Total/ })).toContainText("100%");
+  await expect(page.getByText(/shares add up/)).toHaveCount(0);
+  await expect(page.getByText("Pays d'Auge allows at most 30% pears.")).toHaveCount(0);
+  await page.getByLabel("Share of Pears").fill("40");
+  await expect(page.getByText("Pays d'Auge allows at most 30% pears.")).toBeVisible();
+  await expect(page.getByText("The shares add up to 110%, not 100%.")).toBeVisible();
+  await page.getByLabel("Share of Pears").fill("30");
+  await page.getByRole("button", { name: "Create Label", exact: true }).click();
+  await expect(page).toHaveURL(/\/expressions\/\d+$/);
+  await expect(page.getByText("Bittersweet apples")).toBeVisible();
+  await expect(page.getByText("Apples (total)")).toBeVisible();
+  await page.goto(page.url() + "/edit");
+  await expect(page.getByLabel("Share of Sweet", { exact: true })).toHaveValue("30");
+  await expect(page.getByLabel("Share of Bitter", { exact: true })).toHaveValue("");
+});

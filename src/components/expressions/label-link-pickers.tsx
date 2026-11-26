@@ -8,6 +8,7 @@ import { effectiveRows, totalsOf } from "@/lib/expressions/finish-picker-model";
 import { isGinKind } from "@/lib/expressions/gin-details";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { countryForDistillery, type IngredientChoice } from "@/lib/expressions/spirit-details";
+import { CalvadosFruitTable } from "./calvados-fruit-table";
 import { FinishPicker } from "./finish-picker";
 import { IngredientPicker } from "./ingredient-picker";
 import { OrderedPicker, serializeLinks, type LinkedRow } from "./ordered-picker";
@@ -61,7 +62,7 @@ export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks
   );
 }
 
-export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, piscoLand = null }: Common & { piscoLand?: "Peru" | "Chile" | null }) {
+export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, piscoLand = null, appellation = null }: Common & { piscoLand?: "Peru" | "Chile" | null; appellation?: string | null }) {
   const chosen = links.ingredients ?? [];
   const only = (name: string) => (selected: IngredientChoice[]) => onLinksChange({ ...links, ingredients: [...chosen.filter((item) => item.kind !== name), ...selected] });
   if (fieldGroup === "gin" && isGinKind(kind)) {
@@ -116,6 +117,9 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, pisc
         <input type="hidden" name="ingredientLinks" value={JSON.stringify(chosen)} />
       </>
     );
+  }
+  if (fieldGroup === "brandy" && kind === "calvados") {
+    return <CalvadosFruitTable value={chosen} onChange={(ingredients) => onLinksChange({ ...links, ingredients })} appellation={appellation} />;
   }
   if (fieldGroup === "agave" || fieldGroup === "rum" || fieldGroup === "brandy") {
     return (

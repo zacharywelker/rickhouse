@@ -273,3 +273,32 @@ export function shareNote(rows: ReadonlyArray<{ share?: number | null }>): strin
   if (Math.abs(total - 100) <= 0.05) return filled.length < rows.length ? "Some grapes have no share yet." : null;
   return `The shares add up to ${total}%${filled.length < rows.length ? " so far" : ""}, not 100%.`;
 }
+
+/** A Calvados's fruit is six fixed rows, each an ingredient with a share (design: ingredient shares). The last two are what the old plain tags became. */
+export const CALVADOS_FRUIT_ROWS: ReadonlyArray<{ name: string; label: string; family: "apple" | "pear" }> = [
+  { name: "Bittersweet apples", label: "Bittersweet", family: "apple" },
+  { name: "Bitter apples", label: "Bitter", family: "apple" },
+  { name: "Sweet apples", label: "Sweet", family: "apple" },
+  { name: "Acidic / tart apples", label: "Acidic / tart", family: "apple" },
+  { name: "Apples (type not stated)", label: "Apples (type not stated)", family: "apple" },
+  { name: "Pears", label: "Pears", family: "pear" },
+];
+
+/** The apples' subtotal, the pears and the total of the shares filled in, to two places; null where nothing is filled. */
+export function calvadosTotals(rows: ReadonlyArray<{ name: string; share?: number | null }>): { apples: number | null; pears: number | null; total: number | null } {
+  const sum = (names: ReadonlyArray<string>) => {
+    const found = rows.filter((row) => names.includes(row.name) && row.share !== null && row.share !== undefined);
+    return found.length === 0 ? null : Math.round(found.reduce((total, row) => total + (row.share ?? 0), 0) * 100) / 100;
+  };
+  const apples = sum(CALVADOS_FRUIT_ROWS.filter((row) => row.family === "apple").map((row) => row.name));
+  const pears = sum(["Pears"]);
+  return { apples, pears, total: apples === null && pears === null ? null : Math.round(((apples ?? 0) + (pears ?? 0)) * 100) / 100 };
+}
+
+/** What a Calvados's appellation asks of its pears, as a warning (never a block): Pays d'Auge at most 30%, Domfrontais at least 30%. */
+export function pearNote(appellation: unknown, pears: number | null): string | null {
+  if (pears === null) return null;
+  if (appellation === "pays-d-auge" && pears > 30) return "Pays d'Auge allows at most 30% pears.";
+  if (appellation === "domfrontais" && pears < 30) return "Domfrontais takes at least 30% pears.";
+  return null;
+}

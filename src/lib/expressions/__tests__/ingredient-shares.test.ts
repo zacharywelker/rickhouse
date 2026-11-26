@@ -66,3 +66,29 @@ describe("grapeSuggestions", () => {
     expect(grapeSuggestions("calvados", null)).toEqual([]);
   });
 });
+
+describe("Calvados fruit", () => {
+  it("totals the apples, the pears and everything, from the shares filled in", async () => {
+    const { calvadosTotals } = await import("../spirit-details");
+    expect(calvadosTotals([])).toEqual({ apples: null, pears: null, total: null });
+    expect(calvadosTotals([{ name: "Bittersweet apples", share: 40 }, { name: "Sweet apples", share: 30 }, { name: "Pears", share: 30 }])).toEqual({ apples: 70, pears: 30, total: 100 });
+    expect(calvadosTotals([{ name: "Pears", share: 12.5 }, { name: "Bitter apples", share: null }])).toEqual({ apples: null, pears: 12.5, total: 12.5 });
+    expect(calvadosTotals([{ name: "Apples (type not stated)", share: 100 }])).toEqual({ apples: 100, pears: null, total: 100 });
+    expect(calvadosTotals([{ name: "Cherry", share: 50 }])).toEqual({ apples: null, pears: null, total: null });
+  });
+  it("warns about pears against the appellation, never blocks, and is silent where it does not know", async () => {
+    const { pearNote } = await import("../spirit-details");
+    expect(pearNote("pays-d-auge", 31)).toBe("Pays d'Auge allows at most 30% pears.");
+    expect(pearNote("pays-d-auge", 30)).toBeNull();
+    expect(pearNote("domfrontais", 29)).toBe("Domfrontais takes at least 30% pears.");
+    expect(pearNote("domfrontais", 30)).toBeNull();
+    expect(pearNote("aoc-calvados", 90)).toBeNull();
+    expect(pearNote("domfrontais", null)).toBeNull();
+    expect(pearNote(null, 10)).toBeNull();
+  });
+  it("accepts each of the six rows as a Calvados base, and no other fruit", async () => {
+    const { CALVADOS_FRUIT_ROWS, ingredientAllowed } = await import("../spirit-details");
+    for (const row of CALVADOS_FRUIT_ROWS) expect(ingredientAllowed("calvados", { name: row.name, kind: "distillate", family: row.family }), row.name).toBe(true);
+    expect(ingredientAllowed("calvados", { name: "Cherry", kind: "distillate", family: "other" })).toBe(false);
+  });
+});
