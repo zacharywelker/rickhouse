@@ -4,15 +4,10 @@ import * as React from "react";
 import { useCurrencySymbol, useMoneyStep } from "@/components/currency-context";
 import { capDecimals, padDecimals } from "@/lib/decimals";
 import { chipKind } from "@/lib/expressions/chip-kind";
+import { BARE_INPUT, CHIP, CHIP_LABEL, INPUT_WIDTHS } from "./chip-styles";
 import { cn } from "@/lib/utils";
 import type { FieldSpec } from "@/lib/admin/types";
 import type { FieldValue } from "@/lib/forms/values";
-
-/** Width of the input inside a value chip, by the field's width hint. */
-const INPUT_WIDTHS: Record<string, string> = { auto: "w-24", xxs: "w-14", xs: "w-20", sm: "w-24", md: "w-36", lg: "w-48" };
-
-const CHIP = "inline-flex h-8 items-center gap-1.5 border border-input bg-card px-2 text-sm focus-within:ring-2 focus-within:ring-ring";
-const BARE_INPUT = "min-w-0 border-0 bg-transparent p-0 text-sm tabular-nums outline-none placeholder:text-muted-foreground";
 
 /** A dashed "+ Label" button for an optional fact that has nothing in it yet. */
 export function AddChip({ label, onClick, id }: { label: string; onClick: () => void; id?: string }) {
@@ -45,7 +40,7 @@ function ErrorText({ id, error }: { id: string; error: string | undefined }) {
  * optional fact is empty, a dashed "+" chip that opens it. `onField` draws the kinds this does not (references, long text,
  * size presets), so the row can still hold every field. The input has the field's own name, so a save posts what it always did.
  */
-export function ChipField({ spec, idPrefix, value, onChange, error, locked = false, onUnlock, onField }: {
+export function ChipField({ spec, idPrefix, value, onChange, error, locked = false, onUnlock, onField, bare = false }: {
   spec: FieldSpec;
   idPrefix: string;
   value: FieldValue;
@@ -54,6 +49,8 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
   locked?: boolean;
   onUnlock?: () => void;
   onField: () => React.ReactNode;
+  /** No label inside the chip (the Name row: the value says what it is); the label stays as the input's accessible name. */
+  bare?: boolean;
 }) {
   const id = `${idPrefix}-${spec.name}`;
   const kind = chipKind(spec, value);
@@ -80,7 +77,7 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
     return (
       <div className="flex flex-col gap-1">
         <label className={cn(CHIP, error && "border-destructive")}>
-          <span className="text-xs text-muted-foreground">{spec.label}</span>
+          {bare ? null : <span className={CHIP_LABEL}>{spec.label}</span>}
           <select
             id={id} name={spec.name} ref={(node) => { input.current = node; }}
             value={String(value ?? "")} aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}
@@ -99,7 +96,7 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
   return (
     <div className="flex flex-col gap-1">
       <label className={cn(CHIP, error && "border-destructive", locked && "bg-muted text-muted-foreground")}>
-        <span className="text-xs text-muted-foreground">{spec.label}</span>
+        {bare ? null : <span className={CHIP_LABEL}>{spec.label}</span>}
         {money ? <span aria-hidden="true" className="text-sm text-muted-foreground">{symbol}</span> : null}
         <input
           id={id} name={spec.name} ref={(node) => { input.current = node; }}
@@ -115,6 +112,7 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
             if (String(value ?? "") === "") setOpened(false);
           }}
           placeholder={"placeholder" in spec ? spec.placeholder : undefined}
+          {...(bare ? { "aria-label": spec.label } : {})}
           readOnly={locked} aria-readonly={locked || undefined} title={locked ? "Triple-click to edit" : undefined}
           onClick={locked && onUnlock ? (event) => event.detail >= 3 && onUnlock() : undefined}
           aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}

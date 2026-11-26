@@ -300,7 +300,7 @@ export function ExpressionFields({
     );
   };
 
-  const renderField = (field: FieldSpec) => {
+  const renderField = (field: FieldSpec, chip = false) => {
     // Proof/ABV and the age triplet render as linked composites
     // rather than the generic field, but stay in `fields` above
     // so validation and per-category writability still see them.
@@ -317,6 +317,7 @@ export function ExpressionFields({
           onUnlock={() => unlock("proof")}
           hint={false}
           className="w-28"
+          chip={chip}
         />
       );
     }
@@ -360,6 +361,7 @@ export function ExpressionFields({
       return (
         <AgeFields
           key="age"
+          chip={chip}
           idPrefix={idPrefix}
           compact
           showDays={!hidden.has("ageDays")}
@@ -407,6 +409,7 @@ export function ExpressionFields({
         onOptionCreated={(option) => onOptionCreated(field.name, option)}
         locked={greyed}
         onUnlock={() => unlock(entry ? "entry" : "statement")}
+        chip={chip}
       />
     );
   };
@@ -447,9 +450,11 @@ export function ExpressionFields({
   /** The data-sheet look of one simple field: a chip, a toggle, a "+" chip (the form's own field for what a chip cannot be). */
   const renderChip = (field: FieldSpec) => {
     const composite = ["brandId", "name", "categoryId", "slug", "proof", "ageYears", "ageMonths", "ageDays", "isNonChillFiltered", "peatStatus"];
-    // The name row holds three boxes side by side at half-screen width.
-    if (["brandId", "name", "categoryId"].includes(field.name)) return renderField({ ...field, width: "md" } as FieldSpec);
-    if (composite.includes(field.name) || (hidden.has(field.name))) return renderField(field);
+    // The name is a chip with no label inside (the value says what it is); brand and category are compact picker chips.
+    if (field.name === "name") {
+      return <ChipField key="name" bare spec={field} idPrefix={idPrefix} value={values.name ?? ""} onChange={(next) => change("name", next)} error={errors.name} onField={() => renderField(field, true)} />;
+    }
+    if (composite.includes(field.name) || (hidden.has(field.name))) return renderField(field, true);
     const entry = field.name === "entryProof";
     const greyed = (field.name === "ageStatement" && statementGreyed) || (entry && entryGreyed);
     return (
@@ -457,7 +462,7 @@ export function ExpressionFields({
         key={field.name} spec={specForKind(field, kind, values)} idPrefix={idPrefix}
         value={values[field.name] ?? ""} onChange={(next) => change(field.name, next)} error={errors[field.name]}
         locked={greyed} onUnlock={() => unlock(entry ? "entry" : "statement")}
-        onField={() => renderField(field)}
+        onField={() => renderField(field, true)}
       />
     );
   };
@@ -467,9 +472,8 @@ export function ExpressionFields({
     const layout = SHEET_LAYOUT[sectionId];
     if (!layout) return null;
     return (
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col sm:flex-row sm:gap-5">
         <div className="flex min-w-0 flex-1 flex-col border-t border-border">
-          {extra ? <SheetRow label="Photo">{extra}</SheetRow> : null}
           {layout.map((row) => {
             const cells = row.items.map((name) => cellFor(name, renderChip));
             if (cells.every((cell) => cell === null)) return null;
@@ -482,6 +486,7 @@ export function ExpressionFields({
             );
           })}
         </div>
+        {extra ? <div className="shrink-0 border-t border-border pt-3 sm:w-28 sm:border-t-0">{extra}</div> : null}
       </div>
     );
   };
@@ -652,6 +657,24 @@ export function PhotoBox({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [linking, setLinking] = React.useState(false);
   const chosen = file !== null || link.trim() !== "";
+  const newLook = useNewLook();
+  if (newLook) {
+    // The data-sheet look: the one photo slot, small, at the right of the first rows (the photo flow itself is phase 5).
+    return (
+      <div className="flex flex-col items-start gap-1.5">
+        <button type="button" onClick={() => inputRef.current?.click()} aria-label={file ? "Replace photo" : "Add photo"} className="relative flex aspect-[3/4] w-28 items-center justify-center overflow-hidden border border-dashed border-border bg-muted/30 p-2 text-center text-xs text-muted-foreground hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {chosen ? null : <span>+ Photo or link</span>}
+          <PhotoPreview file={file} link={link.trim()} />
+        </button>
+        <div className="flex gap-3 text-xs">
+          <button type="button" aria-expanded={linking} onClick={() => setLinking((on) => !on)} className="underline underline-offset-2 text-muted-foreground hover:text-foreground">From a link</button>
+          {chosen ? <button type="button" onClick={() => { onFile(null); onLink(""); if (inputRef.current) inputRef.current.value = ""; }} className="underline underline-offset-2 text-muted-foreground hover:text-foreground">Remove</button> : null}
+        </div>
+        <input ref={inputRef} id="expression-photo" type="file" accept="image/*" className="sr-only" aria-label="Upload label photo" onChange={(event) => { onFile(event.target.files?.[0] ?? null); if (event.target.files?.[0]) onLink(""); }} />
+        {linking || link.trim() !== "" ? <Input id="expression-photo-link" type="url" inputMode="url" placeholder="https://" aria-label="Or a link" value={link} onChange={(event) => { onLink(event.target.value); if (event.target.value.trim() !== "") { onFile(null); if (inputRef.current) inputRef.current.value = ""; } }} className="h-8 w-44 text-xs" /> : null}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2 sm:w-56 sm:shrink-0">
       <div className="flex items-start gap-3">

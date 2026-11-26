@@ -48,6 +48,8 @@ type Props = {
   detailKind?: CategoryKind;
   /** "bourbon" or "rye", for the add-mashbill popup. */
   detailCategory?: string;
+  /** The data-sheet look: a compact chip trigger (the value alone, no box). */
+  chip?: boolean;
 };
 
 /**
@@ -76,6 +78,7 @@ export function ReferenceCombobox({
   detailKind,
   detailCategory,
   brand,
+  chip = false,
 }: Props) {
   const searchPlaceholder = placeholder ?? (resource === null ? "Search…" : "Search or create…");
   const [open, setOpen] = React.useState(false);
@@ -141,8 +144,9 @@ export function ReferenceCombobox({
               aria-labelledby={`${labelledBy} ${id}`}
               aria-expanded={open}
               className={cn(
-                "h-10 flex-1 justify-between font-normal",
+                chip ? "h-8 flex-none justify-between gap-2 px-2 font-medium" : "h-10 flex-1 justify-between font-normal",
                 !selected && "text-muted-foreground",
+                chip && !selected && "border-dashed font-normal",
                 invalid && "border-destructive",
               )}
             >

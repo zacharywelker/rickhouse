@@ -42,6 +42,7 @@ export function Field({
   suggestions,
   locked = false,
   onUnlock,
+  chip = false,
 }: {
   spec: FieldSpec;
   idPrefix: string;
@@ -62,6 +63,8 @@ export function Field({
   locked?: boolean;
   /** With `locked`: called when the field is triple-clicked, to make it editable again. */
   onUnlock?: () => void;
+  /** The data-sheet look: no visible label above (it stays for screen readers), and a reference or a size as a chip. */
+  chip?: boolean;
 }) {
   const moneyStep = useMoneyStep();
   const inputId = `${idPrefix}-${spec.name}`;
@@ -71,16 +74,16 @@ export function Field({
     <div
       className={cn(
         "flex flex-col gap-1.5",
-        spec.width ? FIELD_WIDTHS[spec.width] : spec.span === "half" ? "sm:col-span-1" : "col-span-full",
+        chip && spec.kind !== "textarea" ? "w-auto" : spec.width ? FIELD_WIDTHS[spec.width] : spec.span === "half" ? "sm:col-span-1" : "col-span-full",
       )}
     >
       {/* The asterisk sits outside the <label> so the label's text is exactly
           the field name, for screen readers and for tests. */}
       <div className="flex items-center gap-1">
-        <Label id={`${inputId}-label`} htmlFor={inputId}>
+        <Label id={`${inputId}-label`} htmlFor={inputId} className={chip ? "sr-only" : undefined}>
           {spec.label}
         </Label>
-        {required ? (
+        {required && !chip ? (
           <span aria-hidden="true" className="text-sm text-destructive">
             *
           </span>
@@ -96,6 +99,7 @@ export function Field({
           presets={spec.presets}
           blankLabel={spec.blankLabel}
           error={error}
+          chip={chip}
         />
       ) : null}
 
@@ -218,6 +222,7 @@ export function Field({
                 }
               : {})}
             invalid={error !== undefined}
+            chip={chip}
           />
           <input type="hidden" name={spec.name} value={String(value ?? "")} />
         </>
@@ -227,7 +232,7 @@ export function Field({
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
-      ) : spec.help && spec.kind !== "checkbox" ? (
+      ) : spec.help && spec.kind !== "checkbox" && !chip ? (
         <p className="text-xs text-muted-foreground">{spec.help}</p>
       ) : null}
     </div>
