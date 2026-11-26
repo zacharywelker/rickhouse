@@ -92,3 +92,22 @@ describe("Calvados fruit", () => {
     expect(ingredientAllowed("calvados", { name: "Cherry", kind: "distillate", family: "other" })).toBe(false);
   });
 });
+
+describe("normalizeCalvadosFruit", () => {
+  it("turns the names a phone or an old label brings into the six rows", async () => {
+    const { normalizeCalvadosFruit } = await import("../spirit-details");
+    const names = (rows: Array<{ name: string; family?: string | null; share?: number | null }>) => normalizeCalvadosFruit(rows).map((r) => r.name);
+    expect(names([{ name: "Pear", family: "pear" }, { name: "Williams Pear", family: "pear" }])).toEqual(["Pears"]);
+    expect(names([{ name: "Cider Apple", family: "apple" }])).toEqual(["Apples (type not stated)"]);
+    expect(names([{ name: "Sweet Apple", family: "apple" }, { name: "Bittersweet", family: "apple" }, { name: "Bitter Apple", family: "apple" }, { name: "Tart apple", family: "apple" }]))
+      .toEqual(["Sweet apples", "Bittersweet apples", "Bitter apples", "Acidic / tart apples"]);
+    expect(names([{ name: "Cherry", family: "other" }])).toEqual(["Cherry"]);
+  });
+  it("adds the shares of two names that land on one row, and keeps none where none was sent", async () => {
+    const { normalizeCalvadosFruit } = await import("../spirit-details");
+    expect(normalizeCalvadosFruit([{ name: "Pear", family: "pear", share: 10 }, { name: "Poire", family: "pear", share: 5 }])).toEqual([{ name: "Pears", family: "pear", share: 15 }]);
+    expect(normalizeCalvadosFruit([{ name: "Pear", family: "pear" }, { name: "Pears", family: "pear" }])[0]!.share).toBeUndefined();
+    expect(normalizeCalvadosFruit([{ name: "Pear", family: "pear", share: null }, { name: "Pears", family: "pear", share: null }])[0]!.share).toBeNull();
+    expect(normalizeCalvadosFruit([{ name: "Pears", family: "pear", share: 30 }])).toEqual([{ name: "Pears", family: "pear", share: 30 }]);
+  });
+});

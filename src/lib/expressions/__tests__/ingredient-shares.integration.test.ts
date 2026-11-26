@@ -70,6 +70,16 @@ describe.skipIf(!url)("ingredient shares against a real database", () => {
     await expect(m.sql(`UPDATE expression_ingredients SET share_pct = 150 WHERE expression_id = $1`, label)).rejects.toThrow(/share_check/);
   });
 
+  it("saves a Calvados's fruit as its rows, whatever name a phone sends, and keeps a saved share", async () => {
+    const [calvados] = await m.sql<{ id: number }>(`SELECT id FROM categories WHERE slug = 'calvados'`);
+    if (!calvados) return;
+    const label = await fx.mkLabel(owner, calvados.id, "Phone Calvados");
+    const fruit = (name: string, family: string, share?: number | null) => ({ name, family, kind: "distillate", ...(share !== undefined ? { share } : {}) });
+    await replace(label, [fruit("Pears", "pear", 30), fruit("Sweet apples", "apple", 70)]);
+    await replace(label, [fruit("Pear", "pear"), fruit("Sweet Apple", "apple"), fruit("Cider Apple", "apple")]);
+    expect(await sharesOf(label)).toEqual({ Pears: 30, "Sweet apples": 70, "Apples (type not stated)": null });
+  });
+
   it("migration 0059 turns a Calvados label's apple and pear tags into the two unstated rows, and touches no other label", async () => {
     const [calvados] = await m.sql<{ id: number }>(`SELECT id FROM categories WHERE slug = 'calvados'`);
     const [brandy] = await m.sql<{ id: number }>(`SELECT id FROM categories WHERE slug = 'apple'`);

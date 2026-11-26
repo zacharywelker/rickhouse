@@ -302,3 +302,33 @@ export function pearNote(appellation: unknown, pears: number | null): string | n
   if (appellation === "domfrontais" && pears < 30) return "Domfrontais takes at least 30% pears.";
   return null;
 }
+
+/**
+ * A Calvados's fruit as its six rows: a name the phone or an old label brings ("Pear", "Cider Apple", "Sweet Apple") becomes the
+ * row it stands for (a pear is Pears; an apple is its type when the name says it, else "Apples (type not stated)"), and two
+ * that land on one row become one, their shares added. Only apple and pear fruit; anything else is left as it is.
+ */
+export function normalizeCalvadosFruit<T extends { name: string; family?: string | null; share?: number | null }>(rows: ReadonlyArray<T>): T[] {
+  const target = (row: T): string | null => {
+    const name = row.name.toLocaleLowerCase();
+    if (row.family === "pear" || /\bpears?\b|poire/.test(name)) return "Pears";
+    if (row.family !== "apple" && !/\bapples?\b|cider|pomme/.test(name)) return null;
+    if (/bittersweet/.test(name)) return "Bittersweet apples";
+    if (/\bbitter\b/.test(name)) return "Bitter apples";
+    if (/\bsweet\b/.test(name)) return "Sweet apples";
+    if (/acid|tart/.test(name)) return "Acidic / tart apples";
+    return "Apples (type not stated)";
+  };
+  const out: T[] = [];
+  for (const row of rows) {
+    const name = target(row);
+    if (name === null) { out.push(row); continue; }
+    const fixed = CALVADOS_FRUIT_ROWS.find((fruit) => fruit.name === name)!;
+    const next = { ...row, name, family: fixed.family };
+    const at = out.findIndex((existing) => existing.name === name);
+    if (at === -1) { out.push(next); continue; }
+    const [a, b] = [out[at]!.share, row.share];
+    out[at] = { ...out[at]!, share: a === undefined && b === undefined ? undefined : (a ?? null) === null && (b ?? null) === null ? null : (a ?? 0) + (b ?? 0) };
+  }
+  return out;
+}
