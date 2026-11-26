@@ -88,3 +88,26 @@ test("a label made in the new look saves what was typed, and opens the same in e
     await expect(page.getByLabel("Cask Strength")).toBeChecked();
   }
 });
+
+test("a whiskey's distilled and bottled dates survive a save in the new look", async ({ page }) => {
+  const name = `Sheet Dates ${Date.now()}`;
+  await openNewForm(page);
+  await pick(page, "Brand", "Pursuit Spirits");
+  await pick(page, "Category", "Bourbon");
+  await page.getByLabel("Label Name").fill(name);
+  await page.getByRole("button", { name: "Add Distilled / filled date" }).click();
+  await page.getByLabel("Distilled / filled date").fill("2019-03-04");
+  await page.getByRole("button", { name: "Add Bottled date" }).click();
+  await page.getByLabel("Bottled date").fill("2024-05-06");
+  await page.getByRole("button", { name: "Create Label", exact: true }).click();
+  await expect(page).toHaveURL(/\/expressions\/\d+$/);
+  const url = page.url();
+  // Opened and saved again in the new look, untouched: the dates stay.
+  await page.goto(`${url}/edit?look=new`);
+  await expect(page.getByLabel("Distilled / filled date")).toHaveValue("2019-03-04");
+  await page.getByRole("button", { name: "Save Label", exact: true }).click();
+  await expect(page).toHaveURL(/\/expressions\/\d+$/);
+  await page.goto(`${url}/edit?look=old`);
+  await expect(page.getByLabel("Distilled / Barrel Filled")).toHaveValue("2019-03-04");
+  await expect(page.getByLabel("Bottled", { exact: true })).toHaveValue("2024-05-06");
+});
