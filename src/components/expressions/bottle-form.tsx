@@ -20,6 +20,7 @@ import { ageBetween, ageFilled, describeAge } from "@/lib/bottles/age";
 import { ProofAbvFields } from "./proof-abv-field";
 import { OpenedLevel, SEALED } from "@/components/bottles/opened-level";
 import { withOption } from "@/lib/forms/values";
+import { specForKind } from "@/lib/expressions/kind-options";
 import { AgeFields } from "./age-fields";
 import { releaseUnit } from "@/lib/bottles/terminology";
 import { bottleFieldNotUsed, type LabelFacts } from "@/lib/expressions/bottle-applicability";
@@ -271,7 +272,7 @@ export function BottleFields({
             const control = (
               <Field
                 key={field.name}
-                spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } : field}
+                spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } : specForKind(field, categoryKind)}
                 idPrefix={idPrefix}
                 value={values[field.name] ?? ""}
                 onChange={(next) => onChange(field.name, next)}

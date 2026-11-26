@@ -97,6 +97,16 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange }: Co
       </>
     );
   }
+  if (fieldGroup === "agave" && kind === "mezcal") {
+    // A mezcal's maguey is a free list; its flavors (Abocado con, Destilado con) are an optional list of their own.
+    return (
+      <>
+        <IngredientPicker kind="maguey" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("maguey")} />
+        <IngredientPicker kind="flavor" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("flavor")} />
+        <input type="hidden" name="ingredientLinks" value={JSON.stringify(chosen)} />
+      </>
+    );
+  }
   if (fieldGroup === "rum" && kind === "spiced-rum") {
     // A spiced rum has its flavors besides its base.
     return (

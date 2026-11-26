@@ -50,7 +50,7 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
     // A fruit's family comes from its name, so several fruits of different families can sit on one label.
     const item: IngredientChoice = { ...(existing ?? { name: trimmed, kind, ...(kind === "distillate" ? { family: fruitFamily(categoryKind, trimmed) } : {}) }), isManual: true };
     if (!ingredientAllowed(categoryKind, item)) {
-      setRejected(categoryKind === "calvados" ? `${trimmed} can't be a Calvados base: it is made from apples or pears.` : `${trimmed} can't be a ${categoryKind === "armagnac" ? "Armagnac" : "Cognac"} base: it is made from grapes.`);
+      setRejected(categoryKind === "calvados" ? `${trimmed} can't be a Calvados base: it is made from apples or pears.` : `${trimmed} can't be a ${categoryKind === "armagnac" ? "Armagnac" : categoryKind === "pisco" ? "Pisco" : "Cognac"} base: it is made from grapes.`);
       return;
     }
     if (selected.some((row) => row.name.toLocaleLowerCase() === item.name.toLocaleLowerCase())) {

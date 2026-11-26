@@ -3,6 +3,33 @@ import type { CategoryKind } from "./rules";
 import { isGinKind } from "./gin-details";
 
 export const AMARO_STYLES = ["Fernet", "Alpine", "Citrus", "New-World", "Old-World", "Medium-Bodied", "Aperitivo", "Carciofo", "Genepy", "Rabarbaro"] as const;
+export const CALVADOS_APPELLATIONS = ["aoc-calvados", "pays-d-auge", "domfrontais"] as const;
+export type CalvadosAppellation = (typeof CALVADOS_APPELLATIONS)[number];
+export const CALVADOS_APPELLATION_LABELS: Record<CalvadosAppellation, string> = {
+  "aoc-calvados": "AOC Calvados", "pays-d-auge": "Pays d'Auge", domfrontais: "Domfrontais",
+};
+/** Mezcal's production categories (design record, section 9). */
+export const MEZCAL_PRODUCTIONS = ["mezcal", "artesanal", "ancestral"] as const;
+export type MezcalProduction = (typeof MEZCAL_PRODUCTIONS)[number];
+export const MEZCAL_PRODUCTION_LABELS: Record<MezcalProduction, string> = { mezcal: "Mezcal", artesanal: "Mezcal Artesanal", ancestral: "Mezcal Ancestral" };
+export const MEZCAL_FLAVOR_METHODS = ["abocado-con", "destilado-con"] as const;
+export const MEZCAL_FLAVOR_METHOD_LABELS: Record<(typeof MEZCAL_FLAVOR_METHODS)[number], string> = { "abocado-con": "Abocado con (flavored after)", "destilado-con": "Destilado con (distilled with)" };
+
+export const COOKING_METHODS = ["brick oven", "autoclave", "pit"] as const;
+/** "hand mallet" is a hand method (mazo); "diffuser" is an industrial one. */
+export const EXTRACTION_METHODS = ["tahona", "roller mill", "hand mallet", "diffuser"] as const;
+
+/**
+ * What each production category allows (the designer's reading of the mezcal standard; **to be verified**, which is why it is
+ * one table). Ancestral: pit-oven cooking, a clay pot still, hand extraction. Artesanal: no column still and no diffuser.
+ * Plain mezcal: anything. `preselect` fills a field the owner has not chosen.
+ */
+export const PRODUCTION_RULES: Record<MezcalProduction, { cooking?: ReadonlyArray<string>; still?: ReadonlyArray<string>; extraction?: ReadonlyArray<string>; notStill?: ReadonlyArray<string>; notExtraction?: ReadonlyArray<string>; preselect?: { cookingMethod?: string; stillType?: string } }> = {
+  mezcal: {},
+  artesanal: { notStill: ["column"], notExtraction: ["diffuser"] },
+  ancestral: { cooking: ["pit"], still: ["clay-pot"], extraction: ["hand mallet"], preselect: { cookingMethod: "pit", stillType: "clay-pot" } },
+};
+
 export const PEAT_STATUSES = ["unknown", "unpeated", "peated"] as const;
 export const DAIRY_STATUSES = ["unknown", "dairy", "non-dairy"] as const;
 /** A liqueur is dairy or it is not: a Cream liqueur starts as dairy, every other as non-dairy, and "unknown" is never offered or kept. */
@@ -17,11 +44,11 @@ export function whiskeyCategoryGrains(slug: string): string | null {
   return null;
 }
 
-export const TEQUILA_CLASSES = ["blanco", "joven", "reposado", "anejo", "extra-anejo", "cristalino"] as const;
+export const TEQUILA_CLASSES = ["blanco", "joven", "reposado", "anejo", "extra-anejo", "cristalino", "madurado-en-vidrio"] as const;
 export type TequilaClass = (typeof TEQUILA_CLASSES)[number];
 export const TEQUILA_CLASS_LABELS: Record<TequilaClass, string> = {
   blanco: "Blanco", joven: "Joven", reposado: "Reposado", anejo: "Añejo",
-  "extra-anejo": "Extra Añejo", cristalino: "Cristalino",
+  "extra-anejo": "Extra Añejo", cristalino: "Cristalino", "madurado-en-vidrio": "Madurado en Vidrio",
 };
 export const TEQUILA_CLASS_GUIDANCE: Partial<Record<TequilaClass, string>> = {
   blanco: "0–2 months", reposado: "2 months–1 year", anejo: "1–3 years",
@@ -31,7 +58,7 @@ export const TEQUILA_CLASS_GUIDANCE: Partial<Record<TequilaClass, string>> = {
  * Every age designation any kind has. A kind offers some of them (`BRANDY_MINIMUM_YEARS`): Cognac VS, VSOP, XO; Armagnac
  * adds Napoléon and Hors d'Âge; Calvados has Vieux, and its "VS" is Fine. The values are what is stored and printed as the statement.
  */
-export const BRANDY_GRADES = ["VS", "Vieux", "VSOP", "Napoléon", "XO", "Hors d'Âge"] as const;
+export const BRANDY_GRADES = ["Blanche", "VS", "Vieux", "VSOP", "Napoléon", "XO", "Hors d'Âge", "Millésime"] as const;
 export type BrandyGrade = (typeof BRANDY_GRADES)[number];
 
 /**
@@ -40,28 +67,33 @@ export type BrandyGrade = (typeof BRANDY_GRADES)[number];
  */
 export const BRANDY_MINIMUM_YEARS: Partial<Record<CategoryKind, Partial<Record<BrandyGrade, number>>>> = {
   cognac: { VS: 2, VSOP: 4, XO: 10 },
-  armagnac: { VS: 1, VSOP: 4, Napoléon: 6, XO: 10, "Hors d'Âge": 10 },
-  calvados: { VS: 2, Vieux: 3, VSOP: 4, XO: 6 },
+  armagnac: { Blanche: 0, VS: 1, VSOP: 4, Napoléon: 6, XO: 10, "Hors d'Âge": 10, Millésime: 0 },
+  calvados: { VS: 2, Vieux: 3, VSOP: 4, XO: 6, Millésime: 0 },
 };
 
 /** What a designation is called where the kind has its own word for it. */
 export const BRANDY_GRADE_NAMES: Partial<Record<CategoryKind, Partial<Record<BrandyGrade, string>>>> = {
   calvados: { VS: "Fine (VS)", Vieux: "Vieux / Réserve", VSOP: "VSOP / VO / Vieille Réserve", XO: "XO / Napoléon / Hors d'Âge" },
-  armagnac: { VS: "VS / Three-Star" },
+  armagnac: { VS: "VS / Three-Star", Millésime: "Vintage / Millésimé" },
 };
 
 /** The designations a kind offers, youngest first. */
 export const brandyGradesFor = (kind: CategoryKind | null): BrandyGrade[] =>
   kind && BRANDY_MINIMUM_YEARS[kind] ? BRANDY_GRADES.filter((grade) => grade in BRANDY_MINIMUM_YEARS[kind]!) : [];
 
-/** The designation an age reaches: the oldest whose minimum it meets. Hors d'Âge is never worked out (it shares XO's minimum). */
+/** Designations an age never settles: Hors d'Âge shares XO's minimum, and a Millésime is a year, not an age. */
+const NOT_FROM_AGE: ReadonlyArray<BrandyGrade> = ["Hors d'Âge", "Millésime"];
+
+/** The designation an age reaches: the oldest whose minimum it meets. */
 export function brandyGradeFromYears(kind: CategoryKind | null, years: number): BrandyGrade | null {
   let found: BrandyGrade | null = null;
-  for (const grade of brandyGradesFor(kind)) if (grade !== "Hors d'Âge" && years >= BRANDY_MINIMUM_YEARS[kind!]![grade]!) found = grade;
+  for (const grade of brandyGradesFor(kind)) if (!NOT_FROM_AGE.includes(grade) && years >= BRANDY_MINIMUM_YEARS[kind!]![grade]!) found = grade;
   return found;
 }
 
 const STATEMENT_WORDS: ReadonlyArray<[BrandyGrade, RegExp]> = [
+  ["Millésime", /millesim|vintage/],
+  ["Blanche", /blanche/],
   ["Hors d'Âge", /hors d.?age/],
   ["Napoléon", /napoleon/],
   ["VSOP", /\bv\.?s\.?o\.?p\b|vieille reserve|\bv\.?o\b/],
@@ -96,7 +128,7 @@ export function agaveClassFromYears(kind: CategoryKind | null, years: number): T
 }
 
 /** The classes whose typing is manual: an age never moves a Joven or a Cristalino. */
-export const MANUAL_AGAVE_CLASSES: ReadonlyArray<string> = ["joven", "cristalino"];
+export const MANUAL_AGAVE_CLASSES: ReadonlyArray<string> = ["joven", "cristalino", "madurado-en-vidrio"];
 /** Blanco and Reposado are legally under a year: they take months and days, never years. */
 export const UNDER_A_YEAR_CLASSES: ReadonlyArray<string> = ["blanco", "reposado"];
 
@@ -118,6 +150,22 @@ export function countryForDistillery(kind: CategoryKind | null, country: string)
 
 export type IngredientChoice = { name: string; family?: string | null; kind?: "maguey" | "distillate" | "rum_base" | "botanical" | "gin_base" | "vodka_base" | "flavor" | "liqueur_base"; isManual?: boolean };
 
+/** Which pisco country a distillery's country says: Peru or Chile (the two that may call it pisco), else null. */
+export function piscoCountry(countries: ReadonlyArray<string | null | undefined>): "Peru" | "Chile" | null {
+  const found = new Set(countries.map((country) => (country ? normalizeCountry(country) : "")));
+  return found.size === 1 && found.has("Peru") ? "Peru" : found.size === 1 && found.has("Chile") ? "Chile" : null;
+}
+
+/**
+ * What a pisco's grapes or strength make it, worked out and not stored. Peru: one grape is a Puro, two or more an Acholado.
+ * Chile: the class follows the ABV (Tradicional 30%+, Especial 35%+, Reservado 40%+, Gran Pisco 43%+); Chile has no Acholado.
+ */
+export function piscoStyle(country: "Peru" | "Chile" | null, grapes: number, abv: number | null): string | null {
+  if (country === "Peru") return grapes === 0 ? null : grapes === 1 ? "Puro" : "Acholado";
+  if (country === "Chile" && abv !== null) return abv >= 43 ? "Gran Pisco" : abv >= 40 ? "Reservado" : abv >= 35 ? "Especial" : abv >= 30 ? "Tradicional" : null;
+  return null;
+}
+
 /** A Rhum Agricole made in Martinique is made on a column still; a distillery there pre-selects it. */
 export const stillForCountry = (country: string | null | undefined): "column" | null =>
   country && normalizeCountry(country) === "Martinique" ? "column" : null;
@@ -134,7 +182,7 @@ export function ingredientAllowed(kind: CategoryKind | null, ingredient: Ingredi
   const fixed = fixedIngredient(kind);
   if (fixed && (ingredient.kind === undefined || ingredient.kind === fixed.kind)) return ingredient.name.trim().toLocaleLowerCase() === fixed.name.toLocaleLowerCase();
   if (kind === "calvados") return ingredient.family === "apple" || ingredient.family === "pear";
-  if (kind === "cognac" || kind === "armagnac") return ingredient.family === "grape";
+  if (kind === "cognac" || kind === "armagnac" || kind === "pisco") return ingredient.family === "grape";
   return true;
 }
 
@@ -148,6 +196,8 @@ export function spiritAgeLabel(kind: CategoryKind | null, tequilaClass: string |
 /** A bottle stores only its own designation; null continues to inherit from its label. */
 export function withBottleSpiritFacts<T extends Record<string, unknown>>(facts: T, kind: CategoryKind, ginAged = false, group: string = kind): T {
   const out: Record<string, unknown> = { ...facts };
+  // Madurado en Vidrio is a mezcal's: a tequila bottle cannot keep it.
+  if (kind === "tequila" && out.tequilaClass === "madurado-en-vidrio") out.tequilaClass = null;
   if (kind === "tequila" && "tequilaClass" in out) {
     const chosen = out.tequilaClass;
     out.ageStatement = typeof chosen === "string" && chosen in TEQUILA_CLASS_LABELS ? TEQUILA_CLASS_LABELS[chosen as TequilaClass] : null;
@@ -189,4 +239,13 @@ export function withBottleSpiritFacts<T extends Record<string, unknown>>(facts: 
     delete out.rickFloor;
   }
   return out as T;
+}
+
+/** A solera's ages, as "5–12 years" (one end alone as "from 5" or "up to 12"). */
+export function soleraText(low: string | number | null | undefined, high: string | number | null | undefined): string | null {
+  const n = (value: string | number | null | undefined) => (value === null || value === undefined || value === "" ? null : Number(value));
+  const [a, b] = [n(low), n(high)];
+  if (a === null && b === null) return null;
+  if (a !== null && b !== null) return a === b ? `${a} years` : `${a}–${b} years`;
+  return a !== null ? `from ${a} years` : `up to ${b} years`;
 }

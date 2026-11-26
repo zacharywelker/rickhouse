@@ -32,6 +32,8 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
     { slug: "tequila", group: "agave" },
     { slug: "mezcal", group: "agave" },
     { slug: "cognac", group: "brandy" },
+    { slug: "calvados", group: "brandy" },
+    { slug: "pisco", group: "brandy" },
     { slug: "amaro", group: "amaro" },
     { slug: "liqueur", group: "liqueur" },
   ];
@@ -100,7 +102,7 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
   describe("a label's facts", () => {
     for (const g of GENERATED_LABEL) {
       it(`${g.column.id} (${g.column.section}) saves as ${g.editor.field}`, async () => {
-        const spirit = SPIRITS.find((s) => g.editor.applies!(fakeLabelRow(catId[s.slug]!, s.group), kinds));
+        const spirit = SPIRITS.find((s) => g.editor.applies!(fakeLabelRow(catId[s.slug]!, s.group, { brandyGrade: "Millésime" }), kinds));
         expect(spirit, `no spirit the sheet applies ${g.column.id} to`).toBeDefined();
         const label = await fx.mkLabel(owner, catId[spirit!.slug]!, `Parity ${g.column.id}`);
         const value = await valueFor(g.editor, label);
@@ -140,7 +142,7 @@ describe.skipIf(!url)("every simple field the sheet edits saves, against a real 
     const clearable = (g: { editor: CellEditor }) => g.editor.required !== true;
     for (const g of GENERATED_LABEL.filter(clearable)) {
       it(`${g.column.id} clears`, async () => {
-        const spirit = SPIRITS.find((s) => g.editor.applies!(fakeLabelRow(catId[s.slug]!, s.group), kinds))!;
+        const spirit = SPIRITS.find((s) => g.editor.applies!(fakeLabelRow(catId[s.slug]!, s.group, { brandyGrade: "Millésime" }), kinds))!;
         const label = await fx.mkLabel(owner, catId[spirit.slug]!, `Parity clear ${g.column.id}`);
         expect(await rows.patchLabelRow(owner, label, serverFields(g.editor, g.column.id, await valueFor(g.editor, label)))).toEqual({ ok: true });
         const blank = g.editor.spec.kind === "checkbox" ? "false" : "";

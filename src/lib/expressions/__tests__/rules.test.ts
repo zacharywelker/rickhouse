@@ -178,11 +178,32 @@ describe("hiddenFields", () => {
     expect(showsFinishes({ group: "gin", ginAged: true })).toBe(true);
   });
 
-  it("shows the solera range only when Solera is Yes", () => {
-    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "" } }).has("soleraRange")).toBe(true);
-    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "false" } }).has("soleraRange")).toBe(true);
-    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "true" } }).has("soleraRange")).toBe(false);
-    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "true" } }).has("soleraRange")).toBe(true); // Solera is an aged rum's
+  it("shows the solera ages only when Solera is Yes, and then takes the single age and dates away", () => {
+    const yes = hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "true" } });
+    for (const name of ["soleraLowYears", "soleraHighYears", "ageStatement"]) expect(yes.has(name), name).toBe(false);
+    for (const name of ["ageYears", "ageMonths", "ageDays", "barrelFilledOn", "bottledOn"]) expect(yes.has(name), name).toBe(true);
+    // A validated input holds the boolean, and another category ignores a leftover Solera.
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: true } }).has("soleraLowYears")).toBe(false);
+    expect(hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: true } }).has("ageYears")).toBe(true);
+    expect(hiddenFields({ ...base, group: "whiskey", values: { isSolera: "true" } }).has("ageYears")).toBe(false);
+    expect(hiddenFields({ ...base, group: "whiskey", values: { isSolera: true } }).has("barrelFilledOn")).toBe(false);
+    const no = hiddenFields({ ...base, group: "rum", values: { isAged: true, isSolera: "false" } });
+    expect(no.has("soleraLowYears")).toBe(true);
+    expect(no.has("ageYears")).toBe(false);
+  });
+  it("shows an appellation for Calvados, a vintage year for a Millésime, Mosto Verde for pisco", () => {
+    const brandy = (kind: FormContext["kind"], values: Record<string, unknown> = {}) => hiddenFields({ ...base, group: "brandy", kind, values });
+    expect(brandy("calvados").has("calvadosAppellation")).toBe(false);
+    expect(brandy("armagnac").has("calvadosAppellation")).toBe(true);
+    expect(brandy("calvados", { brandyGrade: "Millésime" }).has("brandyVintageYear")).toBe(false);
+    expect(brandy("armagnac", { brandyGrade: "Millésime" }).has("brandyVintageYear")).toBe(false);
+    expect(brandy("calvados", { brandyGrade: "XO" }).has("brandyVintageYear")).toBe(true);
+    expect(brandy("cognac", { brandyGrade: "Millésime" }).has("brandyVintageYear")).toBe(true);
+    expect(brandy("pisco").has("isMostoVerde")).toBe(false);
+    expect(brandy("cognac").has("isMostoVerde")).toBe(true);
+  });
+  it("hides the solera ages on an unaged rum", () => {
+    expect(hiddenFields({ ...base, group: "rum", values: { isSolera: "true" } }).has("soleraLowYears")).toBe(true);
   });
 });
 
@@ -261,6 +282,23 @@ describe("age and class rules by spirit", () => {
       expect(hidden.has("ageDays"), tequilaClass).toBe(false);
     }
     expect(hiddenFields(ctx({ group: "agave", kind: "tequila", values: { tequilaClass: "anejo" } })).has("ageYears")).toBe(false);
+  });
+});
+
+describe("mezcal", () => {
+  const mezcal = (values: Record<string, unknown> = {}) => makeContext({ group: "agave", kind: "mezcal", values });
+  it("has a production and a flavor, which tequila does not", () => {
+    for (const name of ["mezcalProduction", "mezcalFlavorMethod"]) {
+      expect(hiddenFields(mezcal()).has(name), name).toBe(false);
+      expect(hiddenFields(makeContext({ group: "agave", kind: "tequila" })).has(name), name).toBe(true);
+    }
+  });
+  it("takes the age and the barrel away from a Madurado en Vidrio", () => {
+    const hidden = hiddenFields(mezcal({ tequilaClass: "madurado-en-vidrio" }));
+    for (const name of ["ageYears", "ageMonths", "ageDays", "ageStatement"]) expect(hidden.has(name), name).toBe(true);
+    expect(showsFinishes(mezcal({ tequilaClass: "madurado-en-vidrio" }))).toBe(false);
+    expect(showsFinishes(mezcal({ tequilaClass: "anejo" }))).toBe(true);
+    expect(hiddenFields(mezcal({ tequilaClass: "anejo" })).has("ageMonths")).toBe(false);
   });
 });
 

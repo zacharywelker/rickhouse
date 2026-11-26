@@ -94,3 +94,57 @@ test("apple brandy has its fruit fixed; flavored whisky, absinthe and shochu hav
   await choose(page, "Shochu");
   await expect(page.getByRole("group", { name: "Base Ingredients" })).toBeVisible();
 });
+
+test("a solera rum is aged as a range, with no single age", async ({ page }) => {
+  await choose(page, "Rum");
+  await page.getByLabel("Aged").check();
+  await expect(page.getByRole("spinbutton", { name: "Years", exact: true })).toBeVisible();
+  await page.getByLabel("Solera", { exact: true }).selectOption("true");
+  await expect(page.getByRole("spinbutton", { name: "Years", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Solera — Youngest (years)")).toBeVisible();
+  await expect(page.getByLabel("Solera — Oldest (years)")).toBeVisible();
+});
+
+test("a Calvados has an appellation that sets its still and warns, and a Millésime has a vintage year", async ({ page }) => {
+  await choose(page, "Calvados");
+  await page.getByLabel("Appellation").selectOption("pays-d-auge");
+  await expect(page.getByLabel("Still Type")).toHaveValue("pot");
+  await page.getByLabel("Appellation").selectOption("domfrontais");
+  await expect(page.getByLabel("Still Type")).toHaveValue("column");
+  await page.getByRole("spinbutton", { name: "Years" }).fill("2");
+  await expect(page.getByText("Domfrontais is aged at least 3 years.")).toBeVisible();
+  await expect(page.getByLabel("Vintage Year")).toHaveCount(0);
+  await page.getByLabel("Age Designation").selectOption("Millésime");
+  await expect(page.getByLabel("Vintage Year")).toBeVisible();
+});
+
+test("a pisco asks for a Peruvian or Chilean distillery before it says what it is", async ({ page }) => {
+  await choose(page, "Pisco");
+  await expect(page.getByText("Link a Peruvian or Chilean distillery")).toBeVisible();
+  await expect(page.getByLabel("Mosto Verde")).toHaveCount(0);
+  await choose(page, "Cognac");
+  await expect(page.getByRole("heading", { name: "Brandy detail" })).toHaveCount(0);
+});
+
+test("a mezcal has a production category that presets and limits how it was made", async ({ page }) => {
+  await choose(page, "Mezcal");
+  await expect(page.getByLabel("Production")).toBeVisible();
+  await page.getByLabel("Production").selectOption("ancestral");
+  await expect(page.getByLabel("Still Type")).toHaveValue("clay-pot");
+  await expect(page.getByLabel("Cooking Method")).toHaveValue("pit");
+  expect(await page.getByLabel("Still Type").locator("option").allInnerTexts()).toEqual(["Unknown", "Clay pot"]);
+  await page.getByLabel("Production").selectOption("artesanal");
+  expect(await page.getByLabel("Still Type").locator("option").allInnerTexts()).not.toContain("Column");
+  await choose(page, "Tequila");
+  await expect(page.getByLabel("Production")).toHaveCount(0);
+});
+
+test("a mezcal Madurado en Vidrio has no age and no barrel; its flavors are a list", async ({ page }) => {
+  await choose(page, "Mezcal");
+  await expect(page.getByRole("group", { name: "Barrel Type" })).toBeVisible();
+  await page.getByLabel("Mezcal Class").selectOption("madurado-en-vidrio");
+  await expect(page.getByRole("spinbutton", { name: "Months" })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Barrel Type" })).toHaveCount(0);
+  await expect(page.getByLabel("Flavor", { exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Flavors" })).toBeVisible();
+});

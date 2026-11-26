@@ -28,7 +28,10 @@ export type FruitFamily = "grape" | "apple" | "pear" | "other";
  */
 export const BRANDY_FRUITS: Readonly<Record<string, FruitFamily>> = {
   "Ugni Blanc": "grape", "Folle Blanche": "grape", "Colombard": "grape", "Baco Blanc": "grape", "Montils": "grape",
-  "Muscat": "grape", "Palomino": "grape", "Quebranta": "grape", "Italia": "grape", "Torrontel": "grape", "Grape": "grape", "Grape Pomace": "grape",
+  "Muscat": "grape", "Palomino": "grape", "Quebranta": "grape", "Italia": "grape", "Torrontel": "grape",
+  // Pisco: Peru's grapes (the others are Italia, Torrontel and Moscatel) and Chile's.
+  "Mollar": "grape", "Uvina": "grape", "Negra Criolla": "grape", "Moscatel": "grape", "Albilla": "grape",
+  "Moscatel de Alejandría": "grape", "Moscatel Rosada": "grape", "Moscatel de Austria": "grape", "Pedro Jiménez": "grape", "Grape": "grape", "Grape Pomace": "grape",
   "Apple": "apple", "Cider Apple": "apple",
   "Pear": "pear", "Williams Pear": "pear",
   "Apricot": "other", "Cherry": "other", "Plum": "other", "Peach": "other", "Raspberry": "other", "Blackberry": "other", "Quince": "other", "Fig": "other",
@@ -51,7 +54,7 @@ export function fruitFamily(categoryKind: string | null, name: string): FruitFam
   const wanted = name.trim().toLocaleLowerCase();
   const listed = familyOf(BRANDY_FRUITS, wanted) ?? familyOf(FRUIT_FAMILY_EXCEPTIONS, wanted);
   if (listed) return listed;
-  if (categoryKind === "cognac" || categoryKind === "armagnac") return "grape";
+  if (categoryKind === "cognac" || categoryKind === "armagnac" || categoryKind === "pisco") return "grape";
   if (categoryKind === "calvados") return /\b(pears?|poire)\b/.test(wanted) ? "pear" : "apple";
   // Whole words only, and the named fruit before the pressing: "Apple Pomace" is an apple.
   if (/\b(pears?|poire)\b/.test(wanted)) return "pear";

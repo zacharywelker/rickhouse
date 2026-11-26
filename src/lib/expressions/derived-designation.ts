@@ -26,3 +26,18 @@ export function withDerivedDesignation<T extends Record<string, unknown>>(next: 
   }
   return next;
 }
+
+/**
+ * What the Calvados appellation asks of the rest of the label, as a note (the law's rules are warnings, never blocks): Pays
+ * d'Auge is distilled in a pot still, Domfrontais in a column still and is aged at least three years. Null when nothing is off.
+ */
+export function appellationNote(values: Record<string, unknown>): string | null {
+  const still = String(values.stillType ?? "");
+  const years = ageInYears(values.ageYears, values.ageMonths, values.ageDays);
+  if (values.calvadosAppellation === "pays-d-auge" && still !== "" && still !== "pot") return "Pays d'Auge is distilled in a pot still.";
+  if (values.calvadosAppellation === "domfrontais") {
+    if (still !== "" && still !== "column") return "Domfrontais is distilled in a column still.";
+    if (years !== null && years < 3) return "Domfrontais is aged at least 3 years.";
+  }
+  return null;
+}

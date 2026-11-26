@@ -257,7 +257,7 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
     .where(eq(expressions.id, expressionId)).limit(1);
   if (!label) return;
   const kind = (await categoryKindsById(tx))[label.categoryId] ?? "other";
-  const accepted: IngredientKind[] = label.group === "agave" ? ["maguey"] : label.group === "rum" ? (kind === "spiced-rum" ? ["rum_base", "flavor"] : ["rum_base"]) :
+  const accepted: IngredientKind[] = label.group === "agave" ? (kind === "mezcal" ? ["maguey", "flavor"] : ["maguey"]) : label.group === "rum" ? (kind === "spiced-rum" ? ["rum_base", "flavor"] : ["rum_base"]) :
     label.group === "brandy" ? ["distillate"] : label.group === "gin" ? ["botanical", "gin_base"] :
     label.group === "vodka" ? ["vodka_base", "flavor"] : label.group === "amaro" ? ["botanical"] :
     label.group === "liqueur" ? ["flavor", "liqueur_base"] :
@@ -384,6 +384,10 @@ export async function labelValues(input: ExpressionInput, ownerId: number, id: n
   if (isGinKind(kind)) {
     values.barrelFilledOn = null; values.bottledOn = null; values.ageStatement = null; values.ageDays = null;
   }
+  const years = (value: unknown) => (value === null || value === undefined || value === "" ? null : Number(value));
+  const low = years(values.soleraLowYears);
+  const high = years(values.soleraHighYears);
+  if (low !== null && high !== null && low > high) throw new LabelRejected("A solera's youngest age cannot be above its oldest.");
   if (kind === "tequila") {
     values.ageStatement = input.tequilaClass ? TEQUILA_CLASS_LABELS[input.tequilaClass as TequilaClass] : null;
     values.isNas = false;
