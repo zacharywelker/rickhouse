@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chipKind } from "../chip-kind";
 import { EXPRESSION_SECTIONS } from "../fields";
-import { SHEET_LAYOUT, layoutFields } from "../sheet-layout";
+import { CHIP_LABELS, LABEL_PANEL_SECTIONS, SHEET_LAYOUT, layoutFields } from "../sheet-layout";
 import type { FieldSpec } from "@/lib/admin/types";
 
 const spec = (name: string) => EXPRESSION_SECTIONS.flatMap((s) => s.fields).find((f) => f.name === name)!;
@@ -42,13 +42,13 @@ describe("SHEET_LAYOUT", () => {
     const all = Object.keys(SHEET_LAYOUT).flatMap(layoutFields);
     expect(all.filter((name, index) => all.indexOf(name) !== index)).toEqual([]);
   });
-  it("leaves out of its rows only what the form draws elsewhere (the age months and days, the two dates, Bottled In Bond's home)", () => {
-    for (const sectionId of Object.keys(SHEET_LAYOUT)) {
-      const section = EXPRESSION_SECTIONS.find((s) => s.id === sectionId)!;
-      const named = new Set(layoutFields(sectionId));
-      const missing = section.fields.map((f) => f.name).filter((name) => !named.has(name));
-      // Months and days belong to the "ageYears" group, the dates to "@dates"; whatever else is missing the renderer puts in a row of its own.
-      for (const name of missing) expect(["ageMonths", "ageDays", "barrelFilledOn", "bottledOn"], `${sectionId}: ${name}`).toContain(name);
-    }
+  it("draws every field of the identity and strength sections, but the age months and days (drawn with the years) and the Description (under More)", () => {
+    const named = new Set(layoutFields("label"));
+    const missing = LABEL_PANEL_SECTIONS.flatMap((id) => EXPRESSION_SECTIONS.find((s) => s.id === id)!.fields.map((f) => f.name)).filter((name) => !named.has(name));
+    expect(missing.sort()).toEqual(["ageDays", "ageMonths", "description"]);
+  });
+  it("words the chips the mockup's way", () => {
+    expect(CHIP_LABELS.upc).toBe("UPC");
+    for (const name of Object.keys(CHIP_LABELS)) expect(layoutFields("label")).toContain(name);
   });
 });

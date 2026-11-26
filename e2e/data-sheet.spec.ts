@@ -32,16 +32,16 @@ test("the new look draws rows with chips, and a dashed + chip for an empty optio
   await pick(page, "Category", "Bourbon");
   for (const label of ["Name", "Strength", "Size and price", "Age"]) await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Back to the old look" })).toBeVisible();
-  const add = page.getByRole("button", { name: "Add UPC / Barcode" });
+  const add = page.getByRole("button", { name: "Add UPC" });
   await expect(add).toBeVisible();
   await add.click();
-  const upc = page.getByLabel("UPC / Barcode");
+  const upc = page.getByLabel("UPC", { exact: true });
   await expect(upc).toBeFocused();
   await upc.fill("081234567890");
   await expect(upc).toHaveValue("081234567890");
   await upc.fill("");
   await page.getByLabel("Label Name").click();
-  await expect(page.getByRole("button", { name: "Add UPC / Barcode" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add UPC" })).toBeVisible();
 });
 
 test("a toggle chip is a real checkbox, and the old look is one click away", async ({ page }) => {
@@ -53,7 +53,7 @@ test("a toggle chip is a real checkbox, and the old look is one click away", asy
   await expect(cask).toBeChecked();
   await page.getByRole("button", { name: "Back to the old look" }).click();
   await expect(page.getByRole("button", { name: "Try the new look" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add UPC / Barcode" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add UPC" })).toHaveCount(0);
   await expect(page.getByLabel("UPC / Barcode")).toBeVisible();
 });
 
@@ -76,15 +76,15 @@ test("a label made in the new look saves what was typed, and opens the same in e
   await page.getByText("Cask Strength", { exact: true }).click();
   await page.getByRole("button", { name: "Add MSRP" }).click();
   await page.getByLabel("MSRP").fill("69.99");
-  await page.getByRole("button", { name: "Add UPC / Barcode" }).click();
-  await page.getByLabel("UPC / Barcode").fill("081234567890");
+  await page.getByRole("button", { name: "Add UPC" }).click();
+  await page.getByLabel("UPC", { exact: true }).fill("081234567890");
   await page.getByRole("button", { name: "Create Label", exact: true }).click();
   await expect(page).toHaveURL(/\/expressions\/\d+$/);
   const url = page.url();
   for (const look of ["new", "old"]) {
     await page.goto(`${url}/edit?look=${look}`);
     await expect(page.getByLabel("MSRP")).toHaveValue("69.99");
-    await expect(page.getByLabel("UPC / Barcode")).toHaveValue("081234567890");
+    await expect(page.getByLabel(look === "new" ? "UPC" : "UPC / Barcode", { exact: true })).toHaveValue("081234567890");
     await expect(page.getByLabel("Cask Strength")).toBeChecked();
   }
 });

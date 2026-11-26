@@ -73,7 +73,7 @@ export function AgeFields({
           readOnly={locked} aria-readonly={locked || undefined} title={locked ? "Triple-click to edit" : undefined}
           onClick={locked && onUnlock ? (e) => e.detail >= 3 && onUnlock() : undefined}
           aria-invalid={errors?.[unit.name] ? true : undefined}
-          className={cn(BARE_INPUT, "w-12")}
+          className={cn(BARE_INPUT, unit.name === "ageYears" ? "w-6" : "w-[30px]")}
         />
       </label>
     );

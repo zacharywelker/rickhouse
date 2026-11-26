@@ -4,7 +4,7 @@ import * as React from "react";
 import { useCurrencySymbol, useMoneyStep } from "@/components/currency-context";
 import { capDecimals, padDecimals } from "@/lib/decimals";
 import { chipKind } from "@/lib/expressions/chip-kind";
-import { BARE_INPUT, CHIP, CHIP_LABEL, INPUT_WIDTHS } from "./chip-styles";
+import { ADD_CHIP, BARE_INPUT, BOX_INPUT, CHIP, CHIP_LABEL, INPUT_WIDTHS, TOGGLE } from "./chip-styles";
 import { cn } from "@/lib/utils";
 import type { FieldSpec } from "@/lib/admin/types";
 import type { FieldValue } from "@/lib/forms/values";
@@ -12,7 +12,7 @@ import type { FieldValue } from "@/lib/forms/values";
 /** A dashed "+ Label" button for an optional fact that has nothing in it yet. */
 export function AddChip({ label, onClick, id }: { label: string; onClick: () => void; id?: string }) {
   return (
-    <button type="button" id={id} onClick={onClick} aria-label={`Add ${label}`} className="inline-flex h-8 items-center border border-dashed border-input px-2 text-sm text-muted-foreground hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <button type="button" id={id} onClick={onClick} aria-label={`Add ${label}`} className={ADD_CHIP}>
       + {label}
     </button>
   );
@@ -23,9 +23,9 @@ export function ToggleChip({ spec, idPrefix, value, onChange }: { spec: FieldSpe
   const id = `${idPrefix}-${spec.name}`;
   const on = value === true || value === "true" || value === "on";
   return (
-    <label htmlFor={id} className={cn("inline-flex h-8 cursor-pointer items-center gap-1 rounded-full border border-input px-3 text-sm focus-within:ring-2 focus-within:ring-ring", on ? "border-foreground bg-foreground text-background" : "bg-card")}>
+    <label htmlFor={id} className={cn(TOGGLE, on ? "bg-foreground text-background" : "bg-card")}>
       <input id={id} name={spec.name} type="checkbox" className="sr-only" checked={on} onChange={(event) => onChange(event.target.checked)} />
-      {on ? <span aria-hidden="true">✓</span> : null}
+      {on ? <span aria-hidden="true" className="text-[11px]">✓</span> : null}
       {spec.label}
     </label>
   );
@@ -83,7 +83,7 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
             value={String(value ?? "")} aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}
             onChange={(event) => onChange(event.target.value)}
             onBlur={() => { if (value === "" || value === null || value === undefined) setOpened(false); }}
-            className="min-w-0 border-0 bg-transparent p-0 text-sm font-medium outline-none"
+            className="min-w-0 border-0 bg-transparent p-0 text-[12px] font-semibold outline-none"
           >
             {spec.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -93,6 +93,21 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
     );
   }
   if (spec.kind !== "text" && spec.kind !== "number" && spec.kind !== "date") return <>{onField()}</>;
+  if (bare) {
+    // A boxed input with no label (the Name row's label name): the value says what it is.
+    return (
+      <div className="flex flex-col gap-1">
+        <input
+          id={id} name={spec.name} ref={(node) => { input.current = node; }} type="text" aria-label={spec.label}
+          value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}
+          placeholder={"placeholder" in spec ? spec.placeholder : undefined}
+          aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}
+          className={cn(BOX_INPUT, "w-[190px]", error && "border-destructive")}
+        />
+        <ErrorText id={errorId} error={error} />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-1">
       <label className={cn(CHIP, error && "border-destructive", locked && "bg-muted text-muted-foreground")}>

@@ -83,7 +83,7 @@ export function ProofAbvFields({
                 onChange(next);
               }}
               aria-invalid={error ? true : undefined}
-              className={cn(BARE_INPUT, "w-16")}
+              className={cn(BARE_INPUT, "w-[54px]")}
             />
             {locked && name ? <input type="hidden" name={name} value={proofValue} /> : null}
           </label>
@@ -100,7 +100,7 @@ export function ProofAbvFields({
               setTypedAbv(next);
               onChange(abvToProof(next));
             }}
-            className={cn(BARE_INPUT, "w-16")}
+            className={cn(BARE_INPUT, "w-[54px]")}
           />
           <span aria-hidden="true" className="text-sm text-muted-foreground">%</span>
         </label>

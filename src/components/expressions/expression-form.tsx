@@ -44,9 +44,10 @@ import {
 import { countryForDistillery, effectiveDairy, piscoCountry, piscoStyle, stillForCountry } from "@/lib/expressions/spirit-details";
 import { appellationNote } from "@/lib/expressions/derived-designation";
 import { specForKind, withProduction } from "@/lib/expressions/kind-options";
-import { SHEET_LAYOUT } from "@/lib/expressions/sheet-layout";
+import { categoryColor } from "@/lib/bottles/category-palette";
+import { CHIP_LABELS, SHEET_LAYOUT } from "@/lib/expressions/sheet-layout";
 import { ChipField } from "@/components/sheet/chips";
-import { SheetRow } from "@/components/sheet/sheet-row";
+import { MoreLine, SheetRow } from "@/components/sheet/sheet-row";
 import { NewLookToggle, useNewLook } from "@/components/sheet/use-new-look";
 import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
@@ -410,6 +411,7 @@ export function ExpressionFields({
         locked={greyed}
         onUnlock={() => unlock(entry ? "entry" : "statement")}
         chip={chip}
+        {...(chip && field.name === "categoryId" ? { swatch: categoryColor(options.categoryId?.find((option) => option.value === Number(values.categoryId))?.label ?? "").hex } : {})}
       />
     );
   };
@@ -459,7 +461,7 @@ export function ExpressionFields({
     const greyed = (field.name === "ageStatement" && statementGreyed) || (entry && entryGreyed);
     return (
       <ChipField
-        key={field.name} spec={specForKind(field, kind, values)} idPrefix={idPrefix}
+        key={field.name} spec={specForKind({ ...field, label: CHIP_LABELS[field.name] ?? field.label } as FieldSpec, kind, values)} idPrefix={idPrefix}
         value={values[field.name] ?? ""} onChange={(next) => change(field.name, next)} error={errors[field.name]}
         locked={greyed} onUnlock={() => unlock(entry ? "entry" : "statement")}
         onField={() => renderField(field, true)}
@@ -468,12 +470,12 @@ export function ExpressionFields({
   };
 
   /** A section's rows in the data-sheet look (null for a section that has no layout yet). */
-  const renderSheet = (sectionId: string, extra?: React.ReactNode) => {
-    const layout = SHEET_LAYOUT[sectionId];
-    if (!layout) return null;
+  const renderSheet = (sectionIds: ReadonlyArray<string>, extra?: React.ReactNode) => {
+    const layout = sectionIds.flatMap((sectionId) => SHEET_LAYOUT[sectionId] ?? []);
+    if (layout.length === 0) return null;
     return (
-      <div className="flex min-w-0 flex-col sm:flex-row sm:gap-5">
-        <div className="flex min-w-0 flex-1 flex-col border-t border-border">
+      <div className="flex min-w-0 flex-col sm:flex-row sm:gap-3.5">
+        <div className="flex min-w-0 flex-1 flex-col border-t-2 border-foreground pt-2">
           {layout.map((row) => {
             const cells = row.items.map((name) => cellFor(name, renderChip));
             if (cells.every((cell) => cell === null)) return null;
@@ -485,8 +487,11 @@ export function ExpressionFields({
               </SheetRow>
             );
           })}
+          {sectionIds.includes("label") ? (
+            <MoreLine items={[{ id: "description", label: "Description", opened: String(values.description ?? "").trim() !== "", content: (LABEL_FIELDS.find((f) => f.name === "description") ? renderField(LABEL_FIELDS.find((f) => f.name === "description")!) : null) }]} />
+          ) : null}
         </div>
-        {extra ? <div className="shrink-0 border-t border-border pt-3 sm:w-28 sm:border-t-0">{extra}</div> : null}
+        {extra ? <div className="shrink-0 border-t-2 border-foreground pt-2 sm:w-[100px]" style={{ "--photo-frame": categoryColor(options.categoryId?.find((option) => option.value === Number(values.categoryId))?.label ?? "").hex } as React.CSSProperties}>{extra}</div> : null}
       </div>
     );
   };
@@ -516,7 +521,9 @@ export function ExpressionFields({
       {EXPRESSION_SECTIONS.map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
         // The data-sheet look draws the sections it has a layout for as rows (the rest keep the form's own look until their slice).
-        if (newLook && SHEET_LAYOUT[section.id]) return <React.Fragment key={section.id}>{renderSheet(section.id, section.id === "identity" ? photoSlot : undefined)}</React.Fragment>;
+        // Identity and strength are one panel in the data sheet (the mockup's first panel); the strength section draws nothing of its own.
+        if (newLook && section.id === "strength") return null;
+        if (newLook && section.id === "identity") return <React.Fragment key="label-panel">{renderSheet(["label"], photoSlot)}</React.Fragment>;
         // The brandy detail holds a few single-spirit fields: for the rest of the brandies it is not drawn at all.
         if (section.id === "brandy" && section.fields.every((field) => hidden.has(field.name)) && kind !== "pisco") return null;
         return (
@@ -662,8 +669,8 @@ export function PhotoBox({
     // The data-sheet look: the one photo slot, small, at the right of the first rows (the photo flow itself is phase 5).
     return (
       <div className="flex flex-col items-start gap-1.5">
-        <button type="button" onClick={() => inputRef.current?.click()} aria-label={file ? "Replace photo" : "Add photo"} className="relative flex aspect-[3/4] w-28 items-center justify-center overflow-hidden border border-dashed border-border bg-muted/30 p-2 text-center text-xs text-muted-foreground hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {chosen ? null : <span>+ Photo or link</span>}
+        <button type="button" onClick={() => inputRef.current?.click()} aria-label={file ? "Replace photo" : "Add photo"} style={{ backgroundColor: "var(--photo-frame, #FC9350)" }} className="relative flex h-[134px] w-[100px] flex-col items-center justify-center overflow-hidden border border-foreground p-1.5 text-center text-[11px] text-foreground shadow-[2px_2px_0_rgba(20,33,61,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {chosen ? null : <><span className="text-2xl leading-none">+</span><span>Photo or link</span></>}
           <PhotoPreview file={file} link={link.trim()} />
         </button>
         <div className="flex gap-3 text-xs">

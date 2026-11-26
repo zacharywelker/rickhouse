@@ -43,6 +43,7 @@ export function Field({
   locked = false,
   onUnlock,
   chip = false,
+  swatch,
 }: {
   spec: FieldSpec;
   idPrefix: string;
@@ -65,6 +66,8 @@ export function Field({
   onUnlock?: () => void;
   /** The data-sheet look: no visible label above (it stays for screen readers), and a reference or a size as a chip. */
   chip?: boolean;
+  /** With `chip`, on a reference: the colour square before the chosen value. */
+  swatch?: string | undefined;
 }) {
   const moneyStep = useMoneyStep();
   const inputId = `${idPrefix}-${spec.name}`;
@@ -223,6 +226,8 @@ export function Field({
               : {})}
             invalid={error !== undefined}
             chip={chip}
+            swatch={swatch}
+            {...(chip ? { placeholder: spec.label } : {})}
           />
           <input type="hidden" name={spec.name} value={String(value ?? "")} />
         </>

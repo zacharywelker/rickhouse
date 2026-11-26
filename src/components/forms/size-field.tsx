@@ -51,7 +51,7 @@ export function SizeField({
               setOtherOpen(false);
               onChange(e.target.value);
             }}
-            className="min-w-0 border-0 bg-transparent p-0 text-sm font-medium outline-none"
+            className="min-w-0 border-0 bg-transparent p-0 text-[12px] font-semibold outline-none"
           >
             {blankLabel !== undefined ? <option value="">{blankLabel}</option> : null}
             {presets.map((ml) => <option key={ml} value={String(ml)}>{formatSize(ml)}</option>)}
@@ -62,7 +62,7 @@ export function SizeField({
           <label className={CHIP}>
             <input
               id={`${id}-other`} type="text" inputMode="numeric" pattern="[0-9]*" aria-label="Size in mL, whole numbers" placeholder="1750"
-              value={text} onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 5))} className={cn(BARE_INPUT, "w-14")}
+              value={text} onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 5))} className={cn(BARE_INPUT, "w-[44px]")}
             />
             <span className="text-sm text-muted-foreground">mL</span>
           </label>

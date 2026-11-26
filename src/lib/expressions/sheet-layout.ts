@@ -8,16 +8,25 @@
 export type SheetRowSpec = { label: string; items: ReadonlyArray<string> };
 
 export const SHEET_LAYOUT: Readonly<Record<string, ReadonlyArray<SheetRowSpec>>> = {
-  identity: [
+  // One panel, in the mockup's order: the identity and strength sections together.
+  label: [
     { label: "Name", items: ["brandId", "name", "categoryId", "slug"] },
-    { label: "Size and price", items: ["sizeMl", "msrp", "upc"] },
-    { label: "Description", items: ["description"] },
-  ],
-  strength: [
     { label: "Strength", items: ["proof", "isCaskStrength", "isBottledInBond", "@tier", "isStraight"] },
-    { label: "Age", items: ["tequilaClass", "brandyGrade", "isAgedGin", "isAged", "ageYears", "ageStatement", "isNas", "@dates"] },
+    { label: "Size and price", items: ["sizeMl", "msrp", "upc"] },
+    { label: "Age", items: ["tequilaClass", "brandyGrade", "isAgedGin", "isAged", "ageYears", "ageStatement", "isNas", "barrelFilledOn", "bottledOn", "@dates"] },
     { label: "Aging", items: ["tropicalYears", "continentalYears", "isSolera", "soleraLowYears", "soleraHighYears"] },
   ],
+};
+
+/** The sections the "label" panel stands for, which the data-sheet look draws as that one panel. */
+export const LABEL_PANEL_SECTIONS: ReadonlyArray<string> = ["identity", "strength"];
+
+/** What a chip says, where the mockup words it differently from the form's field label ("+ UPC", "Statement", "+ Bottled date"). */
+export const CHIP_LABELS: Readonly<Record<string, string>> = {
+  upc: "UPC",
+  ageStatement: "Statement",
+  barrelFilledOn: "Distilled / filled date",
+  bottledOn: "Bottled date",
 };
 
 /** The fields a section's layout names, tokens left out. */
