@@ -148,7 +148,19 @@ export function countryForDistillery(kind: CategoryKind | null, country: string)
   return true;
 }
 
-export type IngredientChoice = { name: string; family?: string | null; kind?: "maguey" | "distillate" | "rum_base" | "botanical" | "gin_base" | "vodka_base" | "flavor" | "liqueur_base"; isManual?: boolean };
+export type IngredientChoice = {
+  name: string; family?: string | null; kind?: "maguey" | "distillate" | "rum_base" | "botanical" | "gin_base" | "vodka_base" | "flavor" | "liqueur_base"; isManual?: boolean;
+  /** Its share of the blend, 0 to 100. Undefined: not sent (a saved share is kept); null: sent as none. Only a distillate (a grape, a fruit) has one. */
+  share?: number | null;
+};
+
+/** The share a row sent: a number from 0 to 100 (two places), null for none, undefined when the key was not there at all. */
+export function parseShare(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || (typeof value === "string" && value.trim() === "")) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 100) / 100 : null;
+}
 
 /** Which pisco country a distillery's country says: Peru or Chile (the two that may call it pisco), else null. */
 export function piscoCountry(countries: ReadonlyArray<string | null | undefined>): "Peru" | "Chile" | null {

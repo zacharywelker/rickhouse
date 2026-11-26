@@ -414,6 +414,13 @@
       "when": 1793709000000,
       "tag": "0058_mezcal_production_flavor",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793795400000,
+      "tag": "0059_ingredient_shares",
+      "breakpoints": true
     }
   ]
 }

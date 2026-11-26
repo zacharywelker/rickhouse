@@ -113,7 +113,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       })),
       // The part of the blend that was not finished: send it back inside `finishes` as { id: 0, unfinished: true, mashbills }.
       unfinished: links.unfinished.map((line) => ({ mashbillId: line.mashbillId, share: line.share === null ? null : Math.round(Number(line.share)) })),
-      ingredients: links.ingredients.map((i) => ({ name: i.name, family: i.family, kind: i.kind })),
+      ingredients: links.ingredients.map((i) => ({ name: i.name, family: i.family, kind: i.kind, share: i.share })),
     },
     distilleries: links.distilleries.map((d) => d.name),
     finishes: links.finishes.map((f) => f.name),

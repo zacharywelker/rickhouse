@@ -69,7 +69,7 @@ export async function expressionLinks(expressionId: number): Promise<{
   finishes: LinkedFinish[];
   /** The part of the blend that was not finished, one line per mashbill. */
   unfinished: PairLine[];
-  ingredients: Array<{ id: number; name: string; kind: string; family: string | null; isManual: boolean; slug: null; amount: null }>;
+  ingredients: Array<{ id: number; name: string; kind: string; family: string | null; isManual: boolean; share: number | null; slug: null; amount: null }>;
 }> {
   const [d, m, f, materials, pairs] = await Promise.all([
     db
@@ -124,7 +124,7 @@ export async function expressionLinks(expressionId: number): Promise<{
       .innerJoin(finishes, eq(expressionFinishes.finishId, finishes.id))
       .where(eq(expressionFinishes.expressionId, expressionId))
       .orderBy(asc(expressionFinishes.position)),
-    db.select({ id: ingredients.id, name: ingredients.name, kind: ingredients.kind, family: ingredients.family, isManual: expressionIngredients.isManual })
+    db.select({ id: ingredients.id, name: ingredients.name, kind: ingredients.kind, family: ingredients.family, isManual: expressionIngredients.isManual, share: expressionIngredients.sharePct })
       .from(expressionIngredients)
       .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
       .where(eq(expressionIngredients.expressionId, expressionId))
@@ -165,7 +165,7 @@ export async function expressionLinks(expressionId: number): Promise<{
     })),
     finishes: f.map((row) => ({ ...row, mashbills: lines(row.id) })),
     unfinished: lines(null),
-    ingredients: materials.map((item) => ({ ...item, slug: null, amount: null })),
+    ingredients: materials.map((item) => ({ ...item, share: item.share === null ? null : Number(item.share), slug: null, amount: null })),
   };
 }
 
@@ -352,7 +352,7 @@ export async function queryExpressions(filters: LabelFilters, ownerId: number): 
   return { rows: rows.map((row) => ({ ...row, links: links.get(row.id)! })), total, pageCount, page };
 }
 
-export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[]; ingredients?: Array<{ name: string; family: string | null; kind: string; isManual: boolean }> };
+export type LabelLinks = { distilleries: LinkedRow[]; mashbills: LinkedRow[]; finishes: LinkedRow[]; ingredients?: Array<{ name: string; family: string | null; kind: string; isManual: boolean; share?: number | null }> };
 
 /**
  * The ordered links for a page of labels, in three queries rather than three
@@ -407,7 +407,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
       .innerJoin(finishes, eq(expressionFinishes.finishId, finishes.id))
       .where(inArray(expressionFinishes.expressionId, ids))
       .orderBy(asc(expressionFinishes.position)),
-    db.select({ expressionId: expressionIngredients.expressionId, name: ingredients.name, family: ingredients.family, kind: ingredients.kind, isManual: expressionIngredients.isManual })
+    db.select({ expressionId: expressionIngredients.expressionId, name: ingredients.name, family: ingredients.family, kind: ingredients.kind, isManual: expressionIngredients.isManual, share: expressionIngredients.sharePct })
       .from(expressionIngredients)
       .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
       .where(inArray(expressionIngredients.expressionId, ids))
@@ -440,7 +440,7 @@ async function linksFor(ids: number[]): Promise<Map<number, LabelLinks>> {
       amount: row.months === null ? "" : String(row.months),
     });
   }
-  for (const row of material) byId.get(row.expressionId)?.ingredients?.push({ name: row.name, family: row.family, kind: row.kind, isManual: row.isManual });
+  for (const row of material) byId.get(row.expressionId)?.ingredients?.push({ name: row.name, family: row.family, kind: row.kind, isManual: row.isManual, share: row.share === null ? null : Number(row.share) });
   return byId;
 }
 
