@@ -280,6 +280,17 @@ describe.skipIf(!url)("merging reference rows against a real database", () => {
       expect(moved(summary, "labels")).toBe(2);
     });
 
+    it("keeps a label's share of the ingredient that was merged away", async () => {
+      const survivor = await ingredient("distillate", name("Ugni Blanc"));
+      const removed = await ingredient("distillate", name("Ugni Blanc"));
+      const b = await brand();
+      const onlyRemoved = await label(b.id);
+      await db.insert(expressionIngredients).values({ expressionId: onlyRemoved.id, ingredientId: removed.id, position: 0, sharePct: "85.5" });
+      await m.mergeReference(owner, "ingredients", survivor.id, removed.id, []);
+      const [row] = await db.select().from(expressionIngredients).where(eq(expressionIngredients.expressionId, onlyRemoved.id));
+      expect(row).toMatchObject({ ingredientId: survivor.id, sharePct: "85.50" });
+    });
+
     it("refuses two ingredients of different kinds", async () => {
       const a = await ingredient("maguey", name("Agave"));
       const b = await ingredient("distillate", name("Agave"));

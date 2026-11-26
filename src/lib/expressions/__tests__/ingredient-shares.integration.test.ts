@@ -75,6 +75,7 @@ describe.skipIf(!url)("ingredient shares against a real database", () => {
     const [brandy] = await m.sql<{ id: number }>(`SELECT id FROM categories WHERE slug = 'apple'`);
     if (!calvados || !brandy) return; // a database without the seeded tree cannot show it
     const calvadosLabel = await fx.mkLabel(owner, calvados.id, "Conv Calvados");
+    const [eau] = await m.sql<{ id: number }>(`SELECT id FROM categories WHERE slug = 'eau-de-vie'`);
     const brandyLabel = await fx.mkLabel(owner, brandy.id, "Conv Apple Brandy");
     const tag = async (name: string, family: string) =>
       (await m.sql<{ id: number }>(`INSERT INTO ingredients (owner_id, kind, name, family) VALUES ($1, 'distillate', $2, $3) ON CONFLICT (owner_id, kind, name) DO UPDATE SET family = EXCLUDED.family RETURNING id`, owner, name, family))[0]!.id;
@@ -88,9 +89,13 @@ describe.skipIf(!url)("ingredient shares against a real database", () => {
     expect(Object.keys(await sharesOf(brandyLabel))).toEqual(["Apple"]);
     for (const statement of statements) await m.sql(statement); // idempotent
     expect(Object.keys(await sharesOf(calvadosLabel)).sort()).toEqual(["Apples (type not stated)", "Pears"]);
+    // An eau de vie that uses the converted "Pears" row (a hand-made link) is not a Calvados label: the rollback leaves it alone.
+    const eauLabel = eau ? await fx.mkLabel(owner, eau.id, "Conv Eau de Vie") : null;
+    if (eauLabel) await m.sql(`INSERT INTO expression_ingredients (expression_id, ingredient_id) SELECT $1, id FROM ingredients WHERE owner_id = $2 AND name = 'Pears'`, eauLabel, owner);
     // The rollback puts the plain tags back.
     const down = readFileSync("drizzle/rollback/0059_ingredient_shares_down.sql", "utf8").split("--> statement-breakpoint").map((s) => s.trim()).filter(Boolean).slice(0, 3);
     for (const statement of down) await m.sql(statement);
     expect(Object.keys(await sharesOf(calvadosLabel)).sort()).toEqual(["Apple", "Pear"]);
+    if (eauLabel) expect(Object.keys(await sharesOf(eauLabel))).toEqual(["Pears"]);
   });
 });
