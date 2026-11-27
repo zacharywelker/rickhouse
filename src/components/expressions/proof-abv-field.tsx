@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BARE_INPUT, CHIP, CHIP_LABEL } from "@/components/sheet/chip-styles";
 import { cn } from "@/lib/utils";
 import { abvToProof, proofToAbv } from "@/lib/bottles/proof";
 import { capDecimals } from "@/lib/decimals";
@@ -29,6 +30,7 @@ export function ProofAbvFields({
   locked = false,
   greyed = false,
   onUnlock,
+  chip = false,
 }: {
   idPrefix: string;
   value: FieldValue;
@@ -46,6 +48,8 @@ export function ProofAbvFields({
   /** Greyed out and read-only, but still submitted; triple-clicking either box calls `onUnlock` (Cask Strength). */
   greyed?: boolean;
   onUnlock?: () => void;
+  /** The data-sheet look: two chips (Proof, ABV with a %) instead of two labelled boxes. */
+  chip?: boolean;
 }) {
   const proofValue = String(value ?? "");
   const [source, setSource] = React.useState<"proof" | "abv" | null>(proofValue === "" ? null : "proof");
@@ -62,6 +66,47 @@ export function ProofAbvFields({
   const abvDisabled = locked || (source === "proof" && proofValue !== "");
   const unlock = greyed && onUnlock ? (e: React.MouseEvent) => e.detail >= 3 && onUnlock() : undefined;
   const greyedClass = greyed && "cursor-not-allowed bg-muted text-muted-foreground";
+
+  if (chip) {
+    return (
+      <>
+        <div className="flex flex-col gap-1">
+          <label className={cn(CHIP, error && "border-destructive", (proofDisabled || greyed) && "bg-muted text-muted-foreground")}>
+            <span className={CHIP_LABEL}>Proof</span>
+            <input
+              id={proofId} name={locked ? undefined : (name ?? undefined)} type="number" min={0} max={200} step={0.01}
+              value={proofValue} disabled={proofDisabled} readOnly={greyed} aria-readonly={greyed || undefined}
+              title={greyed ? "Triple-click to edit" : undefined} onClick={unlock}
+              onChange={(e) => {
+                const next = capDecimals(e.target.value, 2);
+                setSource(next === "" ? null : "proof");
+                onChange(next);
+              }}
+              aria-invalid={error ? true : undefined}
+              className={cn(BARE_INPUT, "w-[54px]")}
+            />
+            {locked && name ? <input type="hidden" name={name} value={proofValue} /> : null}
+          </label>
+          {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
+        </div>
+        <label className={cn(CHIP, (abvDisabled || greyed) && "bg-muted text-muted-foreground")}>
+          <span className={CHIP_LABEL}>ABV</span>
+          <input
+            id={abvId} type="number" min={0} max={100} step={0.01} value={abvText} disabled={abvDisabled}
+            readOnly={greyed} aria-readonly={greyed || undefined} title={greyed ? "Triple-click to edit" : undefined} onClick={unlock}
+            onChange={(e) => {
+              const next = capDecimals(e.target.value, 2);
+              setSource(next === "" ? null : "abv");
+              setTypedAbv(next);
+              onChange(abvToProof(next));
+            }}
+            className={cn(BARE_INPUT, "w-[54px]")}
+          />
+          <span aria-hidden="true" className="text-sm text-muted-foreground">%</span>
+        </label>
+      </>
+    );
+  }
 
   return (
     <>

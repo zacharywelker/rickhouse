@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { BARE_INPUT, CHIP, CHIP_LABEL } from "@/components/sheet/chip-styles";
 import { formatSize } from "@/lib/expressions/sizes";
 import type { FieldValue } from "@/lib/forms/values";
 
@@ -20,6 +21,7 @@ export function SizeField({
   presets,
   blankLabel,
   error,
+  chip = false,
 }: {
   id: string;
   name: string;
@@ -28,12 +30,47 @@ export function SizeField({
   presets: ReadonlyArray<number>;
   blankLabel?: string | undefined;
   error?: string | undefined;
+  /** The data-sheet look: a chip with its label inside. */
+  chip?: boolean;
 }) {
   const text = String(value ?? "");
   const [otherOpen, setOtherOpen] = React.useState(false);
   const known = presets.some((ml) => String(ml) === text);
   const other = otherOpen || (text !== "" && !known);
   const selected = other ? "other" : text;
+
+  if (chip) {
+    return (
+      <div className="flex items-center gap-2">
+        <label className={cn(CHIP, error && "border-destructive")}>
+          <span className={CHIP_LABEL}>Size</span>
+          <select
+            id={id} value={selected} aria-invalid={error ? true : undefined}
+            onChange={(e) => {
+              if (e.target.value === "other") { setOtherOpen(true); return; }
+              setOtherOpen(false);
+              onChange(e.target.value);
+            }}
+            className="min-w-0 border-0 bg-transparent p-0 text-[12px] font-semibold outline-none"
+          >
+            {blankLabel !== undefined ? <option value="">{blankLabel}</option> : null}
+            {presets.map((ml) => <option key={ml} value={String(ml)}>{formatSize(ml)}</option>)}
+            <option value="other">Other size…</option>
+          </select>
+        </label>
+        {other ? (
+          <label className={CHIP}>
+            <input
+              id={`${id}-other`} type="text" inputMode="numeric" pattern="[0-9]*" aria-label="Size in mL, whole numbers" placeholder="1750"
+              value={text} onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 5))} className={cn(BARE_INPUT, "w-[44px]")}
+            />
+            <span className="text-sm text-muted-foreground">mL</span>
+          </label>
+        ) : null}
+        <input type="hidden" name={name} value={text} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">

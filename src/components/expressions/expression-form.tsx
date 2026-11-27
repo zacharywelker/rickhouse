@@ -44,6 +44,11 @@ import {
 import { countryForDistillery, effectiveDairy, piscoCountry, piscoStyle, stillForCountry } from "@/lib/expressions/spirit-details";
 import { appellationNote } from "@/lib/expressions/derived-designation";
 import { specForKind, withProduction } from "@/lib/expressions/kind-options";
+import { categoryColor } from "@/lib/bottles/category-palette";
+import { CHIP_LABELS, SHEET_LAYOUT } from "@/lib/expressions/sheet-layout";
+import { ChipField } from "@/components/sheet/chips";
+import { MoreLine, SheetRow } from "@/components/sheet/sheet-row";
+import { NewLookToggle, useNewLook } from "@/components/sheet/use-new-look";
 import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
 import { RegionPicker } from "./region-picker";
@@ -164,6 +169,7 @@ export function ExpressionFields({
   // A gin is unaged until it is marked aged; one that already has an age opens as aged.
   const ginAged = values.isAgedGin === true || (values.isAgedGin == null && looksAged(values, links.finishes.length));
   const context = { group: fieldGroup, kind, slug: categorySlug ?? null, values, ginAged };
+  const newLook = useNewLook();
   const hidden = hiddenFields(context);
   // A pisco's country follows its distillery's: Mosto Verde is Peru's, and the Puro / Acholado or the class is worked out, not typed.
   const piscoLand = kind === "pisco" ? piscoCountry(links.distilleries.map((row) => options.distilleryLinks?.find((option) => option.value === row.id)?.country)) : null;
@@ -295,7 +301,7 @@ export function ExpressionFields({
     );
   };
 
-  const renderField = (field: FieldSpec) => {
+  const renderField = (field: FieldSpec, chip = false) => {
     // Proof/ABV and the age triplet render as linked composites
     // rather than the generic field, but stay in `fields` above
     // so validation and per-category writability still see them.
@@ -312,6 +318,7 @@ export function ExpressionFields({
           onUnlock={() => unlock("proof")}
           hint={false}
           className="w-28"
+          chip={chip}
         />
       );
     }
@@ -355,6 +362,7 @@ export function ExpressionFields({
       return (
         <AgeFields
           key="age"
+          chip={chip}
           idPrefix={idPrefix}
           compact
           showDays={!hidden.has("ageDays")}
@@ -402,39 +410,96 @@ export function ExpressionFields({
         onOptionCreated={(option) => onOptionCreated(field.name, option)}
         locked={greyed}
         onUnlock={() => unlock(entry ? "entry" : "statement")}
+        chip={chip}
+        {...(chip && field.name === "categoryId" ? { swatch: categoryColor(options.categoryId?.find((option) => option.value === Number(values.categoryId))?.label ?? "").hex } : {})}
       />
     );
   };
 
   /** One line of a section: the fields it names, side by side, skipping any this spirit does not have. */
-  const renderRow = (names: ReadonlyArray<string>, key: number) => {
+  /** One cell of a row: a field (drawn by `draw`) or a token, or null where this spirit does not have it. */
+  const cellFor = (name: string, draw: (field: FieldSpec) => React.ReactNode): React.ReactNode => {
     const tier = strengthTier(fieldGroup, values.proof);
-    const cells = names.map((name) => {
-      if (name === "@dates") {
-        return hidden.has("barrelFilledOn") ? null : <DeriveAge key={name} values={values} set={change} className="" />;
-      }
-      if (name === "@tier") {
-        return tier ? (
-          <span key={name} className="self-end pb-2.5 text-sm font-medium text-accent">
-            {STRENGTH_TIER_LABELS[tier]}
-          </span>
-        ) : null;
-      }
-      const field = LABEL_FIELDS.find((candidate) => candidate.name === name);
-      const owner = SECTION_OF.get(name);
-      if (!field || (owner?.fieldGroups && !owner.fieldGroups.includes(fieldGroup))) return null;
-      // Bottled In Bond is an American whiskey designation; the other spirits never see it.
-      if (name === "isBottledInBond" && (fieldGroup !== "whiskey" || hidden.has(name))) return null;
-      return renderField(field);
-    });
-    if (cells.every((cell) => cell === null)) return null;
-    // Proof's line explains what the name did and, for a cask-strength label, why the proof is greyed.
+    if (name === "@dates") {
+      return hidden.has("barrelFilledOn") ? null : <DeriveAge key={name} values={values} set={change} className="" />;
+    }
+    if (name === "@tier") {
+      return tier ? (
+        <span key={name} className="self-end pb-2.5 text-sm font-medium text-accent">
+          {STRENGTH_TIER_LABELS[tier]}
+        </span>
+      ) : null;
+    }
+    const field = LABEL_FIELDS.find((candidate) => candidate.name === name);
+    const owner = SECTION_OF.get(name);
+    if (!field || (owner?.fieldGroups && !owner.fieldGroups.includes(fieldGroup))) return null;
+    // Bottled In Bond is an American whiskey designation; the other spirits never see it.
+    if (name === "isBottledInBond" && (fieldGroup !== "whiskey" || hidden.has(name))) return null;
+    return draw(field);
+  };
+
+  /** Proof's line explains what the name did and, for a cask-strength label, why the proof is greyed. */
+  const rowNotes = (names: ReadonlyArray<string>): string[] => {
     const notes: string[] = [];
     if (names.includes("proof")) {
       if (says.isCaskStrength && values.isCaskStrength === true) notes.push(`Cask Strength, as the name says “${says.isCaskStrength}”.`);
       if (says.isBottledInBond && values.isBottledInBond === true) notes.push(`Bottled In Bond, as the name says “${says.isBottledInBond}”.`);
       if (proofGreyed && !bonded) notes.push(spreadLabel(spread));
     }
+    return notes;
+  };
+
+  /** The data-sheet look of one simple field: a chip, a toggle, a "+" chip (the form's own field for what a chip cannot be). */
+  const renderChip = (field: FieldSpec) => {
+    const composite = ["brandId", "name", "categoryId", "slug", "proof", "ageYears", "ageMonths", "ageDays", "isNonChillFiltered", "peatStatus"];
+    // The name is a chip with no label inside (the value says what it is); brand and category are compact picker chips.
+    if (field.name === "name") {
+      return <ChipField key="name" bare spec={field} idPrefix={idPrefix} value={values.name ?? ""} onChange={(next) => change("name", next)} error={errors.name} onField={() => renderField(field, true)} />;
+    }
+    if (composite.includes(field.name) || (hidden.has(field.name))) return renderField(field, true);
+    const entry = field.name === "entryProof";
+    const greyed = (field.name === "ageStatement" && statementGreyed) || (entry && entryGreyed);
+    return (
+      <ChipField
+        key={field.name} spec={specForKind({ ...field, label: CHIP_LABELS[field.name] ?? field.label } as FieldSpec, kind, values)} idPrefix={idPrefix}
+        value={values[field.name] ?? ""} onChange={(next) => change(field.name, next)} error={errors[field.name]}
+        locked={greyed} onUnlock={() => unlock(entry ? "entry" : "statement")}
+        onField={() => renderField(field, true)}
+      />
+    );
+  };
+
+  /** A section's rows in the data-sheet look (null for a section that has no layout yet). */
+  const renderSheet = (sectionIds: ReadonlyArray<string>, extra?: React.ReactNode) => {
+    const layout = sectionIds.flatMap((sectionId) => SHEET_LAYOUT[sectionId] ?? []);
+    if (layout.length === 0) return null;
+    return (
+      <div className="flex min-w-0 flex-col sm:flex-row sm:gap-3.5">
+        <div className="flex min-w-0 flex-1 flex-col border-t-2 border-foreground pt-2">
+          {layout.map((row) => {
+            const cells = row.items.map((name) => cellFor(name, renderChip));
+            if (cells.every((cell) => cell === null)) return null;
+            const notes = rowNotes(row.items);
+            return (
+              <SheetRow key={row.label} label={row.label}>
+                {cells}
+                {notes.map((note) => <p key={note} className="basis-full text-xs text-muted-foreground">{note}</p>)}
+              </SheetRow>
+            );
+          })}
+          {sectionIds.includes("label") ? (
+            <MoreLine items={[{ id: "description", label: "Description", opened: String(values.description ?? "").trim() !== "", content: (LABEL_FIELDS.find((f) => f.name === "description") ? renderField(LABEL_FIELDS.find((f) => f.name === "description")!) : null) }]} />
+          ) : null}
+        </div>
+        {extra ? <div className="shrink-0 border-t-2 border-foreground pt-2 sm:w-[100px]" style={{ "--photo-frame": categoryColor(options.categoryId?.find((option) => option.value === Number(values.categoryId))?.label ?? "").hex } as React.CSSProperties}>{extra}</div> : null}
+      </div>
+    );
+  };
+
+  const renderRow = (names: ReadonlyArray<string>, key: number) => {
+    const cells = names.map((name) => cellFor(name, renderField));
+    if (cells.every((cell) => cell === null)) return null;
+    const notes = rowNotes(names);
     return (
       <div key={key} className="flex flex-wrap items-start gap-x-4 gap-y-3">
         {cells}
@@ -452,8 +517,13 @@ export function ExpressionFields({
       <input type="hidden" name="ageYearsSource" value={String(values.ageYearsSource ?? "entered")} />
       <input type="hidden" name="originCountryManual" value={values.originCountryManual === true ? "true" : "false"} />
       <input type="hidden" name="originRegionManual" value={values.originRegionManual === true ? "true" : "false"} />
+      <NewLookToggle />
       {EXPRESSION_SECTIONS.map((section) => {
         if (!sectionVisible(section, fieldGroup, values)) return null;
+        // The data-sheet look draws the sections it has a layout for as rows (the rest keep the form's own look until their slice).
+        // Identity and strength are one panel in the data sheet (the mockup's first panel); the strength section draws nothing of its own.
+        if (newLook && section.id === "strength") return null;
+        if (newLook && section.id === "identity") return <React.Fragment key="label-panel">{renderSheet(["label"], photoSlot)}</React.Fragment>;
         // The brandy detail holds a few single-spirit fields: for the rest of the brandies it is not drawn at all.
         if (section.id === "brandy" && section.fields.every((field) => hidden.has(field.name)) && kind !== "pisco") return null;
         return (
@@ -594,6 +664,24 @@ export function PhotoBox({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [linking, setLinking] = React.useState(false);
   const chosen = file !== null || link.trim() !== "";
+  const newLook = useNewLook();
+  if (newLook) {
+    // The data-sheet look: the one photo slot, small, at the right of the first rows (the photo flow itself is phase 5).
+    return (
+      <div className="flex flex-col items-start gap-1.5">
+        <button type="button" onClick={() => inputRef.current?.click()} aria-label={file ? "Replace photo" : "Add photo"} style={{ backgroundColor: "var(--photo-frame, #FC9350)" }} className="relative flex h-[134px] w-[100px] flex-col items-center justify-center overflow-hidden border border-foreground p-1.5 text-center text-[11px] text-foreground shadow-[2px_2px_0_rgba(20,33,61,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {chosen ? null : <><span className="text-2xl leading-none">+</span><span>Photo or link</span></>}
+          <PhotoPreview file={file} link={link.trim()} />
+        </button>
+        <div className="flex gap-3 text-xs">
+          <button type="button" aria-expanded={linking} onClick={() => setLinking((on) => !on)} className="underline underline-offset-2 text-muted-foreground hover:text-foreground">From a link</button>
+          {chosen ? <button type="button" onClick={() => { onFile(null); onLink(""); if (inputRef.current) inputRef.current.value = ""; }} className="underline underline-offset-2 text-muted-foreground hover:text-foreground">Remove</button> : null}
+        </div>
+        <input ref={inputRef} id="expression-photo" type="file" accept="image/*" className="sr-only" aria-label="Upload label photo" onChange={(event) => { onFile(event.target.files?.[0] ?? null); if (event.target.files?.[0]) onLink(""); }} />
+        {linking || link.trim() !== "" ? <Input id="expression-photo-link" type="url" inputMode="url" placeholder="https://" aria-label="Or a link" value={link} onChange={(event) => { onLink(event.target.value); if (event.target.value.trim() !== "") { onFile(null); if (inputRef.current) inputRef.current.value = ""; } }} className="h-8 w-44 text-xs" /> : null}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2 sm:w-56 sm:shrink-0">
       <div className="flex items-start gap-3">

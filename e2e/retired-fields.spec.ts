@@ -44,5 +44,5 @@ test("every spirit has the Still Type field, and Blend is one of its choices", a
     await expect(still, category).toBeVisible();
   }
   const options = await page.getByLabel("Still Type").locator("option").allInnerTexts();
-  expect(options).toEqual(["Unknown", "Pot", "Column", "Blend", "Coffey", "3-chamber"]);
+  expect(options).toEqual(["Unknown", "Pot", "Column", "Blend", "Coffey", "3-chamber", "Clay pot"]);
 });

@@ -1,6 +1,9 @@
 "use client";
 
+import * as React from "react";
 import { Input } from "@/components/ui/input";
+import { AddChip } from "@/components/sheet/chips";
+import { BARE_INPUT, CHIP, CHIP_LABEL } from "@/components/sheet/chip-styles";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { FieldValue } from "@/lib/forms/values";
@@ -28,6 +31,7 @@ export function AgeFields({
   showYears = true,
   locked = false,
   onUnlock,
+  chip = false,
 }: {
   idPrefix: string;
   values: Record<AgeUnit, FieldValue>;
@@ -42,8 +46,45 @@ export function AgeFields({
   /** Greyed out and read-only; triple-clicking a box calls `onUnlock`. */
   locked?: boolean;
   onUnlock?: () => void;
+  /** The data-sheet look: a Years chip, and a dashed "+ mo / days" chip that opens Months and Days. */
+  chip?: boolean;
 }) {
+  const [more, setMore] = React.useState(false);
   const firstError = errors?.ageYears ?? errors?.ageMonths ?? errors?.ageDays;
+
+  if (chip) {
+    const small = UNITS.filter((unit) => unit.name !== "ageYears" && (showDays || unit.name !== "ageDays"));
+    const open = more || small.some((unit) => String(values[unit.name] ?? "") !== "");
+    const input = (unit: (typeof UNITS)[number]) => (
+      <label key={unit.name} className={cn(CHIP, errors?.[unit.name] && "border-destructive", locked && "bg-muted text-muted-foreground")}>
+        <span className={CHIP_LABEL}>{unit.label}</span>
+        <input
+          id={`${idPrefix}-${unit.name}`} name={unit.name} type="number" min={unit.min} max={unit.max} step={unit.step}
+          value={String(values[unit.name] ?? "")} onChange={(e) => onChange(unit.name, e.target.value)}
+          onBlur={unit.name === "ageMonths" && !locked ? (event) => {
+            const months = event.currentTarget.valueAsNumber;
+            if (!Number.isInteger(months) || months < 13 || months > unit.max) return;
+            const years = Number(values.ageYears || 0) + Math.floor(months / 12);
+            if (years > 100) return;
+            onChange("ageYears", String(years));
+            onChange("ageMonths", String(months % 12));
+          } : undefined}
+          onKeyDown={unit.name === "ageMonths" && !locked ? (event) => { if (event.key === "Enter") event.currentTarget.blur(); } : undefined}
+          readOnly={locked} aria-readonly={locked || undefined} title={locked ? "Triple-click to edit" : undefined}
+          onClick={locked && onUnlock ? (e) => e.detail >= 3 && onUnlock() : undefined}
+          aria-invalid={errors?.[unit.name] ? true : undefined}
+          className={cn(BARE_INPUT, unit.name === "ageYears" ? "w-6" : "w-[30px]")}
+        />
+      </label>
+    );
+    return (
+      <>
+        {showYears ? input(UNITS[0]!) : null}
+        {small.length > 0 ? (open ? small.map(input) : <AddChip label={small.length === 2 ? "mo / days" : "months"} onClick={() => setMore(true)} />) : null}
+        {firstError ? <p role="alert" className="basis-full text-xs text-destructive">{firstError}</p> : null}
+      </>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col gap-1.5", !compact && "col-span-full")}>
