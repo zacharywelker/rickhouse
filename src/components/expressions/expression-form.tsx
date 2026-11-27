@@ -301,6 +301,15 @@ export function ExpressionFields({
     );
   };
 
+  /** What a pisco's grapes or strength make it, worked out (Puro / Acholado in Peru, the class in Chile); drawn by both looks. */
+  const piscoNote = (
+    <p className="col-span-full text-sm text-muted-foreground">
+                    {piscoLand === null ? "Link a Peruvian or Chilean distillery to see what the grapes or the strength make it."
+                      : piscoKind ? <>Worked out: <span className="font-medium text-foreground">{piscoLand === "Peru" ? `Pisco ${piscoKind}` : piscoKind}</span>{piscoLand === "Peru" && values.isMostoVerde === true ? " · Mosto Verde" : ""}</>
+                      : piscoLand === "Peru" ? "Add the grapes to see whether it is a Puro or an Acholado." : "Enter a proof of at least 60 to see the class."}
+                  </p>
+  );
+
   const renderField = (field: FieldSpec, chip = false) => {
     // Proof/ABV and the age triplet render as linked composites
     // rather than the generic field, but stay in `fields` above
@@ -468,7 +477,7 @@ export function ExpressionFields({
     return (
       <ChipField
         key={field.name} spec={specForKind({ ...field, label: CHIP_LABELS[field.name] ?? field.label } as FieldSpec, kind, values)} idPrefix={idPrefix}
-        value={values[field.name] ?? ""} onChange={(next) => change(field.name, next)} error={errors[field.name]}
+        value={field.name === "dairyStatus" ? effectiveDairy(kind, values.dairyStatus) : (values[field.name] ?? "")} onChange={(next) => change(field.name, next)} error={errors[field.name]}
         locked={greyed} onUnlock={() => unlock(entry ? "entry" : "statement")}
         onField={() => renderField(field, true)}
       />
@@ -501,6 +510,7 @@ export function ExpressionFields({
               </SheetRow>
             );
           })}
+          {sectionIds.includes("label") && kind === "pisco" ? <SheetRow label="Style">{piscoNote}</SheetRow> : null}
           {sectionIds.includes("label") ? <MoreLine items={moreItems} /> : null}
         </div>
         {extra ? <div className="shrink-0 border-t-2 border-foreground pt-2 sm:w-[100px]" style={{ "--photo-frame": categoryColor(options.categoryId?.find((option) => option.value === Number(values.categoryId))?.label ?? "").hex } as React.CSSProperties}>{extra}</div> : null}
@@ -558,13 +568,7 @@ export function ExpressionFields({
                   if (field.name === "regions" || field.name === "isBottledInBond") return null;
                   return renderField(field);
                 })}
-                {section.id === "brandy" && kind === "pisco" ? (
-                  <p className="col-span-full text-sm text-muted-foreground">
-                    {piscoLand === null ? "Link a Peruvian or Chilean distillery to see what the grapes or the strength make it."
-                      : piscoKind ? <>Worked out: <span className="font-medium text-foreground">{piscoLand === "Peru" ? `Pisco ${piscoKind}` : piscoKind}</span>{piscoLand === "Peru" && values.isMostoVerde === true ? " · Mosto Verde" : ""}</>
-                      : piscoLand === "Peru" ? "Add the grapes to see whether it is a Puro or an Acholado." : "Enter a proof of at least 60 to see the class."}
-                  </p>
-                ) : null}
+                {section.id === "brandy" && kind === "pisco" ? piscoNote : null}
               </SectionContent>
             )}
           </Section>

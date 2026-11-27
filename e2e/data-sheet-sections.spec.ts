@@ -108,3 +108,15 @@ test("an agave's Additive Free is in the Production row and a whiskey's is under
   await pick(page, "Category", "Canadian Whisky");
   await expect(page.getByRole("button", { name: "How it's made", exact: true })).toBeVisible();
 });
+
+test("a liqueur's dairy starts as its kind's default in the new look, and a pisco says what it is worked out to be", async ({ page }) => {
+  await openNewForm(page);
+  await pick(page, "Category", "Cream Liqueur");
+  await expect(page.getByRole("combobox", { name: "Dairy", exact: true })).toHaveValue("dairy");
+  await openNewForm(page);
+  await pick(page, "Category", "Chocolate Liqueur");
+  await expect(page.getByRole("combobox", { name: "Dairy", exact: true })).toHaveValue("non-dairy");
+  await openNewForm(page);
+  await pick(page, "Category", "Pisco");
+  await expect(page.getByText("Link a Peruvian or Chilean distillery")).toBeVisible();
+});
