@@ -6,6 +6,7 @@ import { DistilleryPicker, FinishPickers, IngredientPickers, MashbillPicker, typ
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import type { Option } from "@/lib/admin/types";
 import { BARREL_TYPE_SUGGESTIONS, barrelTypeKind, isSingleMaltCategory, showsFinishes, type CategoryKind } from "@/lib/expressions/rules";
+import { piscoCountry } from "@/lib/expressions/spirit-details";
 import { linkedFacts, linksFromLoaded, LINK_KEYS, type LinkKey, type LinkLists } from "@/lib/bulk-editor/links";
 import type { SheetLabel } from "@/lib/bulk-editor/sheet";
 
@@ -110,7 +111,7 @@ export function LinksEditor({
         ) : which === "finishes" ? (
           <FinishPickers {...common} barrelType={barrelTypeKind({ group: label.fieldGroup, kind, slug: label.categorySlug ?? null, ginAged: label.isAgedGin === true }) ? { suggestions: BARREL_TYPE_SUGGESTIONS[label.categorySlug ?? ""] ?? [] } : null} shown={showsFinishes({ group: label.fieldGroup, ginAged: label.isAgedGin === true, values: label as unknown as Record<string, unknown> })} options={options.finishLinks} />
         ) : (
-          <IngredientPickers {...common} />
+          <IngredientPickers {...common} appellation={label.calvadosAppellation ?? null} piscoLand={kind === "pisco" ? piscoCountry(links!.distilleries.map((row) => options.distilleryLinks.find((option) => option.value === row.id)?.country)) : null} />
         )}
       </PopoverContent>
     </Popover>

@@ -10,7 +10,7 @@ import { AGING_FIELDS, BOND_PROOF, hiddenFields, isSingleMaltCategory, type Cate
 import { parseLinks, type ExpressionInput, type LinkRow } from "./schema";
 import { undisclosedDistilleryId } from "./undisclosed";
 import { FinishPairsInvalid, resolveFinishPairs, type FinishRowInput } from "./finish-pairs";
-import { UNDER_A_YEAR_CLASSES, effectiveDairy, fixedIngredient, ingredientAllowed, isAgaveKind, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
+import { UNDER_A_YEAR_CLASSES, effectiveDairy, fixedIngredient, ingredientAllowed, isAgaveKind, normalizeCalvadosFruit, parseShare, TEQUILA_CLASS_LABELS, type IngredientChoice, type TequilaClass } from "./spirit-details";
 import { categoryKindsById, categorySlugById } from "./queries";
 import { isGinKind } from "./gin-details";
 
@@ -79,7 +79,8 @@ export function parseIngredientLinks(raw: unknown): IngredientChoice[] | undefin
     const key = `${kind ?? ""}:${name.toLocaleLowerCase()}`;
     if (seen.has(key)) return [];
     seen.add(key);
-    return [{ name, family, kind, isManual: record.isManual !== false }];
+    const share = parseShare(record.share);
+    return [{ name, family, kind, isManual: record.isManual !== false, ...(share !== undefined ? { share } : {}) }];
   });
 }
 
@@ -266,16 +267,18 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
   if (accepted.length === 0) return;
   const fixed = fixedIngredient(kind);
   if (submitted === undefined && !fixed && label.group !== "gin" && label.group !== "amaro") return;
-  const existing = await tx.select({ id: expressionIngredients.ingredientId, kind: ingredients.kind, name: ingredients.name, family: ingredients.family, isManual: expressionIngredients.isManual })
+  const existing = await tx.select({ id: expressionIngredients.ingredientId, kind: ingredients.kind, name: ingredients.name, family: ingredients.family, isManual: expressionIngredients.isManual, share: expressionIngredients.sharePct })
     .from(expressionIngredients).innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
     .where(eq(expressionIngredients.expressionId, expressionId));
+  // A caller that sends names only (the phone, the old grid cell) must not erase the shares the form recorded: a row it names keeps its saved one.
+  const savedShare = new Map(existing.map((row) => [`${row.kind}:${row.name.trim().toLocaleLowerCase()}`, row.share === null ? null : Number(row.share)]));
   const replacedIds = existing.filter((row) => accepted.includes(row.kind)).map((row) => row.id);
   if (replacedIds.length > 0) await tx.delete(expressionIngredients).where(and(
     eq(expressionIngredients.expressionId, expressionId), inArray(expressionIngredients.ingredientId, replacedIds),
   ));
   const automaticBotanical = label.style === "Carciofo" ? "Artichoke" : label.style === "Rabarbaro" ? "Rhubarb" :
     label.style === "Genepy" ? "Wormwood" : null;
-  const chosen: IngredientChoice[] = fixed ? [fixed, ...(kind === "tequila" ? [] : (submitted ?? []).filter((choice) => choice.kind !== undefined && choice.kind !== fixed.kind && accepted.includes(choice.kind)))]
+  let chosen: IngredientChoice[] = fixed ? [fixed, ...(kind === "tequila" ? [] : (submitted ?? []).filter((choice) => choice.kind !== undefined && choice.kind !== fixed.kind && accepted.includes(choice.kind)))]
     : label.group === "gin" ? [{ name: "Juniper", kind: "botanical" }, ...(submitted ?? existing.map((row) => ({ name: row.name, kind: row.kind, family: row.family, isManual: row.isManual }))).filter((choice) =>
       (choice.kind === "botanical" || choice.kind === "gin_base") && !(choice.kind === "botanical" && choice.name.trim().toLocaleLowerCase() === "juniper"))]
     : label.group === "amaro" ? [
@@ -290,6 +293,7 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
     throw new LabelRejected("Add at least one flavor to this label.");
   }
   const seen = new Set<string>();
+  if (kind === "calvados") chosen = normalizeCalvadosFruit(chosen);
   for (const [position, choice] of chosen.entries()) {
     const choiceKind = choice.kind && accepted.includes(choice.kind) ? choice.kind : null;
     if (!choiceKind) continue;
@@ -306,7 +310,8 @@ async function insertIngredients(tx: Tx, ownerId: number, expressionId: number, 
       .where(and(eq(ingredients.ownerId, ownerId), eq(ingredients.kind, choiceKind), eq(ingredients.name, choice.name.trim())))
       .limit(1);
     if (!row || !ingredientAllowed(kind, { name: choice.name, family: row.family })) throw new LabelRejected(`${choice.name} is not allowed for this category.`);
-    await tx.insert(expressionIngredients).values({ expressionId, ingredientId: row.id, position, isManual: choice.isManual !== false }).onConflictDoNothing();
+    const share = choiceKind !== "distillate" ? null : choice.share !== undefined ? choice.share : (savedShare.get(key) ?? null);
+    await tx.insert(expressionIngredients).values({ expressionId, ingredientId: row.id, position, isManual: choice.isManual !== false, sharePct: share === null ? null : String(share) }).onConflictDoNothing();
   }
 }
 

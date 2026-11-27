@@ -5,21 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ingredientOptionsAction } from "@/app/(app)/expressions/actions";
 import type { IngredientKind } from "@/db/schema";
-import { fixedIngredient, ingredientAllowed, type IngredientChoice } from "@/lib/expressions/spirit-details";
+import { fixedIngredient, ingredientAllowed, parseShare, shareNote, type IngredientChoice } from "@/lib/expressions/spirit-details";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import { X } from "lucide-react";
-import { BRANDY_FRUITS, fruitFamily, GIN_BASES, GIN_BOTANICALS, RUM_BASES, SHOCHU_BASES, VODKA_BASES } from "@/lib/expressions/ingredient-presets";
+import { BRANDY_FRUITS, fruitFamily, grapeSuggestions, GIN_BASES, GIN_BOTANICALS, RUM_BASES, SHOCHU_BASES, VODKA_BASES } from "@/lib/expressions/ingredient-presets";
 import { isGinKind } from "@/lib/expressions/gin-details";
 
 const labelFor = (kind: IngredientKind) => kind === "maguey" ? "Magueys" : kind === "distillate" ? "Distillate" : kind === "botanical" ? "Botanicals" : kind === "flavor" ? "Flavors" : kind === "vodka_base" || kind === "liqueur_base" ? "Base Ingredients" : "Base";
 
-export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenName = "ingredientLinks" }: {
+export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenName = "ingredientLinks", shares = false, country = null }: {
   kind: IngredientKind;
   categoryKind: CategoryKind | null;
   value: IngredientChoice[];
   onChange: (value: IngredientChoice[]) => void;
   hiddenName?: string | null;
+  /** Each row has a Share (%) box and the list a total: the grapes of a Cognac, Armagnac or pisco. */
+  shares?: boolean;
+  /** A pisco's country (from its distillery), which picks its grape suggestions. */
+  country?: "Peru" | "Chile" | null;
 }) {
+  const [shareText, setShareText] = React.useState<Record<string, string>>({});
   const [known, setKnown] = React.useState<IngredientChoice[]>([]);
   const [text, setText] = React.useState("");
   const [rejected, setRejected] = React.useState<string | null>(null);
@@ -37,8 +42,11 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
     : kind === "botanical" && isGinKind(categoryKind) ? [{ name: "Juniper", kind: "botanical" as const }, ...value.filter((item) => item.kind === "botanical" && item.name.toLocaleLowerCase() !== "juniper")]
     : value.filter((item) => (!item.kind || item.kind === kind) && ingredientAllowed(categoryKind, item));
   const presets = kind === "rum_base" ? RUM_BASES : kind === "botanical" && isGinKind(categoryKind) ? GIN_BOTANICALS : kind === "gin_base" ? GIN_BASES : kind === "vodka_base" ? (categoryKind === "shochu" ? SHOCHU_BASES : VODKA_BASES) : [];
+  const grapes = kind === "distillate" ? grapeSuggestions(categoryKind, country) : [];
   const presetChoices: IngredientChoice[] = kind === "distillate"
-    ? Object.entries(BRANDY_FRUITS).map(([name, family]) => ({ name, kind, family }))
+    ? grapes.length > 0
+      ? grapes.map((name) => ({ name, kind, family: "grape" }))
+      : Object.entries(BRANDY_FRUITS).map(([name, family]) => ({ name, kind, family }))
     : presets.map((name): IngredientChoice => ({ name, kind }));
   const suggestions = [...presetChoices, ...known]
     .filter((item, index, all) => ingredientAllowed(categoryKind, item) && all.findIndex((candidate) => candidate.name.toLocaleLowerCase() === item.name.toLocaleLowerCase()) === index);
@@ -75,11 +83,29 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
               {selected.map((item) => (
                 <li key={item.name} className="flex items-center gap-2 border border-border px-2 py-1 text-sm">
                   {item.name}{item.family ? <span className="text-xs text-muted-foreground">{item.family}</span> : null}
+                  {shares ? (
+                    <span className="flex items-center gap-1">
+                      <Input
+                        aria-label={`Share of ${item.name}`}
+                        type="number" min={0} max={100} step={0.01} inputMode="decimal" placeholder="—"
+                        className="h-8 w-20 px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        value={shareText[item.name] !== undefined && parseShare(shareText[item.name]) === (item.share ?? null) ? shareText[item.name] : (item.share === null || item.share === undefined ? "" : String(item.share))}
+                        onChange={(event) => {
+                          const text = event.target.value;
+                          setShareText((prev) => ({ ...prev, [item.name]: text }));
+                          const parsed = parseShare(text);
+                          onChange(selected.map((row) => (row.name === item.name ? { ...row, share: parsed ?? null } : row)));
+                        }}
+                      />
+                      <span className="text-xs text-muted-foreground">%</span>
+                    </span>
+                  ) : null}
                   {item.isManual === false ? <span className="text-xs text-muted-foreground">from style</span> : !(kind === "botanical" && isGinKind(categoryKind) && item.name.toLocaleLowerCase() === "juniper") ? <button type="button" aria-label={`Remove ${item.name}`} onClick={() => onChange(selected.filter((row) => row.name !== item.name))}><X className="size-3" aria-hidden="true" /></button> : <span className="text-xs text-muted-foreground">fixed</span>}
                 </li>
               ))}
             </ul>
           ) : <p className="text-sm text-muted-foreground">None selected.</p>}
+          {shares && shareNote(selected) ? <p role="status" className="text-sm text-muted-foreground">{shareNote(selected)}</p> : null}
           {kind === "rum_base" && !customBase ? (
             <div className="flex flex-wrap gap-2">
               {RUM_BASES.map((base) => <Button key={base} type="button" size="sm" variant="outline" onClick={() => add(base)}>{base}</Button>)}

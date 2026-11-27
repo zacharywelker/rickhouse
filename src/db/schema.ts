@@ -448,6 +448,8 @@ export const expressionIngredients = pgTable("expression_ingredients", {
   position: integer("position").notNull().default(0),
   /** An Amaro botanical may be present because of its style and independently entered by the owner. */
   isManual: boolean("is_manual").notNull().default(true),
+  /** This ingredient's share of the blend (a grape of a Cognac, a fruit of a Calvados); null when not stated. */
+  sharePct: pct("share_pct"),
 }, (t) => [primaryKey({ columns: [t.expressionId, t.ingredientId] })]);
 
 /**

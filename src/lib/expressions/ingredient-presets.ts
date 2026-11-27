@@ -31,11 +31,30 @@ export const BRANDY_FRUITS: Readonly<Record<string, FruitFamily>> = {
   "Muscat": "grape", "Palomino": "grape", "Quebranta": "grape", "Italia": "grape", "Torrontel": "grape",
   // Pisco: Peru's grapes (the others are Italia, Torrontel and Moscatel) and Chile's.
   "Mollar": "grape", "Uvina": "grape", "Negra Criolla": "grape", "Moscatel": "grape", "Albilla": "grape",
-  "Moscatel de Alejandría": "grape", "Moscatel Rosada": "grape", "Moscatel de Austria": "grape", "Pedro Jiménez": "grape", "Grape": "grape", "Grape Pomace": "grape",
+  "Moscatel de Alejandría": "grape", "Folignan": "grape", "Sémillon": "grape", "Jurançon Blanc": "grape", "Meslier St-François": "grape", "Sélect": "grape",
+  "Baco 22A": "grape", "Clairette de Gascogne": "grape", "Plant de Graisse": "grape", "Meslier Saint-François": "grape", "Blanquette de Saint-Gaudens": "grape", "Mauzac": "grape", "Moscatel Rosada": "grape", "Moscatel de Austria": "grape", "Pedro Jiménez": "grape", "Grape": "grape", "Grape Pomace": "grape",
   "Apple": "apple", "Cider Apple": "apple",
   "Pear": "pear", "Williams Pear": "pear",
   "Apricot": "other", "Cherry": "other", "Plum": "other", "Peach": "other", "Raspberry": "other", "Blackberry": "other", "Quince": "other", "Fig": "other",
 };
+
+/**
+ * The grapes each brandy suggests, main grapes first (design record, section 9). Suggestions only: any grape name is accepted, and
+ * nothing records which are main. A pisco's list follows its country (Peru, Chile), both when it is not known.
+ */
+export const GRAPES = {
+  cognac: ["Ugni Blanc", "Folle Blanche", "Colombard", "Montils", "Folignan", "Sémillon", "Jurançon Blanc", "Meslier St-François", "Sélect"],
+  armagnac: ["Ugni Blanc", "Baco 22A", "Folle Blanche", "Colombard", "Clairette de Gascogne", "Plant de Graisse", "Meslier Saint-François", "Jurançon Blanc", "Blanquette de Saint-Gaudens", "Mauzac"],
+  peru: ["Quebranta", "Mollar", "Uvina", "Negra Criolla", "Italia", "Moscatel", "Torontel", "Albilla"],
+  chile: ["Moscatel de Alejandría", "Moscatel Rosada", "Torontel", "Moscatel de Austria", "Pedro Jiménez"],
+} as const;
+
+export function grapeSuggestions(kind: string | null, country: "Peru" | "Chile" | null): string[] {
+  if (kind === "cognac") return [...GRAPES.cognac];
+  if (kind === "armagnac") return [...GRAPES.armagnac];
+  if (kind === "pisco") return country === "Peru" ? [...GRAPES.peru] : country === "Chile" ? [...GRAPES.chile] : [...new Set([...GRAPES.peru, ...GRAPES.chile])];
+  return [];
+}
 
 /**
  * Fruits whose name reads as another fruit's. Checked ahead of the category default and the name

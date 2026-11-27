@@ -43,7 +43,7 @@ export async function expressionFormData(expressionId: number | null, ownerId: n
 export async function loadLinks(expressionId: number) {
   const [linked, materials] = await Promise.all([
     expressionLinks(expressionId),
-    db.select({ name: ingredients.name, family: ingredients.family, kind: ingredients.kind, isManual: expressionIngredients.isManual })
+    db.select({ name: ingredients.name, family: ingredients.family, kind: ingredients.kind, isManual: expressionIngredients.isManual, share: expressionIngredients.sharePct })
       .from(expressionIngredients)
       .innerJoin(ingredients, eq(expressionIngredients.ingredientId, ingredients.id))
       .where(eq(expressionIngredients.expressionId, expressionId))
@@ -80,6 +80,6 @@ export async function loadLinks(expressionId: number) {
         ? [{ id: 0, label: "No finish", amount: "", unfinished: true, share: shareText(sumShares(linked.unfinished)), mashbills: linked.unfinished.map((line) => ({ id: line.mashbillId, share: shareText(line.share) })) } satisfies LinkedRow]
         : []),
     ],
-    ingredients: materials,
+    ingredients: materials.map((row) => ({ ...row, share: row.share === null ? null : Number(row.share) })),
   };
 }

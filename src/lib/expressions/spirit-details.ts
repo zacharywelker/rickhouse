@@ -148,7 +148,19 @@ export function countryForDistillery(kind: CategoryKind | null, country: string)
   return true;
 }
 
-export type IngredientChoice = { name: string; family?: string | null; kind?: "maguey" | "distillate" | "rum_base" | "botanical" | "gin_base" | "vodka_base" | "flavor" | "liqueur_base"; isManual?: boolean };
+export type IngredientChoice = {
+  name: string; family?: string | null; kind?: "maguey" | "distillate" | "rum_base" | "botanical" | "gin_base" | "vodka_base" | "flavor" | "liqueur_base"; isManual?: boolean;
+  /** Its share of the blend, 0 to 100. Undefined: not sent (a saved share is kept); null: sent as none. Only a distillate (a grape, a fruit) has one. */
+  share?: number | null;
+};
+
+/** The share a row sent: a number from 0 to 100 (two places), null for none, undefined when the key was not there at all. */
+export function parseShare(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || (typeof value === "string" && value.trim() === "")) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 100) / 100 : null;
+}
 
 /** Which pisco country a distillery's country says: Peru or Chile (the two that may call it pisco), else null. */
 export function piscoCountry(countries: ReadonlyArray<string | null | undefined>): "Peru" | "Chile" | null {
@@ -248,4 +260,75 @@ export function soleraText(low: string | number | null | undefined, high: string
   if (a === null && b === null) return null;
   if (a !== null && b !== null) return a === b ? `${a} years` : `${a}–${b} years`;
   return a !== null ? `from ${a} years` : `up to ${b} years`;
+}
+
+/**
+ * A note on a list of shares, or null when there is nothing to say: shares are optional, and a total that is not 100 is a warning,
+ * never a block. Nothing is said until at least one share is filled; a rounding difference (99.99, 100.01) is not worth a note.
+ */
+export function shareNote(rows: ReadonlyArray<{ share?: number | null }>): string | null {
+  const filled = rows.filter((row) => row.share !== null && row.share !== undefined);
+  if (filled.length === 0) return null;
+  const total = Math.round(filled.reduce((sum, row) => sum + (row.share ?? 0), 0) * 100) / 100;
+  if (Math.abs(total - 100) <= 0.05) return filled.length < rows.length ? "Some grapes have no share yet." : null;
+  return `The shares add up to ${total}%${filled.length < rows.length ? " so far" : ""}, not 100%.`;
+}
+
+/** A Calvados's fruit is six fixed rows, each an ingredient with a share (design: ingredient shares). The last two are what the old plain tags became. */
+export const CALVADOS_FRUIT_ROWS: ReadonlyArray<{ name: string; label: string; family: "apple" | "pear" }> = [
+  { name: "Bittersweet apples", label: "Bittersweet", family: "apple" },
+  { name: "Bitter apples", label: "Bitter", family: "apple" },
+  { name: "Sweet apples", label: "Sweet", family: "apple" },
+  { name: "Acidic / tart apples", label: "Acidic / tart", family: "apple" },
+  { name: "Apples (type not stated)", label: "Apples (type not stated)", family: "apple" },
+  { name: "Pears", label: "Pears", family: "pear" },
+];
+
+/** The apples' subtotal, the pears and the total of the shares filled in, to two places; null where nothing is filled. */
+export function calvadosTotals(rows: ReadonlyArray<{ name: string; share?: number | null }>): { apples: number | null; pears: number | null; total: number | null } {
+  const sum = (names: ReadonlyArray<string>) => {
+    const found = rows.filter((row) => names.includes(row.name) && row.share !== null && row.share !== undefined);
+    return found.length === 0 ? null : Math.round(found.reduce((total, row) => total + (row.share ?? 0), 0) * 100) / 100;
+  };
+  const apples = sum(CALVADOS_FRUIT_ROWS.filter((row) => row.family === "apple").map((row) => row.name));
+  const pears = sum(["Pears"]);
+  return { apples, pears, total: apples === null && pears === null ? null : Math.round(((apples ?? 0) + (pears ?? 0)) * 100) / 100 };
+}
+
+/** What a Calvados's appellation asks of its pears, as a warning (never a block): Pays d'Auge at most 30%, Domfrontais at least 30%. */
+export function pearNote(appellation: unknown, pears: number | null): string | null {
+  if (pears === null) return null;
+  if (appellation === "pays-d-auge" && pears > 30) return "Pays d'Auge allows at most 30% pears.";
+  if (appellation === "domfrontais" && pears < 30) return "Domfrontais takes at least 30% pears.";
+  return null;
+}
+
+/**
+ * A Calvados's fruit as its six rows: a name the phone or an old label brings ("Pear", "Cider Apple", "Sweet Apple") becomes the
+ * row it stands for (a pear is Pears; an apple is its type when the name says it, else "Apples (type not stated)"), and two
+ * that land on one row become one, their shares added. Only apple and pear fruit; anything else is left as it is.
+ */
+export function normalizeCalvadosFruit<T extends { name: string; family?: string | null; share?: number | null }>(rows: ReadonlyArray<T>): T[] {
+  const target = (row: T): string | null => {
+    const name = row.name.toLocaleLowerCase();
+    if (row.family === "pear" || /\bpears?\b|poire/.test(name)) return "Pears";
+    if (row.family !== "apple" && !/\bapples?\b|cider|pomme/.test(name)) return null;
+    if (/bittersweet/.test(name)) return "Bittersweet apples";
+    if (/\bbitter\b/.test(name)) return "Bitter apples";
+    if (/\bsweet\b/.test(name)) return "Sweet apples";
+    if (/acid|tart/.test(name)) return "Acidic / tart apples";
+    return "Apples (type not stated)";
+  };
+  const out: T[] = [];
+  for (const row of rows) {
+    const name = target(row);
+    if (name === null) { out.push(row); continue; }
+    const fixed = CALVADOS_FRUIT_ROWS.find((fruit) => fruit.name === name)!;
+    const next = { ...row, name, family: fixed.family };
+    const at = out.findIndex((existing) => existing.name === name);
+    if (at === -1) { out.push(next); continue; }
+    const [a, b] = [out[at]!.share, row.share];
+    out[at] = { ...out[at]!, share: a === undefined && b === undefined ? undefined : (a ?? null) === null && (b ?? null) === null ? null : (a ?? 0) + (b ?? 0) };
+  }
+  return out;
 }

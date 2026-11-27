@@ -11,13 +11,14 @@ const linkRow = z.preprocess(
 );
 /** Duplicates would break the join table's key, and an order is what was sent. */
 const linkList = z.array(linkRow).max(50).refine((rows) => new Set(rows.map((r) => r.id)).size === rows.length, "A row appears twice.");
-const ingredientList = z.array(z.object({ name: z.string().trim().min(1).max(120), family: z.enum(["grape", "apple", "pear", "other"]).nullable().optional(), kind: z.enum(["maguey", "distillate", "rum_base", "botanical", "gin_base"]).optional() })).max(100);
+const ingredientList = z.array(z.object({ name: z.string().trim().min(1).max(120), family: z.enum(["grape", "apple", "pear", "other"]).nullable().optional(), kind: z.enum(["maguey", "distillate", "rum_base", "botanical", "gin_base"]).optional(), share: z.number().min(0).max(100).nullable().optional() })).max(100);
 /** The bulk editor's ingredients are the form's: every kind it has, and whether each was chosen by hand or came with the amaro's style. */
 const formIngredientList = z.array(z.object({
   name: z.string().trim().min(1).max(120),
   family: z.enum(["grape", "apple", "pear", "other"]).nullable().optional(),
   kind: z.enum(["maguey", "distillate", "rum_base", "botanical", "gin_base", "vodka_base", "flavor", "liqueur_base"]).optional(),
   isManual: z.boolean().optional(),
+  share: z.number().min(0).max(100).nullable().optional(),
 })).max(100);
 
 /**

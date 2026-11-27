@@ -166,8 +166,8 @@ const HANDLERS: Record<DuplicateKind, Handler> = {
     relink: async (tx, _ownerId, survivorId, removedId) => {
       // A label that already has the survivor keeps that row; the rest move.
       await tx.execute(
-        sql`insert into expression_ingredients (expression_id, ingredient_id, position, is_manual)
-            select expression_id, ${survivorId}, position, is_manual from expression_ingredients where ingredient_id = ${removedId}
+        sql`insert into expression_ingredients (expression_id, ingredient_id, position, is_manual, share_pct)
+            select expression_id, ${survivorId}, position, is_manual, share_pct from expression_ingredients where ingredient_id = ${removedId}
             on conflict do nothing`,
       );
       await tx.delete(expressionIngredients).where(eq(expressionIngredients.ingredientId, removedId));
