@@ -37,7 +37,7 @@ type PickerExtras = {
   renderRowExtra?: (row: LinkedRow) => React.ReactNode;
 };
 
-export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks, brand, onOptionCreated, renderRowExtra }: Omit<Common, "onLinksChange"> & PickerExtras & { options: Option[]; changeLinks: (next: LabelLinks) => void; brand?: Option }) {
+export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks, brand, onOptionCreated, renderRowExtra, sheet = false }: Omit<Common, "onLinksChange"> & PickerExtras & { sheet?: boolean } & { options: Option[]; changeLinks: (next: LabelLinks) => void; brand?: Option }) {
   const defaultCountry = kind ? countryForKind(kind) : null;
   return (
     <OrderedPicker
@@ -51,6 +51,7 @@ export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks
       amountLabel="Share"
       amountSuffix="%"
       amountMax={100}
+      {...(sheet ? { table: { name: "Distillery", third: "Source", add: "+ Add distillery: type a name" } } : {})}
       inferable
       undisclosable
       value={links.distilleries}
@@ -62,14 +63,14 @@ export function DistilleryPicker({ fieldGroup, kind, options, links, changeLinks
   );
 }
 
-export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, piscoLand = null, appellation = null }: Common & { piscoLand?: "Peru" | "Chile" | null; appellation?: string | null }) {
+export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, piscoLand = null, appellation = null, sheet = false }: Common & { piscoLand?: "Peru" | "Chile" | null; appellation?: string | null; sheet?: boolean }) {
   const chosen = links.ingredients ?? [];
   const only = (name: string) => (selected: IngredientChoice[]) => onLinksChange({ ...links, ingredients: [...chosen.filter((item) => item.kind !== name), ...selected] });
   if (fieldGroup === "gin" && isGinKind(kind)) {
     return (
       <>
-        <IngredientPicker kind="botanical" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("botanical")} />
-        <IngredientPicker kind="gin_base" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("gin_base")} />
+        <IngredientPicker sheet={sheet} sheetLabel kind="botanical" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("botanical")} />
+        <IngredientPicker sheet={sheet} sheetLabel kind="gin_base" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("gin_base")} />
         <input type="hidden" name="ingredientLinks" value={JSON.stringify(chosen)} />
         <input type="hidden" name="mashbillLinks" value={serializeLinks(links.mashbills)} />
       </>
@@ -78,10 +79,10 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, pisc
   if (fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") {
     return (
       <>
-        {fieldGroup === "vodka" ? <IngredientPicker kind="vodka_base" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("vodka_base")} /> : null}
-        {fieldGroup === "amaro" ? <IngredientPicker kind="botanical" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("botanical")} /> : null}
-        {fieldGroup === "liqueur" ? <IngredientPicker kind="liqueur_base" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("liqueur_base")} /> : null}
-        {fieldGroup === "liqueur" || kind === "flavored-vodka" ? <IngredientPicker kind="flavor" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("flavor")} /> : null}
+        {fieldGroup === "vodka" ? <IngredientPicker sheet={sheet} kind="vodka_base" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("vodka_base")} /> : null}
+        {fieldGroup === "amaro" ? <IngredientPicker sheet={sheet} kind="botanical" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("botanical")} /> : null}
+        {fieldGroup === "liqueur" ? <IngredientPicker sheet={sheet} sheetLabel kind="liqueur_base" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("liqueur_base")} /> : null}
+        {fieldGroup === "liqueur" || kind === "flavored-vodka" ? <IngredientPicker sheet={sheet} sheetLabel kind="flavor" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("flavor")} /> : null}
         <input type="hidden" name="ingredientLinks" value={JSON.stringify(chosen)} />
       </>
     );
@@ -93,7 +94,7 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, pisc
   if (extra) {
     return (
       <>
-        <IngredientPicker kind={extra} categoryKind={kind} value={chosen} hiddenName={null} onChange={only(extra)} />
+        <IngredientPicker sheet={sheet} kind={extra} categoryKind={kind} value={chosen} hiddenName={null} onChange={only(extra)} />
         <input type="hidden" name="ingredientLinks" value={JSON.stringify(chosen)} />
       </>
     );
@@ -102,8 +103,8 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, pisc
     // A mezcal's maguey is a free list; its flavors (Abocado con, Destilado con) are an optional list of their own.
     return (
       <>
-        <IngredientPicker kind="maguey" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("maguey")} />
-        <IngredientPicker kind="flavor" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("flavor")} />
+        <IngredientPicker sheet={sheet} sheetLabel kind="maguey" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("maguey")} />
+        <IngredientPicker sheet={sheet} sheetLabel kind="flavor" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("flavor")} />
         <input type="hidden" name="ingredientLinks" value={JSON.stringify(chosen)} />
       </>
     );
@@ -112,18 +113,18 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, pisc
     // A spiced rum has its flavors besides its base.
     return (
       <>
-        <IngredientPicker kind="rum_base" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("rum_base")} />
-        <IngredientPicker kind="flavor" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("flavor")} />
+        <IngredientPicker sheet={sheet} sheetLabel kind="rum_base" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("rum_base")} />
+        <IngredientPicker sheet={sheet} sheetLabel kind="flavor" categoryKind={kind} value={chosen} hiddenName={null} onChange={only("flavor")} />
         <input type="hidden" name="ingredientLinks" value={JSON.stringify(chosen)} />
       </>
     );
   }
   if (fieldGroup === "brandy" && kind === "calvados") {
-    return <CalvadosFruitTable value={chosen} onChange={(ingredients) => onLinksChange({ ...links, ingredients })} appellation={appellation} />;
+    return <CalvadosFruitTable sheet={sheet} value={chosen} onChange={(ingredients) => onLinksChange({ ...links, ingredients })} appellation={appellation} />;
   }
   if (fieldGroup === "agave" || fieldGroup === "rum" || fieldGroup === "brandy") {
     return (
-      <IngredientPicker
+      <IngredientPicker sheet={sheet}
         kind={fieldGroup === "agave" ? "maguey" : fieldGroup === "rum" ? "rum_base" : "distillate"}
         categoryKind={kind}
         shares={kind === "cognac" || kind === "armagnac" || kind === "pisco"}
@@ -136,7 +137,7 @@ export function IngredientPickers({ fieldGroup, kind, links, onLinksChange, pisc
   return null;
 }
 
-export function MashbillPicker({ fieldGroup, kind, singleMalt, categoryName, mashbillCategory, options, links, onLinksChange, matchesOption, onOptionCreated, renderRowExtra }: Common & PickerExtras & { singleMalt: boolean; categoryName: string | undefined; /** "bourbon" or "rye" when the label is one, for the popup's recipe warning. */ mashbillCategory?: string | null; options: Option[]; matchesOption?: (option: Option) => boolean }) {
+export function MashbillPicker({ fieldGroup, kind, singleMalt, categoryName, mashbillCategory, options, links, onLinksChange, matchesOption, onOptionCreated, renderRowExtra, sheet = false }: Common & PickerExtras & { sheet?: boolean; singleMalt: boolean; categoryName: string | undefined; /** "bourbon" or "rye" when the label is one, for the popup's recipe warning. */ mashbillCategory?: string | null; options: Option[]; matchesOption?: (option: Option) => boolean }) {
   if (fieldGroup === "gin") return null;
   if (fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur" || (fieldGroup === "other" && (kind === "absinthe" || kind === "akvavit" || kind === "shochu"))) {
     // Older mashbill links remain stored while the relevant spirit uses ingredients.
@@ -176,6 +177,7 @@ export function MashbillPicker({ fieldGroup, kind, singleMalt, categoryName, mas
         amountLabel="Share"
         amountSuffix="%"
         amountMax={100}
+        {...(sheet ? { table: { name: "Recipe", third: "Made by", add: "+ Add mashbill" } } : {})}
         value={links.mashbills}
         onChange={(rows) => onLinksChange({ ...links, mashbills: rows })}
         distilleryChoices={links.distilleries.map((d) => ({ id: d.id, name: d.label }))}
@@ -185,7 +187,7 @@ export function MashbillPicker({ fieldGroup, kind, singleMalt, categoryName, mas
   );
 }
 
-export function FinishPickers({ kind, shown, options, links, onLinksChange, barrelType = null }: Common & { shown: boolean; options: Option[]; barrelType?: { suggestions: ReadonlyArray<string> } | null }) {
+export function FinishPickers({ kind, shown, options, links, onLinksChange, barrelType = null, sheet = false }: Common & { sheet?: boolean; shown: boolean; options: Option[]; barrelType?: { suggestions: ReadonlyArray<string> } | null }) {
   const caskTypes = CASK_TYPE_KINDS.includes(kind ?? "");
   if (!shown) {
     // A hidden picker is not an instruction to erase previously saved casks.
@@ -193,6 +195,7 @@ export function FinishPickers({ kind, shown, options, links, onLinksChange, barr
   }
   return (
     <FinishPicker
+      sheet={sheet}
       mashbills={links.mashbills}
       finishes={links.finishes}
       name="finishLinks"
@@ -208,4 +211,25 @@ export function FinishPickers({ kind, shown, options, links, onLinksChange, barr
       onChange={(rows) => onLinksChange({ ...links, finishes: rows })}
     />
   );
+}
+
+/** Whether the mashbill picker draws anything for this spirit (it keeps only a hidden field for the rest): the data-sheet look uses it to leave out an empty row. */
+export function mashbillShown(fieldGroup: FieldGroup, kind: CategoryKind | null): boolean {
+  if (fieldGroup === "gin") return false;
+  if (fieldGroup === "rum" || fieldGroup === "agave" || fieldGroup === "brandy" || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur" || (fieldGroup === "other" && (kind === "absinthe" || kind === "akvavit" || kind === "shochu"))) return false;
+  return true;
+}
+
+/** The data-sheet row label for a spirit's ingredient list, or null when it has none. */
+export function ingredientRowLabel(fieldGroup: FieldGroup, kind: CategoryKind | null): string | null {
+  if (fieldGroup === "gin" && isGinKind(kind)) return "Ingredients";
+  if (fieldGroup === "vodka") return kind === "flavored-vodka" ? "Ingredients" : "Base";
+  if (fieldGroup === "amaro") return "Botanicals";
+  if (fieldGroup === "liqueur") return "Ingredients";
+  if (fieldGroup === "whiskey") return kind === "flavored-whisky" ? "Flavors" : null;
+  if (fieldGroup === "other") return kind === "absinthe" || kind === "akvavit" ? "Botanicals" : kind === "shochu" ? "Base" : null;
+  if (fieldGroup === "rum") return kind === "spiced-rum" ? "Ingredients" : "Base";
+  if (fieldGroup === "agave") return kind === "mezcal" ? "Ingredients" : "Maguey";
+  if (fieldGroup === "brandy") return kind === "calvados" ? "Fruit" : kind === "pisco" || kind === "cognac" || kind === "armagnac" ? "Grapes" : "Fruit";
+  return null;
 }

@@ -53,7 +53,7 @@ import { withDerivedDesignation } from "@/lib/expressions/derived-designation";
 import type { LinkedRow } from "./ordered-picker";
 import { RegionPicker } from "./region-picker";
 import { OTHER_NAME_COLUMNS, otherNameRows, RELEASE_COLUMNS } from "./label-list-columns";
-import { DistilleryPicker, FinishPickers, IngredientPickers, MashbillPicker, type LabelLinks } from "./label-link-pickers";
+import { DistilleryPicker, FinishPickers, IngredientPickers, MashbillPicker, ingredientRowLabel, mashbillShown, type LabelLinks } from "./label-link-pickers";
 import { DeriveAge } from "./bottle-form";
 import { ProofAbvFields } from "./proof-abv-field";
 import { AgeFields } from "./age-fields";
@@ -432,6 +432,12 @@ export function ExpressionFields({
     if (name === "@dates") {
       return hidden.has("barrelFilledOn") ? null : <DeriveAge key={name} values={values} set={change} className="" />;
     }
+    // The label's lists (data-sheet rows): each is the form's own picker in its table look, or nothing where this spirit has none.
+    if (name === "@distilleries") return <div key={name} className="min-w-0 basis-full">{distilleryPicker(true)}</div>;
+    if (name === "@ingredients") return ingredientRowLabel(fieldGroup, kind) ? <div key={name} className="min-w-0 basis-full">{ingredientPickers(true)}</div> : null;
+    if (name === "@mashbills") return mashbillShown(fieldGroup, kind) ? <div key={name} className="min-w-0 basis-full">{mashbillPicker(true)}</div> : null;
+    if (name === "@finishes") return showsFinishes(context) ? <div key={name} className="min-w-0 basis-full">{finishPickers(true)}</div> : null;
+    if (name === "@regions") return showsRegions(context) ? <div key={name} className="min-w-0 basis-full">{regionPicker(true)}</div> : null;
     if (name === "@tier") {
       return tier ? (
         <span key={name} className="self-end pb-2.5 text-sm font-medium text-accent">
@@ -464,6 +470,25 @@ export function ExpressionFields({
     return notes;
   };
 
+  /** The label's lists, drawn by both looks (`sheet`: the data-sheet look's table rows, no box). */
+  const regionPicker = (sheet: boolean) => (
+    <RegionPicker idPrefix={idPrefix} value={regions} error={errors.regions} onChange={(next) => onChange("regions", next.join(", "))} sheet={sheet} />
+  );
+  const distilleryPicker = (sheet: boolean) => (
+    <DistilleryPicker fieldGroup={fieldGroup} kind={kind} options={distilleryOptions} links={links} changeLinks={changeLinks} brand={brand}
+      onOptionCreated={(option) => onOptionCreated("distilleryLinks", option)} renderRowExtra={mashbillsForDistillery} sheet={sheet} />
+  );
+  const ingredientPickers = (sheet: boolean) => (
+    <IngredientPickers fieldGroup={fieldGroup} kind={kind} links={links} onLinksChange={onLinksChange} piscoLand={piscoLand} appellation={values.calvadosAppellation as string | null} sheet={sheet} />
+  );
+  const mashbillPicker = (sheet: boolean) => (
+    <MashbillPicker fieldGroup={fieldGroup} kind={kind} singleMalt={singleMalt} categoryName={options.categoryId?.find((option) => option.value === categoryId)?.label} mashbillCategory={mashbillCategory} options={options.mashbillLinks ?? []} links={links} onLinksChange={onLinksChange}
+      matchesOption={matchesRecipe} onOptionCreated={(option) => onOptionCreated("mashbillLinks", option)} renderRowExtra={distilleriesForMashbill} sheet={sheet} />
+  );
+  const finishPickers = (sheet: boolean) => (
+    <FinishPickers kind={kind} shown={showsFinishes(context)} barrelType={barrelTypeKind(context) ? { suggestions: BARREL_TYPE_SUGGESTIONS[categorySlug ?? ""] ?? [] } : null} options={options.finishLinks ?? []} links={links} onLinksChange={onLinksChange} fieldGroup={fieldGroup} sheet={sheet} />
+  );
+
   /** The data-sheet look of one simple field: a chip, a toggle, a "+" chip (the form's own field for what a chip cannot be). */
   const renderChip = (field: FieldSpec) => {
     const composite = ["brandId", "name", "categoryId", "slug", "proof", "ageYears", "ageMonths", "ageDays", "peatStatus"];
@@ -489,6 +514,11 @@ export function ExpressionFields({
     const layout = sectionIds.flatMap((sectionId) => SHEET_LAYOUT[sectionId] ?? []);
     if (layout.length === 0) return null;
     // The rare fields live under "More:": a link for each, shown as a row once opened or once it has a value.
+    /** Rows named after what they hold for this spirit: its ingredients, and what its finish is called. */
+    const rowLabel = (row: { label: string; items: ReadonlyArray<string> }) =>
+      row.items[0] === "@ingredients" ? (ingredientRowLabel(fieldGroup, kind) ?? row.label)
+        : row.items[0] === "@finishes" ? (barrelTypeKind(context) ? "Barrel type" : ["canadian", "irish", "scotch", "amaro", "liqueur", "chocolate-liqueur", "cream-liqueur"].includes(kind ?? "") ? "Cask types" : row.label)
+        : row.label;
     const hasValue = (value: unknown) => value !== undefined && value !== null && value !== "" && value !== false && value !== "unknown" && value !== "false";
     const moreItems = SHEET_MORE.flatMap((item) => {
       const cells = item.fields.map((name) => cellFor(name, renderChip, "more"));
@@ -504,12 +534,14 @@ export function ExpressionFields({
             if (cells.every((cell) => cell === null)) return null;
             const notes = rowNotes(row.items);
             return (
-              <SheetRow key={row.label} label={row.label}>
+              <SheetRow key={row.label} label={rowLabel(row)}>
                 {cells}
                 {notes.map((note) => <p key={note} className="basis-full text-xs text-muted-foreground">{note}</p>)}
               </SheetRow>
             );
           })}
+          {sectionIds.includes("label") && !mashbillShown(fieldGroup, kind) ? mashbillPicker(true) : null}
+          {sectionIds.includes("label") && !showsFinishes(context) ? finishPickers(true) : null}
           {sectionIds.includes("label") && kind === "pisco" ? <SheetRow label="Style">{piscoNote}</SheetRow> : null}
           {sectionIds.includes("label") ? <MoreLine items={moreItems} /> : null}
         </div>
@@ -575,7 +607,7 @@ export function ExpressionFields({
         );
       })}
 
-      <Section>
+      {newLook ? null : <Section>
         <SectionHeader>
           <SectionTitle>Where it came from</SectionTitle>
           <SectionDescription>
@@ -584,17 +616,13 @@ export function ExpressionFields({
           </SectionDescription>
         </SectionHeader>
         <SectionContent className="grid grid-cols-1 gap-4">
-          {showsRegions(context) ? (
-            <RegionPicker idPrefix={idPrefix} value={regions} error={errors.regions} onChange={(next) => onChange("regions", next.join(", "))} />
-          ) : null}
-          <DistilleryPicker fieldGroup={fieldGroup} kind={kind} options={distilleryOptions} links={links} changeLinks={changeLinks} brand={brand}
-            onOptionCreated={(option) => onOptionCreated("distilleryLinks", option)} renderRowExtra={mashbillsForDistillery} />
-          <IngredientPickers fieldGroup={fieldGroup} kind={kind} links={links} onLinksChange={onLinksChange} piscoLand={piscoLand} appellation={values.calvadosAppellation as string | null} />
-          <MashbillPicker fieldGroup={fieldGroup} kind={kind} singleMalt={singleMalt} categoryName={options.categoryId?.find((option) => option.value === categoryId)?.label} mashbillCategory={mashbillCategory} options={options.mashbillLinks ?? []} links={links} onLinksChange={onLinksChange}
-            matchesOption={matchesRecipe} onOptionCreated={(option) => onOptionCreated("mashbillLinks", option)} renderRowExtra={distilleriesForMashbill} />
-          <FinishPickers kind={kind} shown={showsFinishes(context)} barrelType={barrelTypeKind(context) ? { suggestions: BARREL_TYPE_SUGGESTIONS[categorySlug ?? ""] ?? [] } : null} options={options.finishLinks ?? []} links={links} onLinksChange={onLinksChange} fieldGroup={fieldGroup} />
+          {showsRegions(context) ? regionPicker(false) : null}
+          {distilleryPicker(false)}
+          {ingredientPickers(false)}
+          {mashbillPicker(false)}
+          {finishPickers(false)}
         </SectionContent>
-      </Section>
+      </Section>}
     </>
   );
 }

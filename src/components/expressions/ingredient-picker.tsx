@@ -13,7 +13,7 @@ import { isGinKind } from "@/lib/expressions/gin-details";
 
 const labelFor = (kind: IngredientKind) => kind === "maguey" ? "Magueys" : kind === "distillate" ? "Distillate" : kind === "botanical" ? "Botanicals" : kind === "flavor" ? "Flavors" : kind === "vodka_base" || kind === "liqueur_base" ? "Base Ingredients" : "Base";
 
-export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenName = "ingredientLinks", shares = false, country = null }: {
+export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenName = "ingredientLinks", shares = false, country = null, sheet = false, sheetLabel = false }: {
   kind: IngredientKind;
   categoryKind: CategoryKind | null;
   value: IngredientChoice[];
@@ -23,7 +23,12 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
   shares?: boolean;
   /** A pisco's country (from its distillery), which picks its grape suggestions. */
   country?: "Peru" | "Chile" | null;
+  /** The data-sheet look: the label is the row's, so no box and no visible legend. */
+  sheet?: boolean;
+  /** With `sheet`: show the list's own name (a row that holds several lists, like botanicals and base spirits). */
+  sheetLabel?: boolean;
 }) {
+  const Box = sheet ? "div" : "fieldset";
   const [shareText, setShareText] = React.useState<Record<string, string>>({});
   const [known, setKnown] = React.useState<IngredientChoice[]>([]);
   const [text, setText] = React.useState("");
@@ -72,8 +77,8 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
   };
 
   return (
-    <fieldset className="flex flex-col gap-3 border border-border p-4">
-      <legend className="px-1 text-sm font-medium">{labelFor(kind)}</legend>
+    <Box className={sheet ? "flex flex-col gap-2" : "flex flex-col gap-3 border border-border p-4"}>
+      {sheet ? <span className={sheetLabel ? "text-[11px] uppercase tracking-[0.06em] text-muted-foreground" : "sr-only"}>{labelFor(kind)}</span> : <legend className="px-1 text-sm font-medium">{labelFor(kind)}</legend>}
       {fixedHere ? (
         <p className="text-sm">{fixed.name} <span className="text-muted-foreground">· fixed for {categoryKind === "tequila" ? "tequila" : categoryKind === "cachaca" ? "cachaça" : categoryKind === "apple" ? "apple brandy" : "rhum agricole"}</span></p>
       ) : (
@@ -127,6 +132,6 @@ export function IngredientPicker({ kind, categoryKind, value, onChange, hiddenNa
         </>
       )}
       {hiddenName ? <input type="hidden" name={hiddenName} value={JSON.stringify(selected)} /> : null}
-    </fieldset>
+    </Box>
   );
 }
