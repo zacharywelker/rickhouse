@@ -106,7 +106,7 @@ describe("normalizeCalvadosFruit", () => {
   it("adds the shares of two names that land on one row, and keeps none where none was sent", async () => {
     const { normalizeCalvadosFruit } = await import("../spirit-details");
     expect(normalizeCalvadosFruit([{ name: "Pear", family: "pear", share: 10 }, { name: "Poire", family: "pear", share: 5 }])).toEqual([{ name: "Pears", family: "pear", share: 15 }]);
-    expect(normalizeCalvadosFruit([{ name: "Pear", family: "pear" }, { name: "Pears", family: "pear" }])[0]!.share).toBeUndefined();
+    expect(normalizeCalvadosFruit<{ name: string; family: string; share?: number | null }>([{ name: "Pear", family: "pear" }, { name: "Pears", family: "pear" }])[0]!.share).toBeUndefined();
     expect(normalizeCalvadosFruit([{ name: "Pear", family: "pear", share: null }, { name: "Pears", family: "pear", share: null }])[0]!.share).toBeNull();
     expect(normalizeCalvadosFruit([{ name: "Pears", family: "pear", share: 30 }])).toEqual([{ name: "Pears", family: "pear", share: 30 }]);
   });
