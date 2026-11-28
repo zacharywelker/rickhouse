@@ -9,7 +9,14 @@ import { CALVADOS_FRUIT_ROWS, calvadosTotals, normalizeCalvadosFruit, parseShare
  * subtotal and the total. A blank row is not part of the label. Notes, never blocks: a total that is not 100, and the pears the
  * appellation asks for (Pays d'Auge at most 30%, Domfrontais at least 30%).
  */
-export function CalvadosFruitTable({ value: saved, onChange, appellation }: { value: IngredientChoice[]; onChange: (next: IngredientChoice[]) => void; appellation: unknown }) {
+export function CalvadosFruitTable({ value: saved, onChange, appellation, sheet = false }: {
+  value: IngredientChoice[];
+  onChange: (next: IngredientChoice[]) => void;
+  appellation: unknown;
+  /** The data-sheet look: the label is the row's, so no box and no visible legend. */
+  sheet?: boolean;
+}) {
+  const Box = sheet ? "div" : "fieldset";
   // Fruit a phone or an older label named another way is shown as the row it stands for.
   const value = normalizeCalvadosFruit(saved);
   const [text, setText] = React.useState<Record<string, string>>({});
@@ -31,8 +38,8 @@ export function CalvadosFruitTable({ value: saved, onChange, appellation }: { va
     return typed !== undefined && parseShare(typed) === (share ?? null) ? typed : share === null ? "" : String(share);
   };
   return (
-    <fieldset className="flex flex-col gap-3 border border-border p-4">
-      <legend className="px-1 text-sm font-medium">Fruit</legend>
+    <Box className={sheet ? "flex flex-col gap-2" : "flex flex-col gap-3 border border-border p-4"}>
+      {sheet ? <span className="sr-only">Fruit</span> : <legend className="px-1 text-sm font-medium">Fruit</legend>}
       <table className="w-full max-w-md text-sm">
         <tbody>
           {CALVADOS_FRUIT_ROWS.map((row, index) => (
@@ -61,6 +68,6 @@ export function CalvadosFruitTable({ value: saved, onChange, appellation }: { va
       {note ? <p role="status" className="text-sm text-muted-foreground">{note}</p> : null}
       {pears ? <p role="status" className="text-sm text-muted-foreground">{pears}</p> : null}
       <input type="hidden" name="ingredientLinks" value={JSON.stringify(value)} />
-    </fieldset>
+    </Box>
   );
 }

@@ -44,6 +44,7 @@ export function Field({
   onUnlock,
   chip = false,
   swatch,
+  chipLabel,
 }: {
   spec: FieldSpec;
   idPrefix: string;
@@ -68,6 +69,8 @@ export function Field({
   chip?: boolean;
   /** With `chip`, on a reference: the colour square before the chosen value. */
   swatch?: string | undefined;
+  /** With `chip`, on a reference: a dim name before the chosen value. */
+  chipLabel?: string | undefined;
 }) {
   const moneyStep = useMoneyStep();
   const inputId = `${idPrefix}-${spec.name}`;
@@ -227,6 +230,7 @@ export function Field({
             invalid={error !== undefined}
             chip={chip}
             swatch={swatch}
+            chipLabel={chipLabel}
             {...(chip ? { placeholder: spec.label } : {})}
           />
           <input type="hidden" name={spec.name} value={String(value ?? "")} />

@@ -9,18 +9,24 @@ export function RegionPicker({
   value,
   onChange,
   error,
+  sheet = false,
 }: {
   idPrefix: string;
   value: string[];
   onChange: (regions: string[]) => void;
   error?: string;
+  /** The data-sheet look: the label is the row's, so no box and no visible legend. */
+  sheet?: boolean;
 }) {
+  const Box = sheet ? "div" : "fieldset";
   return (
-    <fieldset className="col-span-full flex flex-col gap-2 border border-border p-4">
-      <legend className="px-1 text-sm font-medium">Regions</legend>
-      <p className="-mt-1 text-xs text-muted-foreground">
-        Where the whisky comes from; pick several for a blend. Linking a distillery that has a region adds it here.
-      </p>
+    <Box className={sheet ? "flex flex-col gap-2" : "col-span-full flex flex-col gap-2 border border-border p-4"}>
+      {sheet ? <span className="sr-only">Regions</span> : <legend className="px-1 text-sm font-medium">Regions</legend>}
+      {sheet ? null : (
+        <p className="-mt-1 text-xs text-muted-foreground">
+          Where the whisky comes from; pick several for a blend. Linking a distillery that has a region adds it here.
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         {SCOTCH_REGIONS.map((region) => {
           const on = value.includes(region);
@@ -45,6 +51,6 @@ export function RegionPicker({
           {error}
         </p>
       ) : null}
-    </fieldset>
+    </Box>
   );
 }

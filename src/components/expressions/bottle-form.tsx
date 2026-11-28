@@ -21,7 +21,13 @@ import { ProofAbvFields } from "./proof-abv-field";
 import { OpenedLevel, SEALED } from "@/components/bottles/opened-level";
 import { withOption } from "@/lib/forms/values";
 import { specForKind } from "@/lib/expressions/kind-options";
+import type { FieldSpec } from "@/lib/admin/types";
 import { AgeFields } from "./age-fields";
+import { ChipField } from "@/components/sheet/chips";
+import { CHIP, CHIP_LABEL } from "@/components/sheet/chip-styles";
+import { MoreLine, SheetRow } from "@/components/sheet/sheet-row";
+import { NewLookToggle, useNewLook } from "@/components/sheet/use-new-look";
+import { BOTTLE_CHIP_LABELS, BOTTLE_SHEET_MORE, BOTTLE_SHEET_ROWS } from "@/lib/expressions/bottle-sheet-layout";
 import { releaseUnit } from "@/lib/bottles/terminology";
 import { bottleFieldNotUsed, type LabelFacts } from "@/lib/expressions/bottle-applicability";
 import { isAgaveKind } from "@/lib/expressions/spirit-details";
@@ -138,6 +144,7 @@ export function BottleFields({
   const [statementOpen, setStatementOpen] = React.useState(false);
   const [ageOpen, setAgeOpen] = React.useState(false);
   const statementLocked = values.ageYearsSource !== "derived" && ageFilled(values) && !statementOpen;
+  const newLook = useNewLook();
   const unit = releaseUnit(fieldGroup, categoryKind);
   const unitTitle = unit[0]!.toUpperCase() + unit.slice(1);
   const effectiveTequilaClass = String(values.tequilaClass || inheritedTequilaClass || "");
@@ -145,24 +152,8 @@ export function BottleFields({
   const ginAged = isGinKind(categoryKind) && (inheritedGinAged ?? labelOption?.isAgedGin) === true;
   const labelFacts: LabelFacts = { group: fieldGroup, kind: categoryKind, isAgedGin: ginAged, isAged: (inheritedAged ?? labelOption?.isAged) === true, tequilaClass: inheritedTequilaClass };
   const ginNas = values.ginIsNas === "true" || values.ginIsNas === true || ((values.ginIsNas === "" || values.ginIsNas == null) && (inheritedGinNas ?? labelOption?.isNas) === true);
-  return (
-    <>
-      <input type="hidden" name="ageYearsSource" value={String(values.ageYearsSource ?? "entered")} />
-      {BOTTLE_SECTIONS.map((section) => {
-        // The pick block is revealed by the single-barrel checkboxes, the same
-        // way the label form reveals its per-spirit sections.
-        if (!sectionVisible(section, null, values)) return null;
-        if (section.id === "pick" && isGinKind(categoryKind) && !ginAged) return null;
-        if (section.id === "pick" && fieldGroup === "rum" && !labelFacts.isAged) return null;
-        if ((fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") && (section.id === "release" || section.id === "pick")) return null;
-        return (
-        <Section key={section.id}>
-          <SectionHeader>
-            <SectionTitle>{section.id === "pick" ? `Single ${unit} detail` : section.title}</SectionTitle>
-            {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
-          </SectionHeader>
-          <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {section.fields.map((originalField) => {
+  /** One bottle field as the form draws it; `chip` is the data-sheet look of the composites and references (the plain fields are drawn by `ChipField`). */
+  const drawField = (originalField: FieldSpec, chip = false): React.ReactNode => {
             const field = originalField.name === "isSingleBarrel"
               ? { ...originalField, label: `Single ${unitTitle}` }
               : originalField.name === "barrelNumber"
@@ -183,6 +174,7 @@ export function BottleFields({
             if (field.name === "status" && field.kind === "select" && openedLevel) {
               return (
                 <Field
+                  chip={chip}
                   key={field.name}
                   spec={{ ...field, options: field.options.map((option) => option.value === "owned" ? { ...option, label: "Sealed" } : option) }}
                   idPrefix={idPrefix}
@@ -199,6 +191,7 @@ export function BottleFields({
             if (field.name === "proof") {
               return (
                 <ProofAbvFields
+                  chip={chip}
                   key={field.name}
                   idPrefix={idPrefix}
                   value={values.proof ?? ""}
@@ -212,6 +205,7 @@ export function BottleFields({
               if (versions.length === 0 || field.kind !== "select") return null;
               return (
                 <Field
+                  chip={chip}
                   key={field.name}
                   spec={{ ...field, options: [...field.options, ...versions] }}
                   idPrefix={idPrefix}
@@ -226,6 +220,7 @@ export function BottleFields({
               if (choices.length === 0 || field.kind !== "select") return null;
               return (
                 <Field
+                  chip={chip}
                   key={field.name}
                   spec={{ ...field, options: [...field.options, ...choices] }}
                   idPrefix={idPrefix}
@@ -237,11 +232,12 @@ export function BottleFields({
             }
             // A chosen release supplies these; the server clears them to match.
             if ((field.name === "batch" || field.name === "releaseYear") && values.releaseId) return null;
-            if (field.name === "batch" && isAgaveKind(categoryKind)) return <Field key={field.name} spec={{ ...field, label: "LOT #" }} idPrefix={idPrefix} value={values.batch ?? ""} onChange={(next) => onChange("batch", next)} error={errors.batch} />;
+            if (field.name === "batch" && isAgaveKind(categoryKind)) return <Field chip={chip} key={field.name} spec={{ ...field, label: "LOT #" }} idPrefix={idPrefix} value={values.batch ?? ""} onChange={(next) => onChange("batch", next)} error={errors.batch} />;
             if (field.name === "ageMonths" || field.name === "ageDays") return null;
             if (field.name === "ageYears") {
               return (
                 <AgeFields
+                  chip={chip}
                   key="age"
                   idPrefix={idPrefix}
                   values={{
@@ -271,7 +267,9 @@ export function BottleFields({
                 : null;
             const control = (
               <Field
+                  chip={chip}
                 key={field.name}
+                {...(chip ? { chipLabel: BOTTLE_CHIP_LABELS[field.name] ?? field.label } : {})}
                 spec={labelDate ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } : specForKind(field, categoryKind)}
                 idPrefix={idPrefix}
                 value={values[field.name] ?? ""}
@@ -298,7 +296,132 @@ export function BottleFields({
               );
             }
             return control;
-          })}
+  };
+
+  /** The data-sheet look of the bottle form (design: 2026-11-25-data-sheet-forms-design.md, slice 4): rows of chips and a More line. */
+  const owningSection = (name: string) => BOTTLE_SECTIONS.find((section) => section.fields.some((field) => field.name === name));
+  const sectionShown = (section: (typeof BOTTLE_SECTIONS)[number]) =>
+    sectionVisible(section, null, values) &&
+    !(section.id === "pick" && isGinKind(categoryKind) && !ginAged) &&
+    !(section.id === "pick" && fieldGroup === "rum" && !labelFacts.isAged) &&
+    !((fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") && (section.id === "release" || section.id === "pick"));
+  const named = (field: FieldSpec): FieldSpec => {
+    const label = field.name === "batch" && isAgaveKind(categoryKind) ? "Lot #" : field.name === "isSingleBarrel" ? `Single ${unitTitle}` : field.name === "barrelNumber" ? `${unitTitle} Number` : BOTTLE_CHIP_LABELS[field.name] ?? field.label;
+    return { ...field, label, ...(field.name === "barrelNumber" && "placeholder" in field ? { placeholder: `${unitTitle} 24` } : {}) } as FieldSpec;
+  };
+  const stillApplies = (field: FieldSpec): boolean => {
+    const keptVintage = field.name === "releaseId" && String(values.releaseId ?? "") !== "";
+    const notUsed = (name: string) => bottleFieldNotUsed(name, labelFacts, { tequilaClass: effectiveTequilaClass || null }) !== null;
+    const ageGroupStays = field.name === "ageYears" && (!notUsed("ageMonths") || !notUsed("ageDays"));
+    if (notUsed(field.name) && !keptVintage && !ageGroupStays) return false;
+    return fieldVisible(field, values) && !omit.includes(field.name);
+  };
+  // The fields the form draws itself (a composite, a list of this label's vintages or versions, a field a vintage supplies): the chip look wraps them, it does not redo them.
+  const SELF_DRAWN = ["expressionId", "expressionNameId", "releaseId", "proof", "ageYears", "ageMonths", "ageDays", "status"];
+  const sheetCell = (name: string): React.ReactNode => {
+    if (name === "@status") return null; // the status is drawn as its own field (below), with the opened level
+    const section = owningSection(name);
+    const spec = section?.fields.find((field) => field.name === name);
+    if (!section || !spec || !sectionShown(section) || !stillApplies(spec)) return null;
+    if (SELF_DRAWN.includes(name)) return drawField(spec, true);
+    // A chosen vintage supplies the batch and the year.
+    if ((name === "batch" || name === "releaseYear") && values.releaseId) return null;
+    const field = named(specForKind(spec, categoryKind));
+    const labelDate = name === "barrelFilledOn" ? labelDates?.[Number(values.expressionId)]?.barrelFilledOn : name === "bottledOn" ? labelDates?.[Number(values.expressionId)]?.bottledOn : null;
+    return (
+      <ChipField
+        key={name} spec={labelDate && "help" in field ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } as FieldSpec : field} idPrefix={idPrefix}
+        value={values[name] ?? ""} onChange={(next) => onChange(name, next)} error={errors[name]}
+        locked={name === "ageStatement" && statementLocked} onUnlock={() => setStatementOpen(true)}
+        onField={() => drawField(spec, true)} suggestions={suggestions?.[name]}
+      />
+    );
+  };
+  const statusCell = () => {
+    const spec = owningSection("status")?.fields.find((field) => field.name === "status");
+    if (!spec || spec.kind !== "select" || !stillApplies(spec)) return null;
+    const options = openedLevel ? spec.options.map((option) => (option.value === "owned" ? { ...option, label: "Sealed" } : option)) : spec.options;
+    return (
+      <label key="status" className={CHIP}>
+        <span className={CHIP_LABEL}>Status</span>
+        <select
+          id={`${idPrefix}-status`} name="status" value={String(values.status ?? "owned")}
+          onChange={(event) => {
+            const next = event.target.value;
+            onChange("status", next);
+            if (openedLevel && next === "owned") openedLevel.onChange(SEALED);
+            if (openedLevel && next === "open") openedLevel.onChange({ ...openedLevel.value, isOpen: true });
+          }}
+          className="min-w-0 border-0 bg-transparent p-0 text-[12px] font-semibold outline-none"
+        >
+          {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+    );
+  };
+  // A row stays closed only when nothing in it will be posted: closed rows are not mounted, so a saved value there would be erased by the next save.
+  // "false" counts for a select (Gin's "not NAS" is a saved answer) but not for a checkbox, where it just means unticked.
+  const hasValue = (name: string) => {
+    const value = values[name];
+    if (value === undefined || value === null || value === "" || value === false) return false;
+    if (value !== "false") return true;
+    return owningSection(name)?.fields.find((field) => field.name === name)?.kind === "select";
+  };
+  const renderSheet = () => {
+    const rows = BOTTLE_SHEET_ROWS.map((row) => {
+      const cells = row.items.map((item) => (item === "@status" ? statusCell() : sheetCell(item)));
+      const level = row.items.includes("@status") && openedLevel && statusCell() !== null ? (
+        <div key="opened-level" className="basis-full">
+          <OpenedLevel
+            {...openedLevel}
+            fieldGroup={fieldGroup}
+            onChange={(next) => {
+              openedLevel.onChange(next);
+              if (values.status === "owned" || values.status === "open") onChange("status", next.isOpen ? "open" : "owned");
+            }}
+          />
+        </div>
+      ) : null;
+      if (cells.every((cell) => cell === null)) return null;
+      return <SheetRow key={row.label} label={row.label}>{cells}{level}</SheetRow>;
+    });
+    const more = BOTTLE_SHEET_MORE.flatMap((item) => {
+      const cells = item.fields.map((name) => sheetCell(name));
+      if (cells.every((cell) => cell === null)) return [];
+      const label = item.id === "single" ? `Single ${unit}` : item.label;
+      const differs = item.id === "differs" && !(isGinKind(categoryKind) || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur")
+        ? <DeriveAge key="derive" values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} /> : null;
+      return [{
+        id: item.id, label, opened: [...item.fields, ...(item.id === "differs" ? ["ageMonths", "ageDays"] : [])].some((name) => hasValue(name)),
+        content: <SheetRow label={label}>{cells}{differs}</SheetRow>,
+      }];
+    });
+    return (
+      <div className="flex min-w-0 flex-col border-t-2 border-foreground pt-2">
+        {rows}
+        <MoreLine items={more} />
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <input type="hidden" name="ageYearsSource" value={String(values.ageYearsSource ?? "entered")} />
+      {newLook ? renderSheet() : BOTTLE_SECTIONS.map((section) => {
+        // The pick block is revealed by the single-barrel checkboxes, the same
+        // way the label form reveals its per-spirit sections.
+        if (!sectionVisible(section, null, values)) return null;
+        if (section.id === "pick" && isGinKind(categoryKind) && !ginAged) return null;
+        if (section.id === "pick" && fieldGroup === "rum" && !labelFacts.isAged) return null;
+        if ((fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur") && (section.id === "release" || section.id === "pick")) return null;
+        return (
+        <Section key={section.id}>
+          <SectionHeader>
+            <SectionTitle>{section.id === "pick" ? `Single ${unit} detail` : section.title}</SectionTitle>
+            {section.description ? <SectionDescription>{section.description}</SectionDescription> : null}
+          </SectionHeader>
+          <SectionContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {section.fields.map((originalField) => drawField(originalField))}
             {section.id === "bottle" && openedLevel ? (
               <div className="col-span-full">
                 <OpenedLevel
@@ -364,6 +487,7 @@ export function BottleForm({
 
   const action = saveBottleAction.bind(null, bottleId);
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
+  const newLook = useNewLook();
 
   const saved = state.ok && state.message !== "";
   const createdId = state.ok ? state.createdId : undefined;
@@ -397,6 +521,7 @@ export function BottleForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
+      <NewLookToggle />
       {duplicateSourceId !== null ? <input type="hidden" name="duplicateSourceId" value={duplicateSourceId} /> : null}
       {duplicateSourceId !== null ? <input type="hidden" name="copyPhotos" value={copyPhotos ? "1" : "0"} /> : null}
       {duplicateSourceId !== null ? <input type="hidden" name="duplicateTagIds" value={JSON.stringify(copiedTagIds)} /> : null}
@@ -451,7 +576,7 @@ export function BottleForm({
         </p>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", newLook && "order-first sticky top-0 z-30 -mx-1 border-b border-border bg-background/95 px-1 py-2")}>
         {popup ? (
           <Button type="button" variant="outline" onClick={popup.close}>
             Cancel

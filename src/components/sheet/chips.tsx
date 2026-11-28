@@ -40,7 +40,7 @@ function ErrorText({ id, error }: { id: string; error: string | undefined }) {
  * optional fact is empty, a dashed "+" chip that opens it. `onField` draws the kinds this does not (references, long text,
  * size presets), so the row can still hold every field. The input has the field's own name, so a save posts what it always did.
  */
-export function ChipField({ spec, idPrefix, value, onChange, error, locked = false, onUnlock, onField, bare = false }: {
+export function ChipField({ spec, idPrefix, value, onChange, error, locked = false, onUnlock, onField, bare = false, suggestions }: {
   spec: FieldSpec;
   idPrefix: string;
   value: FieldValue;
@@ -51,6 +51,8 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
   onField: () => React.ReactNode;
   /** No label inside the chip (the Name row: the value says what it is); the label stays as the input's accessible name. */
   bare?: boolean;
+  /** Earlier values for a text field, offered as a datalist (the old Field's behaviour). */
+  suggestions?: string[] | undefined;
 }) {
   const id = `${idPrefix}-${spec.name}`;
   const kind = chipKind(spec, value);
@@ -127,7 +129,8 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
             if (String(value ?? "") === "") setOpened(false);
           }}
           placeholder={"placeholder" in spec ? spec.placeholder : undefined}
-          {...(bare ? { "aria-label": spec.label } : {})}
+          aria-label={spec.label}
+          {...(spec.kind === "text" && suggestions && suggestions.length > 0 ? { list: `${id}-suggestions`, autoComplete: "off" } : {})}
           readOnly={locked} aria-readonly={locked || undefined} title={locked ? "Triple-click to edit" : undefined}
           onClick={locked && onUnlock ? (event) => event.detail >= 3 && onUnlock() : undefined}
           aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}
@@ -135,6 +138,9 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
           {...(spec.kind === "number" ? { min: spec.min, max: spec.max, step: money ? moneyStep : (spec.step ?? 1) } : {})}
         />
       </label>
+      {spec.kind === "text" && suggestions && suggestions.length > 0 ? (
+        <datalist id={`${id}-suggestions`}>{suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}</datalist>
+      ) : null}
       <ErrorText id={errorId} error={error} />
     </div>
   );

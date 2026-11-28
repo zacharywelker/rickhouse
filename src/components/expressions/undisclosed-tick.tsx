@@ -15,12 +15,17 @@ export function UndisclosedTick({
   idPrefix,
   rows,
   onChange,
+  open,
 }: {
   idPrefix: string;
   rows: LinkedRow[];
   onChange: (rows: LinkedRow[]) => void;
+  /** The data-sheet look: the "or not disclosed" link in the add bar opens the place panel, so there is no checkbox here. */
+  open?: boolean;
 }) {
-  const [ticked, setTicked] = React.useState(rows.length > 0);
+  const sheet = open !== undefined;
+  const [tickedState, setTicked] = React.useState(rows.length > 0);
+  const ticked = sheet ? open : tickedState;
   const [draft, setDraft] = React.useState(EMPTY_PLACE);
   const [draftId, setDraftId] = React.useState(() => Math.min(0, ...rows.map((row) => row.id)) - 1);
   const added = rows.filter((row) => !row.place || row.id > draftId);
@@ -61,6 +66,7 @@ export function UndisclosedTick({
 
   return (
     <div className="flex flex-col gap-2">
+      {sheet ? null : (
       <label className="flex w-fit items-center gap-2 text-sm">
         <input
           id={`${idPrefix}-tick`}
@@ -76,6 +82,7 @@ export function UndisclosedTick({
         />
         Distillery not disclosed
       </label>
+      )}
 
       {ticked ? (
         <div className="flex flex-col gap-3 border border-border bg-muted/30 p-3">

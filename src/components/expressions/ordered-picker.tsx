@@ -10,6 +10,8 @@ import { linksPayload } from "@/lib/expressions/links";
 import { UndisclosedTick } from "./undisclosed-tick";
 import type { CategoryKind } from "@/lib/expressions/rules";
 import type { Option, ReferenceResource } from "@/lib/admin/types";
+import { cn } from "@/lib/utils";
+import { CHIP } from "@/components/sheet/chip-styles";
 import { quickCreateAction } from "@/app/(app)/admin/actions";
 import { CreateWithDetailsDialog } from "@/components/admin/create-with-details-dialog";
 
@@ -77,6 +79,8 @@ export function OrderedPicker({
   lockedAmounts,
   maxRows,
   suggestions,
+  table,
+  sheet = false,
 }: {
   name: string;
   label: string;
@@ -133,7 +137,12 @@ export function OrderedPicker({
   maxRows?: number;
   /** Names offered as one-click buttons under the add box: an existing option of that name is added, else one is created. */
   suggestions?: ReadonlyArray<string>;
+  /** The data-sheet look: the list as a table under column headings (the mockup's Distilled by and Mashbill), with a dashed add bar. */
+  table?: { name: string; third: string; add: string };
+  /** The data-sheet look, without the table: no box and no visible legend or description (the finish list). */
+  sheet?: boolean;
 }) {
+  const [notDisclosed, setNotDisclosed] = React.useState(false);
   const [created, setCreated] = React.useState<Option[]>([]);
   const [editing, setEditing] = React.useState<LinkedRow | null>(null);
   const [optionNotice, setOptionNotice] = React.useState("");
@@ -186,10 +195,152 @@ export function OrderedPicker({
     ]);
   };
 
+  const Box: React.ElementType = sheet ? "div" : "fieldset";
+  if (table) {
+    const shares = amountSuffix === "%" && showAmount && value.length >= 2 ? value.map((row) => Number(lockedAmounts?.[row.id] ?? row.amount)) : null;
+    const total = shares ? Math.round(shares.reduce((sum, share) => sum + (Number.isFinite(share) ? share : 0), 0) * 100) / 100 : null;
+    const placeOpen = undisclosable && (notDisclosed || undisclosedRows.length > 0);
+    const th = "border-b border-foreground pb-0.5 pr-2 text-left text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground";
+    const td = "border-b border-border py-[3px] pr-2 align-middle";
+    return (
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <span className="sr-only">{label}</span>
+        {value.length > 0 ? (
+          <table className="w-full border-collapse text-[12.5px]">
+            <thead>
+              <tr>
+                <th className={th}>{table.name}</th>
+                {showAmount ? <th className={cn(th, "text-right")}>{amountLabel}</th> : null}
+                <th className={th}>{table.third}</th>
+                <th className={th} />
+              </tr>
+            </thead>
+            <tbody>
+              {value.map((row, index) => (
+                <React.Fragment key={row.id}>
+                  <tr>
+                    <td className={td}>
+                      {row.label}
+                      {row.hint && !row.undisclosed ? <span className="ml-1.5 text-[11px] text-muted-foreground">{row.hint}</span> : null}
+                    </td>
+                    {showAmount ? (
+                      <td className={cn(td, "whitespace-nowrap text-right")}>
+                        {(amountSuffix !== "%" || value.length >= 2) ? (lockedAmounts?.[row.id] !== undefined ? (
+                          <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="border border-dashed border-foreground bg-muted px-1.5 tabular-nums text-foreground">{lockedAmounts[row.id]}{amountSuffix}</span> from finishes</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            <input
+                              id={`${name}-amount-${row.id}`} aria-label={`${amountLabel} of ${row.label}`} type="number" min={0} max={amountMax} step={1} inputMode="numeric"
+                              value={row.amount} onChange={(e) => onChange(value.map((r) => (r.id === row.id ? { ...r, amount: e.target.value } : r)))}
+                              className="h-7 w-[42px] border border-foreground bg-card px-1.5 text-right text-[13px] font-medium tabular-nums outline-none [appearance:textfield] focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            />
+                            <span className="text-muted-foreground">{amountSuffix}</span>
+                          </span>
+                        )) : null}
+                      </td>
+                    ) : null}
+                    <td className={td}>
+                      {inferable && !row.undisclosed ? (
+                        <span role="radiogroup" aria-label={`Source of ${row.label}`} className="inline-flex border border-foreground">
+                          {([["Stated", false], ["Inferred", true]] as const).map(([text, inferred]) => (
+                            <button
+                              key={text} type="button" role="radio" aria-checked={(row.inferred === true) === inferred}
+                              onClick={() => onChange(value.map((r) => (r.id === row.id ? { ...r, inferred } : r)))}
+                              className={cn("inline-flex h-[23px] items-center px-[9px] text-[11.5px]", (row.inferred === true) === inferred ? "bg-foreground text-background" : "bg-card")}
+                            >{text}</button>
+                          ))}
+                        </span>
+                      ) : distilleryChoices && distilleryChoices.length > 1 ? (
+                        <label className={cn(CHIP, "h-[23px]")}>
+                          <span className="sr-only">Distillery of {row.label}</span>
+                          <select
+                            id={`${name}-distillery-${row.id}`} value={row.distilleryId ?? ""}
+                            onChange={(e) => onChange(value.map((r) => (r.id === row.id ? { ...r, distilleryId: e.target.value === "" ? null : Number(e.target.value) } : r)))}
+                            className="min-w-0 border-0 bg-transparent p-0 text-[12px] font-semibold outline-none"
+                          >
+                            <option value="">Not tied to one</option>
+                            {distilleryChoices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                          </select>
+                        </label>
+                      ) : soloDistillery ? <span className="text-[11.5px] text-muted-foreground">from {soloDistillery.name}</span> : null}
+                    </td>
+                    <td className={cn(td, "whitespace-nowrap pr-0 text-right text-muted-foreground")}>
+                      {resource !== null && ["distilleries", "mashbills", "finishes"].includes(resource) ? (
+                        <button type="button" aria-label={`Edit ${row.label} details`} title={`Edit ${row.label} details`} onClick={() => setEditing(row)} className="p-1 hover:text-foreground"><Pencil className="size-3.5" /></button>
+                      ) : null}
+                      {showOrder ? <button type="button" aria-label={`Move ${row.label} up`} title={`Move ${row.label} up`} disabled={index === 0} onClick={() => move(index, -1)} className="p-1 hover:text-foreground disabled:opacity-30"><ChevronUp className="size-3.5" /></button> : null}
+                      {showOrder ? <button type="button" aria-label={`Move ${row.label} down`} title={`Move ${row.label} down`} disabled={index === value.length - 1} onClick={() => move(index, 1)} className="p-1 hover:text-foreground disabled:opacity-30"><ChevronDown className="size-3.5" /></button> : null}
+                      <button type="button" aria-label={`Remove ${row.label}`} onClick={() => onChange(value.filter((r) => r.id !== row.id))} className="p-1 hover:text-foreground"><X className="size-3.5" /></button>
+                    </td>
+                  </tr>
+                  {renderRowExtra ? (
+                    <tr><td colSpan={showAmount ? 4 : 3} className="pb-1.5 pt-0 text-[11.5px] text-muted-foreground">{renderRowExtra(row)}</td></tr>
+                  ) : null}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+        <div className="flex items-center gap-3">
+          <div className="flex h-[27px] min-w-0 flex-1 items-center gap-2 border border-dashed border-foreground px-2">
+            <ReferenceCombobox
+              id={`${name}-add`} labelledBy={`${name}-add-label`} resource={resource}
+              {...(resource === null && name === "mashbillLinks" ? { detailResource: "mashbills" as const } : {})}
+              options={selectable} brand={brand}
+              {...(defaultCountry ? { defaultCountry } : {})} {...(detailNoun ? { detailNoun } : {})} {...(detailKind ? { detailKind } : {})} {...(detailCategory ? { detailCategory } : {})}
+              value={null}
+              onChange={(next) => {
+                if (next === null) return;
+                const option = selectable.find((o) => o.value === next);
+                if (option) addRow(option);
+              }}
+              onOptionCreated={(option) => {
+                setCreated((prev) => [...prev, option]);
+                onOptionCreated?.(option);
+                if (matchesOption && !matchesOption(option)) { setOptionNotice("Saved. This mashbill does not match the selected category."); return; }
+                addRow(option);
+              }}
+              placeholder={table.add}
+              {...(emptyHint ? { emptyHint } : {})}
+              chip="bar"
+            />
+            {undisclosable ? (
+              <button
+                type="button" aria-expanded={placeOpen}
+                onClick={() => { if (placeOpen) { setNotDisclosed(false); onAllRowsChange(allRows.filter((row) => !row.undisclosed)); } else setNotDisclosed(true); }}
+                className="ml-auto shrink-0 text-[12px] text-foreground underline"
+              >or not disclosed (pick the place)</button>
+            ) : null}
+          </div>
+          {total !== null ? (
+            <span className={cn("whitespace-nowrap text-[12px] font-semibold", Math.abs(total - 100) <= 0.5 ? "text-[#1c6b3a]" : "text-muted-foreground")}>{total}%{Math.abs(total - 100) <= 0.5 ? " ✓" : ""}</span>
+          ) : null}
+        </div>
+        <span id={`${name}-add-label`} className="sr-only">Add {label.toLowerCase()}</span>
+        {optionNotice ? <p role="status" className="text-xs text-muted-foreground">{optionNotice}</p> : null}
+        {footer}
+        {placeOpen ? <UndisclosedTick idPrefix={`${name}-undisclosed`} rows={undisclosedRows} open onChange={(next) => onAllRowsChange([...value, ...next])} /> : null}
+        {editing && resource !== null && ["distilleries", "mashbills", "finishes"].includes(resource) ? (
+          <CreateWithDetailsDialog
+            resource={resource as "distilleries" | "mashbills" | "finishes"} open onOpenChange={(open) => { if (!open) setEditing(null); }}
+            initialName="" recordId={editing.id} {...(defaultCountry ? { defaultCountry } : {})}
+            onCreated={(option) => {
+              onChange(value.map((row) => row.id === editing.id ? { ...row, label: option.label } : row));
+              setCreated((items) => [...items.filter((item) => item.value !== option.value), option]);
+              onOptionCreated?.(option);
+              setEditing(null);
+            }}
+          />
+        ) : null}
+        <input type="hidden" name={name} value={hiddenValue ?? serializeLinks(allRows)} />
+      </div>
+    );
+  }
+
   return (
-    <fieldset className="col-span-full flex flex-col gap-3 border border-border p-4">
-      <legend className="px-1 text-sm font-medium">{label}</legend>
-      <p className="-mt-1 text-xs text-muted-foreground">{description}</p>
+    <Box className={sheet ? "flex min-w-0 flex-col gap-2" : "col-span-full flex flex-col gap-3 border border-border p-4"}>
+      {sheet ? <span className="sr-only">{label}</span> : <legend className="px-1 text-sm font-medium">{label}</legend>}
+      {sheet ? null : <p className="-mt-1 text-xs text-muted-foreground">{description}</p>}
 
       {value.length > 0 ? (
         <ol className="flex flex-col gap-2">
@@ -339,10 +490,10 @@ export function OrderedPicker({
           ))}
         </ol>
       ) : undisclosedRows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">None yet.</p>
+        sheet ? <span className={cn(CHIP, "w-fit bg-muted font-semibold")}>None ✓</span> : <p className="text-sm text-muted-foreground">None yet.</p>
       ) : null}
 
-      {full ? null : <ReferenceCombobox
+      {full ? null : <div className={sheet ? "flex h-[27px] min-w-0 items-center border border-dashed border-foreground px-2" : undefined}><ReferenceCombobox
         id={`${name}-add`}
         labelledBy={`${name}-add-label`}
         resource={resource}
@@ -369,9 +520,10 @@ export function OrderedPicker({
           }
           addRow(option);
         }}
-        placeholder={`Add ${label.toLowerCase()}…`}
+        placeholder={sheet ? (label === "Finishes" ? "+ Finish (in order, with months)" : `+ ${label}`) : `Add ${label.toLowerCase()}…`}
         {...(emptyHint ? { emptyHint } : {})}
-      />}
+        {...(sheet ? { chip: "bar" as const } : {})}
+      /></div>}
       {!full && suggestions && suggestions.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-muted-foreground">Suggested:</span>
@@ -414,6 +566,6 @@ export function OrderedPicker({
         name={name}
         value={hiddenValue ?? serializeLinks(allRows)}
       />
-    </fieldset>
+    </Box>
   );
 }

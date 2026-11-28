@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chipKind } from "../chip-kind";
 import { EXPRESSION_SECTIONS } from "../fields";
-import { CHIP_LABELS, LABEL_PANEL_SECTIONS, SHEET_LAYOUT, layoutFields } from "../sheet-layout";
+import { CHIP_LABELS, LABEL_PANEL_SECTIONS, MORE_FIELDS, PER_SPIRIT_SECTIONS, SHEET_LAYOUT, SHEET_MORE, layoutFields } from "../sheet-layout";
 import type { FieldSpec } from "@/lib/admin/types";
 
 const spec = (name: string) => EXPRESSION_SECTIONS.flatMap((s) => s.fields).find((f) => f.name === name)!;
@@ -39,13 +39,21 @@ describe("SHEET_LAYOUT", () => {
     for (const sectionId of Object.keys(SHEET_LAYOUT)) for (const field of layoutFields(sectionId)) expect(names.has(field), `${sectionId}: ${field}`).toBe(true);
   });
   it("draws no field twice", () => {
-    const all = Object.keys(SHEET_LAYOUT).flatMap(layoutFields);
-    expect(all.filter((name, index) => all.indexOf(name) !== index)).toEqual([]);
+    // Agave draws Additive Free in Production; whiskey draws it under How it's made.
+    // The form's rules show it in only one place per spirit.
+    const all = [...layoutFields("label"), ...MORE_FIELDS];
+    expect(all.filter((name, index) => all.indexOf(name) !== index)).toEqual(["isAdditiveFree"]);
   });
-  it("draws every field of the identity and strength sections, but the age months and days (drawn with the years) and the Description (under More)", () => {
-    const named = new Set(layoutFields("label"));
-    const missing = LABEL_PANEL_SECTIONS.flatMap((id) => EXPRESSION_SECTIONS.find((s) => s.id === id)!.fields.map((f) => f.name)).filter((name) => !named.has(name));
-    expect(missing.sort()).toEqual(["ageDays", "ageMonths", "description"]);
+  it("places every label and per-spirit field except age months and days (drawn with years) and regions (a picker drawn elsewhere)", () => {
+    const named = new Set([...layoutFields("label"), ...MORE_FIELDS]);
+    const missing = [...LABEL_PANEL_SECTIONS, ...PER_SPIRIT_SECTIONS].flatMap((id) => EXPRESSION_SECTIONS.find((s) => s.id === id)!.fields.map((f) => f.name)).filter((name) => !named.has(name));
+    expect(missing.sort()).toEqual(["ageDays", "ageMonths", "regions"]);
+  });
+  it("gives every More item a unique id and names only fields the form has", () => {
+    const ids = SHEET_MORE.map((item) => item.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const names = new Set(EXPRESSION_SECTIONS.flatMap((s) => s.fields.map((f) => f.name)));
+    for (const item of SHEET_MORE) for (const field of item.fields) expect(names.has(field), `${item.id}: ${field}`).toBe(true);
   });
   it("words the chips the mockup's way", () => {
     expect(CHIP_LABELS.upc).toBe("UPC");

@@ -18,7 +18,7 @@ export function MoreLine({ items }: { items: ReadonlyArray<{ id: string; label: 
   const links = items.filter((item) => !visible.includes(item));
   return (
     <>
-      {visible.map((item) => <div key={item.id} className="border-b border-border py-1.5">{item.content}</div>)}
+      {visible.map((item) => <React.Fragment key={item.id}>{item.content}</React.Fragment>)}
       {links.length > 0 ? (
         <div className="flex flex-wrap gap-x-3.5 gap-y-1 py-[7px] text-[12px] text-muted-foreground">
           <span>More:</span>
