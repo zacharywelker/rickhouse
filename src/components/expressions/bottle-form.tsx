@@ -333,7 +333,7 @@ export function BottleFields({
         key={name} spec={labelDate && "help" in field ? { ...field, help: `The label's is ${labelDate}. Leave blank to use it.` } as FieldSpec : field} idPrefix={idPrefix}
         value={values[name] ?? ""} onChange={(next) => onChange(name, next)} error={errors[name]}
         locked={name === "ageStatement" && statementLocked} onUnlock={() => setStatementOpen(true)}
-        onField={() => drawField(spec, true)}
+        onField={() => drawField(spec, true)} suggestions={suggestions?.[name]}
       />
     );
   };
@@ -359,7 +359,14 @@ export function BottleFields({
       </label>
     );
   };
-  const hasValue = (value: unknown) => value !== undefined && value !== null && value !== "" && value !== false && value !== "false";
+  // A row stays closed only when nothing in it will be posted: closed rows are not mounted, so a saved value there would be erased by the next save.
+  // "false" counts for a select (Gin's "not NAS" is a saved answer) but not for a checkbox, where it just means unticked.
+  const hasValue = (name: string) => {
+    const value = values[name];
+    if (value === undefined || value === null || value === "" || value === false) return false;
+    if (value !== "false") return true;
+    return owningSection(name)?.fields.find((field) => field.name === name)?.kind === "select";
+  };
   const renderSheet = () => {
     const rows = BOTTLE_SHEET_ROWS.map((row) => {
       const cells = row.items.map((item) => (item === "@status" ? statusCell() : sheetCell(item)));
@@ -385,7 +392,7 @@ export function BottleFields({
       const differs = item.id === "differs" && !(isGinKind(categoryKind) || fieldGroup === "vodka" || fieldGroup === "amaro" || fieldGroup === "liqueur")
         ? <DeriveAge key="derive" values={values} set={onChange} inherited={labelDates?.[Number(values.expressionId)]} /> : null;
       return [{
-        id: item.id, label, opened: item.fields.some((name, index) => cells[index] !== null && hasValue(values[name])),
+        id: item.id, label, opened: [...item.fields, ...(item.id === "differs" ? ["ageMonths", "ageDays"] : [])].some((name) => hasValue(name)),
         content: <SheetRow label={label}>{cells}{differs}</SheetRow>,
       }];
     });

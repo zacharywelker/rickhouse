@@ -97,3 +97,30 @@ test("the Add bottle page takes the new look: a chosen label's bottle is rows, S
   await save.click();
   await expect(page).toHaveURL(/\/bottles\/\d+(\?.*)?$/);
 });
+
+test("an override that only lives in a closed row survives an unrelated save", async ({ page }) => {
+  // Months alone (no years) used to leave "This bottle differs" closed, and a closed row is not posted.
+  await page.goto("/bottles/1/edit?look=old");
+  await page.locator('input[name="ageMonths"]').fill("7");
+  await page.getByRole("button", { name: "Save bottle", exact: true }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith("/edit"));
+  await page.goto("/bottles/1/edit?look=new");
+  await expect(page.getByRole("button", { name: "Back to the old look", exact: true })).toBeVisible();
+  await expect(page.locator('input[name="ageMonths"]')).toHaveValue("7");
+  await page.getByRole("button", { name: "Save bottle", exact: true }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith("/edit"));
+  await page.goto("/bottles/1/edit?look=old");
+  await expect(page.locator('input[name="ageMonths"]')).toHaveValue("7");
+});
+
+test("text chips offer the history suggestions", async ({ page }) => {
+  // Seed a location through the old look, so there is history to suggest.
+  await page.goto("/bottles/1/edit?look=old");
+  await page.locator('input[name="location"]').fill("Basement shelf 3");
+  await page.getByRole("button", { name: "Save bottle", exact: true }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith("/edit"));
+  await page.goto("/bottles/1/edit?look=new");
+  await expect(page.getByRole("button", { name: "Back to the old look", exact: true })).toBeVisible();
+  await expect(page.locator('input[name="location"]')).toHaveAttribute("list", /suggestions$/);
+  await expect(page.locator('datalist[id$="location-suggestions"] option[value="Basement shelf 3"]')).toHaveCount(1);
+});
