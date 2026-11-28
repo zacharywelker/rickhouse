@@ -60,6 +60,7 @@ import { AgeFields } from "./age-fields";
 import { DeleteExpressionButton } from "./delete-expression-button";
 import { PendingColas } from "./cola-approvals";
 import { RowListEditor } from "./row-list-editor";
+import { VintageDefaultsNote } from "./vintage-defaults-note";
 import { otherNamesRowsText, parseOtherNames } from "@/lib/other-names";
 import type { ReleaseRow } from "@/lib/releases";
 import { withStatementAge } from "@/lib/expressions/whiskey-age";
@@ -955,6 +956,7 @@ export function ExpressionForm({
             removeWarning={(row) => releaseImpact[row.id ?? ""] ?? null}
             error={fieldErrors.releases}
           />
+          <VintageDefaultsNote label={values} />
         </SectionContent>
       </Section> : null}
 

@@ -149,3 +149,10 @@ test("the one-page Add bottle in the new look: search first, then a numbered she
   await page.goto("/bottles/add?look=old");
   await expect(page.getByText("Search everything on the bottle in your hand", { exact: false })).toBeVisible();
 });
+
+test("the vintages editor says what a blank box uses, and the bottle's section is Which one", async ({ page }) => {
+  await page.goto("/expressions/1/edit?look=old");
+  await expect(page.getByText(/A blank box uses the label's: .*proof/)).toBeVisible();
+  await page.goto("/bottles/1/edit?look=old");
+  await expect(page.getByRole("heading", { name: "Which one" })).toBeVisible();
+});
