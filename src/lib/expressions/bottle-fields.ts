@@ -71,7 +71,7 @@ export const BOTTLE_SECTIONS: ReadonlyArray<FormSection> = [
   },
   {
     id: "release",
-    title: "Vintage",
+    title: "Which one",
     description: "What varies bottle to bottle. Single barrels and private selections reveal more fields below.",
     fields: [
       // Shown only when the chosen label has vintages; picking one hides

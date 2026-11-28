@@ -30,6 +30,7 @@ import { SEALED } from "@/components/bottles/opened-level";
 import { PendingColas } from "@/components/expressions/cola-approvals";
 import { RELEASE_COLUMNS } from "@/components/expressions/label-list-columns";
 import { RowListEditor } from "@/components/expressions/row-list-editor";
+import { VintageDefaultsNote } from "@/components/expressions/vintage-defaults-note";
 import { serializeLinks } from "@/components/expressions/ordered-picker";
 import { BOTTLE_FIELDS } from "@/lib/expressions/bottle-fields";
 import { unshownErrors, type FieldError } from "@/lib/forms/unshown-errors";
@@ -525,6 +526,7 @@ export function CatalogBottle({
                   onChange={setVintageRows}
                   {...(errors.label.releases ? { error: errors.label.releases } : {})}
                 />
+                <VintageDefaultsNote label={labelValues} />
               </SectionContent>
             </Section>
           ) : null}
