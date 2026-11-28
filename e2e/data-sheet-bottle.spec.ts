@@ -124,3 +124,28 @@ test("text chips offer the history suggestions", async ({ page }) => {
   await expect(page.locator('input[name="location"]')).toHaveAttribute("list", /suggestions$/);
   await expect(page.locator('datalist[id$="location-suggestions"] option[value="Basement shelf 3"]')).toHaveCount(1);
 });
+
+test("the one-page Add bottle in the new look: search first, then a numbered sheet with the title in the pinned bar", async ({ page }) => {
+  await page.goto("/bottles/add?look=new");
+  await expect(page.getByRole("button", { name: "Back to the old look", exact: true })).toBeVisible();
+  // Search-first, as ever: no Save until a label is chosen or a new one started, and the title is in the bar.
+  await expect(page.getByRole("heading", { level: 1, name: "Add a bottle" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: /1\s*The label/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Save/ })).toHaveCount(0);
+  const search = page.getByRole("combobox", { name: "Find the label" });
+  await search.fill("Zzz Not A Real Label");
+  await page.getByRole("option", { name: /^New label/ }).click();
+  await expect(page.getByRole("heading", { level: 2, name: /1\s*The label.*new, from/ })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: /2\s*The bottle in your hand/ })).toBeVisible();
+  const save = page.getByRole("button", { name: "Save label and bottle", exact: true });
+  await expect(save).toBeVisible();
+  // The title and Save share the pinned bar.
+  const [h1, button] = [await page.getByRole("heading", { level: 1 }).boundingBox(), await save.boundingBox()];
+  expect(Math.abs((h1?.y ?? 0) - (button?.y ?? 999))).toBeLessThan(40);
+  // "Back to search" is in the heading and returns to the search box.
+  await page.getByRole("button", { name: "Back to search", exact: true }).click();
+  await expect(search).toBeVisible();
+  // The old look is untouched: the numbered headings and the trying-out note.
+  await page.goto("/bottles/add?look=old");
+  await expect(page.getByText("Search everything on the bottle in your hand", { exact: false })).toBeVisible();
+});

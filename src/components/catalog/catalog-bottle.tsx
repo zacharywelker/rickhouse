@@ -86,7 +86,12 @@ export function CatalogBottle({
   suggestions,
   releases,
   labelDates,
+  title,
+  note,
 }: {
+  /** The page title and the "trying this out" note: the form draws them, since the new look puts the title in the pinned bar. */
+  title?: string;
+  note?: React.ReactNode;
   labelOptions: Record<string, Option[]>;
   bottleOptions: Record<string, Option[]>;
   categoryGroups: Record<number, FieldGroup>;
@@ -381,11 +386,39 @@ export function CatalogBottle({
     router.refresh();
   };
 
+  /** "1 The label" / "2 The bottle in your hand" as the data sheet draws them: one line, the note inline. */
+  const sheetHeading = (n: string, text: string, sub?: React.ReactNode) => (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <h2 className="text-base font-semibold leading-tight">
+        <span className="mr-1.5 font-sans tabular-nums text-muted-foreground">{n}</span>{text}
+        {sub ? <span className="ml-2 font-sans text-xs font-normal text-muted-foreground">{sub}</span> : null}
+      </h2>
+    </div>
+  );
+  const backToSearchLink = (
+    <button type="button" onClick={backToSearch} className="text-foreground underline underline-offset-2 hover:no-underline">Back to search</button>
+  );
+  const newLabelSub = (
+    <>
+      · {query.trim() !== "" ? <>new, from &ldquo;{query.trim()}&rdquo;</> : "a blank label"}
+      {query.trim() !== "" && guess.brandId === null && !search?.code ? " (no brand on file matched, so choose or create it below)" : null}
+      {" · "}{backToSearchLink}
+    </>
+  );
+
   return (
+    <>
+    {title && !sheetLook ? (
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="text-3xl text-accent">{title}</h1>
+        {note}
+      </div>
+    ) : null}
     <form ref={formRef} onSubmit={submit} className="flex flex-col gap-8" noValidate>
-      {/* A new label's form carries the switch itself; a chosen label shows only the bottle's fields, so the switch is here. */}
-      {phase.kind === "existing" && !phase.editing ? <NewLookToggle /> : null}
+      {/* A new label's form carries the switch itself; the search start and a chosen label show no label form, so the switch is here. */}
+      {phase.kind === "search" || (phase.kind === "existing" && !phase.editing) ? <NewLookToggle /> : null}
       <Section>
+        {sheetLook ? sheetHeading("1", "The label", phase.kind === "search" ? "· search everything on the bottle in your hand: brand, name, distillery, a barcode, or a TTB ID" : phase.kind === "new" ? newLabelSub : undefined) : (
         <SectionHeader>
           <SectionTitle>
             <span className="mr-2 tabular-nums text-muted-foreground">1</span>The label
@@ -398,6 +431,7 @@ export function CatalogBottle({
                 : "The product this bottle is. Its specs are shared by every bottle of it."}
           </SectionDescription>
         </SectionHeader>
+        )}
         <SectionContent>
           {phase.kind === "search" ? (
             <div className="relative">
@@ -426,7 +460,7 @@ export function CatalogBottle({
             />
           ) : null}
 
-          {phase.kind === "new" ? (
+          {phase.kind === "new" && !sheetLook ? (
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-sm text-muted-foreground">
                 {query.trim() !== "" ? (
@@ -447,7 +481,7 @@ export function CatalogBottle({
       </Section>
 
       {phase.kind === "new" || (phase.kind === "existing" && phase.editing) ? (
-        <div className="flex flex-col gap-6 border-l-2 border-border pl-4 sm:pl-6">
+        <div className={cn("flex flex-col gap-6", !sheetLook && "border-l-2 border-border pl-4 sm:pl-6")}>
           <ExpressionFields
             values={labelValues}
             onChange={(name, value) =>
@@ -515,9 +549,11 @@ export function CatalogBottle({
       ) : (
         <>
           <div className="flex flex-col gap-6">
-            <h2 className="text-2xl leading-tight tracking-tight">
-              <span className="mr-2 tabular-nums text-muted-foreground">2</span>The bottle in your hand
-            </h2>
+            {sheetLook ? sheetHeading("2", "The bottle in your hand") : (
+              <h2 className="text-2xl leading-tight tracking-tight">
+                <span className="mr-2 tabular-nums text-muted-foreground">2</span>The bottle in your hand
+              </h2>
+            )}
             <BottleFields
               // The label is chosen above, not a field here, so the release list is keyed by it.
               values={phase.kind === "existing" ? { ...bottleValues, expressionId: String(phase.label.id) } : { ...bottleValues, expressionId: String(NEW_LABEL) }}
@@ -602,7 +638,9 @@ export function CatalogBottle({
         </p>
       ) : null}
 
-      <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end", sheetLook && "order-first sticky top-0 z-30 -mx-1 border-b border-border bg-background/95 px-1 py-2")}>
+      <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end", sheetLook && "order-first sticky top-0 z-30 -mx-1 border-b border-border bg-background/95 px-1 py-2 sm:justify-between")}>
+        {sheetLook && title ? <h1 className="text-2xl font-semibold leading-none">{title}</h1> : null}
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
         {popup ? (
           <Button type="button" variant="outline" onClick={popup.close}>
             Cancel
@@ -618,8 +656,10 @@ export function CatalogBottle({
             {phase.kind === "new" ? "Save label and bottle" : "Save bottle"}
           </Button>
         ) : null}
+        </div>
       </div>
     </form>
+    </>
   );
 }
 
