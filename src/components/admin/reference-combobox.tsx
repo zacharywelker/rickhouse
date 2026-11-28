@@ -52,6 +52,8 @@ type Props = {
   chip?: boolean | "bar";
   /** With `chip`: the colour of a small square before the value (the category's), which also makes the trigger a chip rather than a box. */
   swatch?: string | undefined;
+  /** With `chip` and no swatch: a dim name before the value, so the trigger reads as a labelled chip ("Store Seelbach's"). */
+  chipLabel?: string | undefined;
 };
 
 /**
@@ -82,6 +84,7 @@ export function ReferenceCombobox({
   brand,
   chip = false,
   swatch,
+  chipLabel,
 }: Props) {
   const searchPlaceholder = placeholder ?? (resource === null ? "Search…" : "Search or create…");
   const [open, setOpen] = React.useState(false);
@@ -148,13 +151,14 @@ export function ReferenceCombobox({
               aria-expanded={open}
               className={cn(
                 chip === "bar" ? "h-full flex-1 justify-start gap-1 border-0 bg-transparent px-0 text-[12px] font-normal text-muted-foreground hover:bg-transparent hover:text-foreground"
-                  : chip && swatch ? "h-[25px] flex-none justify-between gap-1.5 border-foreground bg-card px-2 text-[12px] font-semibold"
+                  : chip && (swatch || chipLabel) ? "h-[25px] flex-none justify-between gap-1.5 border-foreground bg-card px-2 text-[12px] font-semibold"
                   : chip ? "h-7 w-[130px] flex-none justify-between gap-1 border-foreground bg-card px-[7px] text-[13px] font-medium"
                   : "h-10 flex-1 justify-between font-normal",
                 !selected && "text-muted-foreground",
                 invalid && "border-destructive",
               )}
             >
+              {chip && chipLabel && !swatch ? <span className="font-normal text-muted-foreground">{chipLabel}</span> : null}
               {chip && swatch && selected ? <span aria-hidden="true" className="size-2.5 shrink-0 border border-foreground" style={{ backgroundColor: swatch }} /> : null}
               <span className="truncate">{selected ? selected.label : searchPlaceholder}</span>
               {chip === "bar" ? null : <ChevronsUpDown className={chip ? "size-3 shrink-0 opacity-60" : "size-4 shrink-0 opacity-50"} />}

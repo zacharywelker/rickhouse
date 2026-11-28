@@ -127,7 +127,7 @@ export function ChipField({ spec, idPrefix, value, onChange, error, locked = fal
             if (String(value ?? "") === "") setOpened(false);
           }}
           placeholder={"placeholder" in spec ? spec.placeholder : undefined}
-          {...(bare ? { "aria-label": spec.label } : {})}
+          aria-label={spec.label}
           readOnly={locked} aria-readonly={locked || undefined} title={locked ? "Triple-click to edit" : undefined}
           onClick={locked && onUnlock ? (event) => event.detail >= 3 && onUnlock() : undefined}
           aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}

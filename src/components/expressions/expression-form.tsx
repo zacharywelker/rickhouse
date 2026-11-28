@@ -829,6 +829,7 @@ export function ExpressionForm({
 
   const action = saveExpressionAction.bind(null, expressionId);
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(action, IDLE_RESULT);
+  const sheetLook = useNewLook();
 
   // A new label's photo, held until the label exists: the photo route needs its id.
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
@@ -978,7 +979,7 @@ export function ExpressionForm({
         </p>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+      <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end", sheetLook && "order-first sticky top-0 z-30 -mx-1 border-b border-border bg-background/95 px-1 py-2")}>
         {expressionId ? (
           <div className="sm:mr-auto">
             <DeleteExpressionButton expressionId={expressionId} name={String(values.name ?? "This label")} />

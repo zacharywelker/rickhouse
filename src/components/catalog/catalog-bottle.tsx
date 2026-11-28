@@ -2,6 +2,8 @@
 
 import { formatSize } from "@/lib/expressions/sizes";
 import * as React from "react";
+import { cn } from "@/lib/utils";
+import { NewLookToggle, useNewLook } from "@/components/sheet/use-new-look";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -307,6 +309,7 @@ export function CatalogBottle({
 
   // --- Saving -----------------------------------------------------------------
   const [saving, setSaving] = React.useState(false);
+  const sheetLook = useNewLook();
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -380,6 +383,8 @@ export function CatalogBottle({
 
   return (
     <form ref={formRef} onSubmit={submit} className="flex flex-col gap-8" noValidate>
+      {/* A new label's form carries the switch itself; a chosen label shows only the bottle's fields, so the switch is here. */}
+      {phase.kind === "existing" && !phase.editing ? <NewLookToggle /> : null}
       <Section>
         <SectionHeader>
           <SectionTitle>
@@ -597,7 +602,7 @@ export function CatalogBottle({
         </p>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+      <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end", sheetLook && "order-first sticky top-0 z-30 -mx-1 border-b border-border bg-background/95 px-1 py-2")}>
         {popup ? (
           <Button type="button" variant="outline" onClick={popup.close}>
             Cancel
