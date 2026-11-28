@@ -37,26 +37,26 @@ export default async function CatalogBottlePage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-3xl text-accent">Add a bottle</h1>
-        {!preferences.searchFirstAdd ? (
-          <p className="text-sm text-muted-foreground">
-            Trying this out.{" "}
-            <Link href="/admin" className="text-primary underline underline-offset-2 hover:no-underline">
-              Make it your Add bottle
-            </Link>{" "}
-            or{" "}
-            <Link
-              href={initialLabel ? `/bottles/new?expression=${initialLabel.id}` : "/bottles/new"}
-              className="text-primary underline underline-offset-2 hover:no-underline"
-            >
-              use the usual form
-            </Link>
-            .
-          </p>
-        ) : null}
-      </div>
       <CatalogBottle
+        title="Add a bottle"
+        note={
+          !preferences.searchFirstAdd ? (
+            <p className="text-sm text-muted-foreground">
+              Trying this out.{" "}
+              <Link href="/admin" className="text-primary underline underline-offset-2 hover:no-underline">
+                Make it your Add bottle
+              </Link>{" "}
+              or{" "}
+              <Link
+                href={initialLabel ? `/bottles/new?expression=${initialLabel.id}` : "/bottles/new"}
+                className="text-primary underline underline-offset-2 hover:no-underline"
+              >
+                use the usual form
+              </Link>
+              .
+            </p>
+          ) : null
+        }
         labelOptions={options}
         bottleOptions={{ storeId: stores }}
         categoryGroups={categoryGroups}
